@@ -36,7 +36,8 @@ exeRunQuery (void *code)
     int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
 	// replace \n with new line in format string
-	format = replaceSubstr(format, "\\n", "\n");
+	if (format != NULL)
+		format = replaceSubstr(format, "\\n", "\n");
 
 	if (getBoolOption(OPTION_INPUTDB))
 	{

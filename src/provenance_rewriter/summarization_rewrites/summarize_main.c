@@ -98,8 +98,19 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 
 	HashMap *varRelPair = NULL;
 
+	// reset global variables
+	provAttrs = NIL;
+	provAttrs = NIL;
+	normAttrs = NIL;
+	userQuestion = NIL;
+	origDataTypes = NIL;
+	givenConsts = NIL;
+	isDL = FALSE;
+	
+
 	if (summOpts != NULL)
 	{
+	    INFO_LOG(" * do summarization rewrite");
 	    FOREACH_HASH_ENTRY(n,summOpts)
 		{
 	        KeyValue *kv = (KeyValue *) n;
@@ -184,6 +195,18 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 		}
 	}
 
+	DEBUG_LOG("summarization options are: qType: %s, fPattern: %s, summaryType: %s, topK: %u, sPrecision: %f, sRecall: %f, sInfo: %f, thPrecision: %f, thRecall: %f, thInfo: %f",
+			  ProvQuestionToString(qType),
+			  nodeToString(fPattern),
+			  summaryType ? summaryType :"",
+			  topK,
+			  sPrecision,
+			  sRecall,
+			  sInfo,
+			  thPrecision,
+			  thRecall,
+			  thInfo);
+		
 	/*
 	 * store edge relation in separate
 	 * TODO: not safe to check whether input comes from dl or SQL
@@ -192,7 +215,8 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 
 	if(isA(rewrittenTree,List))
 	{
-		if(isA(getHeadOfListP((List *) rewrittenTree), DuplicateRemoval))
+		if(MAP_HAS_STRING_KEY(summOpts, PROP_SUMMARIZATION_IS_DL))
+		/* if(isA(getHeadOfListP((List *) rewrittenTree), DuplicateRemoval)) */
 		{
 			isDL = TRUE;
 			moveRels = (Node *) getTailOfListP((List *) rewrittenTree);

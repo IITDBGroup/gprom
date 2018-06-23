@@ -427,8 +427,8 @@ provStmt:
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $3;
             p->options = CONCAT_LISTS(singleton($1),$4,$9,$10,
-									  singleton(createNodeKeyValue(createConstString(PROP_SUMMARIZATION_DOSUM),
-															   createConstBool(TRUE))));
+									  singleton(createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_DOSUM),
+																   (Node *) createConstBool(TRUE))));
            	/* p->sumOpts = appendToTailOfList(p->sumOpts,$1); */
            	/* p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10); */
             $$ = (Node *) p;

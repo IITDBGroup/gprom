@@ -61,6 +61,7 @@ static Node *replaceVarWithAttrRef(Node *node, List *context);
 //List *dRules = NIL;
 //List *origProg = NIL;
 boolean provQ = FALSE;
+static List *negBoolDone = NIL;
 
 
 Node *
@@ -69,8 +70,15 @@ translateParseDL(Node *q)
     Node *result = NULL;
     DLProgram *p = (DLProgram *) q;
     char *ans = p->ans;
-    boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM);
+    boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM) && !IS_GP_PROV(p);
+	ProvQuestion qType = PROV_Q_WHY;
+	HashMap *props = copyObject(p->n.properties);
 
+//
+	
+	if(doSumm)
+		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
+	
     // check if ans exists
     if(ans != NULL)
     	provQ = TRUE;
@@ -101,16 +109,18 @@ translateParseDL(Node *q)
     else if (IS_OP(result))
     {
         introduceCastsWhereNecessary((QueryOperator *) result);
-        if (doSumm)
-        {
-            ProvQuestion qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_TYPE));
-
-            result = rewriteSummaryOutput(result, p->n.properties, qType);
-        }
         ASSERT(checkModel((QueryOperator *) result));
     }
     INFO_OP_LOG("translated DL model:\n", result);
 
+	if (doSumm)
+	{
+		DEBUG_LOG("add relational algebra summarization code");
+		MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
+		result = rewriteSummaryOutput(result, props, qType);
+		INFO_OP_LOG("translated DL model with summarization:\n", result);
+	}
+	
     return result;
 }
 
@@ -582,12 +592,21 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
             int i = 0;
             FOREACH(Node,arg,a->args)
             {
-                if (isA(arg, DLVar))
+                if(isA(arg, DLVar))
                 {
                     DLVar *v = (DLVar *) arg;
                     MAP_ADD_STRING_KEY(varToDT, v->name,
                             createConstInt(getNthOfListInt(dts, i)));
                 }
+
+                if(isA(arg, Operator))
+                {
+                	Operator *o = (Operator *) arg;
+                	DLVar *v = (DLVar *) getHeadOfListP(o->args);
+                    MAP_ADD_STRING_KEY(varToDT, v->name,
+                            createConstInt(getNthOfListInt(dts, i)));
+                }
+
                 i++;
             }
         }
@@ -598,11 +617,24 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
 //    setVarDTs((Node *) r->head->args, varToDT);
     setVarDTs((Node *) r, varToDT);
 
+    // deal with negated boolean arg for dts
+    List *headArgs = NIL;
     FOREACH(Node,arg,r->head->args)
+    {
+    	if(isA(arg, Operator))
+    	{
+    		Operator *o = (Operator *) arg;
+    		headArgs = appendToTailOfList(headArgs, (Node *) getHeadOfListP(o->args));
+    	}
+    	else
+    		headArgs = appendToTailOfList(headArgs, arg);
+    }
+
+    FOREACH(Node,arg,headArgs)
         headDTs = appendToTailOfListInt(headDTs, typeOf(arg));
 
     setDLProp((DLNode *) r->head, DL_PRED_DTS, (Node *) headDTs);
-    MAP_ADD_STRING_KEY(predToDTs, r->head->rel, headDTs );
+    MAP_ADD_STRING_KEY(predToDTs, r->head->rel, headDTs);
 }
 
 static void
@@ -610,8 +642,30 @@ setVarDTs (Node *expr, HashMap *varToDT)
 {
     List *vars = getDLVarsIgnoreProps (expr);
 //    List *vars = getDLVars (expr);
-    FOREACH(DLVar,v,vars)
-    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+
+//	if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(Node,n,vars)
+//		{
+//			DLVar *v;
+//
+//			if(isA(n,DLVar))
+//				v = (DLVar *) n;
+//
+//			if(isA(n,Operator))
+//			{
+//				Operator *o = (Operator *) n;
+//				v = (DLVar *) getHeadOfListP(o->args);
+//			}
+//
+//	    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+//		}
+//	}
+//	else
+//	{
+	    FOREACH(DLVar,v,vars)
+	    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+//	}
 }
 
 static QueryOperator *
@@ -830,7 +884,26 @@ translateSafeRule(DLRule *r)
     List *projExprs = NIL;
     List *headNames = NIL;
 
-    projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
+//    if (getBoolOption(OPTION_WHYNOT_ADV))
+//    {
+//        // gather body args from positive goals first, then negated
+//        List *bodyArgs = NIL;
+//
+//        FOREACH(DLAtom,a,r->body)
+//        	if(!a->negated)
+//        		bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
+//
+//        FOREACH(DLAtom,a,r->body)
+//    		if(a->negated)
+//    			bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
+//
+//        projExprs = getHeadProjectionExprs(r->head, joinedGoals, bodyArgs);
+//    }
+//    else
+//    {
+        projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
+//    }
+
     int i = 0;
 
 ////    FOREACH(Node,p,projExprs)
@@ -977,17 +1050,33 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
     {
         FORBOTH(Node,bA,a,bodyArgs,joinedGoals->schema->attrDefs)
         {
-            if (isA(bA, DLVar))
+            if (isA(bA, DLVar) || isA(bA, Operator))
             {
-                DLVar *v = (DLVar *) bA;
-                AttributeDef *d = (AttributeDef *) a;
+                DLVar *v = NULL;
 
-                if(streq(v->name,d->attrName))
+                if(isA(bA, DLVar))
+                	v = (DLVar *) bA;
+
+                if(isA(bA, Operator))
                 {
-					MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
-										createConstString(d->attrName),
-										createConstInt(pos),
-										createConstInt(d->dataType)));
+                	Operator *o = (Operator *) bA;
+                	Node *n = (Node *) getHeadOfListP(o->args);
+
+                	if(isA(n, DLVar))
+                		v = (DLVar *) n;
+                }
+
+                if(v != NULL)
+                {
+                    AttributeDef *d = (AttributeDef *) a;
+
+                    if(streq(v->name,d->attrName))
+                    {
+    					MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+    										createConstString(d->attrName),
+    										createConstInt(pos),
+    										createConstInt(d->dataType)));
+                    }
                 }
             }
 
@@ -1021,7 +1110,32 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
 
     FOREACH(Node,a,headArgs)
     {
+    	boolean isNegBool = FALSE;
+
+    	if(isA(a,Operator) && typeOf(a) == DT_BOOL)
+    		isNegBool = TRUE;
+
         Node *newA = replaceDLVarMutator(a, vToA);
+
+        if(isNegBool)
+        {
+        	AttributeReference *ar = (AttributeReference *) newA;
+
+        	if(!searchListString(negBoolDone,ar->name))
+        		newA = (Node *) createOpExpr("not", LIST_MAKE(newA));
+
+        	/*
+        	 *  only at first appearance, keep it as an operator expression for neg-bool
+        	 *  otherwise, the boolean value will keep switch by CASE WHEN clause
+        	 */
+
+    		Operator *o = (Operator *) a;
+    		DLVar *dv = (DLVar *) getHeadOfListP(o->args);
+
+    		if(!searchListString(negBoolDone,dv->name))
+    			negBoolDone = appendToTailOfList(negBoolDone, dv->name);
+        }
+
         projExprs = appendToTailOfList(projExprs, newA);
     }
 
@@ -1034,17 +1148,33 @@ replaceDLVarMutator (Node *node, HashMap *vToA)
     if (node == NULL)
         return node;
 
-    if (isA(node, DLVar))
+    if (isA(node, DLVar) || isA(node, Operator))
     {
         AttributeReference *a;
-        char *hV = ((DLVar *) node)->name;
-        List *l = (List *) MAP_GET_STRING(vToA, hV);
-        char *name = STRING_VALUE(getNthOfListP(l,0));
-        int pos = INT_VALUE(getNthOfListP(l,1));
-        DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
+        char *hV = NULL;
 
-        a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
-        return (Node *) a;
+        if(isA(node, DLVar))
+        	hV = ((DLVar *) node)->name;
+
+        if(isA(node, Operator))
+        {
+        	Operator *o = (Operator *) node;
+			Node *n = (Node *) getHeadOfListP(o->args);
+
+			if(isA(n, DLVar))
+				hV = ((DLVar *) n)->name;
+        }
+
+        if(hV != NULL)
+        {
+            List *l = (List *) MAP_GET_STRING(vToA, hV);
+            char *name = STRING_VALUE(getNthOfListP(l,0));
+            int pos = INT_VALUE(getNthOfListP(l,1));
+            DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
+
+            a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
+            return (Node *) a;
+        }
     }
 
     return mutate(node, replaceDLVarMutator, vToA);
@@ -1542,143 +1672,11 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //						addParent(oldD, dom);
 //					}
 //				}
-//
-//
-////				if(LIST_LENGTH(unionList) == 0 && LIST_LENGTH(transList) == 0)
-////					FATAL_LOG("No translated rules for associate domains.");
-////				else
-////				{
-////					// make unions if exist
-////					// TODO: how to union for the different group, e.g., DQ occurs multiple times and DQ1 occurs multiple times
-////					if(LIST_LENGTH(unionList) != 0)
-////					{
-////						dQuery = (QueryOperator *) getNthOfListP(unionList,0);
-////
-////						for(int i = 1; i < LIST_LENGTH(unionList); i++)
-////						{
-////							QueryOperator *uDom = (QueryOperator *) getNthOfListP(unionList,i);
-////							QueryOperator *oldUd = dQuery;
-////
-////							dQuery = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(dQuery,uDom), NIL, getQueryOperatorAttrNames(uDom));
-////
-////							addParent(uDom, dQuery);
-////							addParent(oldUd, dQuery);
-////						}
-////
-////						dom = dQuery;
-////						domainAttrs = singleton("D");
-////					}
-////
-////					// create domain combination
-////					if(LIST_LENGTH(transList) != 0)
-////					{
-////						int addAttr = numAttrs - LIST_LENGTH(transList);
-////
-////						// compute Domain X Domain X ... X Domain number of attributes of goal relation R times
-////						// then return (Domain X Domain X ... X Domain) - R
-////						if(addAttr == 0)
-////						{
-////							dom = (QueryOperator *) getNthOfListP(transList,0);
-////							domainAttrs = singleton("D");
-////
-////							for(int i = 1; i < LIST_LENGTH(transList); i++)
-////							{
-////								char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
-////								QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
-////								QueryOperator *oldD = dom;
-////
-////								domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-////								dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-////										LIST_MAKE(dom, aDom), NULL,
-////										domainAttrs);
-////
-////								addParent(aDom, dom);
-////								addParent(oldD, dom);
-////							}
-////						}
-////						else
-////						{
-////							if (unionList == NIL)
-////							{
-////								//TODO: how to figure out which translated domain should be repeated
-////								dom = (QueryOperator *) getNthOfListP(transList,0);
-////								domainAttrs = singleton("D");
-////
-////								for(int i = 0; i < LIST_LENGTH(transList); i++)
-////								{
-////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+1));
-////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
-////									QueryOperator *oldD = dom;
-////
-////									domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-////									dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-////											LIST_MAKE(dom, aDom), NULL,
-////											domainAttrs);
-////
-////									addParent(aDom, dom);
-////									addParent(oldD, dom);
-////								}
-////							}
-////							else
-////							{
-////								for(int i = 1; i < addAttr; i++)
-////								{
-////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
-////									QueryOperator *aDom = dom;
-////									QueryOperator *oldD = dom;
-////
-////									domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-////									dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-////											LIST_MAKE(dom, aDom), NULL,
-////											domainAttrs);
-////
-////									addParent(aDom, dom);
-////									addParent(oldD, dom);
-////								}
-////
-//////								dom = (QueryOperator *) getNthOfListP(transList,0);
-//////								domainAttrs = singleton("D");
-////
-////								for(int i = 0; i < LIST_LENGTH(transList); i++)
-////								{
-////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+2));
-////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
-////									QueryOperator *oldD = dom;
-////
-////									domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-////									dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-////											LIST_MAKE(dom, aDom), NULL,
-////											domainAttrs);
-////
-////									addParent(aDom, dom);
-////									addParent(oldD, dom);
-////								}
-////							}
-////						}
-////					}
-////					else
-////					{
-////						// compute Domain X Domain X ... X Domain number of attributes of goal relation R times
-////						// then return (Domain X Domain X ... X Domain) - R
-////						for(int i = 1; i < numAttrs; i++)
-////						{
-////							char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
-////							QueryOperator *aDom = dom;
-////							QueryOperator *oldD = dom;
-////
-////							domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-////							dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-////									LIST_MAKE(dom, aDom), NULL,
-////									domainAttrs);
-////
-////							addParent(aDom, dom);
-////							addParent(oldD, dom);
-////						}
-////					}
-////				}
 //			}
 //			else // if associate domain does not exist, then use previous method
 //            {
+
+
         	    // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
                 // then return (Domain X Domain X ... X Domain) - R
                 dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
@@ -1954,364 +1952,6 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //					}
 ////            	}
 //            }
-//
-////        	if (associateDomain && LIST_LENGTH(dRules) > 0) // use associate domains if exist
-////			{
-////				atomRel = r->rel;
-////
-////				//TODO: find better way to do replace string to get only edb relation name
-////				char *edbRel = atomRel;
-////				char *find = "R";
-////				char *replace = "";
-////
-////				for(int i = 0; i < 3; i++)
-////				{
-////					if(i == 1) find = "_WON";
-////					else if (i == 2) find = "_nonlinked";
-////
-////					char *dest = MALLOC(strlen(edbRel)-strlen(find)+strlen(replace)+1);
-////					char *ptr;
-////
-////					strcpy (dest, edbRel);
-////					ptr = strstr (dest, find);
-////
-////					if (ptr)
-////					{
-////						memmove (ptr+strlen(replace), ptr+strlen(find), strlen(ptr+strlen(find))+1);
-////						strncpy (ptr, replace, strlen(replace));
-////					}
-////
-////					edbRel = dest;
-////				}
-////
-////				HashMap *analyzeAtom = NEW_MAP(Constant,List);
-////
-////				List *origHead = NIL;
-////				FOREACH(DLRule,h,origProg)
-////					origHead = appendToTailOfList(origHead,h->head->rel);
-////
-////				// collect actual attribute name from table
-////				// TODO: find the better way to collect the information, i.e., which variable corresponds to which attribute
-////				if(!searchListString(origHead,edbRel))
-////				{
-////					ordAttr = getAttributeNames(edbRel);
-////
-////					// store attr name and rel name as key and value pairs
-////					for(int i = 0; i < numAttrs; i++)
-////					{
-////						char *atomAttr = (char *) getNthOfListP(ordAttr,i);
-////						ADD_TO_MAP(analyzeAtom,createStringKeyValue(atomAttr,edbRel));
-////					}
-////				}
-////				else
-////				{
-//////					if(!typeTransConst && typeTransVar) // only variables exist
-//////					{
-////						int varPosition = -1;
-//////						int progPos = 0;
-////
-////						FOREACH(DLRule,h,origProg)
-////						{
-//////							progPos++;
-////
-////							if(strcmp(h->head->rel,edbRel) == 0)
-////							{
-////								FOREACH(DLAtom,a,h->body)
-////								{
-////	//								boolean edbAtom = DL_HAS_PROP(a,DL_IS_EDB_REL);
-////
-////									for(int i = 0; i < LIST_LENGTH(h->head->args); i++)
-////									{
-////										if(LIST_LENGTH(h->head->args) < LIST_LENGTH(a->args))
-////										{
-//////											if(progPos == 1)
-//////											{
-////												if(searchListString(a->args,(char *) getNthOfListP(h->head->args,i)))
-////												{
-////													edbRel = a->rel;
-////													varPosition = i;
-////
-////													char *atomAttr = (char *) getNthOfListP(ordAttr,varPosition);
-////													ADD_TO_MAP(analyzeAtom,createStringKeyValue(atomAttr,edbRel));
-////												}
-//////											}
-////										}
-////										else if(varPosition != -1)
-////										{
-////											edbRel = a->rel;
-////											char *atomAttr = (char *) getNthOfListP(ordAttr,varPosition);
-////											ADD_TO_MAP(analyzeAtom,createStringKeyValue(atomAttr,edbRel));
-////										}
-////										else
-////										{
-////											if(searchListString(a->args,(char *) getNthOfListP(h->head->args,i)))
-////											{
-////												edbRel = a->rel;
-////												char *atomAttr = (char *) getNthOfListP(ordAttr,i);
-////												ADD_TO_MAP(analyzeAtom,createStringKeyValue(atomAttr,edbRel));
-////											}
-////										}
-////									}
-////								}
-////							}
-////						}
-//////					}
-//////
-//////					if(typeTransConst && !typeTransVar) // only constants exist
-//////					{
-//////						FOREACH(DLRule,h,origProg)
-//////						{
-//////							if(strcmp(h->head->rel,edbRel) == 0)
-//////							{
-//////								FOREACH(DLAtom,a,h->body)
-//////								{
-//////									for(int i = 0; i < LIST_LENGTH(h->head->args); i++)
-//////									{
-//////										if(searchListString(a->args,(char *) getNthOfListP(h->head->args,i)))
-//////										{
-//////											edbRel = a->rel;
-//////											char *atomAttr = (char *) getNthOfListP(ordAttr,i);
-//////											ADD_TO_MAP(analyzeAtom,createStringKeyValue(atomAttr,edbRel));
-//////										}
-//////									}
-//////								}
-//////							}
-//////						}
-//////					}
-////				}
-////
-////				// put domain rules in the order
-////				List *ordDomList = NIL;
-////				for(int i = 0; i < LIST_LENGTH(ordAttr); i++)
-////				{
-////					FOREACH(DLDomain,d,dlDom)
-////						if(strcmp(d->attr,(char *) getNthOfListP(ordAttr,i)) == 0)
-////							ordDomList = appendToTailOfList(ordDomList,d);
-////				}
-////
-////				// match key value pairs with associate domain
-////				List *transList = NIL;
-//////				List *domTrans = NIL;
-////
-////				QueryOperator *dQuery;
-////				List *domainAttrs = NIL;
-////
-//////				if (LIST_LENGTH(ordDomList) < mapSize(analyzeAtom))
-//////					FATAL_LOG("No associate domain that is required has not been assigned.");
-////
-////				FOREACH(DLDomain,d,ordDomList)
-////				{
-////					if(MAP_HAS_STRING_KEY(analyzeAtom,d->attr) &&
-////							strcmp(exprToSQL(MAP_GET_STRING(analyzeAtom,d->attr)),CONCAT_STRINGS("'",d->rel,"'")) == 0)
-//////					if(MAP_HAS_STRING_KEY(analyzeAtom,d->attr))
-////					{
-////						List *unionList = NIL;
-////						for(int i = 0; i < LIST_LENGTH(dRules); i++)
-////						{
-////							DLAtom *headAtom = ((DLRule *) getNthOfListP(dRules,i))->head;
-////							char *dHead = headAtom->rel;
-////
-//////							if(strcmp(dHead,d->name) == 0 && !searchList(domTrans,getNthOfListP(dRules,i)))
-////							if(strcmp(dHead,d->name) == 0)
-////							{
-////								dTransRule = translateRule((DLRule *) getNthOfListP(dRules,i));
-////
-////								// if another head atom exist in the list of domain rules, then store it for union later
-////								int numOfUnion = 0;
-////								FOREACH(DLRule,d,dRules)
-////									if(strcmp(d->head->rel,dHead) == 0)
-////										numOfUnion++;
-////
-////								if(numOfUnion - 1 > 0)
-////									unionList = appendToTailOfList(unionList,dTransRule);
-////								else
-////									transList = appendToTailOfList(transList,dTransRule);
-////
-//////								// check domain rule has been translated
-//////								domTrans = appendToTailOfList(domTrans,getNthOfListP(dRules,i));
-////							}
-////						}
-////
-////						if(LIST_LENGTH(unionList) != 0)
-////						{
-////							dQuery = (QueryOperator *) getNthOfListP(unionList,0);
-////
-////							for(int i = 1; i < LIST_LENGTH(unionList); i++)
-////							{
-////								QueryOperator *uDom = (QueryOperator *) getNthOfListP(unionList,i);
-////								QueryOperator *oldUd = dQuery;
-////
-////								dQuery = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(dQuery,uDom), NIL, getQueryOperatorAttrNames(uDom));
-////
-////								addParent(uDom, dQuery);
-////								addParent(oldUd, dQuery);
-////							}
-////
-////							transList = appendToTailOfList(transList,dQuery);
-////						}
-////					}
-////				}
-////
-////				if(transList == NIL)
-////					FATAL_LOG("No translated rules for associate domains.");
-////				else
-////				{
-////					// compute Domain X Domain X ... X Domain number of attributes of goal relation R times
-////					// then return (Domain X Domain X ... X Domain) - R
-////
-////					dom = (QueryOperator *) getNthOfListP(transList,0);
-////					domainAttrs = singleton("D");
-////
-////					for(int i = 1; i < LIST_LENGTH(transList); i++)
-////					{
-////						char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
-////						QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
-////						QueryOperator *oldD = dom;
-////
-////						domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-////						dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-////								LIST_MAKE(dom, aDom), NULL,
-////								domainAttrs);
-////
-////						addParent(aDom, dom);
-////						addParent(oldD, dom);
-////					}
-////				}
-////
-////
-//////				if(LIST_LENGTH(unionList) == 0 && LIST_LENGTH(transList) == 0)
-//////					FATAL_LOG("No translated rules for associate domains.");
-//////				else
-//////				{
-//////					// make unions if exist
-//////					// TODO: how to union for the different group, e.g., DQ occurs multiple times and DQ1 occurs multiple times
-//////					if(LIST_LENGTH(unionList) != 0)
-//////					{
-//////						dQuery = (QueryOperator *) getNthOfListP(unionList,0);
-//////
-//////						for(int i = 1; i < LIST_LENGTH(unionList); i++)
-//////						{
-//////							QueryOperator *uDom = (QueryOperator *) getNthOfListP(unionList,i);
-//////							QueryOperator *oldUd = dQuery;
-//////
-//////							dQuery = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(dQuery,uDom), NIL, getQueryOperatorAttrNames(uDom));
-//////
-//////							addParent(uDom, dQuery);
-//////							addParent(oldUd, dQuery);
-//////						}
-//////
-//////						dom = dQuery;
-//////						domainAttrs = singleton("D");
-//////					}
-//////
-//////					// create domain combination
-//////					if(LIST_LENGTH(transList) != 0)
-//////					{
-//////						int addAttr = numAttrs - LIST_LENGTH(transList);
-//////
-//////						// compute Domain X Domain X ... X Domain number of attributes of goal relation R times
-//////						// then return (Domain X Domain X ... X Domain) - R
-//////						if(addAttr == 0)
-//////						{
-//////							dom = (QueryOperator *) getNthOfListP(transList,0);
-//////							domainAttrs = singleton("D");
-//////
-//////							for(int i = 1; i < LIST_LENGTH(transList); i++)
-//////							{
-//////								char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
-//////								QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
-//////								QueryOperator *oldD = dom;
-//////
-//////								domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-//////								dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-//////										LIST_MAKE(dom, aDom), NULL,
-//////										domainAttrs);
-//////
-//////								addParent(aDom, dom);
-//////								addParent(oldD, dom);
-//////							}
-//////						}
-//////						else
-//////						{
-//////							if (unionList == NIL)
-//////							{
-//////								//TODO: how to figure out which translated domain should be repeated
-//////								dom = (QueryOperator *) getNthOfListP(transList,0);
-//////								domainAttrs = singleton("D");
-//////
-//////								for(int i = 0; i < LIST_LENGTH(transList); i++)
-//////								{
-//////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+1));
-//////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
-//////									QueryOperator *oldD = dom;
-//////
-//////									domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-//////									dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-//////											LIST_MAKE(dom, aDom), NULL,
-//////											domainAttrs);
-//////
-//////									addParent(aDom, dom);
-//////									addParent(oldD, dom);
-//////								}
-//////							}
-//////							else
-//////							{
-//////								for(int i = 1; i < addAttr; i++)
-//////								{
-//////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
-//////									QueryOperator *aDom = dom;
-//////									QueryOperator *oldD = dom;
-//////
-//////									domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-//////									dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-//////											LIST_MAKE(dom, aDom), NULL,
-//////											domainAttrs);
-//////
-//////									addParent(aDom, dom);
-//////									addParent(oldD, dom);
-//////								}
-//////
-////////								dom = (QueryOperator *) getNthOfListP(transList,0);
-////////								domainAttrs = singleton("D");
-//////
-//////								for(int i = 0; i < LIST_LENGTH(transList); i++)
-//////								{
-//////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+2));
-//////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
-//////									QueryOperator *oldD = dom;
-//////
-//////									domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-//////									dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-//////											LIST_MAKE(dom, aDom), NULL,
-//////											domainAttrs);
-//////
-//////									addParent(aDom, dom);
-//////									addParent(oldD, dom);
-//////								}
-//////							}
-//////						}
-//////					}
-//////					else
-//////					{
-//////						// compute Domain X Domain X ... X Domain number of attributes of goal relation R times
-//////						// then return (Domain X Domain X ... X Domain) - R
-//////						for(int i = 1; i < numAttrs; i++)
-//////						{
-//////							char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
-//////							QueryOperator *aDom = dom;
-//////							QueryOperator *oldD = dom;
-//////
-//////							domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-//////							dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-//////									LIST_MAKE(dom, aDom), NULL,
-//////									domainAttrs);
-//////
-//////							addParent(aDom, dom);
-//////							addParent(oldD, dom);
-//////						}
-//////					}
-//////				}
-////			}
 //			else // if associate domain does not exist, then use previous method
 //			{
 //			   // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
@@ -2629,6 +2269,44 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 
     dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
+    /*
+     * compare dts with actual dataType from the relation
+     * if different, then use the correct one
+     * TODO: check from the parser, i.e., while we parse, the dataType is set to DT_STRING for all
+     */
+    List *correctDts = NIL;
+    FOREACH(Node,n,r->args)
+    {
+    	correctDts = appendToTailOfListInt(correctDts,typeOf(n));
+//    	if(isA(n,DLVar))
+//    	{
+//    		DLVar *v = (DLVar *) n;
+//    		correctDts = appendToTailOfListInt(correctDts,v->dt);
+//    	}
+//
+//    	if(isA(n,Operator))
+//    	{
+//    		Operator *o = (Operator *) n;
+//    		DLVar *v = (DLVar *) getHeadOfListP(o->args);
+//			correctDts = appendToTailOfListInt(correctDts,v->dt);
+//    	}
+//
+//    	if(isA(n,Constant))
+//    	{
+//    		Constant *c = (Constant *) n;
+//			correctDts = appendToTailOfListInt(correctDts,c->constType);
+//    	}
+    }
+
+    FORBOTH(Node,d,cd,dts,correctDts)
+    {
+    	if(d != cd)
+    	{
+    		dts = (List *) correctDts;
+    		break;
+    	}
+    }
+
     // create table access op
     rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
     COPY_PROPS_TO_TABLEACCESS(rel,r);
@@ -2930,6 +2608,13 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         {
             n = CONCAT_STRINGS("C_", gprom_itoa(goalPos), "_", gprom_itoa(argPos++));
             d->attrName = strdup(n);
+        }
+        else if (isA(var, Operator))
+        {
+        	Operator *o = (Operator *) var;
+        	DLVar *v = (DLVar *) getHeadOfListP(o->args);
+        	n = v->name;
+        	d->attrName = strdup(n);
         }
         else
             FATAL_LOG("we should not end up here");

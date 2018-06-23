@@ -159,6 +159,8 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_FORMAT_HEAD_RULE_EDB "HEAD_RULE_EDB"
 #define DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED "TUPLE_RULE_TUPLE_REDUCED"
 
+#define DL_PROV_IS_REWRITTEN_PROG "DL_IS_REWRITTEN_PROP"
+
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
 #define DL_MAP_UN_PREDS_TO_RULES "UN_PREDS_TO_RULES"

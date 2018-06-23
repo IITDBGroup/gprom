@@ -29,7 +29,16 @@
 #define PROP_TIP_ATTR "TIP_ATTR"							// indicates TIP attribute
 
 // provenance summarization
-#define PROP_SUMMARIZATION_DOSUM "DO_SUMMARIZATION"         // this property is set if summarization should be done
+#define PROP_SUMMARIZATION_DOSUM "DO_SUMMARIZATION"         // this property is
+															// set if
+															// summarization
+															// should be done
+#define PROP_SUMMARIZATION_IS_DL "SUMM_IS_DL"               // mark as coming
+															// from a datalog
+															// query
+#define PROP_SUMMARIZATION_QTYPE "SUMM_Q_TYPE"              // type of
+															// provenance
+															// question (why or why-not)
 #define PROP_SUMMARIZATION_TYPE "sumtype"                   // type of summary to be produced
 #define PROP_SUMMARIZATION_TO_EXPLAIN "toexpl"              // result that should be explained
 #define PROP_SUMMARIZATION_SAMPLE "sumsamp"                 // sample?
