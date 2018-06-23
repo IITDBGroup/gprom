@@ -1202,8 +1202,8 @@ joinGoalTranslations (DLRule *r, List *goalTrans)
 
         // TODO: if many variables(attrs) exist in the rule,
         //		 then creating unique var name by adding another digit of number with incremental is not enough
-        if (LIST_LENGTH(attrNames) > 10)
-        	makeNamesUnique(attrNames, allNames);
+        /* if (LIST_LENGTH(attrNames) > 10) */
+        /* 	makeNamesUnique(attrNames, allNames); */
 
         cond = createJoinCondOnCommonAttrs(result,g, origAttrs);
 
