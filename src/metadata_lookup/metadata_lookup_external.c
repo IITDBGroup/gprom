@@ -52,7 +52,7 @@ static gprom_long_t externalGetCommitScn (char *tableName, gprom_long_t maxScn, 
 static Relation *externalGenExecQuery (char *query);
 static void externalGenExecQueryIgnoreQuery (char *query);
 static int externalGetCostEstimation (char *query);
-
+static char *externalDataTypeToSQL (DataType dt);
 
 #define EXTERNAL_PLUGIN GProMMetadataLookupPlugin *extP = (GProMMetadataLookupPlugin *) activePlugin->cache->cacheHook
 #define COPY_STRING(name) char *name ## Copy = strdup(name)
@@ -89,6 +89,7 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
     p->executeQuery = externalGenExecQuery;
     p->executeQueryIgnoreResult = externalGenExecQueryIgnoreQuery;
     p->getCostEstimation = externalGetCostEstimation;
+    p->dataTypeToSQL = externalDataTypeToSQL;
 
     p->cache = createCache();
     p->cache->cacheHook = plugin;
@@ -345,4 +346,13 @@ externalGetCostEstimation (char *query)
 {
     EXTERNAL_PLUGIN;
     return extP->getCostEstimation(query);
+}
+
+static char *
+externalDataTypeToSQL (DataType dt)
+{
+    EXTERNAL_PLUGIN;
+    return "VARCHAR";
+    char *dtString = DataTypeToString(dt);
+    return extP->dataTypeToSQL(dtString);
 }

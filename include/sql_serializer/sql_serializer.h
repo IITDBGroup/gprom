@@ -39,6 +39,7 @@ typedef struct SqlserializerPlugin
 // plugin management
 extern void chooseSqlserializerPlugin(SqlserializerPluginType type);
 extern void chooseSqlserializerPluginFromString(char *type);
+extern SqlserializerPluginType getActiveSqlserializerPlugin(void);
 
 // sqlserializer interface wrapper
 extern char *serializeOperatorModel(Node *q);

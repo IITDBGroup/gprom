@@ -39,7 +39,7 @@
 #include "instrumentation/memory_instrumentation.h"
 
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
-#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
+//#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
@@ -338,8 +338,23 @@ shutdownApplication(void)
 void
 processInput(char *input)
 {
-    char *result = rewriteQueryInternal(input, TRUE);
-    execute(result);
+    char *q = NULL;
+    Node *parse;
+
+    TRY
+    {
+        NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+        parse = parseFromString(input);
+        q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        execute(q);
+        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    }
+    ON_EXCEPTION
+    {
+        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+        RETHROW();
+    }
+    END_ON_EXCEPTION
 }
 
 static char *
@@ -358,7 +373,7 @@ rewriteQueryInternal (char *input, boolean rethrowExceptions)
 
         result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
         INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
-        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+        FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
     }
     ON_EXCEPTION
     {
@@ -367,7 +382,7 @@ rewriteQueryInternal (char *input, boolean rethrowExceptions)
         // if an exception is thrown then the query memory context has been
         // destroyed and we can directly create an empty string in the callers
         // context
-        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+        DEBUG_LOG("curContext is: %s", getCurMemContext()->contextName);
     }
     END_ON_EXCEPTION
     return strdup("");
@@ -469,8 +484,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    )
 
         // rewrite for summarization
-		if (!LIST_EMPTY(summOpts) && qType != NULL)
-			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
+//		if (!LIST_EMPTY(summOpts) && qType != NULL)
+//			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
 
 	    if(applyOptimizations)
 	    {
@@ -514,8 +529,8 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     char *rewrittenSQL = NULL;
     Node *oModel;
 
-    if(!getBoolOption(OPTION_INPUTDB))
-    	summarizationPlan(parse);
+//    if(!getBoolOption(OPTION_INPUTDB))
+//    	summarizationPlan(parse);
 
     START_TIMER("translation");
     oModel = translateParse(parse);
@@ -550,3 +565,111 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     return rewrittenSQL;
 }
 
+//static void
+//summarizationPlan (Node *parse)
+//{
+//    // store options for the summarization and question type
+////    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
+////    {
+////        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+////
+////    	if (!LIST_EMPTY(ps->sumOpts))
+////    		FOREACH(Node,n,ps->sumOpts)
+////    			summOpts = appendToTailOfList(summOpts,n);
+////
+////    	qType = "WHY";
+////    }
+////    else // summarization options for DL input
+////    {
+//    	DLProgram *p = (DLProgram *) parse;
+//
+//    	// either why or why-not
+//    	FOREACH(Node,n,p->rules)
+//    	{
+//    		if(isA(n,KeyValue))
+//    		{
+//    			KeyValue *kv = (KeyValue *) n;
+//    			qType = STRING_VALUE(kv->key);
+//
+//    			if(isPrefix(qType,"WHYNOT_"))
+//    				qType = "WHYNOT";
+//    			else
+//    				qType = "WHY";
+//    		}
+//    	}
+//
+//    	if (p->sumOpts != NIL)
+//    	{
+//    		FOREACH(Node,n,p->sumOpts)
+//				summOpts = appendToTailOfList(summOpts,n);
+//
+//    		// keep track of (var,rel) and (negidb,edb)
+//    		HashMap *varRelPair = NEW_MAP(Constant,Constant);
+//    		HashMap *headEdbPair = NEW_MAP(Constant,List);
+//    		List *negAtoms = NIL;
+//
+//    		FOREACH(Node,n,p->rules)
+//    		{
+//    			if(isA(n,DLRule))
+//    			{
+//    				DLRule *r = (DLRule *) n;
+//            		List *edbList = NIL;
+//
+//    				FOREACH(Node,b,r->body)
+//    				{
+//    					if(isA(b,DLAtom))
+//    					{
+//    						DLAtom *a = (DLAtom *) b;
+//
+//    						// keep track of which negated atom needs domains from which edb atom
+//    						if(a->negated)
+//    							negAtoms = appendToTailOfList(negAtoms,a->rel);
+//    						else
+//           						edbList = appendToTailOfList(edbList,a->rel);
+//
+//    						// keep track of which variable belongs to which edb
+//    						FOREACH(Node,n,a->args)
+//    						{
+//    							if(isA(n,DLVar))
+//    							{
+//    								DLVar *v = (DLVar *) n;
+//    								MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
+//    							}
+//    						}
+//    					}
+//    				}
+//
+//        			char *headPred = getHeadPredName(r);
+//    				MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
+//    			}
+//    		}
+//
+//    		// store edb information for negated atoms and why-not questions
+//    		if(!LIST_EMPTY(negAtoms))
+//    		{
+//        		FOREACH(char,c,negAtoms)
+//        		{
+//        			if(!MAP_HAS_STRING_KEY(headEdbPair,c))
+//        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
+//        			else
+//        			{
+//        				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
+//
+//        				FOREACH(char,e,edbs)
+//        					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+//        			}
+//        		}
+//    		}
+//
+//    		if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
+//    		{
+//				FOREACH_HASH(List,edbs,headEdbPair)
+//					FOREACH(char,e,edbs)
+//						MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+//    		}
+//
+//    		// store into the list of the summarization options
+//    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
+//    	}
+//
+//}

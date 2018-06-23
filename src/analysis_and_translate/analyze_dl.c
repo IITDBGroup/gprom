@@ -21,11 +21,15 @@
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
+#include "model/query_operator/operator_property.h"
+#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "model/rpq/rpq_model.h"
 #include "rpq/rpq_to_datalog.h"
 #include "utility/string_utils.h"
 
 static void analyzeDLProgram (DLProgram *p);
+static void analyzeSummerizationBasics (DLProgram *p);
+static void analyzeSummarizationAdvanced (DLProgram *p);
 static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
@@ -82,6 +86,9 @@ analyzeDLProgram (DLProgram *p)
     List *facts = NIL;
     List *rpqRules = NIL;
     List *doms = NIL;
+
+    // extract summarization options
+    analyzeSummerizationBasics(p);
 
     // expand RPQ queries
     FOREACH(Node,r,p->rules)
@@ -148,39 +155,165 @@ analyzeDLProgram (DLProgram *p)
      * 1) the length of failure pattern is equal to the number of rule body atom
      * 2) the failure pattern is assigned with why question
      */
-    if(p->sumOpts != NIL)
+	analyzeSummarizationAdvanced(p);
+    
+//    // check that answer relation exists
+//    if (p->ans)
+//    {
+//        if (!hasSetElem(idbRels, p->ans))
+//            FATAL_LOG("no rules found for specified answer relation"
+//                    " %s in program:\n\n%s",
+//                    p->ans, datalogToOverviewString((Node *) p));
+//    }
+}
+
+static void
+analyzeSummerizationBasics (DLProgram *p)
+{
+    ProvQuestion qType = PROV_Q_WHY;
+
+    // only continue if summarization was requested
+    if (p->sumOpts == NIL)
+        return;
+
+	DEBUG_LOG("user asked for summarization");
+	
+    // either why or why-not
+    FOREACH(Node,n,p->rules)
     {
-		int fpLeng = 0;
-		boolean isFpattern = FALSE;
-		HashMap *hm = p->n.properties;
-		List *measureElemList = NIL;
+        if(isA(n,KeyValue))
+        {
+            KeyValue *kv = (KeyValue *) n;
+            char *qTypeStr = STRING_VALUE(kv->key);
 
-		// check failure pattern assigned and if so then capture the length of the pattern
-		FOREACH(KeyValue,kv,p->sumOpts)
+            if(isPrefix(qTypeStr,"WHYNOT_"))
+                qType = PROV_Q_WHYNOT;
+            else
+                qType = PROV_Q_WHY;
+        }
+    }
+
+	// set the summarization type
+    DL_SET_PROP(p, PROP_SUMMARIZATION_QTYPE, createConstInt(qType));
+
+    // mark as summarization
+    DL_SET_BOOL_PROP(p, PROP_SUMMARIZATION_DOSUM);
+
+    // turn summarization options into properties
+    FOREACH(Node,n,p->sumOpts)
+    {
+        ASSERT(isA(n,KeyValue));
+        KeyValue *kv = (KeyValue *) n;
+        ASSERT(isA(kv->key, Constant));
+        Constant *key = (Constant *) kv->key;
+        DL_SET_PROP(p, STRING_VALUE(key), kv->value);
+    }
+
+    // keep track of (var,rel) and (negidb,edb)
+    HashMap *varRelPair = NEW_MAP(Constant,Constant);
+    HashMap *headEdbPair = NEW_MAP(Constant,List);
+    List *negAtoms = NIL;
+
+    FOREACH(Node,n,p->rules)
+    {
+        if(isA(n,DLRule))
+        {
+            DLRule *r = (DLRule *) n;
+            List *edbList = NIL;
+
+            FOREACH(Node,b,r->body)
+            {
+                if(isA(b,DLAtom))
+                {
+                    DLAtom *a = (DLAtom *) b;
+
+                    // keep track of which negated atom needs domains from which edb atom
+                    if(a->negated)
+                        negAtoms = appendToTailOfList(negAtoms,a->rel);
+                    else
+                        edbList = appendToTailOfList(edbList,a->rel);
+
+                    // keep track of which variable belongs to which edb
+                    FOREACH(Node,n,a->args)
+                    {
+                        if(isA(n,DLVar))
+                        {
+                            DLVar *v = (DLVar *) n;
+                            MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
+                        }
+                    }
+                }
+            }
+
+            char *headPred = getHeadPredName(r);
+            MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
+        }
+    }
+
+    // store edb information for negated atoms and why-not questions
+    if(!LIST_EMPTY(negAtoms))
+    {
+        FOREACH(char,c,negAtoms)
+        {
+            if(!MAP_HAS_STRING_KEY(headEdbPair,c))
+                MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
+            else
+            {
+                List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
+
+                FOREACH(char,e,edbs)
+                MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+            }
+        }
+    }
+
+    if(LIST_EMPTY(negAtoms) || qType == PROV_Q_WHYNOT)
+    {
+        FOREACH_HASH(List,edbs,headEdbPair)
+            FOREACH(char,e,edbs)
+                MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+    }
+
+    // store into the list of the summarization options
+    DL_SET_PROP(p, PROP_SUMMARIZATION_VARREL, varRelPair);
+
+}
+
+static void
+analyzeSummarizationAdvanced (DLProgram *p)
+{
+	//TODO check this analyze code from main function
+	int fpLeng = 0;
+	boolean isFpattern = FALSE;
+	HashMap *hm = p->n.properties;
+	List *measureElemList = NIL;
+
+	// check failure pattern assigned and if so then capture the length of the pattern
+	FOREACH(KeyValue,kv,p->sumOpts)
+	{
+		char *key = STRING_VALUE(kv->key);
+
+		if(streq(key,"fpattern"))
 		{
-			char *key = STRING_VALUE(kv->key);
+			isFpattern = TRUE;
+			fpLeng = LIST_LENGTH((List *) kv->value);
+		}
 
-			if(streq(key,"fpattern"))
-			{
-				isFpattern = TRUE;
-				fpLeng = LIST_LENGTH((List *) kv->value);
-			}
+		// for user defined score,
+		// currenlty support 3 elements for measure: precision, recall, and informativeness
+		char *measureElem = NULL;
 
-			// for user defined score,
-			// currenlty support 3 elements for measure: precision, recall, and informativeness
-			char *measureElem = NULL;
+		if(isPrefix(key,"sc_"))
+		{
+			measureElem = (char *) MALLOC(strlen(key) + 1);
+			strcpy(measureElem,key);
 
-			if(isPrefix(key,"sc_"))
-			{
-				measureElem = (char *) MALLOC(strlen(key) + 1);
-				strcpy(measureElem,key);
+			measureElem = strEndTok(measureElem,"_");
+			measureElemList = appendToTailOfList(measureElemList,measureElem);
 
-				measureElem = strEndTok(measureElem,"_");
-				measureElemList = appendToTailOfList(measureElemList,measureElem);
-
-				if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
-					FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
-			}
+			if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+				FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+		}
 
 //			if(isSubstr(key,"score"))
 //			{
@@ -192,13 +325,13 @@ analyzeDLProgram (DLProgram *p)
 //						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
 //			}
 
-			// the elements in the thresholds must be same as in the score
-			if(isPrefix(key,"th_"))
-			{
-				measureElem = (char *) MALLOC(strlen(key) + 1);
-				strcpy(measureElem,key);
+		// the elements in the thresholds must be same as in the score
+		if(isPrefix(key,"th_"))
+		{
+			measureElem = (char *) MALLOC(strlen(key) + 1);
+			strcpy(measureElem,key);
 
-				measureElem = strEndTok(measureElem,"_");
+			measureElem = strEndTok(measureElem,"_");
 
 //				if(measureElemList != NIL)
 //				{
@@ -207,57 +340,47 @@ analyzeDLProgram (DLProgram *p)
 //				}
 //				else
 //				{
-					if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
-						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+			if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+				FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
 //				}
-			}
 		}
+	}
 
-    	// failure pattern assigned with why question
-        if(isFpattern && MAP_HAS_STRING_KEY(hm,"WHY_PROV"))
-        	FATAL_LOG("no failure can happen with WHY question");
+	// failure pattern assigned with why question
+	if(isFpattern && MAP_HAS_STRING_KEY(hm,"WHY_PROV"))
+		FATAL_LOG("no failure can happen with WHY question");
 
 //        // no failure pattern assigned with whynot question
 //        if(!isFpattern && MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV"))
 //        	FATAL_LOG("failure pattern must be assigned with WHYNOT question for summarization");
 
-        // the length of failure pattern must be equal to the number of body atoms
-        char *ansPred = NULL;
-        int bodyLeng = 0;
+	// the length of failure pattern must be equal to the number of body atoms
+	char *ansPred = NULL;
+	int bodyLeng = 0;
 
-		if(MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV") && isFpattern)
+	if(MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV") && isFpattern)
+	{
+		DLAtom *ansAtom = (DLAtom *) getMapString(hm,"WHYNOT_PROV");
+		ansPred = (char *) ansAtom->rel;
+
+		FOREACH(Node,r,p->rules)
 		{
-			DLAtom *ansAtom = (DLAtom *) getMapString(hm,"WHYNOT_PROV");
-			ansPred = (char *) ansAtom->rel;
+			if(isA(r,DLRule))
+			{
+				DLRule *eachR = (DLRule *) r;
+				char *headPred = getHeadPredName(eachR);
 
-	        FOREACH(Node,r,p->rules)
-	        {
-	        	if(isA(r,DLRule))
-				{
-	        		DLRule *eachR = (DLRule *) r;
-					char *headPred = getHeadPredName(eachR);
-
-					if(streq(headPred,ansPred))
-						bodyLeng = LIST_LENGTH(eachR->body);
-				}
-	        }
-
-	        if(fpLeng > bodyLeng)
-	        	FATAL_LOG("the failure pattern is longer than the rule body");
-
-	        if(fpLeng < bodyLeng)
-	        	FATAL_LOG("the failure pattern is less than the rule body");
+				if(streq(headPred,ansPred))
+					bodyLeng = LIST_LENGTH(eachR->body);
+			}
 		}
-    }
 
-//    // check that answer relation exists
-//    if (p->ans)
-//    {
-//        if (!hasSetElem(idbRels, p->ans))
-//            FATAL_LOG("no rules found for specified answer relation"
-//                    " %s in program:\n\n%s",
-//                    p->ans, datalogToOverviewString((Node *) p));
-//    }
+		if(fpLeng > bodyLeng)
+			FATAL_LOG("the failure pattern is longer than the rule body");
+
+		if(fpLeng < bodyLeng)
+			FATAL_LOG("the failure pattern is less than the rule body");
+	}
 }
 
 static void

@@ -100,6 +100,11 @@ createBottomUpGPprogram (DLProgram *p)
     DEBUG_NODE_BEATIFY_LOG("create GP bottom up program for:",p);
     INFO_DL_LOG("create GP bottom up program for:",p);
 
+	// make sure that global vars are reset
+	programRules = NIL;
+	domainRules = NIL;
+	origDLrules = NIL;
+	
 //    // store original input rule for summarization process
 //    if (p->sumOpts != NIL)
 //    {

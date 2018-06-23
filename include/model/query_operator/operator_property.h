@@ -26,6 +26,34 @@
 #define PROP_ADD_PROVENANCE "ADD_PROVENANCE"                // add the following attribtues to as provenance attributes (but still rewrite and add normal provenance attrs too)
 #define PROP_PROV_IGNORE_ATTRS "IGNORE_PROV_ATTRS"          // these attributes should be ignored during rewrite
 #define PROP_TRANSLATE_AS "TRANSLATE AS"
+#define PROP_TIP_ATTR "TIP_ATTR"							// indicates TIP attribute
+
+// provenance summarization
+#define PROP_SUMMARIZATION_DOSUM "DO_SUMMARIZATION"         // this property is
+															// set if
+															// summarization
+															// should be done
+#define PROP_SUMMARIZATION_IS_DL "SUMM_IS_DL"               // mark as coming
+															// from a datalog
+															// query
+#define PROP_SUMMARIZATION_QTYPE "SUMM_Q_TYPE"              // type of
+															// provenance
+															// question (why or why-not)
+#define PROP_SUMMARIZATION_TYPE "sumtype"                   // type of summary to be produced
+#define PROP_SUMMARIZATION_TO_EXPLAIN "toexpl"              // result that should be explained
+#define PROP_SUMMARIZATION_SAMPLE "sumsamp"                 // sample?
+#define PROP_SUMMARIZATION_TOPK "topk"                      // top-k
+#define PROP_SUMMARIZATION_QTYPE_WHY "WHY"
+#define PROP_SUMMARIZATION_QTYPE_WHYNOT "WHYNOT"
+#define PROP_SUMMARIZATION_VARREL "VAR_REL_PAIRS"
+#define PROP_SUMMARIZATION_SAMPLE_PROPS "SAMPLE_PROPS"      // options for sampling
+#define PROP_SUMMARIZATION_SC_PRECISION "sc_PRECISION"
+#define PROP_SUMMARIZATION_SC_RECALL "sc_RECALL"
+#define PROP_SUMMARIZATION_SC_INFORMATIVENESS "sc_INFORMATIVENESS"
+#define PROP_SUMMARIZATION_TH_PRECISION "th_PRECISION"
+#define PROP_SUMMARIZATION_TH_RECALL "th_RECALL"
+#define PROP_SUMMARIZATION_TH_INFORMATIVENESS "th_INFORMATIVENESS"
+#define PROP_SUMMARIZATION_FPATTERN "fpattern"
 
 // reenactment
 #define PROP_REENACT_SCHEMA_INFO "REENACT_SCHEMA"           // store additional table schemas to support reenactment of DDL commands
@@ -108,5 +136,10 @@
 #define PROP_TEMP_TNTAB "PROP_TEMP_TNTAB"
 #define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
+
+/* fromProvInfo provProperties */
+#define PROV_PROP_TIP_ATTR "TIP_ATTR"
+#define PROV_PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"
+#define PROV_PROP_V_TABLE "V_TABLE"
 
 #endif /* OPERATOR_PROPERTY_H_ */

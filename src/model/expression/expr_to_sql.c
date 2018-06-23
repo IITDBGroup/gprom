@@ -15,10 +15,11 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 
+#include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
-
+#include "metadata_lookup/metadata_lookup.h"
 #include "utility/string_utils.h"
 
 /* function declarations */
@@ -124,6 +125,10 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
         appendStringInfoString(str, node->functionname);
 
     appendStringInfoString(str, "(");
+    if (node->isDistinct)
+    {
+        appendStringInfoString(str, "DISTINCT ");
+    }
 
     int i = 0;
     //Node *entity;
@@ -359,34 +364,31 @@ sqlParamToSQL(StringInfo str, SQLParameter *p)
 static void
 castExprToSQL(StringInfo str, CastExpr *c)
 {
-    //TODO vendor specific
-    appendStringInfoString(str, "CAST (");
-    exprToSQLString(str, c->expr);
-    appendStringInfoString(str, " AS ");
-    dataTypeToSQL(str, c->resultDT);
-    appendStringInfoString(str, ")");
+    switch(getBackend())
+    {
+        case BACKEND_POSTGRES:
+        {
+            appendStringInfoString(str, "(");
+            exprToSQLString(str, c->expr);
+            appendStringInfoString(str, ")::");
+            dataTypeToSQL(str, c->resultDT);
+        }
+        break;
+        default:
+        {
+            appendStringInfoString(str, "CAST (");
+            exprToSQLString(str, c->expr);
+            appendStringInfoString(str, " AS ");
+            dataTypeToSQL(str, c->resultDT);
+            appendStringInfoString(str, ")");
+        }
+    }
 }
 
 static void
 dataTypeToSQL (StringInfo str, DataType dt)
 {
-    switch(dt)
-    {
-        case DT_INT:
-        case DT_LONG:
-            appendStringInfoString(str, "NUMBER");
-            break;
-        case DT_FLOAT:
-            appendStringInfoString(str, "BINARY_FLOAT");
-            break;
-        case DT_STRING:
-        case DT_VARCHAR2:
-            appendStringInfoString(str, "VARCHAR2(2000)");
-            break;
-        case DT_BOOL:
-            appendStringInfoString(str, "NUMBER(1)");
-            break;
-    }
+    appendStringInfoString(str, backendDatatypeToSQL(dt));
 }
 
 static void

@@ -225,7 +225,7 @@ replaceSubstr(char *str, char *pattern, char *repl)
 char *
 substr(char *str, int from, int to)
 {
-    ASSERT(from >= 0 && from < to && to < strlen(str));
+    ASSERT(from >= 0 && from <= to && to < strlen(str));
     int len = to - from  + 1;
     char *result = MALLOC(len + 1);
     memcpy(result, str + from, len);
@@ -300,6 +300,23 @@ strtrim (char *in)
     return result->data;
 }
 
+boolean
+strieq(char *left, char *right)
+{
+    if (left == NULL && right == NULL)
+        return TRUE;
+    if (left == NULL || right == NULL)
+        return FALSE;
+    if (strlen(left) != strlen(right))
+        return FALSE;
+    for(int i = 0; i < strlen(left); i++)
+    {
+        if (toupper(left[i]) != toupper(right[i]))
+            return FALSE;
+    }
+    return TRUE;
+}
+
 char *
 specializeTemplate(char *template, List *args)
 {
@@ -337,6 +354,21 @@ strToUpper(const char *input)
 
     for(char *p = result; *p != '\0'; p++)
         *p = toupper(*p);
+
+    return result;
+}
+
+char *
+strToLower(const char *input)
+{
+    char *result;
+
+    if (input == NULL)
+        return NULL;
+    result = strdup((char *) input);
+
+    for(char *p = result; *p != '\0'; p++)
+        *p = tolower(*p);
 
     return result;
 }

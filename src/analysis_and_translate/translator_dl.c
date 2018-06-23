@@ -24,10 +24,12 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/query_operator_dt_inference.h"
+#include "model/query_operator/operator_property.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
+#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "utility/string_utils.h"
 
 static Node *translateProgram(DLProgram *p);
@@ -66,8 +68,17 @@ Node *
 translateParseDL(Node *q)
 {
     Node *result = NULL;
-    char *ans = ((DLProgram *) q)->ans;
+    DLProgram *p = (DLProgram *) q;
+    char *ans = p->ans;
+    boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM) && !IS_GP_PROV(p);
+	ProvQuestion qType = PROV_Q_WHY;
+	HashMap *props = copyObject(p->n.properties);
 
+//
+	
+	if(doSumm)
+		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
+	
     // check if ans exists
     if(ans != NULL)
     	provQ = TRUE;
@@ -102,6 +113,14 @@ translateParseDL(Node *q)
     }
     INFO_OP_LOG("translated DL model:\n", result);
 
+	if (doSumm)
+	{
+		DEBUG_LOG("add relational algebra summarization code");
+		MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
+		result = rewriteSummaryOutput(result, props, qType);
+		INFO_OP_LOG("translated DL model with summarization:\n", result);
+	}
+	
     return result;
 }
 

@@ -60,6 +60,7 @@ deploy:
     - "${RELEASE_TARBALL_FILE}"
     - "${RELEASE_JDBC_JAR_FILE}"
     - "${RELEASE_DEB_FILE}"
+  name: GProM 
   skip-cleanup: true
   on:
     repo: IITDBGroup/gprom

@@ -10,32 +10,23 @@
  *-----------------------------------------------------------------------------
  */
 
-#include "analysis_and_translate/translator_oracle.h"
-
 #include "common.h"
-#include "instrumentation/timing_instrumentation.h"
-#include "mem_manager/mem_mgr.h"
-
 #include "log/logger.h"
-
-#include "model/node/nodetype.h"
-#include "model/list/list.h"
+#include "mem_manager/mem_mgr.h"
+#include "analysis_and_translate/translator_oracle.h"
+#include "analysis_and_translate/analyzer.h"
+#include "analysis_and_translate/parameter.h"
+#include "analysis_and_translate/translate_update.h"
+#include "instrumentation/timing_instrumentation.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "model/expression/expression.h"
+#include "model/list/list.h"
 #include "model/query_block/query_block.h"
-#include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_model_checker.h"
-
-#include "analysis_and_translate/analyzer.h"
-//#include "analysis_and_translate/translator.h"
-#include "analysis_and_translate/translate_update.h"
-#include "analysis_and_translate/parameter.h"
-
-#include "metadata_lookup/metadata_lookup.h"
+#include "model/set/hashmap.h"
 #include "parser/parser.h"
-
 #include "provenance_rewriter/prov_utility.h"
-
 #include "utility/string_utils.h"
 
 // data types
@@ -565,7 +556,8 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     result->asOf = copyObject(prov->asOf);
     translateProperties(((QueryOperator *) result), prov->options);
 
-    switch (prov->inputType) {
+    switch (prov->inputType)
+    {
         case PROV_INPUT_TRANSACTION:
         {
             //XID ?
@@ -1196,6 +1188,7 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     if (from == NULL)
         return op;
 
+
     /* treat as base relation or show intermediate provenance? */
     if (from->intermediateProv)
         SET_BOOL_STRING_PROP(op,PROP_SHOW_INTERMEDIATE_PROV);
@@ -1213,8 +1206,26 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 
+    /* user TIP attribute selected */
+	if (getStringProvProperty(from, PROV_PROP_TIP_ATTR) != NULL)
+	{
+		setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
+		hasProv = TRUE;
+		from->userProvAttrs = singleton(strdup(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
+	}
+
+    /* table selected as incomplete */
+    if (from->provProperties)
+	{
+		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))
+		{
+			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
+		}
+	}
+
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
+
 
     if (hasProv)
     {

@@ -156,11 +156,9 @@ pluginTypeToString(MetadataLookupPluginType type)
 int
 initMetadataLookupPlugin (void)
 {
-    //MetadataLookupPlugin *myPlugin;
     ASSERT(activePlugin);
 
-    //activePlugin->metadataLookupContext = CREATE_MEM_CONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
-	activePlugin->metadataLookupContext = NEW_MEM_CONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
+	activePlugin->metadataLookupContext = NEW_LONGLIVED_MEMCONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
     int returnVal = activePlugin->initMetadataLookupPlugin();
     RELEASE_MEM_CONTEXT();
@@ -307,6 +305,27 @@ getOpReturnType (char *oName, List *argTypes, boolean *funcExists)
     return result;
 }
 
+DataType
+backendSQLTypeToDT (char *sqlType)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    DataType result = activePlugin->sqlTypeToDT(sqlType);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+char *
+backendDatatypeToSQL (DataType dt)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char *result = activePlugin->dataTypeToSQL(dt);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+
 char *
 getTableDefinition(char *tableName)
 {
@@ -351,7 +370,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
 Relation *
 executeQuery (char *sql)
 {
-    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    //ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
     Relation *result = activePlugin->executeQuery(sql);
     RELEASE_MEM_CONTEXT();

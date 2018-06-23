@@ -27,6 +27,7 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionOpen_callb
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeDefaultVal_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeNames_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getCostEstimation_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypeToSQL_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypes_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getFuncReturnType_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getKeyInformation_callback;
@@ -335,6 +336,13 @@ public abstract class AbstractMetadataLookup {
 				return getCostEstimation(query);
 			}
 		};
+		plugin.dataTypeToSQL = new getDataTypeToSQL_callback() {
+		
+			@Override
+			public String apply(String dt) {
+				return dataTypeToSQL(DataType.valueOf(dt));
+			}
+		};
 	}
 
 	/**
@@ -612,18 +620,36 @@ public abstract class AbstractMetadataLookup {
 		return null;
 	}
 	
+	public String dataTypeToSQL (DataType dt) {
+		switch(dt) {
+			case DT_STRING:
+				return "VARCHAR";
+			case DT_INT:
+				return "INT";
+			case DT_FLOAT:
+				return "NUMERIC";
+			case DT_LONG:
+				return "INT";
+			case DT_VARCHAR2:
+				return "VARCHAR";
+			case DT_BOOL:
+				return "NUMERIC(1,0)";
+		}
+		return "VARCHAR";
+	}
+	
 	protected String sqlToGpromDT(String dt) {
 		if (dt.equals("VARCHAR") || dt.equals("VARCHAR2")) {
-			return "DT_STRING";
+			return DataType.DT_STRING.name();
 		}
 		if (dt.equals("INT")) {
-			return "DT_INT";
+			return DataType.DT_INT.name();
 		}
 		if (dt.equals("DECIMAL")) {
-			return "DT_INT";
+			return DataType.DT_INT.name();
 		}
-		//TODO
-		return "DT_STRING";
+		//TODO complete this
+		return DataType.DT_STRING.name();
 	}
 	
 	protected String listToString (List<String> in) {

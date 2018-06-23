@@ -465,6 +465,22 @@ deepFreeList(List *list)
     FREE(list);
 }
 
+void
+deepFreeStringList(List *list)
+{
+    if (list == NIL)
+        return;
+
+    for(ListCell *lc = list->head->next, *prev = list->head; lc != NULL;
+                prev = lc, lc = lc->next)
+    {
+        FREE(LC_P_VAL(lc));
+        FREE(prev);
+    }
+
+    FREE(list);
+}
+
 List *
 stringListToConstList(List *list)
 {

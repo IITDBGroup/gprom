@@ -16,6 +16,7 @@
 #include "parser/parse_internal_oracle.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
+#include "utility/string_utils.h"
 
 #define RULELOG(grule) \
     { \
@@ -64,6 +65,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
+%token <stringVal> TIP INCOMPLETE VTABLE
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -133,6 +135,7 @@ Node *oracleParseResult = NULL;
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
+%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromVTable
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem 
@@ -145,6 +148,7 @@ Node *oracleParseResult = NULL;
 %type <stringVal> optionalFormat optionalWrapper optionalstringConst
 %type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample
 %type <list> optionalSummarization
+%type <intVal>	optionalCountDistinct
 
 %start stmtList
 
@@ -422,9 +426,11 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $3;
-            p->options = concatTwoLists($4,$9);
-           	p->sumOpts = appendToTailOfList(p->sumOpts,$1);
-           	p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10);
+            p->options = CONCAT_LISTS(singleton($1),$4,$9,$10,
+									  singleton(createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_DOSUM),
+																   (Node *) createConstBool(TRUE))));
+           	/* p->sumOpts = appendToTailOfList(p->sumOpts,$1); */
+           	/* p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10); */
             $$ = (Node *) p;
         }
     ;
@@ -436,7 +442,7 @@ optionalTopK:
 		TOP intConst
 		{
 			RULELOG("optionalTopK::topk");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("topk"),(Node *) createConstInt($2));
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_TOPK),(Node *) createConstInt($2));
 		}
     ;
 
@@ -529,7 +535,7 @@ optionalSumType:
 		SUMMARIZED BY identifier 
 		{
 			RULELOG("optionalSummarization::SumType");
-			$$ = (Node *) createStringKeyValue(strdup("sumtype"),strdup($3));
+			$$ = (Node *) createStringKeyValue(strdup(PROP_SUMMARIZATION_TYPE),strdup($3));
 		}
 	;
 	
@@ -538,7 +544,7 @@ optionalToExplain:
 		TO EXPLAIN '(' attrElemList ')'
 		{
 			RULELOG("optionalToExplain::ToExplain");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("toexpl"),(Node *) $4);
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_TO_EXPLAIN),(Node *) $4);
 		}
 	;
 
@@ -547,7 +553,7 @@ optionalSumSample:
 		WITH SAMPLE '(' intConst ')'
 		{
 			RULELOG("optionalSumSample::WithSample");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($4));
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_SAMPLE),(Node *) createConstInt($4));
 		}
  	;
  	
@@ -935,6 +941,7 @@ constant:
         | floatConst        { RULELOG("constant::FLOAT"); $$ = (Node *) createConstFloat($1); }
         | stringConst       { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
         | boolConst			{ RULELOG("constant::BOOL"); $$ = (Node *) createConstBoolFromString($1); }
+		| NULLVAL           { RULELOG("constant::NULL"); $$ = (Node *) createNullConst(DT_STRING); }
     ;
             
 /*
@@ -943,16 +950,17 @@ constant:
 attributeRef: 
         identifier         
         { 
-        	RULELOG("attributeRef::IDENTIFIER"); 
-        	$$ = (Node *) createAttributeReference($1); 
+	        	RULELOG("attributeRef::IDENTIFIER"); 
+    	       	$$ = (Node *) createAttributeReference($1); 
         }
         | compositeIdentifier  
         { 
-        	RULELOG("attributeRef::COMPOSITEIDENT"); 
-        	$$ = (Node *) createAttributeReference($1); 
+        		RULELOG("attributeRef::COMPOSITEIDENT"); 
+        		$$ = (Node *) createAttributeReference($1); 
         }
 	;
-	
+
+
 /*
  * SQL parameter
  */
@@ -1083,12 +1091,16 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
-		| AMMSC '(' exprList ')' overClause          
+		| AMMSC '(' optionalCountDistinct exprList ')' overClause          
             {
                 RULELOG("sqlFunctionCall::AMMSC::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
-				if ($5 != NULL)
-					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				FunctionCall *f = createFunctionCall($1, $4);
+				if ($3 == 1)
+				{
+					f->isDistinct = TRUE;
+				}
+				if ($6 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $6);
 				else  
                 	$$ = (Node *) f; 
             }
@@ -1103,6 +1115,12 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
+    ;
+
+// optional distinct in count (distinct ...)
+optionalCountDistinct:
+	   /*  EMPTY */ { RULELOG("optionalDistinct::EMPTY"); $$ = 0; }
+	   | DISTINCT { RULELOG("optionalDistinct::DISTINCT"); $$ = 1; }
     ;
 
 /*
@@ -1344,13 +1362,13 @@ fromClause:
 
 
 fromClauseItem:
-        identifier optionalFromProv
+		identifier optionalFromProv
             {
                 RULELOG("fromClauseItem");
 				FromItem *f = createFromTableRef(NULL, NIL, $1, NIL);
 				f->provInfo = (FromProvInfo *) $2;
                 $$ = (Node *) f;
-            }
+            }	
         | identifier optionalAlias
             {
                 RULELOG("fromClauseItem");
@@ -1487,9 +1505,42 @@ optionalAlias:
 				$$ = (Node *) f;
 			}
     ;
-    
+
+optionalFromTIP:
+		IS TIP '(' identifier ')'
+		{
+			RULELOG("optionalFromTIP");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_TIP_ATTR, (Node *) createConstString($4));
+			$$ = (Node *) p;
+		}
+;
+
+optionalFromIncompleteTable:
+		IS INCOMPLETE 
+		{
+			RULELOG("optionalFromIncompleteTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));	
+			$$ = (Node *) p;
+		}
+;
+
+optionalFromVTable:
+		IS VTABLE '(' identifier ')' 
+		{
+			RULELOG("optionalFromVTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_V_TABLE, (Node *) createConstString($4));
+			$$ = (Node *) p;
+		}
+;
+
 optionalFromProv:
-		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
+		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; } 
+		| optionalFromTIP {  $$ = $1; }
+		| optionalFromIncompleteTable { $$ = $1; }
+		| optionalFromVTable { $$ = $1; }
 		| BASERELATION 
 			{
 				RULELOG("optionalFromProv::BASERELATION");

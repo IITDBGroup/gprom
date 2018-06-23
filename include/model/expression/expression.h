@@ -11,6 +11,7 @@ typedef struct FunctionCall {
     char *functionname;
     List *args;
     boolean isAgg;
+    boolean isDistinct;
 } FunctionCall;
 
 typedef struct Operator {
@@ -208,6 +209,9 @@ extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 extern boolean isConstExpr (Node *expr);
 extern boolean isCondition(Node *expr);
+
+/* backend specific */
+extern char *backendifyIdentifier(char *name);
 
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);

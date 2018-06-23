@@ -1,16 +1,21 @@
 #!/bin/bash
 if [ $# != "1" ]; then
     echo "usage: update_version.sh VERSION_NUMBER"
+	echo "e.g., update_version.sh 2.1.5"
 fi
 
 pushd $(dirname "${0}") > /dev/null
 BASEDIR=$(pwd -L)
-
+MYDATE=`date "+%Y-%m-%d"`
 VERSION_NUMBER="${1}"
 
 ####################
 echo "prepare version ${VERSION_NUMBER}"
 
+# update man page
+sed -i "1s/.*/.TH gprom 1 \"${MYDATE}\" \"version ${VERSION_NUMBER}\"/" ${BASEDIR}/doc/gprom.man
+
+# create changelog entry
 sed -i "s/revision=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/revision=\"${VERSION_NUMBER}\"/g" ivy.xml 
 sed -i "s/AC_INIT(\[GProM\],\[[0-9]\+\.[0-9]\+\.[0-9]\+\],\[bglavic@iit.edu\])/AC_INIT([GProM],[${VERSION_NUMBER}],[bglavic@iit.edu])/g" ${BASEDIR}/configure.ac
 
@@ -22,6 +27,7 @@ CHANGELOG_ENTRY="gprom (${VERSION_NUMBER}-1) unstable; urgency=low
  -- Boris Glavic <bglavic@iit.edu>  $(date)
 "
 
+# create git tag
 HAS_VERSION=`grep -c -e "${VERSION_NUMBER}" ${CHANGELOG_FILE}`
 
 if [ "X${HAS_VERSION}" == "X0" ]; then

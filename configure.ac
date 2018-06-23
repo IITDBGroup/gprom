@@ -348,7 +348,7 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ])
 ################################################################################
 # Init autoconf
-AC_INIT([GProM],[1.0.1],[bglavic@iit.edu])
+AC_INIT([GProM],[1.0.3],[bglavic@iit.edu])
 # CFLAGS from user or set to nothing
 AS_IF([test "x$CFLAGS" != "x"],
 [

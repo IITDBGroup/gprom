@@ -131,6 +131,7 @@ extern void setDLProp(DLNode *n, char *key, Node *value);
 extern void delDLProp(DLNode *n, char *key);
 
 #define DL_HAS_PROP(node,key) (getDLProp((DLNode *) node, key) != NULL)
+#define DL_SET_PROP(node,key,value) (setDLProp((DLNode *) node, key, (Node *) value));
 #define DL_GET_PROP(node,key) (getDLProp((DLNode *) node, key))
 #define DL_SET_BOOL_PROP(node,key) setDLProp((DLNode *) node, key, (Node *) createConstBool(TRUE));
 #define DL_SET_STRING_PROP(node,key,value) setDLProp((DLNode *) node, key, (Node *) createConstString(value));
@@ -157,6 +158,8 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED "TUPLE_RULE_GOAL_TUPLE_REDUCED"
 #define DL_PROV_FORMAT_HEAD_RULE_EDB "HEAD_RULE_EDB"
 #define DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED "TUPLE_RULE_TUPLE_REDUCED"
+
+#define DL_PROV_IS_REWRITTEN_PROG "DL_IS_REWRITTEN_PROP"
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
