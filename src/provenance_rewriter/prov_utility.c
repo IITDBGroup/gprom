@@ -401,7 +401,7 @@ makeNamesUnique (List *names, Set *allNames)
             while(hasSetElem(allNames, newName))
                 newName = CONCAT_STRINGS(oldName, gprom_itoa(++count));
 
-            if(searchListString(names, newName))
+            while(searchListString(names, newName))
             	newName = CONCAT_STRINGS(oldName, gprom_itoa(++count));
         }
 
