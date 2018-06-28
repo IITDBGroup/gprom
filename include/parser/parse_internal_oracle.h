@@ -19,7 +19,7 @@ extern Node *oracleParseResult;
 /* interface to the lexer */
 extern int oraclelineno; /* from lexer */
 int oraclelex(void);
-void oracleerror(char *s);
+void oracleerror(const char *s);
 extern FILE *oraclein;
 extern void oracleSetupStringInput(char *input);
 
