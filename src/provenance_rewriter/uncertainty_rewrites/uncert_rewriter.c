@@ -19,6 +19,15 @@
 #define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
 #define UNCERT_FUNC_NAME backendifyIdentifier("uncert")
 #define MAX_FUNC_NAME backendifyIdentifier("max")
+#define SUM_FUNC_NAME backendifyIdentifier("sum")
+#define COUNT_FUNC_NAME backendifyIdentifier("count")
+#define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
+
+/* vtables attributes */
+#define MAX_PROB_ATTR_NAME "MAX_PROB"
+#define SUM_PROB_ATTR_NAME "SUM_PROB"
+#define COUNT_ATTR_NAME "COUNT_"
+#define ROW_NUM_BY_ID_ATTR_NAME "ROW_NUM_BY_ID"
 
 /* function declarations */
 static Node *UncertOp(Operator *expr, HashMap *hmp);
@@ -315,65 +324,67 @@ rewrite_UncertVTable(QueryOperator *op)
 	AttributeReference *probRef = getAttrRefByName(op, prob);
 
 	//Make partition by;
-	List *partByGroupId = singleton(groupIdRef);
+	List *partByGroupId = singleton(copyObject(groupIdRef));
 
 	//WindowBound *winBoundCountOpen = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
 	//WindowFrame *winFrameCountOpen = createWindowFrame(WINFRAME_ROWS,winBoundCountOpen,NULL);
 
-	/* Window function 1 */
+	/* Window function 1 - max */
 	//Make max(prob) function call
-	FunctionCall *maxProbFC = createFunctionCall("MAX",singleton(probRef));
-	char *maxProbName = "MAX_PROB";
-	QueryOperator *wOp1 = (QueryOperator *) createWindowOp((Node *)maxProbFC, partByGroupId, NIL, NULL, maxProbName, op, NIL);
+	FunctionCall *maxProbFC = createFunctionCall(MAX_FUNC_NAME,singleton(copyObject(probRef)));
+	char *maxProbName = MAX_PROB_ATTR_NAME;
+	QueryOperator *maxProbWOp = (QueryOperator *) createWindowOp((Node *)maxProbFC, partByGroupId, NIL, NULL, maxProbName, op, NIL);
 
-	/* Window function 2 */
+	/* Window function 2 - sum*/
 	//Make sum(prob) function call
-	FunctionCall *sumProbFC = createFunctionCall("SUM",singleton(probRef));
-	char *sumProbName = "SUM_PROB";
-	QueryOperator *wOp2 = (QueryOperator *) createWindowOp((Node *)sumProbFC, partByGroupId, NIL, NULL, sumProbName, wOp1, NIL);
-	wOp1->parents = singleton(wOp2);
+	FunctionCall *sumProbFC = createFunctionCall(SUM_FUNC_NAME,singleton(copyObject(probRef)));
+	char *sumProbName = SUM_PROB_ATTR_NAME;
+	QueryOperator *sumProbWOp = (QueryOperator *) createWindowOp((Node *)sumProbFC, partByGroupId, NIL, NULL, sumProbName, maxProbWOp, NIL);
+	maxProbWOp->parents = singleton(sumProbWOp);
 
-	/* Window function 3+*/ //How to put distinct?
-	QueryOperator *prevWOp = wOp2;
+	/* Window function - count attr*/ 
+	QueryOperator *prevWOp = sumProbWOp;
 	List *attrExpr1 = getNormalAttrProjectionExprs(op);
 	FOREACH(Node, nd, attrExpr1)
 	{
-		char *countAttrName = CONCAT_STRINGS("COUNT_",((AttributeReference *)nd)->name);
+		char *countAttrName = CONCAT_STRINGS(COUNT_ATTR_NAME,((AttributeReference *)nd)->name);
 		//Make count(nd) function call
-		FunctionCall *countNdFC = createFunctionCall("COUNT",singleton(nd));
-		QueryOperator *wOpNd = (QueryOperator *) createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL);
-		prevWOp->parents = singleton(wOpNd);
-		prevWOp = wOpNd;
+		FunctionCall *countNdFC = createFunctionCall(COUNT_FUNC_NAME,singleton(nd));
+		countNdFC->isDistinct = TRUE;
+		QueryOperator *countNdWOp = (QueryOperator *) createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL);
+
+		prevWOp->parents = singleton(countNdWOp);
+		prevWOp = countNdWOp;
 	}
 
 	Operator *oneMinusSum = createOpExpr("-",LIST_MAKE(createConstInt(1),getAttrRefByName(prevWOp, sumProbName)));
 	Operator *firstParam = createOpExpr(">",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
 
-	Operator *secondParam = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), probRef));
+	Operator *secondParam = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
 	Operator *selec1Cond = createOpExpr("AND", LIST_MAKE(firstParam,secondParam));
 
-	/* Selection 1  */
-	QueryOperator *selec1 = (QueryOperator *)createSelectionOp((Node *)selec1Cond, prevWOp, NIL, getAttrNames(prevWOp->schema));
-	prevWOp->parents = singleton(selec1);
+	/* Selection - Select rows with the maximum probability  */
+	QueryOperator *selecMaxProbRow = (QueryOperator *)createSelectionOp((Node *)selec1Cond, prevWOp, NIL, getAttrNames(prevWOp->schema));
+	prevWOp->parents = singleton(selecMaxProbRow);
 
-	/* Window function 4 */
+	/* Window function - row number*/
 	//Make sum(prob) function call
-	FunctionCall *rowIdFC = createFunctionCall("ROW_NUMBER", NIL);
-	char *rowIdName = "ROW_ID";
+	FunctionCall *rowNumByIdFC = createFunctionCall(ROW_NUMBER_FUNC_NAME, NIL);
+	char *rowNumByIdName = ROW_NUM_BY_ID_ATTR_NAME;
 	List *orderBy = NIL;
 	orderBy = appendToTailOfList(orderBy, copyObject(probRef));
 
-	QueryOperator *wOp4 = (QueryOperator *) createWindowOp((Node *)rowIdFC, partByGroupId, orderBy, NULL, rowIdName, selec1, NIL);
-	selec1->parents = singleton(wOp4);
+	QueryOperator *rowNumberByIdWOp4 = (QueryOperator *) createWindowOp((Node *)rowNumByIdFC, partByGroupId, orderBy, NULL, rowNumByIdName, selecMaxProbRow, NIL);
+	selecMaxProbRow->parents = singleton(rowNumberByIdWOp4);
 
-	/* Selection 2 */
-	Operator *countEqualsOne = createOpExpr("=",LIST_MAKE(createConstInt(1),getAttrRefByName(wOp4, rowIdName)));
-	QueryOperator *selec2 = (QueryOperator *)createSelectionOp((Node *)countEqualsOne, wOp4, NIL, getAttrNames(wOp4->schema));
-	wOp4->parents = singleton(selec2);
+	/* Selection - Select rows with row number equal to 1 */
+	Operator *countEqualsOne = createOpExpr("=",LIST_MAKE(createConstInt(1),getAttrRefByName(rowNumberByIdWOp4, rowNumByIdName)));
+	QueryOperator *selecRowNumberIsOne = (QueryOperator *)createSelectionOp((Node *)countEqualsOne, rowNumberByIdWOp4, NIL, getAttrNames(rowNumberByIdWOp4->schema));
+	rowNumberByIdWOp4->parents = singleton(selecRowNumberIsOne);
 
 	/* Final Projection */
-	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), selec2, NIL, getNormalAttrNames(op));
-	selec2->parents = singleton(proj);
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selecRowNumberIsOne), selecRowNumberIsOne, NIL, getNormalAttrNames(selecRowNumberIsOne));
+	selecRowNumberIsOne->parents = singleton(proj);
 
 	List *attrExpr2 = getNormalAttrProjectionExprs(op);
 	FOREACH(Node, nd, attrExpr2)
@@ -382,19 +393,40 @@ rewrite_UncertVTable(QueryOperator *op)
 		addUncertAttrToSchema(hmp, proj, nd);
 		//Set the values of U_nd->name to CASE WHEN entryIsNull
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
-							createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selec2,maxProbName)))));
+							createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)))));
 	}
 
 	//Condition for U_R
-	Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selec2,sumProbName)));
+	Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
 	//Add U_R to the schema with data type int
 	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
 
+	switchSubtrees(op, proj);
+	op->parents = singleton(maxProbWOp);
+
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
-	switchSubtrees(op, proj);
-	op->parents = singleton(wOp1);
+
+	List *projParents = proj->parents;
+	FOREACH(Node, parent, projParents)
+	{
+		List *parentAttrExprs = findOperatorAttrRefs((QueryOperator *)parent);
+		//List *parentAttrExpr = ((QueryOperator*)parent)->provAttrs;
+		FOREACH(Node, attrRef, parentAttrExprs)
+		{
+			DEBUG_LOG("?Parent's attr %s is at parents position %d",((AttributeReference *)attrRef)->name, getAttrPos((QueryOperator *)parent,((AttributeReference *)attrRef)->name));
+			DEBUG_LOG("/Parent's attr %s immediate pos %d\n",((AttributeReference *)attrRef)->name, ((AttributeReference *)attrRef)->attrPosition);
+			//((AttributeReference *)attrRef)->attrPosition = getAttrPos((QueryOperator *)parent,((AttributeReference *)attrRef)->name);
+		}
+	}
+
+	List *projAttrExprs = findOperatorAttrRefs(proj);
+	FOREACH(Node, nd, projAttrExprs)
+	{
+		DEBUG_LOG("????Proj's attr %s is at proj's position %d",((AttributeReference *)nd)->name, getAttrPos(proj,((AttributeReference *)nd)->name));
+		DEBUG_LOG("////Proj's attr %s immediate pos is %d\n",((AttributeReference *)nd)->name,((AttributeReference *)nd)->attrPosition);
+	}
 
 
 	return proj;
