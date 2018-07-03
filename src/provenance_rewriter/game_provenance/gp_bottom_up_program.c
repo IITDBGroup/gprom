@@ -105,18 +105,25 @@ createBottomUpGPprogram (DLProgram *p)
 	domainRules = NIL;
 	origDLrules = NIL;
 	
+	List *domHead = NIL;
+
+	if(!LIST_EMPTY(p->doms))
+		FOREACH(DLDomain,d,p->doms)
+			domHead = appendToTailOfList(domHead,d->name);
+
 //    // store original input rule for summarization process
 //    if (p->sumOpts != NIL)
 //    {
     	FOREACH(DLRule,or,p->rules)
 		{
 //    		DLRule *copyOr = copyObject(or);
-    		origDLrules = appendToTailOfList(origDLrules, copyObject(or));
+   			if(!searchListString(domHead,or->head->rel))
+   				origDLrules = appendToTailOfList(origDLrules, copyObject(or));
 		}
 //    }
 
     FOREACH(DLRule,r,origDLrules)
-    	DL_SET_BOOL_PROP(r,DL_ORIGINAL_RULE);
+    	DL_SET_BOOL_PROP(r,DL_INPUT_RULE);
 
     // why provenance
     if(DL_HAS_PROP(p,DL_PROV_WHY))
@@ -181,11 +188,15 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
 		FOREACH(DLRule,r,p->rules)
 		{
 			if (searchListString(domHead,r->head->rel))
+			{
+				DL_SET_BOOL_PROP(r,DL_DOMAIN_RULE);
 				domainRules = appendToTailOfList(domainRules, (List *) r);
+			}
 			else
 				programRules = appendToTailOfList(programRules, (List *) r);
 		}
 		p->rules = programRules;
+//		origDLrules = programRules;
 
 		INFO_DL_LOG("create new GP bottom up program for:", p);
 		DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
@@ -218,17 +229,22 @@ createWhyNotGPprogram (DLProgram *p, DLAtom *whyNot)
 	if (LIST_LENGTH(p->doms) != 0)
 	{
 		List *domHead = NIL;
+
 		FOREACH(DLDomain,d,p->doms)
-		domHead = appendToTailOfList(domHead,d->name);
+			domHead = appendToTailOfList(domHead,d->name);
 
 		FOREACH(DLRule,r,p->rules)
 		{
 			if (searchListString(domHead,r->head->rel))
+			{
+				DL_SET_BOOL_PROP(r,DL_DOMAIN_RULE);
 				domainRules = appendToTailOfList(domainRules, (List *) r);
+			}
 			else
 				programRules = appendToTailOfList(programRules, (List *) r);
 		}
 		p->rules = programRules;
+//		origDLrules = programRules;
 
 		INFO_DL_LOG("create new GP bottom up program for:", p);
 		DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
@@ -4326,6 +4342,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
 						{
 							DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
+							DL_SET_BOOL_PROP(domAtom,DL_IS_DOMAIN_REL);
 							eachNegedbRule->body = appendToHeadOfList(eachNegedbRule->body, domAtom);
 						}
 					}
@@ -4423,6 +4440,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
 						{
 							DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
+							DL_SET_BOOL_PROP(domAtom,DL_IS_DOMAIN_REL);
 							eachNegheadRule->body = appendToHeadOfList(eachNegheadRule->body, domAtom);
 						}
 					}

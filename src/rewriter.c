@@ -34,6 +34,7 @@
 #include "execution/executor.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
+#include "model/set/hashmap.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -47,7 +48,6 @@ static void setupPlugin(const char *pluginType);
 //static void summarizationPlan(Node *parse);
 //static List *summOpts = NIL;
 //static char *qType = NULL;
-
 
 int
 initBasicModules (void)
@@ -484,8 +484,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    )
 
         // rewrite for summarization
-//		if (!LIST_EMPTY(summOpts) && qType != NULL)
-//			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
+//		if(!LIST_EMPTY(summOpts) && qType != NULL && relToDoms != NULL)
+//			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType, relToDoms);
 
 	    if(applyOptimizations)
 	    {
@@ -530,7 +530,10 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     Node *oModel;
 
 //    if(!getBoolOption(OPTION_INPUTDB))
-//    	summarizationPlan(parse);
+//    {
+//    	relToDoms = NEW_MAP(Constant,Constant);
+//    	summarizationPlan(parse, relToDoms);
+//    }
 
     START_TIMER("translation");
     oModel = translateParse(parse);
@@ -565,22 +568,23 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     return rewrittenSQL;
 }
 
+//
 //static void
-//summarizationPlan (Node *parse)
+//summarizationPlan (Node *parse, HashMap *relToDoms)
 //{
 //    // store options for the summarization and question type
-////    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
-////    {
-////        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
-////
-////    	if (!LIST_EMPTY(ps->sumOpts))
-////    		FOREACH(Node,n,ps->sumOpts)
-////    			summOpts = appendToTailOfList(summOpts,n);
-////
-////    	qType = "WHY";
-////    }
-////    else // summarization options for DL input
-////    {
+//    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
+//    {
+//        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+//
+//    	if (!LIST_EMPTY(ps->sumOpts))
+//    		FOREACH(Node,n,ps->sumOpts)
+//    			summOpts = appendToTailOfList(summOpts,n);
+//
+//    	qType = "WHY";
+//    }
+//    else // summarization options for DL input
+//    {
 //    	DLProgram *p = (DLProgram *) parse;
 //
 //    	// either why or why-not
@@ -595,6 +599,17 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 //    				qType = "WHYNOT";
 //    			else
 //    				qType = "WHY";
+//    		}
+//
+//    		// store info which rel+attr uses which user domain
+//    		if(isA(n,DLDomain))
+//    		{
+//    			DLDomain *dd = (DLDomain *) n;
+//    			char *key = CONCAT_STRINGS(dd->rel,dd->attr);
+//    			char *value = dd->name;
+//
+//    			if(!MAP_HAS_STRING_KEY(relToDoms,key))
+//    				MAP_ADD_STRING_KEY_AND_VAL(relToDoms,key,value);
 //    		}
 //    	}
 //
@@ -671,5 +686,6 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 //    		// store into the list of the summarization options
 //    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
 //    	}
-//
+//    }
 //}
+

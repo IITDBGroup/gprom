@@ -356,6 +356,16 @@ getKeyInformation (char *tableName)
     return result;
 }
 
+int
+getNumofRowsInformation (char *tableName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int result = activePlugin->getNumofRowsInformation(tableName);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
 void
 getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)

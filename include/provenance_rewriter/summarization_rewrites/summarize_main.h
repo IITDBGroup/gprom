@@ -22,4 +22,3 @@ NEW_ENUM_WITH_TO_STRING(ProvQuestion,
 );
 
 extern Node *rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType);
-

@@ -137,6 +137,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeQueryIgnoreResult = oracleGenExecQueryIgnoreResult;
     plugin->getCostEstimation = oracleGetCostEstimation;
     plugin->getKeyInformation = oracleGetKeyInformation;
+    plugin->getNumofRowsInformation = oracleGetNumofRowsInformation;
     plugin->sqlTypeToDT = oracleBackendSQLTypeToDT;
     plugin->dataTypeToSQL = oracleBackendDatatypeToSQL;
 
@@ -1311,6 +1312,36 @@ oracleGetKeyInformation(char *tableName)
     return keyList;
 }
 
+int
+oracleGetNumofRowsInformation(char *tableName)
+{
+    int numOfRows = 0;
+
+    StringInfo statement;
+    statement = makeStringInfo();
+    appendStringInfo(statement, "SELECT num_rows "
+                                "FROM dba_tables "
+                                "WHERE table_name = '%s' ",
+                                tableName);
+
+    OCI_Resultset *rs1 = executeStatement(statement->data);
+
+    if (rs1 != NULL)
+	{
+		while(OCI_FetchNext(rs1))
+		{
+			numOfRows = (unsigned long long int) OCI_GetUnsignedBigInt(rs1,1);
+			DEBUG_LOG("Number of rows is : %u \n", numOfRows);
+			break;
+		}
+	}
+	else
+		FATAL_LOG("Can't count the number of rows failed for %s", statement->data);
+
+    FREE(statement);
+    return numOfRows;
+}
+
 DataType
 oracleBackendSQLTypeToDT (char *sqlType)
 {
@@ -1738,6 +1769,12 @@ List *
 oracleGetKeyInformation(char *tableName)
 {
     return NULL;
+}
+
+int
+oracleGetNumofRowsInformation(char *tableName)
+{
+    return 0;
 }
 
 

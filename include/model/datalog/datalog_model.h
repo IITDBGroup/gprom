@@ -174,6 +174,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_UNDER_NEG_WON "UNDER_NEG_WON"
 #define DL_UNDER_NEG_LOST "UNDER_NEG_LOST"
 
+#define DL_INPUT_RULE "INPUT_RULE"
 #define DL_ORIGINAL_RULE "ORIG_RULE"
 #define DL_NORM_ATOM "NORMALIZED_ATOM"
 #define DL_ORIG_ATOM "ORIG_ATOM"

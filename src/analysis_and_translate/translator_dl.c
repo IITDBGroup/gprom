@@ -70,14 +70,12 @@ translateParseDL(Node *q)
     Node *result = NULL;
     DLProgram *p = (DLProgram *) q;
     char *ans = p->ans;
-    boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM) && !IS_GP_PROV(p);
-	ProvQuestion qType = PROV_Q_WHY;
-	HashMap *props = copyObject(p->n.properties);
-
+//    boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM) && !IS_GP_PROV(p);
+//	ProvQuestion qType = PROV_Q_WHY;
+//	HashMap *props = copyObject(p->n.properties);
 //
-	
-	if(doSumm)
-		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
+//	if(doSumm)
+//		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
 	
     // check if ans exists
     if(ans != NULL)
@@ -113,14 +111,14 @@ translateParseDL(Node *q)
     }
     INFO_OP_LOG("translated DL model:\n", result);
 
-	if (doSumm)
-	{
-		DEBUG_LOG("add relational algebra summarization code");
-		MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
-		result = rewriteSummaryOutput(result, props, qType);
-		INFO_OP_LOG("translated DL model with summarization:\n", result);
-	}
-	
+//	if (doSumm)
+//	{
+//		DEBUG_LOG("add relational algebra summarization code");
+//		MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
+//		result = rewriteSummaryOutput(result, props, qType);
+//		INFO_OP_LOG("translated DL model with summarization:\n", result);
+//	}
+
     return result;
 }
 
@@ -245,7 +243,7 @@ translateProgram(DLProgram *p)
 
             // store orig head pred
 //            if (!isSubstr(headPred,"_") && !DL_HAS_PROP(r,DL_DOMAIN_RULE))
-            if(DL_HAS_PROP(r,DL_ORIGINAL_RULE))
+            if(DL_HAS_PROP(r,DL_INPUT_RULE))
             	origHeadPred = appendToTailOfList(origHeadPred, createConstString(headPred));
 
     //        // not first rule for this pred
@@ -450,7 +448,25 @@ translateProgram(DLProgram *p)
         	}
 
         	summInputs = appendToTailOfList(summInputs, transMoveRel);
-        	return (Node *) summInputs;
+//        	return (Node *) summInputs;
+
+            boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM) && !IS_GP_PROV(p);
+        	ProvQuestion qType = PROV_Q_WHY;
+        	HashMap *props = copyObject(p->n.properties);
+        	Node *result = NULL;
+
+        	if(doSumm)
+        		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
+
+        	if (doSumm)
+			{
+				DEBUG_LOG("add relational algebra summarization code");
+				MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
+				result = rewriteSummaryOutput((Node *) summInputs, props, qType);
+				INFO_OP_LOG("translated DL model with summarization:\n", result);
+			}
+
+        	return result;
         }
 
         if (p->ans == NULL)

@@ -96,6 +96,7 @@ extern DataType oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *
 extern gprom_long_t getBarrierScn(void);
 extern int oracleGetCostEstimation(char *query);
 extern List *oracleGetKeyInformation(char *tableName);
+extern int oracleGetNumofRowsInformation(char *tableName);
 extern DataType oracleBackendSQLTypeToDT (char *sqlType);
 extern char * oracleBackendDatatypeToSQL (DataType dt);
 

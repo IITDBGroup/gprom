@@ -16,6 +16,7 @@
 #include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
 
+#include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "utility/string_utils.h"
 #include "model/datalog/datalog_model.h"
@@ -48,7 +49,7 @@
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
 static List *domAttrsOutput (Node *sampleInput, int sampleSize, ProvQuestion qType, HashMap *vrPair, List *domRels, List *fPattern);
-static List *joinOnSeqOutput (List *doms);
+static List *joinOnSeqOutput (List *doms, HashMap *relToDoms);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -73,6 +74,7 @@ static List *origDataTypes = NIL;
 static List *givenConsts = NIL;
 static boolean isDL = FALSE;
 //static int givenConsts = 0;
+static HashMap *domToTrans;
 
 
 Node *
@@ -106,7 +108,9 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 	origDataTypes = NIL;
 	givenConsts = NIL;
 	isDL = FALSE;
-	
+
+	domToTrans = NEW_MAP(Constant,Node);
+    HashMap *relToDoms = NEW_MAP(Constant,Constant);
 
 	if (summOpts != NULL)
 	{
@@ -193,6 +197,28 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 				}
 			}
 		}
+
+	    // store info which rel+attr uses which user domain
+	    if(MAP_HAS_STRING_KEY(summOpts,DL_PROV_PROG))
+	    {
+	    	DLProgram *p = (DLProgram *) MAP_GET_STRING(summOpts,DL_PROV_PROG);
+
+	    	if(!LIST_EMPTY(p->doms))
+	    	{
+		    	FOREACH(Node,n,p->doms)
+		    	{
+					if(isA(n,DLDomain))
+					{
+						DLDomain *dd = (DLDomain *) n;
+						char *key = CONCAT_STRINGS(dd->rel,dd->attr);
+						char *value = CONCAT_STRINGS(dd->name,dd->attr);
+
+						if(!MAP_HAS_STRING_KEY(relToDoms,key))
+							MAP_ADD_STRING_KEY_AND_VAL(relToDoms,key,value);
+					}
+		    	}
+	    	}
+	    }
 	}
 
 	DEBUG_LOG("summarization options are: qType: %s, fPattern: %s, summaryType: %s, topK: %u, sPrecision: %f, sRecall: %f, sInfo: %f, thPrecision: %f, thRecall: %f, thInfo: %f",
@@ -321,9 +347,9 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 			doms = domAttrsOutput(eachRewrittenTree, sampleSize, qType, varRelPair, domRels, fPattern);
 
 			if(LIST_EMPTY(sampleDoms))
-				sampleDoms = joinOnSeqOutput(doms);
+				sampleDoms = joinOnSeqOutput(doms,relToDoms);
 			else
-				FOREACH(QueryOperator,qo,joinOnSeqOutput(doms))
+				FOREACH(QueryOperator,qo,joinOnSeqOutput(doms,relToDoms))
 					if(!searchListNode(sampleDoms,(Node *) qo))
 						sampleDoms = appendToTailOfList(sampleDoms, qo);
 		}
@@ -419,24 +445,24 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 	if (moveRels != NULL)
 		result = integrateWithEdgeRel(result, moveRels);
 
-    // apply casts where necessary
-    if (isA(result, List))
-    {
-        List *translation = (List *) result;
-        FOREACH(QueryOperator,c,translation)
-        {
-            introduceCastsWhereNecessary(c);
-//            ASSERT(checkModel(c));
-        }
-    }
-    else if (IS_OP(result))
-    {
-        introduceCastsWhereNecessary((QueryOperator *) result);
-//        ASSERT(checkModel((QueryOperator *) result));
-    }
-
-	if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-		ASSERT(checkModel((QueryOperator *) result));
+//    // apply casts where necessary
+//    if (isA(result, List))
+//    {
+//        List *translation = (List *) result;
+//        FOREACH(QueryOperator,c,translation)
+//        {
+//            introduceCastsWhereNecessary(c);
+////            ASSERT(checkModel(c));
+//        }
+//    }
+//    else if (IS_OP(result))
+//    {
+//        introduceCastsWhereNecessary((QueryOperator *) result);
+////        ASSERT(checkModel((QueryOperator *) result));
+//    }
+//
+//	if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+//		ASSERT(checkModel((QueryOperator *) result));
 
 	return result;
 }
@@ -506,7 +532,18 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 		}
 
 		projExpr = CONCAT_LISTS(projExpr,measures);
-		attrNames = CONCAT_LISTS(attrNames,measureAttrs);
+//		attrNames = CONCAT_LISTS(attrNames,measureAttrs);
+
+		// renaming the attribute name to connect edge rels
+		List *renamedAttrs = NIL;
+
+		for(int i = 0; i < LIST_LENGTH(attrNames); i++)
+		{
+			char *newName = CONCAT_STRINGS("A",gprom_itoa(i));
+			renamedAttrs = appendToTailOfList(renamedAttrs,newName);
+		}
+		renamedAttrs = CONCAT_LISTS(renamedAttrs,measureAttrs);
+
 
 	//	// bring the failure pattern back before merge with edge rel for WHYNOT
 	//	if(!LIST_EMPTY(fPattern))
@@ -562,8 +599,8 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 			pos++;
 		}
 
-		ProjectionOperator *op = createProjectionOp(caseExprs, newEdgeBase, NIL, attrNames);
-		newEdgeBase->parents = singleton(op);
+		ProjectionOperator *op = createProjectionOp(caseExprs, newEdgeBase, NIL, renamedAttrs);
+		newEdgeBase->parents = CONCAT_LISTS(newEdgeBase->parents,singleton(op));
 		newEdgeBase = (QueryOperator *) op;
 
 		MAP_ADD_STRING_KEY(relToNewbase,STRING_VALUE(getNthOfListP(distinctRels,newBasePos)),newEdgeBase);
@@ -607,17 +644,29 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 	QueryOperator *child = (QueryOperator *) getHeadOfListP(edgeRels->inputs);
 	QueryOperator *grandChild = (QueryOperator *) getHeadOfListP(child->inputs);
 
+	// duplicate removal on to of edge projection
 	QueryOperator *dup = (QueryOperator *) getTailOfListP(grandChild->inputs);
+	// projection for edges
 	ProjectionOperator *po = (ProjectionOperator *) getHeadOfListP(dup->inputs);
 
-	QueryOperator *newDup = copyObject(dup);
-	ProjectionOperator *newNode = copyObject(po);
+	// projection on top of selection
+	ProjectionOperator *poChild = (ProjectionOperator *) getHeadOfListP(po->op.inputs);
+	// selection on top of the base
+	SelectionOperator *poGrandChild = (SelectionOperator *) getHeadOfListP(poChild->op.inputs);
 
-	newNode->op.parents = singleton(newDup);
-	newNode->op.inputs = po->op.inputs;
+	// create selection operator
+	QueryOperator *pgcQo = (QueryOperator *) getHeadOfListP(poGrandChild->op.inputs);
+	SelectionOperator *so = createSelectionOp(poGrandChild->cond, pgcQo, NIL, getAttrNames(poGrandChild->op.schema));
+	pgcQo->parents = CONCAT_LISTS(pgcQo->parents,singleton(so));
+	pgcQo = (QueryOperator *) so;
+
+	// create projection
+	ProjectionOperator *pOfSel = createProjectionOp(poChild->projExprs, pgcQo, NIL, getAttrNames(poChild->op.schema));
+	pgcQo->parents = singleton(pOfSel);
+	pgcQo = (QueryOperator *) pOfSel;
 
 	// create edge relation between rule and measure node
-	Operator *o = (Operator *) getTailOfListP(newNode->projExprs);
+	Operator *o = (Operator *) getTailOfListP(po->projExprs);
 
 	Node *bracketLeft = (Node *) createConstString("NUMPROVRECALL_WON(");
 	Node *middle = (Node *) createConstString(",");
@@ -628,14 +677,35 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 
 	o->args = CONCAT_LISTS(singleton(bracketLeft),singleton(numInProv), singleton(middle),
 			singleton(recall), singleton(bracketRight));
-	newNode->projExprs = CONCAT_LISTS(singleton(getHeadOfListP(newNode->projExprs)), singleton(o));
-//	newNode->projExprs = CONCAT_LISTS(singleton(o), singleton(o));
-	newDup->inputs = singleton(newNode);
+
+	List *edgeExprs = singleton(getHeadOfListP(po->projExprs));
+	List *newExprs = CONCAT_LISTS(edgeExprs, singleton(o));
+
+	ProjectionOperator *poEdge = createProjectionOp(newExprs, pgcQo, NIL, getAttrNames(dup->schema));
+	pgcQo->parents = singleton(poEdge);
+	pgcQo = (QueryOperator *) poEdge;
+
+	int pos = 0;
+	projExpr = NIL;
+
+	FOREACH(AttributeDef,a,dup->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+		pos++;
+	}
+
+	QueryOperator *dp = (QueryOperator *) createDuplicateRemovalOp(projExpr, pgcQo, NIL, getAttrNames(dup->schema));
+	pgcQo->parents = singleton(dp);
+	pgcQo = dp;
 
 	//create union operator
-	List *allInput = LIST_MAKE(getHeadOfListP(edgeRels->inputs),newDup);
-	QueryOperator *unionOp = (QueryOperator *) createSetOperator(SETOP_UNION,allInput,NIL,getAttrNames(newDup->schema));
+	QueryOperator *q = (QueryOperator *) getHeadOfListP(edgeRels->inputs);
+	List *allInput = LIST_MAKE(q,pgcQo);
+	QueryOperator *unionOp = (QueryOperator *) createSetOperator(SETOP_UNION,allInput,NIL,getAttrNames(pgcQo->schema));
 	OP_LCHILD(unionOp)->parents = OP_RCHILD(unionOp)->parents = singleton(unionOp);
+//	newDup->parents = CONCAT_LISTS(newDup->parents, unionOp);
+//	q->parents = CONCAT_LISTS(q->parents,singleton(unionOp));
 	edgeRels = unionOp;
 
 	result = (Node *) edgeRels;
@@ -923,7 +993,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 		fcCount->isAgg = TRUE;
 
 		ProjectionOperator *projOp = createProjectionOp(singleton(fcCount), provSample, NIL, singleton(strdup(TOTAL_PROV_ATTR)));
-		provSample->parents = singleton(projOp);
+		provSample->parents = CONCAT_LISTS(provSample->parents,singleton(projOp));
 		provSample = (QueryOperator *) projOp;
 
 		// create cross product
@@ -931,7 +1001,9 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 		List *attrNames = CONCAT_LISTS(getAttrNames(provSample->schema), getAttrNames(computeFrac->schema));
 
 		QueryOperator *cp = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
-		OP_LCHILD(cp)->parents = OP_RCHILD(cp)->parents = singleton(cp);
+//		OP_LCHILD(cp)->parents = OP_RCHILD(cp)->parents = singleton(cp);
+		provSample->parents = CONCAT_LISTS(provSample->parents,singleton(cp));
+		computeFrac->parents = CONCAT_LISTS(computeFrac->parents,singleton(cp));
 		computeFrac = cp;
 	}
 
@@ -1123,8 +1195,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 
 	Node *cond = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
 	SelectionOperator *so = createSelectionOp(cond, provQuery, NIL, getAttrNames(provQuery->schema));
-
-	provQuery->parents = singleton(so);
+	provQuery->parents = CONCAT_LISTS(provQuery->parents,singleton(so));
 	provQuery = (QueryOperator *) so;
 
 	Constant *countTProv = createConstInt(1);
@@ -1135,6 +1206,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 	SET_BOOL_STRING_PROP((Node *) totalProv, PROP_MATERIALIZE);
 	inputs = appendToTailOfList(inputs, (Node *) totalProv);
 	attrNames = appendToTailOfList(attrNames, strdup(TOTAL_PROV_ATTR));
+	provQuery->parents = singleton(totalProv);
 
 	// create cross product for provQuery and totalProv
 	QueryOperator *provQtotalProv = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
@@ -1151,6 +1223,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 	SET_BOOL_STRING_PROP((Node *) totalProvInSamp, PROP_MATERIALIZE);
 	inputs = LIST_MAKE(provQtotalProv, totalProvInSamp);
 	attrNames = appendToTailOfList(attrNames, strdup(TOTAL_PROV_SAMP_ATTR));
+	sampProv->parents = CONCAT_LISTS(sampProv->parents, singleton(totalProvInSamp));
 
 	// create cross product for provQtotalProv and totalProvInSamp
 	QueryOperator *crossPtotalProvInSamp = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
@@ -1458,6 +1531,9 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 
 	FOREACH(TableAccessOperator,t,removeDupTa)
 	{
+		QueryOperator *q = (QueryOperator *) t;
+		q->parents = NIL;
+
 		// if the input query is not self-joined, then reset everything
 		if(relName != NULL)
 		{
@@ -1476,6 +1552,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 		if(relName == NULL && MAP_HAS_STRING_KEY(vrPair,t->tableName))
 		{
 			relName = strdup(t->tableName);
+			int seqCount = 0;
 
 			FOREACH(AttributeDef, a, t->op.schema->attrDefs)
 			{
@@ -1516,47 +1593,48 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 							 *  e.g., how to capture table size. Currently, size captured by the table name
 							 */
 
-							// capture the very first position of the number in a string
-							char *numInChar = NULL;
-							char string[strlen(t->tableName)];
-							strcpy(string,t->tableName);
+//							// capture the very first position of the number in a string
+//							char *numInChar = NULL;
+//							char string[strlen(t->tableName)];
+//							strcpy(string,t->tableName);
+//
+//							for(int i = 0; string[i]!='\0'; i++)
+//							{
+//								if(isdigit(string[i]))
+//								{
+//									numInChar = &string[i];
+//									break;
+//								}
+//							}
+//
+//							// capture the size of data from the string
+//							char *numInTableName = NULL;
+//
+//							if(isSubstr(t->tableName,numInChar))
+//								numInTableName = strstr(t->tableName,numInChar);
+//
+//							// replace the string[i] that represent the number (e.g., M/m = million)
+//							if(isSubstr(numInTableName,"K"))
+//								numInTableName = replaceSubstr(numInTableName,"K","000");
+//
+//							if(isSubstr(numInTableName,"k"))
+//								numInTableName = replaceSubstr(numInTableName,"k","000");
+//
+//							if(isSubstr(numInTableName,"M"))
+//								numInTableName = replaceSubstr(numInTableName,"M","000000");
+//
+//							if(isSubstr(numInTableName,"m"))
+//								numInTableName = replaceSubstr(numInTableName,"m","000000");
+//
+//							// calculate percentile for sampling
+//							float dataSize = 0;
+//
+//							if(numInTableName != NULL)
+//								dataSize = atof(numInTableName);
+//							else // for tpch
+//								dataSize = 15000000;
 
-							for(int i = 0; string[i]!='\0'; i++)
-							{
-								if(isdigit(string[i]))
-								{
-									numInChar = &string[i];
-									break;
-								}
-							}
-
-							// capture the size of data from the string
-							char *numInTableName = NULL;
-
-							if(isSubstr(t->tableName,numInChar))
-								numInTableName = strstr(t->tableName,numInChar);
-
-							// replace the string[i] that represent the number (e.g., M/m = million)
-							if(isSubstr(numInTableName,"K"))
-								numInTableName = replaceSubstr(numInTableName,"K","000");
-
-							if(isSubstr(numInTableName,"k"))
-								numInTableName = replaceSubstr(numInTableName,"k","000");
-
-							if(isSubstr(numInTableName,"M"))
-								numInTableName = replaceSubstr(numInTableName,"M","000000");
-
-							if(isSubstr(numInTableName,"m"))
-								numInTableName = replaceSubstr(numInTableName,"m","000000");
-
-							// calculate percentile for sampling
-							float dataSize = 0;
-
-							if(numInTableName != NULL)
-								dataSize = atof(numInTableName);
-							else // for tpch
-								dataSize = 15000000;
-
+							float dataSize = (float) getNumofRowsInformation(t->tableName);
 							float perc = 0;
 
 							if(sampleSize < dataSize)
@@ -1589,18 +1667,29 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 
 							// sample perc for adding SAMPLE clause in the serializer
 //							t->sampClause = (Node *) createConstInt(perc);
-							SampleClauseOperator *scOp = createSampleClauseOp((QueryOperator *) t,
+
+							QueryOperator *q = (QueryOperator *) t;
+							SampleClauseOperator *scOp = createSampleClauseOp(q,
 															(Node *) createConstFloat(perc),
-															getAttrNames(t->op.schema),
-															getAttrDataTypes(t->op.schema->attrDefs));
+															getAttrNames(q->schema),
+															getAttrDataTypes(q->schema->attrDefs));
+
+							q->parents = CONCAT_LISTS(q->parents,singleton(scOp));
+							q = (QueryOperator *) scOp;
 
 							// rownum as a sequence
 							Node *rowNum = (Node *) makeNode(RowNumExpr);
 							List *projExpr = LIST_MAKE(rowNum, ar);
-							ProjectionOperator *projDom = createProjectionOp(projExpr, (QueryOperator *) scOp, NIL,
-														LIST_MAKE(strdup("SEQ"),strdup(ar->name)));
-							SET_BOOL_STRING_PROP((Node *) projDom, PROP_MATERIALIZE);
-							result = appendToTailOfList(result, (Node *) projDom);
+
+							char *seq = CONCAT_STRINGS(strdup("SEQ"),gprom_itoa(seqCount++));
+							ProjectionOperator *projDom = createProjectionOp(projExpr, q, NIL,
+														LIST_MAKE(seq,strdup(ar->name)));
+
+							q->parents = singleton(projDom);
+							q = (QueryOperator *) projDom;
+
+//							SET_BOOL_STRING_PROP((Node *) projDom, PROP_MATERIALIZE);
+							result = appendToTailOfList(result, (Node *) q);
 						}
 //					}
 				}
@@ -1811,8 +1900,8 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	// set the parent of the operator's children
 //	OP_LCHILD(scanSample)->parents = OP_RCHILD(scanSample)->parents = singleton(scanSample);
-	samples->parents = appendToTailOfList(samples->parents,scanSample);
-	patterns->parents = singleton(scanSample);
+	samples->parents = CONCAT_LISTS(samples->parents,singleton(scanSample));
+	patterns->parents = CONCAT_LISTS(patterns->parents,singleton(scanSample));
 //	scanSample->provAttrs = provAttrs;
 
 	// create projection for adding HAS_PROV_ATTR attribute
@@ -1930,8 +2019,8 @@ rewritePatternOutput (char *summaryType, Node *unionSample, Node *randProv)
 
 		// set the parent of the operator's children
 //		OP_LCHILD(patternJoin)->parents = OP_RCHILD(patternJoin)->parents = singleton(patternJoin);
-		allSample->parents = appendToTailOfList(allSample->parents,patternJoin);
-		provSample->parents = singleton(patternJoin);
+		allSample->parents = CONCAT_LISTS(allSample->parents,singleton(patternJoin));
+		provSample->parents = CONCAT_LISTS(provSample->parents,singleton(patternJoin));
 //		patternJoin->provAttrs = copyObject(provAttrs);
 
 		// create projection operator
@@ -2614,7 +2703,7 @@ replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 {
 	Node *result;
 //	Node *whyNotRuleFire = (Node *) getHeadOfListP((List *) input);
-	Node *whyNotRuleFire = copyObject(input);
+	Node *whyNotRuleFire = input;
 
 //	// TODO: function for capturing sub-rooted RA for domain
 //	// count number of attrs in sample domain
@@ -2629,10 +2718,11 @@ replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 		if(HAS_STRING_PROP(t,DL_IS_DOMAIN_REL))
 		{
 			QueryOperator *tBase = (QueryOperator *) t;
+			QueryOperator *sampleDom = NULL;
 
-			// find the corresponding domain RA by the position
-			int qoPos = listPosString(domRels,t->tableName);
-			QueryOperator *sampleDom = (QueryOperator *) getNthOfListP(sampleDoms,qoPos);
+//			// find the corresponding domain RA by the position
+//			int qoPos = listPosString(domRels,t->tableName);
+//			QueryOperator *sampleDom = (QueryOperator *) getNthOfListP(sampleDoms,qoPos);
 
 			/*
 			 *  replace the query block with joined sampled domain
@@ -2648,14 +2738,87 @@ replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 			QueryOperator *grandparent = (QueryOperator *) getHeadOfListP(parent->parents);
 
 			if(IS_BINARY_OP(grandparent) && LIST_LENGTH(grandparent->parents) > 1)
-				switchSubtreeWithExisting(grandparent, sampleDom);
+			{
+				// find the translation that replace the domain query block
+				FOREACH_HASH_KEY(Constant,c,domToTrans)
+				{
+					char *key = STRING_VALUE(c);
+
+					if(isSubstr(key,t->tableName))
+					{
+//						char *key = CONCAT_STRINGS(t->tableName,"JOINED");
+						sampleDom = (QueryOperator *) MAP_GET_STRING(domToTrans,key);
+
+						// add projection without SEQ
+						List *projExpr = NIL;
+						List *attrNames = NIL;
+						int pos = 0;
+						int i = 0;
+
+						FOREACH(AttributeDef,a,sampleDom->schema->attrDefs)
+						{
+							if(!isSubstr(a->attrName,"SEQ"))
+							{
+								projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName),0,pos,0,a->dataType));
+								attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("V",gprom_itoa(i)));
+								i++;
+							}
+							pos++;
+						}
+
+						ProjectionOperator *p = createProjectionOp(projExpr,sampleDom,NIL,attrNames);
+						sampleDom->parents = CONCAT_LISTS(sampleDom->parents,singleton(p));
+						sampleDom = (QueryOperator *) p;
+
+						switchSubtreeWithExisting(grandparent, sampleDom);
+					}
+				}
+			}
 
 			if(LIST_LENGTH(parent->parents) > 1)
 			{
 				grandparent = (QueryOperator *) getTailOfListP(parent->parents);
 
 				if(IS_UNARY_OP(grandparent) && LIST_LENGTH(grandparent->parents) == 1)
-					switchSubtreeWithExisting(parent, sampleDom);
+				{
+					FOREACH_HASH_KEY(Constant,c,domToTrans)
+					{
+						char *key = STRING_VALUE(c);
+
+						if(isSubstr(key,t->tableName))
+						{
+							sampleDom = (QueryOperator *) MAP_GET_STRING(domToTrans,key);
+//							SET_BOOL_STRING_PROP(sampleDom, PROP_MATERIALIZE);
+
+							// add projection without SEQ
+							List *projExpr = NIL;
+							List *attrNames = NIL;
+							int pos = 0;
+							int i = 0;
+
+							// extract attribute name from the key
+							char *attr = replaceSubstr(key,t->tableName,"");
+
+							FOREACH(AttributeDef,a,sampleDom->schema->attrDefs)
+							{
+								if(!isSubstr(a->attrName,"SEQ") && streq(a->attrName,attr))
+								{
+									projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName),0,pos,0,a->dataType));
+									attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("V",gprom_itoa(i)));
+									i++;
+								}
+								pos++;
+							}
+
+							ProjectionOperator *p = createProjectionOp(projExpr,sampleDom,NIL,attrNames);
+							sampleDom->parents = CONCAT_LISTS(sampleDom->parents,singleton(p));
+							sampleDom = (QueryOperator *) p;
+
+							// switch to corresponding sample domain
+							switchSubtreeWithExisting(parent, sampleDom);
+						}
+					}
+				}
 			}
 
 			DEBUG_LOG("replaced domain %s with\n:%s", operatorToOverviewString((Node *) tBase),
@@ -2677,18 +2840,20 @@ replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
  * for WHYNOT, join on seq
  */
 static List *
-joinOnSeqOutput (List *doms)
+joinOnSeqOutput (List *doms, HashMap *relToDoms)
 {
 	List *result = NIL;
 	List *inputs = NIL;
 	List *attrNames = NIL;
-	List * outputs = NIL;
+	List *outputs = NIL;
+	List *domsInKeys = NIL;
 
 	QueryOperator *sampDom = NULL;
 	AttributeReference *lA = NULL,
 					   *rA = NULL;
 
 	int lApos = 0;
+	domToTrans = NEW_MAP(Constant,Node);
 
 	inputs = appendToTailOfList(inputs, (Node *) getNthOfListP(doms,0));
 	QueryOperator *firstOp = (QueryOperator *) getNthOfListP(doms,0);
@@ -2700,8 +2865,19 @@ joinOnSeqOutput (List *doms)
 
 	FOREACH(AttributeDef,a,firstOp->schema->attrDefs)
 	{
-		if(streq(a->attrName,"SEQ"))
+		if(isSubstr(a->attrName,"SEQ"))
 			lA = createFullAttrReference(strdup(a->attrName),0,lApos,0,a->dataType);
+		else
+		{
+			char *search = CONCAT_STRINGS(strRel,a->attrName);
+			char *key = NULL;
+
+			if(MAP_HAS_STRING_KEY(relToDoms,search))
+				key = STRING_VALUE(MAP_GET_STRING(relToDoms,search));
+
+			if(key != NULL)
+				domsInKeys = appendToTailOfList(domsInKeys,key);
+		}
 
 		attrNames = appendToTailOfList(attrNames, a->attrName);
 		lApos++;
@@ -2722,21 +2898,44 @@ joinOnSeqOutput (List *doms)
 		TableAccessOperator *followedTo = (TableAccessOperator *) getHeadOfListP(rels);
 		char *followedRel = followedTo->tableName;
 
-		QueryOperator *oDom = (QueryOperator *) n;
-
 		if(streq(strRel,followedRel))
 		{
+			QueryOperator *oDom = (QueryOperator *) n;
+
+			// before joining, check the domain for attribute exist
+			ProjectionOperator *p = (ProjectionOperator *) oDom;
+			AttributeReference *ar = (AttributeReference *) getTailOfListP(p->projExprs);
+			TableAccessOperator *t = (TableAccessOperator *) getHeadOfListP(rels);
+
+			char *searchKey = CONCAT_STRINGS(t->tableName, ar->name);
+
+			if(!searchListString(domsInKeys, searchKey) && !LIST_EMPTY(domsInKeys))
+			{
+				char *search = CONCAT_STRINGS(strRel,ar->name);
+				char *key = NULL;
+
+				if(MAP_HAS_STRING_KEY(relToDoms,search))
+					key = STRING_VALUE(MAP_GET_STRING(relToDoms,search));
+
+//				char *key = STRING_VALUE(MAP_GET_STRING(relToDoms,CONCAT_STRINGS(strRel,ar->name)));
+				domsInKeys = appendToTailOfList(domsInKeys, strdup(key));
+			}
+
 			rA = NULL;
 			int rApos = 0;
 
 			FOREACH(AttributeDef,oa,oDom->schema->attrDefs)
 			{
-				if(streq(oa->attrName,"SEQ"))
+				if(isSubstr(oa->attrName,"SEQ"))
 					rA = createFullAttrReference(strdup(oa->attrName),1,rApos,0,oa->dataType);
 
 				attrNames = appendToTailOfList(attrNames, oa->attrName);
 				rApos++;
 			}
+
+//			// make the name "SEQ" unique
+//			Set *allNames = STRSET();
+//			makeNamesUnique(attrNames, allNames);
 
 			// create join on "seq"
 			if(lA != NULL && rA != NULL)
@@ -2758,6 +2957,35 @@ joinOnSeqOutput (List *doms)
 			if(rA == NULL)
 				sampDom = firstOp;
 
+			// create proj operator to fileter out SEQ
+			if(!LIST_EMPTY(domsInKeys))
+			{
+				List *projExpr = NIL;
+				attrNames = NIL;
+				int pos = 0;
+
+				FOREACH(AttributeDef,a,sampDom->schema->attrDefs)
+				{
+//					if(!streq(a->attrName,"SEQ"))
+//					{
+						projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName),0,pos,0,a->dataType));
+						attrNames = appendToTailOfList(attrNames, a->attrName);
+//					}
+					pos++;
+				}
+
+				ProjectionOperator *p = createProjectionOp(projExpr,sampDom,NIL,attrNames);
+				sampDom->parents = singleton(p);
+				sampDom = (QueryOperator *) p;
+
+				// assign joined operator for corresponding domain head atoms
+				FOREACH(char,c,domsInKeys)
+				{
+					if(!MAP_HAS_STRING_KEY(domToTrans,c))
+						MAP_ADD_STRING_KEY(domToTrans,c,(Node *) sampDom);
+				}
+			}
+
 			outputs = appendToTailOfList(outputs, sampDom);
 			sampDom = NULL;
 			firstOp = (QueryOperator *) n;
@@ -2767,6 +2995,46 @@ joinOnSeqOutput (List *doms)
 			findTableAccessVisitor((Node *) firstOp,&rels);
 			firstOpTo = (TableAccessOperator *) getHeadOfListP(rels);
 			strRel = firstOpTo->tableName;
+
+			// check the translated operator already exists for the first operator
+			ProjectionOperator *p = (ProjectionOperator *) firstOp;
+			AttributeReference *ar = (AttributeReference *) getTailOfListP(p->projExprs);
+
+			char *searchKey = CONCAT_STRINGS(firstOpTo->tableName, ar->name);
+
+			if(MAP_HAS_STRING_KEY(relToDoms,searchKey))
+			{
+				char *key = STRING_VALUE(MAP_GET_STRING(relToDoms,searchKey));
+
+				if(MAP_HAS_STRING_KEY(domToTrans,key))
+				{
+					 QueryOperator *tempOp = (QueryOperator *) MAP_GET_STRING(domToTrans,key);
+					 ProjectionOperator *tpo = (ProjectionOperator *) tempOp;
+
+					 FOREACH(Node,n,p->projExprs)
+					 {
+						 if(!isA(n,RowNumExpr))
+						 {
+							 FOREACH(AttributeReference,tar,tpo->projExprs)
+							 {
+								 if(streq(ar->name,tar->name))
+									 ar->attrPosition = tar->attrPosition;
+							 }
+						 }
+					 }
+
+					 attrNames = LIST_MAKE(strdup("SEQ"),strdup(ar->name));
+					 ProjectionOperator *po = createProjectionOp(p->projExprs,tempOp,NIL,attrNames);
+					 tempOp->parents = singleton(po);
+
+					 // update value in the hashmap
+					 MAP_ADD_STRING_KEY(domToTrans,key,(Node *) tempOp);
+
+					 tempOp = (QueryOperator *) po;
+					 firstOp = tempOp;
+					 inputs = singleton((Node *) firstOp);
+				}
+			}
 
 			AttributeDef *a = (AttributeDef *) getHeadOfListP(firstOp->schema->attrDefs);
 			lA = createFullAttrReference(strdup(a->attrName),0,0,0,a->dataType);
@@ -2778,33 +3046,126 @@ joinOnSeqOutput (List *doms)
 	if(rA == NULL)
 		sampDom = firstOp;
 
-	outputs = appendToTailOfList(outputs, sampDom);
+	// store late joined query block into domToTrans
+	QueryOperator *q = (QueryOperator *) sampDom;
+	AttributeDef *a = (AttributeDef *) getTailOfListP(q->schema->attrDefs);
 
-	// add projection operator to remove seq attr
-	FOREACH(QueryOperator,o,outputs)
+	char *searchKey = CONCAT_STRINGS(strRel,a->attrName);
+	if(MAP_HAS_STRING_KEY(relToDoms,searchKey))
 	{
+		char *key = STRING_VALUE(MAP_GET_STRING(relToDoms,searchKey));
 		List *projExpr = NIL;
 		attrNames = NIL;
 		int pos = 0;
 
-		FOREACH(AttributeDef,a,o->schema->attrDefs)
+		FOREACH(AttributeDef,a,sampDom->schema->attrDefs)
 		{
-			if(!streq(a->attrName,"SEQ"))
-			{
+//			if(!streq(a->attrName,"SEQ"))
+//			{
 				projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName),0,pos,0,a->dataType));
 				attrNames = appendToTailOfList(attrNames, a->attrName);
-			}
+//			}
 			pos++;
 		}
 
-		ProjectionOperator *p = createProjectionOp(projExpr,o,NIL,attrNames);
-		o->parents = singleton(p);
-		o = (QueryOperator *) p;
+		ProjectionOperator *p = createProjectionOp(projExpr,sampDom,NIL,attrNames);
+		sampDom->parents = singleton(p);
+		sampDom = (QueryOperator *) p;
 
-		// add the projection operator to the result
-		SET_BOOL_STRING_PROP(o, PROP_MATERIALIZE);
-		result = appendToTailOfList(result,o);
+		if(!MAP_HAS_STRING_KEY(domToTrans,key))
+			MAP_ADD_STRING_KEY(domToTrans,key,sampDom);
 	}
+
+	outputs = appendToTailOfList(outputs, sampDom);
+
+	if(domToTrans == NULL)
+	{
+		// add projection operator to remove seq attr
+		FOREACH(QueryOperator,o,outputs)
+		{
+			List *projExpr = NIL;
+			attrNames = NIL;
+			int pos = 0;
+
+			FOREACH(AttributeDef,a,o->schema->attrDefs)
+			{
+				if(!streq(a->attrName,"SEQ"))
+				{
+					projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName),0,pos,0,a->dataType));
+					attrNames = appendToTailOfList(attrNames, a->attrName);
+				}
+				pos++;
+			}
+
+			ProjectionOperator *p = createProjectionOp(projExpr,o,NIL,attrNames);
+			o->parents = singleton(p);
+			o = (QueryOperator *) p;
+
+			// add the projection operator to the result
+			SET_BOOL_STRING_PROP(o, PROP_MATERIALIZE);
+			result = appendToTailOfList(result,o);
+		}
+	}
+	else
+	{
+		FOREACH_HASH(Node,n,domToTrans)
+		{
+			if(!searchListNode(result,(Node *) n))
+			{
+//				SET_BOOL_STRING_PROP(n,PROP_MATERIALIZE);
+				result = appendToTailOfList(result,n);
+			}
+		}
+	}
+
+
+//	// store the joined domain translation into the hashmap
+//	FOREACH(ProjectionOperator,p,result)
+//	{
+//		List *rels = NIL;
+//
+//		// traverse tableaccess operators
+//		findTableAccessVisitor((Node *) p,&rels);
+//
+//		int attrPos = 0;
+////		char *tableName = NULL;
+//
+//		FOREACH(TableAccessOperator,t,rels)
+//		{
+////			if(tableName == NULL)
+////				tableName = t->tableName;
+////
+////			if(!streq(tableName,t->tableName))
+////				attrPos = 0;
+//
+//			AttributeReference *a = (AttributeReference *) getNthOfListP(p->projExprs,attrPos);
+//
+//			// create key (tablename + attribute name)
+//			char *searchKey = CONCAT_STRINGS(t->tableName,a->name);
+//
+//			// check which key uses to which domain
+//			if(MAP_HAS_STRING_KEY(relToDoms,searchKey))
+//			{
+//				/*
+//				 *  store (domHead, domTranslation) into another hashmap
+//				 *  to use on the domain query block replacement
+//				 */
+//				char *key = NULL;
+//
+//				if(LIST_LENGTH(p->projExprs) > 1)
+//					key = CONCAT_STRINGS(
+//								STRING_VALUE(MAP_GET_STRING(relToDoms,searchKey)),
+//								strdup("JOINED"));
+//				else
+//					key = STRING_VALUE(MAP_GET_STRING(relToDoms,searchKey));
+//
+//				if(!MAP_HAS_STRING_KEY(domToTrans,key))
+//					MAP_ADD_STRING_KEY(domToTrans,key,(Node *) p);
+//			}
+//
+//			attrPos++;
+//		}
+//	}
 
 	DEBUG_NODE_BEATIFY_LOG("sample domain based on the seq:", result);
 	INFO_OP_LOG("sample domain based on the seq:", result);
@@ -2973,8 +3334,9 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 			{
 				AttributeDef *a = (AttributeDef *) getNthOfListP(transInput->schema->attrDefs,i);
 				char *renameA = CONCAT_STRINGS("A",gprom_itoa(i));
+				char *provAname = CONCAT_STRINGS("PROV_A",gprom_itoa(i));
 
-				projExpr = appendToTailOfList(projExpr, createFullAttrReference(strdup(renameA), 0, i, 0, a->dataType));
+				projExpr = appendToTailOfList(projExpr, createFullAttrReference(strdup(provAname), 0, i, 0, a->dataType));
 				attrNames = appendToTailOfList(attrNames, renameA);
 			}
 		}

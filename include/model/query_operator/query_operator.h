@@ -158,8 +158,7 @@ typedef struct SampleClauseOperator
 
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
-                        || isA(op, ConstRelOperator) \
-						|| isA(op, SampleClauseOperator))
+                        || isA(op, ConstRelOperator))
 
 #define IS_UNARY_OP(op) (isA(op,ProjectionOperator)     \
         || isA(op,SelectionOperator)                    \
