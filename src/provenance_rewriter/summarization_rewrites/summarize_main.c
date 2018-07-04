@@ -1131,9 +1131,15 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 
 	// compute the fraction of informativeness
 //	Node *noGivenConsts = (Node *) createOpExpr("-",LIST_MAKE(infoSum,createConstInt(givenConsts)));
-	Node *infoRate = (Node *) createOpExpr("/",LIST_MAKE(newInfoOfSumm,createConstInt(summArity-userQLen-givenConstLen)));
-	FunctionCall *rdupInfo = createFunctionCall("ROUND", LIST_MAKE(infoRate, rdup));
-	projExpr = appendToTailOfList(projExpr, rdupInfo);
+
+	if(newInfoOfSumm != NULL)
+	{
+		Node *infoRate = (Node *) createOpExpr("/",LIST_MAKE(newInfoOfSumm,createConstInt(summArity-userQLen-givenConstLen)));
+		FunctionCall *rdupInfo = createFunctionCall("ROUND", LIST_MAKE(infoRate, rdup));
+		projExpr = appendToTailOfList(projExpr, rdupInfo);
+	}
+	else
+		projExpr = appendToTailOfList(projExpr, (Node *) createConstInt(0));
 
 	List *attrNames = NIL;
 	attrNames = CONCAT_LISTS(getAttrNames(computeFrac->schema), singleton(ACCURACY_ATTR),
@@ -1440,19 +1446,40 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 				SelectionOperator *so = (SelectionOperator *) parent;
 				Operator *op = (Operator *) so->cond;
 
+				/*
+				 * TODO: how we define informativeness level
+				 * For example, a condition X = 2 is given in the query, then the pattern contains only this information is ranked below
+				 * What about other comparison operators, e.g., >=, <=, >, < which currently considered as a new information
+				 * because X >=2 then we still do not know how many patterns for a particular value, e.g., still new if pattern contain X = 3
+				 */
 				if(streq(op->name,"="))
 				{
-					FOREACH(Node,n,op->args)
+					Node *ln = (Node *) getHeadOfListP(op->args);
+					Node *rn = (Node *) getTailOfListP(op->args);
+
+					if(isA(ln,AttributeReference))
 					{
-						if(isA(n,AttributeReference))
+						if(isA(rn,Constant))
 						{
-							AttributeReference *ar = (AttributeReference *) n;
+							AttributeReference *ar = (AttributeReference *) ln;
 							ar->outerLevelsUp = 0;
 
-							if(!searchListNode(givenConsts,n))
-								givenConsts = appendToTailOfList(givenConsts,ar);
+							if(!searchListNode(givenConsts,rn))
+								givenConsts = appendToTailOfList(givenConsts,rn);
 						}
 					}
+
+//					FOREACH(Node,n,op->args)
+//					{
+//						if(isA(n,AttributeReference))
+//						{
+//							AttributeReference *ar = (AttributeReference *) n;
+//							ar->outerLevelsUp = 0;
+//
+//							if(!searchListNode(givenConsts,n))
+//								givenConsts = appendToTailOfList(givenConsts,ar);
+//						}
+//					}
 				}
 				else
 				{
@@ -3243,19 +3270,40 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 					SelectionOperator *so = (SelectionOperator *) parent;
 					Operator *op = (Operator *) so->cond;
 
+					/*
+					 * TODO: how we define informativeness level
+					 * For example, a condition X = 2 is given in the query, then the pattern contains only this information is ranked below
+					 * What about other comparison operators, e.g., >=, <=, >, < which currently considered as a new information
+					 * because X >=2 then we still do not know how many patterns for a particular value, e.g., still new if pattern contain X = 3
+					 */
 					if(streq(op->name,"="))
 					{
-						FOREACH(Node,n,op->args)
+						Node *ln = (Node *) getHeadOfListP(op->args);
+						Node *rn = (Node *) getTailOfListP(op->args);
+
+						if(isA(ln,AttributeReference))
 						{
-							if(isA(n,AttributeReference))
+							if(isA(rn,Constant))
 							{
-								AttributeReference *ar = (AttributeReference *) n;
+								AttributeReference *ar = (AttributeReference *) ln;
 								ar->outerLevelsUp = 0;
 
-								if(!searchListNode(givenConsts,n))
-									givenConsts = appendToTailOfList(givenConsts,ar);
+								if(!searchListNode(givenConsts,rn))
+									givenConsts = appendToTailOfList(givenConsts,rn);
 							}
 						}
+
+//						FOREACH(Node,n,op->args)
+//						{
+//							if(isA(n,AttributeReference))
+//							{
+//								AttributeReference *ar = (AttributeReference *) n;
+//								ar->outerLevelsUp = 0;
+//
+//								if(!searchListNode(givenConsts,n))
+//									givenConsts = appendToTailOfList(givenConsts,ar);
+//							}
+//						}
 					}
 					else
 					{
