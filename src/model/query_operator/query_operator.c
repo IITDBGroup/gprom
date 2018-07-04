@@ -31,6 +31,38 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         Set *haveSeen);
 
 
+//QueryOperator *
+//findNestingOperator (QueryOperator *op, int levelsUp)
+//{
+//    QueryOperator *result = op;
+//
+//    if(isA(result, NestingOperator))
+//    {
+//         levelsUp --;
+//        if(levelsUp == 0)
+//            return result;
+//        else
+//            return findNestingOperator(result, levelsUp);
+//    }
+//
+//    FOREACH(QueryOperator, p, result->parents)
+//    {
+//            if(isA(p, NestingOperator))
+//            {
+//                levelsUp --;
+//                if(levelsUp == 0)
+//                    return p;
+//                else
+//                    return findNestingOperator(p, levelsUp);
+//            }
+//            else
+//                return findNestingOperator(p, levelsUp);
+//    }
+//
+//    return result;
+//}
+
+
 Schema *
 createSchema(char *name, List *attrDefs)
 {

@@ -652,6 +652,7 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
 
     FOREACH(List,fClause,fromClauses)
     {
+    		//fromPos = 0;
         FOREACH(FromItem, f, fClause)
         {
             attrPos = findAttrInFromItem(f, a);

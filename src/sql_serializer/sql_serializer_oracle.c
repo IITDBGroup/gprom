@@ -38,6 +38,7 @@ typedef struct ReplaceNonOracleDTsContext {
 /* variables */
 static TemporaryViewMap *viewMap;
 static int viewNameCounter;
+//static List *fromAttrsList = NIL;
 
 /* method declarations */
 static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
@@ -65,6 +66,7 @@ static void serializeSampleClause(StringInfo from, SampleClauseOperator* s, int*
 static void serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs);
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
 static boolean updateAttributeNamesOracle(Node *node, List *fromAttrs);
+//static boolean updateAttributeNamesOracleLevelsUp(Node *node, List *fromAttrsListLevelsUp);
 static boolean updateAttributeNamesSimpleOracle(Node *node, List *attrNames);
 static boolean updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state);
 
@@ -187,6 +189,16 @@ fixAttrReferences (QueryOperator *q)
     FOREACH(AttributeReference, a, attRefs)
     {
         QueryOperator *child = getNthOfListP(q->inputs, a->fromClauseItem);
+//        QueryOperator *child = NULL;
+//        if(a->outerLevelsUp == 0)
+//            child = getNthOfListP(q->inputs, a->fromClauseItem);
+//        else
+//        {
+//            int levelsUp = a->outerLevelsUp;
+//            QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(q, levelsUp);
+//            child = getNthOfListP(nestingOp->inputs, a->fromClauseItem);
+//        }
+
         char *newName = getAttrNameByPos(child,a->attrPosition);
         if (!streq(newName, a->name))
             a->name = strdup(newName);
@@ -652,7 +664,9 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     DEBUG_LOG("serializeWhere");
     if(matchInfo->where != NULL)
-        serializeWhere(matchInfo->where, whereString, fromAttrs);
+         serializeWhere(matchInfo->where, whereString, fromAttrs);
+//    if(matchInfo->where != NULL)
+//        serializeWhere(matchInfo->where, whereString, fromAttrsList);
 
     DEBUG_LOG("serialize projection + aggregation + groupBy +  having + window functions");
     serializeProjectionAndAggregation(matchInfo, selectString, havingString,
@@ -838,6 +852,9 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+
+//        //append fromAttrs into fromAttrsList, e.g., fromAttrs: ((A,B)), fromAttrsList: ( ((A,B)) )
+//        fromAttrsList = appendToHeadOfList(fromAttrsList, *fromAttrs);
 
         //for temporal database coalesce
         if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
@@ -1084,6 +1101,11 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                 // Add it to list of fromAttrs
                 *fromAttrs = appendToTailOfList(*fromAttrs, LIST_MAKE(strdup(subAttr)));
 
+//                //fromAttrsList: ( ((C,D)) , ((A,B), (nesting)) ) -> format: (L1, L2)
+//                //here (((A,B))) -> (((A,B), (nesting_eval_1)))
+//                fromAttrsList = removeFromHead(fromAttrsList);
+//                fromAttrsList = appendToHeadOfList(fromAttrsList, *fromAttrs);
+
                 // create lateral subquery for nested subquery
                 //TODO only necessary if correlation is used
                 //TODO correlated attributes would not work unless we do more bookkeeping and make sure from clause aliases are different in the nested subquery translation
@@ -1305,8 +1327,55 @@ serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
 {
     appendStringInfoString(where, "\nWHERE ");
     updateAttributeNamesOracle((Node *) q->cond, (List *) fromAttrs);
+    //updateAttributeNamesOracleLevelsUp((Node *) q->cond, (List *) fromAttrs);
     appendStringInfoString(where, exprToSQL(q->cond));
 }
+
+
+//static boolean updateAttributeNamesOracleLevelsUp(Node *node, List *fromAttrsListLevelsUp)
+//{
+//    if (node == NULL)
+//        return TRUE;
+//
+//    if (isA(node, AttributeReference))
+//    {
+//        AttributeReference *a = (AttributeReference *) node;
+//        char *newName;
+//        List *outer = NIL;
+//        int fromItem = -1;
+//        int attrPos = 0;
+//        int count = 0;
+//
+//        FOREACH(List, attrsList, fromAttrsListLevelsUp)
+//        {
+//            attrPos = 0;
+//            fromItem = -1;
+//
+//            if(a->outerLevelsUp == count || a->outerLevelsUp == -1)
+//            {
+//                FOREACH(List, attrs, attrsList)
+//                {
+//                    attrPos += LIST_LENGTH(attrs);
+//                    fromItem++;
+//                    if (attrPos > a->attrPosition)
+//                    {
+//                        outer = attrs;
+//                        break;
+//                    }
+//                }
+//                if(outer != NIL)
+//                       break;
+//            }
+//            count ++;
+//        }
+//
+//        attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
+//        newName = getNthOfListP(outer, attrPos);
+//        a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
+//    }
+//
+//        return visit(node, updateAttributeNamesOracleLevelsUp,fromAttrsListLevelsUp);
+//}
 
 static boolean
 updateAttributeNamesOracle(Node *node, List *fromAttrs)
