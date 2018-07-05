@@ -371,7 +371,9 @@ analyzeSummarizationAdvanced (DLProgram *p)
 				char *headPred = getHeadPredName(eachR);
 
 				if(streq(headPred,ansPred))
-					bodyLeng = LIST_LENGTH(eachR->body);
+					FOREACH(Node,b,eachR->body)
+						if(!isA(b,DLComparison))
+							bodyLeng++;
 			}
 		}
 
