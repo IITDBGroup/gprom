@@ -519,7 +519,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 				attrNames = appendToTailOfList(attrNames, a->attrName);
 			}
 
-			if(streq(a->attrName,"NumInProv") || streq(a->attrName,"Recall"))
+			if(streq(a->attrName,INFORMATIVE_ATTR) || streq(a->attrName,COVERAGE_ATTR))
 			{
 				measures = appendToTailOfList(measures,
 						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -666,7 +666,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 	pgcQo = (QueryOperator *) pOfSel;
 
 	// create edge relation between rule and measure node
-	Operator *o = (Operator *) getTailOfListP(po->projExprs);
+	Operator *o = (Operator *) copyObject(getTailOfListP(po->projExprs));
 
 	Node *bracketLeft = (Node *) createConstString("NUMPROVRECALL_WON(");
 	Node *middle = (Node *) createConstString(",");
