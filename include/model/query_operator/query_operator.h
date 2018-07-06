@@ -314,4 +314,7 @@ extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
 extern unsigned int numOpsInGraph (QueryOperator *root);
 extern unsigned int numOpsInTree (QueryOperator *root);
 
+//find NestingOperator based on levelsUp
+extern QueryOperator* findNestingOperator (QueryOperator *op, int levelsUp);
+
 #endif /* QUERY_OPERATOR_H_ */
