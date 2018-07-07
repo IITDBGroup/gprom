@@ -65,7 +65,7 @@ static Node *replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *inp
 static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion qType);
 static Node *rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sInfo, float thPrec, float thRec, float thInfo);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
-static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels);
+static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels, ProvQuestion qType, HashMap *summOpts);
 
 static List *provAttrs = NIL;
 static List *normAttrs = NIL;
@@ -443,7 +443,7 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 	 * integrate with the edge relation
 	 */
 	if (moveRels != NULL)
-		result = integrateWithEdgeRel(result, moveRels);
+		result = integrateWithEdgeRel(result, moveRels, qType, summOpts);
 
 //    // apply casts where necessary
 //    if (isA(result, List))
@@ -473,7 +473,7 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
  * integrate with edge rel for dl
  */
 static Node *
-integrateWithEdgeRel(Node * topkInput, Node *moveRels)
+integrateWithEdgeRel(Node * topkInput, Node *moveRels, ProvQuestion qType, HashMap *summOpts)
 {
 	Node *result;
 	QueryOperator *edgeRels = (QueryOperator *) moveRels;
@@ -704,10 +704,89 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 	List *allInput = LIST_MAKE(q,pgcQo);
 	QueryOperator *unionOp = (QueryOperator *) createSetOperator(SETOP_UNION,allInput,NIL,getAttrNames(pgcQo->schema));
 	OP_LCHILD(unionOp)->parents = OP_RCHILD(unionOp)->parents = singleton(unionOp);
-//	newDup->parents = CONCAT_LISTS(newDup->parents, unionOp);
-//	q->parents = CONCAT_LISTS(q->parents,singleton(unionOp));
-	edgeRels = unionOp;
 
+	/*
+	 *  For whynot question, the label (recall, informativeness) is needed for each type of failure on rule node.
+	 *  We first create the label for the rule node that connects to the last failed goal node (above).
+	 *  Then, we generate other additional labels for remaining rule nodes that are connected to other failed goals.
+	 *  For example, consider a rule r: Q(X) :- A(X,Z), B(Z,Y).
+	 *  Above creates a label for the rule nodes connected to the goal B(Z,Y) failed.
+	 *  Since we know the size of the rule body which is 2 here, we loop through LENGTH(r->body)-1 which is 1 here
+	 *  and create one more label for the rule nodes connected to the goal A(X,Z).
+	 *  The boolean variable used in the selection condition of the rule for the label is replaced by tracing last from first.
+	 */
+	if(qType == PROV_Q_WHYNOT)
+	{
+		// TODO: consider multi-level rule
+		DLProgram *dlProg = (DLProgram *) MAP_GET_STRING(summOpts,DL_PROV_PROG);
+		DLRule *dlRule = (DLRule *) getHeadOfListP(dlProg->rules);
+		int bodyLen = 0;
+
+		FOREACH(Node,n,dlRule->body)
+			if(isA(n,DLAtom))
+				bodyLen++;
+
+		for(int i = 1; i < bodyLen; i++)
+		{
+			ProjectionOperator *childOfPgcQo = (ProjectionOperator *) getHeadOfListP(pgcQo->inputs);
+			ProjectionOperator *gChildOfPgcQo = (ProjectionOperator *) getHeadOfListP(childOfPgcQo->op.inputs);
+			SelectionOperator *selgChildOfPgcQo = (SelectionOperator *) getHeadOfListP(gChildOfPgcQo->op.inputs);
+			QueryOperator *selBase = (QueryOperator *) getHeadOfListP(selgChildOfPgcQo->op.inputs);
+
+			// create new selection operator for another failure type
+			Operator *o = (Operator *) selgChildOfPgcQo->cond;
+			Operator *bool = (Operator *) getTailOfListP(o->args);
+
+			AttributeReference *a = (AttributeReference *) getHeadOfListP(bool->args);
+			int newPos = a->attrPosition - i;
+			char *newBoolName = CONCAT_STRINGS("A",gprom_itoa(newPos));
+			AttributeReference *newA = createFullAttrReference(strdup(newBoolName), 0, newPos, -1, a->attrType);
+			List *newArgs = CONCAT_LISTS(singleton(newA), singleton(getTailOfListP(bool->args)));
+			Operator *newBool = createOpExpr("=",newArgs);
+
+			List *newArgsCond = CONCAT_LISTS(singleton(getHeadOfListP(o->args)), singleton(newBool));
+			Operator *newCond = createOpExpr("AND",newArgsCond);
+
+			SelectionOperator *so = createSelectionOp((Node *) newCond, selBase, NIL, getAttrNames(selgChildOfPgcQo->op.schema));
+			selBase->parents = CONCAT_LISTS(selBase->parents,singleton(so));
+			selBase = (QueryOperator *) so;
+
+			// create projection on top of selection
+			List *projExpr = copyObject(gChildOfPgcQo->projExprs);
+			ProjectionOperator *pso = createProjectionOp(projExpr, selBase, NIL, getAttrNames(gChildOfPgcQo->op.schema));
+			selBase->parents = singleton(pso);
+			selBase = (QueryOperator *) pso;
+
+			// create edge rel
+			projExpr = copyObject(childOfPgcQo->projExprs);
+			ProjectionOperator *edgePo = createProjectionOp(projExpr, selBase, NIL, getAttrNames(childOfPgcQo->op.schema));
+			selBase->parents = singleton(edgePo);
+			selBase = (QueryOperator *) edgePo;
+
+			// duplicate removal
+			int pos = 0;
+			projExpr = NIL;
+
+			FOREACH(AttributeDef,a,pgcQo->schema->attrDefs)
+			{
+				projExpr = appendToTailOfList(projExpr,
+						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+				pos++;
+			}
+
+			QueryOperator *dpOnEdge = (QueryOperator *) createDuplicateRemovalOp(projExpr, selBase, NIL, getAttrNames(pgcQo->schema));
+			selBase->parents = singleton(dpOnEdge);
+			selBase = dpOnEdge;
+
+			//create union operator
+			List *allInput = LIST_MAKE(unionOp,selBase);
+			QueryOperator *addUnionOp = (QueryOperator *) createSetOperator(SETOP_UNION,allInput,NIL,getAttrNames(dpOnEdge->schema));
+			OP_LCHILD(addUnionOp)->parents = OP_RCHILD(addUnionOp)->parents = singleton(addUnionOp);
+			unionOp = addUnionOp;
+		}
+	}
+
+	edgeRels = unionOp;
 	result = (Node *) edgeRels;
 
 	DEBUG_NODE_BEATIFY_LOG("integrate top-k summaries with edge relation:", result);
