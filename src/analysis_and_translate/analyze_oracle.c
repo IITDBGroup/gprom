@@ -765,6 +765,7 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromCl
     // find table name
     FOREACH(List,fromItems,fromClauses)
     {
+    		fromClauseItem = 0;
         FOREACH(FromItem, f, fromItems)
         {
             FromItem *foundF = findNamedFromItem(f, tabName);
