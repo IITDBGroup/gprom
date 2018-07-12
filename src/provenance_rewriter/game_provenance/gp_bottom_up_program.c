@@ -1805,13 +1805,13 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 			List *boolArgs = removeVars(r->head->args,ruleArgs);
 			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
 
-			for(int boolPos = 0; boolPos < LIST_LENGTH(boolArgs); boolPos++)
-			{
-				List *newArgs = copyObject(r->head->args);
-				Node *n = (Node *) getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos);
-				newArgs = replaceNode(newArgs,
-						   getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos),
-						   isA(n,Operator) ? createConstBool(TRUE) : createConstBool(FALSE));
+//			for(int boolPos = 0; boolPos < LIST_LENGTH(boolArgs); boolPos++)
+//			{
+//				List *newArgs = copyObject(r->head->args);
+//				Node *n = (Node *) getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos);
+//				newArgs = replaceNode(newArgs,
+//						   getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos),
+//						   isA(n,Operator) ? createConstBool(TRUE) : createConstBool(FALSE));
 
 				// head -> rule_i
 				Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
@@ -1819,9 +1819,9 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 	//					copyObject(
 	//								removeVars(r->head->args,
 	//										removeVars(r->head->args, ruleArgs))));
-				DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, newArgs);
+				DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
 				moveRules = appendToTailOfList(moveRules, moveRule);
-			}
+//			}
 
 
 			// filter out neg head atom for answer relation before creating move rules

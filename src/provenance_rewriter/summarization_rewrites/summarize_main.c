@@ -3003,6 +3003,7 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 		findTableAccessVisitor(n,&rels);
 		TableAccessOperator *followedTo = (TableAccessOperator *) getHeadOfListP(rels);
 		char *followedRel = followedTo->tableName;
+		int seqNum = 1;
 
 		if(streq(strRel,followedRel))
 		{
@@ -3042,6 +3043,48 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 //			// make the name "SEQ" unique
 //			Set *allNames = STRSET();
 //			makeNamesUnique(attrNames, allNames);
+
+			// replace the domain attribute with existing one instead of newly generating it again
+//			char *searchKey = CONCAT_STRINGS(followedRel, ar->name);
+
+			if(MAP_HAS_STRING_KEY(relToDoms,searchKey))
+			{
+				char *key = STRING_VALUE(MAP_GET_STRING(relToDoms,searchKey));
+
+				if(MAP_HAS_STRING_KEY(domToTrans,key))
+				{
+					 QueryOperator *tempOp = (QueryOperator *) MAP_GET_STRING(domToTrans,key);
+					 ProjectionOperator *tpo = (ProjectionOperator *) tempOp;
+
+					 FOREACH(Node,n,p->projExprs)
+					 {
+						 if(!isA(n,RowNumExpr))
+						 {
+							 FOREACH(AttributeReference,tar,tpo->projExprs)
+							 {
+								 if(streq(ar->name,tar->name))
+									 ar->attrPosition = tar->attrPosition;
+							 }
+						 }
+					 }
+
+					 List *newAttrs = LIST_MAKE(strdup(CONCAT_STRINGS("SEQ",gprom_itoa(seqNum))),strdup(ar->name));
+					 ProjectionOperator *po = createProjectionOp(p->projExprs,tempOp,NIL,newAttrs);
+					 tempOp->parents = singleton(po);
+
+					 // update value in the hashmap
+					 MAP_ADD_STRING_KEY(domToTrans,key,(Node *) tempOp);
+
+					 tempOp = (QueryOperator *) po;
+					 oDom = tempOp;
+
+					 // replace query block to updated one for input of join
+					 inputs = removeFromTail(inputs);
+					 inputs = appendToTailOfList(inputs,tempOp);
+
+					 seqNum++;
+				}
+			}
 
 			// create join on "seq"
 			if(lA != NULL && rA != NULL)
@@ -3106,6 +3149,7 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 			ProjectionOperator *p = (ProjectionOperator *) firstOp;
 			AttributeReference *ar = (AttributeReference *) getTailOfListP(p->projExprs);
 
+			// replace the domain attribute with existing one instead of newly generating it again
 			char *searchKey = CONCAT_STRINGS(firstOpTo->tableName, ar->name);
 
 			if(MAP_HAS_STRING_KEY(relToDoms,searchKey))
@@ -3146,6 +3190,7 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 			lA = createFullAttrReference(strdup(a->attrName),0,0,0,a->dataType);
 			attrNames = getAttrNames(firstOp->schema);
 			rA = NULL;
+			seqNum = 1;
 		}
 	}
 	// add the last domain generated based on join
