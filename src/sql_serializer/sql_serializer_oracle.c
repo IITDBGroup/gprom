@@ -39,7 +39,7 @@ typedef struct FromAttrsContext {
     List *fromAttrsList;
     int flag; //1. normal updateAttributeNamesOracle; 2. levelsUp updateAttributeNamesOracle.
     int numNestingOp;
-    int count;
+    //int count;
 } FromAttrsContext;
 
 /* variables */
@@ -95,7 +95,7 @@ static void fixAttrReferences (QueryOperator *q);
 
 static void checkNestingOp(QueryOperator *op, FromAttrsContext *fac);
 static FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
-static int setTableSuffix(int clevel, FromAttrsContext *fac, char *newName);
+//static int setTableSuffix(int clevel, FromAttrsContext *fac, char *newName);
 static void printFromAttrsContext(FromAttrsContext *fac);
 //static List *copyFromAttrs(List *list);
 
@@ -262,7 +262,7 @@ copyFromAttrsContext(FromAttrsContext *fac)
   	result->fromAttrs = copyList(fac->fromAttrs);
   	result->flag = fac->flag;
   	result->numNestingOp = fac->numNestingOp;
-  	result->count = fac->count;
+  	//result->count = fac->count;
 
   	return result;
 }
@@ -326,7 +326,7 @@ printFromAttrsContext(FromAttrsContext *fac)
      else
     	 DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
 
-     DEBUG_LOG("FromAttrsContext->count: %d, FromAttrsContext->flag %d, FromAttrsContext->numNestings %d", fac->count, fac->flag, fac->numNestingOp);
+     DEBUG_LOG("FromAttrsContext->flag %d, FromAttrsContext->numNestings %d", fac->flag, fac->numNestingOp);
 	 	 	 //DEBUG_LOG("%s",c);
 }
 
@@ -365,7 +365,7 @@ serializeQueryOracle(QueryOperator *q)
   	fac->fromAttrs = NIL;
   	fac->flag = 1;
   	fac->numNestingOp = 0;
-  	fac->count = 0;
+  	//fac->count = 0;
   	checkNestingOp(q, fac);
 
     // call main entry point for translation
@@ -791,7 +791,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
     //e.g., (((C,D)) ((A,B) (nesting_eval_1))), ((C,D)) will be removed
     fac->fromAttrsList = removeFromHead(cfac->fromAttrsList);
     //control table alias, e.g., 1 in F0_1, after 1 was used, reduce F0_1 to F0_0 and jump to another branch of nesting op
-    fac->count --;
+    //fac->count --;
 
     DEBUG_LOG("serializeOrder");
     if(matchInfo->orderBy != NULL)
@@ -994,8 +994,11 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         	{
         		appendStringInfo(from, "(%s%s F%u_%u)",
         			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-        					(*curFromItem)++, fac->count);
-        		fac->count ++;
+        					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+//        		appendStringInfo(from, "(%s%s F%u_%u)",
+//        			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+//        					(*curFromItem)++, fac->count);
+//        		fac->count ++;
         	}
         	else
             	appendStringInfo(from, "(%s%s F%u)",
@@ -1508,33 +1511,33 @@ serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac)
 //        return visit(node, updateAttributeNamesOracleLevelsUp,fac);
 //}
 
-
-static int
-setTableSuffix(int clevel, FromAttrsContext *fac, char *newName)
-{
-	int flag = 0;
-    FOREACH(List, attrsList, fac->fromAttrsList)
-    {
-		clevel --;
-		FOREACH(List, attrs, attrsList)
-		{
-			FOREACH(char, c, attrs)
-			{
-				if(streq(newName,c))
-				{
-					flag = 1;
-					break;
-				}
-			}
-			if(flag == 1)
-				break;
-		}
-		if(flag == 1)
-			break;
-    }
-
-    return clevel;
-}
+//
+//static int
+//setTableSuffix(int clevel, FromAttrsContext *fac, char *newName)
+//{
+//	int flag = 0;
+//    FOREACH(List, attrsList, fac->fromAttrsList)
+//    {
+//		clevel --;
+//		FOREACH(List, attrs, attrsList)
+//		{
+//			FOREACH(char, c, attrs)
+//			{
+//				if(streq(newName,c))
+//				{
+//					flag = 1;
+//					break;
+//				}
+//			}
+//			if(flag == 1)
+//				break;
+//		}
+//		if(flag == 1)
+//			break;
+//    }
+//
+//    return clevel;
+//}
 
 static boolean
 updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
@@ -1551,7 +1554,7 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         int attrPos = 0;
         int count = 0;
         //int fromAttrsListItem = LIST_LENGTH(fac->fromAttrsList);
-        int clevel = LIST_LENGTH(fac->fromAttrsList);
+        //int clevel = LIST_LENGTH(fac->fromAttrsList);
         //int flag = 0;
 
         if(fac->flag == 1)
@@ -1599,7 +1602,7 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
 
-        clevel = setTableSuffix(clevel, fac, newName);
+//        clevel = setTableSuffix(clevel, fac, newName);
 //        FOREACH(List, attrsList, fac->fromAttrsList)
 //        {
 //			clevel --;
@@ -1623,7 +1626,9 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         if(fac->numNestingOp == 0 || a->outerLevelsUp == -1)
         		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
         else if(fac->numNestingOp > 0)
-        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(clevel) , ".", newName);
+    			a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
+
+//        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(clevel) , ".", newName);
     		//a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(fromAttrsListItem) , ".", newName);
         	//a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(fac->numNestingOp - a->outerLevelsUp) , ".", newName);
     }
