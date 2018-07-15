@@ -1036,6 +1036,8 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
     //left child
     serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset,
             fac);
+    fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+
     // join
     switch (j->joinType)
     {
@@ -1328,7 +1330,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                 appendStringInfoString(from, "((");
                 attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
                 fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-                appendStringInfo(from, ") F%u)", (*curFromItem)++);
+                appendStringInfo(from, ") F%u_0)", (*curFromItem)++);
             }
             break;
         }
