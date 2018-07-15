@@ -1296,6 +1296,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
 
                 appendStringInfoString(from, ")");
                 appendStringInfo(from, " F%u", (*curFromItem)++);
+                //appendStringInfo(from, " F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
             }
             break;
             // Table Access

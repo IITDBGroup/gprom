@@ -36,6 +36,9 @@ typedef struct ReplaceGroupByState {
     int attrOffset;
 } ReplaceGroupByState;
 
+
+static List *attrsOffsetsList = NIL;
+
 #define PROP_PROJ_RENAMED_ATTRS "RenamedProjAttrs"
 
 // function declarations
@@ -109,6 +112,8 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+
+static boolean visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList);
 
 static char *summaryType = NULL;
 static Node *prop = NULL;
@@ -488,6 +493,7 @@ translateQueryBlock(QueryBlock *qb)
     QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
     LOG_TRANSLATED_OP("translatedFrom is", joinTreeRoot);
     attrsOffsets = getAttrsOffsets(qb->fromClause);
+    attrsOffsetsList = appendToHeadOfList(attrsOffsetsList, attrsOffsets);
 
     // adapt attribute references to match new from clause root's schema
     visitAttrRefToSetNewAttrPos((Node *) qb->selectClause, attrsOffsets);
@@ -501,7 +507,7 @@ translateQueryBlock(QueryBlock *qb)
         LOG_TRANSLATED_OP("translatedNesting is", nestingOp);
 
     QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
-            attrsOffsets);
+            attrsOffsetsList);
     if (select != nestingOp)
         LOG_TRANSLATED_OP("translatedWhere is", select);
 
@@ -1614,7 +1620,7 @@ translateWhereClause(Node *whereClause, QueryOperator *nestingOp,
             getAttrNames(nestingOp->schema));
 
     // change attributes positions in selection condition
-    visitAttrRefToSetNewAttrPos(so->cond, attrsOffsets);
+    visitAttrRefToSetNewAttrPosList(so->cond, attrsOffsets);
 
     // set the parent of the operator's children
     OP_LCHILD(so)->parents = singleton(so);
@@ -1634,12 +1640,41 @@ visitAttrRefToSetNewAttrPos(Node *n, List *state)
         AttributeReference *attrRef = (AttributeReference *) n;
         if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
         {
-            attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
+        		attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
             attrRef->fromClauseItem = 0;
         }
     }
 
     return visit(n, visitAttrRefToSetNewAttrPos, offsets);
+}
+
+
+static boolean
+visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
+{
+    if (n == NULL)
+        return TRUE;
+
+    	if (isA(n, AttributeReference))
+    	{
+    		int count = 0;
+    		AttributeReference *attrRef = (AttributeReference *) n;
+    		FOREACH(List, state, offsetsList)
+    	    	{
+    			if(attrRef->outerLevelsUp == count)
+    			{
+    				if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
+    				{
+    					attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
+    					attrRef->fromClauseItem = 0;
+    				}
+    				break;
+    			}
+    			count ++;
+    	    	}
+    	}
+
+    return visit(n, visitAttrRefToSetNewAttrPosList, offsetsList);
 }
 
 static QueryOperator *
