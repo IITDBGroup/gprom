@@ -519,7 +519,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, ProvQuestion qType, HashM
 				attrNames = appendToTailOfList(attrNames, a->attrName);
 			}
 
-			if(streq(a->attrName,INFORMATIVE_ATTR) || streq(a->attrName,COVERAGE_ATTR))
+			if(streq(a->attrName,COVERED_ATTR) || streq(a->attrName,COVERAGE_ATTR))
 			{
 				measures = appendToTailOfList(measures,
 						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
