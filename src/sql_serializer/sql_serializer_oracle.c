@@ -37,9 +37,7 @@ typedef struct ReplaceNonOracleDTsContext {
 typedef struct FromAttrsContext {
     List *fromAttrs;
     List *fromAttrsList;
-    int flag; //1. normal updateAttributeNamesOracle; 2. levelsUp updateAttributeNamesOracle.
-    int numNestingOp;
-    //int count;
+    //int flag; //1. normal updateAttributeNamesOracle; 2. levelsUp updateAttributeNamesOracle.
 } FromAttrsContext;
 
 /* variables */
@@ -93,7 +91,7 @@ static boolean shortenAttributeNames(QueryOperator *q, void *context);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
 
-static void checkNestingOp(QueryOperator *op, FromAttrsContext *fac);
+//static void checkNestingOp(QueryOperator *op, FromAttrsContext *fac);
 static FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
 //static int setTableSuffix(int clevel, FromAttrsContext *fac, char *newName);
 static void printFromAttrsContext(FromAttrsContext *fac);
@@ -260,9 +258,8 @@ copyFromAttrsContext(FromAttrsContext *fac)
   	result =  CALLOC(sizeof(FromAttrsContext),1);
   	result->fromAttrsList = copyList(fac->fromAttrsList);
   	result->fromAttrs = copyList(fac->fromAttrs);
-  	result->flag = fac->flag;
-  	result->numNestingOp = fac->numNestingOp;
-  	//result->count = fac->count;
+  	//result->flag = fac->flag;
+  	//result->numNestingOp = fac->numNestingOp;
 
   	return result;
 }
@@ -325,20 +322,18 @@ printFromAttrsContext(FromAttrsContext *fac)
      }
      else
     	 DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
-
-     DEBUG_LOG("FromAttrsContext->flag %d, FromAttrsContext->numNestings %d", fac->flag, fac->numNestingOp);
-	 	 	 //DEBUG_LOG("%s",c);
+     //DEBUG_LOG("FromAttrsContext->flag %d", fac->flag);
 }
 
-void
-checkNestingOp(QueryOperator *op, FromAttrsContext *fac)
-{
-	if(isA(op, NestingOperator))
-		fac->numNestingOp ++;
-
-	FOREACH(QueryOperator, p, op->inputs)
-		checkNestingOp(p, fac);
-}
+//void
+//checkNestingOp(QueryOperator *op, FromAttrsContext *fac)
+//{
+//	if(isA(op, NestingOperator))
+//		fac->numNestingOp ++;
+//
+//	FOREACH(QueryOperator, p, op->inputs)
+//		checkNestingOp(p, fac);
+//}
 
 char *
 serializeQueryOracle(QueryOperator *q)
@@ -363,10 +358,10 @@ serializeQueryOracle(QueryOperator *q)
   	fac =  CALLOC(sizeof(FromAttrsContext),1);
   	fac->fromAttrsList = NIL;
   	fac->fromAttrs = NIL;
-  	fac->flag = 1;
-  	fac->numNestingOp = 0;
+  	//fac->flag = 2;
+  	//fac->numNestingOp = 0;
   	//fac->count = 0;
-  	checkNestingOp(q, fac);
+  	//checkNestingOp(q, fac);
 
     // call main entry point for translation
     serializeQueryOperator (q, str, NULL, fac);
@@ -789,13 +784,15 @@ serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
 
     //remove unnecessary list in fac->fromAttrsList after this list was used,
     //e.g., (((C,D)) ((A,B) (nesting_eval_1))), ((C,D)) will be removed
-    fac->fromAttrsList = removeFromHead(cfac->fromAttrsList);
+// fac->fromAttrsList = removeFromHead(cfac->fromAttrsList);
     //control table alias, e.g., 1 in F0_1, after 1 was used, reduce F0_1 to F0_0 and jump to another branch of nesting op
     //fac->count --;
 
     DEBUG_LOG("serializeOrder");
     if(matchInfo->orderBy != NULL)
         serializeOrder(matchInfo->orderBy, orderString, cfac);
+
+    fac->fromAttrsList = removeFromHead(cfac->fromAttrsList);
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
@@ -939,6 +936,8 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                     (*curFromItem)++);
         }
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+
+        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     }
     else
     {
@@ -990,20 +989,19 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         }
         else
         {
-        	if(fac->numNestingOp > 0)
-        	{
-        		appendStringInfo(from, "(%s%s F%u_%u)",
-        			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-        					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+    		appendStringInfo(from, "(%s%s F%u_%u)",
+    			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+//        	if(fac->numNestingOp > 0)
+//        	{
 //        		appendStringInfo(from, "(%s%s F%u_%u)",
 //        			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-//        					(*curFromItem)++, fac->count);
-//        		fac->count ++;
-        	}
-        	else
-            	appendStringInfo(from, "(%s%s F%u)",
-            			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-            					(*curFromItem)++);
+//        					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+//        	}
+//        	else
+//            	appendStringInfo(from, "(%s%s F%u)",
+//            			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+//            					(*curFromItem)++);
         }
     }
 }
@@ -1018,6 +1016,8 @@ serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem
 
 	List* attrNames = getAttrNames(((QueryOperator*) s)->schema);
 	fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+
+    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
 
     TableAccessOperator *t = (TableAccessOperator *) getHeadOfListP(s->op.inputs);
     char *tableName = t->tableName;
@@ -1077,6 +1077,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
     int pos = 0;
     List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
     fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     appendStringInfoString(from, "(SELECT ");
     FOREACH(char,attrName,attrNames)
     {
@@ -1148,6 +1149,9 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
 
             	// Add it to list of fromAttrs
             	fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+
+            fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
 
             	appendStringInfoString(from, ",");
             	appendStringInfo(from, " JSON_TABLE");
@@ -1253,7 +1257,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                    {
                        appendStringInfo(from, "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS %s FROM (", strdup(subAttr));
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
-                       appendStringInfoString(from, ") F0");
+                       appendStringInfoString(from, ") F0_0");
                    }
                    break;
                    case NESTQ_ANY:
@@ -1261,7 +1265,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                        char *expr = exprToSQL(no->cond);
                        appendStringInfo(from, "SELECT MAX(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
-                       appendStringInfoString(from, ") F0");
+                       appendStringInfoString(from, ") F0_0");
                    }
                    break;
                    case NESTQ_ALL:
@@ -1269,7 +1273,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                        char *expr = exprToSQL(no->cond);
                        appendStringInfo(from, "SELECT MIN(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
-                       appendStringInfoString(from, ") F0");
+                       appendStringInfoString(from, ") F0_0");
                    }
                    break;
                    case NESTQ_UNIQUE:
@@ -1284,7 +1288,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                                " SELECT count(*) OVER (PARTITION BY %s) AS multip FROM (", strdup(subAttr), attrRef);
 
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
-                       appendStringInfoString(from, ") F0) F0");
+                       appendStringInfoString(from, ") F0_0) F0_0");
                    }
                    break;
                    case NESTQ_SCALAR:
@@ -1297,7 +1301,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                 }
 
                 appendStringInfoString(from, ")");
-                appendStringInfo(from, " F%u", (*curFromItem)++);
+                appendStringInfo(from, " F%u_0", (*curFromItem)++);
                 //appendStringInfo(from, " F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
             }
             break;
@@ -1330,6 +1334,8 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                 appendStringInfoString(from, "((");
                 attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
                 fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+                fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+                fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
                 appendStringInfo(from, ") F%u_0)", (*curFromItem)++);
             }
             break;
@@ -1344,6 +1350,8 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             appendStringInfoString(from, "((");
             attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
             fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+            fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
             appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
     }
@@ -1462,9 +1470,9 @@ serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac)
 {
     appendStringInfoString(where, "\nWHERE ");
     //updateAttributeNamesOracle((Node *) q->cond, (List *) fromAttrs);
-    fac->flag = 2;
+    //fac->flag = 2;
     updateAttributeNamesOracle((Node *) q->cond, fac);
-    fac->flag = 1;
+    //fac->flag = 1;
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
@@ -1560,22 +1568,22 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         //int clevel = LIST_LENGTH(fac->fromAttrsList);
         //int flag = 0;
 
-        if(fac->flag == 1)
-        {
-        		// LOOP THROUGH fromItems (outer list)
-        		FOREACH(List, attrs, fac->fromAttrs)
-        		{
-        			attrPos += LIST_LENGTH(attrs);
-        			fromItem++;
-        			if (attrPos > a->attrPosition)
-        			{
-        				outer = attrs;
-        				break;
-        			}
-        		}
-        }
-        else if(fac->flag == 2)
-        {
+//        if(fac->flag == 1)
+//        {
+//        		// LOOP THROUGH fromItems (outer list)
+//        		FOREACH(List, attrs, fac->fromAttrs)
+//        		{
+//        			attrPos += LIST_LENGTH(attrs);
+//        			fromItem++;
+//        			if (attrPos > a->attrPosition)
+//        			{
+//        				outer = attrs;
+//        				break;
+//        			}
+//        		}
+//        }
+//        else if(fac->flag == 2)
+//        {
         		// LOOP THROUGH all fromItems (outer list)
         		FOREACH(List, attrsList, fac->fromAttrsList)
         		{
@@ -1600,40 +1608,22 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         			}
         			count ++;
         		}
-        }
+//        }
 
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
 
-//        clevel = setTableSuffix(clevel, fac, newName);
-//        FOREACH(List, attrsList, fac->fromAttrsList)
-//        {
-//			clevel --;
-//			FOREACH(List, attrs, attrsList)
-//			{
-//				FOREACH(char, c, attrs)
-//				{
-//					if(streq(newName,c))
-//					{
-//						flag = 1;
-//						break;
-//					}
-//				}
-//				if(flag == 1)
-//					break;
-//			}
-//			if(flag == 1)
-//				break;
-//        }
-
-        if(fac->numNestingOp == 0 || a->outerLevelsUp == -1)
-        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
-        else if(fac->numNestingOp > 0)
-    			a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
-
-//        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(clevel) , ".", newName);
-    		//a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(fromAttrsListItem) , ".", newName);
-        	//a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(fac->numNestingOp - a->outerLevelsUp) , ".", newName);
+//        if(a->outerLevelsUp == -1 || fac->fromAttrsList == NIL)
+//        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_0.", newName);
+//        else
+        if(a->outerLevelsUp == -1)
+        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_0.", newName);
+        else
+        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
+//        if(fac->numNestingOp == 0 || a->outerLevelsUp == -1)
+//        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
+//        else if(fac->numNestingOp > 0)
+//    			a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
     }
 
     return visit(node, updateAttributeNamesOracle, fac);
