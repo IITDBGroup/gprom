@@ -506,13 +506,10 @@ translateQueryBlock(QueryBlock *qb)
     if (nestingOp != joinTreeRoot)
         LOG_TRANSLATED_OP("translatedNesting is", nestingOp);
 
-    //DEBUG_NODE_BEATIFY_LOG("Before attrsOffsetsList: ", attrsOffsetsList);
     QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
             attrsOffsetsList);
     if (select != nestingOp)
         LOG_TRANSLATED_OP("translatedWhere is", select);
-    //attrsOffsetsList = removeFromHead(attrsOffsetsList);
-    //DEBUG_NODE_BEATIFY_LOG("After attrsOffsetsList: ", attrsOffsetsList);
 
     QueryOperator *aggr = translateAggregation(qb, select, attrsOffsets);
     hasAggOrGroupBy = (aggr != select);
