@@ -23,11 +23,15 @@
 #define COUNT_FUNC_NAME backendifyIdentifier("count")
 #define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 
-/* vtables attributes */
+/* xtables attributes */
 #define MAX_PROB_ATTR_NAME "MAX_PROB"
 #define SUM_PROB_ATTR_NAME "SUM_PROB"
 #define COUNT_ATTR_NAME "COUNT_"
 #define ROW_NUM_BY_ID_ATTR_NAME "ROW_NUM_BY_ID"
+
+/* bound based uncertainty */
+#define ATTR_LOW_BOUND "LOW_"
+#define ATTR_HIGH_BOUND "HIGH_"
 
 /* function declarations */
 static Node *UncertOp(Operator *expr, HashMap *hmp);
@@ -40,7 +44,7 @@ static Node *getOutputExprFromInput(Node *expr, int offset);
 static QueryOperator *rewriteUncertProvComp(QueryOperator *op);
 static QueryOperator *rewrite_UncertTIP(QueryOperator *op);
 static QueryOperator *rewrite_UncertIncompleteTable(QueryOperator *op);
-static QueryOperator *rewrite_UncertVTable(QueryOperator *op);
+static QueryOperator *rewrite_UncertXTable(QueryOperator *op);
 static QueryOperator *rewrite_UncertSelection(QueryOperator *op);
 static QueryOperator *rewrite_UncertProjection(QueryOperator *op);
 static QueryOperator *rewrite_UncertTableAccess(QueryOperator *op);
@@ -50,6 +54,9 @@ static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op);
 static QueryOperator *rewrite_UncertSet(QueryOperator *op);
 
 static void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
+//static void addUncertLowBoundToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
+//static void addUncertHighBoundToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
+
 
 static List *putMidListToEnd(List *in, int p1, int p2);
 
@@ -70,11 +77,11 @@ rewriteUncert(QueryOperator * op)
 		return rewrittenOp;
 	}
 
-	if(HAS_STRING_PROP(op,PROP_VTABLE_GROUPID))
+	if(HAS_STRING_PROP(op,PROP_XTABLE_GROUPID))
 	{
-		if(HAS_STRING_PROP(op,PROP_VTABLE_PROB))
+		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
 		{
-			rewrittenOp = rewrite_UncertVTable(op);
+			rewrittenOp = rewrite_UncertXTable(op);
 			return rewrittenOp;
 		}
 	}
@@ -305,18 +312,17 @@ rewrite_UncertIncompleteTable(QueryOperator *op)
 }
 
 static  QueryOperator *
-rewrite_UncertVTable(QueryOperator *op)
+rewrite_UncertXTable(QueryOperator *op)
 {
-	DEBUG_LOG("rewriteVTable\n");
+	DEBUG_LOG("rewriteXTable\n");
 
 	//Uncert attributes Hashmap
 	HashMap * hmp = NEW_MAP(Node, Node);
 
-
-	//get Group Id attribute name using PROP_PROP_VTABLE_GROUPID as the key
-	char *groupId = STRING_VALUE(GET_STRING_PROP(op,PROP_VTABLE_GROUPID));
-	//get Probability attribute name using PROP_VTABLE_PROB as the key
-	char *prob = STRING_VALUE(GET_STRING_PROP(op,PROP_VTABLE_PROB));
+	//get Group Id attribute name using PROP_PROP_XTABLE_GROUPID as the key
+	char *groupId = STRING_VALUE(GET_STRING_PROP(op,PROP_XTABLE_GROUPID));
+	//get Probability attribute name using PROP_XTABLE_PROB as the key
+	char *prob = STRING_VALUE(GET_STRING_PROP(op,PROP_XTABLE_PROB));
 
 	//Get attribute reference for Group ID
 	AttributeReference *groupIdRef = getAttrRefByName(op, groupId);
@@ -342,7 +348,7 @@ rewrite_UncertVTable(QueryOperator *op)
 	QueryOperator *sumProbWOp = (QueryOperator *) createWindowOp((Node *)sumProbFC, partByGroupId, NIL, NULL, sumProbName, maxProbWOp, NIL);
 	maxProbWOp->parents = singleton(sumProbWOp);
 
-	/* Window function - count attr*/ 
+	/* Window function 3+ - count attr */
 	QueryOperator *prevWOp = sumProbWOp;
 	List *attrExpr1 = getNormalAttrProjectionExprs(op);
 	FOREACH(Node, nd, attrExpr1)
@@ -351,11 +357,38 @@ rewrite_UncertVTable(QueryOperator *op)
 		//Make count(nd) function call
 		FunctionCall *countNdFC = createFunctionCall(COUNT_FUNC_NAME,singleton(nd));
 		countNdFC->isDistinct = TRUE;
-		QueryOperator *countNdWOp = (QueryOperator *) createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL);
+		QueryOperator *countNdWOp = (QueryOperator *)createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL);
 
 		prevWOp->parents = singleton(countNdWOp);
 		prevWOp = countNdWOp;
 	}
+
+	/* Window function 4+ - min attr*/
+	List *attrExpr2 = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr2)
+	{
+		char *lowAttrName = CONCAT_STRINGS(ATTR_LOW_BOUND,((AttributeReference *)nd)->name);
+		//Make the MIN(nd) function call
+		FunctionCall *minNdFC = createFunctionCall("MIN",singleton(nd));
+		QueryOperator *minNdWOp = (QueryOperator *)createWindowOp((Node *)minNdFC, partByGroupId, NIL, NULL, lowAttrName, prevWOp, NIL);
+
+		prevWOp->parents = singleton(minNdWOp);
+		prevWOp = minNdWOp;
+	}
+
+	/* Window function 5+ - max attr*/
+	List *attrExpr3 = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr3)
+	{
+		char *highAttrName = CONCAT_STRINGS(ATTR_HIGH_BOUND,((AttributeReference *)nd)->name);
+		//Make the MAX(nd) function call
+		FunctionCall *maxNdFC = createFunctionCall("MIN",singleton(nd));
+		QueryOperator *maxNdWOp = (QueryOperator *)createWindowOp((Node *)maxNdFC, partByGroupId, NIL, NULL, highAttrName, prevWOp, NIL);
+
+		prevWOp->parents = singleton(maxNdWOp);
+		prevWOp = maxNdWOp;
+	}
+
 
 	Operator *oneMinusSum = createOpExpr("-",LIST_MAKE(createConstInt(1),getAttrRefByName(prevWOp, sumProbName)));
 	Operator *firstParam = createOpExpr(">",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
@@ -367,33 +400,42 @@ rewrite_UncertVTable(QueryOperator *op)
 	QueryOperator *selecMaxProbRow = (QueryOperator *)createSelectionOp((Node *)selec1Cond, prevWOp, NIL, getAttrNames(prevWOp->schema));
 	prevWOp->parents = singleton(selecMaxProbRow);
 
-	/* Window function - row number*/
+	/* Window function 6 - row number*/
 	//Make sum(prob) function call
 	FunctionCall *rowNumByIdFC = createFunctionCall(ROW_NUMBER_FUNC_NAME, NIL);
 	char *rowNumByIdName = ROW_NUM_BY_ID_ATTR_NAME;
 	List *orderBy = NIL;
 	orderBy = appendToTailOfList(orderBy, copyObject(probRef));
 
-	QueryOperator *rowNumberByIdWOp4 = (QueryOperator *) createWindowOp((Node *)rowNumByIdFC, partByGroupId, orderBy, NULL, rowNumByIdName, selecMaxProbRow, NIL);
-	selecMaxProbRow->parents = singleton(rowNumberByIdWOp4);
+	QueryOperator *rowNumberByIdWOp = (QueryOperator *) createWindowOp((Node *)rowNumByIdFC, partByGroupId, orderBy, NULL, rowNumByIdName, selecMaxProbRow, NIL);
+	selecMaxProbRow->parents = singleton(rowNumberByIdWOp);
 
 	/* Selection - Select rows with row number equal to 1 */
-	Operator *countEqualsOne = createOpExpr("=",LIST_MAKE(createConstInt(1),getAttrRefByName(rowNumberByIdWOp4, rowNumByIdName)));
-	QueryOperator *selecRowNumberIsOne = (QueryOperator *)createSelectionOp((Node *)countEqualsOne, rowNumberByIdWOp4, NIL, getAttrNames(rowNumberByIdWOp4->schema));
-	rowNumberByIdWOp4->parents = singleton(selecRowNumberIsOne);
+	Operator *countEqualsOne = createOpExpr("=",LIST_MAKE(createConstInt(1),getAttrRefByName(rowNumberByIdWOp, rowNumByIdName)));
+	QueryOperator *selecRowNumberIsOne = (QueryOperator *)createSelectionOp((Node *)countEqualsOne, rowNumberByIdWOp, NIL, getAttrNames(rowNumberByIdWOp->schema));
+	rowNumberByIdWOp->parents = singleton(selecRowNumberIsOne);
 
 	/* Final Projection */
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selecRowNumberIsOne), selecRowNumberIsOne, NIL, getNormalAttrNames(selecRowNumberIsOne));
 	selecRowNumberIsOne->parents = singleton(proj);
 
-	List *attrExpr2 = getNormalAttrProjectionExprs(op);
-	FOREACH(Node, nd, attrExpr2)
+	List *attrExpr4 = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr4)
 	{
 		//Add U_nd->name to the schema, with data type int
 		addUncertAttrToSchema(hmp, proj, nd);
-		//Set the values of U_nd->name to CASE WHEN entryIsNull
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
 							createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)))));
+
+		/*0
+		addUncertLowBoundToSchema(hmp, proj, nd);
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createConstFloat(4));
+
+
+		addUncertHighBoundToSchema(hmp, proj, nd);
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createConstFloat(5));
+		*/
+
 	}
 
 	//Condition for U_R
@@ -407,7 +449,7 @@ rewrite_UncertVTable(QueryOperator *op)
 
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
-
+/*
 	List *projParents = proj->parents;
 	FOREACH(Node, parent, projParents)
 	{
@@ -420,14 +462,15 @@ rewrite_UncertVTable(QueryOperator *op)
 			//((AttributeReference *)attrRef)->attrPosition = getAttrPos((QueryOperator *)parent,((AttributeReference *)attrRef)->name);
 		}
 	}
-
+	*/
+	/*
 	List *projAttrExprs = findOperatorAttrRefs(proj);
 	FOREACH(Node, nd, projAttrExprs)
 	{
 		DEBUG_LOG("????Proj's attr %s is at proj's position %d",((AttributeReference *)nd)->name, getAttrPos(proj,((AttributeReference *)nd)->name));
 		DEBUG_LOG("////Proj's attr %s immediate pos is %d\n",((AttributeReference *)nd)->name,((AttributeReference *)nd)->attrPosition);
 	}
-
+*/
 
 	return proj;
 }
@@ -1057,4 +1100,21 @@ addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef)
 	((AttributeReference *)aRef)->outerLevelsUp = 0;
 	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
 }
+/*
+static void
+addUncertLowBoundToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
+{
+	addAttrToSchema(target, CONCAT_STRINGS(ATTR_LOW_BOUND, ((AttributeReference *)aRef)->name), DT_INT);
+	((AttributeReference *)aRef)->outerLevelsUp = 0;
+	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
+}
 
+static void
+addUncertHighBoundToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
+{
+	addAttrToSchema(target, CONCAT_STRINGS(ATTR_HIGH_BOUND, ((AttributeReference *)aRef)->name), DT_INT);
+	((AttributeReference *)aRef)->outerLevelsUp = 0;
+	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
+}
+
+*/

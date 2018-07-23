@@ -457,20 +457,20 @@ analyzeFromProvInfo (FromItem *f)
 				DEBUG_LOG("INCOMPLETE TABLE");
 			}
 
-			//Removing the probability attribute if specified through the VTABLE flag
-			if (getStringProvProperty(fp, PROV_PROP_VTABLE_GROUPID))
+			//Removing the probability attribute if specified through the XTABLE flag
+			if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))
 			{
-				if (getStringProvProperty(fp, PROV_PROP_VTABLE_PROB))
+				if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
 				{
-					int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_VTABLE_GROUPID)));
-					DEBUG_LOG("VTABLE groupID attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_VTABLE_GROUPID)), pos);
+					int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)));
+					DEBUG_LOG("XTABLE groupID attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)), pos);
 					f->attrNames = deepCopyStringList(f->attrNames);
 					f->dataTypes 	= copyObject(f->dataTypes);
 					f->attrNames = removeListElemAtPos(f->attrNames, pos);
 					f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
 
-					pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_VTABLE_PROB)));
-					DEBUG_LOG("VTABLE probability attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_VTABLE_PROB)), pos);
+					pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB)));
+					DEBUG_LOG("XTABLE probability attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB)), pos);
 					f->attrNames = deepCopyStringList(f->attrNames);
 					f->dataTypes 	= copyObject(f->dataTypes);
 					f->attrNames = removeListElemAtPos(f->attrNames, pos);

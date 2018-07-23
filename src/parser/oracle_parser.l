@@ -227,7 +227,7 @@ strconcat		"||"
 (?i:UNCERTAIN)		TOK(UNCERTAIN)
 (?i:TIP)			TOK(TIP)
 (?i:INCOMPLETE)		TOK(INCOMPLETE)
-(?i:VTABLE) 		TOK(VTABLE)
+(?i:XTABLE) 		TOK(XTABLE)
 
 	/* booleans */
 {bool}			TOK(boolConst)

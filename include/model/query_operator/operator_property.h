@@ -28,8 +28,8 @@
 #define PROP_TRANSLATE_AS "TRANSLATE AS"
 #define PROP_TIP_ATTR "TIP_ATTR"							// indicates TIP attribute
 #define PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"			// indicates an incomplete table
-#define PROP_VTABLE_GROUPID "VTABLE_GROUPID"				// indicates group id attribute in v tables
-#define PROP_VTABLE_PROB "VTABLE_PROB"						// indicated probability attribute in v tables
+#define PROP_XTABLE_GROUPID "XTABLE_GROUPID"				// indicates group id attribute in v tables
+#define PROP_XTABLE_PROB "XTABLE_PROB"						// indicated probability attribute in v tables
 
 // reenactment
 #define PROP_REENACT_SCHEMA_INFO "REENACT_SCHEMA"           // store additional table schemas to support reenactment of DDL commands
@@ -116,7 +116,7 @@
 /* fromProvInfo provProperties */
 #define PROV_PROP_TIP_ATTR "PROV_PROP_TIP_ATTR"
 #define PROV_PROP_INCOMPLETE_TABLE "PROV_PROP_INCOMPLETE_TABLE"
-#define PROV_PROP_VTABLE_GROUPID "PROV_PROP_VTABLE_GROUPID"
-#define PROV_PROP_VTABLE_PROB "PROV_PROP_VTABLE_PROB"
+#define PROV_PROP_XTABLE_GROUPID "PROV_PROP_XTABLE_GROUPID"
+#define PROV_PROP_XTABLE_PROB "PROV_PROP_XTABLE_PROB"
 
 #endif /* OPERATOR_PROPERTY_H_ */
