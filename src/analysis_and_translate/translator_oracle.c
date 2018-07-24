@@ -43,6 +43,7 @@ static List *attrsOffsetsList = NIL;
 
 // function declarations
 static Node *translateGeneral(Node *node);
+static QueryOperator *translateQueryOracleInternal (Node *node, List *attrOffsets);
 //static Node *translateSummary(Node *input, Node *node);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
@@ -124,6 +125,8 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
+    attrsOffsetsList = NIL;
+
     INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q);
@@ -139,6 +142,12 @@ translateParseOracle (Node *q)
 
 QueryOperator *
 translateQueryOracle (Node *node)
+{
+    return translateQueryOracleInternal (node, NIL);
+}
+
+static QueryOperator *
+translateQueryOracleInternal (Node *node, List *attrOffsets)
 {
     DEBUG_LOG("translate query <%s>", nodeToString(node));
 
@@ -165,6 +174,7 @@ translateQueryOracle (Node *node)
             return NULL;
     }
 }
+
 
 static Node *
 translateGeneral (Node *node)
@@ -194,17 +204,17 @@ translateGeneral (Node *node)
                 }
 
                 if(summaryType == NULL)
-                    stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                    stmt_his_cell->data.ptr_value = (Node *) translateQueryOracleInternal(stmt);
                 else
                 {
-                    r = translateQueryOracle(stmt);
+                    r = translateQueryOracleInternal(stmt);
                     r->properties = copyObject(prop);
                     stmt_his_cell->data.ptr_value = (Node *) r;
                 }
             }
             else
             {
-                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracleInternal(stmt);
             }
         }
     }
@@ -227,17 +237,17 @@ translateGeneral (Node *node)
             }
 
             if(summaryType == NULL)
-                result = (Node *) translateQueryOracle(node);
+                result = (Node *) translateQueryOracleInternal(node);
             else
             {
-                r = translateQueryOracle(node);
+                r = translateQueryOracleInternal(node);
                 r->properties = copyObject(prop);
                 result = (Node *) r;
             }
         }
         else
         {
-            result = (Node *) translateQueryOracle(node);
+            result = (Node *) translateQueryOracleInternal(node);
         }
     }
 
@@ -414,9 +424,9 @@ translateSetQuery(SetQuery *sq)
     DEBUG_LOG("translate set query");
 
     if (sq->lChild)
-        left = translateQueryOracle(sq->lChild);
+        left = translateQueryOracleInternal(sq->lChild);
     if (sq->rChild)
-        right = translateQueryOracle(sq->rChild);
+        right = translateQueryOracleInternal(sq->rChild);
     ASSERT(left && right);
 
     // set children of the set operator node
@@ -641,7 +651,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
 
                 // translate and add update as child to provenance computation
                 START_TIMER("translation - transaction - translate update");
-                child = translateQueryOracle(node);
+                child = translateQueryOracleInternal(node);
                 STOP_TIMER("translation - transaction - translate update");
 
                 // mark for showing intermediate results
@@ -716,7 +726,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
                 tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
 
                 // translate and add update as child to provenance computation
-                child = translateQueryOracle(n);
+                child = translateQueryOracleInternal(n);
                 addChildOperator((QueryOperator *) result, child);
             }
         }
@@ -724,7 +734,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
         case PROV_INPUT_UPDATE:
         case PROV_INPUT_QUERY:
         {
-            child = translateQueryOracle(prov->query);
+            child = translateQueryOracleInternal(prov->query);
             addChildOperator((QueryOperator *) result, child);
         }
         break;
@@ -732,13 +742,13 @@ translateProvenanceStmt(ProvenanceStmt *prov)
         {
             DataType tempDT = getTailOfListInt(prov->dts);
             SET_STRING_PROP(result, PROP_TEMP_ATTR_DT, createConstInt(tempDT));
-            child = translateQueryOracle(prov->query);
+            child = translateQueryOracleInternal(prov->query);
             addChildOperator((QueryOperator *) result, child);
         }
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
         {
-            child = translateQueryOracle(prov->query);
+            child = translateQueryOracleInternal(prov->query);
             addChildOperator((QueryOperator *) result, child);
         }
         break;
@@ -827,7 +837,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);
 
                 // translate and add update as child to provenance computation
-                child = translateQueryOracle(n);
+                child = translateQueryOracleInternal(n);
                 MAP_ADD_STRING_KEY(tableToTranslation, tableName, child);
 
                 addChildOperator((QueryOperator *) result, child);
@@ -1456,7 +1466,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
 static QueryOperator *
 translateFromSubquery(FromSubquery *fsq)
 {
-    return translateQueryOracle(fsq->subquery);
+    return translateQueryOracleInternal(fsq->subquery);
     //TODO set attr names from FromItem
 }
 
@@ -1659,6 +1669,7 @@ visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
     	{
     		int count = 0;
     		AttributeReference *attrRef = (AttributeReference *) n;
+    		// getNthOfList(offesetList, attrRef->outerLevelsUp)
     		FOREACH(List, state, offsetsList)
     	    	{
     			if(attrRef->outerLevelsUp == count)

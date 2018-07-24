@@ -192,7 +192,8 @@ NEW_ENUM_WITH_TO_STRING(NestingExprType,
     NESTQ_ANY,
     NESTQ_ALL,
     NESTQ_UNIQUE,
-    NESTQ_SCALAR
+    NESTQ_SCALAR,
+    NESTQ_LATERAL
 );
 
 typedef struct NestedSubquery
