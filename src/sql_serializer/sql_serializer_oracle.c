@@ -1401,7 +1401,7 @@ createAttrName (char *name, int fItem)
    StringInfo str = makeStringInfo();
    char *result = NULL;
 
-   appendStringInfo(str, "F%u.%s", fItem, name);
+   appendStringInfo(str, "F%u_0.%s", fItem, name);
    result = str->data;
    FREE(str);
 
