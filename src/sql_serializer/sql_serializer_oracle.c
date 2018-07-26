@@ -1252,12 +1252,13 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
                    }
                    break;
-                   case NESTQ_LATERAL:
-                   {
-                       AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
-                       a->attrName = strdup(subAttr);
-                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
-                   }
+//                   case NESTQ_LATERAL:
+//                   {
+//                       AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
+//                       a->attrName = strdup(subAttr);
+//                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
+//                   }
+//                   break;
                 }
 
                 appendStringInfoString(from, ")");
