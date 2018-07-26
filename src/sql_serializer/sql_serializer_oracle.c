@@ -197,7 +197,7 @@ fixAttrReferences (QueryOperator *q)
     {
         //QueryOperator *child = getNthOfListP(q->inputs, a->fromClauseItem);
         QueryOperator *child = NULL;
-        if(a->outerLevelsUp == 0)
+        if(a->outerLevelsUp == 0 || a->outerLevelsUp == -1)
             child = getNthOfListP(q->inputs, a->fromClauseItem);
         else
         {
