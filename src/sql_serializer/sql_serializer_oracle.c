@@ -197,14 +197,16 @@ fixAttrReferences (QueryOperator *q)
     {
         //QueryOperator *child = getNthOfListP(q->inputs, a->fromClauseItem);
         QueryOperator *child = NULL;
-        if(a->outerLevelsUp == 0 || a->outerLevelsUp == -1)
-            child = getNthOfListP(q->inputs, a->fromClauseItem);
-        else
+        if(a->outerLevelsUp > 0)
         {
-            int levelsUp = a->outerLevelsUp;
-            QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(q, levelsUp);
-            child = getNthOfListP(nestingOp->inputs, a->fromClauseItem);
+        		int levelsUp = a->outerLevelsUp;
+        		QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(q, levelsUp);
+        		child = getNthOfListP(nestingOp->inputs, a->fromClauseItem);
         }
+        else
+        		child = getNthOfListP(q->inputs, a->fromClauseItem);
+
+
 
         char *newName = getAttrNameByPos(child,a->attrPosition);
         if (!streq(newName, a->name))
@@ -1448,7 +1450,7 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         List *outer = NIL;
         int fromItem = -1;
         int attrPos = 0;
-        int count = 0;
+        //int count = 0;
 
 //old version
 //        		// LOOP THROUGH fromItems (outer list)
@@ -1463,29 +1465,47 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
 //        			}
 //        		}
 
-        		// LOOP THROUGH all fromItems (outer list)
-        		FOREACH(List, attrsList, fac->fromAttrsList)
-        		{
-        			attrPos = 0;
-        			fromItem = -1;
+            List *attrsList = NIL;
+            if(a->outerLevelsUp >= 0)
+            		attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp);
+            else
+            		attrsList = (List *) getNthOfListP(fac->fromAttrsList, 0);
 
-        			if(a->outerLevelsUp == count || a->outerLevelsUp == -1)
-        			{
-        				FOREACH(List, attrs, attrsList)
-                		{
-        					attrPos += LIST_LENGTH(attrs);
-        					fromItem++;
-        					if (attrPos > a->attrPosition)
-        					{
-        						outer = attrs;
-        						break;
-        					}
-                		}
-        				if(outer != NIL)
-        					break;
-        			}
-        			count ++;
-        		}
+            FOREACH(List, attrs, attrsList)
+            {
+            		attrPos += LIST_LENGTH(attrs);
+            		fromItem++;
+            		if (attrPos > a->attrPosition)
+            		{
+            			outer = attrs;
+            			break;
+            		}
+            }
+
+// stable version
+//        		// LOOP THROUGH all fromItems (outer list)
+//        		FOREACH(List, attrsList, fac->fromAttrsList)
+//        		{
+//        			attrPos = 0;
+//        			fromItem = -1;
+//
+//        			if(a->outerLevelsUp == count || a->outerLevelsUp == -1)
+//        			{
+//        				FOREACH(List, attrs, attrsList)
+//                		{
+//        					attrPos += LIST_LENGTH(attrs);
+//        					fromItem++;
+//        					if (attrPos > a->attrPosition)
+//        					{
+//        						outer = attrs;
+//        						break;
+//        					}
+//                		}
+//        				if(outer != NIL)
+//        					break;
+//        			}
+//        			count ++;
+//        		}
 
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
