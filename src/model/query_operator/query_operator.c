@@ -533,6 +533,7 @@ inferOpResultDTs (QueryOperator *op)
                     nType = DT_BOOL;
                 }
                 case NESTQ_SCALAR:
+                case NESTQ_LATERAL:
                 {
                     nType = DT_STRING; //TODO
                 }

@@ -903,7 +903,6 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                     (*curFromItem)++);
         }
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-
         fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     }
     else
@@ -973,7 +972,6 @@ serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem
 
 	List* attrNames = getAttrNames(((QueryOperator*) s)->schema);
 	fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-
     fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
 
     TableAccessOperator *t = (TableAccessOperator *) getHeadOfListP(s->op.inputs);
@@ -1254,13 +1252,13 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
                    }
                    break;
-//                   case NESTQ_LATERAL:
-//                   {
-//                       AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
-//                       a->attrName = strdup(subAttr);
-//                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
-//                   }
-//                   break;
+                   case NESTQ_LATERAL:
+                   {
+                       AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
+                       a->attrName = strdup(subAttr);
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
+                   }
+                   break;
                 }
 
                 appendStringInfoString(from, ")");
@@ -1297,9 +1295,9 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                 appendStringInfoString(from, "((");
                 attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
                 fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-                fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+                //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
                 fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-                appendStringInfo(from, ") F%u_0)", (*curFromItem)++);
+                appendStringInfo(from, ") F%u_%u)", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
             }
             break;
         }

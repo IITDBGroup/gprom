@@ -168,7 +168,7 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         }
 
         //child = (QueryOperator *) getNthOfListP(children, input);
-        if(levelsUp != 0)
+        if(levelsUp > 0)
         {
         	        QueryOperator *tempChild = OP_LCHILD(parent);
                 QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(tempChild, levelsUp);

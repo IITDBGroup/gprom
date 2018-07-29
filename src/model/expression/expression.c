@@ -510,6 +510,7 @@ typeOf (Node *expr)
                     return DT_BOOL;
                 }
                 case NESTQ_SCALAR:
+                case NESTQ_LATERAL:
                 {
                     return DT_STRING; //TODO
                 }

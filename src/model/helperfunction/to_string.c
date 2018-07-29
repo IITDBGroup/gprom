@@ -1806,9 +1806,10 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             const char *nestingType = (o->nestingType == NESTQ_EXISTS) ? "EXISTS" :
                     ((o->nestingType == NESTQ_ANY) ? "ANY" :
                     ((o->nestingType == NESTQ_ALL) ? "ALL" :
+                    ((o->nestingType == NESTQ_LATERAL) ? "LATERAL" :
                     ((o->nestingType == NESTQ_UNIQUE) ? "UNIQUE" :
                     ((o->nestingType == NESTQ_SCALAR) ? "SCALAR" : "")
-                    )));
+                    ))));
 
             WRITE_NODE_TYPE(NestingOperator);
             appendStringInfo(str, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond) : "");

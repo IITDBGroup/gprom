@@ -8,6 +8,6 @@
 
 #include "model/query_operator/query_operator.h"
 
-
+extern Node *lateralTranslateQBModel (Node *qbModel);
 
 

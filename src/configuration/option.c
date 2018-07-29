@@ -169,6 +169,9 @@ boolean temporal_use_normalization = TRUE;
 boolean temporal_use_normalization_window = FALSE;
 boolean temporal_agg_combine_with_norm = TRUE;
 
+// lateral rewrite for nesting operator
+boolean opt_lateral_rewrite = FALSE;
+
 // struct that encapsulates option state
 struct option_state {
     HashMap *optionPos; // optionname -> position of option in list
@@ -567,6 +570,11 @@ OptionInfo opts[] =
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 TRUE),
+		aRewriteOption(OPTION_LATERAL_REWRITE,
+				"-lateral_rewrite",
+				"Activate lateral rewrite",
+				opt_lateral_rewrite,
+				FALSE),
         // Optimization Options
         {
                 OPTION_OPTIMIZE_OPERATOR_MODEL,
