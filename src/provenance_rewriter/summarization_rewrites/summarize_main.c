@@ -2850,7 +2850,11 @@ replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 				{
 					char *key = STRING_VALUE(c);
 
-					if(isSubstr(key,t->tableName))
+					// TODO: no condition with subsumption check
+					int lengtn = strlen(t->tableName);
+					char *newKey = substr(key,0,lengtn-1);
+
+					if(streq(newKey,t->tableName))
 					{
 //						char *key = CONCAT_STRINGS(t->tableName,"JOINED");
 						sampleDom = (QueryOperator *) MAP_GET_STRING(domToTrans,key);
@@ -2891,7 +2895,11 @@ replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 					{
 						char *key = STRING_VALUE(c);
 
-						if(isSubstr(key,t->tableName))
+						// TODO: no condition with subsumption check
+						int lengtn = strlen(t->tableName);
+						char *newKey = substr(key,0,lengtn-1);
+
+						if(streq(newKey,t->tableName))
 						{
 							sampleDom = (QueryOperator *) MAP_GET_STRING(domToTrans,key);
 //							SET_BOOL_STRING_PROP(sampleDom, PROP_MATERIALIZE);
@@ -2979,10 +2987,10 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 			char *key = NULL;
 
 			if(MAP_HAS_STRING_KEY(relToDoms,search))
+			{
 				key = STRING_VALUE(MAP_GET_STRING(relToDoms,search));
-
-			if(key != NULL)
 				domsInKeys = appendToTailOfList(domsInKeys,key);
+			}
 		}
 
 		attrNames = appendToTailOfList(attrNames, a->attrName);
@@ -3024,8 +3032,7 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 				if(MAP_HAS_STRING_KEY(relToDoms,search))
 					key = STRING_VALUE(MAP_GET_STRING(relToDoms,search));
 
-//				char *key = STRING_VALUE(MAP_GET_STRING(relToDoms,CONCAT_STRINGS(strRel,ar->name)));
-				domsInKeys = appendToTailOfList(domsInKeys, strdup(key));
+				domsInKeys = appendToTailOfList(domsInKeys, key);
 			}
 
 			rA = NULL;
@@ -3225,6 +3232,13 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 
 		if(!MAP_HAS_STRING_KEY(domToTrans,key))
 			MAP_ADD_STRING_KEY(domToTrans,key,sampDom);
+	}
+
+	// for the attributes that are not assigned with new domain, add it to hashmap
+	FOREACH(char,c,domsInKeys)
+	{
+		if(!MAP_HAS_STRING_KEY(domToTrans,c))
+			MAP_ADD_STRING_KEY(domToTrans,c,(Node *) sampDom);
 	}
 
 	outputs = appendToTailOfList(outputs, sampDom);

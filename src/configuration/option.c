@@ -180,6 +180,7 @@ struct option_state {
 
 // dl rewrite options
 boolean opt_whynot_adv = FALSE;
+boolean opt_attr_dom = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -770,6 +771,15 @@ OptionInfo opts[] =
 				"advanced way to create firing rules for whynot.",
 				OPTION_BOOL,
 				wrapOptionBool(&opt_whynot_adv),
+				defOptionBool(FALSE)
+		},
+		// dl attribute domain options
+		{
+				OPTION_ATTR_DOM,
+				"-attr_dom",
+				"automated user domain.",
+				OPTION_BOOL,
+				wrapOptionBool(&opt_attr_dom),
 				defOptionBool(FALSE)
 		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,

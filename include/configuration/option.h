@@ -118,6 +118,7 @@ typedef struct option_state OptionState;
 
 /* dl rewrite options */
 #define OPTION_WHYNOT_ADV "whynot_adv"
+#define OPTION_ATTR_DOM "attr_dom"
 
 // declare option fields
 // show help only
