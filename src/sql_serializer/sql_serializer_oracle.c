@@ -286,13 +286,13 @@ printFromAttrsContext(FromAttrsContext *fac)
 		{
      	    appendStringInfo(s1, "(");
 		 	 FOREACH(char, c, l2)
-			    appendStringInfo(s1, "%s", c);
+			    appendStringInfo(s1, " %s ", c);
 			 	 //DEBUG_LOG("%s",c);
 		 	appendStringInfo(s1, ")");
 		}
      	appendStringInfo(s1, " , ");
      }
-     DEBUG_LOG("%s", s1->data);
+     DEBUG_LOG(" %s ", s1->data);
      }
      else
     	 	 DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
@@ -305,10 +305,10 @@ printFromAttrsContext(FromAttrsContext *fac)
      {
     	    appendStringInfo(s2, "(");
  	 	 FOREACH(char, c, l1)
-		 	 appendStringInfo(s2, "%s", c);
+		 	 appendStringInfo(s2, " %s ", c);
  	 	appendStringInfo(s2, ")");
      }
-     DEBUG_LOG("%s", s2->data);
+     DEBUG_LOG(" %s ", s2->data);
      }
      else
     	 DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
@@ -937,10 +937,10 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-
+        DEBUG_LOG("table access append fac->fromAttrsList");
         //append fromAttrs into fromAttrsList, e.g., fromAttrs: ((A,B)), fromAttrsList: ( ((A,B)) )
         fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-
+        printFromAttrsContext(fac);
         //for temporal database coalesce
         if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
         {
@@ -991,6 +991,7 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
     //left child
     serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset,
             fac);
+
     fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
 
     // join
@@ -1107,7 +1108,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
 
             fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
             fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-
+            printFromAttrsContext(fac);
             	appendStringInfoString(from, ",");
             	appendStringInfo(from, " JSON_TABLE");
             	appendStringInfoString(from, "(");
@@ -1184,20 +1185,24 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             case T_NestingOperator:
             {
                 NestingOperator *no = (NestingOperator *) q;
+
                 char *subAttr = getTailOfListP(getQueryOperatorAttrNames(q));
                 QueryOperator *input = OP_LCHILD(no);
                 QueryOperator *subquery = OP_RCHILD(no);
+                List *subqueryNames = getQueryOperatorAttrNames(subquery);
+
                 // Serialize input
                 serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fac);
 
                 // Add it to list of fromAttrs
-                fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr)));
+                //fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr))); //old
+                fac->fromAttrs = appendToTailOfList(fac->fromAttrs, subqueryNames);
 
                 //fromAttrsList: ( ((C,D)) , ((A,B), (nesting)) ) -> format: (L1, L2)
                 //here (((A,B))) -> (((A,B), (nesting_eval_1)))
                 fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
                 fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-
+                printFromAttrsContext(fac);
                 // create lateral subquery for nested subquery
                 //TODO only necessary if correlation is used
                 //TODO correlated attributes would not work unless we do more bookkeeping and make sure from clause aliases are different in the nested subquery translation
@@ -1291,12 +1296,12 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             default:
             {
                 List *attrNames;
-
                 appendStringInfoString(from, "((");
                 attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
                 fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
                 //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
                 fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+                printFromAttrsContext(fac);
                 appendStringInfo(from, ") F%u_%u)", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
             }
             break;
@@ -1311,7 +1316,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             appendStringInfoString(from, "((");
             attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
             fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-            fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
             fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
             appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
@@ -1462,7 +1467,7 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
 //        				break;
 //        			}
 //        		}
-
+        //printFromAttrsContext(fac);
             List *attrsList = NIL;
             if(a->outerLevelsUp >= 0)
             		attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp);

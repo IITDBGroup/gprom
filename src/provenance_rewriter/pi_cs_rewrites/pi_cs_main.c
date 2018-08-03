@@ -46,6 +46,7 @@ static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
+static QueryOperator *rewritePI_CSNestingOp (NestingOperator *op);
 
 static QueryOperator *addUserProvenanceAttributes (QueryOperator *op,
         List *userProvAttrs, boolean showIntermediate, char *provRelName,
@@ -198,6 +199,10 @@ rewritePI_CSOperator (QueryOperator *op)
             DEBUG_LOG("go JsonTable operator");
             rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
 	     break;
+        case T_NestingOperator:
+            DEBUG_LOG("go nesting operator");
+            rewrittenOp = rewritePI_CSNestingOp((NestingOperator *) op);
+            break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -685,6 +690,65 @@ rewritePI_CSJoin (JoinOperator *op)
     LOG_RESULT("Rewritten Operator tree", op);
     return (QueryOperator *) proj;
 }
+
+
+static QueryOperator *
+rewritePI_CSNestingOp (NestingOperator *op)
+{
+    DEBUG_LOG("REWRITE-PICS - Nesting");
+    QueryOperator *o = (QueryOperator *) op;
+    QueryOperator *lChild = OP_LCHILD(op);
+    QueryOperator *rChild = OP_RCHILD(op);
+    List *rNormAttrs;
+    int numLAttrs, numRAttrs;
+
+    numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
+    numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
+
+    // get attributes from right input
+    rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
+    o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
+
+    // rewrite children
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,lChild);
+    // if (!HAS_STRING_PROP(PROP...))
+    lChild = rewritePI_CSOperator(lChild);
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,rChild);
+    // if (!HAS_STRING_PROP(PROP...))
+    rChild = rewritePI_CSOperator(rChild);
+
+    // adapt schema for join op
+//    clearAttrsFromSchema((QueryOperator *) op);
+//    addNormalAttrsToSchema(o, lChild);
+    addProvenanceAttrsToSchema(o, lChild);
+    o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
+    addProvenanceAttrsToSchema(o, rChild);
+
+
+
+    // add projection to put attributes into order on top of join op
+    List *projExpr = CONCAT_LISTS(
+            getNormalAttrProjectionExprs((QueryOperator *) op),
+            getProvAttrProjectionExprs((QueryOperator *) op));
+    ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
+
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    // SET PROP IS_REWRITTEN
+
+    LOG_RESULT("Rewritten Operator tree", op);
+
+
+	return (QueryOperator *) proj;
+}
+
 
 /*
  * Rewrite an aggregation operator:
