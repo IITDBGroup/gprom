@@ -1514,7 +1514,7 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         newName = getNthOfListP(outer, attrPos);
 
         if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
-        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_0.", newName);
+        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-1) , ".", newName);
         else
         		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
     }
