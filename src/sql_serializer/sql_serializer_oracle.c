@@ -1196,7 +1196,10 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
 
                 // Add it to list of fromAttrs
                 //fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr))); //old
-                fac->fromAttrs = appendToTailOfList(fac->fromAttrs, subqueryNames);
+                if(no->nestingType == NESTQ_LATERAL)
+                		fac->fromAttrs = appendToTailOfList(fac->fromAttrs, subqueryNames);
+                else
+                		fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr)));
 
                 //fromAttrsList: ( ((C,D)) , ((A,B), (nesting)) ) -> format: (L1, L2)
                 //here (((A,B))) -> (((A,B), (nesting_eval_1)))
