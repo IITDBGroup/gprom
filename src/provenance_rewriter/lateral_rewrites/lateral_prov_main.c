@@ -155,7 +155,9 @@ lateralRewriteQuery(QueryOperator *input)
 		}
 		else if(no->nestingType == NESTQ_SCALAR)
 		{
-
+			char *nestAttrName = getTailOfListP(getQueryOperatorAttrNames(op));
+			AttributeDef *attrDef = (AttributeDef *) getTailOfListP(rChild->schema->attrDefs);
+			attrDef->attrName = nestAttrName;
 		}
 
 		no->nestingType = NESTQ_LATERAL;
