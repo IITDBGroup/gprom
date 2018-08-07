@@ -4512,6 +4512,53 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						}
 					}
 				}
+
+				// domain predicate for the head atom
+				DLAtom *unifiedHead = (DLAtom *) r->head;
+				HashMap *headForDomAtom = NEW_MAP(Constant,Constant);
+
+				// store key for head variable which is used to search dom atom
+				int hpos = 1;
+				FOREACH(Node,harg,unifiedHead->args)
+				{
+					if(isA(harg,DLVar))
+					{
+						DLVar *v = (DLVar *) harg;
+						char *value = CONCAT_STRINGS(unifiedHead->rel,gprom_itoa(hpos));
+						MAP_ADD_STRING_KEY_AND_VAL(headForDomAtom,v->name,value);
+					}
+
+					hpos++;
+				}
+
+				// add which head variable atom needs which dom atom
+				FOREACH(Node,ba,r->body)
+				{
+					if(isA(ba,DLAtom))
+					{
+						DLAtom *dlba = (DLAtom *) ba;
+						int pos = 1;
+
+						FOREACH(Node,vars,dlba->args)
+						{
+							if(isA(vars,DLVar))
+							{
+								DLVar *v = (DLVar *) vars;
+
+								if(MAP_HAS_STRING_KEY(headForDomAtom,v->name))
+								{
+									char *searchForDomAtom = CONCAT_STRINGS(dlba->rel,gprom_itoa(pos));
+									DLAtom *valueForDomAtom = (DLAtom *) MAP_GET_STRING(relPosToDomHead,searchForDomAtom);
+
+									char *key = STRING_VALUE(MAP_GET_STRING(headForDomAtom,v->name));
+									MAP_ADD_STRING_KEY(relPosToDomHead,key,valueForDomAtom);
+								}
+							}
+							pos++;
+						}
+					}
+				}
+
 			}
 
 			// add dom head to where needed
