@@ -196,6 +196,22 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 						thInfo = FLOAT_VALUE(kv->value);
 				}
 			}
+
+			// constant in user question
+			if(streq(key,DL_MAP_ADORNED_PREDS_TO_RULES))
+			{
+				HashMap *childKv = (HashMap *) kv->value;
+				FOREACH_HASH_KEY(Node,n,childKv)
+				{
+					DLAtom *a = (DLAtom *) n;
+
+					FOREACH(Node,n,a->args)
+					{
+						if(!searchListNode(userQuestion,n))
+							userQuestion = appendToTailOfList(userQuestion,n);
+					}
+				}
+			}
 		}
 
 	    // store info which rel+attr uses which user domain
@@ -1482,7 +1498,20 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 	{
 //		QueryOperator *dup = (QueryOperator *) transInput;
 		ProjectionOperator *fromInputQ = (ProjectionOperator *) getHeadOfListP(transInput->inputs);
-		userQuestion = fromInputQ->projExprs;
+
+		// store only constant attribute in the user question
+		List *pqFromInputOp = fromInputQ->projExprs;
+		List *pqFromDl = userQuestion;
+		userQuestion = NIL;
+		int i = 0;
+
+		FOREACH(Node,n,pqFromDl)
+		{
+			if(isA(n,Constant))
+				userQuestion = appendToTailOfList(userQuestion,(Node *) getNthOfListP(pqFromInputOp,i));
+
+			i++;
+		}
 	}
 //	else
 //	{
@@ -1543,8 +1572,8 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 							AttributeReference *ar = (AttributeReference *) ln;
 							ar->outerLevelsUp = 0;
 
-							if(!searchListNode(givenConsts,rn))
-								givenConsts = appendToTailOfList(givenConsts,rn);
+							if(!searchListNode(givenConsts,ln))
+								givenConsts = appendToTailOfList(givenConsts,ar);
 						}
 					}
 
@@ -3030,9 +3059,10 @@ joinOnSeqOutput (List *doms, HashMap *relToDoms)
 				char *key = NULL;
 
 				if(MAP_HAS_STRING_KEY(relToDoms,search))
+				{
 					key = STRING_VALUE(MAP_GET_STRING(relToDoms,search));
-
-				domsInKeys = appendToTailOfList(domsInKeys, key);
+					domsInKeys = appendToTailOfList(domsInKeys, key);
+				}
 			}
 
 			rA = NULL;
