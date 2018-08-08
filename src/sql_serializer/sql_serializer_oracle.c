@@ -1832,7 +1832,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(List, attrs, fac->fromAttrs)
         {
             FOREACH(char,name,attrs)
-                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_0.", name));
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList) - 1), ".", name));
             fromItem++;
         }
 
