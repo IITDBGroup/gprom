@@ -143,7 +143,7 @@ lateralRewriteQuery(QueryOperator *input)
 			FunctionCall *aggFunc = createFunctionCall("MAX",
 					singleton(copyObject(projAttrRef)));
 			List *aggrs = singleton(aggFunc);
-			AggregationOperator *agg = createAggregationOp(aggrs, NIL, (QueryOperator *) proj, NIL, singleton("nesting_eval_1"));
+			AggregationOperator *agg = createAggregationOp(aggrs, NIL, (QueryOperator *) proj, NIL, singleton("AGGR_0"));
 
 			((QueryOperator *) agg)->parents = singleton(op);
 			((QueryOperator *) proj)->parents = singleton(agg);
