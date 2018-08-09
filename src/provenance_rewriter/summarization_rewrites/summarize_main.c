@@ -207,7 +207,7 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 
 					FOREACH(Node,n,a->args)
 					{
-						if(!searchListNode(userQuestion,n))
+						if(isA(n,Constant) && !searchListNode(userQuestion,n))
 							userQuestion = appendToTailOfList(userQuestion,n);
 					}
 				}
@@ -1173,19 +1173,19 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 	int summArity = 0;
 	int userQLen = LIST_LENGTH(userQuestion);
 	int givenConstLen = LIST_LENGTH(givenConsts);
-	List *attrPos = NIL;
+//	List *attrPos = NIL;
 
-	// store the position of attrs given
-	FOREACH(AttributeReference,aOfg,givenConsts)
-	{
-		FOREACH(AttributeReference,aOfu,userQuestion)
-		{
-			if(aOfg->attrPosition < aOfu->attrPosition)
-				aOfg->attrPosition = aOfg->attrPosition + 1;
-
-			attrPos = appendToTailOfListInt(attrPos,aOfg->attrPosition);
-		}
-	}
+//	// store the position of attrs given
+//	FOREACH(AttributeReference,aOfg,givenConsts)
+//	{
+//		FOREACH(AttributeReference,aOfu,userQuestion)
+//		{
+//			if(aOfg->attrPosition < aOfu->attrPosition)
+//				aOfg->attrPosition = aOfg->attrPosition + 1;
+//
+//			attrPos = appendToTailOfListInt(attrPos,aOfg->attrPosition);
+//		}
+//	}
 
 	Node *newInfoOfSumm = NULL;
 	AttributeReference *lA = NULL;
@@ -1196,8 +1196,8 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 		// after user question attributes, sum of the values of attributes to compute informativeness
 		if (isPrefix(a->name,"use"))
 		{
-			if (summArity >= userQLen && !searchListInt(attrPos,summArity))
-			{
+//			if (summArity >= userQLen && !searchListInt(attrPos,summArity))
+//			{
 				if(lA == NULL)
 					lA = copyObject(a);
 				else
@@ -1215,7 +1215,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 					lA = (AttributeReference *) newInfoOfSumm;
 					rA = NULL;
 				}
-			}
+//			}
 
 			summArity++;
 		}
@@ -1229,7 +1229,12 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 
 	if(newInfoOfSumm != NULL)
 	{
-		Node *infoRate = (Node *) createOpExpr("/",LIST_MAKE(newInfoOfSumm,createConstInt(summArity-userQLen-givenConstLen)));
+		// compute level of new information
+		int userConsts = userQLen + givenConstLen;
+		newInfoOfSumm = (Node *) createOpExpr("-", LIST_MAKE(newInfoOfSumm,createConstInt(userConsts)));
+
+		// compute informativeness rate
+		Node *infoRate = (Node *) createOpExpr("/",LIST_MAKE(newInfoOfSumm,createConstInt(summArity-userConsts)));
 		FunctionCall *rdupInfo = createFunctionCall("ROUND", LIST_MAKE(infoRate, rdup));
 		projExpr = appendToTailOfList(projExpr, rdupInfo);
 	}
@@ -3418,8 +3423,19 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 			ProjectionOperator *p = (ProjectionOperator *) getHeadOfListP((List *) transInput->inputs);
 			normAttrs = copyObject(p->projExprs);
 
-			// store user question attrs
-			userQuestion = normAttrs;
+			// store user question attrs in constant
+//			userQuestion = normAttrs;
+			List *pqFromDl = userQuestion;
+			userQuestion = NIL;
+			int i = 0;
+
+			FOREACH(Node,n,pqFromDl)
+			{
+				if(isA(n,Constant))
+					userQuestion = appendToTailOfList(userQuestion,(Node *) getNthOfListP(normAttrs,i));
+
+				i++;
+			}
 
 			List *rels = NIL;
 			findTableAccessVisitor((Node *) transInput,&rels);
