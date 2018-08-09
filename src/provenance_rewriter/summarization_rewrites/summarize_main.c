@@ -197,7 +197,7 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 				}
 			}
 
-			// constant in user question
+			// constants in user question
 			if(streq(key,DL_MAP_ADORNED_PREDS_TO_RULES))
 			{
 				HashMap *childKv = (HashMap *) kv->value;

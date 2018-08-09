@@ -4561,7 +4561,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 			}
 
-			// add dom head to where needed
+			// add domain atom for negated EDB rules (e.g., Q_LOST(X) :- not R(X) where R is EDB)
 			FOREACH(DLRule,eachRule,negedbRules)
 			{
 				List *domHeads = NIL;
@@ -4600,6 +4600,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				eachRule->body = CONCAT_LISTS(domHeads, eachRule->body);
 			}
 
+			// add domain atom for help rules (e.g., Q_LOST(X) :- not Q_WON(X))
 			FOREACH(DLRule,eachRule,helpRules)
 			{
 				List *domHeads = NIL;
@@ -4636,6 +4637,102 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				}
 
 				eachRule->body = CONCAT_LISTS(domHeads, eachRule->body);
+			}
+
+			// count for each variable in the rule
+			HashMap *varCount = NEW_MAP(Constant,Constant);
+
+			FOREACH(DLRule,r,unifiedRule)
+			{
+				FOREACH(Node,n,r->body)
+				{
+					if(isA(n,DLAtom))
+					{
+						DLAtom *a = (DLAtom *) n;
+
+						FOREACH(Node,arg,a->args)
+						{
+							if(isA(arg,DLVar))
+							{
+								DLVar *v = (DLVar *) arg;
+								MAP_INCR_STRING_KEY(varCount,v->name);
+							}
+						}
+					}
+				}
+			}
+
+			// add information to DLDomain
+			List *attributeNames = NIL;
+			List *doneDlDom = NIL;
+			char *edbrel = NULL;
+			int i = 0;
+
+			FOREACH(DLRule,r,domainRules)
+			{
+				DLAtom *bodyAt = (DLAtom *) getHeadOfListP(r->body);
+
+				if((edbrel == NULL && i == 0) || (i > 0 && !streq(edbrel,bodyAt->rel)))
+				{
+					attributeNames = getAttributeNames(bodyAt->rel);
+					edbrel = bodyAt->rel;
+					i = 0;
+				}
+				i++;
+
+				DLVar *v = (DLVar *) getHeadOfListP(r->head->args);
+				int varPos = 0;
+
+				FOREACH(Node,n,bodyAt->args)
+				{
+					if(isA(n,DLVar))
+					{
+						DLVar *bv = (DLVar *) n;
+
+						// for each body args, add as a DLDOMAIN if arg is the same
+						if(streq(bv->name,v->name))
+						{
+							DLDomain *newDom = makeNode(DLDomain);
+							newDom->rel = bodyAt->rel;
+							newDom->attr = (char *) getNthOfListP(attributeNames,varPos);
+							newDom->name = r->head->rel;
+
+							solvedProgram->doms = appendToTailOfList(solvedProgram->doms,newDom);
+							doneDlDom = appendToTailOfList(doneDlDom,CONCAT_STRINGS(bodyAt->rel,v->name));
+						}
+						else
+						{
+							// for the variable that appears multiple time, same number of DLDOMAIN is needed
+							int numOfEachVar = INT_VALUE(MAP_GET_STRING(varCount,bv->name));
+
+							if(numOfEachVar > 0 && !searchListString(doneDlDom,CONCAT_STRINGS(bodyAt->rel,bv->name)))
+							{
+								DLDomain *newDom = makeNode(DLDomain);
+								newDom->rel = bodyAt->rel;
+								newDom->attr = (char *) getNthOfListP(attributeNames,varPos);
+
+								DLRule *domRule = (DLRule *) MAP_GET_STRING(varToDom,bv->name);
+								newDom->name = domRule->head->rel;
+
+								solvedProgram->doms = appendToTailOfList(solvedProgram->doms,newDom);
+								doneDlDom = appendToTailOfList(doneDlDom,CONCAT_STRINGS(bodyAt->rel,bv->name));
+							}
+						}
+					}
+					varPos++;
+				}
+			}
+
+			// update domains for DL_PROV_PROG in the properties
+			if(MAP_HAS_STRING_KEY(solvedProgram->n.properties,DL_PROV_PROG))
+			{
+				DLProgram *p = (DLProgram *) MAP_GET_STRING(solvedProgram->n.properties,DL_PROV_PROG);
+
+				if(LIST_EMPTY(p->doms))
+				{
+					p->doms = solvedProgram->doms;
+					setDLProp((DLNode *) solvedProgram, DL_PROV_PROG, (Node *) p);
+				}
 			}
 		}
 		else
