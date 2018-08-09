@@ -132,18 +132,18 @@ lateralRewriteQuery(QueryOperator *input)
 			Constant *el =  copyObject(c0);
 			CaseExpr *caseExpr = createCaseExpr(NULL, singleton(when), (Node *) el);
 
-			ProjectionOperator *proj = createProjectionOp(singleton(caseExpr), rChild, NIL, singleton("nesting_eval_1"));
+			ProjectionOperator *proj = createProjectionOp(singleton(caseExpr), rChild, NIL, singleton("nesting_eval_help"));
 			rChild->parents = singleton(proj);
 
 			//MAX
-			AttributeReference *projAttrRef = getAttrRefByName((QueryOperator *) proj, "nesting_eval_1");
+			AttributeReference *projAttrRef = getAttrRefByName((QueryOperator *) proj, "nesting_eval_help");
 			projAttrRef->fromClauseItem = 0;
 			projAttrRef->outerLevelsUp = 0;
 
-			FunctionCall *aggFunc = createFunctionCall("MAX",
+			FunctionCall *aggFunc = createFunctionCall(aggname,
 					singleton(copyObject(projAttrRef)));
 			List *aggrs = singleton(aggFunc);
-			AggregationOperator *agg = createAggregationOp(aggrs, NIL, (QueryOperator *) proj, NIL, singleton("AGGR_0"));
+			AggregationOperator *agg = createAggregationOp(aggrs, NIL, (QueryOperator *) proj, NIL, singleton("nesting_eval_1"));
 
 			((QueryOperator *) agg)->parents = singleton(op);
 			((QueryOperator *) proj)->parents = singleton(agg);
