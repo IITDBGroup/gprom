@@ -38,12 +38,14 @@
 #include "utility/string_utils.h"
 
 static char *createReenactment(List *updates);
-static void createWhatIfMin(List *updates);
+static void whatIfResult(List *updates, boolean ds);
+static char* serializeCond(Node *node);
+
 static ExceptionHandler handleCLIException(const char *message,
 		const char *file, int line, ExceptionSeverity s);
 
 int main(int argc, char* argv[]) {
-	List *result;
+	List *history;
 
 	// initialize components
 	READ_OPTIONS_AND_INIT("testexprcplex", "Run expr to cplex.");
@@ -58,28 +60,32 @@ int main(int argc, char* argv[]) {
 	else {
 		TRY
 					{
-						result = (List *) parseFromString(
+						history = (List *) parseFromString(
 								getStringOption("input.query"));
 
-						//ERROR_LOG("Result of CPLEX IS: %d \n", checkCplex((List *) result));
-
-						//List *updates = dependAlgo(result);
-						List *updates = SymbolicExeAlgo(result);
-						int depcount = getListLength(updates) - 2;
-
-						ERROR_LOG("total Number of updates: %d \n",
-								getListLength(result) - 1);
+						ERROR_LOG("Total Number of updates: %d \n",
+								getListLength(history) - 1);
+						List *updates = SymbolicExeAlgo(history);
 						ERROR_LOG("Number of dependent statements: %d \n",
-								depcount);
+								getListLength(updates) - 2);
 
-						if (depcount > 0) {
-							//Compute what-if for dependent updates
-							createWhatIfMin(updates);
-							/*
-							 //Compute what-if for all updates
-							 createWhatIfMin(result);
-							 */
-						}
+						/*
+						 DEBUG_LOG("What-if result for all updates:\n");
+						 whatIfResult(history, FALSE);
+
+						 DEBUG_LOG(
+						 "What-if result for all updates with data slicing:\n");
+						 whatIfResult(history, TRUE);
+						 */
+						DEBUG_LOG(
+								"What-if result for just dependent updates:\n");
+						whatIfResult(updates, FALSE);
+						/*
+						 DEBUG_LOG(
+						 "What-if result for just dependent updates with data slicing:\n");
+						 whatIfResult(updates, TRUE);
+						 */
+
 					}ON_EXCEPTION
 					{
 						// if an exception is thrown then the query memory context has been
@@ -99,7 +105,7 @@ int main(int argc, char* argv[]) {
 
 static char *createReenactment(List *updates) {
 	ProvenanceStmt *provStat;
-	char *sql;
+	char *sql = "TRUE";
 	Node *qoModel;
 	provStat = createProvenanceStmt((Node *) updates);
 	provStat->provType = PROV_NONE;
@@ -118,24 +124,42 @@ static char *createReenactment(List *updates) {
 	return sql;
 }
 
-static void createWhatIfMin(List *updates) {
+static void whatIfResult(List *updates, boolean ds) {
 	Node *originalUp;
 	originalUp = (Node *) popHeadOfListP(updates);
 	List *orList = copyList(updates);
 	popHeadOfListP(updates);
 	updates = appendToHeadOfList(updates, originalUp);
-	ERROR_LOG("What-if Result using minus for %d updates :\n",
-			getListLength(updates));
 	char *reen1 = createReenactment(orList);
 	int length = strlen(reen1) - 2;
 	reen1 = substr(reen1, 0, length);
 	char *reen2 = createReenactment(updates);
 	length = strlen(reen2) - 2;
 	reen2 = substr(reen2, 0, length);
-	ERROR_LOG("(%s\nMINUS \n%s)\nUNION ALL\n(%s\nMINUS \n%s);", reen1, reen2,
-			reen2, reen1);
+	if (!ds)
+		ERROR_LOG("(%s\nMINUS \n%s)\nUNION ALL\n(%s\nMINUS \n%s);", reen1,
+				reen2, reen2, reen1);
+	else {
+		Node *orUp = (Node *) getHeadOfListP(orList);
+		Node *wifUp = (Node *) getHeadOfListP(updates);
+		char *c1 = serializeCond(orUp);
+		char *c2 = serializeCond(wifUp);
+		ERROR_LOG(
+				"(%s WHERE (%s) OR (%s)\nMINUS \n%s WHERE (%s) OR (%s))\nUNION ALL\n(%s WHERE (%s) OR (%s)\nMINUS \n%s WHERE (%s) OR (%s));",
+				reen1, c1, c2, reen2, c1, c2, reen2, c1, c2, reen1, c1, c2);
+
+	}
 	deepFreeList(updates);
-	deepFreeList(orList);
+}
+
+static char* serializeCond(Node *node) {
+	char* condition = "TRUE";
+	if (node->type == T_Update) {
+		condition = serializeOperatorModel(((Update *) node)->cond);
+	} else if (node->type == T_Delete) {
+		condition = serializeOperatorModel(((Delete *) node)->cond);
+	}
+	return condition;
 }
 /*
  * Function that handles exceptions
