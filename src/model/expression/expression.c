@@ -512,7 +512,8 @@ typeOf (Node *expr)
                 case NESTQ_SCALAR:
                 case NESTQ_LATERAL:
                 {
-                    return DT_STRING; //TODO
+                    //return DT_LONG; //TODO
+                		return q->nestingAttrDatatype;
                 }
                 break;
             }
@@ -1084,6 +1085,7 @@ typeOfFunc (FunctionCall *f)
     result = getFuncReturnType(f->functionname, argDTs, &fExists);
     if (!fExists)
         DEBUG_NODE_BEATIFY_LOG("Function does not exist: ", f);
+
     return result;
 }
 

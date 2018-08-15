@@ -203,6 +203,7 @@ typedef struct NestedSubquery
     Node *expr;
     char *comparisonOp;
     Node *query;
+    DataType nestingAttrDatatype;
 } NestedSubquery;
 
 typedef struct Insert

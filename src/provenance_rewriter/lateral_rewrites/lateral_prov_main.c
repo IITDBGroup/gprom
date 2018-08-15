@@ -115,13 +115,11 @@ lateralRewriteQuery(QueryOperator *input)
 				DEBUG_LOG("check name: %s", a->name);
 				if(checkAttr(a->name, rChild))
 				{
-					DEBUG_LOG("find");
 					a->fromClauseItem = 0;
 					a->outerLevelsUp = 0;
 				}
 				else
 				{
-					DEBUG_LOG("not find");
 					a->outerLevelsUp = 1;
 				}
 			}

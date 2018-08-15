@@ -1526,10 +1526,15 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         attrNames = appendToTailOfList(attrNames,strdup(attrName));
         if (nsq->nestingType == NESTQ_EXISTS)
             dts = appendToTailOfListInt(dts, DT_BOOL);
+
         else if (nsq->nestingType == NESTQ_SCALAR)
+        {
+        		nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
             dts = appendToTailOfListInt(dts, getAttrDefByPos(rChild, 0)->dataType);
+        }
         else
             dts = appendToTailOfListInt(dts, typeOf(cond));
+
 
         // create nesting operator
         no = createNestingOp(nsq->nestingType, cond, inputs, NIL, attrNames, dts);
@@ -1613,6 +1618,12 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         Constant *trueValue = createConstBool(TRUE);
         List *args = LIST_MAKE(attr, trueValue);
         Operator *opExpr = createOpExpr("=", args);
+
+        if (((NestedSubquery *) node)->nestingType == NESTQ_ALL)
+        {
+        		IsNullExpr *inulExpr = createIsNullExpr((Node *) singleton(copyObject(attr)));
+        		opExpr = createOpExpr("OR", LIST_MAKE(opExpr, inulExpr));
+        }
 
         // replace the nested subquery node with the auxiliary expression
         return (Node *) opExpr;
