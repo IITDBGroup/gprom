@@ -37,6 +37,7 @@
 #include "operator_optimizer/operator_optimizer.h"
 #include "utility/string_utils.h"
 
+static Node *createReenactmentAlgebra(List *updates);
 static char *createReenactment(List *updates);
 static void whatIfResult(List *updates, boolean ds);
 static char* serializeCond(Node *node);
@@ -103,10 +104,12 @@ int main(int argc, char* argv[]) {
 	return EXIT_SUCCESS;
 }
 
-static char *createReenactment(List *updates) {
-	ProvenanceStmt *provStat;
-	char *sql = "TRUE";
+static Node *
+createReenactmentAlgebra(List *updates)
+{
+	Provenancestmt *provStat;
 	Node *qoModel;
+
 	provStat = createProvenanceStmt((Node *) updates);
 	provStat->provType = PROV_NONE;
 	provStat->inputType = PROV_INPUT_REENACT;
@@ -119,23 +122,69 @@ static char *createReenactment(List *updates) {
 	DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat);
 	qoModel = optimizeOperatorModel(qoModel);
 	DEBUG_NODE_BEATIFY_LOG("after opt:\n", provStat);
+
+	return qoModel;
+}
+
+static char *
+createReenactment(List *updates)
+{
+	/* ProvenanceStmt *provStat; */
+	/* char *sql = "TRUE"; */
+	Node *qoModel;
+	/* provStat = createProvenanceStmt((Node *) updates); */
+	/* provStat->provType = PROV_NONE; */
+	/* provStat->inputType = PROV_INPUT_REENACT; */
+	/* DEBUG_NODE_BEATIFY_LOG("prov:\n", provStat); */
+	/* provStat = (ProvenanceStmt *) analyzeParseModel((Node *) provStat); */
+	/* DEBUG_NODE_BEATIFY_LOG("analysis:\n", provStat); */
+	/* qoModel = translateParseOracle((Node *) provStat); */
+	/* DEBUG_NODE_BEATIFY_LOG("qo model:\n", provStat); */
+	/* qoModel = provRewriteQBModel(qoModel); */
+	/* DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat); */
+	/* qoModel = optimizeOperatorModel(qoModel); */
+	/* DEBUG_NODE_BEATIFY_LOG("after opt:\n", provStat); */
 	//qoModel = translateParse((Node *) provStat);
+	qoModel = createReenactmentAlgebra(updates);
 	sql = serializeOperatorModel(qoModel);
 	return sql;
 }
 
-static void whatIfResult(List *updates, boolean ds) {
+static void
+whatIfResult(List *updates, boolean ds) {
+	/* Node *originalUp; */
+	/* originalUp = (Node *) popHeadOfListP(updates); */
+	/* List *orList = copyList(updates); */
+	/* popHeadOfListP(updates); */
+	/* updates = appendToHeadOfList(updates, originalUp); */
+	/* char *reen1 = createReenactment(orList); */
+	/* int length = strlen(reen1) - 2; */
+	/* reen1 = substr(reen1, 0, length); */
+	/* char *reen2 = createReenactment(updates); */
+	/* length = strlen(reen2) - 2; */
+	/* reen2 = substr(reen2, 0, length); */
 	Node *originalUp;
 	originalUp = (Node *) popHeadOfListP(updates);
 	List *orList = copyList(updates);
 	popHeadOfListP(updates);
 	updates = appendToHeadOfList(updates, originalUp);
-	char *reen1 = createReenactment(orList);
-	int length = strlen(reen1) - 2;
-	reen1 = substr(reen1, 0, length);
-	char *reen2 = createReenactment(updates);
-	length = strlen(reen2) - 2;
-	reen2 = substr(reen2, 0, length);
+	QueryOperator *reop1 = createReenactmentAlgebra(orList);
+	QueryOperator *reop2 = createReenactmentAlgebra(updates);
+
+	QueryOperator *
+
+	QueryOperator *un;
+	QueryOperator *diff1;
+	QueryOperator *diff2;
+
+	diff1 = createSetOp(SETOP_DIFFERENCE, LIST_MAKE(reop1, reop2), NIL, NIL);
+	diff2 = createSetOp(SETOP_DIFFERENCE, LIST_MAKE(reop2, reop1), NIL, NIL);
+	un = createSetOp(SETOP_UNION, LIST_MAKE(diff1, diff2), NIL, NIL);
+
+	//TODO backconnect to parents
+
+    ERROR_OP_LOG("diff query", un);
+
 	if (!ds)
 		ERROR_LOG("(%s\nMINUS \n%s)\nUNION ALL\n(%s\nMINUS \n%s);", reen1,
 				reen2, reen2, reen1);
@@ -174,4 +223,3 @@ static ExceptionHandler handleCLIException(const char *message,
 	// throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
 	return EXCEPTION_DIE;
 }
-

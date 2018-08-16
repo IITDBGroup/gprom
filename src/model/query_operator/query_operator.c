@@ -678,6 +678,8 @@ createSetOperator(SetOpType setOpType, List *inputs, List *parents,
     set->setOpType = setOpType;
     set->op.inputs = inputs;
     lChild = OP_LCHILD(set);
+	if (attrNames == NIL)
+		attrNames = getAttrNames(lChild->schema);
     set->op.schema = createSchemaFromLists("SET", attrNames,
             lChild ? getDataTypes(lChild->schema) : NIL);
     set->op.parents = parents;
