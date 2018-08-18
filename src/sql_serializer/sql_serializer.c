@@ -20,6 +20,7 @@
 #include "sql_serializer/sql_serializer_oracle.h"
 #include "sql_serializer/sql_serializer_spark.h"
 #include "sql_serializer/sql_serializer_dl.h"
+#include "sql_serializer/sql_serializer_lb.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
 #include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
@@ -36,6 +37,7 @@ static SqlserializerPlugin *assembleOraclePlugin(void);
 static SqlserializerPlugin *assemblePostgresPlugin(void);
 static SqlserializerPlugin *assembleHivePlugin(void);
 static SqlserializerPlugin *assembleDLPlugin(void);
+static SqlserializerPlugin *assembleLBPlugin(void);
 static SqlserializerPlugin *assembleSQLitePlugin(void);
 static SqlserializerPlugin *assembleSparkPlugin(void);
 
@@ -86,6 +88,9 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
         case SQLSERIALIZER_PLUGIN_DL:
             plugin = assembleDLPlugin();
             break;
+        case SQLSERIALIZER_PLUGIN_LB:
+            plugin = assembleLBPlugin();
+            break;
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
             break;
@@ -100,6 +105,7 @@ assembleOraclePlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
+    p->type = SQLSERIALIZER_PLUGIN_ORACLE;
     p->serializeOperatorModel = serializeOperatorModelOracle;
     p->serializeQuery = serializeQueryOracle;
     p->quoteIdentifier = quoteIdentifierOracle;
@@ -112,6 +118,7 @@ assemblePostgresPlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
+    p->type = SQLSERIALIZER_PLUGIN_POSTGRES;
     p->serializeOperatorModel = serializeOperatorModelPostgres;
     p->serializeQuery = serializeQueryPostgres;
     p->quoteIdentifier = quoteIdentifierPostgres;
@@ -124,6 +131,7 @@ assembleHivePlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
+    p->type = SQLSERIALIZER_PLUGIN_HIVE;
     FATAL_LOG("not implemented yet");
 
     return p;
@@ -134,9 +142,22 @@ assembleDLPlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
+    p->type = SQLSERIALIZER_PLUGIN_DL;
     p->serializeOperatorModel = serializeOperatorModelDL;
     p->serializeQuery = serializeQueryDL;
     p->quoteIdentifier = quoteIdentifierDL;
+
+    return p;
+}
+
+static SqlserializerPlugin *
+assembleLBPlugin(void)
+{
+    SqlserializerPlugin *p = NEW(SqlserializerPlugin);
+
+    p->serializeOperatorModel = serializeOperatorModelLB;
+    p->serializeQuery = serializeQueryLB;
+    p->quoteIdentifier = quoteIdentifierLB;
 
     return p;
 }
@@ -146,6 +167,7 @@ assembleSQLitePlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
+    p->type = SQLSERIALIZER_PLUGIN_SQLITE;
     p->serializeOperatorModel = serializeOperatorModelSQLite;
     p->serializeQuery = serializeQuerySQLite;
     p->quoteIdentifier = quoteIdentifierSQLite;
@@ -178,10 +200,21 @@ chooseSqlserializerPluginFromString(char *type)
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_HIVE);
     else if (streq(type,"dl"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_DL);
+    else if (streq(type,"lb"))
+            chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_LB);
     else if (streq(type,"sqlite"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SQLITE);
     else if (streq(type,"sparksql"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SPARK);
     else
         FATAL_LOG("unkown sqlserializer plugin type: <%s>", type);
+}
+
+SqlserializerPluginType
+getActiveSqlserializerPlugin(void)
+{
+    if (plugin == NULL)
+        FATAL_LOG("no sql serializer plugin selected yet");
+
+    return plugin->type;
 }

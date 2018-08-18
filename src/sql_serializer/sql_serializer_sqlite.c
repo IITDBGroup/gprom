@@ -90,7 +90,7 @@ serializeQuerySQLite(QueryOperator *q)
     api->viewCounter = 0;
 
     // simulate non Oracle conformant data types and expressions (boolean)
-//    makeDTOracleConformant(q);
+    genQuoteAttributeNames((Node *) q);
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, api);
@@ -145,14 +145,17 @@ quoteIdentifierSQLite (char *ident)
             case '#':
             case '_':
                 break;
+            case '(':
+            case ')':
+            case '+':
+            case ' ':
+                needsQuotes = TRUE;
+            break;
+            case '"':
+                needsQuotes = TRUE;
+                containsQuotes = TRUE;
+            break;
             default:
-                if (ident[i] == ' ')
-                    needsQuotes = TRUE;
-                if (ident[i] == '"')
-                {
-                    needsQuotes = TRUE;
-                    containsQuotes = TRUE;
-                }
                 break;
         }
         if (needsQuotes)
@@ -473,7 +476,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(List, attrs, fromAttrs)
         {
             FOREACH(char,name,attrs)
-                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", itoa(fromItem), ".", name));
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name));
             fromItem++;
         }
 

@@ -275,7 +275,7 @@ static QueryOperator
     FunctionCall *funXMLAGG = createFunctionCall(XMLAGG, funArgs);
     op->aggrs = appendToTailOfList(op->aggrs, funXMLAGG);
 
-    AttributeDef *provDef = createAttributeDef(CONCAT_STRINGS("AGGR_", itoa(aggrLen)), DT_STRING);
+    AttributeDef *provDef = createAttributeDef(CONCAT_STRINGS("AGGR_", gprom_itoa(aggrLen)), DT_STRING);
     List *newAggDefs = NIL;
     List *preAggDefs = NIL;
     List *aftAggDefs = NIL;

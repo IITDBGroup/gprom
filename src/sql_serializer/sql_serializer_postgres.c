@@ -32,6 +32,7 @@ static SerializeClausesAPI *api = NULL;
 
 /* methods */
 static void createAPI (void);
+static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, List** fromAttrs, SerializeClausesAPI *api);
 static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
@@ -55,7 +56,11 @@ serializeOperatorModelPostgres(Node *q)
     genQuoteAttributeNames(q);
     DEBUG_OP_LOG("after attr quoting", q);
 
-    // shorten attribute names to confrom with Oracle limits
+    // add casts to null constants to make postgres aware of their types
+
+    visitWithPointers(q,addNullCasts,(void **) &q, PSET());
+
+    // serialize query
     if (IS_OP(q))
     {
         appendStringInfoString(str, serializeQueryPostgres((QueryOperator *) q));
@@ -73,6 +78,34 @@ serializeOperatorModelPostgres(Node *q)
     result = str->data;
     FREE(str);
     return result;
+}
+
+static boolean
+addNullCasts(Node *n, Set *visited, void **parentPointer)
+{
+    if (n == NULL)
+        return TRUE;
+
+    if (hasSetElem(visited, n))
+        return TRUE;
+
+    addToSet(visited, n);
+
+    if (isA(n,Constant))
+    {
+        Constant *c = (Constant *) n;
+        CastExpr *cast;
+
+        if (c->isNull)
+        {
+            cast = createCastExpr((Node *) c, c->constType);
+            *parentPointer = cast;
+        }
+
+        return TRUE;
+    }
+
+    return visitWithPointers(n, addNullCasts, parentPointer, visited);
 }
 
 char *
@@ -447,7 +480,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(List, attrs, fromAttrs)
         {
             FOREACH(char,name,attrs)
-                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", itoa(fromItem), ".", name));
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name));
             fromItem++;
         }
 

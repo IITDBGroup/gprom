@@ -7,10 +7,12 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;
@@ -54,6 +56,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	private GProM_JNA.GProMExceptionCallbackFunction exceptionCallback;
 	private List<ExceptionInfo> exceptions;
 	private GProMMetadataLookupPlugin p;
+	private boolean initialized;
 	
 	// singleton instance	
 	public static GProMWrapper inst = new GProMWrapper ();
@@ -63,6 +66,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	private GProMWrapper () {
+		initialized = false;
 		exceptions = new ArrayList<ExceptionInfo> ();
 	}
 
@@ -73,6 +77,20 @@ public class GProMWrapper implements GProMJavaInterface {
 	public String gpromRewriteQuery(String query) throws SQLException {
 		log.debug("WILL REWRITE:\n\n{}", query);
 		
+		try {
+			String parserPlugin = getOption("plugin.parser");
+			if (!parserPlugin.equals("dl")) {
+				if (!query.trim().endsWith(";"))
+					query += ";";
+			}
+		}
+		catch (Exception e) {
+			LoggerUtil.logException(e, log);
+		}
+		
+//		Scanner in = new Scanner(System.in);
+//		String password = in.nextLine();
+//		
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
 		
 		// check whether exception has occured
@@ -96,6 +114,9 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	public void init () {
+		if (initialized)
+			return;
+		
 		loggerCallback = new GProM_JNA.GProMLoggerCallbackFunction () {
 			public void invoke(String message, String file, int line, int level) {
 				logCallbackFunction(message, file, line, level);
@@ -115,6 +136,8 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_registerExceptionCallbackFunction(exceptionCallback);
 		GProM_JNA.INSTANCE.gprom_init();
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(4);
+		
+		initialized = true;
 	}
 
 	public void setLogLevel (int level)
@@ -379,6 +402,14 @@ public class GProMWrapper implements GProMJavaInterface {
 
 	public void setP(GProMMetadataLookupPlugin p) {
 		this.p = p;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#optionsHelp()
+	 */
+	@Override
+	public String optionsHelp() {
+		return GProM_JNA.INSTANCE.gprom_getOptionHelp();
 	}
 	
 }

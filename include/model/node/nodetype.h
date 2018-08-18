@@ -72,6 +72,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_NestingOperator,
     T_WindowOperator,
     T_OrderOperator,
+	T_SampleClauseOperator,
 
     /* datalog model nodes */
     T_DLNode,
@@ -206,7 +207,7 @@ extern char *beatify(char *input);
 extern char *operatorToOverviewString(void *op);
 extern char *singleOperatorToOverview (void *op);
 extern char *datalogToOverviewString(void *n);
-extern char *itoa(int value);
+extern char *gprom_itoa(int value);
 extern void indentString(StringInfo str, int level);
 
 /* get a dot script for a query operator graph or query block tree */

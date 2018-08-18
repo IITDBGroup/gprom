@@ -18,6 +18,8 @@
 #include "model/node/nodetype.h"
 #include "log/logger.h"
 
+/* For ProvProperties*/
+#include "model/set/hashmap.h"
 
 List *
 getQBAttrDefs(Node *qb)
@@ -147,6 +149,8 @@ createProvenanceStmt(Node *query)
     ProvenanceStmt *result = makeNode(ProvenanceStmt);
 
     result->query = query;
+    result->options = NIL;
+    result->sumOpts = NIL;
 
     return result;
 }
@@ -441,3 +445,60 @@ createAlterTableRemoveColumn (char *tName, char *colName)
 
     return result;
 }
+
+
+/* fromProvInfo ProvProperties helper functions*/
+static KeyValue *getProvProp (FromProvInfo *from, Node *key);
+
+void
+setProvProperty (FromProvInfo *from, Node *key, Node *value)
+{
+	if (from->provProperties == NULL)
+	{
+		from->provProperties = (Node *) NEW_MAP(Node,Node);
+	}
+
+	/*
+	KeyValue *val = getProp(op, key);
+	if (val)
+	{
+		val->value = value;
+		return;
+	}
+	*/
+
+	addToMap((HashMap *) from->provProperties, key, value);
+}
+
+Node *
+getProvProperty (FromProvInfo *from, Node *key)
+{
+	KeyValue *kv = getProvProp(from, key);
+
+	return kv ? kv->value : NULL;
+}
+
+Node *
+getStringProvProperty (FromProvInfo *from, char *key)
+{
+	if (from->provProperties == NULL)
+		from->provProperties = (Node *) NEW_MAP(Node,Node);
+	return getMapString((HashMap *) from->provProperties, key);
+}
+
+static KeyValue *
+getProvProp (FromProvInfo *from, Node *key)
+{
+	if (from->provProperties == NULL)
+	{
+		from->provProperties = (Node *) NEW_MAP(Node, Node);
+	}
+	return getMapEntry((HashMap *) from->provProperties, key);
+}
+
+void
+setStringProvProperty (FromProvInfo *from, char *key, Node *value)
+{
+	setProvProperty(from, (Node *) createConstString(key), value);
+}
+

@@ -11,6 +11,7 @@
 #ifndef INCLUDE_PARSER_PARSE_INTERNAL_DL_H_
 #define INCLUDE_PARSER_PARSE_INTERNAL_DL_H_
 
+#include "model/node/nodetype.h"
 
 /* for storing results */
 extern Node *dlParseResult;

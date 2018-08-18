@@ -62,6 +62,12 @@ static void markTemporalAttrsAsProv (QueryOperator *op);
 #define IS_E_NAME "IS_E"
 #define NUMOPEN "NUMOPEN"
 
+#define AGGNAME_SUM backendifyIdentifier("sum")
+#define AGGNAME_COUNT backendifyIdentifier("count")
+#define AGGNAME_AVG backendifyIdentifier("avg")
+#define AGGNAME_MIN backendifyIdentifier("min")
+#define AGGNAME_MAX backendifyIdentifier("max")
+#define AGGNAME_LAST_VALUE backendifyIdentifier("last_value")
 
 static int T_BEtype = -1;
 
@@ -574,7 +580,7 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
                 FOREACH(FunctionCall, fc, aggOp->aggrs)
                 {
                     char *upcaseName = strToUpper(fc->functionname);
-                    if(streq(upcaseName,"MIN") || streq(upcaseName,"MAX"))
+                    if(streq(upcaseName,AGGNAME_MIN) || streq(upcaseName,AGGNAME_MAX))
                     {
                         minmax = TRUE;
                         break;
@@ -727,7 +733,7 @@ addSetCoalesce (QueryOperator *input)
 
     // create window operator that counts open intervals
     AttributeReference *isSRef = getAttrRefByName(t1, IS_S_NAME);
-    FunctionCall *sumS = createFunctionCall("SUM",singleton(isSRef));
+    FunctionCall *sumS = createFunctionCall(AGGNAME_SUM,singleton(isSRef));
 
     char *countOpenName = strdup(COUNT_START_ANAME);
     WindowOperator *winCountOpen = createWindowOp((Node *) sumS,
@@ -741,7 +747,7 @@ addSetCoalesce (QueryOperator *input)
 
     // create window operator that counts closed intervals
     AttributeReference *countClosedIsERef = getAttrRefByName(t1, IS_E_NAME);
-    FunctionCall *sumE = createFunctionCall("SUM",singleton(countClosedIsERef));
+    FunctionCall *sumE = createFunctionCall(AGGNAME_SUM,singleton(countClosedIsERef));
 
     char *countCloseName = strdup(COUNT_END_ANAME);
     WindowOperator *winCountClosed = createWindowOp((Node *) sumE,
@@ -950,7 +956,7 @@ addCoalesce (QueryOperator *input)
     AttributeDef *t1TBDef = copyObject(getAttrDefByName(t1Op, TBEGIN_NAME));
     int t1TBDefPos = getAttrPos(op, t1TBDef->attrName);
     AttributeReference *t2FCRef = createFullAttrReference(strdup(t1TBDef->attrName), 0, t1TBDefPos, INVALID_ATTR, t1TBDef->dataType);
-    FunctionCall *t2FC = createFunctionCall("SUM",singleton(t2FCRef));
+    FunctionCall *t2FC = createFunctionCall(AGGNAME_SUM,singleton(t2FCRef));
 
     WindowFunction *t2WF = createWindowFunction(t2FC,t2WD1);
 
@@ -977,7 +983,7 @@ addCoalesce (QueryOperator *input)
     WindowDef *t2WD2 = createWindowDef(t2PartitionBy2,t2GroupBy2,wfT2W2);
 
     AttributeReference *t2W2FCRef = getAttrRefByName(t2W1Op, TEND_NAME);
-    FunctionCall *t2W2FC = createFunctionCall("SUM",singleton(t2W2FCRef));
+    FunctionCall *t2W2FC = createFunctionCall(AGGNAME_SUM,singleton(t2W2FCRef));
 
     WindowFunction *t2W2WF = createWindowFunction(t2W2FC,t2WD2);
 
@@ -1126,7 +1132,7 @@ addCoalesce (QueryOperator *input)
 
     WindowDef *t5wd = createWindowDef(t5PartitionBy,t5GroupBy,t5wf);
 
-    FunctionCall *t5fc = createFunctionCall("LAST_VALUE",singleton(copyObject(t5gbRef)));
+    FunctionCall *t5fc = createFunctionCall(AGGNAME_LAST_VALUE,singleton(copyObject(t5gbRef)));
 
     WindowFunction *t5wff = createWindowFunction(t5fc,t5wd);
 
@@ -1182,8 +1188,8 @@ addCoalesce (QueryOperator *input)
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
-	//SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) top1));
-	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) t5));
+	//SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) top1));
+	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) t5));
 	// ensure that t5 is treated as a common table expression
 	SET_BOOL_STRING_PROP(t5, PROP_MATERIALIZE);
 	//---------------------------------------------------------------------------------------
@@ -1618,7 +1624,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     agg1GroupBy = appendToHeadOfList(agg1GroupBy, getAttrRefByName(leftProj1Op, TBEGIN_NAME));
 
     AttributeReference *agg1Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
-	FunctionCall *agg1Func = createFunctionCall(strdup("COUNT"),
+	FunctionCall *agg1Func = createFunctionCall(strdup(AGGNAME_COUNT),
 			singleton(agg1Attr));
 	List *aggrs1 = singleton(agg1Func);
 	List *agg1Names = NIL;
@@ -1673,7 +1679,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     agg2GroupBy = appendToHeadOfList(agg2GroupBy, getAttrRefByName(leftProj1Op, TEND_NAME));
 
     AttributeReference *agg2Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
-	FunctionCall *agg2Func = createFunctionCall(strdup("COUNT"),
+	FunctionCall *agg2Func = createFunctionCall(strdup(AGGNAME_COUNT),
 			singleton(agg2Attr));
 	List *aggrs2 = singleton(agg2Func);
 	List *agg2Names = NIL;
@@ -1835,8 +1841,8 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
 			aggE = appendToTailOfList(aggE,a);
 	}
 
-	FunctionCall *sumS = createFunctionCall("SUM",aggS);
-	FunctionCall *sumE = createFunctionCall("SUM",aggE);
+	FunctionCall *sumS = createFunctionCall(AGGNAME_SUM,aggS);
+	FunctionCall *sumE = createFunctionCall(AGGNAME_SUM,aggE);
 	List *functionCallList = LIST_MAKE(sumS,sumE);
 
 	AggregationOperator *aggCPMerge = createAggregationOp(functionCallList,groupByCPMerge, u3Op, NIL, attrNamesCPMerge);
@@ -1861,7 +1867,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
 
     WindowDef *internalWDef1 = createWindowDef(internalPartitionBy1,internalsOrderBy1,internalsWF1);
 
-    FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(getAttrRefByName(aggCPMergeOp, "S")));
+    FunctionCall *internalFC1 = createFunctionCall(AGGNAME_SUM,singleton(getAttrRefByName(aggCPMergeOp, "S")));
     WindowFunction *winternalF1 = createWindowFunction(internalFC1,internalWDef1);
 
     char *internalWNames1 = "winf_0";
@@ -1885,7 +1891,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
 
     WindowDef *internalWDef2 = createWindowDef(internalPartitionBy2,internalsOrderBy2,internalsWF2);
 
-    FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(getAttrRefByName(internalW1Op, "E")));
+    FunctionCall *internalFC2 = createFunctionCall(AGGNAME_SUM,singleton(getAttrRefByName(internalW1Op, "E")));
     WindowFunction *winternalF2 = createWindowFunction(internalFC2,internalWDef2);
 
     char *internalWNames2 = "winf_1";
@@ -1954,7 +1960,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
-	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) intervalsProj));
+	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) intervalsProj));
 
 	//---------------------------------------------------------------------------------------
     //Construct Top
@@ -2116,12 +2122,18 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     QueryOperator *top = NULL;
     Constant *c1 = createConstInt(ONE);
     Constant *c0 = createConstInt(ZERO);
-
+    List *origAggReturnTypes = NIL;
     // make aggregation functions upper case
+//    FOREACH(FunctionCall,f,agg->aggrs)
+//    {
+//        f->functionname = strToUpper(f->functionname);
+//    }
+
     FOREACH(FunctionCall,f,agg->aggrs)
     {
-        f->functionname = strToUpper(f->functionname);
+        origAggReturnTypes = appendToTailOfListInt(origAggReturnTypes, typeOf((Node *) f));
     }
+    DEBUG_LOG("original aggregation function return types: %s", nodeToString(origAggReturnTypes));
 
     origAggs = copyObject(agg->aggrs);
     numAggs = LIST_LENGTH(origAggs);
@@ -2152,12 +2164,12 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         FunctionCall *a  = (FunctionCall*) agg;
         AttributeDef *d = (AttributeDef *) def;
         char *fName = a->functionname;
-        if (streq(fName,"SUM") || streq(fName,"COUNT"))
+        if (streq(fName,AGGNAME_SUM) || streq(fName,AGGNAME_COUNT))
         {
             newAgg = appendToTailOfList(newAgg, a);
             newSchema = appendToTailOfList(newSchema, d);
         }
-        else if (streq(fName, "AVG"))
+        else if (streq(fName, AGGNAME_AVG))
         {
             FunctionCall *cnt, *sum;
             AttributeDef *sumDef, *cntDef;
@@ -2165,23 +2177,23 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             numNewAggs++;
 
             sum = copyObject(a);
-            sum->functionname = strdup("SUM");
+            sum->functionname = strdup(AGGNAME_SUM);
             sumDef = copyObject(d);
             sumDef->attrName = CONCAT_STRINGS(sumDef->attrName, "_avg_sum");
             newAgg = appendToTailOfList(newAgg, sum);
             newSchema = appendToTailOfList(newSchema, sumDef);
 
-            cnt = createFunctionCall (strdup("COUNT"), singleton(createConstInt(1)));
+            cnt = createFunctionCall (strdup(AGGNAME_COUNT), singleton(createConstInt(1)));
             cntDef = copyObject(d);
             cntDef->attrName = CONCAT_STRINGS(cntDef->attrName, "_avg_cnt");
             newAgg = appendToTailOfList(newAgg, cnt);
             newSchema = appendToTailOfList(newSchema, cntDef);
         }
-        else if (streq(fName,"MIN"))
+        else if (streq(fName,AGGNAME_MIN))
         {
             FATAL_LOG("aggregation + normalization does not work for MIN currently");
         }
-        else if (streq(fName,"MAX"))
+        else if (streq(fName,AGGNAME_MAX))
         {
             FATAL_LOG("aggregation + normalization does not work for MAX currently");
         }
@@ -2190,7 +2202,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     }
 
     // add count aggregation to be able to filter out gaps between intervals later on
-    FunctionCall *openInterCount = createFunctionCall (strdup("COUNT"), singleton(createConstInt(1)));
+    FunctionCall *openInterCount = createFunctionCall (strdup(AGGNAME_COUNT), singleton(createConstInt(1)));
     AttributeDef *cntDef = createAttributeDef(strdup(OPEN_INTER_COUNT_ATTR), DT_LONG);
     newAgg = appendToTailOfList(newAgg, openInterCount);
     newSchema = appendToTailOfList(newSchema, cntDef);
@@ -2238,11 +2250,11 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         FOREACH(FunctionCall,f,origAggs)
         {
             char *fName = f->functionname;
-            if(streq(fName,"COUNT"))
+            if(streq(fName,AGGNAME_COUNT))
             {
                 constVals = appendToTailOfList(constVals, createConstInt(0));
             }
-            else if(streq(fName, "AVG"))
+            else if(streq(fName, AGGNAME_AVG))
             {
                 constVals = appendToTailOfList(constVals, createNullConst(DT_INT));
                 constVals = appendToTailOfList(constVals, createConstInt(0));
@@ -2337,7 +2349,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         FunctionCall *f;
 
         //TODO deal with non SUM combiner (what would that be)
-        f = createFunctionCall("SUM", singleton(a));
+        f = createFunctionCall(AGGNAME_SUM, singleton(a));
         aggs = appendToTailOfList(aggs, f);
     }
 
@@ -2379,7 +2391,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     for(int i = 0; i < numNewAggs * 2; i++)
     {
         char *aName = strdup(getAttrDefByPos(curChild, i)->attrName);//TODO other than SUM?
-        FunctionCall *fc1T3 = createFunctionCall("SUM",singleton(getAttrRefByName(t2Op, aName)));
+        FunctionCall *fc1T3 = createFunctionCall(AGGNAME_SUM,singleton(getAttrRefByName(t2Op, aName)));
         WindowFunction *wf1T3 = createWindowFunction(fc1T3,wd1T3);
 
         char *wname1T3 = CONCAT_STRINGS(WIN_PREFIX, strdup(aName));
@@ -2461,7 +2473,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     List *groupByT4 = singleton(tsT4);
 
     WindowDef *wdT4 = createWindowDef(partitionByT4,groupByT4,fT4);
-    FunctionCall *fcT4 = createFunctionCall("LAST_VALUE",singleton(copyObject(tsT4)));
+    FunctionCall *fcT4 = createFunctionCall(AGGNAME_LAST_VALUE,singleton(copyObject(tsT4)));
     WindowFunction *wfT4 = createWindowFunction(fcT4,wdT4);
 
     char *wnameT4 = NEXT_TS_ATTR;
@@ -2489,7 +2501,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         char *fName = agg->functionname;
         Node *projExpr = NULL;
 
-        if (streq(fName,"SUM"))
+        if (streq(fName,AGGNAME_SUM))
         {
             AttributeReference *countRef, *sumRef;
             char *openCname = CONCAT_STRINGS(WIN_PREFIX, ADD_AGG_PREFIX, OPEN_INTER_COUNT_ATTR);
@@ -2503,11 +2515,11 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             CaseExpr *caseExprT4 = createCaseExpr(NULL, singleton(whenT4), elseT4);
             projExpr = (Node *) caseExprT4;
         }
-        else if (streq(fName,"COUNT"))
+        else if (streq(fName,AGGNAME_COUNT))
         {
             projExpr = (Node *) getNthOfListP(attrRefs, attrPos);
         }
-        else if (streq(fName, "AVG"))
+        else if (streq(fName, AGGNAME_AVG))
         {
             AttributeReference *countRef, *sumRef;
 
@@ -2570,6 +2582,24 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     finalAttrPos = CONCAT_LISTS(aggAttrPos, gbAttrPos);
 
     finalOp = createProjOnAttrs((QueryOperator *) selT4, finalAttrPos);
+
+    // add casts to final projection if preaggregating has changed aggregation function result type
+    int aggPos = 0;
+    FOREACH_INT(d,origAggReturnTypes)
+    {
+        DataType dt = (DataType) d;
+        Node *projExpr = getNthOfListP(((ProjectionOperator *) finalOp)->projExprs, aggPos);
+        if (dt != typeOf(projExpr))
+        {
+            ListCell *pCell = getNthOfList(((ProjectionOperator *) finalOp)->projExprs, aggPos);
+            pCell->data.ptr_value = createCastExpr(projExpr, dt);
+            AttributeDef *a = getNthOfListP(finalOp->schema->attrDefs, aggPos);
+            a->dataType = dt;
+        }
+
+        aggPos++;
+    }
+
     addChildOperator(finalOp, (QueryOperator *) selT4);
 
     // set temporal attributes for rewrites of parents to access and switch top operator with aggregation
@@ -2653,7 +2683,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     agg1GroupBy = appendToTailOfList(agg1GroupBy, getAttrRefByName(leftProj1Op, TBEGIN_NAME));
 
     AttributeReference *agg1Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
-	FunctionCall *agg1Func = createFunctionCall(strdup("COUNT"),
+	FunctionCall *agg1Func = createFunctionCall(strdup(AGGNAME_COUNT),
 			singleton(agg1Attr));
 	List *aggrs1 = singleton(agg1Func);
 	List *agg1Names = NIL;
@@ -2707,7 +2737,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     agg2GroupBy = appendToTailOfList(agg2GroupBy, getAttrRefByName(leftProj1Op, TEND_NAME));
 
     AttributeReference *agg2Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
-	FunctionCall *agg2Func = createFunctionCall(strdup("COUNT"),
+	FunctionCall *agg2Func = createFunctionCall(strdup(AGGNAME_COUNT),
 			singleton(agg2Attr));
 	List *aggrs2 = singleton(agg2Func);
 	List *agg2Names = NIL;
@@ -2806,7 +2836,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     agg1GroupByRight = appendToTailOfList(agg1GroupByRight, getAttrRefByName(rightProjOp, TBEGIN_NAME));
 
     AttributeReference *agg1AttrRight = getAttrRefByName(rightProjOp, "AGG_GB_ARG0");
-	FunctionCall *agg1FuncRight = createFunctionCall(strdup("COUNT"),
+	FunctionCall *agg1FuncRight = createFunctionCall(strdup(AGGNAME_COUNT),
 			singleton(agg1AttrRight));
 	List *aggrs1Right = singleton(agg1FuncRight);
 	List *agg1NamesRight = NIL;
@@ -2890,7 +2920,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     agg2GroupByRight = appendToTailOfList(agg2GroupByRight, getAttrRefByName(rightProjOp, TEND_NAME));
 
     AttributeReference *agg2AttrRight = getAttrRefByName(rightProjOp, "AGG_GB_ARG0");
-	FunctionCall *agg2FuncRight = createFunctionCall(strdup("COUNT"),
+	FunctionCall *agg2FuncRight = createFunctionCall(strdup(AGGNAME_COUNT),
 			singleton(agg2AttrRight));
 	List *aggrs2Right = singleton(agg2FuncRight);
 	List *agg2NamesRight = NIL;
@@ -2975,8 +3005,8 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 			aggE = appendToTailOfList(aggE,a);
 	}
 
-	FunctionCall *sumS = createFunctionCall("SUM",aggS);
-	FunctionCall *sumE = createFunctionCall("SUM",aggE);
+	FunctionCall *sumS = createFunctionCall(AGGNAME_SUM,aggS);
+	FunctionCall *sumE = createFunctionCall(AGGNAME_SUM,aggE);
 	List *functionCallList = LIST_MAKE(sumS,sumE);
 
 	AggregationOperator *aggCPMerge = createAggregationOp(functionCallList,groupByCPMerge, u3Op, NIL, attrNamesCPMerge);
@@ -3003,7 +3033,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 
      WindowDef *internalWDef1 = createWindowDef(internalPartitionBy1,internalsOrderBy1,internalsWF1);
 
-     FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(getAttrRefByName(aggCPMergeOp, "S")));
+     FunctionCall *internalFC1 = createFunctionCall(AGGNAME_SUM,singleton(getAttrRefByName(aggCPMergeOp, "S")));
      WindowFunction *winternalF1 = createWindowFunction(internalFC1,internalWDef1);
 
      char *internalWNames1 = "winf_0";
@@ -3027,7 +3057,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 
      WindowDef *internalWDef2 = createWindowDef(internalPartitionBy2,internalsOrderBy2,internalsWF2);
 
-     FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(getAttrRefByName(internalW1Op, "E")));
+     FunctionCall *internalFC2 = createFunctionCall(AGGNAME_SUM,singleton(getAttrRefByName(internalW1Op, "E")));
      WindowFunction *winternalF2 = createWindowFunction(internalFC2,internalWDef2);
 
      char *internalWNames2 = "winf_1";
@@ -3108,7 +3138,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
      //set boolean prop (when translate to SQL, translate to above SQL not this table)
-     SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) intervalsProj));
+     SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) intervalsProj));
 
      //---------------------------------------------------------------------------------------
      //Construct Top

@@ -1,119 +1,113 @@
-<project name="GProMBlackBoxTests" default="compileTests" basedir=".">
+<project name="GProMBlackBoxTests" 
+	default="compile" 
+	basedir="."
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	xmlns:artifact="antlib:org.apache.maven.artifact.ant"
+	xmlns:if="ant:if"
+    xmlns:unless="ant:unless"
+	>
 
-	<property name="projectroot" value="${basedir}/.." />
+	<description>GProM automatically generated junit blackbox tests.</description>
 	
-	<!-- ant defs -->
-	<property name="antlibdir" value="${projectroot}/ant" />
+	<dirname property="dir.antfile" file="${ant.file}"/>
+	<property name="projectroot" value="${dir.antfile}/.." />
+		
+	<!-- ClassPath Setup -->
+	<property name="classpath.name.bin" value="classpath.bin" />
+	<property name="classpath.name.build" value="classpath.build" />
+	<property name="classpath.name.run" value="classpath.run" />
+	<property name="classpath.name.thejar" value="classpath.thejar" />
 	
-	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
-	  <classpath>
-	    <pathelement location="${antlibdir}/ant-contrib.jar"/>
-	  </classpath>
-	</taskdef>
+	<!-- define artifacts' name, which follows the convention of Maven -->
+	<property name="artifactId" value="gprom-blackbox-tests" />
 	
 	<!-- directories -->
-	<property name="sourcedir" value="${projectroot}/javatest" />
-	<property name="binarydir" value="${projectroot}/javabin" />
-	<property name="dbUnitDir" value="${projectroot}/../DBUnit/bin/" />
-	<property name="packageName" value="org.gprom.jdbc.test.autotests" />
-	<property name="testsourcedir" value="${projectroot}/autotests" />
-	<property name="testbinarydir" value="${binarydir}/org/gprom/jdbc/test/autotests" />	
-	<property name="librarydir" value="${projectroot}/javatestlib" />
-	<property name="mainlibrarydir" value="${projectroot}/javalib" />
-	<property name="antlibrarydir" value="${projectroot}/ant" />
-	<property name="resourcedir" value="${projectroot}/blackboxtests"/>
-	<property name="testcasedir" value="${resourcedir}/testcases"/>
-	<property name="builddir" value="${projectroot}/build"/>
-	<property name="generatorjar" value="${librarydir}/gprom-test-gen.jar" />
-	<property name="buildjar" value="${builddir}/gprom-jdbc-test.jar" />
+	<property name="dir.build" value="${projectroot}/build"/>
+	<property name="dir.source" value="${projectroot}/javatest" />
+	<property name="dir.bin" value="${dir.build}/javabin" />
+	<property name="dir.testsrc" value="${projectroot}/autotests" />
+	<property name="dir.testbin" value="${dir.build}/javabin" /> <!-- /org/gprom/jdbc/test/autotests" />-->
+	<property name="dir.buildresource" value="${projectroot}/ant" />
+	<property name="dir.library" value="${dir.build}/javatestlib" />
+	<property name="dir.lib.main" value="${dir.build}/javalib" />
+	<property name="dir.antlib" value="${projectroot}/ant" />
+	<property name="dir.resource" value="${projectroot}/blackboxtests"/>
+	<property name="dir.testcase" value="${dir.resource}/testcases"/>
+	<property name="jar.test" value="${dir.build}/gprom-jdbc-test.jar" />
+	<property name="jar.bin" value="${dir.build}/gprom-jdbc.jar" />
+	
+	<!-- resources -->
+	<property name="conffile.name" value="GProMDriver.properties" />
+	<property name="log4jconffile.name" value="log4j2.xml" />
+	
+	<!-- Main Class and Packages-->
+	<property name="package.name" value="org.gprom.jdbc.test.autotests" />
+  	<property name="mainclass" value="org.gprom.jdbc.test.SQLiteJDBCTest" />
+	<property name="jar.creator" value="Illinois Institute of Technology, Department of Computer Science, DBGroup" />
+	<property name="package" value="*" />
+	<property name="mvn.description" value="This jar file contains automated tests for GProM" />
+	<property name="mvn.url" value="https://github.com/IITDBGroup/gprom" />
+	
+	<!-- ivy settings -->
+	<property name="ivy.file.test" value="${dir.buildresource}/ivy-test.xml" />
+	<property name="ivy.file.build" value="${dir.buildresource}/ivy.xml" />
+	
+	<import file="${projectroot}/antutils/ant-common.xml" />
 	
 	<!-- settings -->
-	<property name="permserver.options" value="--debug_print_rewritten=off --log_error_verbosity=terse --log_min_messages=error --client_min_messages=error --log_directory=${basedir}"/>
 	<!-- get test name if specified -->
-	<property name="JUnitTestName" value="${testname}" />
+	<property name="junit.testname" value="${testname}" />
+	<property name="test.loglevel" value="error" />
 	
-	<path id="libraries">
-		<fileset dir="${librarydir}">
-			<include name="**/*.jar" />
-		</fileset>
-		<fileset dir="${mainlibrarydir}">
-			<include name="**/*.jar" />
-		</fileset>
-		<fileset dir="${antlibrarydir}" />
-		<fileset dir="${ant.library.dir}">
-			<include name="**/*.jar" />
-		</fileset>
-	</path>
+	<!-- targets -->
+	<target name="download-dependencies" 
+			depends="mkdirs-and-setup-props" 
+			description="use ivy to download dependencies">
+				
+		<ivy-download-deps ivyfile="${ivy.file.test}"/>
+		<fileset id="fat.jar.resources" 
+				dir="${dir.lib.main}" 
+				includes="${conffile.name},${log4jconffile.name}" />
+		<classpath-from-dir dir="${dir.buildlib}" 
+				pathname="${classpath.name.build}" 
+				pathnamejar="${classpath.name.build}.jar"/>
+		<classpath-from-dir dir="${dir.lib.main}" 
+				pathname="${classpath.name.bin}" 
+				pathnamejar="${classpath.name.bin}.jar"/>
+		<path id="classpath.thejar">
+			<fileset file="${jar.test}" />
+			<path refid="${classpath.name.bin}" />
+		</path>
+		<print-path pathid="${classpath.name.thejar}" />
+	</target>
 
-	<path id="createTestsClasspath">
-		<path refid="libraries" />
-		<pathelement path="${resourcedir}" />
-		<fileset dir="${mainlibrarydir}" />
-		<fileset dir="${antlibrarydir}" />
-		<pathelement path="${binarydir}" />
-		<fileset dir="${ant.library.dir}">
-			<include name="**/*.jar" />
-		</fileset>
-	</path>
 	
-	<path id="runTestsClasspath">
-		<fileset dir="${librarydir}">
-			<include name="**/*.jar" />
-		</fileset>
-		<fileset dir="${mainlibrarydir}">
-			<include name="**/*.jar" />
-		</fileset>
-		<pathelement path="${mainlibrarydir}" />
-		<pathelement path="${resourcedir}" />
-		<pathelement path="${binarydir}"/>
-	</path>
-	
-	<target name="loadProperties">
-		<property file="${resourcedir}/options.txt" prefix="Options."/>
-		<fail message="Not all necessary options set in file ${resourcedir}/options.txt: DBName, User, Password, Schema, Path, PermPrefix">
-		    <condition>
-		        <not>
-		            <and>
-		            	<isset property="Options.DBName" />
-		            	<isset property="Options.AdminDBName" />
-		            	<isset property="Options.User" />
-		            	<isset property="Options.Password" />
-		            	<isset property="Options.Schema" />
-		            	<isset property="Options.Path" />
-		            	<isset property="Options.PermPrefix" />
-		            	<isset property="Options.PermCluster" />
-		            	<isset property="Options.PermSource" />
-		            </and>
-		        </not>
-		    </condition>
-		</fail>
-		<available file="${Options.PermPrefix}/bin/postgres" property="found.perm.bin"/>
-		<available file="${Options.PermCluster}/postgresql.conf" property="found.perm.cluster"/>
-		<fail message="Did not find postgres executable at ${Options.PermPrefix}/bin/">
-			<condition>
-				<not>
-					<isset property="found.perm.bin" />
-				</not>
-			</condition>
-		</fail>
-		<fail message="Did not find postgres cluster at ${Options.PermCluster}">
-			<condition>
-				<not>
-					<isset property="found.perm.cluster" />
-				</not>
-			</condition>
-		</fail>
-		<property name="perm.URL" value="jdbc:postgresql://127.0.0.1:5432/${Options.DBName}" />
-		<property name="perm.AdminURL" value="jdbc:postgresql://127.0.0.1:5432/${Options.AdminDBName}" />
-	</target>
-	
-	<target name="adaptDDLScripts">
-		<var name="testdbscript" value="${resourcedir}/testdb/testDB.sql" />
-		<antcall target="adaptTestDDLScript" />
-	</target>
+	<target name="setup-additional-anttasks" 
+			depends="download-dependencies">
+		<echo message="building from ${basedir} with ant file located in ${dir.antfile}" />
+		<taskdef resource="net/sf/antcontrib/antcontrib.properties"
+			classpathref="${classpath.name.build}">
+		</taskdef>
 		
+		<!-- set properties to empty if not set by user -->
+		<property name="Host" value="" />
+		<property name="Port" value="" />
+		<property name="DBName" value="" />
+		<property name="User" value="" />
+		<property name="Password" value="" />
+		<property name="TestcasePath" value="${basedir}/testcases" />
+	</target>
 	
-	<target name="adaptTestDDLScript">
+	<target name="adapt-ddl-scripts"
+			depends="setup-additional-anttasks"
+			description="adapt DDL script to run from the source path">
+		
+		<var name="testdbscript" value="${dir.resource}/testdb/testDB.sql" />
+		<antcall target="adapt-test-ddl-script" />
+	</target>
+	
+	<target name="adapt-test-ddl-script">
+	
 		<copy file="${testdbscript}.in" tofile="${testdbscript}" overwrite="false">
 			<filterchain>
 				<replacetokens>
@@ -123,185 +117,220 @@
 		</copy>
 	</target>
 	
-	<target name="distClean">
-		<delete dir="${binarydir}" includeemptydirs="true" />
-		<delete dir="${builddir}" includeemptydirs="true" />
-		<delete dir="${testsourcedir}" includeemptydirs="true" />
+	<target name="clean-all"
+		description="clean all">
+		
+		<delete dir="${dir.bin}" includeemptydirs="true" />
+		<delete dir="${dir.build}" includeemptydirs="true" />
+		<delete dir="${dir.testsrc}" includeemptydirs="true" />
 	</target>
 	
-	<target name="cleanTests" depends="adaptDDLScripts">
-		<mkdir dir="${binarydir}" />
-		<mkdir dir="${builddir}" />
-		<mkdir dir="${sourcedir}" />
-		<mkdir dir="${testsourcedir}" />
+	<target name="clean" 
+			depends="adapt-ddl-scripts"
+			description="clean">
+		<mkdir dir="${dir.testsrc}" />
+		<copy todir="${dir.bin}">
+			<fileset dir="${dir.buildresource}" includes="${conffile.name},${log4jconffile.name}" /> 
+		</copy>
 	</target>
 	
-	<target name="compile" depends="cleanTests">
-		<depend srcdir="${sourcedir}"
-		        destdir="${binarydir}"
-		        cache="depcache"
+	<target name="compile" 
+			depends="clean"
+			description="compile the test generator java files">
+		<depend srcdir="${dir.source}"
+		        destdir="${dir.bin}"
+		        cache="${dir.build}/testdepcache"
 		        closure="yes"/>
-		<javac srcdir="${sourcedir}" destdir="${binarydir}" classpathref="libraries" 
-			debug="on" excludes="**/.svn*" fork="true" includeantruntime="false">
+		<javac srcdir="${dir.source}" 
+				destdir="${dir.bin}" 
+				classpathref="${classpath.name.bin}" 
+				debug="on"  
+				fork="true" 
+				includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
 	
-	<target name="jarGenerator" depends="compile">
-		<jar destfile="${generatorjar}" basedir="${binarydir}">
-			<manifest>
-				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, Boris Glavic" />
-			</manifest>
-		</jar>
-		<copy file="${generatorjar}" tofile="${buildjar}" />
+	<target name="jar-generator" 
+			depends="compile"
+			description="create a jar file for the test generator">
+		<create-jar>
+			<additional-resources>
+				<fileset refid="fat.jar.resources" />
+			</additional-resources>
+		</create-jar>
 	</target>
 	
-	<target name="genTests" depends="jarGenerator">
+	<target name="gen-tests" 
+			depends="jar-generator"
+			description="generate JUnit blackbox tests from xml files">
+		<classpath-from-dir dir="${dir.library}" 
+				pathname="${classpath.name.run}" 
+				pathnamejar="${classpath.name.run}.jar">
+			<path-elements>
+				<pathelement path="${dir.resource}" />
+				<fileset file="${jar.bin}" />
+			</path-elements>
+		</classpath-from-dir>
+
 		<java 
 			classname="org.gprom.jdbc.test.testgenerator.TestGenerator" 
-			classpathref="createTestsClasspath"
+			classpathref="${classpath.name.run}"
 			fork="true" 
+			failonerror="true"
 			dir="${basedir}"
 		>
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" 
 				value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-			<sysproperty key="generator.resourcedir" value="${resourcedir}" />
-			<sysproperty key="generator.testcasedir" value="${testcasedir}" />
-			<sysproperty key="generator.sourcedir" value="${testsourcedir}" />
-			<sysproperty key="generator.package" value="${packageName}" />
+			<sysproperty key="generator.resourcedir" value="${dir.resource}" />
+			<sysproperty key="generator.testcasedir" value="${dir.testcase}" />
+			<sysproperty key="generator.sourcedir" value="${dir.testsrc}" />
+			<sysproperty key="generator.package" value="${package.name}" />
+			<sysproperty key="log4j2.level" value="${test.loglevel}" />
+			<sysproperty key="Host" value="${Host}" />
+    			<sysproperty key="Port" value="${Port}" />
+			<sysproperty key="DBName" value="${DBName}" />
+			<sysproperty key="User" value="${User}" />
+			<sysproperty key="Password" value="${Password}" />
+    			<sysproperty key="TestcasePath" value="${TestcasePath}" />	    			
 		</java>
 	</target>
 	
-	<target name="compileTests" depends="genTests">
-		<depend srcdir="${testsourcedir}"
-		        destdir="${binarydir}"
-		        cache="depcache"
+	<target name="compile-tests" 
+			depends="gen-tests"
+			description="compile the generated JUnit tests">
+		
+		<mkdir dir="${dir.testbin}" />
+		<depend srcdir="${dir.testsrc}"
+		        destdir="${dir.testbin}"
+		        cache="${dir.build}/blackboxdepcache"
 		        closure="yes"/>
-		<javac srcdir="${testsourcedir}" destdir="${binarydir}" classpathref="runTestsClasspath" 
+		<javac srcdir="${dir.testsrc}" destdir="${dir.testbin}" classpathref="${classpath.name.run}" 
 			debug="on" fork="true" includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
 	
-	<target name="startPermServer" depends="loadProperties">
-		<fail message="Cannot start perm server. Seems there is a running server listening at 127.0.0.1 port 5432">
-			<condition>
-				<socket server="127.0.0.1" port="5432" />
-			</condition>
-		</fail>
-		<exec executable="${Options.PermPrefix}/bin/postmaster" spawn="true">
-			<arg line="-D ${Options.PermCluster} ${permserver.options}"/>
-		</exec>
-		<waitfor maxwait="15" maxwaitunit="second">
-		        <socket server="127.0.0.1" port="5432" />
-		</waitfor>		
+	<target name="jar-tests" 
+			depends="compile-tests"
+			description="create a jar file for the generated test cases that includes libgprom">
+		<create-jar 
+			jar="${jar.test}"
+			classpath="${classpath.run.jar}"
+			bindir="${dir.testbin}"
+			>
+			<additional-resources>
+				<fileset refid="fat.jar.resources" />
+			</additional-resources>
+		</create-jar>
 	</target>
 	
-	<target name="killPermServer" depends="loadProperties">
-		<fail message="No Perm Server running at 127.0.0.1 port 5432">
-			<condition>
-				<not>
-					<socket server="127.0.0.1" port="5432" />
-				</not>
-			</condition>
-		</fail>
-		<exec executable="${resourcedir}/killServer.sh">
-			<arg line="${Options.PermCluster}" />
-		</exec>
-	</target>
-	
-	<target name="startServerAndRunTests" depends="loadProperties">
-		<!-- start Perm server -->
-		<antcall target="startPermServer" />
-		<!-- run Tests -->
-		<antcall target="runTests" />
-		<!-- kill Perm server-->
-		<antcall target="killPermServer"/>
-	</target>
-	
-	<target name="loadDBScript" depends="loadProperties,adaptDDLScripts">
-		<property name="perm.psql.adminargs" value="-U ${Options.User} -d ${Options.AdminDBName} -h 127.0.0.1 -p 5432" />
-		<property name="perm.psql.testargs" value="-U ${Options.User} -d ${Options.DBName} -h 127.0.0.1 -p 5432" />
-		<property name="xmlfuncscript" value="${Options.PermSource}/contrib/xml2/pgxml.sql" />
-		
-		<antcall target="startPermServer" />
-		<exec executable="${Options.PermPrefix}/bin/psql">
-			<arg line="${perm.psql.adminargs} -c &quot;DROP DATABASE IF EXISTS ${Options.DBName};&quot;"/>
-		</exec>
-		<exec executable="${Options.PermPrefix}/bin/psql">
-			<arg line="${perm.psql.adminargs} -c &quot;CREATE DATABASE ${Options.DBName};&quot;"/>
-		</exec>
-		<exec executable="${Options.PermPrefix}/bin/psql">
-			<arg line="${perm.psql.testargs} -c &quot;CREATE LANGUAGE PLPGSQL;&quot;"/>
-		</exec>
-		<exec executable="${Options.PermPrefix}/bin/psql">
-			<arg line="${perm.psql.testargs} -f ${xmlfuncscript}"/>
-		</exec>
-		<exec executable="${Options.PermPrefix}/bin/psql">
-			<arg line="${perm.psql.testargs} -f ${testdbscript}"/>
-		</exec>
-		<antcall target="killPermServer"/>
-	</target>
-	
-	<target name="runTests" depends="compileTests">
+	<target name="run-tests" 
+			depends="jar-tests"
+			description="run all generated junit tests">
+
+	  <echo message="host: ${Host}" />
+	  
 		<delete dir="${basedir}/results"/>
 		<mkdir dir="${basedir}/results"/>
-		<junit printsummary="withOutAndErr" haltonfailure="false" haltonerror="false" showoutput="true" timeout="300000" enableTestListenerEvents="true" fork="true">
-			<classpath refid="runTestsClasspath"/>
+		<junit printsummary="withOutAndErr" 
+				haltonfailure="false" 
+				haltonerror="false" 
+				showoutput="true" 
+				timeout="300000" 
+				enableTestListenerEvents="true" 
+				fork="true">
+			<classpath refid="${classpath.name.thejar}"/>
+			
 			<formatter type="brief" usefile="false" />
 			<formatter type="xml"/>
-	        <batchtest todir="${basedir}/results">
-	            <fileset dir="${testsourcedir}">
+
+			<batchtest todir="${basedir}/results">
+	            <fileset dir="${dir.testsrc}">
 	                <include name="**/*_Test.java"/>
 	            </fileset>
 	        </batchtest>
-			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
+
+			<sysproperty key="Host" value="${Host}" />
+    			<sysproperty key="Port" value="${Port}" />
+			<sysproperty key="DBName" value="${DBName}" />
+			<sysproperty key="User" value="${User}" />
+			<sysproperty key="Password" value="${Password}" />
+    			<sysproperty key="TestcasePath" value="${TestcasePath}" />	    			
+    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+    			<sysproperty key="log4j2.level" value="${test.loglevel}" /> 
 		</junit>
 	</target>
 
-	<target name="runTestsOnly">
+	<target name="run-test-only"
+			description="run junit tests, requires tests to be compiled upfront"
+			depends="setup-additional-anttasks">
 		<!-- run all tests unless user has provided a test name -->
         <if>
-          <not><equals arg1="${JUnitTestName}" arg2="$${testname}" /></not>
-		<!-- run user provided test -->
-    	<then>
-            <echo message="Run ${JUnitTestName}" />
-    		<delete dir="${basedir}/results"/>
-    		<mkdir dir="${basedir}/results"/>
-    		<junit printsummary="withOutAndErr" haltonfailure="true" haltonerror="true" showoutput="true" enableTestListenerEvents="true" fork="true">
-    			<classpath refid="runTestsClasspath"/>
-    	        <batchtest  todir="${basedir}/results" fork="true">
-    	            <fileset dir="${testsourcedir}">
-    	                <include name="**/${JUnitTestName}.java"/>
-    	            </fileset>
-    	        </batchtest>
-    			<formatter type="brief" usefile="false" />
-    			<formatter type="xml"/>
-    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
-    		</junit>
-          </then>
-        	<!-- run all tests unless user has provided a test name -->
-          <else>
-            <echo message="Run all tests" />
-    		<delete dir="${basedir}/results"/>
-    		<mkdir dir="${basedir}/results"/>
-          	<junit printsummary="withOutAndErr" haltonfailure="true" haltonerror="true" showoutput="true" enableTestListenerEvents="true" fork="true">
-    			<classpath refid="runTestsClasspath"/>
-    	        <batchtest todir="${basedir}/results" fork="true">
-    	            <fileset dir="${testsourcedir}">
-    	                <include name="**/*_Test.java"/>
-    	            </fileset>
-    	        </batchtest>
-    			<formatter type="brief" usefile="false" />
-    			<formatter type="xml"/>
-    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
-    		</junit>
-          </else>
-        </if> 
+			<not><equals arg1="${junit.testname}" arg2="$${testname}" /></not>
+			<!-- run user provided test -->
+	    		<then>
+	            <echo message="Run ${junit.testname}" />
+	    			<delete dir="${basedir}/results"/>
+		    		<mkdir dir="${basedir}/results"/>
+		    		<junit printsummary="withOutAndErr" 
+		    				haltonfailure="true" 
+		    				haltonerror="true" 
+		    				showoutput="true" 
+		    				enableTestListenerEvents="true" 
+		    				fork="true">
+		    			<classpath refid="${classpath.name.thejar}"/>
+		    	        
+		    			<batchtest  todir="${basedir}/results" fork="true">
+		    	            <fileset dir="${dir.testsrc}">
+		    	                <include name="**/${junit.testname}.java"/>
+		    	            </fileset>
+		    	        </batchtest>
 
+		    			<formatter type="brief" usefile="false" />
+		    			<formatter type="xml"/>
+
+		    			<sysproperty key="Host" value="${Host}" />
+		    			<sysproperty key="Port" value="${Port}" />
+	    				<sysproperty key="DBName" value="${DBName}" />
+	    				<sysproperty key="User" value="${User}" />
+	    				<sysproperty key="Password" value="${Password}" />
+		    			<sysproperty key="TestcasePath" value="${TestcasePath}" />	    			
+		    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+		    			<sysproperty key="log4j2.level" value="${test.loglevel}" /> 
+		    		</junit>
+			</then>
+	        	<!-- run all tests unless user has provided a test name -->
+	        <else>
+	            <echo message="Run all tests" />
+		    		<delete dir="${basedir}/results"/>
+		    		<mkdir dir="${basedir}/results"/>
+	          	<junit printsummary="withOutAndErr" 
+	          			haltonfailure="true" 
+	          			haltonerror="true" 
+	          			showoutput="true" 
+	          			enableTestListenerEvents="true" 
+	          			fork="true">
+		    			<classpath refid="${classpath.name.thejar}"/>
+		    	        <batchtest todir="${basedir}/results" fork="true">
+		    	            <fileset dir="${dir.testsrc}">
+		    	                <include name="**/*_Test.java"/>
+		    	            </fileset>
+		    	        </batchtest>
+		    			<formatter type="brief" usefile="false" />
+		    			<formatter type="xml"/>
+
+		    			<sysproperty key="Host" value="${Host}" />
+		    			<sysproperty key="Port" value="${Port}" />
+	    				<sysproperty key="DBName" value="${DBName}" />
+	    				<sysproperty key="User" value="${User}" />
+	    				<sysproperty key="Password" value="${Password}" />
+		    			<sysproperty key="TestcasePath" value="${TestcasePath}" />
+	          		<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+		    			<sysproperty key="log4j2.level" value="${test.loglevel}" /> 
+		    		</junit>
+			</else>
+        </if> 
 	</target>
 
 	

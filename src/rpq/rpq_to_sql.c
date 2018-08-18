@@ -324,7 +324,7 @@ getUniqueName(char *in, Set *usedNames)
     //appendStringInfoString(predName, origName);
     while(hasSetElem(usedNames,result->data))
     {
-        char *countStr = itoa(count++);
+        char *countStr = gprom_itoa(count++);
         int countLen = strlen(countStr);
         int pos = MIN(STRINGLEN(result),30-countLen);
         replaceStringInfo(result,pos,countStr);

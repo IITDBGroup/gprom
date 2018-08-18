@@ -32,7 +32,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_INPUT_SQL_FILE "input.sqlFile"
 #define OPTION_INPUT_QUERY "input.query"
 #define OPTION_INPUT_QUERY_FILE "input.queryFile"
-
+#define OPTION_INPUTDB "inputdb"
 
 /* plugin options */
 #define OPTION_BACKEND "backend"
@@ -103,8 +103,21 @@ NEW_ENUM_WITH_TO_STRING(
 #define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
 #define TEMPORAL_AGG_WITH_NORM "temporal_combine_agg_and_norm"
 
+// backend types
+NEW_ENUM_WITH_TO_STRING(
+    BackendType,
+    BACKEND_ORACLE,
+    BACKEND_POSTGRES,
+    BACKEND_SQLITE,
+    BACKEND_MONETDB
+);
+
+
 // encapsulates option state
 typedef struct option_state OptionState;
+
+/* dl rewrite options */
+#define OPTION_WHYNOT_ADV "whynot_adv"
 
 // declare option fields
 // show help only
@@ -192,7 +205,7 @@ extern OptionType getOptionType(char *name);
 extern boolean optionSet(char *name);
 extern void printVersion(FILE *stream);
 
-
+extern BackendType getBackend(void);
 extern char *getBackendPlugin(char *be, char *pluginOpt);
 extern char *getFrontendPlugin(char *fe, char *pluginOpt);
 
@@ -200,6 +213,7 @@ extern void printOptionsHelp(FILE *stream, char *progName, char *description,
         boolean showValues);
 extern void printCurrentOptions(FILE *stream);
 extern char *optionsToStringOnePerLine(void);
+extern char *internalOptionsToString(boolean showValues);
 extern HashMap *optionsToHashMap(void);
 
 extern void mallocOptions();

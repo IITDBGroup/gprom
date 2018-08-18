@@ -23,7 +23,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
-
+#include "utility/string_utils.h"
 
 // Mem context
 #define CONTEXT_NAME "SQLiteMemContext"
@@ -58,7 +58,9 @@ static void initCache(CatalogCache *c);
         { \
             StringInfo _newmes = makeStringInfo(); \
             appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
-            FATAL_LOG("error (%s)\n%u\n\n%s", strdup((char *) sqlite3_errmsg(plugin->conn)), _rc, _newmes->data); \
+            StringInfo _errMes = makeStringInfo(); \
+            appendStringInfo(_errMes, strdup((char *) sqlite3_errmsg(plugin->conn))); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", _errMes, _rc, _newmes->data); \
         } \
     } while(0)
 
@@ -93,6 +95,8 @@ assembleSqliteMetadataLookupPlugin (void)
     p->executeQuery = sqliteExecuteQuery;
     p->executeQueryIgnoreResult = sqliteExecuteQueryIgnoreResults;
     p->connectionDescription = sqliteGetConnectionDescription;
+    p->sqlTypeToDT = sqliteBackendSQLTypeToDT;
+    p->dataTypeToSQL = sqliteBackendDatatypeToSQL;
 
     return p;
 }
@@ -325,6 +329,55 @@ sqliteGetKeyInformation(char *tableName)
     return NIL;
 }
 
+DataType
+sqliteBackendSQLTypeToDT (char *sqlType)
+{
+    if (regExMatch("INT", sqlType))
+    {
+        return DT_INT;
+    }
+    if (regExMatch("NUMERIC", sqlType)
+            || regExMatch("REAL", sqlType)
+            || regExMatch("FLOA", sqlType)
+            || regExMatch("DOUB", sqlType))
+    {
+        return DT_FLOAT;
+    }
+    if (regExMatch("CHAR", sqlType)
+            || regExMatch("CLOB", sqlType)
+            || regExMatch("TEXT", sqlType))
+    {
+        return DT_STRING;
+    }
+
+    return DT_FLOAT;
+}
+
+char *
+sqliteBackendDatatypeToSQL (DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+        case DT_LONG:
+            return "INT";
+            break;
+        case DT_FLOAT:
+            return "DOUBLE";
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            return "TEXT";
+            break;
+        case DT_BOOL:
+            return "BOOLEAN";
+            break;
+    }
+
+    // keep compiler quiet
+    return "TEXT";
+}
+
 void
 sqliteGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -410,7 +463,16 @@ runQuery (char *q)
 
     DEBUG_LOG("run query:\n<%s>", q);
     rc = sqlite3_prepare(conn, strdup(q), -1, &stmt, NULL);
-    HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
+//    HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
+
+   if (rc != SQLITE_OK)
+   {
+       StringInfo _newmes = makeStringInfo();
+       appendStringInfo(_newmes, "failed to prepare query <%s>", q);
+       StringInfo _errMes = makeStringInfo();
+       appendStringInfo(_errMes, strdup((char *) sqlite3_errmsg(plugin->conn)));
+       FATAL_LOG("error (%s)\n%u\n\n%s", _errMes->data, rc, _newmes->data);
+   }
 
     return stmt;
 }

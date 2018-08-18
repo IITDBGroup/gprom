@@ -27,9 +27,8 @@
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
+#include "../../include/parser/parse_internal_oracle.h"
 #include "parser/parser.h"
-#include "../src/parser/sql_parser.tab.h"
 #include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/executor.h"
@@ -37,6 +36,7 @@
 #include "rewriter.h"
 #include "utility/string_utils.h"
 
+#define PROCESS_CONTEXT_NAME "PROCESS_CONTEXT"
 static const char *commandHelp = "\n"
             "\\q(uit)\t\t\texit CLI\n"
             "\\h(elp)\t\t\tshow this helptext\n"
@@ -57,8 +57,9 @@ static boolean multiLineDone = FALSE;
 
 #define GPROM_ENV_CONFFILE "GPROM_CONF"
 #define GPROM_ENV_HISTFILE "GPROM_HIST"
-
+#define BUFFER_SIZE 10000
 #define IS_UTILITY(cmd) (strStartsWith((cmd), "\\"))
+
 static boolean isInteractiveSession;
 
 static void process(char *sql);
@@ -121,9 +122,9 @@ main(int argc, char* argv[])
     }
     else if (getStringOption("input.sql") != NULL)
     {
-        result = rewriteQuery(getStringOption("input.sql"));
-        // call executor
-        execute(result);
+        process(getStringOption("input.sql"));
+//        // call executor
+//        execute(result);
     }
     else if (getStringOption("input.sqlFile") != NULL)
     {
@@ -167,7 +168,7 @@ createPromptString (void)
 static void
 inputLoop(void)
 {
-    char* sql=(char*) CALLOC(100000,1);
+    char* sql=(char*) CALLOC(BUFFER_SIZE,1);
     while(TRUE)
     {
         char *returnVal;
@@ -194,17 +195,7 @@ inputLoop(void)
         }
 
         // process query
-        TRY
-        {
-            NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
-            process(sql);
-            FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-        }
-        ON_EXCEPTION
-        {
-            printf("\nError occured\n");
-        }
-        END_ON_EXCEPTION
+        process(sql);
     }
     FREE(sql);
 }
@@ -215,7 +206,19 @@ inputLoop(void)
 static void
 process(char *sql)
 {
-    processInput(sql);
+    // process query
+    TRY
+    {
+        NEW_AND_ACQUIRE_MEMCONTEXT(PROCESS_CONTEXT_NAME);
+        processInput(sql);
+    }
+    ON_EXCEPTION
+    {
+        printf("\nError occured\n");
+        fflush(stdout);
+    }
+    END_ON_EXCEPTION
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 }
 
 /*
@@ -340,10 +343,11 @@ handleCLIException (const char *message, const char *file, int line, ExceptionSe
     else
         printf(TCOL(RED,"(%s:%u) ") "\n%s\n",
                 file, line, message);
+    fflush(stdout);
 
     // throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
     if (isInteractiveSession)
-        return EXCEPTION_WIPE;
+        return EXCEPTION_ABORT;
     else
         return EXCEPTION_DIE;
 }
@@ -455,7 +459,56 @@ readConf (void)
 }
 
 
+
+/********************************************************************************/
 #ifdef HAVE_READLINE
+
+static void
+addToHistory(char *res)
+{
+    /* If the line has any text in it, save it to the history. */
+    if (res && *res)
+    {
+        if (!streq(res, "\\q"))
+            add_history (res);
+    }
+}
+
+
+
+static void
+readHistory()
+{
+    int err;
+    TRY
+    {
+        if (histExists)
+        {
+            err = read_history(gpromhist);
+            if (err != 0)
+                FATAL_LOG("error loading history");
+        }
+    }
+    END_TRY
+}
+
+static void
+persistHistory()
+{
+    TRY
+    {
+        if (gpromhist != NULL)
+        {
+            int err;
+            err = write_history(gpromhist);
+            if (err != 0)
+            {
+                FATAL_LOG("error saving history %s", strerror(err));
+            }
+        }
+    }
+    END_TRY
+}
 
 static char *
 readALine(char **str)
@@ -512,71 +565,59 @@ statementFinished(char *stmt)
     if (lastChar == ';') //TODO accept whitepsace
         return TRUE;
     return FALSE;
-
-}
-
-
-static void
-addToHistory(char *res)
-{
-    /* If the line has any text in it, save it to the history. */
-    if (res && *res)
-    {
-        if (!streq(res, "\\q"))
-            add_history (res);
-    }
-}
-
-
-
-static void
-readHistory()
-{
-    int err;
-    TRY
-    {
-        if (histExists)
-        {
-            err = read_history(gpromhist);
-            if (err != 0)
-                FATAL_LOG("error loading history");
-        }
-    }
-    END_TRY
-}
-
-static void
-persistHistory()
-{
-    TRY
-    {
-        if (gpromhist != NULL)
-        {
-            int err;
-            err = write_history(gpromhist);
-            if (err != 0)
-            {
-                FATAL_LOG("error saving history %s", strerror(err));
-            }
-        }
-    }
-    END_TRY
 }
 
 #else
+
+static char *readLine(char *buffer, size_t buflen, FILE *fp);
 
 static char *
 readALine(char **str)
 {
     printf(TB_FG_BG(WHITE,BLACK,"%s"), prompt);
     printf(" ");
-    return gets(*str);
+    addToHistory(NULL);
+    return readLine(*str, BUFFER_SIZE, stdin);
+}
+
+static char *
+readLine(char *buffer, size_t buflen, FILE *fp)
+{
+    if (fgets(buffer, buflen, fp) != 0)
+    {
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len-1] == '\n')
+            buffer[len-1] = '\0';
+        return buffer;
+    }
+    return 0;
+}
+
+static char *
+readMultiLine (char **str)
+{
+    if (statementFinished(NULL))
+        return readALine(str);
+    multiLineDone = TRUE;
+    return NULL;
+}
+
+static void
+addToHistory(char *res)
+{
+
 }
 
 static void
 readHistory()
 {
 
+}
+
+static boolean
+statementFinished(char *stmt)
+{
+    return TRUE;
 }
 
 static void

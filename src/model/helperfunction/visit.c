@@ -299,6 +299,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT_OPERATOR_FIELDS();
         	}
         	break;
+        case T_SampleClauseOperator:
+        	{
+        		PREP_VISIT(SampleClauseOperator);
+        		VISIT_OPERATOR_FIELDS();
+        	}
+        	break;
         case T_SetOperator:
         	{
         		PREP_VISIT(SetOperator);
@@ -645,6 +651,11 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
     			MUTATE_OPERATOR();
     		}
         	break;
+        case T_SampleClauseOperator:
+			{
+				MUTATE_OPERATOR();
+			}
+			break;
         case T_SetOperator:
     		{
 //    		    NEWN(SetOperator);
@@ -981,6 +992,12 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_OPERATOR_FIELDS_P();
             }
             break;
+        case T_SampleClauseOperator:
+			{
+				PREP_VISIT_P(SampleClauseOperator);
+				VISIT_OPERATOR_FIELDS_P();
+			}
+			break;
         case T_SetOperator:
             {
                 PREP_VISIT_P(SetOperator);

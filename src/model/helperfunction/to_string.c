@@ -85,6 +85,7 @@ static void outJoinOperator(StringInfo str, JoinOperator *node);
 static void outAggregationOperator(StringInfo str, AggregationOperator *node);
 static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node);
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
+static void outSampleClauseOperator(StringInfo str, SampleClauseOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
@@ -271,7 +272,7 @@ outSet(StringInfo str, Set *node)
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
             break;
         case SET_TYPE_LONG:
-            FOREACH_SET(long,i,node)
+            FOREACH_SET(gprom_long_t,i,node)
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
             break;
         case SET_TYPE_STRING:
@@ -309,7 +310,7 @@ outVector(StringInfo str, Vector *node)
             int j = 0;
             FOREACH_VEC_INT(i,node)
             {
-                appendStringInfo(str, "%s", itoa(*i));
+                appendStringInfo(str, "%s", gprom_itoa(*i));
                 appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
             }
         }
@@ -404,6 +405,8 @@ outDLProgram(StringInfo str, DLProgram *node)
     WRITE_NODE_FIELD(doms);
     WRITE_NODE_FIELD(n.properties);
     WRITE_NODE_FIELD(comp);
+    WRITE_NODE_FIELD(func);
+    WRITE_NODE_FIELD(sumOpts);
 }
 
 static void
@@ -560,7 +563,7 @@ outConstant (StringInfo str, Constant *node)
                 appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
                 break;
             case DT_LONG:
-                appendStringInfo(str, "%ld", *((long *) node->value));
+                appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
                 break;
             case DT_VARCHAR2:
 	        appendStringInfo(str, "'%s'", (char *) node->value);
@@ -578,6 +581,7 @@ outFunctionCall (StringInfo str, FunctionCall *node)
     WRITE_STRING_FIELD(functionname);
     WRITE_NODE_FIELD(args);
     WRITE_BOOL_FIELD(isAgg);
+    WRITE_BOOL_FIELD(isDistinct);
 }
 
 static void
@@ -605,10 +609,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_NODE_FIELD(transInfo);
     WRITE_NODE_FIELD(asOf);
     WRITE_NODE_FIELD(options);
-    WRITE_STRING_FIELD(summaryType);
-    WRITE_NODE_FIELD(userQuestion);
-    WRITE_INT_FIELD(sampleSize);
-    WRITE_INT_FIELD(topK);
+    WRITE_NODE_FIELD(sumOpts);
 }
 
 static void
@@ -765,6 +766,7 @@ outFromProvInfo (StringInfo str, FromProvInfo *node)
     WRITE_BOOL_FIELD(baserel);
     WRITE_BOOL_FIELD(intermediateProv);
     WRITE_STRING_LIST_FIELD(userProvAttrs);
+    WRITE_NODE_FIELD(provProperties);
 }
 
 static void
@@ -926,7 +928,17 @@ outTableAccessOperator(StringInfo str, TableAccessOperator *node)
     WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(asOf);
+//    WRITE_NODE_FIELD(sampClause);
     WRITE_STRING_FIELD(tableName);
+}
+
+static void
+outSampleClauseOperator(StringInfo str, SampleClauseOperator *node)
+{
+	WRITE_NODE_TYPE(SAMPLE_CLAUSE_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+
+	WRITE_NODE_FIELD(sampPerc);
 }
 
 static void
@@ -1188,6 +1200,9 @@ outNode(StringInfo str, void *obj)
             case T_TableAccessOperator:
                 outTableAccessOperator(str, (TableAccessOperator *) obj);
                 break;
+            case T_SampleClauseOperator:
+				outSampleClauseOperator(str, (SampleClauseOperator *) obj);
+				break;
             case T_SetOperator:
                 outSetOperator(str, (SetOperator *) obj);
                 break;
@@ -1391,7 +1406,7 @@ beatify(char *input)
 }
 
 char *
-itoa(int value)
+gprom_itoa(int value)
 {
     StringInfo str = makeStringInfo();
     char *result;
@@ -1646,7 +1661,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
     // if operator has more than one parents then we outsource
     if (printChildren && LIST_LENGTH(op->parents) > 1)
     {
-        List *opInfo = (List *) MAP_GET_LONG(map, (long) op); // info is: [id, stringRep]
+        List *opInfo = (List *) MAP_GET_LONG(map, (gprom_long_t) op); // info is: [id, stringRep]
         int opId;
 
         indentString(str, indent);
@@ -1659,8 +1674,8 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             int *idVal = (int *) curId->value;
             (*idVal)++;
             opStr = makeStringInfo();
-            opInfo = LIST_MAKE(createConstInt(opId), createConstLong((long) opStr));
-            MAP_ADD_LONG_KEY(map, (long) op, opInfo);
+            opInfo = LIST_MAKE(createConstInt(opId), createConstLong((gprom_long_t) opStr));
+            MAP_ADD_LONG_KEY(map, (gprom_long_t) op, opInfo);
 
             // append link
             appendStringInfo(str, "@%u\n", opId);
@@ -1748,6 +1763,12 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfoString(str, ((TableAccessOperator *) op)->tableName);
             appendStringInfoChar(str, ']');
             break;
+        case T_SampleClauseOperator:
+        	WRITE_NODE_TYPE(SampleClause);
+        	appendStringInfoString(str, " [");
+			appendStringInfoString(str, exprToSQL(((SampleClauseOperator *) op)->sampPerc));
+			appendStringInfoChar(str, ']');
+			break;
         case T_SetOperator:
         {
             SetOperator *o = (SetOperator *) op;

@@ -1,5 +1,4 @@
 #!/bin/bash
-#!/bin/bash
 ########################################
 # VARS
 # Directory this script resides in

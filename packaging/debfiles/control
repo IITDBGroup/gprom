@@ -10,7 +10,7 @@ Homepage: https://github.com/IITDBGroup/gprom
 
 Package: gprom
 Architecture: any
-Version: VERSION-1
+#Version: VERSION-1
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Provenance database middleware
  GProM is a database middleware that adds provenance support for multiple database backends.

@@ -26,10 +26,13 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionClose_call
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionOpen_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeDefaultVal_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeNames_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getCostEstimation_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypeToSQL_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypes_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getFuncReturnType_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getKeyInformation_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getOpReturnType_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getSqlTypeToDT_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getTableDefinition_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getViewDefinition_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isAgg_callback;
@@ -37,6 +40,7 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isInitialized_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isWindowFunction_callback;
 import org.gprom.jdbc.utility.LoggerUtil;
 
+import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
 import static org.gprom.jdbc.utility.LoggerUtil.*;
@@ -159,6 +163,10 @@ public abstract class AbstractMetadataLookup {
 		this.con = con;
 		createPlugin(this);
 	}
+
+	public AbstractMetadataLookup () {
+		
+	}
 	
 	public GProMMetadataLookupPlugin getPlugin() {
 		return plugin;
@@ -167,7 +175,7 @@ public abstract class AbstractMetadataLookup {
 	/**
 	 * Creates a plugin. The plugin structure is fixed and all methods are deligated to the methods defined in this class. 
 	 */
-	private void createPlugin(final AbstractMetadataLookup t) {
+	protected void createPlugin(final AbstractMetadataLookup t) {
 		plugin = new GProMMetadataLookupPlugin ();
 		plugin.isInitialized = new isInitialized_callback() {
 
@@ -196,8 +204,15 @@ public abstract class AbstractMetadataLookup {
 		plugin.catalogTableExists = new catalogTableExists_callback() {
 
 			@Override
-			public int apply(String tableName) {
-				return tableExists(tableName);
+			public int apply(Pointer tableNameP) {
+				int result = 0;
+				try {
+					result = tableExists(pointerToString(tableNameP));
+				} catch (Throwable e) {
+					log.fatal("Exception during execution of method");
+					LoggerUtil.logException(e, log);
+				}
+				return result;
 			}
 			
 		};
@@ -315,8 +330,45 @@ public abstract class AbstractMetadataLookup {
 			}
 			
 		};
+		plugin.getCostEstimation = new getCostEstimation_callback() {
+			
+			@Override
+			public int apply(String query) {
+				return getCostEstimation(query);
+			}
+		};
+		plugin.sqlTypeToDT = new getSqlTypeToDT_callback() {
+			
+			@Override
+			public String apply(String sqlType) {
+				return sqlTypeToDT(sqlType).name();
+			}
+		};
+		plugin.dataTypeToSQL = new getDataTypeToSQL_callback() {
+		
+			@Override
+			public String apply(String dt) {
+				return dataTypeToSQL(DataType.valueOf(dt));
+			}
+		};
 	}
 
+	/**
+	 * @param query
+	 * @return
+	 */
+	public int getCostEstimation(String query) {
+		return 0;
+	}
+
+	private String pointerToString(Pointer p) {
+		log.debug("about to translate pointer");
+		log.debug("value of first char {}", p.dump(0, 1));
+		String val =  p.getString(0);
+		log.debug("value is {}", val);
+		return val;
+	}
+	
 	/**
 	 * @param tableName
 	 * @return
@@ -477,7 +529,7 @@ public abstract class AbstractMetadataLookup {
 				    null, schema, tableName, null);
 			while(rs.next()){
 			    String columnType = sqlTypeToString.get(rs.getInt(5));
-			    String dt = sqlToGpromDT(columnType);
+			    String dt = jdbcToGpromDT(columnType); 
 			    result.add(dt);
 			}
 			rs.close();
@@ -576,18 +628,66 @@ public abstract class AbstractMetadataLookup {
 		return null;
 	}
 	
-	protected String sqlToGpromDT(String dt) {
-		if (dt.equals("VARCHAR") || dt.equals("VARCHAR2")) {
-			return "DT_STRING";
+	/**
+	 * return GProM datatype for SQL data type. This default implementation uses 
+	 * a best effort approach. Backend plugins should override this.
+	 * 
+	 * @param sqlType
+	 * @return
+	 */
+	public DataType sqlTypeToDT(String sqlType) {
+		sqlType = sqlType.toUpperCase();
+		if (sqlType.equals("VARCHAR") || sqlType.equals("VARCHAR2") || sqlType.equals("TEXT")) {
+			return DataType.DT_STRING;
 		}
-		if (dt.equals("INT")) {
-			return "DT_INT";
+		if (sqlType.startsWith("INT")
+				|| sqlType.equals("DECIMAL")) {
+			return DataType.DT_INT;
+		}
+		if (sqlType.startsWith("FLOAT")
+				|| sqlType.startsWith("NUMERIC")) {
+			return DataType.DT_FLOAT;
+		}
+		if (sqlType.equals("BOOL") 
+				|| sqlType.equals("BOOLEAN")) {
+			return DataType.DT_BOOL;
+		}
+		//TODO complete this
+		return DataType.DT_STRING;
+	}
+	
+	public String dataTypeToSQL (DataType dt) {
+		switch(dt) {
+			case DT_STRING:
+				return "VARCHAR";
+			case DT_INT:
+				return "INT";
+			case DT_FLOAT:
+				return "NUMERIC";
+			case DT_LONG:
+				return "INT";
+			case DT_VARCHAR2:
+				return "VARCHAR";
+			case DT_BOOL:
+				return "NUMERIC(1,0)";
+		}
+		return "VARCHAR";
+	}
+	
+	protected String jdbcToGpromDT(String dt) {
+		String result = DataType.DT_STRING.name();
+		if (dt.equals("VARCHAR") || dt.equals("VARCHAR2")) {
+			result = DataType.DT_STRING.name();
+		}
+		if (dt.startsWith("INT")) {
+			result = DataType.DT_INT.name();
 		}
 		if (dt.equals("DECIMAL")) {
-			return "DT_INT";
+			result = DataType.DT_INT.name();
 		}
-		//TODO
-		return "DT_STRING";
+		//TODO complete this
+		log.debug("translated JDCB DT {} to GProM DT {}", dt, result);
+		return result;
 	}
 	
 	protected String listToString (List<String> in) {

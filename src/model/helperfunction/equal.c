@@ -59,6 +59,7 @@ static boolean equalSchema(Schema *a, Schema *b, HashMap *seenOps, MemContext *c
 static boolean equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext *c);
 static boolean equalQueryOperator(QueryOperator *a, QueryOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b, HashMap *seenOps, MemContext *c);
+static boolean equalSampleClauseOperator(SampleClauseOperator *a, SampleClauseOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalSelectionOperator(SelectionOperator *a, SelectionOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalProjectionOperator(ProjectionOperator *a, ProjectionOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalJoinOperator(JoinOperator *a, JoinOperator *b, HashMap *seenOps, MemContext *c);
@@ -193,6 +194,8 @@ equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(doms);
     COMPARE_NODE_FIELD(n.properties);
     COMPARE_NODE_FIELD(comp);
+    COMPARE_NODE_FIELD(func);
+    COMPARE_NODE_FIELD(sumOpts);
 
     return TRUE;
 }
@@ -402,6 +405,7 @@ equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext
     COMPARE_STRING_FIELD(functionname);
     COMPARE_NODE_FIELD(args);
     COMPARE_SCALAR_FIELD(isAgg);
+    COMPARE_SCALAR_FIELD(isDistinct);
 
     return TRUE;
 }
@@ -499,13 +503,13 @@ equalSet (Set *a, Set *b, HashMap *seenOps, MemContext *c)
 
     if (a->setType == SET_TYPE_LONG)
     {
-        FOREACH_SET(long,i,a)
+        FOREACH_SET(gprom_long_t,i,a)
         {
             if (!hasSetLongElem(b,*i))
                 return FALSE;
         }
 
-        FOREACH_SET(long,i,b)
+        FOREACH_SET(gprom_long_t,i,b)
         {
             if (!hasSetLongElem(a,*i))
                 return FALSE;
@@ -633,8 +637,8 @@ equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext
 static boolean
 equalQueryOperator(QueryOperator *a, QueryOperator *b, HashMap *seenOps, MemContext *c)
 {
-    long aAddr = (long) a;
-    long bAddr = (long) b;
+    gprom_long_t aAddr = (gprom_long_t) a;
+    gprom_long_t bAddr = (gprom_long_t) b;
 
     if (c == NULL)
     {
@@ -664,8 +668,18 @@ equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b, HashMap
     COMPARE_QUERY_OP();
     COMPARE_STRING_FIELD(tableName);
     COMPARE_NODE_FIELD(asOf);
+//    COMPARE_NODE_FIELD(sampClause);
 
     return TRUE;
+}
+
+static boolean
+equalSampleClauseOperator(SampleClauseOperator *a, SampleClauseOperator *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_QUERY_OP();
+	COMPARE_NODE_FIELD(sampPerc);
+
+	return TRUE;
 }
 
 static boolean 
@@ -915,7 +929,7 @@ equalFromProvInfo (FromProvInfo *a, FromProvInfo *b, HashMap *seenOps, MemContex
     COMPARE_SCALAR_FIELD(baserel);
     COMPARE_SCALAR_FIELD(intermediateProv);
     COMPARE_STRING_LIST_FIELD(userProvAttrs);
-
+    COMPARE_NODE_FIELD(provProperties);
     return TRUE;
 }
 
@@ -955,10 +969,7 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemC
     COMPARE_NODE_FIELD(transInfo);
     COMPARE_NODE_FIELD(asOf);
     COMPARE_NODE_FIELD(options);
-    COMPARE_STRING_FIELD(summaryType);
-    COMPARE_NODE_FIELD(userQuestion);
-    COMPARE_SCALAR_FIELD(sampleSize);
-    COMPARE_SCALAR_FIELD(topK);
+    COMPARE_NODE_FIELD(sumOpts);
 
     return TRUE;
 }
@@ -1173,6 +1184,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_TableAccessOperator:
             retval = equalTableAccessOperator(a,b, seenOps, c);
             break;
+        case T_SampleClauseOperator:
+        	retval = equalSampleClauseOperator(a,b, seenOps, c);
+			break;
         case T_SelectionOperator:
             retval = equalSelectionOperator(a,b, seenOps, c);
             break;

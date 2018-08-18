@@ -14,11 +14,14 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "sql_serializer/sql_serializer.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
+#include "configuration/option.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 typedef struct FindNotesContext
 {
@@ -285,6 +288,7 @@ createFunctionCall(char *fName, List *args)
 
     result->args = args; //should we copy?
     result->isAgg = FALSE;
+    result->isDistinct = FALSE;
 
     return result; 
 }
@@ -320,19 +324,38 @@ createIsNullExpr (Node *expr)
 Node *
 createIsNotDistinctExpr (Node *lArg, Node *rArg)
 {
-    Operator *eq; //, *nullTest;
+    Node *eq; //, *nullTest;
+    SqlserializerPluginType backend = getActiveSqlserializerPlugin();
 
-    eq = createOpExpr("=", LIST_MAKE(
-            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
-            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+    switch(backend)
+    {
+        case SQLSERIALIZER_PLUGIN_ORACLE:
+        {
+            eq = (Node *) createOpExpr("=", LIST_MAKE(
+                    createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
+                    createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+        }
+        break;
+        case SQLSERIALIZER_PLUGIN_POSTGRES:
+        {
+            eq = (Node *) createOpExpr("IS NOT DISTINCT FROM",
+                    LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+        }
+        break;
+        default:
+        {
+            Node *nullTest, *eqTest;
+
+            eqTest = (Node *) createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+            nullTest = (Node *) createOpExpr(OPNAME_AND, LIST_MAKE(
+                    createIsNullExpr(copyObject(lArg)),
+                    createIsNullExpr(copyObject(rArg))));
+
+            eq = (Node *) createOpExpr(OPNAME_OR, LIST_MAKE(eqTest, nullTest));
+        }
+    }
     return (Node *) eq;
 
-//    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
-//    nullTest = createOpExpr(OPNAME_AND, LIST_MAKE(
-//            createIsNullExpr(copyObject(lArg)),
-//            createIsNullExpr(copyObject(rArg))));
-//
-//    return (Node *) createOpExpr(OPNAME_OR, LIST_MAKE(eq, nullTest));
 }
 
 Constant *
@@ -350,10 +373,10 @@ createConstInt (int value)
 }
 
 Constant *
-createConstLong (long value)
+createConstLong (gprom_long_t value)
 {
     Constant *result = makeNode(Constant);
-    long *v = NEW(long);
+    gprom_long_t *v = NEW(gprom_long_t);
 
     *v = value;
     result->constType  = DT_LONG;
@@ -432,7 +455,7 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
-    	    case T_AttributeReference:
+    	case T_AttributeReference:
         {
             AttributeReference *a = (AttributeReference *) expr;
             return a->attrType;
@@ -612,6 +635,38 @@ isCondition(Node *expr)
 
     return FALSE;
 }
+
+char *
+backendifyIdentifier(char *name)
+{
+    char *result;
+
+    // remove quotes of quoted identifier
+    if (strlen(name) > 0 && name[0] == '"')
+    {
+        result = substr(name, 1, strlen(name) - 2);
+    }
+    // non quoted part upcase or downcase based on database system
+    else
+    {
+        switch(getBackend())
+        {
+            case BACKEND_ORACLE:
+                result = strToUpper(name);
+                break;
+            case BACKEND_POSTGRES:
+            case BACKEND_MONETDB:
+                result = strToLower(name);
+                break;
+            default:
+                result = strToUpper(name);
+                break;
+        }
+    }
+
+    return result;
+}
+
 
 List *
 createCasts(Node *lExpr, Node *rExpr)
@@ -869,13 +924,7 @@ lcaType (DataType l, DataType r)
 DataType
 SQLdataTypeToDataType (char *dt)
 {
-    //TODO outsource to metadatalookup for now does only Oracle
-    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER") || streq(dt,"INT"))
-        return DT_INT; //TODO may also be float
-    if (isPrefix(dt, "VARCHAR"))
-        return DT_STRING;
-    FATAL_LOG("unkown SQL datatype %s", dt);
-    return DT_INT;
+    return backendSQLTypeToDT (dt);
 }
 
 DataType
@@ -949,7 +998,8 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             return DT_BOOL;
     }
 
-    if (streq(opName,OPNAME_NOT))
+    // TODO: operator name is "NOT" or "not"
+    if (streq(opName,OPNAME_NOT) || streq(opName,OPNAME_not))
     {
         if (dLeft == DT_BOOL)
             return DT_BOOL;
@@ -1024,10 +1074,15 @@ typeOfFunc (FunctionCall *f)
     boolean fExists = FALSE;
     DataType result;
 
+    if (strieq(f->functionname, UNCERTAIN_MAKER_FUNC_NAME))
+    {
+        return getNthOfListInt(typeOfArgs(f->args), 0);
+    }
+
     argDTs = typeOfArgs(f->args);
     result = getFuncReturnType(f->functionname, argDTs, &fExists);
     if (!fExists)
-        DEBUG_NODE_BEATIFY_LOG("Function does not exist: %s", f);
+        DEBUG_NODE_BEATIFY_LOG("Function does not exist: ", f);
     return result;
 }
 
@@ -1035,6 +1090,12 @@ static boolean
 funcExists (char *fName, List *argDTs)
 {
     boolean fExists = FALSE;
+
+    // uncertainty dummy functions
+    if (strieq(fName, UNCERTAIN_MAKER_FUNC_NAME))
+    {
+        return TRUE;
+    }
 
     getFuncReturnType(fName, argDTs, &fExists);
 

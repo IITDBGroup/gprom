@@ -137,6 +137,8 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeQueryIgnoreResult = oracleGenExecQueryIgnoreResult;
     plugin->getCostEstimation = oracleGetCostEstimation;
     plugin->getKeyInformation = oracleGetKeyInformation;
+    plugin->sqlTypeToDT = oracleBackendSQLTypeToDT;
+    plugin->dataTypeToSQL = oracleBackendDatatypeToSQL;
 
     return plugin;
 }
@@ -364,7 +366,7 @@ oracleInitMetadataLookupPlugin (void)
         return EXIT_SUCCESS;
     }
 
-    NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT("metadataContext");
     context=getCurMemContext();
 
     if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
@@ -732,7 +734,7 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 START_TIMER("module - metadata lookup - fetch transaction info");
 
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
-                long scn = (long) OCI_GetBigInt(rs,1); // SCN
+                gprom_long_t scn = (gprom_long_t) OCI_GetBigInt(rs,1); // SCN
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
 
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
@@ -825,7 +827,7 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             // loop through
             while(OCI_FetchNext(rs))
             {
-                long isoA = (long) OCI_GetBigInt(rs,1); // ISOLEVEL
+                gprom_long_t isoA = (gprom_long_t) OCI_GetBigInt(rs,1); // ISOLEVEL
 
                 switch(isoA)
                 {
@@ -855,19 +857,19 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         }
 
         // get COMMIT SCN
-        long commitS = -1; // getCommitScn("",
+        gprom_long_t commitS = -1; // getCommitScn("",
 //                LONG_VALUE(getTailOfListP(*scns)),
 //                xid); // LONG_VALUE(getTailOfListP(*scns)) + 1;
-        (*((long *) commitScn->value)) = commitS; //TODO write query to get real COMMIT SCN
+        (*((gprom_long_t *) commitScn->value)) = commitS; //TODO write query to get real COMMIT SCN
     }
     STOP_TIMER("module - metadata lookup");
 }
 
-long
-oracleGetCommitScn (char *tableName, long maxScn, char *xid)
+gprom_long_t
+oracleGetCommitScn (char *tableName, gprom_long_t maxScn, char *xid)
 {
     StringInfo statement = makeStringInfo();
-    long commitScn = 0;
+    gprom_long_t commitScn = 0;
     const char *histTable = NULL;
 
     START_TIMER("module - metadata lookup");
@@ -893,7 +895,7 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
 
         // loop through
         while(OCI_FetchNext(rs))
-            commitScn = (long) OCI_GetBigInt(rs,1);
+            commitScn = (gprom_long_t) OCI_GetBigInt(rs,1);
 
         if(commitScn == 0)
         {
@@ -1308,6 +1310,50 @@ oracleGetKeyInformation(char *tableName)
     addToSet(haveKeys,strdup(tableName));
     return keyList;
 }
+
+DataType
+oracleBackendSQLTypeToDT (char *sqlType)
+{
+    if(isPrefix(sqlType,"NUMERIC") || isPrefix(sqlType,"NUMBER"))
+    {
+        if(regExMatch(sqlType, "[(][0-9 ]*[,][0-9 ]*[)]"))
+            return DT_FLOAT;
+        else
+            return DT_INT;
+    }
+    if (isPrefix(sqlType, "VARCHAR") || isPrefix(sqlType, "CHAR"))
+        return DT_STRING;
+    if (streq(sqlType, "BINARY_FLOAT"))
+        return DT_FLOAT;
+
+    return DT_STRING;
+}
+
+char *
+oracleBackendDatatypeToSQL (DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+        case DT_LONG:
+            return "NUMBER";
+            break;
+        case DT_FLOAT:
+            return "BINARY_FLOAT";
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            return "VARCHAR2(2000)";
+            break;
+        case DT_BOOL:
+            return "NUMBER(1)";
+            break;
+    }
+
+    // keep compiler quiet
+    return "VARCHAR2(2000)";
+}
+
 
 static OCI_Resultset *
 executeStatement(char *statement)

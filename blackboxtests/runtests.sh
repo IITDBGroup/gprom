@@ -13,7 +13,7 @@ then
 fi
 
 # run ant tests
-ant runTests
+ant run-tests
 RESULT="${?}"
 
 # return ant test result

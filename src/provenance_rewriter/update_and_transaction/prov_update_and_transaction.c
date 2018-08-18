@@ -360,7 +360,7 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
             // mark update annotation attribute as provenance
             SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
             SET_STRING_PROP(q, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(annotName)));
-            SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(j + 1))));
+            SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", gprom_itoa(j + 1))));
             SET_STRING_PROP(q, PROP_PC_VERSION_SCN_ATTR, createConstString(annotName));
 
             // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
@@ -837,7 +837,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			{
 //			    Node *scn = (Node *) getTailOfListP(op->transactionInfo->scns);
 			    Constant *scnC = (Constant *) copyObject(op->transactionInfo->commitSCN);
-			    *((long *) scnC->value) = *((long *) scnC->value) - 1; //getCommit SCN - 1
+			    *((gprom_long_t *) scnC->value) = *((gprom_long_t *) scnC->value) - 1; //getCommit SCN - 1
 
 			    if (!HAS_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION))
 			    {

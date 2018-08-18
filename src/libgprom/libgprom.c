@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * libgprom.c
- *			  
- *		
- *		AUTHOR: lord_pretzel
  *
- *		
+ *
+ *      AUTHOR: lord_pretzel
+ *
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -23,21 +23,44 @@
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 
 #define LOCK_NAME gprom_lib_globallock
-#define LOCK_MUTEX() pthread_mutex_lock(&LOCK_NAME); printf("\nMUTEX\n%s:%u\n", __FILE__, __LINE__); fflush(stdout);
-#define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u\n", __FILE__, __LINE__); fflush(stdout); pthread_mutex_unlock(&LOCK_NAME);
-#define CREATE_MUTEX() static pthread_mutex_t LOCK_NAME = PTHREAD_MUTEX_INITIALIZER;
-#define DESTROY_MUTEX()
 
-CREATE_MUTEX();
+//printf("\nMUTEX\n%s:%u\n", __FILE__, __LINE__);
+//printf("\nUNLOCK\n%s:%u\n", __FILE__, __LINE__);
+
+#if defined(HAVE_LIBPTHREAD) && ! defined(OS_WINDOWS)
+#define LOCK_MUTEX() pthread_mutex_lock(&LOCK_NAME); fflush(stdout)
+#define UNLOCK_MUTEX()  fflush(stdout); pthread_mutex_unlock(&LOCK_NAME)
+#define CREATE_MUTEX static pthread_mutex_t LOCK_NAME = PTHREAD_MUTEX_INITIALIZER;
+#define INIT_MUTEX()
+#define DESTROY_MUTEX()
+#else
+#define LOCK_MUTEX() WaitForSingleObject(LOCK_NAME, INFINITE)
+#define UNLOCK_MUTEX() ReleaseMutex(LOCK_NAME)
+#define CREATE_MUTEX static HANDLE LOCK_NAME = NULL;
+#define INIT_MUTEX() LOCK_NAME = CreateMutex( NULL, FALSE, NULL)
+#define DESTROY_MUTEX()
+#endif
+
+#undef boolean
+
+#ifdef OS_WINDOWS
+#include <windows.h>
+#include <process.h>
+#endif
+
+#define boolean int
+
+CREATE_MUTEX
 
 void
 gprom_init(void)
 {
+    INIT_MUTEX();
     LOCK_MUTEX();
     initMemManager();
     mallocOptions();
     initLogger();
-    registerSignalHandler();
+//    registerSignalHandler();
     setWipeContext(LIBARY_REWRITE_CONTEXT);
     UNLOCK_MUTEX();
 }
@@ -80,8 +103,8 @@ gprom_reconfPlugins(void)
 void gprom_shutdown(void)
 {
     LOCK_MUTEX();
-    deregisterSignalHandler();
     shutdownApplication();
+//    deregisterSignalHandler();
     UNLOCK_MUTEX();
 //    DESTROY_MUTEX();
 }
@@ -92,7 +115,7 @@ gprom_rewriteQuery(const char *query)
     LOCK_MUTEX();
     NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
-    char *returnResult = NULL;
+    char * volatile  returnResult = NULL;
     TRY
     {
         result = rewriteQueryWithRethrow((char *) query);
@@ -101,14 +124,31 @@ gprom_rewriteQuery(const char *query)
     ON_EXCEPTION
     {
         ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
-        UNLOCK_MUTEX();
-        return NULL;
+        returnResult = NULL;
     }
     END_ON_EXCEPTION
     UNLOCK_MUTEX();
     return returnResult;
 }
 
+const gprom_long_t
+gprom_costQuery(const char *query)
+{
+    volatile gprom_long_t result = -1;
+    LOCK_MUTEX();
+    TRY
+    {
+        char *qCopy = strdup((char *) query);
+        result = (gprom_long_t) costQuery(qCopy);
+    }
+    ON_EXCEPTION
+    {
+        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+    }
+    END_ON_EXCEPTION
+    UNLOCK_MUTEX();
+    return result;
+}
 
 void
 gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback)
@@ -235,6 +275,16 @@ gprom_setFloatOption(const char *name, double value)
     LOCK_MUTEX();
     setFloatOption((char *) name,value);
     UNLOCK_MUTEX();
+}
+
+char *
+gprom_getOptionHelp(void)
+{
+    char *result = NULL;
+    LOCK_MUTEX();
+    result = internalOptionsToString(TRUE);
+    UNLOCK_MUTEX();
+    return result;
 }
 
 void

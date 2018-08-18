@@ -17,6 +17,12 @@ import org.gprom.jdbc.test.testgenerator.dataset.TableCompartor;
 
 public class AbstractGProMTester {
 
+	/**
+	 * 
+	 */
+	private static final String HIGHLIGHT = "################################################################################\n";
+	private static final String HALFHIGHLIGHT = "####################\n";
+	
 	static Logger log = LogManager.getLogger(AbstractGProMTester.class);
 	
 	static protected String path;
@@ -108,9 +114,9 @@ public class AbstractGProMTester {
       	DataAndQueryGenerator generator;
 	    	Properties options;
 	    	
-	    	System.out.println("\n********************************************");
+	    	System.out.print("\n" + HIGHLIGHT);
 	    	System.out.println("**   " + name);
-	    	System.out.println("********************************************\n");
+	    	System.out.println(HIGHLIGHT);
 	    	
 	    	TestInfoHolder.getInstance().setGenerator(name);
 	    	generator = TestInfoHolder.getInstance().getCurrentGenerator();    	
@@ -183,11 +189,12 @@ public class AbstractGProMTester {
 				actualResult = DBTableFactory.inst.tableFromQuery(g, queryString);
 				actualResult.setOrdered(isOrdered);
 	    			assertTrue(TableCompartor.inst.compareTableAgainstMany(actualResult, expecteds));
+	    			System.out.println("\t... SUCCESS\n");
 			}
 		}
 		catch (Exception e)
 		{
-			System.out.println("QUERY: " + queryString + "\n\n");
+			System.out.println(HIGHLIGHT + "QUERY: " + queryString + "\n" + HIGHLIGHT);
 			throw new Exception(queryString, e);
 		}
     }
@@ -195,11 +202,11 @@ public class AbstractGProMTester {
 
     private void logTestResult (String name, String query, int numTest, boolean markedError) {
     	if (markedError) {
-    		System.out.println(name + " - " + numTest + ": ERROR MARKED ");
+    		System.out.println(HALFHIGHLIGHT + name + " - " + numTest + ": ERROR MARKED\n");
     		TestInfoHolder.getInstance().addMarkedError(name + " - " + numTest + ": ERROR MARKED ");
     	}
     	else {
-    		System.out.println(name + " - " + numTest + ": TRY");
+    		System.out.println(HALFHIGHLIGHT + name + " - " + numTest + ": TRY\n" + query);
     	}
     }
 

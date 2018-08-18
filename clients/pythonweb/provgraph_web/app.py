@@ -3,7 +3,7 @@ from gprom_wrapper import GProMWrapper
 from hashlib import md5
 from ansi2html import Ansi2HTMLConverter
 import markdown
-#import cx_Oracle
+# import cx_Oracle
 
 @app.route('/')
 def home():
@@ -12,12 +12,30 @@ def home():
 @app.route('/querysubmit', methods=['POST'])
 def querysubmit():
     session['query'] = request.form['query']
+
+    if request.form['topk'] is not None:
+        session['topk'] = request.form['topk']
+
+    if request.form['sSize'] is not None:
+        session['sSize'] = request.form['sSize']
+
+    if request.form['fPattern'] is not None:
+        session['fPattern'] = request.form['fPattern']
+
+    if request.form['recall'] is not None:
+        session['recall'] = request.form['recall']
+
+    if request.form['info'] is not None:
+        session['info'] = request.form['info']
+    
     if request.form.has_key('genquery'):
         session['action'] = 'run'
     elif request.form.has_key('genprovgame'):
-	session['action'] = 'provgame'
+	    session['action'] = 'provgame'
     elif request.form.has_key('genprovgraph'):
         session['action'] = 'provgraph'
+    elif request.form.has_key('genprovpolygraph'):
+        session['action'] = 'provpolygraph'
     elif request.form.has_key('gentriograph'):
         session['action'] = 'triograph'
     elif request.form.has_key('genlingraph'):
@@ -31,39 +49,95 @@ def showgraph():
     w = GProMWrapper()
     query = session['query']
     action = session['action']
+    
+    topk,sSize = '',''
+    if not 'topk' in session: pass
+    else: topk = session['topk']
+
+    if not 'sSize' in session: pass
+    else: sSize = session['sSize']
+
+    fPattern,recall,info = '','',''
+    if not 'fPattern' in session: pass
+    else: fPattern = session['fPattern']
+
+    if not 'recall' in session: pass
+    else: recall = session['recall']
+
+    if not 'info' in session: pass
+    else: info = session['info']
+
     conv = Ansi2HTMLConverter()
     # generate a graph
     provQuest = query.find('WHY')
+    summRequest = query.find('SUMMARIZED')
     lines=[]
-    if action == 'provgame' or action == 'provgraph' or action == 'triograph' or action == 'lingraph':
-	if provQuest > 0:
-            if action == 'provgraph':
-		query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
-#		graphFormat = query.find('FORMAT')
-#		if graphFormat < 1:
-#		    query = query[:-1] + ' FORMAT REDUCED_GP.'
-            if action == 'triograph':
-		query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
-#		graphFormat = query.find('FORMAT')
-#		if graphFormat < 1:
-#		    query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'
-            if action == 'lingraph':
-		query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY.'
-#		graphFormat = query.find('FORMAT')
-#		if graphFormat < 1:
-#		    query = query[:-1] + ' FORMAT TUPLE_ONLY.'
-  	    if action == 'provgame':
-	        query = query[:query.find('))')] + ')).'
-            queryResult = ''
+    queryResult = ''
+    gpromlog, dotlog, imagefile='','',''
+
+    if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
+	   if provQuest > 0:
+            summQuery = ''
+            if summRequest < 0:
+                if recall != '' and info == '':
+                   summQuery += ' SCORE AS (' + recall + ' * recall)'
+                elif recall == '' and info != '':
+                   summQuery += ' SCORE AS (' + info + ' * informativeness)'
+                elif recall != '' and info != '':
+                   summQuery += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
+                #
+                if topk != '':
+                   summQuery += ' TOP ' + topk
+                if fPattern != '':
+                   summQuery += ' FOR FAILURE OF (' + fPattern + ')'
+                if sSize != '':
+                   summQuery += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            else:
+                score = query.find('SCORE')
+                if score > 0:
+                    summQuery += ' ' + query[query.find('SCORE'):]
+                else:
+                    top = query.find('TOP')
+                    if top > 0:
+                        summQuery += ' ' + query[query.find('TOP'):]
+            # if action == 'provgraph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT REDUCED_GP. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'provgraph': #and topk == '' and sSize == '':
+              query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
+#       graphFormat = query.find('FORMAT')
+#       if graphFormat < 1:
+#           query = query[:-1] + ' FORMAT REDUCED_GP.'
+            # if action == 'provpolygraph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'provpolygraph': #and topk == '' and sSize == '':
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE.'
+        # # 
+            # if action == 'triograph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'triograph': #and topk == '' and sSize == '':
+              query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
+#       graphFormat = query.find('FORMAT')
+#       if graphFormat < 1:
+#           query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'
+            # if action == 'lingraph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'lingraph': #and topk == '' and sSize == '':
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY.'
+#       graphFormat = query.find('FORMAT')
+#       if graphFormat < 1:
+#           query = query[:-1] + ' FORMAT TUPLE_ONLY.'
+            # if action == 'provgame' and topk != '' and sSize != '':
+            #    query = query[:query.find('))')] + ')). TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'provgame': #and topk == '' and sSize == '':
+               query = query[:query.find('))')] + ')).'
+
+            query += summQuery
             queryhash = md5(query).hexdigest()
             imagefile = queryhash + '.svg'
             absImagepath = 'static/' + imagefile
             returncode, gpromlog, dotlog = w.generateProvGraph(query, absImagepath, 'tmp/pg.dot')
             gpromlog = conv.convert(gpromlog,full=False)
             dotlog = conv.convert(dotlog,full=False)
-	else:
-            queryResult = ''
-	    gpromlog, dotlog, imagefile='','',''
     # output query results (translate into html table)
     else:
         returncode, gpromlog = w.runDLQuery(query)
@@ -83,7 +157,8 @@ def showgraph():
             queryResult = md.convert(queryResult)
         dotlog, imagefile='',''
     # input db results
-    returncode, dblog = w.runInputDB(query)        
+    # returncode, dblog = w.runInputDB(query)        
+    dblog = ''
     inputDB = dblog
     dblog = conv.convert(dblog,full=False)
     rels = []
@@ -135,7 +210,7 @@ def showgraph():
 ##            insDB='\n'.join(insline)
 ##            md = markdown.Markdown(extensions=['tables'])
 ##            insDB = md.convert(insDB)
-    return render_template('queryresult.html', query=session['query'], gpromlog=gpromlog, dotlog=dotlog, imagefile=imagefile, returnedError=(returncode != 0), action=action, queryResult=queryResult, lines=lines, rels=rels)
+    return render_template('queryresult.html', query=session['query'], gpromlog=gpromlog, dotlog=dotlog, imagefile=imagefile, returnedError=(returncode != 0), action=action, queryResult=queryResult, lines=lines, rels=rels, topk=topk, sSize=sSize, fPattern=fPattern, recall=recall, info=info)
 
 if __name__ == '__main__':
     app.run()

@@ -40,7 +40,7 @@ extern HashMap *newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (vo
 extern boolean hasMapKey (HashMap *map, Node *key);
 extern boolean hasMapStringKey (HashMap *map, char *key);
 extern boolean hasMapIntKey (HashMap *map, int key);
-extern boolean hasMapLongKey (HashMap *map, long key);
+extern boolean hasMapLongKey (HashMap *map, gprom_long_t key);
 #define MAP_HAS_STRING_KEY(map,key) hasMapStringKey(map, key)
 #define MAP_HAS_INT_KEY(map,key) hasMapIntKey(map, key)
 #define MAP_HAS_LONG_KEY(map,key) hasMapLongKey(map, key)
@@ -48,7 +48,7 @@ extern boolean hasMapLongKey (HashMap *map, long key);
 extern Node *getMap (HashMap *map, Node *key);
 extern Node *getMapString (HashMap *map, char *key);
 extern Node *getMapInt (HashMap *map, int key);
-extern Node *getMapLong (HashMap *map, long key);
+extern Node *getMapLong (HashMap *map, gprom_long_t key);
 #define MAP_GET_STRING(map,key) getMapString(map, key)
 #define MAP_GET_INT(map,key) getMapInt(map, key)
 #define MAP_GET_LONG(map,key) getMapLong(map, key)

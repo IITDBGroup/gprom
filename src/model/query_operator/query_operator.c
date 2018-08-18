@@ -483,6 +483,11 @@ inferOpResultDTs (QueryOperator *op)
             resultDTs = getDataTypes(GET_OPSCHEMA(op));
         }
         break;
+        case T_SampleClauseOperator:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(op));
+        }
+        break;
         case T_ProvenanceComputation:
         {
             resultDTs = getDataTypes(GET_OPSCHEMA(op));//TODO
@@ -543,8 +548,21 @@ createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
     ta->op.schema = createSchemaFromLists(alias, attrNames, dataTypes);
     ta->op.parents = parents;
     ta->op.provAttrs = NIL;
+//    ta->sampClause = sampClause;
 
     return ta;
+}
+
+SampleClauseOperator *
+createSampleClauseOp(QueryOperator *input, Node *sampPerc, List *attrNames, List *dataTypes)
+{
+	SampleClauseOperator *sc = makeNode(SampleClauseOperator);
+
+	sc->sampPerc = sampPerc;
+	sc->op.inputs = singleton(input);
+	sc->op.schema = createSchemaFromLists(strdup("SAMPLE"), attrNames, dataTypes);
+
+	return sc;
 }
 
 JsonTableOperator *

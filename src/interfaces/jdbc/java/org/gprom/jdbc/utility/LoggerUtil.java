@@ -12,7 +12,8 @@ import org.apache.logging.log4j.Logger;
 
 /**
  *
- * Part of Project SesamUtil
+ * Utilities for logging, mostly logging whole stack traces of exceptions.
+ * 
  * @author Boris Glavic
  *
  */

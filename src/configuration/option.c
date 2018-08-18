@@ -19,8 +19,10 @@
 #include "exception/exception.h"
 
 // we have to use actual free here
+#ifndef MALLOC_REDEFINED
 #undef free
 #undef malloc
+#endif
 
 // stopper used to indicate end of options
 #define STOPPER_STRING "STOPPER"
@@ -62,6 +64,7 @@ typedef struct FrontendInfo {
 } FrontendInfo;
 
 typedef struct BackendInfo {
+    BackendType typ;
     char *backendName;
     char *analyzer;
     char *parser;
@@ -72,6 +75,7 @@ typedef struct BackendInfo {
 
 // show help only
 boolean opt_show_help = FALSE;
+char *opt_test = NULL;
 char *opt_language_help = NULL;
 
 // connection options
@@ -106,6 +110,7 @@ char *plugin_executor = NULL;
 char *plugin_cbo = NULL;
 
 // instrumentation options
+boolean opt_inputdb = FALSE;
 boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
@@ -172,6 +177,9 @@ struct option_state {
     HashMap *frontendInfo;
     OptionInfo opts[];
 };
+
+// dl rewrite options
+boolean opt_whynot_adv = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -245,6 +253,15 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionString(&opt_show_help),
                 defOptionBool(FALSE)
+        },
+        // choose test
+        {
+                "test",
+                "-test",
+                "choose the test to run (ignored by all binaries except test_main)",
+                OPTION_STRING,
+                wrapOptionString(&opt_test),
+                defOptionString(NULL)
         },
         // show help only and quit
         {
@@ -363,6 +380,14 @@ OptionInfo opts[] =
                 wrapOptionString(&sqlFile),
                 defOptionString(NULL)
         },
+        {
+                OPTION_INPUTDB,
+                "-inputdb",
+                "output samples of input database relations",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_inputdb),
+                defOptionBool(FALSE)
+        },
         // backend, frontend and plugin selection
         {
                 OPTION_BACKEND,
@@ -423,7 +448,7 @@ OptionInfo opts[] =
         {
                 OPTION_PLUGIN_SQLSERIALIZER,
                 "-Psqlserializer",
-                "select SQL code generator plugin: oracle, postgres, sqlite",
+                "select SQL code generator plugin: oracle, postgres, sqlite, dl, lb",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
@@ -433,7 +458,7 @@ OptionInfo opts[] =
                 "-Pexecutor",
                 "select Executor plugin: sql (output rewritten SQL code), "
                         "gp (output Game provenance), run (execute the "
-                        "rewritten query and return its result",
+                        "rewritten query and return its result)",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
                 defOptionString("run")
@@ -449,7 +474,7 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         // boolean instrumentation options
-        {
+		{
                 OPTION_TIMING,
                 "-timing",
                 "measure and output execution time of modules.",
@@ -738,6 +763,15 @@ OptionInfo opts[] =
                 opt_operator_model_attr_reference_consistency,
                 TRUE
         ),
+        // dl rewrite options
+		{
+				OPTION_WHYNOT_ADV,
+				"-whynot_adv",
+				"advanced way to create firing rules for whynot.",
+				OPTION_BOOL,
+				wrapOptionBool(&opt_whynot_adv),
+				defOptionBool(FALSE)
+		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
                 "-Cdata_structure_consistency",
                 "Model Check: check that nodes in a query operator graph are not sharing "
@@ -759,6 +793,7 @@ OptionInfo opts[] =
 // backend plugins information
 BackendInfo backends[]  = {
         {
+            BACKEND_ORACLE,
             "oracle",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -767,6 +802,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_POSTGRES,
             "postgres",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -775,6 +811,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_SQLITE,
             "sqlite",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -783,6 +820,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_MONETDB,
             "monetdb",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -791,7 +829,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
-            STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
+            BACKEND_ORACLE, STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
 };
 
@@ -1147,6 +1185,38 @@ printCurrentOptions(FILE *stream)
 }
 
 char *
+internalOptionsToString(boolean showValues)
+{
+    StringInfo result = makeStringInfo();
+    char *str;
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+      {
+          char *name = STRING_VALUE(k);
+          OptionInfo *v = getInfo(name);
+
+          if (showValues)
+          {
+              appendStringInfo(result, "%s=%s DEFAULT VALUE: %s\n\t%s\n\n",
+                      v->option,
+                      valGetString(&v->value, v->valueType),
+                      defGetString(&v->def, v->valueType),
+                      v->description);
+          }
+          else
+          {
+              appendStringInfo(result, "%s\tDEFAULT VALUE: %s\n\t%s\n",
+                      v->option,
+                      defGetString(&v->def, v->valueType),
+                      v->description);
+          }
+      }
+
+    str = result->data;
+    return str;
+}
+
+char *
 optionsToStringOnePerLine(void)
 {
     StringInfo result = makeStringInfo();
@@ -1189,6 +1259,20 @@ getBackendPlugin(char *be, char *pluginOpt)
     return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
 }
 
+BackendType
+getBackend(void)
+{
+    if (backend == NULL)
+        return BACKEND_ORACLE;
+    for(int i = 0; strcmp(backends[i].backendName,STOPPER_STRING) != 0; i++)
+    {
+        if (streq(backends[i].backendName, backend))
+            return backends[i].typ;
+    }
+
+    return BACKEND_ORACLE;
+}
+
 char *
 getFrontendPlugin(char *fe, char *pluginOpt)
 {
@@ -1203,7 +1287,7 @@ valGetString(OptionValue *def, OptionType type)
     switch(type)
     {
         case OPTION_INT:
-            return itoa(*(def->i));
+            return gprom_itoa(*(def->i));
         case OPTION_STRING:
             return *def->string ? *def->string : "NULL";
         case OPTION_BOOL:
@@ -1226,7 +1310,7 @@ defGetString(OptionDefault *def, OptionType type)
     switch(type)
     {
         case OPTION_INT:
-            return itoa(def->i);
+            return gprom_itoa(def->i);
         case OPTION_STRING:
             return def->string ? def->string : "NULL";
         case OPTION_BOOL:

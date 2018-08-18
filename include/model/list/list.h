@@ -193,6 +193,7 @@ extern List *copyList(List *list);
 extern List *deepCopyStringList (List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
+extern void deepFreeStringList(List *list);
 extern List *stringListToConstList(List *list);
 
 /* compare lists */

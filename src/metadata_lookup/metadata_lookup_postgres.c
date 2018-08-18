@@ -103,7 +103,7 @@
 
 #define NAME_GET_OP_DEFS "GPRoM_GetOpDefs"
 #define PARAMS_GET_OP_DEFS 1
-#define QUERY_GET_OP_DEFS "SELECT oprleft, oprright FROM pg_operator WHERE oprname = $1::name;"
+#define QUERY_GET_OP_DEFS "SELECT ARRAY[oprleft, oprright]::oidvector, oprresult FROM pg_operator WHERE oprname = $1::name AND oprleft != 0;"
 
 #define NAME_GET_PK "GPRoM_GetPK"
 #define PARAMS_GET_PK 1
@@ -115,7 +115,8 @@
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
 //#define QUERY_ "SELECT"
-#define QUERY_GET_DT_OIDS "SELECT oid, typname FROM pg_type WHERE typtype = 'b';"
+#define QUERY_GET_DT_OIDS "SELECT oid, typname FROM pg_type" //  WHERE typtype = 'b';"
+#define QUERY_GET_ANY_OIDS "SELECT oid FROM pg_type WHERE typname = 'any' OR typname = 'anyelement'"
 
 // prepare a catalog lookup query
 #define PREP_QUERY(name) prepareQuery(NAME_ ## name, QUERY_ ## name, PARAMS_ ## name, NULL)
@@ -131,12 +132,17 @@ static PGresult *execPrepared(char *qName, List *values);
 static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
 static void prepareLookupQueries(void);
-static void fillOidToDTMap (HashMap *oidToDT);
+static boolean hasAnyType (List *oids);
+static boolean isAnyTypeCompaible (List *oids, List *argTypes);
+static DataType inferAnyReturnType (List *oids, List *argTypes, int retOid);
+static void fillOidToDTMap (HashMap *oidToDT, Set *anyOids);
 static char *postgresGetConnectionDescription (void);
 static List *oidVecToDTList (char *oidVec);
+static List *oidVecToOidList (char *oidVec);
 static DataType postgresOidToDT(char *Oid);
+static DataType postgresOidIntToDT(int oid);
 static DataType postgresTypenameToDT (char *typName);
-static List *oidVecToDTList (char *oidVec);
+
 
 
 // closing result sets and connections
@@ -172,6 +178,7 @@ typedef struct PostgresPlugin
 // data types: additional cache entries
 typedef struct PostgresMetaCache {
     HashMap *oidToDT;   // maps datatype OID to GProM datatypes
+    Set *anyOids;
 } PostgresMetaCache;
 
 #define GET_CACHE() ((PostgresMetaCache *) plugin->plugin.cache->cacheHook)
@@ -211,6 +218,8 @@ assemblePostgresMetadataLookupPlugin (void)
     p->executeQuery = postgresExecuteQuery;
     p->executeQueryIgnoreResult = postgresExecuteQueryIgnoreResult;
     p->connectionDescription = postgresGetConnectionDescription;
+    p->sqlTypeToDT = postgresBackendSQLTypeToDT;
+    p->dataTypeToSQL = postgresBackendDatatypeToSQL;
 
     return p;
 }
@@ -227,7 +236,7 @@ postgresInitMetadataLookupPlugin (void)
         return EXIT_SUCCESS;
     }
 
-    NEW_AND_ACQUIRE_MEMCONTEXT(CONTEXT_NAME);
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();
 
     // create cache
@@ -236,6 +245,7 @@ postgresInitMetadataLookupPlugin (void)
     // create postgres specific part of the cache
     psqlCache = NEW(PostgresMetaCache);
     psqlCache->oidToDT = NEW_MAP(Constant,Constant);
+    psqlCache->anyOids = INTSET();
     plugin->plugin.cache->cacheHook = (void *) psqlCache;
 
     plugin->initialized = TRUE;
@@ -289,7 +299,7 @@ postgresDatabaseConnectionOpen (void)
     prepareLookupQueries();
 
     // initialize cache
-    fillOidToDTMap(GET_CACHE()->oidToDT);
+    fillOidToDTMap(GET_CACHE()->oidToDT, GET_CACHE()->anyOids);
 
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
@@ -303,11 +313,12 @@ postgresGetConnectionDescription (void)
 }
 
 static void
-fillOidToDTMap (HashMap *oidToDT)
+fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
 {
     PGresult *res = NULL;
     int numRes = 0;
 
+    // get OID to DT mapping
     res = execQuery(QUERY_GET_DT_OIDS);
     numRes = PQntuples(res);
 
@@ -321,9 +332,24 @@ fillOidToDTMap (HashMap *oidToDT)
         MAP_ADD_INT_KEY(oidToDT,oidInt,
                 createConstInt(postgresTypenameToDT(typName)));
     }
-    //TODO FINISH transaction
-    PQclear(res);
 
+    PQclear(res);
+    execCommit();
+
+    // get OIDs of any/anyelement types that have to be treated special
+    res = execQuery(QUERY_GET_ANY_OIDS);
+    numRes = PQntuples(res);
+
+    for(int i = 0; i < numRes; i++)
+    {
+        char *oid = PQgetvalue(res,i,0);
+        int oidInt = atoi(oid);
+
+        DEBUG_LOG("anyoid = %s", oid);
+        addIntToSet(anyOids,oidInt);
+    }
+
+    PQclear(res);
     execCommit();
 
     DEBUG_NODE_BEATIFY_LOG("oid -> DT map:", oidToDT);
@@ -415,33 +441,126 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;
-    *funcExists = TRUE;
+    *funcExists = FALSE;
+
+    // handle non function expressions that are treated as functions by GProM
+    if (streq(fName, "greatest") || streq(fName, "least"))
+    {
+        if(LIST_LENGTH(argTypes)  >= 2)
+        {
+            return lcaType(getNthOfListInt(argTypes, 0), getNthOfListInt(argTypes, 1));
+        }
+        else if (LIST_LENGTH(argTypes) == 1)
+        {
+            return getNthOfListInt(argTypes, 0);
+        }
+        return DT_INT;
+    }
 
     ACQUIRE_MEM_CONTEXT(memContext);
 
     //TODO cache function information
     res = execPrepared(NAME_GET_FUNC_DEFS,
             LIST_MAKE(createConstString(fName),
-                    createConstString(itoa(LIST_LENGTH(argTypes)))));
+                    createConstString(gprom_itoa(LIST_LENGTH(argTypes)))));
 
     for(int i = 0; i < PQntuples(res); i++)
     {
         char *retType = PQgetvalue(res,i,0);
-        char *argTypes = PQgetvalue(res,i,1);
-        List *argDTs = oidVecToDTList(argTypes);
+        char *candArgTypes = PQgetvalue(res,i,1);
+        List *argDTs = oidVecToDTList(strdup(candArgTypes));
+        List *argOids = oidVecToOidList(candArgTypes);
 
+        DEBUG_LOG("argDTs: %s, argTypes: %s", nodeToString(argDTs), nodeToString(argTypes));
         if (equal(argDTs, argTypes)) //TODO compatible data types
         {
             RELEASE_MEM_CONTEXT();
-            return postgresOidToDT(retType);
+            DataType retDT = postgresOidToDT(retType);
+            DEBUG_LOG("return type %s for %s(%s)", DataTypeToString(retDT), fName, nodeToString(argTypes));
+            resType = retDT;
+            *funcExists = TRUE;
+        }
+
+        // does function take anytype as an input then determine return type
+        if (hasAnyType(argOids))
+        {
+            if(isAnyTypeCompaible(argOids, argTypes))
+            {
+                int retOid = atoi(retType);
+                resType = inferAnyReturnType(argOids, argTypes, retOid);
+                *funcExists = TRUE;
+            }
         }
     }
 
     PQclear(res);
 
     RELEASE_MEM_CONTEXT();
-    *funcExists = FALSE;
+
     return resType;
+}
+
+static boolean
+hasAnyType (List *oids)
+{
+    FOREACH_INT(o, oids)
+    {
+        if (hasSetIntElem(GET_CACHE()->anyOids, o))
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static boolean
+isAnyTypeCompaible (List *oids, List *argTypes)
+{
+    Set *anyOids = GET_CACHE()->anyOids;
+    DataType anyDT;
+    boolean hasSetAnyDT = FALSE;
+
+    FORBOTH_INT(o,dt,oids,argTypes)
+    {
+        if (hasSetIntElem(anyOids, o))
+        {
+            if(!hasSetAnyDT)
+            {
+                anyDT = dt;
+                hasSetAnyDT = TRUE;
+            }
+            else
+            {
+                if (anyDT != dt)
+                    return FALSE;
+            }
+        }
+        else
+        {
+            if(postgresOidIntToDT(o) != dt)
+                return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+static DataType
+inferAnyReturnType (List *oids, List *argTypes, int retOid)
+{
+    Set *anyOids = GET_CACHE()->anyOids;
+
+    if (!hasSetIntElem(anyOids,retOid))
+        return postgresOidIntToDT(retOid);
+
+    FORBOTH_INT(o,dt,oids,argTypes)
+    {
+        if (hasSetIntElem(anyOids, o))
+        {
+            return dt;
+        }
+    }
+
+    // keep compiler quiet
+    return DT_STRING;
 }
 
 DataType
@@ -450,7 +569,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
     PGresult *res = NULL;
     DataType resType = DT_STRING;
 
-    *opExists = TRUE;
+    *opExists = FALSE;
     ACQUIRE_MEM_CONTEXT(memContext);
 
     //TODO cache operator information
@@ -459,20 +578,23 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 
     for(int i = 0; i < PQntuples(res); i++)
     {
-        char *retType = PQgetvalue(res,i,0);
-        char *argTypes = PQgetvalue(res,i,1);
-        List *argDTs = oidVecToDTList(argTypes);
+        char *retType = PQgetvalue(res,i,1);
+        char *candArgTypes = PQgetvalue(res,i,0);
+        List *argDTs = oidVecToDTList(candArgTypes);
 
+        DEBUG_LOG("argDTs: %s, argTypes: %s", nodeToString(argDTs), nodeToString(argTypes));
         if (equal(argDTs, argTypes)) //TODO compatible data types
         {
             RELEASE_MEM_CONTEXT();
-            return postgresOidToDT(retType);
+            DataType retDT = postgresOidToDT(retType);
+            DEBUG_LOG("return type %s for %s(%s)", DataTypeToString(retDT), oName, nodeToString(argTypes));
+            *opExists = TRUE;
+            resType = retDT;
         }
     }
 
     PQclear(res);
     RELEASE_MEM_CONTEXT();
-    *opExists = FALSE;
 
     return resType;
 }
@@ -486,7 +608,25 @@ oidVecToDTList (char *oidVec)
     oid = strtok(oidVec, " ");
     while(oid != NULL)
     {
-        result = appendToTailOfListInt(result, atoi(oid));
+        result = appendToTailOfListInt(result, postgresOidToDT(oid));
+        oid = strtok(NULL, " ");
+    }
+
+    return result;
+}
+
+static List *
+oidVecToOidList (char *oidVec)
+{
+    List *result = NIL;
+    char *oid;
+    int oidInt;
+
+    oid = strtok(oidVec, " ");
+    while(oid != NULL)
+    {
+        oidInt = atoi(oid);
+        result = appendToTailOfListInt(result, oidInt);
         oid = strtok(NULL, " ");
     }
 
@@ -702,6 +842,7 @@ postgresGetCostEstimation(char *query)
     {
         cost = atoi(PQgetvalue(res,i,0));
     }
+    RELEASE_MEM_CONTEXT();
 
     return cost;
 }
@@ -711,21 +852,57 @@ postgresGetKeyInformation(char *tableName)
 {
     List *result = NIL;
     PGresult *res = NULL;
+    Set *keySet;
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
+    keySet = STRSET();
+
     res = execPrepared(NAME_GET_PK, singleton(createConstString(tableName)));
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
-        result = appendToTailOfList(result, strdup(PQgetvalue(res,i,0)));
+        addToSet(keySet, strdup(PQgetvalue(res,i,0)));
+
+    result = singleton(keySet);
 
     // cleanup
     PQclear(res);
-    RELEASE_MEM_CONTEXT();
 
-    return result;
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List,result);
 }
+
+DataType
+postgresBackendSQLTypeToDT (char *sqlType)
+{
+    return postgresTypenameToDT(sqlType);
+}
+
+char *
+postgresBackendDatatypeToSQL (DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+        case DT_LONG:
+            return "int8";
+            break;
+        case DT_FLOAT:
+            return "float8";
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            return "text";
+            break;
+        case DT_BOOL:
+            return "bool";
+            break;
+    }
+
+    // keep compiler quiet
+    return "text";
+}
+
 
 
 void
@@ -867,7 +1044,16 @@ static DataType
 postgresOidToDT(char *Oid)
 {
     int oid = atoi(Oid);
+    Constant *c = (Constant *) MAP_GET_INT(GET_CACHE()->oidToDT,oid);
 
+    if (c == NULL)
+        FATAL_LOG("did not find datatype for oid %s", Oid);
+    return (DataType) INT_VALUE(c);
+}
+
+static DataType
+postgresOidIntToDT(int oid)
+{
     return (DataType) INT_VALUE(MAP_GET_INT(GET_CACHE()->oidToDT,oid));
 }
 
@@ -896,6 +1082,7 @@ postgresTypenameToDT (char *typName)
     // numeric data types
     if (streq(typName, "float4")
             || streq(typName, "float8")
+            || streq(typName, "numeric")
             )
         return DT_FLOAT;
 

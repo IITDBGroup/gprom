@@ -10,32 +10,23 @@
  *-----------------------------------------------------------------------------
  */
 
-#include "analysis_and_translate/translator_oracle.h"
-
 #include "common.h"
-#include "instrumentation/timing_instrumentation.h"
-#include "mem_manager/mem_mgr.h"
-
 #include "log/logger.h"
-
-#include "model/node/nodetype.h"
-#include "model/list/list.h"
+#include "mem_manager/mem_mgr.h"
+#include "analysis_and_translate/translator_oracle.h"
+#include "analysis_and_translate/analyzer.h"
+#include "analysis_and_translate/parameter.h"
+#include "analysis_and_translate/translate_update.h"
+#include "instrumentation/timing_instrumentation.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "model/expression/expression.h"
+#include "model/list/list.h"
 #include "model/query_block/query_block.h"
-#include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_model_checker.h"
-
-#include "analysis_and_translate/analyzer.h"
-//#include "analysis_and_translate/translator.h"
-#include "analysis_and_translate/translate_update.h"
-#include "analysis_and_translate/parameter.h"
-
-#include "metadata_lookup/metadata_lookup.h"
+#include "model/set/hashmap.h"
 #include "parser/parser.h"
-
 #include "provenance_rewriter/prov_utility.h"
-
 #include "utility/string_utils.h"
 
 // data types
@@ -185,11 +176,22 @@ translateGeneral (Node *node)
             {
                 ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
 
-                if(prov->summaryType == NULL)
+                FOREACH(Node,n,prov->sumOpts)
+                {
+                    if(isA(n,List))
+                    {
+                        List *sumOpts = (List *) n;
+
+                        FOREACH(KeyValue,sn,sumOpts)
+                        if(streq(STRING_VALUE(sn->key),"sumtype"))
+                            summaryType = STRING_VALUE(sn->value);
+                    }
+                }
+
+                if(summaryType == NULL)
                     stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
                 else
                 {
-                    summaryType = prov->summaryType;
                     r = translateQueryOracle(stmt);
                     r->properties = copyObject(prop);
                     stmt_his_cell->data.ptr_value = (Node *) r;
@@ -207,11 +209,22 @@ translateGeneral (Node *node)
         {
             ProvenanceStmt *prov = (ProvenanceStmt *) node;
 
-            if(prov->summaryType == NULL)
+            FOREACH(Node,n,prov->sumOpts)
+            {
+                if(isA(n,List))
+                {
+                    List *sumOpts = (List *) n;
+
+                    FOREACH(KeyValue,sn,sumOpts)
+                    if(streq(STRING_VALUE(sn->key),"sumtype"))
+                        summaryType = STRING_VALUE(sn->value);
+                }
+            }
+
+            if(summaryType == NULL)
                 result = (Node *) translateQueryOracle(node);
             else
             {
-                summaryType = prov->summaryType;
                 r = translateQueryOracle(node);
                 r->properties = copyObject(prop);
                 result = (Node *) r;
@@ -543,7 +556,8 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     result->asOf = copyObject(prov->asOf);
     translateProperties(((QueryOperator *) result), prov->options);
 
-    switch (prov->inputType) {
+    switch (prov->inputType)
+    {
         case PROV_INPUT_TRANSACTION:
         {
             //XID ?
@@ -629,7 +643,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
                 {
                     SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
                     SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
-                            CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+                            CONCAT_STRINGS("U", gprom_itoa(i + 1), "_", strdup(tableName))));
                 }
 
                 // use ROWID + SCN as provenance, set provenance attributes for each table
@@ -650,7 +664,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
             }
 
             // get commit scn, some tables that were targeted by statements might not have been modified
-            long commitScn = INVALID_SCN;
+            gprom_long_t commitScn = INVALID_SCN;
 
             FOREACH(char,tableName,tInfo->updateTableNames)
             {
@@ -817,7 +831,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
                 {
                     SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
                     SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
-                            CONCAT_STRINGS("U", itoa(j + 1), "_", strdup(tableName))));
+                            CONCAT_STRINGS("U", gprom_itoa(j + 1), "_", strdup(tableName))));
                     j++;
                 }
 
@@ -1064,8 +1078,8 @@ buildJoinTreeFromOperatorList(List *opList)
             List *lAttrs = getAttrNames(oldRoot->schema);
             List *rAttrs = getAttrNames(op->schema);
 
-//            addPrefixToAttrNames(lAttrs, itoa(pos));
-//            addPrefixToAttrNames(rAttrs, itoa(pos + 1));
+//            addPrefixToAttrNames(lAttrs, gprom_itoa(pos));
+//            addPrefixToAttrNames(rAttrs, gprom_itoa(pos + 1));
             // contact children's attribute names as the node's attribute
             // names
             List *attrNames = concatTwoLists(lAttrs, rAttrs);
@@ -1174,6 +1188,7 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     if (from == NULL)
         return op;
 
+
     /* treat as base relation or show intermediate provenance? */
     if (from->intermediateProv)
         SET_BOOL_STRING_PROP(op,PROP_SHOW_INTERMEDIATE_PROV);
@@ -1191,8 +1206,26 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 
+    /* user TIP attribute selected */
+	if (getStringProvProperty(from, PROV_PROP_TIP_ATTR) != NULL)
+	{
+		setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
+		hasProv = TRUE;
+		from->userProvAttrs = singleton(strdup(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
+	}
+
+    /* table selected as incomplete */
+    if (from->provProperties)
+	{
+		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))
+		{
+			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
+		}
+	}
+
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
+
 
     if (hasProv)
     {
@@ -1465,7 +1498,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *dts = getDataTypes(lChild->schema);
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
-        char *attrName = CONCAT_STRINGS("nesting_eval_", itoa(i++));
+        char *attrName = CONCAT_STRINGS("nesting_eval_", gprom_itoa(i++));
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
                                             (Node *)createConstInt(LIST_LENGTH(attrNames))));
@@ -1719,10 +1752,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     // create fake attribute names for aggregation output schema
     for (i = 0; i < LIST_LENGTH(aggrs); i++)
         attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("AGGR_", itoa(i)));
+                CONCAT_STRINGS("AGGR_", gprom_itoa(i)));
     for (i = 0; i < LIST_LENGTH(groupByClause); i++)
         attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("GROUP_", itoa(i)));
+                CONCAT_STRINGS("GROUP_", gprom_itoa(i)));
 
     // copy aggregation function calls and groupBy expressions
     // and create aggregation operator
@@ -1772,7 +1805,7 @@ translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
     // create window operator for each window function call
     FOREACH(WindowFunction,f,wfuncs)
     {
-        char *aName = CONCAT_STRINGS("winf_", itoa(cur++));
+        char *aName = CONCAT_STRINGS("winf_", gprom_itoa(cur++));
 
         child = wOp;
         wOp = (QueryOperator *) createWindowOp(copyObject(f->f),
@@ -1846,7 +1879,7 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
         for(i = 0; i < LIST_LENGTH(projExprs); i++)
         {
             attrNames = appendToTailOfList(attrNames,
-                    CONCAT_STRINGS("AGG_GB_ARG", itoa(i)));
+                    CONCAT_STRINGS("AGG_GB_ARG", gprom_itoa(i)));
         }
 
         ASSERT(LIST_LENGTH(projExprs) == LIST_LENGTH(attrNames));

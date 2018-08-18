@@ -49,6 +49,8 @@ test/testmain.log
 test/testmain.trs
 test/testrpq
 gprom-*.tar.gz
+gprom-*.tar
+gprom*.deb
 test-suite.log
 dpkg
 #*
@@ -56,3 +58,7 @@ dpkg
 test/testexprcplex
 /Release
 /test/testuncert
+log_*.log
+GPATH
+GRTAGS
+GTAGS
