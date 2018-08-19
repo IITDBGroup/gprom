@@ -109,8 +109,8 @@ lateralRewriteQuery(QueryOperator *input)
 			no->cond = NULL;
 
 			//adapt attrs outerlevelsUp and fromClauseItem
-			List *condAttrs = ((Operator*) cond)->args;
-			FOREACH(AttributeReference, a, condAttrs)
+			List *attrRefs = getAttrReferences((Node *) cond);
+			FOREACH(AttributeReference, a, attrRefs)
 			{
 				DEBUG_LOG("check name: %s", a->name);
 				if(checkAttr(a->name, rChild))
