@@ -76,15 +76,14 @@ int main(int argc, char* argv[]) {
 						 DEBUG_LOG(
 						 "What-if result for all updates with data slicing:\n");
 						 whatIfResult(history, TRUE);
+
+						 DEBUG_LOG(
+						 "What-if result for just dependent updates:\n");
+						 whatIfResult(updates, FALSE);
 						 */
 						DEBUG_LOG(
-								"What-if result for just dependent updates:\n");
-						whatIfResult(updates, FALSE);
-						/*
-						 DEBUG_LOG(
-						 "What-if result for just dependent updates with data slicing:\n");
-						 whatIfResult(updates, TRUE);
-						 */
+								"What-if result for just dependent updates with data slicing:\n");
+						whatIfResult(updates, TRUE);
 
 					}ON_EXCEPTION
 					{
@@ -154,12 +153,12 @@ static void whatIfResult(List *updates, boolean ds) {
 
 static char* serializeCond(Node *node) {
 	char* condition = "TRUE";
-	if (node->type == T_Update) {
-		condition = serializeOperatorModel(((Update *) node)->cond);
-	} else if (node->type == T_Delete) {
-		condition = serializeOperatorModel(((Delete *) node)->cond);
-	}
-	return condition;
+		if (node->type == T_Update) {
+			condition = serializeOperatorModel(((Update *) node)->cond);
+		} else if (node->type == T_Delete) {
+			condition = serializeOperatorModel(((Delete *) node)->cond);
+		}
+		return condition;
 }
 /*
  * Function that handles exceptions
