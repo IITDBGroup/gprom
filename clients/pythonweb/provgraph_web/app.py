@@ -78,7 +78,7 @@ def showgraph():
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	   if provQuest > 0:
             summQuery = ''
-            if summRequest < 0:
+            if summRequest < 0 or summRequest > 0:
                 if recall != '' and info == '':
                    summQuery += ' SCORE AS (' + recall + ' * recall)'
                 elif recall == '' and info != '':
@@ -92,14 +92,14 @@ def showgraph():
                    summQuery += ' FOR FAILURE OF (' + fPattern + ')'
                 if sSize != '':
                    summQuery += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
-            else:
-                score = query.find('SCORE')
-                if score > 0:
-                    summQuery += ' ' + query[query.find('SCORE'):]
-                else:
-                    top = query.find('TOP')
-                    if top > 0:
-                        summQuery += ' ' + query[query.find('TOP'):]
+            # else:
+            #     score = query.find('SCORE')
+            #     if score > 0:
+            #         summQuery += ' ' + query[query.find('SCORE'):]
+            #     else:
+            #         top = query.find('TOP')
+            #         if top > 0:
+            #             summQuery += ' ' + query[query.find('TOP'):]
             # if action == 'provgraph' and topk != '' and sSize != '':
             #   query = query[:query.find('))')] + ')) FORMAT REDUCED_GP. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
             if action == 'provgraph': #and topk == '' and sSize == '':
