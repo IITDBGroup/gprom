@@ -63,8 +63,9 @@ int main(int argc, char* argv[]) {
 						ERROR_LOG("Total Number of updates: %d \n",
 								getListLength(history) - 1);
 						List *updates = SymbolicExeAlgo(history);
+						int depUp = getListLength(updates) - 2;
 						ERROR_LOG("Number of dependent statements: %d \n",
-								getListLength(updates) - 2);
+								depUp);
 
 						/*
 						 DEBUG_LOG("What-if result for all updates:\n");
@@ -74,13 +75,18 @@ int main(int argc, char* argv[]) {
 						 "What-if result for all updates with data slicing:\n");
 						 whatIfResult(history, TRUE);
 
-						DEBUG_LOG(
-								"What-if result for just dependent updates:\n");
-						whatIfResult(updates, FALSE);
-*/
-						DEBUG_LOG(
-						 "What-if result for just dependent updates with data slicing:\n");
-						 whatIfResult(updates, TRUE);
+						 if(depUp>0)
+						 {
+						 DEBUG_LOG(
+						 "What-if result for just dependent updates:\n");
+						 whatIfResult(updates, FALSE);
+						 }
+						 */
+						if (depUp > 0) {
+							DEBUG_LOG(
+									"What-if result for just dependent updates with data slicing:\n");
+							whatIfResult(updates, TRUE);
+						}
 
 					}ON_EXCEPTION
 					{
@@ -118,8 +124,6 @@ createReenactmentAlgebra(List *updates) {
 
 	return qoModel;
 }
-
-
 
 static void whatIfResult(List *updates, boolean ds) {
 	Node *originalUp;
@@ -160,7 +164,7 @@ static void whatIfResult(List *updates, boolean ds) {
 		Node *cond1, *cond2;
 		cond1 = copyObject(getCond(oUp));
 		cond2 = copyObject(getCond(wUp));
-		SelectionOperator *so1=NULL, *so2=NULL;
+		SelectionOperator *so1 = NULL, *so2 = NULL;
 
 		if (cond1 != NULL && cond2 != NULL) {
 			Node *orCond;

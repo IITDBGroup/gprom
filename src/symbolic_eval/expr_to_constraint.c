@@ -36,7 +36,7 @@ static int totalAttr = 0;
 static Set *attrSet = NULL;
 static double default_lb = 0.0;
 //static double default_ub = CPX_INFBOUND;
-static double default_ub = 1000000000.0;
+static double default_ub = 1000000000000.0;
 static int default_num_cols = 100;
 
 //#ifdef HAVE_LIBCPLEX
@@ -820,6 +820,7 @@ static void deleteCplexObjects() {
 		removeAndFreeMapElem(attrIndex, elm->key);
 	}
 	FREE(attrIndex);
+	FREE(lastIndex);
 }
 
 static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
@@ -1208,7 +1209,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		double rmatval[numZ];
 		int i = 0, j = 0;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x5_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1222,7 +1223,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		rhs[j] = 1;
 		j++;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x6_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1277,7 +1278,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		double rmatval[numZ];
 		int i = 0, j = 0;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x5_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1291,7 +1292,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		rhs[j] = 0;
 		j++;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x6_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1385,7 +1386,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x2_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0 * less;
 				i++;
@@ -1407,7 +1408,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				v2index = getObjectIndex(
 						CONCAT_STRINGS(attr, "_", itoa(v2index)));
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x1_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0 * less;
 				i++;
@@ -1422,7 +1423,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x2_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				;
 				rmatind[i] = v2index;
 				rmatval[i] = 1.0 * less;
@@ -1444,7 +1445,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				//we have just one attribute
 				double cons = constrToDouble((Constant *) right);
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x1_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1456,7 +1457,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x2_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1468,7 +1469,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x3_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1480,7 +1481,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x4_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1499,7 +1500,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				v2index = getObjectIndex(
 						CONCAT_STRINGS(attr, "_", itoa(v2index)));
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x1_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1514,7 +1515,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x2_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v2index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1529,7 +1530,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x3_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1544,7 +1545,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x4_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
 				rmatind[i] = v2index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1569,6 +1570,8 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 					upNum);
 		}
 	}
+
+	if(index==0)
 	DEBUG_LOG("Finished Processing x for update %d.\n", upNum);
 
 	return status;
