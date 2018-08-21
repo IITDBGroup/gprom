@@ -19,10 +19,7 @@
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-//#include "parser/parse_internal.h"
 #include "parser/parser.h"
-//#include "metadata_lookup/metadata_lookup.h"
-//#include "../src/parser/sql_parser.tab.h"
 #include "rewriter.h"
 #include "symbolic_eval/expr_to_constraint.h"
 #include "symbolic_eval/whatif_algo.h"
@@ -38,9 +35,8 @@
 #include "utility/string_utils.h"
 
 static Node *createReenactmentAlgebra(List *updates);
-static char *createReenactment(List *updates);
 static void whatIfResult(List *updates, boolean ds);
-static char* serializeCond(Node *node);
+static Node *getCond(Node *node);
 
 static ExceptionHandler handleCLIException(const char *message,
 		const char *file, int line, ExceptionSeverity s);
@@ -78,13 +74,13 @@ int main(int argc, char* argv[]) {
 						 "What-if result for all updates with data slicing:\n");
 						 whatIfResult(history, TRUE);
 
-						 DEBUG_LOG(
-						 "What-if result for just dependent updates:\n");
-						 whatIfResult(updates, FALSE);
-						 */
 						DEBUG_LOG(
-								"What-if result for just dependent updates with data slicing:\n");
-						whatIfResult(updates, TRUE);
+								"What-if result for just dependent updates:\n");
+						whatIfResult(updates, FALSE);
+*/
+						DEBUG_LOG(
+						 "What-if result for just dependent updates with data slicing:\n");
+						 whatIfResult(updates, TRUE);
 
 					}ON_EXCEPTION
 					{
@@ -104,11 +100,9 @@ int main(int argc, char* argv[]) {
 }
 
 static Node *
-createReenactmentAlgebra(List *updates)
-{
-	Provenancestmt *provStat;
+createReenactmentAlgebra(List *updates) {
+	ProvenanceStmt *provStat;
 	Node *qoModel;
-
 	provStat = createProvenanceStmt((Node *) updates);
 	provStat->provType = PROV_NONE;
 	provStat->inputType = PROV_INPUT_REENACT;
@@ -125,90 +119,99 @@ createReenactmentAlgebra(List *updates)
 	return qoModel;
 }
 
-static char *
-createReenactment(List *updates)
-{
-	/* ProvenanceStmt *provStat; */
-	/* char *sql = "TRUE"; */
-	Node *qoModel;
-	/* provStat = createProvenanceStmt((Node *) updates); */
-	/* provStat->provType = PROV_NONE; */
-	/* provStat->inputType = PROV_INPUT_REENACT; */
-	/* DEBUG_NODE_BEATIFY_LOG("prov:\n", provStat); */
-	/* provStat = (ProvenanceStmt *) analyzeParseModel((Node *) provStat); */
-	/* DEBUG_NODE_BEATIFY_LOG("analysis:\n", provStat); */
-	/* qoModel = translateParseOracle((Node *) provStat); */
-	/* DEBUG_NODE_BEATIFY_LOG("qo model:\n", provStat); */
-	/* qoModel = provRewriteQBModel(qoModel); */
-	/* DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat); */
-	/* qoModel = optimizeOperatorModel(qoModel); */
-	/* DEBUG_NODE_BEATIFY_LOG("after opt:\n", provStat); */
-	//qoModel = translateParse((Node *) provStat);
-	qoModel = createReenactmentAlgebra(updates);
-	sql = serializeOperatorModel(qoModel);
-	return sql;
-}
 
-static void
-whatIfResult(List *updates, boolean ds) {
-	/* Node *originalUp; */
-	/* originalUp = (Node *) popHeadOfListP(updates); */
-	/* List *orList = copyList(updates); */
-	/* popHeadOfListP(updates); */
-	/* updates = appendToHeadOfList(updates, originalUp); */
-	/* char *reen1 = createReenactment(orList); */
-	/* int length = strlen(reen1) - 2; */
-	/* reen1 = substr(reen1, 0, length); */
-	/* char *reen2 = createReenactment(updates); */
-	/* length = strlen(reen2) - 2; */
-	/* reen2 = substr(reen2, 0, length); */
+
+static void whatIfResult(List *updates, boolean ds) {
 	Node *originalUp;
 	originalUp = (Node *) popHeadOfListP(updates);
 	List *orList = copyList(updates);
 	popHeadOfListP(updates);
 	updates = appendToHeadOfList(updates, originalUp);
-	QueryOperator *reop1 = createReenactmentAlgebra(orList);
-	QueryOperator *reop2 = createReenactmentAlgebra(updates);
+	QueryOperator *reop1 = (QueryOperator *) createReenactmentAlgebra(orList);
+	QueryOperator *reop2 = (QueryOperator *) createReenactmentAlgebra(updates);
 
-	QueryOperator *
-
-	QueryOperator *un;
+	QueryOperator *uni;
 	QueryOperator *diff1;
 	QueryOperator *diff2;
+	char *sql;
 
-	diff1 = createSetOp(SETOP_DIFFERENCE, LIST_MAKE(reop1, reop2), NIL, NIL);
-	diff2 = createSetOp(SETOP_DIFFERENCE, LIST_MAKE(reop2, reop1), NIL, NIL);
-	un = createSetOp(SETOP_UNION, LIST_MAKE(diff1, diff2), NIL, NIL);
+	if (!ds) {
+		diff1 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
+				LIST_MAKE(reop1, reop2), NIL,
+				NIL);
+		diff2 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
+				LIST_MAKE(reop2, reop1), NIL,
+				NIL);
+		uni = (QueryOperator *) createSetOperator(SETOP_UNION,
+				LIST_MAKE(diff1, diff2), NIL, NIL);
 
-	//TODO backconnect to parents
+		addChildOperator(uni, diff1);
+		addChildOperator(uni, diff2);
+		addParent(diff1, uni);
+		addParent(diff2, uni);
+		//ERROR_OP_LOG("The result of what-if query is:\n", uni);
+		sql = serializeQuery(uni);
+		ERROR_LOG("%s", sql);
 
-    ERROR_OP_LOG("diff query", un);
+	} else {
+		Node *oUp = (Node *) getHeadOfListP(orList);
+		Node *wUp = (Node *) getHeadOfListP(updates);
 
-	if (!ds)
-		ERROR_LOG("(%s\nMINUS \n%s)\nUNION ALL\n(%s\nMINUS \n%s);", reen1,
-				reen2, reen2, reen1);
-	else {
-		Node *orUp = (Node *) getHeadOfListP(orList);
-		Node *wifUp = (Node *) getHeadOfListP(updates);
-		char *c1 = serializeCond(orUp);
-		char *c2 = serializeCond(wifUp);
-		ERROR_LOG(
-				"(%s WHERE (%s) OR (%s)\nMINUS \n%s WHERE (%s) OR (%s))\nUNION ALL\n(%s WHERE (%s) OR (%s)\nMINUS \n%s WHERE (%s) OR (%s));",
-				reen1, c1, c2, reen2, c1, c2, reen2, c1, c2, reen1, c1, c2);
+		Node *cond1, *cond2;
+		cond1 = copyObject(getCond(oUp));
+		cond2 = copyObject(getCond(wUp));
+		SelectionOperator *so1=NULL, *so2=NULL;
 
+		if (cond1 != NULL && cond2 != NULL) {
+			Node *orCond;
+			orCond = (Node *) createOpExpr("OR", LIST_MAKE(cond1, cond2));
+			so1 = createSelectionOp(orCond, reop1, NIL, NIL);
+			so2 = createSelectionOp(copyObject(orCond), reop2, NIL, NIL);
+		}
+		if (cond1 != NULL && cond2 == NULL) {
+			so1 = createSelectionOp(copyObject(cond1), reop1, NIL, NIL);
+			so2 = createSelectionOp(copyObject(cond1), reop2, NIL, NIL);
+		}
+
+		if (cond1 == NULL && cond2 != NULL) {
+			so1 = createSelectionOp(copyObject(cond2), reop1, NIL, NIL);
+			so2 = createSelectionOp(copyObject(cond2), reop2, NIL, NIL);
+		}
+		addParent(reop1, (QueryOperator *) so1);
+		addChildOperator((QueryOperator *) so1, reop1);
+		addParent(reop2, (QueryOperator *) so2);
+		addChildOperator((QueryOperator *) so2, reop2);
+
+		diff1 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
+				LIST_MAKE(so1, so2), NIL,
+				NIL);
+		diff2 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
+				LIST_MAKE(so2, so1), NIL,
+				NIL);
+		uni = (QueryOperator *) createSetOperator(SETOP_UNION,
+				LIST_MAKE(diff1, diff2), NIL, NIL);
+
+		addChildOperator(uni, diff1);
+		addChildOperator(uni, diff2);
+		addParent(diff1, uni);
+		addParent(diff2, uni);
+		//ERROR_OP_LOG("The result of what-if query with data sclicing is:\n", uni);
+		sql = serializeQuery(uni);
+		ERROR_LOG("%s", sql);
 	}
+
 	deepFreeList(updates);
 }
 
-static char* serializeCond(Node *node) {
-	char* condition = "TRUE";
-		if (node->type == T_Update) {
-			condition = serializeOperatorModel(((Update *) node)->cond);
-		} else if (node->type == T_Delete) {
-			condition = serializeOperatorModel(((Delete *) node)->cond);
-		}
-		return condition;
+static Node *getCond(Node *node) {
+	if (node->type == T_Update) {
+		return ((Update *) node)->cond;
+	} else if (node->type == T_Delete) {
+		return ((Delete *) node)->cond;
+	}
+	return NULL;
 }
+
 /*
  * Function that handles exceptions
  */
@@ -219,6 +222,6 @@ static ExceptionHandler handleCLIException(const char *message,
 	} else
 		printf(TCOL(RED,"(%s:%u) ") "\n%s\n", file, line, message);
 
-	// throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
+// throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
 	return EXCEPTION_DIE;
 }

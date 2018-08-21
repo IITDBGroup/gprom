@@ -1,0 +1,312 @@
+[1m[37m[40mERROR [0m[31m(test_expr_to_cplex.c:69) [0mTotal Number of updates: 10 
+
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.01 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.01 ticks)
+CPLEX Error  1217: No solution exists.
+Tried aggregator 1 time.
+MIP Presolve eliminated 20 rows and 35 columns.
+MIP Presolve modified 22 coefficients.
+All rows and columns eliminated.
+Presolve time = 0.00 sec. (0.02 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.01 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.01 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.01 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.01 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.01 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.01 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.01 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.01 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.01 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.01 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.01 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.01 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+Bound infeasibility column 'ID_0'.
+Presolve time = 0.00 sec. (0.01 ticks)
+
+Root node processing (before b&c):
+  Real time             =    0.00 sec. (0.02 ticks)
+Parallel b&c, 4 threads:
+  Real time             =    0.00 sec. (0.00 ticks)
+  Sync time (average)   =    0.00 sec.
+  Wait time (average)   =    0.00 sec.
+                          ------------
+Total (root+branch&cut) =    0.00 sec. (0.02 ticks)
+CPLEX Error  1217: No solution exists.
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
+[1m[37m[40mERROR [0m[31m(test_expr_to_cplex.c:72) [0mNumber of dependent statements: 1 
+
+[1m[37m[40mERROR [0m[31m(operator_optimizer.c:131) [0mcallback = 0
+[1m[37m[40mERROR [0m[31m(operator_optimizer.c:132) [0mnumHeuOptItens = 1
+[1m[37m[40mERROR [0m[31m(operator_optimizer.c:213) [0mnumber of operators in graph: 2
+[1m[37m[40mERROR [0m[31m(operator_optimizer.c:131) [0mcallback = 0
+[1m[37m[40mERROR [0m[31m(operator_optimizer.c:132) [0mnumHeuOptItens = 1
+[1m[37m[40mERROR [0m[31m(operator_optimizer.c:213) [0mnumber of operators in graph: 2
+[1m[37m[40mERROR [0m[31m(test_expr_to_cplex.c:170) [0m((
+SELECT F0.ID AS ID, F0.A AS A, F0.B AS B, F0.C AS C, F0.D AS D
+FROM ("R100_100" F0)
+WHERE ((NOT (((F0.ID > 96) AND (F0.ID < 107)))) AND (NOT (((F0.ID > 90) AND (F0.ID < 101)))))) MINUS (
+SELECT F0.ID AS ID, F0.A AS A, F0.B AS B, F0.C AS C, F0.D AS D
+FROM ("R100_100" F0)
+WHERE ((NOT (((F0.ID > 96) AND (F0.ID < 107)))) AND (NOT (((F0.ID > 990) AND (F0.ID < 1001))))))) UNION ALL ((
+SELECT F0.ID AS ID, F0.A AS A, F0.B AS B, F0.C AS C, F0.D AS D
+FROM ("R100_100" F0)
+WHERE ((NOT (((F0.ID > 96) AND (F0.ID < 107)))) AND (NOT (((F0.ID > 990) AND (F0.ID < 1001)))))) MINUS (
+SELECT F0.ID AS ID, F0.A AS A, F0.B AS B, F0.C AS C, F0.D AS D
+FROM ("R100_100" F0)
+WHERE ((NOT (((F0.ID > 96) AND (F0.ID < 107)))) AND (NOT (((F0.ID > 90) AND (F0.ID < 101)))))))
+[1m[37m[40mERROR [0m[31m(deepFree.c:321) [0mcannot free invalid node type
