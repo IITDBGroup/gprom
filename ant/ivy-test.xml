@@ -17,5 +17,11 @@
    	<dependency org="org.slf4j" name="slf4j-api" rev="1.7.21"/>
    	<dependency org="org.slf4j" name="slf4j-simple" rev="1.7.21"/>
    	<dependency org="org.antlr" name="stringtemplate" rev="4.0.2"/>
+   	<dependency org="org.spark-project.hive" name="hive-jdbc" rev="1.2.1.spark2"/>
+	<dependency org="org.apache.spark" name="spark-core_2.11" rev="2.3.1"/>
+	<dependency org="org.apache.spark" name="spark-sql_2.11" rev="2.3.1"/>
+	<dependency org="com.google.guava" name="guava" rev="19.0"/>
+	<dependency org="com.google.collections" name="google-collections" rev="1.0"/>
+	
  </dependencies>
 </ivy-module>

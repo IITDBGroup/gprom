@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -20,13 +20,9 @@ typedef enum SqlserializerPluginType
     SQLSERIALIZER_PLUGIN_POSTGRES,
     SQLSERIALIZER_PLUGIN_HIVE,
     SQLSERIALIZER_PLUGIN_DL,
-<<<<<<< HEAD
-    SQLSERIALIZER_PLUGIN_SQLITE,
-    SQLSERIALIZER_PLUGIN_SPARK
-=======
+    SQLSERIALIZER_PLUGIN_SPARK,
 	SQLSERIALIZER_PLUGIN_LB,
     SQLSERIALIZER_PLUGIN_SQLITE
->>>>>>> master
 } SqlserializerPluginType;
 
 /* plugin definition */

@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 package org.gprom.spark.session;
 
@@ -8,14 +8,15 @@ import org.apache.spark.sql.SparkSession;
 import static org.apache.spark.sql.SparkSession.Builder;
 
 import java.lang.reflect.Field;
+import java.sql.SQLException;
 
 import org.apache.spark.sql.SparkSessionExtensions;
 import org.apache.spark.sql.internal.SessionState;
 import org.apache.spark.sql.internal.SharedState;
 import org.gprom.jdbc.jna.GProMWrapper;
 
-import com.sun.istack.internal.logging.Logger;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 
@@ -27,16 +28,16 @@ import scala.Option;
  */
 public class GProMSparkSession extends SparkSession {
 
-	static Logger log = Logger.getLogger(GProMSparkSession.class); 
-	
+	static Logger log = LogManager.getLogger(GProMSparkSession.class);
+
 	/**
-	 * 
+	 *
 	 */
 	private static final long serialVersionUID = 1L;
 
 //	private SparkSession wrappedSession;
 	private GProMWrapper w;
-	
+
 	/**
 	 * @param sparkContext
 	 * @param existingSharedState
@@ -67,14 +68,14 @@ public class GProMSparkSession extends SparkSession {
 		copyPrivateFields(wrappedSession);
 		initGpromWrapper();
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param s
 	 */
 	private void copyPrivateFields(SparkSession s) {
 		Class<? extends SparkSession> sessionClass = s.getClass();
-		
+
 		try {
 //			Field sparkContextField = sessionClass.getDeclaredField("sparkContext");
 //			sparkContextField.setAccessible(true);
@@ -96,7 +97,7 @@ public class GProMSparkSession extends SparkSession {
 			emptyDataFrameField.setAccessible(true);
 			Field catalogField = sessionClass.getDeclaredField("catalog");
 			catalogField.setAccessible(true);
-			
+
 			existingSharedStateField.set(this,existingSharedStateField.get(s));
 			parentSessionStateField.set(this,parentSessionStateField.get(s));
 			extensionsField.set(this,extensionsField.get(s));
@@ -107,16 +108,16 @@ public class GProMSparkSession extends SparkSession {
 			emptyDataFrameField.set(this,emptyDataFrameField.get(s));
 			catalogField.set(this,catalogField.get(s));
 		} catch (Exception e) {
-			
+
 		}
-		
-		
-//		implicits$module : 
+
+
+//		implicits$module :
 //		org$apache$spark$internal$Logging$$log_ : Logger
 	}
-	
+
 	/**
-	 * 
+	 *
 	 */
 	private void initGpromWrapper () {
 		w = GProMWrapper.inst;
@@ -124,12 +125,12 @@ public class GProMSparkSession extends SparkSession {
 	}
 
 	/**
-	 * 
+	 *
 	 * @author lord_pretzel
 	 *
 	 */
 	private static class GProMBuilder extends Builder {
-		
+
 		/**
 		 * creates a GProMSparkSession by creating a SparkSession and then copying it a GProMSparkSession
 		 */
@@ -137,7 +138,7 @@ public class GProMSparkSession extends SparkSession {
 			SparkSession wrappedSession = super.getOrCreate();
 			if (wrappedSession instanceof GProMSparkSession)
 				return wrappedSession;
-			
+
 			GProMSparkSession gspark = new GProMSparkSession(wrappedSession);
 			Option<SparkSession> defaultSession = SparkSession.getDefaultSession();
 			if (defaultSession.getOrElse(null) == wrappedSession)
@@ -146,27 +147,33 @@ public class GProMSparkSession extends SparkSession {
 			}
 			return gspark;
 		}
-		
+
 	}
-	
+
 	public static Builder builder() {
 		return new GProMBuilder();
 	}
-	
+
 	//   def sql(sqlText: String): DataFrame = {
     // Dataset.ofRows(self, sessionState.sqlParser.parsePlan(sqlText))
     // }
 	@Override
 	public Dataset<Row> sql (String sqlText) {
-		String gpromSQL = sqlText;//TODO call GProM
-		
+		String gpromSQL = null; // = sqlText;//TODO call GProM
+		try {
+			gpromSQL = w.gpromRewriteQuery(sqlText);
+		}
+		catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}		
 		return super.sql(gpromSQL);
 	}
-	
+
 	@Override
 	public void close() {
 		super.close();
-		w.close();
+//		w.shutdown();
 	}
-	
+
 }
