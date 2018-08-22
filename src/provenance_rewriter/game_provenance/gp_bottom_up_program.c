@@ -1196,6 +1196,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
 				List *woBoolArgs = NIL;
 				List *argsForMoves = NIL;
 				List *boolArgs = NIL;
+				boolean isNegVar = FALSE;
 
 				Node *atom = (Node *) a;
 
@@ -1242,6 +1243,19 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
 
 					if (!ruleWon && !LIST_EMPTY(boolArgs))
 					{
+
+						// check if it is a negated atom
+						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+
+						if(isA(negVar,Operator))
+						{
+							Operator *o = (Operator *) negVar;
+
+							if(streq(o->name,"not"))
+								isNegVar = TRUE;
+						}
+
+						// set the corresponding Boolean variable to FALSE
 						argsForMoves = replaceNode(argsForMoves,
 												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
 												   createConstBool(FALSE));
@@ -1258,7 +1272,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
 
 						// goal -> tuple
 						lExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel, copyObject(woBoolArgs));
-						rExpr = createSkolemExpr(GP_NODE_TUPLE, a->negated ? negAtomRel : atomRel, copyObject(woBoolArgs));
+						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
 
 						moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 						moveRules = appendToTailOfList(moveRules, moveRule);
@@ -1659,6 +1673,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
 				List *woBoolArgs = NIL;
 				List *argsForMoves = NIL;
 				List *boolArgs = NIL;
+				boolean isNegVar = FALSE;
 
 				Node *atom = (Node *) a;
 
@@ -1708,6 +1723,18 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
 
 					if (!ruleWon && !LIST_EMPTY(boolArgs))
 					{
+						// check if it is a negated atom
+						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+
+						if(isA(negVar,Operator))
+						{
+							Operator *o = (Operator *) negVar;
+
+							if(streq(o->name,"not"))
+								isNegVar = TRUE;
+						}
+
+						// set the corresponding Boolean variable to FALSE
 						argsForMoves = replaceNode(argsForMoves,
 												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
 												   createConstBool(FALSE));
@@ -1717,7 +1744,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
 					{
 						// rule -> tuple
 						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
-						rExpr = createSkolemExpr(GP_NODE_TUPLE, a->negated ? negAtomRel : atomRel, copyObject(woBoolArgs));
+						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
 
 						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 						moveRules = appendToTailOfList(moveRules, moveRule);
@@ -2048,6 +2075,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
 				List *woBoolArgs = NIL;
 				List *argsForMoves = NIL;
 				List *boolArgs = NIL;
+				boolean isNegVar = FALSE;
 
 				Node *atom = (Node *) a;
 
@@ -2097,6 +2125,18 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
 
 					if (!ruleWon && !LIST_EMPTY(boolArgs))
 					{
+						// check if it is a negated atom
+						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+
+						if(isA(negVar,Operator))
+						{
+							Operator *o = (Operator *) negVar;
+
+							if(streq(o->name,"not"))
+								isNegVar = TRUE;
+						}
+
+						// set the corresponding Boolean variable to FALSE
 						argsForMoves = replaceNode(argsForMoves,
 												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
 												   createConstBool(FALSE));
@@ -2106,7 +2146,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
 					{
 						// rule -> tuple
 //						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
-						Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, a->negated ? negAtomRel : atomRel, copyObject(woBoolArgs));
+						Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
 
 						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 						moveRules = appendToTailOfList(moveRules, moveRule);
@@ -2341,8 +2381,8 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 	{
 		FOREACH(DLRule,r,unLinkedRules)
 		{
-			boolean ruleWon = DL_HAS_PROP(r->head,
-					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+			boolean ruleWon = DL_HAS_PROP(r->head,DL_WON)
+					|| DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
 			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
 			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
 
@@ -2456,6 +2496,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 				List *woBoolArgs = NIL;
 				List *argsForMoves = NIL;
 				List *boolArgs = NIL;
+				boolean isNegVar = FALSE;
 
 				Node *atom = (Node *) a;
 
@@ -2510,6 +2551,18 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 //												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
 //												   isA(n,Operator) ? createConstBool(TRUE): createConstBool(FALSE));
 
+						// check if it is a negated atom
+						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+
+						if(isA(negVar,Operator))
+						{
+							Operator *o = (Operator *) negVar;
+
+							if(streq(o->name,"not"))
+								isNegVar = TRUE;
+						}
+
+						// set the corresponding Boolean variable to FALSE
 						argsForMoves = replaceNode(argsForMoves,
 												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
 												   createConstBool(FALSE));
@@ -2528,7 +2581,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 
 						// goal -> tuple
 						lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
-						rExpr = createSkolemExpr(GP_NODE_TUPLE, a->negated ? negAtomRel : atomRel, copyObject(woBoolArgs));
+						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
 
 						moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 						moveRules = appendToTailOfList(moveRules, moveRule);
