@@ -32,12 +32,12 @@ def home():
     allQueries = db.session.query(ProvQuery).all()
     # query="""SELECT * FROM all_tables WHERE owner = 'FGA_USER' AND tablespace_name = 'USERS' ORDER BY table_name;"""
     #query="""SELECT table_name FROM user_tables ORDER BY table_name;"""
-    query="""SELECT * FROM tabcollist 
-             WHERE table_name LIKE 'AC%' OR table_name LIKE 'AR%' 
-                    OR table_name LIKE 'BANK%' OR table_name LIKE 'CRIMES%'
-                    OR table_name LIKE 'EMPHIST%' OR table_name LIKE 'MOVIES%'
-                    OR table_name LIKE 'ratings%' OR table_name LIKE 're%'
-                    OR table_name LIKE 'SANEP%';"""
+    query="""SELECT * FROM tabcollist;"""
+             # WHERE table_name LIKE 'AC%' OR table_name LIKE 'AR%' 
+             #        OR table_name LIKE 'BANK%' OR table_name LIKE 'CRIMES%'
+             #        OR table_name LIKE 'EMPHIST%' OR table_name LIKE 'MOVIES%'
+             #        OR table_name LIKE 'ratings%' OR table_name LIKE 're%'
+             #        OR table_name LIKE 'SANEP%';"""
     returncode, gpromlog = w.runQuery(query)
     queryResult = gpromlog
     gpromlog = conv.convert(gpromlog,full=False)
@@ -140,6 +140,47 @@ def queryload():
     oldquery = db.session.query(ProvQuery).filter(ProvQuery.id == qid).first()
     session['query'] = oldquery.query
     session['action'] = oldquery.graphOrResult
+
+    query = session['query']
+    top = query.find('TOP')    
+    sample = query.find('SAMPLE')
+    failure = query.find('FAILURE OF')
+    recall = query.find('recall')
+    info = query.find('informativeness')
+
+    # appear in the 'topk' text box    
+    if top > 0:
+        if failure > 0:
+            session['topk'] = query[top+4:(query.find('FOR FAILURE OF'))-1]
+        else:
+            session['topk'] = query[top+4:(query.find('SUMMARIZED'))-1]
+    else:
+        session['topk'] = ''
+
+    # appear in the 'sample size' text box    
+    if sample > 0:
+        session['sSize'] = query[sample+7:len(query)-2]
+    else:
+        session['sSize'] = ''
+
+    # appear in the 'failure pattern' text box    
+    if failure > 0:
+        session['fPattern'] = query[failure+12:query.find(') SUMMARIZED')]
+    else:
+        session['fPattern'] = ''        
+
+    # appear in the 'recall' text box
+    if recall > 0:
+        session['recall'] = query[(query.find('AS ('))+4:recall-3]
+    else:
+        session['recall'] = ''
+
+    # appear in the 'informativeness' text box
+    if info > 0:
+        session['info'] = query[(query.find('recall +'))+9:info-3]
+    else:
+        session['info'] = ''
+
     return redirect(url_for('showgraph'))
 
 
@@ -180,20 +221,20 @@ def showgraph():
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	   if provQuest > 0:
             summQuery = ''
-            if summRequest < 0 or summRequest > 0:
-                if recall != '' and info == '':
-                   summQuery += ' SCORE AS (' + recall + ' * recall)'
-                elif recall == '' and info != '':
-                   summQuery += ' SCORE AS (' + info + ' * informativeness)'
-                elif recall != '' and info != '':
-                   summQuery += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
-                #
-                if topk != '':
-                   summQuery += ' TOP ' + topk
-                if fPattern != '':
-                   summQuery += ' FOR FAILURE OF (' + fPattern + ')'
-                if sSize != '':
-                   summQuery += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            # if summRequest < 0:
+            if recall != '' and info == '':
+               summQuery += ' SCORE AS (' + recall + ' * recall)'
+            elif recall == '' and info != '':
+               summQuery += ' SCORE AS (' + info + ' * informativeness)'
+            elif recall != '' and info != '':
+               summQuery += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
+            #
+            if topk != '':
+               summQuery += ' TOP ' + topk
+            if fPattern != '':
+               summQuery += ' FOR FAILURE OF (' + fPattern + ')'
+            if sSize != '':
+               summQuery += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
             # else:
             #     score = query.find('SCORE')
             #     if score > 0:
@@ -217,7 +258,7 @@ def showgraph():
             # if action == 'triograph' and topk != '' and sSize != '':
             #   query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
             if action == 'triograph': #and topk == '' and sSize == '':
-              query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_TUPLE.'
 #       graphFormat = query.find('FORMAT')
 #       if graphFormat < 1:
 #           query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'

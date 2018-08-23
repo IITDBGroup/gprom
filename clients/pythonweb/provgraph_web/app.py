@@ -78,20 +78,20 @@ def showgraph():
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	   if provQuest > 0:
             summQuery = ''
-            if summRequest < 0 or summRequest > 0:
-                if recall != '' and info == '':
-                   summQuery += ' SCORE AS (' + recall + ' * recall)'
-                elif recall == '' and info != '':
-                   summQuery += ' SCORE AS (' + info + ' * informativeness)'
-                elif recall != '' and info != '':
-                   summQuery += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
-                #
-                if topk != '':
-                   summQuery += ' TOP ' + topk
-                if fPattern != '':
-                   summQuery += ' FOR FAILURE OF (' + fPattern + ')'
-                if sSize != '':
-                   summQuery += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            # if summRequest < 0:
+            if recall != '' and info == '':
+               summQuery += ' SCORE AS (' + recall + ' * recall)'
+            elif recall == '' and info != '':
+               summQuery += ' SCORE AS (' + info + ' * informativeness)'
+            elif recall != '' and info != '':
+               summQuery += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
+            #
+            if topk != '':
+               summQuery += ' TOP ' + topk
+            if fPattern != '':
+               summQuery += ' FOR FAILURE OF (' + fPattern + ')'
+            if sSize != '':
+               summQuery += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
             # else:
             #     score = query.find('SCORE')
             #     if score > 0:
@@ -115,7 +115,7 @@ def showgraph():
             # if action == 'triograph' and topk != '' and sSize != '':
             #   query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
             if action == 'triograph': #and topk == '' and sSize == '':
-              query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_TUPLE.'
 #       graphFormat = query.find('FORMAT')
 #       if graphFormat < 1:
 #           query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'
