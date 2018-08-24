@@ -39,6 +39,13 @@ typedef struct FromAttrsContext {
     List *fromAttrsList;
 } FromAttrsContext;
 
+typedef struct JoinStateFac {
+	JoinAttrRenameState *state;
+	FromAttrsContext *fac;
+} JoinStateFac;
+
+
+
 /* variables */
 static TemporaryViewMap *viewMap;
 static int viewNameCounter;
@@ -78,9 +85,9 @@ static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo se
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize);
 
 static char *oracleExprToSQLWithNamingScheme(Node *expr, int rOffset, FromAttrsContext *fac);
-static boolean renameAttrsVisitor(Node *node, JoinAttrRenameState *state);
+static boolean renameAttrsVisitor(Node *node,  JoinStateFac *jsf);
 
-static char *createAttrName(char *name, int fItem);
+static char *createAttrName(char *name, int fItem, FromAttrsContext *fac);
 //static char *createFromNames(int *attrOffset, int count);
 
 static List *createTempView(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac);
@@ -1333,15 +1340,23 @@ oracleExprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac)
 
     state->rightFromOffsets = rOffset;
     state->fromAttrs = fac->fromAttrs;
-    renameAttrsVisitor(expr, state);
+
+    JoinStateFac *jsf = NEW(JoinStateFac);
+    jsf->fac = fac;
+    jsf->state = state;
+
+    renameAttrsVisitor(expr, jsf);
 
     FREE(state);
     return exprToSQL(expr);
 }
 
 static boolean
-renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
+renameAttrsVisitor (Node *node, JoinStateFac *jsf)
 {
+	JoinAttrRenameState *state = jsf->state;
+	FromAttrsContext *fac = jsf->fac;
+
     if (node == NULL)
         return TRUE;
 
@@ -1378,12 +1393,12 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
         pos = a->attrPosition - pos + LIST_LENGTH(from);
         name = getNthOfListP(from, pos);
 
-        a->name = createAttrName(name, fPos);
+        a->name = createAttrName(name, fPos, fac);
 
         return TRUE;
     }
 
-    return visit(node, renameAttrsVisitor, state);
+    return visit(node, renameAttrsVisitor, jsf);
 }
 
 //static char *
@@ -1404,12 +1419,14 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 //}
 
 static char *
-createAttrName (char *name, int fItem)
+createAttrName (char *name, int fItem, FromAttrsContext *fac)
 {
    StringInfo str = makeStringInfo();
    char *result = NULL;
 
-   appendStringInfo(str, "F%u_0.%s", fItem, name);
+   appendStringInfo(str, "F%u_%u.%s", fItem, LIST_LENGTH(fac->fromAttrsList) - 1, name);
+   //appendStringInfo(str, "F%u_0.%s", fItem, name);
+
    result = str->data;
    FREE(str);
 

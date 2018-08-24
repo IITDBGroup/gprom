@@ -805,6 +805,8 @@ rewritePI_CSAggregation (AggregationOperator *op)
 	JoinType joinT = (op->groupBy) ? JOIN_INNER : JOIN_LEFT_OUTER;
 
 	// create join condition for group by
+//	if(!isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
+//	{
 	if(op->groupBy != NIL)
 	{
 	    int pos = 0;
@@ -826,6 +828,30 @@ rewritePI_CSAggregation (AggregationOperator *op)
 	// or for without group by
 	else
 	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+//	}
+
+//	if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && op->groupBy == NIL)
+//	{
+//		joinT = JOIN_INNER;
+//
+//		AttributeDef *ad = getNthOfListP(((QueryOperator *) op)->schema->attrDefs, 0);
+//		AttributeReference *lA = createFullAttrReference(strdup(ad->attrName), 0, 0, INVALID_ATTR, ad->dataType);
+//
+//		FunctionCall *fc = getNthOfListP(op->aggrs, 0);
+//		List *attrList = getAttrReferences((Node *) fc);
+//		AttributeReference *ar = getNthOfListP(attrList, 0);
+//
+//		AttributeReference *rA = createFullAttrReference(
+//				ar->name, 1, ar->attrPosition, INVALID_ATTR, ar->attrType);
+//
+//		if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
+//		{
+//			if(joinCond)
+//				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
+//			else
+//				joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+//		}
+//	}
 
     // create join operator
     List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
