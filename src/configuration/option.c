@@ -171,6 +171,7 @@ boolean temporal_agg_combine_with_norm = TRUE;
 
 // lateral rewrite for nesting operator
 boolean opt_lateral_rewrite = FALSE;
+boolean opt_agg_reduction_model_rewrite = FALSE;
 
 // struct that encapsulates option state
 struct option_state {
@@ -574,6 +575,11 @@ OptionInfo opts[] =
 				"-lateral_rewrite",
 				"Activate lateral rewrite",
 				opt_lateral_rewrite,
+				FALSE),
+		aRewriteOption(OPTION_AGG_REDUCTION_MODEL_REWRITE,
+				"-agg_reduction_model_rewrite",
+				"Activate aggregation reduction model rewrite",
+				opt_agg_reduction_model_rewrite,
 				FALSE),
         // Optimization Options
         {

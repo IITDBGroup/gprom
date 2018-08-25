@@ -40,6 +40,7 @@ static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
 static QueryOperator *rewritePI_CSProjection (ProjectionOperator *op);
 static QueryOperator *rewritePI_CSJoin (JoinOperator *op);
 static QueryOperator *rewritePI_CSAggregation (AggregationOperator *op);
+static QueryOperator *rewritePI_CSAggregationReductionModel (AggregationOperator *op);
 static QueryOperator *rewritePI_CSSet (SetOperator *op);
 static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
@@ -169,7 +170,10 @@ rewritePI_CSOperator (QueryOperator *op)
         		INFO_LOG("go SEMIRING COMBINER aggregation optimization!");
         	}
             DEBUG_LOG("go aggregation");
-            rewrittenOp = rewritePI_CSAggregation ((AggregationOperator *) op);
+            if(isRewriteOptionActivated(OPTION_AGG_REDUCTION_MODEL_REWRITE))
+            		rewrittenOp = rewritePI_CSAggregationReductionModel ((AggregationOperator *) op);
+            else
+            		rewrittenOp = rewritePI_CSAggregation ((AggregationOperator *) op);
             break;
         case T_JoinOperator:
             DEBUG_LOG("go join");
@@ -805,8 +809,6 @@ rewritePI_CSAggregation (AggregationOperator *op)
 	JoinType joinT = (op->groupBy) ? JOIN_INNER : JOIN_LEFT_OUTER;
 
 	// create join condition for group by
-//	if(!isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
-//	{
 	if(op->groupBy != NIL)
 	{
 	    int pos = 0;
@@ -828,30 +830,6 @@ rewritePI_CSAggregation (AggregationOperator *op)
 	// or for without group by
 	else
 	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
-//	}
-
-//	if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && op->groupBy == NIL)
-//	{
-//		joinT = JOIN_INNER;
-//
-//		AttributeDef *ad = getNthOfListP(((QueryOperator *) op)->schema->attrDefs, 0);
-//		AttributeReference *lA = createFullAttrReference(strdup(ad->attrName), 0, 0, INVALID_ATTR, ad->dataType);
-//
-//		FunctionCall *fc = getNthOfListP(op->aggrs, 0);
-//		List *attrList = getAttrReferences((Node *) fc);
-//		AttributeReference *ar = getNthOfListP(attrList, 0);
-//
-//		AttributeReference *rA = createFullAttrReference(
-//				ar->name, 1, ar->attrPosition, INVALID_ATTR, ar->attrType);
-//
-//		if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
-//		{
-//			if(joinCond)
-//				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
-//			else
-//				joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
-//		}
-//	}
 
     // create join operator
     List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
@@ -881,6 +859,151 @@ rewritePI_CSAggregation (AggregationOperator *op)
     DEBUG_NODE_BEATIFY_LOG("Rewritten Operator tree", proj);
     return (QueryOperator *) proj;
 }
+
+
+/*
+ * Rewrite an aggregation operator using reduction model:
+ *      - the difference with above is: handle MIN/MAX - only treat the necessary tuple (min/max tuple) as the provenance not all
+ */
+static QueryOperator *
+rewritePI_CSAggregationReductionModel (AggregationOperator *op)
+{
+    JoinOperator *joinProv;
+    ProjectionOperator *proj;
+    QueryOperator *aggInput;
+    QueryOperator *origAgg;
+    int numGroupAttrs = LIST_LENGTH(op->groupBy);
+
+    DEBUG_LOG("REWRITE-PICS - Aggregation - Reduction Model");
+
+    // copy aggregation input
+    origAgg = (QueryOperator *) op;
+    aggInput = copyUnrootedSubtree(OP_LCHILD(op));
+    // rewrite aggregation input copy
+
+    aggInput = rewritePI_CSOperator(aggInput);
+
+	FunctionCall *fc = getNthOfListP(op->aggrs, 0);
+	List *aggAttrs = getAttrReferences((Node *) op->aggrs);
+	int numAggAttrs = LIST_LENGTH(aggAttrs);
+	int aggAttrsLen = 0;
+    if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
+    		aggAttrsLen = numAggAttrs;
+
+    // add projection including group by expressions if necessary
+    if(op->groupBy != NIL)
+    {
+        List *groupByProjExprs = (List *) copyObject(op->groupBy);
+        List *attrNames = NIL;
+        List *provAttrs = NIL;
+        ProjectionOperator *groupByProj;
+        List *gbNames = aggOpGetGroupByAttrNames(op);
+
+        // adapt right side group by attr names
+        FOREACH_LC(lc,gbNames)
+        {
+            char *name = (char *) LC_P_VAL(lc);
+            LC_P_VAL(lc) = CONCAT_STRINGS("_P_SIDE_", name);
+        }
+
+        attrNames = CONCAT_LISTS(gbNames, getOpProvenanceAttrNames(aggInput));
+        groupByProjExprs = CONCAT_LISTS(groupByProjExprs, getProvAttrProjectionExprs(aggInput));
+
+        if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
+        {
+            List *aggProjExprs = (List *) copyObject(aggAttrs);
+            List *aggNames = NIL;
+            FOREACH(AttributeReference, a, aggAttrs)
+            		aggNames = appendToTailOfList(aggNames, strdup(a->name));
+            attrNames = CONCAT_LISTS(aggNames, attrNames);
+            groupByProjExprs = CONCAT_LISTS(aggProjExprs, groupByProjExprs);
+        }
+
+        groupByProj = createProjectionOp(groupByProjExprs,
+                        aggInput, NIL, attrNames);
+        CREATE_INT_SEQ(provAttrs, aggAttrsLen + numGroupAttrs, aggAttrsLen + numGroupAttrs + getNumProvAttrs(aggInput) - 1,1);
+        groupByProj->op.provAttrs = provAttrs;
+        aggInput->parents = singleton(groupByProj);
+        aggInput = (QueryOperator *) groupByProj;
+    }
+
+    // create join condition
+	Node *joinCond = NULL;
+	JoinType joinT = (op->groupBy) ? JOIN_INNER : JOIN_LEFT_OUTER;
+
+	// create join condition for group by
+	if(op->groupBy != NIL)
+	{
+	    int pos = 0;
+
+	    List *groupByNames = aggOpGetGroupByAttrNames(op);
+
+		FOREACH(AttributeReference, a , op->groupBy)
+		{
+		    char *name = getNthOfListP(groupByNames, pos);
+			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR, a->attrType);
+			AttributeReference *rA = createFullAttrReference(
+			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos + aggAttrsLen, INVALID_ATTR, a->attrType);
+			if(joinCond)
+				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
+			else
+				joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+			pos++;
+		}
+	}
+	// or for without group by
+	else
+	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+
+
+	if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
+	{
+		joinT = JOIN_INNER;
+		AttributeDef *ad = getNthOfListP(((QueryOperator *) op)->schema->attrDefs, 0);
+		AttributeReference *lA = createFullAttrReference(strdup(ad->attrName), 0, 0, INVALID_ATTR, ad->dataType);
+
+		List *attrList = getAttrReferences((Node *) fc);
+		AttributeReference *ar = getNthOfListP(attrList, 0);
+
+		AttributeReference *rA = createFullAttrReference(
+				ar->name, 1, ar->attrPosition, INVALID_ATTR, ar->attrType);
+
+		if(joinCond)
+			joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
+		else
+			joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+	}
+
+    // create join operator
+    List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
+    joinProv = createJoinOp(joinT, joinCond, LIST_MAKE(origAgg, aggInput), NIL,
+            joinAttrNames);
+    joinProv->op.provAttrs = copyObject(aggInput->provAttrs);
+    FOREACH_LC(lc,joinProv->op.provAttrs)
+        lc->data.int_value += getNumAttrs(origAgg);
+
+	// create projection expressions for final projection
+    List *projAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getOpProvenanceAttrNames(aggInput));
+    List *projExprs = CONCAT_LISTS(getNormalAttrProjectionExprs(origAgg),
+                                getProvAttrProjectionExprs((QueryOperator *) joinProv));
+
+    // create final projection and replace aggregation subtree with projection
+	proj = createProjectionOp(projExprs, (QueryOperator *) joinProv, NIL, projAttrNames);
+	joinProv->op.parents = singleton(proj);
+	CREATE_INT_SEQ(proj->op.provAttrs, getNumNormalAttrs((QueryOperator *) origAgg),
+	        getNumNormalAttrs((QueryOperator *) origAgg) + getNumProvAttrs((QueryOperator *) joinProv) - 1,1);
+
+	// switch provenance computation with original aggregation
+	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addParent(origAgg, (QueryOperator *) joinProv);
+    addParent(aggInput, (QueryOperator *) joinProv);
+
+    // adapt schema for final projection
+    DEBUG_NODE_BEATIFY_LOG("Rewritten Operator tree", proj);
+    return (QueryOperator *) proj;
+}
+
+
 
 static QueryOperator *
 rewritePI_CSSet(SetOperator *op)
