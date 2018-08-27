@@ -23,7 +23,7 @@ static List *getListNestingOperator (QueryOperator *op);
 static void appendNestingOperator (QueryOperator *op, List **result);
 static int checkAttr (char *name, QueryOperator *op);
 static void adatpUpNestingAttrDataType(QueryOperator *op, DataType nestingAttrDataType, int pos);
-static void getNestCondOperator(Operator *o, List **nestOpLists);
+static void getNestCondNode(Node *n, List **nestOpLists);
 
 Node *
 lateralTranslateQBModel (Node *qbModel)
@@ -184,20 +184,33 @@ lateralRewriteQuery(QueryOperator *input)
 		   {
 			   SelectionOperator *sel = (SelectionOperator *) selOp;
 			   List *nestOpList = NIL;
-			   getNestCondOperator((Operator *) sel->cond, &nestOpList);
+			   getNestCondNode(sel->cond, &nestOpList);
 
 			   //one
 			   //adapt cond
-			   FOREACH(Operator, o, nestOpList)
+			   FOREACH(Node, n, nestOpList)
 			   {
-				AttributeReference *a = getNthOfListP(o->args, 0);
-				//adapt nesting_eval_1 datatype from its children
-				AttributeDef *ad = getAttrDefByName(OP_LCHILD(selOp), a->name);
-				a->attrType = ad->dataType;
+				   if(isA(n, Operator))
+				   {
+					   Operator *o = (Operator *) n;
+					   AttributeReference *a = getNthOfListP(o->args, 0);
+					   //adapt nesting_eval_1 datatype from its children
+					   AttributeDef *ad = getAttrDefByName(OP_LCHILD(selOp), a->name);
+					   a->attrType = ad->dataType;
 
-				//change constant datatype from bool to int
-				o->args = removeFromTail(o->args);
-				o->args = appendToTailOfList(o->args, createConstInt(1));
+					   //change constant datatype from bool to int
+					   o->args = removeFromTail(o->args);
+					   o->args = appendToTailOfList(o->args, createConstInt(1));
+				   }
+				   else if(isA(n, IsNullExpr))
+				   {
+					   IsNullExpr *inulExpr = (IsNullExpr *) n;
+					   List *argList = (List *)(inulExpr->expr);
+					   AttributeReference *a = getNthOfListP(argList, 0);
+					   //adapt nesting_eval_1 datatype from its children
+					   AttributeDef *ad = getAttrDefByName(OP_LCHILD(selOp), a->name);
+					   a->attrType = ad->dataType;
+				   }
 			   }
 
 			   //one
@@ -236,26 +249,45 @@ adatpUpNestingAttrDataType(QueryOperator *op, DataType nestingAttrDataType, int 
 }
 
 static void
-getNestCondOperator(Operator *o, List **nestOpLists)
+getNestCondNode(Node *n, List **nestOpLists)
 {
-	if(streq(o->name, "="))
+	if(isA(n, Operator))
 	{
-		if(isA(getNthOfListP(o->args, 0), AttributeReference) && isA(getNthOfListP(o->args, 1), Constant))
+		Operator *o = (Operator *) n;
+		if(streq(o->name, "="))
 		{
-			AttributeReference *a = getNthOfListP(o->args, 0);
-			Constant *c = getNthOfListP(o->args, 1);
+			if(isA(getNthOfListP(o->args, 0), AttributeReference) && isA(getNthOfListP(o->args, 1), Constant))
+			{
+				AttributeReference *a = getNthOfListP(o->args, 0);
+				Constant *c = getNthOfListP(o->args, 1);
+				if(strlen(a->name) >= 14)
+				{
+					char *prefix = substr(a->name, 0, 12);
+					if(streq(prefix, "nesting_eval_") && c->constType == 4)
+						*nestOpLists = appendToTailOfList(*nestOpLists, n);
+				}
+			}
+		}
+		else if(streq(o->name, "OR") || streq(o->name, "AND") )
+		{
+			getNestCondNode((Node *) getNthOfListP(o->args, 0), nestOpLists);
+			getNestCondNode((Node *) getNthOfListP(o->args, 1), nestOpLists);
+		}
+	}
+	else if(isA(n, IsNullExpr))
+	{
+		IsNullExpr *inulExpr = (IsNullExpr *) n;
+		List *argList = (List *)(inulExpr->expr);
+		if(isA(getNthOfListP(argList, 0), AttributeReference))
+		{
+			AttributeReference *a = getNthOfListP(argList, 0);
 			if(strlen(a->name) >= 14)
 			{
 				char *prefix = substr(a->name, 0, 12);
-				if(streq(prefix, "nesting_eval_") && c->constType == 4)
-					*nestOpLists = appendToTailOfList(*nestOpLists, o);
+				if(streq(prefix, "nesting_eval_"))
+					*nestOpLists = appendToTailOfList(*nestOpLists, n);
 			}
 		}
-	}
-	else if(streq(o->name, "OR") || streq(o->name, "AND") )
-	{
-		getNestCondOperator((Operator *) getNthOfListP(o->args, 0), nestOpLists);
-		getNestCondOperator((Operator *) getNthOfListP(o->args, 1), nestOpLists);
 	}
 }
 
