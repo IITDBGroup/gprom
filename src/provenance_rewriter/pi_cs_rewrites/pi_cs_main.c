@@ -863,7 +863,8 @@ rewritePI_CSAggregation (AggregationOperator *op)
 
 /*
  * Rewrite an aggregation operator using reduction model:
- *      - the difference with above is: handle MIN/MAX - only treat the necessary tuple (min/max tuple) as the provenance not all
+ *      - the difference with above is: handle MIN/MAX - only treat the necessary tuple (min/max tuple) as the provenance
+ *      - not all tuple in the same group
  */
 static QueryOperator *
 rewritePI_CSAggregationReductionModel (AggregationOperator *op)
@@ -958,7 +959,10 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op)
 
 	if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
 	{
-		joinT = JOIN_INNER;
+		//joinT = JOIN_INNER;
+		//handle nested subquery "ALL" case - add isNull expr - so using left outer join instead of inner join
+		joinT = JOIN_LEFT_OUTER;
+
 		AttributeDef *ad = getNthOfListP(((QueryOperator *) op)->schema->attrDefs, 0);
 		AttributeReference *lA = createFullAttrReference(strdup(ad->attrName), 0, 0, INVALID_ATTR, ad->dataType);
 
@@ -968,10 +972,16 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op)
 		AttributeReference *rA = createFullAttrReference(
 				ar->name, 1, ar->attrPosition, INVALID_ATTR, ar->attrType);
 
+		//handle nested subquery "ALL" case - add isNull expr (seems handled by above left outer join)
+//		IsNullExpr *inulExpr = createIsNullExpr((Node *) singleton(copyObject(lA)));
+//		Node *subJoinCond = OR_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), inulExpr);
+		Node *subJoinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+
 		if(joinCond)
-			joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
+			joinCond = AND_EXPRS(subJoinCond, joinCond);
+
 		else
-			joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+			joinCond = subJoinCond;
 	}
 
     // create join operator
