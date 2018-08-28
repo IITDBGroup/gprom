@@ -268,10 +268,12 @@ getNestCondNode(Node *n, List **nestOpLists)
 				}
 			}
 		}
-		else if(streq(o->name, "OR") || streq(o->name, "AND") )
+		else if(streq(o->name, "OR") || streq(o->name, "AND") || streq(o->name, "NOT"))
 		{
-			getNestCondNode((Node *) getNthOfListP(o->args, 0), nestOpLists);
-			getNestCondNode((Node *) getNthOfListP(o->args, 1), nestOpLists);
+			FOREACH(Node, n, o->args)
+				getNestCondNode(n, nestOpLists);
+//			getNestCondNode((Node *) getNthOfListP(o->args, 0), nestOpLists);
+//			getNestCondNode((Node *) getNthOfListP(o->args, 1), nestOpLists);
 		}
 	}
 	else if(isA(n, IsNullExpr))
