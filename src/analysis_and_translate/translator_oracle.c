@@ -1619,12 +1619,6 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         List *args = LIST_MAKE(attr, trueValue);
         Operator *opExpr = createOpExpr("=", args);
 
-        if (((NestedSubquery *) node)->nestingType == NESTQ_ALL)
-        {
-        		IsNullExpr *inulExpr = createIsNullExpr((Node *) singleton(copyObject(attr)));
-        		opExpr = createOpExpr("OR", LIST_MAKE(opExpr, inulExpr));
-        }
-
         // replace the nested subquery node with the auxiliary expression
         return (Node *) opExpr;
     }

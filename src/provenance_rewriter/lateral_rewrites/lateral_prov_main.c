@@ -61,8 +61,9 @@ lateralRewriteQuery(QueryOperator *input)
 		QueryOperator *rChild = OP_RCHILD(op);
 		QueryOperator *lChild = OP_LCHILD(op);
 
-		Constant *c1 = createConstInt(1);
 		Constant *c0 = createConstInt(0);
+		Constant *c1 = createConstInt(1);
+		Constant *cHalf  = createConstFloat(0.5);
 
 		NestingOperator *no = (NestingOperator *) op;
 		char *aggname;
@@ -127,11 +128,30 @@ lateralRewriteQuery(QueryOperator *input)
 				}
 			}
 
-			//Operator *whenOperator = createOpExpr(">", LIST_MAKE(copyObject(aggAttrRef), copyObject(c0)));
-			CaseWhen *when = createCaseWhen((Node *) cond, (Node *) copyObject(c1)); // (Node *) createConstFloat(0.0));
-			//ELSE 0
+			/*
+			 * SELECT MAX((
+			 * CASE WHEN (F0_0.A = F0_1.C) THEN 1
+      	  	 * WHEN F0_0.A IS NULL OR F0_1.C IS NULL THEN 0.5
+      	  	 * ELSE 0 END)) AS "nesting_eval_1"
+			 */
+
+			//1
+			CaseWhen *when3 = createCaseWhen((Node *) cond, (Node *) copyObject(c1));
+
+			//0.5
+			List *attrRefsInCond = getAttrReferences((Node *) cond);
+			List *isNullList = NIL;
+			FOREACH(AttributeReference, a, attrRefsInCond)
+			{
+				IsNullExpr *inulExpr = createIsNullExpr((Node *) singleton(copyObject(a)));
+				isNullList = appendToTailOfList(isNullList, inulExpr);
+			}
+    			Operator *orExpr = createOpExpr("OR", isNullList);
+    			CaseWhen *when2 = createCaseWhen((Node *) orExpr, (Node *) copyObject(cHalf));
+
+			//0 else
 			Constant *el =  copyObject(c0);
-			CaseExpr *caseExpr = createCaseExpr(NULL, singleton(when), (Node *) el);
+			CaseExpr *caseExpr = createCaseExpr(NULL, LIST_MAKE(when3, when2), (Node *) el);
 
 			ProjectionOperator *proj = createProjectionOp(singleton(caseExpr), rChild, NIL, singleton("nesting_eval_help"));
 			rChild->parents = singleton(proj);
@@ -147,9 +167,40 @@ lateralRewriteQuery(QueryOperator *input)
 			char *attrName = getTailOfListP(getAttrNames(op->schema));
 			AggregationOperator *agg = createAggregationOp(aggrs, NIL, (QueryOperator *) proj, NIL, singleton(strdup(attrName)));
 
-			((QueryOperator *) agg)->parents = singleton(op);
+//			((QueryOperator *) agg)->parents = singleton(op);
 			((QueryOperator *) proj)->parents = singleton(agg);
-			op->inputs = LIST_MAKE(lChild, agg);
+//			op->inputs = LIST_MAKE(lChild, agg);
+
+			/*
+			 * SELECT CASE WHEN "nesting_eval_1" IS NULL THEN 1  (This when only for ALL, ANY does not need)
+        		 * WHEN "nesting_eval_1" = 0.5  THEN NULL
+        		 * ELSE "nesting_eval_1" END AS "nesting_eval_1"
+			 */
+			//WHEN "nesting_eval_1" = 2 THEN NULL
+			AttributeReference *projUpAttrRef = getAttrRefByName((QueryOperator *) agg, attrName);
+			Constant *cNull = createNullConst(projUpAttrRef->attrType);
+			Operator *opr2 = createOpExpr("=", LIST_MAKE(copyObject(projUpAttrRef), copyObject(cHalf)));
+			CaseWhen *projUpwhen2 = createCaseWhen((Node *) opr2, (Node *) copyObject(cNull));
+
+			//SELECT CASE WHEN "nesting_eval_1" IS NULL THEN 1  (handle ALL - NULL CASE)
+			//SELECT CASE WHEN "nesting_eval_1" IS NULL THEN 0  (handle NOT ANY - NULL CASE)
+			IsNullExpr *projUpinulExpr = createIsNullExpr((Node *) singleton(copyObject(projUpAttrRef)));
+			CaseWhen *projUpwhen31 = createCaseWhen((Node *) projUpinulExpr, (Node *) copyObject(c1));
+			CaseWhen *projUpwhen30 = createCaseWhen((Node *) projUpinulExpr, (Node *) copyObject(c0));
+			List *projUpWhenClasues = NIL;
+			if(no->nestingType == NESTQ_ANY)
+				projUpWhenClasues = LIST_MAKE(projUpwhen30, projUpwhen2);
+			else if(no->nestingType == NESTQ_ALL)
+				projUpWhenClasues = LIST_MAKE(projUpwhen31, projUpwhen2);
+
+			//ELSE
+			CaseExpr *projUpCaseExpr = createCaseExpr(NULL, projUpWhenClasues, (Node *) copyObject(projUpAttrRef));
+
+			ProjectionOperator *projUp = createProjectionOp(singleton(projUpCaseExpr), (QueryOperator *) agg, NIL, singleton(strdup(attrName)));
+			((QueryOperator *) agg)->parents = singleton(projUp);
+
+			((QueryOperator *) projUp)->parents = singleton(op);
+			op->inputs = LIST_MAKE(lChild, projUp);
 
 			//used to change nesting_eval_1 datatype from boolean in nesting op
 			//nestingAttrDataType = typeOf(aggFunc);
@@ -175,7 +226,7 @@ lateralRewriteQuery(QueryOperator *input)
 		adatpUpNestingAttrDataType(op, nestingAttrDataType, pos);
 	}
 
-	//adapt selection: one in condition(nesting_eval_1 = True -> nesting_eval_1 = 1)
+	//adapt selection: one in condition(nesting_eval_1 = True -> nesting_eval_1 = 3)
 	//				 : one in schema (loop nestOpList again since the above loop adapt all nest op firstly, selection need to use the schema nest op)
 	FOREACH(QueryOperator, op, nestOpList)
 	{
