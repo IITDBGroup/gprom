@@ -77,6 +77,7 @@ def showgraph():
 
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	   if provQuest > 0:
+            userdomQuery = ''
             summQuery = ''
             # if summRequest < 0:
             if recall != '' and info == '':
@@ -103,7 +104,20 @@ def showgraph():
             # if action == 'provgraph' and topk != '' and sSize != '':
             #   query = query[:query.find('))')] + ')) FORMAT REDUCED_GP. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
             if action == 'provgraph': #and topk == '' and sSize == '':
+              userdom = query.find('_GP. USERDOMAIN OF')
+              score = query.find('SCORE AS')
+              top = query.find('TOP')
+
+              if userdom > 0:
+                if score != '':
+                  userdomQuery += query[userdom+4:score-1]
+                if score == '' and top != '':
+                  userdomQuery += query[userdom+4:top-1]
+                if score == '' and top == '':
+                  userdomQuery += query[userdom+4:len(query)-1]
+
               query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
+
 #       graphFormat = query.find('FORMAT')
 #       if graphFormat < 1:
 #           query = query[:-1] + ' FORMAT REDUCED_GP.'
@@ -131,6 +145,7 @@ def showgraph():
             if action == 'provgame': #and topk == '' and sSize == '':
                query = query[:query.find('))')] + ')).'
 
+            query += userdomQuery
             query += summQuery
             queryhash = md5(query).hexdigest()
             imagefile = queryhash + '.svg'

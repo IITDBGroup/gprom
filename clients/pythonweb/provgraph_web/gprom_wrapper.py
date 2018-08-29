@@ -42,7 +42,7 @@ class GProMWrapper:
        # setup plugins
        for key, value in self.plugins.iteritems():
            if plugins.has_key(key):
-               gprom_cmd+=['-P'+key, plugins[key]]
+              gprom_cmd+=['-P'+key, plugins[key]]
            else:
                gprom_cmd+=['-P'+key, value]
        # boolean options
@@ -60,6 +60,8 @@ class GProMWrapper:
        runPlugins={'executor':mode}
        runFrontend=frontend
        runOptions=inputdb
+       if mode == 'gp':
+         runOptions += '-whynot_adv -attr_dom'
        orig_cmd=self.constructCommand(query,plugins=runPlugins,frontend=runFrontend,options=runOptions)
        err, std, errcode = run_command(orig_cmd)
        if errcode != 0:

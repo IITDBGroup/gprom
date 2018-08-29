@@ -1241,6 +1241,9 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
 
 					argsForMoves = copyObject(r->head->args);
 
+					if (ruleWon && a->negated)
+						isNegVar = TRUE;
+
 					if (!ruleWon && !LIST_EMPTY(boolArgs))
 					{
 
@@ -1721,6 +1724,9 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
 
 					argsForMoves = copyObject(r->head->args);
 
+					if (ruleWon && a->negated)
+						isNegVar = TRUE;
+
 					if (!ruleWon && !LIST_EMPTY(boolArgs))
 					{
 						// check if it is a negated atom
@@ -2122,6 +2128,9 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
 							ruleWon ? "_LOST" : "_WON");
 
 					argsForMoves = copyObject(r->head->args);
+
+					if (ruleWon && a->negated)
+						isNegVar = TRUE;
 
 					if (!ruleWon && !LIST_EMPTY(boolArgs))
 					{
@@ -2543,6 +2552,9 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 							ruleWon ? "_LOST" : "_WON");
 
 					argsForMoves = copyObject(r->head->args);
+
+					if (ruleWon && a->negated)
+						isNegVar = TRUE;
 
 					if (!ruleWon && !LIST_EMPTY(boolArgs))
 					{
