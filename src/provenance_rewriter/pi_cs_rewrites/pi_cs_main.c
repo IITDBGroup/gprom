@@ -959,9 +959,9 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op)
 
 	if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
 	{
-		//joinT = JOIN_INNER;
 		//handle nested subquery "ALL" case - add isNull expr - so using left outer join instead of inner join
-		joinT = JOIN_LEFT_OUTER;
+		if(HAS_STRING_PROP(op, PROP_OPT_SELECTION_MOVE_AROUND_DONE))
+			joinT = JOIN_LEFT_OUTER;
 
 		AttributeDef *ad = getNthOfListP(((QueryOperator *) op)->schema->attrDefs, 0);
 		AttributeReference *lA = createFullAttrReference(strdup(ad->attrName), 0, 0, INVALID_ATTR, ad->dataType);
@@ -972,9 +972,6 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op)
 		AttributeReference *rA = createFullAttrReference(
 				ar->name, 1, ar->attrPosition, INVALID_ATTR, ar->attrType);
 
-		//handle nested subquery "ALL" case - add isNull expr (seems handled by above left outer join)
-//		IsNullExpr *inulExpr = createIsNullExpr((Node *) singleton(copyObject(lA)));
-//		Node *subJoinCond = OR_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), inulExpr);
 		Node *subJoinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
 
 		if(joinCond)

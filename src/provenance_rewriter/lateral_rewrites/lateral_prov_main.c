@@ -79,6 +79,7 @@ lateralRewriteQuery(QueryOperator *input)
 			List *aggrs = singleton(aggFunc);
 			AggregationOperator *agg = createAggregationOp(aggrs, NIL, rChild, NIL, singleton("AGGR_0"));
 			rChild->parents = singleton(agg);
+			SET_BOOL_STRING_PROP(agg, PROP_OPT_AGGREGATION_BY_LATREAL_WRITE);
 
 			//create projectioin SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS "nesting_eval_1"
 			AttributeReference *aggAttrRef = getAttrRefByName((QueryOperator *) agg, "AGGR_0");
@@ -170,6 +171,7 @@ lateralRewriteQuery(QueryOperator *input)
 //			((QueryOperator *) agg)->parents = singleton(op);
 			((QueryOperator *) proj)->parents = singleton(agg);
 //			op->inputs = LIST_MAKE(lChild, agg);
+			SET_BOOL_STRING_PROP(agg, PROP_OPT_AGGREGATION_BY_LATREAL_WRITE);
 
 			/*
 			 * SELECT CASE WHEN "nesting_eval_1" IS NULL THEN 1  (This when only for ALL, ANY does not need)
@@ -323,8 +325,6 @@ getNestCondNode(Node *n, List **nestOpLists)
 		{
 			FOREACH(Node, n, o->args)
 				getNestCondNode(n, nestOpLists);
-//			getNestCondNode((Node *) getNthOfListP(o->args, 0), nestOpLists);
-//			getNestCondNode((Node *) getNthOfListP(o->args, 1), nestOpLists);
 		}
 	}
 	else if(isA(n, IsNullExpr))

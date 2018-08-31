@@ -142,4 +142,8 @@
 #define PROV_PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"
 #define PROV_PROP_V_TABLE "V_TABLE"
 
+/* properties for aggregation operators created by lateral rewrite */
+#define PROP_OPT_AGGREGATION_BY_LATREAL_WRITE "AGGREGATION BY LATERAL REWRITE" //mark the aggregation created by lateral rewrite for nested queries
+
+
 #endif /* OPERATOR_PROPERTY_H_ */
