@@ -298,6 +298,8 @@ extern List *getAttrRefsInOperator (QueryOperator *op);
 /* operator specific functions */
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
 extern List *aggOpGetAggAttrNames(AggregationOperator *op);
+extern List *aggOpGetGroupByAttrDefs(AggregationOperator *op);
+extern List *aggOpGetAggAttrDefs(AggregationOperator *op);
 
 extern WindowFunction *winOpGetFunc (WindowOperator *op);
 

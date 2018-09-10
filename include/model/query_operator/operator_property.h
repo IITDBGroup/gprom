@@ -90,6 +90,8 @@
 #define PROP_PC_COMMIT_SCN "COMMIT_SCN"                     // stores commit SCN for REENACT WITH COMMIT SCN
 #define PROP_PC_SEMIRING_COMBINER "SEMIRING_COMBINER"       // use combiner in provenance computation
 #define PROP_PC_SC_AGGR_OPT "SEMIRING_COMBINER_AGGR_OPT" //use aggregation optimization in semiring combiner
+#define PROP_PC_COARSE_GRAINED "COARSE_GRAINED"             // used in data skipping
+#define USE_PROP_PC_COARSE_GRAINED "USE_COARSE_GRAINED"             // used in data skipping
 
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
@@ -136,6 +138,11 @@
 #define PROP_TEMP_TNTAB "PROP_TEMP_TNTAB"
 #define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
+
+/* for data skipping  */
+#define PROP_COARSE_GRAINED_TABLEACCESS_MARK "COARSE_GRAINED_TABLEACCESS_MARK"
+#define USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK "USE_COARSE_GRAINED_TABLEACCESS_MARK"
+#define PROP_COARSE_GRAINED_AGGREGATION_MARK "COARSE_GRAINED_AGGREGATION_MARK"
 
 /* fromProvInfo provProperties */
 #define PROV_PROP_TIP_ATTR "TIP_ATTR"

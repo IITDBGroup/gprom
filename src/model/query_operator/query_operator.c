@@ -1287,6 +1287,26 @@ aggOpGetAggAttrNames(AggregationOperator *op)
     return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }
 
+List *
+aggOpGetGroupByAttrDefs(AggregationOperator *op)
+{
+    List *result = (List *) copyObject(((QueryOperator *) op)->schema->attrDefs);
+
+    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
+}
+
+List *
+aggOpGetAggAttrDefs(AggregationOperator *op)
+{
+	List *result = (List *) copyObject(((QueryOperator *) op)->schema->attrDefs);
+
+    if (LIST_LENGTH(op->aggrs) == 0)
+        return NIL;
+
+    return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
+}
+
+
 WindowFunction *
 winOpGetFunc (WindowOperator *op)
 {

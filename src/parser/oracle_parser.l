@@ -228,6 +228,13 @@ strconcat		"||"
 (?i:TIP)			TOK(TIP)
 (?i:INCOMPLETE)		TOK(INCOMPLETE)
 (?i:VTABLE) 		TOK(VTABLE)
+(?i:CAPTURE)		TOK(CAPTURE)
+(?i:COARSE)			TOK(COARSE)
+(?i:GRAINED)		TOK(GRAINED)
+(?i:FRAGMENT)		TOK(FRAGMENT)
+(?i:PAGE)		TOK(PAGE)
+(?i:RANGESA)		TOK(RANGESA)
+(?i:RANGESB)		TOK(RANGESB)
 
 	/* booleans */
 {bool}			TOK(boolConst)

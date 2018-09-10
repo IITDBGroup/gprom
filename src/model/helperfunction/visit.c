@@ -161,6 +161,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(expr);
             }
         break;
+        case T_QuantifiedComparison:
+            {
+                PREP_VISIT(QuantifiedComparison);
+                VISIT(checkExpr);
+                VISIT(exprList);
+            }
+        break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -502,6 +509,13 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
             {
                 NEWN(OrderExpr);
                 MUTATE(Node,expr);
+            }
+        break;
+        case T_QuantifiedComparison:
+            {
+                NEWN(QuantifiedComparison);
+                MUTATE(Node,checkExpr);
+                MUTATE(List,exprList);
             }
         break;
         /* query block model nodes */
@@ -850,6 +864,13 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
             {
                 PREP_VISIT_P(OrderExpr);
                 VISIT_P(expr);
+            }
+        break;
+        case T_QuantifiedComparison:
+            {
+                PREP_VISIT_P(QuantifiedComparison);
+                VISIT_P(checkExpr);
+                VISIT_P(exprList);
             }
         break;
         /* query block model nodes */
