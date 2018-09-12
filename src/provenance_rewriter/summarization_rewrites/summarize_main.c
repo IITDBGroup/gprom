@@ -1797,6 +1797,9 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 										perc = (s + (s / 10 * 5)) * 100;
 									else
 										perc = (s + (s / 10) + (s / 100 * 5)) * 100;
+
+									if(perc > 100)
+										perc = 99.99999;
 								}
 							}
 							else
