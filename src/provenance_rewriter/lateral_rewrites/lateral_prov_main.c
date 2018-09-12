@@ -321,7 +321,7 @@ getNestCondNode(Node *n, List **nestOpLists)
 				}
 			}
 		}
-		else if(streq(o->name, "OR") || streq(o->name, "AND") || streq(o->name, "NOT"))
+		else if(streq(strToUpper(o->name), "OR") || streq(strToUpper(o->name), "AND") || streq(strToUpper(o->name), "NOT"))
 		{
 			FOREACH(Node, n, o->args)
 				getNestCondNode(n, nestOpLists);

@@ -72,7 +72,7 @@ static QueryOperator *translateFromProvInfo(QueryOperator *op, FromItem *f);
 
 /* Functions of translating nested subquery in a QueryBlock */
 static QueryOperator *translateNestedSubquery(QueryBlock *qb,
-        QueryOperator *joinTreeRoot, List *attrsOffsets, List *attrsOffsetsList);
+        QueryOperator *joinTreeRoot, List *attrsOffsets, List **attrsOffsetsList);
 extern boolean findNestedSubqueries(Node *node, List **state);
 static List *getListOfNestedSubqueries(QueryBlock *qb);
 static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr);
@@ -499,7 +499,6 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     boolean hasWindowFuncs = FALSE;
 
     DEBUG_NODE_BEATIFY_LOG("translate a QB:", qb);
-
     QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause, *attrsOffsetsList);
     LOG_TRANSLATED_OP("translatedFrom is", joinTreeRoot);
     attrsOffsets = getAttrsOffsets(qb->fromClause);
@@ -512,7 +511,7 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
 
     // translate remaining clauses
     QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot,
-            attrsOffsets, *attrsOffsetsList);
+            attrsOffsets, attrsOffsetsList);
     if (nestingOp != joinTreeRoot)
         LOG_TRANSLATED_OP("translatedNesting is", nestingOp);
 
@@ -1482,8 +1481,8 @@ translateFromJsonTable(FromJsonTable *fjt)
 }
 
 static QueryOperator *
-translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrsOffsets, List *attrsOffsetsList)
-{        DEBUG_NODE_BEATIFY_LOG("attrsOffsetsList in nest begin: ", attrsOffsetsList);
+translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrsOffsets, List **attrsOffsetsList)
+{
 
     List *nestedSubqueries = getListOfNestedSubqueries(qb);
     HashMap *subqueryToAttribute = NEW_MAP(Node,KeyValue);
@@ -1510,7 +1509,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         // create children of nesting operator
         // left child is the root of "from" translation tree or previous nesting operator
         // right child is the root of the current nested subquery's translation tree
-        QueryOperator *rChild = translateQueryBlock((QueryBlock *) nsq->query, &attrsOffsetsList);
+        QueryOperator *rChild = translateQueryBlock((QueryBlock *) nsq->query, attrsOffsetsList);
         List *inputs = LIST_MAKE(lChild, rChild);
 
         // create attribute names of nesting operator
@@ -1547,7 +1546,6 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         lChild = (QueryOperator *) no;
         DEBUG_OP_LOG("Created nesting operator", no);
         DEBUG_NODE_BEATIFY_LOG("Created nesting operator for nested subquery", nsq);
-        DEBUG_NODE_BEATIFY_LOG("attrsOffsetsList in nest end: ", attrsOffsetsList);
     }
 
     if (no == NULL)
