@@ -646,8 +646,7 @@ rewritePI_CSProjection (ProjectionOperator *op)
     FOREACH_INT(a, child->provAttrs)
     {
         AttributeDef *att = getAttrDef(child,a);
-        DEBUG_LOG("attr: %s", nodeToString(att));
-         op->projExprs = appendToTailOfList(op->projExprs,
+        op->projExprs = appendToTailOfList(op->projExprs,
                  createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
     }
 
@@ -2088,14 +2087,15 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
     List *newProvAttrDefs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(op)));
     int newProvAttrDefsLen = LIST_LENGTH(newProvAttrDefs);
 
-    List *newAttrDefs = CONCAT_LISTS(aggDefs,newProvAttrDefs,groupbyDefs);
+    List *newAttrDefs = CONCAT_LISTS(aggDefs, newProvAttrDefs, groupbyDefs);
     ((QueryOperator *) op)->schema->attrDefs = newAttrDefs;
 
     List *newProvAttrs = NIL;
+    int provAttrDefsPos = aggDefsLen;
     for(int i=0; i< newProvAttrDefsLen; i++)
     {
-    	newProvAttrs = appendToTailOfListInt(newProvAttrs,aggDefsLen);
-    	aggDefsLen ++;
+    	newProvAttrs = appendToTailOfListInt(newProvAttrs,provAttrDefsPos);
+    	provAttrDefsPos ++;
     }
 
     //finish add new aggattr
@@ -2108,10 +2108,54 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
     //finish adapt schema (adapt provattrs)
     ((QueryOperator *) op)->provAttrs = newProvAttrs;
 
+    //proj on top
+    List *provAttrDefs = getProvenanceAttrDefs((QueryOperator *) op);
+    List *norAttrDefs = getNormalAttrs((QueryOperator *) op);
 
-    LOG_RESULT("Rewritten Operator tree", op);
+    List *projExprs = NIL;
+    List *projNames = NIL;
+    List *projProvAttrs = NIL;
+    int count = 0;
+    int pos = LIST_LENGTH(provAttrDefs);
+    FOREACH(AttributeDef, ad, norAttrDefs)
+    {
+    		projNames = appendToTailOfList(projNames, strdup(ad->attrName));
+    		AttributeReference *ar = NULL;
+    		if(count >= LIST_LENGTH(op->aggrs) - LIST_LENGTH(provAttrDefs))
+    			ar = createFullAttrReference (strdup(ad->attrName), 0, pos, 0, ad->dataType);
+    		else
+    			ar = createFullAttrReference (strdup(ad->attrName), 0, count, 0, ad->dataType);
+    		projExprs = appendToTailOfList(projExprs, ar);
+    		count ++;
+    		pos ++;
+    }
 
-    return (QueryOperator *) op;
+    pos = LIST_LENGTH(op->aggrs) - LIST_LENGTH(provAttrDefs);
+    FOREACH(AttributeDef, ad, provAttrDefs)
+    {
+    		projNames = appendToTailOfList(projNames, strdup(ad->attrName));
+    		AttributeReference *ar = createFullAttrReference (strdup(ad->attrName), 0, pos,
+    		        0, ad->dataType);
+    		projExprs = appendToTailOfList(projExprs, ar);
+    		projProvAttrs = appendToTailOfListInt(projProvAttrs, count);
+    		count ++;
+    		pos ++;
+    }
+
+    ProjectionOperator *projOp = createProjectionOp(projExprs,
+            (QueryOperator *) op, ((QueryOperator *) op)->parents, projNames);
+
+    FOREACH(QueryOperator, o, ((QueryOperator *) op)->parents)
+    		o->inputs = singleton(projOp);
+
+    ((QueryOperator *) op)->parents = singleton(projOp);
+
+    ((QueryOperator *) projOp)->provAttrs = projProvAttrs;
+
+
+    LOG_RESULT("Rewritten Operator tree", projOp);
+
+    return (QueryOperator *) projOp;
 }
 
 
