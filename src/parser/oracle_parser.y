@@ -1986,6 +1986,19 @@ whereExpression:
                 List *expr = LIST_MAKE($1, q);
                 $$ = (Node *) createOpExpr($2, expr); 
             }
+        | expression optionalNot IN '(' exprList ')'
+            {
+                if ($2 == NULL)
+                {
+                    RULELOG("whereExpression::IN");
+                    $$ = (Node *) createQuantifiedComparison("ANY", $1, "=", $5);
+                }
+                else
+                {
+                    RULELOG("whereExpression::NOT::IN");
+                    $$ = (Node *) createQuantifiedComparison("ALL",$1, "<>", $5);
+                }
+            } 
         | expression optionalNot IN '(' queryStmt ')'
             {
                 if ($2 == NULL)
