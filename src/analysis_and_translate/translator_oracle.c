@@ -42,31 +42,31 @@ typedef struct ReplaceGroupByState {
 #define PROP_PROJ_RENAMED_ATTRS "RenamedProjAttrs"
 
 // function declarations
-static Node *translateGeneral(Node *node, List *attrsOffsetsList);
-static QueryOperator *translateQueryOracleInternal (Node *node, List *attrsOffsetsList);
+static Node *translateGeneral(Node *node, List **attrsOffsetsList);
+static QueryOperator *translateQueryOracleInternal (Node *node, List **attrsOffsetsList);
 //static Node *translateSummary(Node *input, Node *node);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
-static QueryOperator *translateSetQuery(SetQuery *sq, List *attrsOffsetsList);
+static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
 static QueryOperator *translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList);
-static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List *attrsOffsetsList);
+static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList);
 static void markTableAccessForRowidProv (QueryOperator *o);
 static void getAffectedTableAndOperationType (Node *stmt,
         ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
 static void translateProperties(QueryOperator *q, List *properties);
-static QueryOperator *translateWithStmt(WithStmt *with, List *attrsOffsetsList);
+static QueryOperator *translateWithStmt(WithStmt *with, List **attrsOffsetsList);
 
 /* Functions of translating from clause in a QueryBlock */
-static QueryOperator *translateFromClause(List *fromClause, List *attrsOffsetsList);
+static QueryOperator *translateFromClause(List *fromClause, List **attrsOffsetsList);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
-static List *translateFromClauseToOperatorList(List *fromClause, List *attrsOffsetsList);
+static List *translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList);
 //static void addPrefixToAttrNames (List *str, char *prefix);
 static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
-static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje, List *attrsOffsetsList);
-static QueryOperator *translateFromSubquery(FromSubquery *fsq, List *attrsOffsetsList);
+static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList);
+static QueryOperator *translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList);
 static QueryOperator *translateFromJsonTable(FromJsonTable *fjt);
 static QueryOperator *translateFromProvInfo(QueryOperator *op, FromItem *f);
 
@@ -129,7 +129,7 @@ translateParseOracle (Node *q)
 
     INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
-    result = translateGeneral(q, attrsOffsetsList);
+    result = translateGeneral(q, &attrsOffsetsList);
 
     DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
     INFO_OP_LOG("result of translation overview is", result);
@@ -143,18 +143,18 @@ translateParseOracle (Node *q)
 QueryOperator *
 translateQueryOracle (Node *node)
 {
-    return translateQueryOracleInternal (node, NIL);
+    return translateQueryOracleInternal (node, NULL);
 }
 
 static QueryOperator *
-translateQueryOracleInternal (Node *node, List *attrsOffsetsList)
+translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
 {
     DEBUG_LOG("translate query <%s>", nodeToString(node));
 
     switch(node->type)
     {
         case T_QueryBlock:
-            return translateQueryBlock((QueryBlock *) node, &attrsOffsetsList);
+            return translateQueryBlock((QueryBlock *) node, attrsOffsetsList);
         case T_SetQuery:
             return translateSetQuery((SetQuery *) node, attrsOffsetsList);
         case T_ProvenanceStmt:
@@ -177,7 +177,7 @@ translateQueryOracleInternal (Node *node, List *attrsOffsetsList)
 
 
 static Node *
-translateGeneral (Node *node, List *attrsOffsetsList)
+translateGeneral (Node *node, List **attrsOffsetsList)
 {
     Node *result;
     QueryOperator *r;
@@ -415,7 +415,7 @@ adaptSchemaFromChildren(QueryOperator *o)
 }
 
 static QueryOperator *
-translateSetQuery(SetQuery *sq, List *attrsOffsetsList)
+translateSetQuery(SetQuery *sq, List **attrsOffsetsList)
 {
     QueryOperator *left = NULL;
     QueryOperator *right = NULL;
@@ -499,7 +499,7 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     boolean hasWindowFuncs = FALSE;
 
     DEBUG_NODE_BEATIFY_LOG("translate a QB:", qb);
-    QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause, *attrsOffsetsList);
+    QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause, attrsOffsetsList);
     LOG_TRANSLATED_OP("translatedFrom is", joinTreeRoot);
     attrsOffsets = getAttrsOffsets(qb->fromClause);
     *attrsOffsetsList = appendToHeadOfList(*attrsOffsetsList, attrsOffsets);
@@ -562,7 +562,7 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
 }
 
 static QueryOperator *
-translateProvenanceStmt(ProvenanceStmt *prov, List *attrsOffsetsList)
+translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
 {
     QueryOperator *child;
     ProvenanceComputation *result;
@@ -981,7 +981,7 @@ translateProperties(QueryOperator *q, List *properties)
 }
 
 static QueryOperator *
-translateWithStmt(WithStmt *with, List *attrsOffsetsList)
+translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 {
 //    List *withViews = NIL;
     List *transWithViews = NIL;
@@ -1045,7 +1045,7 @@ replaceWithViewRefsMutator(Node *node, List *views)
 }
 
 static QueryOperator *
-translateFromClause(List *fromClause, List *attrsOffsetsList)
+translateFromClause(List *fromClause, List **attrsOffsetsList)
 {
     List *opList = translateFromClauseToOperatorList(fromClause, attrsOffsetsList);
     return buildJoinTreeFromOperatorList(opList);
@@ -1158,7 +1158,7 @@ getAttrsOffsets(List *fromClause)
 }
 
 static List *
-translateFromClauseToOperatorList(List *fromClause, List *attrsOffsetsList)
+translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
 {
     List *opList = NIL;
 
@@ -1287,7 +1287,7 @@ createTableAccessOpFromFromTableRef(FromTableRef *ftr)
 }
 
 static QueryOperator *
-translateFromJoinExpr(FromJoinExpr *fje, List *attrsOffsetsList)
+translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList)
 {
     QueryOperator *input1 = NULL;
     QueryOperator *input2 = NULL;
@@ -1466,7 +1466,7 @@ translateFromJoinExpr(FromJoinExpr *fje, List *attrsOffsetsList)
 }
 
 static QueryOperator *
-translateFromSubquery(FromSubquery *fsq, List *attrsOffsetsList)
+translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList)
 {
     return translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
     //TODO set attr names from FromItem
