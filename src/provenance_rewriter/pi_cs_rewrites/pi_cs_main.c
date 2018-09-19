@@ -28,6 +28,7 @@
 #include "parser/parser_jp.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 #define LOG_RESULT(mes,op) \
     do { \
@@ -79,6 +80,9 @@ rewritePI_CS (ProvenanceComputation  *op)
 
     DEBUG_NODE_BEATIFY_LOG("*************************************\nREWRITE INPUT\n"
             "******************************\n", op);
+
+    //mark the number of table - used in provenance scratch
+    markNumOfTableAccess((QueryOperator *) op);
 
     QueryOperator *rewRoot = OP_LCHILD(op);
     DEBUG_NODE_BEATIFY_LOG("rewRoot is:", rewRoot);
@@ -1835,11 +1839,16 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     FunctionCall *of = NULL;
     CaseExpr *caseExpr = NULL;
 
+
+    int numTable = 0;
+    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
+
     if(streq(ptype, "FRAGMENT"))
     {
     	DEBUG_LOG("Partition by fragment");
 
-    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
 
     	List *ol = NIL;
@@ -1872,7 +1881,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     	opTable->schema->attrDefs = appendToTailOfList(opTable->schema->attrDefs, rid);
 
-    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
 
     	//functioncall substr(ROWID,7,3)
@@ -1887,7 +1896,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     {
     	DEBUG_LOG("Partition by range type A");
 
-    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
 
     	int pValue = INT_VALUE(hvalue);
@@ -1926,7 +1935,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     {
     	DEBUG_LOG("Partition by range type B");
 
-    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
 
     List *fList = NIL;
@@ -2297,7 +2306,11 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
       }
     }
 
-    newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    int numTable = 0;
+    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
+
+    newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     provAttr = appendToTailOfList(provAttr, newAttrName);
 
     //three cases: fragment or range or page
@@ -2314,7 +2327,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
         	opTable->schema->attrDefs = appendToTailOfList(opTable->schema->attrDefs, rid);
 
-        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
         	provAttr = appendToTailOfList(provAttr, newAttrName);
 
         	//functioncall substr(ROWID,7,3)
@@ -2329,7 +2342,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     {
         	DEBUG_LOG("deal with range paratation type A");
 
-        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
         	provAttr = appendToTailOfList(provAttr, newAttrName);
 
         	int pValue = INT_VALUE(hvalue);
@@ -2364,7 +2377,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     {
         	DEBUG_LOG("deal with range paratation type B");
 
-        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
         	provAttr = appendToTailOfList(provAttr, newAttrName);
 
         	List *fList = NIL;

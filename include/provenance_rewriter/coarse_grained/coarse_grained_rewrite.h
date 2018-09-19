@@ -16,6 +16,7 @@
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
 extern void markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara);
 extern void markUseTableAccessAndAggregation (QueryOperator *op, Node *coarsePara);
+extern void markNumOfTableAccess(QueryOperator *op);
 
 
 
