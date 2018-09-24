@@ -2522,6 +2522,10 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 //
 //    Node *orExpr = orExprList(condList);
 
+    //if bitoragg value is 0, we do not need the any clause
+    if(uhIntValue == 0)
+    	 	 return (QueryOperator *) newpo;
+
     //use in clause
     QuantifiedComparison *qcExpr = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
     												(List *) copyObject(condRightValueList));
