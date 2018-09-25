@@ -1,4 +1,4 @@
-%option prefix="oracle" 
+%option prefix="oracle"
 %option outfile="oracle_parser.lex.c"
 
 /*
@@ -7,7 +7,7 @@
 
 
 /*******************************************************************************
- * options section 
+ * options section
  ******************************************************************************/
 
 /* set lexer options */
@@ -53,13 +53,13 @@
 %}
 
 /********************************************************************
- * lexer states 
+ * lexer states
  */
 
 %s SQL
 
 /********************************************************************
- * predefined regular expressions 
+ * predefined regular expressions
  */
 
 /* whitespace */
@@ -88,14 +88,14 @@ compositeIdentifier		({identifierPart}({identDelim}{identifierPart})+)
 parameters		[:]({identifiers}|{integer})
 
 /* operators */
-/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
+/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		("<<"|">>") */
 /* string concatenation */
 strconcat		"||"
 
 /*******************************************************************************
- * Token definitions and actions 
+ * Token definitions and actions
  ******************************************************************************/
 %%
 
@@ -264,7 +264,7 @@ strconcat		"||"
 
 
 	/* numbers */
-{integer}	TOKSAVE(intConst,intVal,atoi)
+{integer}	TOKSAVE(intConst,intVal,atoll)
 {float}		TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */
@@ -276,7 +276,7 @@ strconcat		"||"
 		return stringConst;
 	}
 
-		
+
 '[^'\n]*$	{ oracleerror("Unterminated string"); }
 
 	/* failure - no token matched */
