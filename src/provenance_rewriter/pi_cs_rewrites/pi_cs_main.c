@@ -1774,15 +1774,26 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     		structure: R-> {"PTYPE"->"PAGE", "ATTRS"-> null, "HVALUE"->32}
     		structure: R-> {"PTYPE"->"RANGE", "ATTRS"->{A,B}, "HVALUE"->4 (this is num of partation)}
      */
+
+    int numTable = 0;
+    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
+
+    int coaParaCount = 1;
     FOREACH(KeyValue, kv, coaParaList)
     {
          Constant *key = (Constant *) kv->key;  //R
          char *keyV = key->value;
          if(streq(keyV,op->tableName))
          {
-        	  	  coaParaValueList = (List *) kv->value;  //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
-        	  	  DEBUG_LOG("key %s",keyV);
-              break;
+        	 	 if(coaParaCount == numTable)
+        	 	 {
+        	 		 coaParaValueList = (List *) kv->value;  //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
+        	 		 DEBUG_LOG("key %s",keyV);
+        	 		 break;
+        	 	 }
+        	 	 else
+        	 		coaParaCount ++;
          }
     }
 
@@ -1838,11 +1849,6 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     //three cases: fragment or range or page
     FunctionCall *of = NULL;
     CaseExpr *caseExpr = NULL;
-
-
-    int numTable = 0;
-    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
-    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
 
     if(streq(ptype, "FRAGMENT"))
     {
@@ -2216,15 +2222,25 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		structure: R-> {"PTYPE"->"RANGE", "ATTRS"->{A,B}, "HVALUE"->4 (this is num of partation), "UHVALUE"->32}
      */
 
+    int numTable = 0;
+    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
+
+    int coaParaCount = 1;
     FOREACH(KeyValue, kv, coaParaList)
     {
          Constant *key = (Constant *) kv->key;  //R
          char *keyV = key->value;
          if(streq(keyV,op->tableName))
          {
-        	  coaParaValueList = (List *) kv->value;  //e.g., {"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32, "UHVALUE"->32}
-              DEBUG_LOG("key %s",keyV);
-              break;
+        	 	if(coaParaCount == numTable)
+        	 	{
+        	 		coaParaValueList = (List *) kv->value;  //e.g., {"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32, "UHVALUE"->32}
+        	 		DEBUG_LOG("key %s",keyV);
+        	 		break;
+        	 	}
+        	 	else
+        	 		coaParaCount ++;
          }
     }
 
@@ -2256,7 +2272,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          else if(streq(keyV,"UHVALUE")) // "HVALUE"->32
          {
         	 	 uhvalue = (Constant *) kv->value;
-        	 	 DEBUG_LOG("%s -> %d", keyV, INT_VALUE(uhvalue));
+        	 	 DEBUG_LOG("%s -> %d", keyV, LONG_VALUE(uhvalue));
          }
          else if(streq(keyV,"BEGIN"))
          {
@@ -2282,15 +2298,17 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          }
     }
 
-    int hIntValue = 0;
-    int uhIntValue = INT_VALUE(uhvalue);
+    int hIntValue = 0; long
+    long uhIntValue = LONG_VALUE(uhvalue);
+    //int uhIntValue = INT_VALUE(uhvalue);
+
     if(streq(ptype, "RANGEB"))
     		hIntValue = rangeLen - 1;
     else
     		hIntValue = INT_VALUE(hvalue);
 
     DEBUG_LOG("coarse grained hash value is : %d", hIntValue);
-    DEBUG_LOG("coarse grained bitoragg value is : %d", uhIntValue);
+    DEBUG_LOG("coarse grained bitoragg value is : %lld", uhIntValue);
 
     //get selection condition (prov_r = 10 or prov_r = 14)
     List *condRightValueList = NULL;  //10,14...
@@ -2305,10 +2323,6 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos - 1);
       }
     }
-
-    int numTable = 0;
-    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
-    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
 
     newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     provAttr = appendToTailOfList(provAttr, newAttrName);

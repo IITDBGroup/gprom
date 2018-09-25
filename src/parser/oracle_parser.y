@@ -981,7 +981,7 @@ optionalCoarseGrainedPara:
          |
          intConst
          {
-         	$$ = (Node *) createConstInt($1);
+         	$$ = (Node *) createConstLong($1);
          }
 
 semiringCombinerSpec:
