@@ -36,7 +36,7 @@ static int totalAttr = 0;
 static Set *attrSet = NULL;
 static double default_lb = 0.0;
 //static double default_ub = CPX_INFBOUND;
-static double default_ub = 1000000000000.0;
+static double default_ub = 1000000000000;
 static int default_num_cols = 100;
 
 //#ifdef HAVE_LIBCPLEX
@@ -1445,7 +1445,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				//we have just one attribute
 				double cons = constrToDouble((Constant *) right);
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_1", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1457,7 +1457,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_2", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1469,7 +1469,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_3", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1481,7 +1481,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_4", itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1571,8 +1571,8 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		}
 	}
 
-	if(index==0)
-	DEBUG_LOG("Finished Processing x for update %d.\n", upNum);
+	if (index == 0)
+		DEBUG_LOG("Finished Processing x for update %d.\n", upNum);
 
 	return status;
 }
@@ -1984,14 +1984,15 @@ List *symbolicHistoryExe(List *exprs) {
 				FREE(pi);
 				pi = NULL;
 			}
-			if (temp_lp != NULL) {
-				status = CPXfreeprob(env, &temp_lp);
-				if (status) {
-					DEBUG_LOG("CPXfreeprob failed, error code %d.\n", status);
-				}
-			}
+/*
+			 if (temp_lp != NULL) {
+			 status = CPXfreeprob(env, &temp_lp);
+			 if (status) {
+			 DEBUG_LOG("CPXfreeprob failed, error code %d.\n", status);
+			 }
+			 }
+*/
 		}
-
 		i++;
 	}
 
@@ -2005,6 +2006,14 @@ List *symbolicHistoryExe(List *exprs) {
 		if (status) {
 			DEBUG_LOG("CPXfreeprob failed, error code %d.\n", status);
 		}
+	}
+
+	if (temp_lp != NULL) {
+		status = CPXfreeprob(env, &temp_lp);
+		if (status) {
+			DEBUG_LOG("CPXfreeprob failed, error code %d.\n", status);
+		}
+
 	}
 
 	DEBUG_LOG("free tempCPXfreeprob.\n");

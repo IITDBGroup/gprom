@@ -33,6 +33,7 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "operator_optimizer/operator_optimizer.h"
 #include "utility/string_utils.h"
+#include <time.h>
 
 static Node *createReenactmentAlgebra(List *updates);
 static void whatIfResult(List *updates, boolean ds);
@@ -62,32 +63,44 @@ int main(int argc, char* argv[]) {
 
 						ERROR_LOG("Total Number of updates: %d \n",
 								getListLength(history) - 1);
-						List *updates = SymbolicExeAlgo(history);
-						int depUp = getListLength(updates) - 2;
-						ERROR_LOG("Number of dependent statements: %d \n",
-								depUp);
 
-						/*
-						 DEBUG_LOG("What-if result for all updates:\n");
+						List *updates = SymbolicExeAlgo(history);
+
+						int depUp = getListLength(updates) - 2;
+
+						 ERROR_LOG("Number of dependent statements: %d \n",
+						 depUp);
+
+						 ERROR_LOG("What-if result for all updates:\n");
 						 whatIfResult(history, FALSE);
 
-						 DEBUG_LOG(
+
+						 ERROR_LOG(
 						 "What-if result for all updates with data slicing:\n");
 						 whatIfResult(history, TRUE);
 
+
 						 if(depUp>0)
 						 {
-						 DEBUG_LOG(
+						ERROR_LOG(
 						 "What-if result for just dependent updates:\n");
 						 whatIfResult(updates, FALSE);
 						 }
-						 */
+/*
+						struct timespec tstart={0,0}, tend={0,0};
+						    clock_gettime(CLOCK_MONOTONIC, &tstart);
+						    */
 						if (depUp > 0) {
-							DEBUG_LOG(
+							ERROR_LOG(
 									"What-if result for just dependent updates with data slicing:\n");
 							whatIfResult(updates, TRUE);
 						}
-
+						/*
+						clock_gettime(CLOCK_MONOTONIC, &tend);
+						ERROR_LOG("%.5f seconds took for Reenactment and data slicing of dependent updates\n",
+						           ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+						           ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
+*/
 					}ON_EXCEPTION
 					{
 						// if an exception is thrown then the query memory context has been
