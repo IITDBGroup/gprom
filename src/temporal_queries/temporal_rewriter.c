@@ -51,16 +51,19 @@ static void markTemporalAttrsAsProv (QueryOperator *op);
 #define INT_MAXVAL 2000000000
 #define ADD_AGG_PREFIX "ADD__"
 #define DEC_AGG_PREFIX "DEC__"
-#define TIMEPOINT_ATTR "TS"
-#define NEXT_TS_ATTR "_next_ts"
-#define OPEN_INTER_COUNT_ATTR "OPEN_INTER_C_"
 #define WIN_PREFIX "W_"
-#define COUNT_START_ANAME "count_start"
-#define COUNT_END_ANAME "count_end"
-#define TS "TS"
-#define IS_S_NAME "IS_S"
-#define IS_E_NAME "IS_E"
-#define NUMOPEN "NUMOPEN"
+#define TIMEPOINT_ATTR backendifyIdentifier("ts")
+#define NEXT_TS_ATTR backendifyIdentifier("_next_ts")
+#define OPEN_INTER_COUNT_ATTR backendifyIdentifier("open_inter_c_")
+#define COUNT_START_ANAME backendifyIdentifier("count_start")
+#define COUNT_END_ANAME backendifyIdentifier("count_end")
+#define TS backendifyIdentifier("ts")
+#define IS_S_NAME backendifyIdentifier("is_s")
+#define IS_E_NAME backendifyIdentifier("is_e")
+#define NUMOPEN backendifyIdentifier("numopen")
+
+#define FUNCNAME_LEAST backendifyIdentifier("least")
+#define FUNCNAME_GREATEST backendifyIdentifier("greatest")
 
 #define AGGNAME_SUM backendifyIdentifier("sum")
 #define AGGNAME_COUNT backendifyIdentifier("count")
@@ -68,6 +71,9 @@ static void markTemporalAttrsAsProv (QueryOperator *op);
 #define AGGNAME_MIN backendifyIdentifier("min")
 #define AGGNAME_MAX backendifyIdentifier("max")
 #define AGGNAME_LAST_VALUE backendifyIdentifier("last_value")
+#define AGGNAME_LAG backendifyIdentifier("lag")
+#define AGGNAME_LEAD backendifyIdentifier("lead")
+
 
 static int T_BEtype = -1;
 
@@ -348,8 +354,8 @@ tempRewrJoin (JoinOperator *op)
     rBegin = getNthOfListP(temporalAttrRefs, 2);
     rEnd = getNthOfListP(temporalAttrRefs, 3);
 
-    tBegin = (Node *) createFunctionCall("GREATEST", LIST_MAKE(lBegin, rBegin));
-    tEnd = (Node *) createFunctionCall("LEAST", LIST_MAKE(lEnd, rEnd));
+    tBegin = (Node *) createFunctionCall(FUNCNAME_GREATEST, LIST_MAKE(lBegin, rBegin));
+    tEnd = (Node *) createFunctionCall(FUNCNAME_LEAST, LIST_MAKE(lEnd, rEnd));
     temporalAttrProjs = LIST_MAKE(tBegin, tEnd);
 
 
@@ -791,7 +797,7 @@ addSetCoalesce (QueryOperator *input)
     orderByCPs = appendToTailOfList(orderByCPs, cpsTSRef);
 
     // create window operator fetches previous change point
-    FunctionCall *lagTS = createFunctionCall("LAG",
+    FunctionCall *lagTS = createFunctionCall(AGGNAME_LAG,
             LIST_MAKE(getAttrRefByName(t1, TS), createConstInt(1)));
 
     char *lagName = strdup(TBEGIN_NAME);
@@ -1010,7 +1016,7 @@ addCoalesce (QueryOperator *input)
     //TS
     AttributeReference *t2TS = getAttrRefByName(t2W2Op, TS);
     t2ProjExpr = appendToTailOfList(t2ProjExpr, t2TS);
-    List *T2AttrNames = LIST_MAKE("NUMOPEN",strdup(TS));
+    List *T2AttrNames = LIST_MAKE(NUMOPEN,strdup(TS));
     T2AttrNames = concatTwoLists(deepCopyStringList(norAttrnames),T2AttrNames);
 
     ProjectionOperator *t2topP = createProjectionOp(t2ProjExpr, t2W2Op, NIL, T2AttrNames);
@@ -1037,7 +1043,7 @@ addCoalesce (QueryOperator *input)
     WindowDef *t3wd1 = createWindowDef(t3PartitionBy1,t3GroupBy1,NULL);
 
     AttributeReference *t3fcRef = getAttrRefByName(t2Op, NUMOPEN);
-    FunctionCall *t3fc = createFunctionCall("LEAD",singleton(t3fcRef));
+    FunctionCall *t3fc = createFunctionCall(AGGNAME_LEAD,singleton(t3fcRef));
 
     WindowFunction *t3wf = createWindowFunction(t3fc,t3wd1);
 
@@ -1062,7 +1068,7 @@ addCoalesce (QueryOperator *input)
     WindowDef *t3wd2 = createWindowDef(t3PartitionBy2,t3GroupBy2,NULL);
 
     AttributeReference *t3fcRef2 = getAttrRefByName(t3w1Op, NUMOPEN);
-    FunctionCall *t3fc2 = createFunctionCall("LAG",singleton(t3fcRef2));
+    FunctionCall *t3fc2 = createFunctionCall(AGGNAME_LAG,singleton(t3fcRef2));
 
     WindowFunction *t3wff = createWindowFunction(t3fc2,t3wd2);
 
@@ -1096,7 +1102,7 @@ addCoalesce (QueryOperator *input)
     t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjTS);
 
     //Proj names
-    List *t3ProjAttrNames = LIST_MAKE("DIFFPREVIOUS", "NUMOPEN", TIMEPOINT_ATTR);
+    List *t3ProjAttrNames = LIST_MAKE("DIFFPREVIOUS", NUMOPEN, TIMEPOINT_ATTR);
     t3ProjAttrNames = concatTwoLists(deepCopyStringList(norAttrnames),t3ProjAttrNames);
 
     ProjectionOperator *t3Proj = createProjectionOp(t3ProjExpr, t3w2Op, NIL, t3ProjAttrNames);
@@ -1200,7 +1206,7 @@ addCoalesce (QueryOperator *input)
     //QueryOperator *top1Op = (QueryOperator *)t5Op;
 
     //cond
-	AttributeReference *t6CondRef1 = getAttrRefByName(t5Op, "NUMOPEN");
+	AttributeReference *t6CondRef1 = getAttrRefByName(t5Op, NUMOPEN);
 	AttributeReference *t6CondRef2 = getAttrRefByName(TNTABOp, "N");
 	t6CondRef2->fromClauseItem = 1;
 	Operator *t6JoinCond = createOpExpr(">=", LIST_MAKE(t6CondRef1,t6CondRef2));
@@ -1494,7 +1500,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     AttributeReference *topT = getAttrRefByName(projJOINCPOp,"T");
     AttributeReference *topID = getAttrRefByName(projJOINCPOp,"IDD");
 
-    FunctionCall *topFunc = createFunctionCall("LEAD",singleton(copyObject(topT)));
+    FunctionCall *topFunc = createFunctionCall(AGGNAME_LEAD,singleton(copyObject(topT)));
     List *topOrderBy = singleton(copyObject(topT));
     List *topPartBy = singleton(copyObject(topID));
 
@@ -1915,7 +1921,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
 
     WindowDef *internalWDef3 = createWindowDef(internalPartitionBy3,internalsOrderBy3,NULL);
 
-    FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(getAttrRefByName(internalW1Op, "T")));
+    FunctionCall *internalFC3 = createFunctionCall(AGGNAME_LEAD,singleton(getAttrRefByName(internalW1Op, "T")));
     WindowFunction *winternalF3 = createWindowFunction(internalFC3,internalWDef3);
 
     char *internalWNames3 = "winf_3";
@@ -1938,7 +1944,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, "T"));
     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, strdup(internalWNames3)));
 
-    intervalsProjNames = appendToTailOfList(intervalsProjNames, "NUMOPEN");
+    intervalsProjNames = appendToTailOfList(intervalsProjNames, NUMOPEN);
     intervalsProjNames = appendToTailOfList(intervalsProjNames, TBEGIN_NAME);
     intervalsProjNames = appendToTailOfList(intervalsProjNames, TEND_NAME);
 
@@ -1968,7 +1974,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     QueryOperator *TNTABOp = (QueryOperator *)TNTAB;
 
     //join
-	AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, "NUMOPEN");
+	AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, NUMOPEN);
 	AttributeReference *topAttrN = getAttrRefByName(TNTABOp, "N");
 	topAttrN->fromClauseItem = 1;
 	Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
@@ -2768,7 +2774,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 			AttributeReference *a = getAttrRefByName(agg2CPOp, ad->attrName);
 			agg2ProjExpr = appendToTailOfList(agg2ProjExpr, a);
 
-			if(streq(ad->attrName, "T_E"))
+			if(streq(ad->attrName, TEND_NAME))
 				agg2NameList = appendToTailOfList(agg2NameList, "T");
 			else
 				agg2NameList = appendToTailOfList(agg2NameList, ad->attrName);
@@ -2955,7 +2961,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 			AttributeReference *a = getAttrRefByName(agg2CPRightOp, ad->attrName);
 			projExprU3 = appendToTailOfList(projExprU3, a);
 
-			if(streq(ad->attrName, "T_E"))
+			if(streq(ad->attrName, TEND_NAME))
 				nameListU3 = appendToTailOfList(nameListU3, "T");
 			else
 				nameListU3 = appendToTailOfList(nameListU3, ad->attrName);
@@ -3081,7 +3087,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 
      WindowDef *internalWDef3 = createWindowDef(internalPartitionBy3,internalsOrderBy3,NULL);
 
-     FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(getAttrRefByName(internalW1Op, "T")));
+     FunctionCall *internalFC3 = createFunctionCall(AGGNAME_LEAD,singleton(getAttrRefByName(internalW1Op, "T")));
      WindowFunction *winternalF3 = createWindowFunction(internalFC3,internalWDef3);
 
      char *internalWNames3 = "winf_3";
@@ -3102,7 +3108,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      Operator *multiplicity = createOpExpr("-",
     	 LIST_MAKE(getAttrRefByName(internalW3Op, strdup(internalWNames1)),getAttrRefByName(internalW3Op, strdup(internalWNames2))));
      intervalsProjExpr = appendToTailOfList(intervalsProjExpr, multiplicity);
-     intervalsProjNames = appendToTailOfList(intervalsProjNames, "NUMOPEN");
+     intervalsProjNames = appendToTailOfList(intervalsProjNames, NUMOPEN);
 
 
      FOREACH(AttributeDef, d, internalW3Op->schema->attrDefs)
@@ -3146,7 +3152,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      QueryOperator *TNTABOp = (QueryOperator *)TNTAB;
 
      //join
-     AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, "NUMOPEN");
+     AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, NUMOPEN);
      AttributeReference *topAttrN = getAttrRefByName(TNTABOp, "N");
      topAttrN->fromClauseItem = 1;
      Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
@@ -3179,7 +3185,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      List *addProjNames = NIL;
      FOREACH(char, c, getAttrNames(topProjOp->schema))
      {
-    	 if(!streq(c, "NUMOPEN"))
+    	 if(!streq(c, NUMOPEN))
     		 addProjNames = appendToTailOfList(addProjNames, strdup(c));
      }
 
