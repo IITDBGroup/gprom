@@ -673,6 +673,7 @@ AC_CONFIG_FILES([
     src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
+  src/provenance_rewriter/coarse_grained/Makefile
 	src/provenance_rewriter/game_provenance/Makefile
 	src/provenance_rewriter/semiring_combiner/Makefile
 	src/provenance_rewriter/uncertainty_rewrites/Makefile
@@ -681,6 +682,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/provenance_rewriter/summarization_rewrites/Makefile
 	src/provenance_rewriter/xml_rewrites/Makefile
+  src/provenance_rewriter/lateral_rewrites/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile
