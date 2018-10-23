@@ -1078,6 +1078,10 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
         switch(argType)
         {
             case DT_INT:
+            		if(streq(capName,"SUM"))
+            			return DT_LONG;
+            		else
+            			return DT_INT;
             case DT_LONG:
                 return DT_LONG;
             case DT_FLOAT:

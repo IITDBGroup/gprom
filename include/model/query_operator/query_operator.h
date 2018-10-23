@@ -298,6 +298,8 @@ extern List *getAttrRefsInOperator (QueryOperator *op);
 /* operator specific functions */
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
 extern List *aggOpGetAggAttrNames(AggregationOperator *op);
+extern List *aggOpGetGroupByAttrDefs(AggregationOperator *op);
+extern List *aggOpGetAggAttrDefs(AggregationOperator *op);
 
 extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
@@ -313,5 +315,8 @@ extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         void *context);
 extern unsigned int numOpsInGraph (QueryOperator *root);
 extern unsigned int numOpsInTree (QueryOperator *root);
+
+//find NestingOperator based on levelsUp
+extern QueryOperator* findNestingOperator (QueryOperator *op, int levelsUp);
 
 #endif /* QUERY_OPERATOR_H_ */

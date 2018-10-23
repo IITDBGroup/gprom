@@ -652,6 +652,7 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
 
     FOREACH(List,fClause,fromClauses)
     {
+    		fromPos = 0;
         FOREACH(FromItem, f, fClause)
         {
             attrPos = findAttrInFromItem(f, a);
@@ -764,6 +765,7 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromCl
     // find table name
     FOREACH(List,fromItems,fromClauses)
     {
+    		fromClauseItem = 0;
         FOREACH(FromItem, f, fromItems)
         {
             FromItem *foundF = findNamedFromItem(f, tabName);
@@ -1662,16 +1664,27 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
             analyzeQueryBlockStmt(q->query, parentFroms);
 
-            q->selectClause = getQBAttrNames(q->query);
-            q->dts = getQBAttrDTs(q->query);
-            // if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
-            // semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
-            correctFromTableVisitor(q->query, NULL);
-            getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+            switch(q->provType)
+            {
+                case PROV_COARSE_GRAINED:
+                case USE_PROV_COARSE_GRAINED:
+                    getQBProvenanceAttrList(q,&provAttrNames,&provDts);
 
-            q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
-            q->dts = concatTwoLists(q->dts,provDts);
-            INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
+                    q->selectClause = provAttrNames;
+                    q->dts = provDts;
+                    break;
+                	default:
+                    q->selectClause = getQBAttrNames(q->query);
+                    q->dts = getQBAttrDTs(q->query);
+                    // if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
+                    // semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+                    correctFromTableVisitor(q->query, NULL);
+                    getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+                    q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
+                    q->dts = concatTwoLists(q->dts,provDts);
+                    break;
+            }
         }
         break;
         case PROV_INPUT_TEMPORAL_QUERY:

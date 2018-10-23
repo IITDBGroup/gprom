@@ -1,4 +1,4 @@
-%option prefix="oracle" 
+%option prefix="oracle"
 %option outfile="oracle_parser.lex.c"
 
 /*
@@ -7,7 +7,7 @@
 
 
 /*******************************************************************************
- * options section 
+ * options section
  ******************************************************************************/
 
 /* set lexer options */
@@ -53,13 +53,13 @@
 %}
 
 /********************************************************************
- * lexer states 
+ * lexer states
  */
 
 %s SQL
 
 /********************************************************************
- * predefined regular expressions 
+ * predefined regular expressions
  */
 
 /* whitespace */
@@ -88,14 +88,14 @@ compositeIdentifier		({identifierPart}({identDelim}{identifierPart})+)
 parameters		[:]({identifiers}|{integer})
 
 /* operators */
-/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
+/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		("<<"|">>") */
 /* string concatenation */
 strconcat		"||"
 
 /*******************************************************************************
- * Token definitions and actions 
+ * Token definitions and actions
  ******************************************************************************/
 %%
 
@@ -228,6 +228,13 @@ strconcat		"||"
 (?i:TIP)			TOK(TIP)
 (?i:INCOMPLETE)		TOK(INCOMPLETE)
 (?i:VTABLE) 		TOK(VTABLE)
+(?i:CAPTURE)		TOK(CAPTURE)
+(?i:COARSE)			TOK(COARSE)
+(?i:GRAINED)		TOK(GRAINED)
+(?i:FRAGMENT)		TOK(FRAGMENT)
+(?i:PAGE)		TOK(PAGE)
+(?i:RANGESA)		TOK(RANGESA)
+(?i:RANGESB)		TOK(RANGESB)
 
 	/* booleans */
 {bool}			TOK(boolConst)
@@ -257,7 +264,7 @@ strconcat		"||"
 
 
 	/* numbers */
-{integer}	TOKSAVE(intConst,intVal,atoi)
+{integer}	TOKSAVE(intConst,intVal,atoll)
 {float}		TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */
@@ -269,7 +276,7 @@ strconcat		"||"
 		return stringConst;
 	}
 
-		
+
 '[^'\n]*$	{ oracleerror("Unterminated string"); }
 
 	/* failure - no token matched */

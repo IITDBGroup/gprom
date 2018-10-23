@@ -40,6 +40,7 @@
 
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 //#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
+#include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
@@ -443,7 +444,9 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-	rewrittenTree = provRewriteQBModel(oModel);
+    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
+    		oModel = lateralTranslateQBModel(oModel);
+    rewrittenTree = provRewriteQBModel(oModel);
 
 	if (IS_QB(rewrittenTree))
 	{
@@ -496,17 +499,20 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    }
 	    else
 	    {
-	        if (isA(rewrittenTree, List))
-	        {
-	            FOREACH(QueryOperator,o,(List *) rewrittenTree)
-                {
-                    LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
-                }
-	        }
-	        else
-	        {
-	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
-	        }
+	    	if(!isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
+	    	{
+	    		if (isA(rewrittenTree, List))
+	    		{
+	    			FOREACH(QueryOperator,o,(List *) rewrittenTree)
+                	{
+	    				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                	}
+	    		}
+	    		else
+	    		{
+	    			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+	    		}
+	    	}
 	    }
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);

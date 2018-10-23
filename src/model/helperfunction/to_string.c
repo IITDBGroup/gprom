@@ -62,6 +62,7 @@ static void outInsert(StringInfo str, Insert *node);
 static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
+static void outQuantifiedComparison (StringInfo str, QuantifiedComparison *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
 static void outCreateTable(StringInfo str, CreateTable *node);
@@ -820,6 +821,18 @@ outNestedSubquery (StringInfo str, NestedSubquery *node)
 }
 
 static void
+outQuantifiedComparison (StringInfo str, QuantifiedComparison *node)
+{
+    WRITE_NODE_TYPE(QUANTIFIEDCOMPARISON);
+
+    WRITE_ENUM_FIELD(qType, QuantifiedExprType);
+    WRITE_NODE_FIELD(checkExpr);
+    WRITE_STRING_FIELD(opName);
+    WRITE_NODE_FIELD(exprList);
+
+}
+
+static void
 outAttributeReference (StringInfo str, AttributeReference *node)
 {
     WRITE_NODE_TYPE(ATTRIBUTE_REFERENCE);
@@ -1141,6 +1154,9 @@ outNode(StringInfo str, void *obj)
             case T_NestedSubquery:
                 outNestedSubquery(str, (NestedSubquery*) obj);
                 break;
+            case T_QuantifiedComparison:
+            		outQuantifiedComparison(str, (QuantifiedComparison *) obj);
+            		break;
             case T_AttributeReference:
                 outAttributeReference(str, (AttributeReference *) obj);
                 break;
@@ -1806,9 +1822,10 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             const char *nestingType = (o->nestingType == NESTQ_EXISTS) ? "EXISTS" :
                     ((o->nestingType == NESTQ_ANY) ? "ANY" :
                     ((o->nestingType == NESTQ_ALL) ? "ALL" :
+                    ((o->nestingType == NESTQ_LATERAL) ? "LATERAL" :
                     ((o->nestingType == NESTQ_UNIQUE) ? "UNIQUE" :
                     ((o->nestingType == NESTQ_SCALAR) ? "SCALAR" : "")
-                    )));
+                    ))));
 
             WRITE_NODE_TYPE(NestingOperator);
             appendStringInfo(str, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond) : "");

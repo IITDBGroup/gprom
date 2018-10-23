@@ -24,6 +24,7 @@ typedef struct Operator {
 #define OPNAME_OR "OR"
 #define OPNAME_NOT "NOT"
 #define OPNAME_not "not"
+#define OPNAME_CONCAT "CONCAT"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -144,6 +145,19 @@ typedef struct OrderExpr {
     SortNullOrder nullOrder;
 } OrderExpr;
 
+NEW_ENUM_WITH_TO_STRING(QuantifiedExprType,
+    QUANTIFIED_EXPR_ALL,
+    QUANTIFIED_EXPR_ANY
+);
+
+typedef struct QuantifiedComparison {
+    NodeTag type;
+    Node *checkExpr;
+    QuantifiedExprType qType;
+    List *exprList;
+    char *opName;
+} QuantifiedComparison;
+
 #define IS_EXPR(_n) (isA(_n,FunctionCall) || \
     isA(_n,Operator) || \
 	isA(_n,Constant) || \
@@ -168,11 +182,14 @@ extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
 extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
+extern Node *concatExprList (List *exprs);
 extern Node *andExprList (List *exprs);
 extern Node *orExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprList (List *exprs);
 extern Node *orExprs (Node *expr, ...);
+extern Node *concatExprs (Node *expr, ...);
+#define CONCAT_EXPRS(...) concatExprs(__VA_ARGS__, NULL)
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
 #define OR_EXPRS(...) orExprs(__VA_ARGS__, NULL)
 extern SQLParameter *createSQLParameter (char *name);
@@ -187,6 +204,7 @@ extern WindowDef *createWindowDef (List *partitionBy, List *orderBy, WindowFrame
 extern WindowFunction *createWindowFunction (FunctionCall *f, WindowDef *win);
 
 extern OrderExpr *createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder);
+extern QuantifiedComparison *createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);
