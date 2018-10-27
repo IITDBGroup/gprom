@@ -42,6 +42,8 @@
 //#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 
+#include "provenance_rewriter/coarse_grained/ps_safety_check.h"
+
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
@@ -443,6 +445,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	Node *rewrittenTree;
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
+
+	monotoneCheck(oModel);
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
     		oModel = lateralTranslateQBModel(oModel);
