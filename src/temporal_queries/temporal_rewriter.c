@@ -2284,7 +2284,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         {
             // use date format
             FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));
-            FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("SYYYY-MM-DD")));
+            FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("YYYY-MM-DD")));
             constVals = appendToTailOfList(constVals, dateBegin);
             constVals = appendToTailOfList(constVals, dateEnd);
         }
