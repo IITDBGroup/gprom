@@ -2363,6 +2363,8 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     addParent(t2Op, (QueryOperator *) iAgg);
     t2Op = (QueryOperator *) iAgg;
 
+    DEBUG_OP_LOG("created intermediate aggregation on timepoints over union output", iAgg);
+
     // ****************************************
     //-- computing the sliding window adding new values and deducting the values of "closing" intervals
     /*  T3 AS (
@@ -2414,6 +2416,8 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
 
     QueryOperator *window4T3Op = (QueryOperator *) curChild;
 
+    DEBUG_OP_LOG("created each window operator on intermediate aggregation", window4T3Op);
+
     //projection winf_0 - winf_1 as C, winf_2 - winf_3 as S, TS, DEPT_NO
     //    Operator *t4O2 = createOpExpr("!=", LIST_MAKE(t4dpRef,copyObject(c0)));
     // the schema is now add_agg_1, ...., add_agg_n, dec_add_1, ..., dec_agg_n, GB, TS, w_add_agg_1, ...
@@ -2447,6 +2451,8 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
 
     QueryOperator *dupT3Op = (QueryOperator *) projT3Op;
 
+    DEBUG_OP_LOG("combine each window operator", dupT3Op);
+
     // ****************************************
     //-- create intervals based on adjacent time points and compute final aggregation results (for avg and other aggs)
     /*
@@ -2470,7 +2476,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     WindowFrame *fT4 = createWindowFrame(WINFRAME_ROWS,bT4,copyObject(bT4));
 
     // partition by
-    DEBUG_LOG("group-by names", stringListToString(gbNames));
+    DEBUG_LOG("group-by names: %s", stringListToString(gbNames));
     List *partitionByT4 = getAttrRefsByNames(dupT3Op, gbNames);
     DEBUG_NODE_BEATIFY_LOG("partition by refs", partitionByT4);
 
@@ -2491,17 +2497,20 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     dupT3Op->parents = singleton(windowT4);
     QueryOperator *windowT4Op = (QueryOperator *) windowT4;
 
+    DEBUG_OP_LOG("final window operator", windowT4Op);
+
     // projection that computes final agg
     List *projExprT4 = NIL;
     List *projNamesT4 = NIL;
     int attrPos = 0;
+    int attrPosRef = 0;
     attrRefs = getNormalAttrProjectionExprs(windowT4Op);
     if (isGB)
         groupBy = sublist(copyList(attrRefs),numNewAggs, LIST_LENGTH(attrRefs) - 3);
     else
         groupBy = NIL;
 
-    for(int i = 0; i < numAggs; i++, attrPos++)
+    for(int i = 0; i < numAggs; i++, attrPos++, attrPosRef++)
     {
         FunctionCall *agg = (FunctionCall *) getNthOfListP(origAggs, attrPos);
         char *fName = agg->functionname;
@@ -2529,9 +2538,9 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         {
             AttributeReference *countRef, *sumRef;
 
-            sumRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
-            attrPos++;
-            countRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
+            sumRef = (AttributeReference *) getNthOfListP(attrRefs, attrPosRef);
+            attrPosRef++;
+            countRef = (AttributeReference *) getNthOfListP(attrRefs, attrPosRef);
 
             Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(countRef), copyObject(c0)));
             CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createNullConst(DT_FLOAT)); // (Node *) createConstFloat(0.0));
