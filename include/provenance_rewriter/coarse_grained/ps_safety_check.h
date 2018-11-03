@@ -11,7 +11,7 @@
 extern void monotoneCheck(Node *qbModel);
 void checkM(QueryOperator* op, int *num);
 boolean check(Node* node, int *state);
-
+boolean checkAggregationOperator(Node* node, int *state);
 
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_PS_SAFETY_CHECK_H_ */

@@ -40,9 +40,15 @@ monotoneCheck(Node *qbModel)
 	DEBUG_LOG("Safety Check");
 	int value = 0;
 	int * state = &value;
-	check(qbModel,state);
-	DEBUG_LOG("num is %d", *state);
-
+	//HashMap *map = NEW_MAP(Constant,Node);
+	check(qbModel, state);
+	if (*state == 0){
+		DEBUG_LOG("It's Monotone");
+	}else{
+	//checkAggregationOperator(qbModel,state);
+    //DEBUG_LOG("num is %d", *state);
+		DEBUG_LOG("It isn't Monotone");
+	}
 
 }
 
@@ -51,14 +57,45 @@ check(Node* node, int *state)
 {
 	if(node == NULL)
 		return TRUE;
-
-	if(isA(node, JoinOperator)){
+	if(isA(node, AggregationOperator)){
 		(*state)++;
-	}
-
+	} //Check aggreationOperator
+	if(isA(node, WindowOperator)){
+		(*state)++;
+	}//Check WindowOperator
+	if(isA(node, SetOperator)){
+		if(((SetOperator *) node)->setOpType == SETOP_DIFFERENCE){
+			(*state)++;
+		}
+	}//Check set difference
+	if(isA(node, JoinOperator)){
+		JoinOperator *j = (JoinOperator *) node;
+		if(j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER){
+			(*state)++;
+		}
+	}//Check outer join
+	if(isA(node, NestingOperator)){
+		(*state)++;
+	}//Check nesting
 	return visit(node, check, state);
 }
 
+boolean
+checkAggregationOperator(Node* node, int *state)
+{
+	if(node == NULL)
+		return TRUE;
+
+	if(isA(node, AggregationOperator)){
+		(*state)++;
+		//List * arrgs = ((AggregationOperator *) node)->aggrs;
+		//List * groupby = ((AggregationOperator *) node)->groupBy;
+	}
+
+	return visit(node, checkAggregationOperator, state);
+}
+
+/*
 void
 checkM(QueryOperator* op, int * num)
 {
@@ -77,3 +114,4 @@ checkM(QueryOperator* op, int * num)
 
 	DEBUG_LOG("not join");
 }
+*/
