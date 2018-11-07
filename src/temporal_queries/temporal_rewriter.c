@@ -2284,7 +2284,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         {
             // use date format
             FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));
-            FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("SYYYY-MM-DD")));
+            FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("YYYY-MM-DD")));
             constVals = appendToTailOfList(constVals, dateBegin);
             constVals = appendToTailOfList(constVals, dateEnd);
         }
@@ -2495,13 +2495,14 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     List *projExprT4 = NIL;
     List *projNamesT4 = NIL;
     int attrPos = 0;
+    int attrPosRef = 0;
     attrRefs = getNormalAttrProjectionExprs(windowT4Op);
     if (isGB)
         groupBy = sublist(copyList(attrRefs),numNewAggs, LIST_LENGTH(attrRefs) - 3);
     else
         groupBy = NIL;
 
-    for(int i = 0; i < numAggs; i++, attrPos++)
+    for(int i = 0; i < numAggs; i++, attrPos++, attrPosRef++)
     {
         FunctionCall *agg = (FunctionCall *) getNthOfListP(origAggs, attrPos);
         char *fName = agg->functionname;
@@ -2529,9 +2530,9 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         {
             AttributeReference *countRef, *sumRef;
 
-            sumRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
-            attrPos++;
-            countRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
+            sumRef = (AttributeReference *) getNthOfListP(attrRefs, attrPosRef);
+            attrPosRef++;
+            countRef = (AttributeReference *) getNthOfListP(attrRefs, attrPosRef);
 
             Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(countRef), copyObject(c0)));
             CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createNullConst(DT_FLOAT)); // (Node *) createConstFloat(0.0));

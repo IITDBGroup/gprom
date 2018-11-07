@@ -726,7 +726,7 @@ OptionInfo opts[] =
                 FALSE
         ),
         anTemporaldbOption(TEMPORAL_AGG_WITH_NORM,
-                "-" TEMPORAL_AGG_WITH_NORM,
+                "-temporal_agg_combine_with_norm",
                 "Temporaldb: rewrite and aggregation by applying a rewrite that combines aggregation with normalization",
                 temporal_agg_combine_with_norm,
                 TRUE
