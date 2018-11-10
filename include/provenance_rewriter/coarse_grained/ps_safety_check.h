@@ -27,9 +27,10 @@ boolean getTableAccessOperator(Node* node, HashMap *map);
 
 boolean getData(Node* node, HashMap *data);
 boolean checkPageSafety(HashMap *data, char *hasOpeator);
-
+boolean checkPageSafety_rownum(HashMap *data);
 
 HashMap *getMonotoneResultMap(Node* qbModel);
 
+boolean hasOrder(Node* node, int *find);
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_PS_SAFETY_CHECK_H_ */

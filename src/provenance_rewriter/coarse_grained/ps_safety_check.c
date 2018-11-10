@@ -30,9 +30,9 @@ monotoneCheck(Node *qbModel)
 	*/
 	DEBUG_LOG("Safety Check");
 	HashMap *checkResult = NEW_MAP(Constant,Node);
-	HashMap *operatorState = NEW_MAP(Constant,Constant);
+	HashMap *operatorState = NEW_MAP(Constant,Node);
 	check(qbModel, operatorState);
-	//DEBUG_NODE_BEATIFY_LOG("The result_state is:",state);
+	//DEBUG_NODE_BEATIFY_LOG("The result_state is:",operatorState);
 	List *entries = getEntries(operatorState);//get all operator in the tree.
 	if(entries == NIL){
 		DEBUG_LOG("It's Monotone");
@@ -47,7 +47,15 @@ monotoneCheck(Node *qbModel)
 			//checkResult = safetyCheck_windowOperator(qbModel);
 		}else{
 			char *hasAggregation = "aggregation";
-			checkResult = safetyCheck(qbModel, hasAggregation);
+			int count = 0;
+			int *findOrder = &count;
+			hasOrder(qbModel, findOrder);
+			if(*findOrder != 0){
+				char *hasOrder = "OrderOperator";
+				checkResult = safetyCheck(qbModel, hasOrder);
+			}else{
+				checkResult = safetyCheck(qbModel, hasAggregation);
+			}
 			//checkResult = safetyCheck_aggregation(qbModel);
 		}
 		DEBUG_NODE_BEATIFY_LOG("The result_map is:",checkResult);
@@ -62,28 +70,28 @@ check(Node* node, HashMap *state)
 		return TRUE;
 	if(isA(node, AggregationOperator)){
 		char *AggregationOperator = "AggregationOperator";
-		MAP_ADD_STRING_KEY(state, AggregationOperator, createConstInt (1));
+		MAP_ADD_STRING_KEY(state, AggregationOperator, (Node *)createConstInt (1));
 	} //Check aggreationOperator
 	if(isA(node, WindowOperator)){
 		char *WindowOperator = "WindowOperator";
-		MAP_ADD_STRING_KEY(state, WindowOperator, createConstInt (1));
+		MAP_ADD_STRING_KEY(state, WindowOperator, (Node *)createConstInt (1));
 	}//Check WindowOperator
 	if(isA(node, SetOperator)){
 		if(((SetOperator *) node)->setOpType == SETOP_DIFFERENCE){
 			char *SetOperator = "SetOperator";
-			MAP_ADD_STRING_KEY(state, SetOperator, createConstInt (1));
+			MAP_ADD_STRING_KEY(state, SetOperator, (Node *)createConstInt (1));
 		}
 	}//Check set difference
 	if(isA(node, JoinOperator)){
 		JoinOperator *j = (JoinOperator *) node;
 		if(j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER){
 			char *JoinOperator = "JoinOperator";
-			MAP_ADD_STRING_KEY(state, JoinOperator, createConstInt (1));
+			MAP_ADD_STRING_KEY(state, JoinOperator, (Node *)createConstInt (1));
 		}
 	}//Check outer join
 	if(isA(node, NestingOperator)){
 		char *NestingOperator = "NestingOperator";
-		MAP_ADD_STRING_KEY(state, NestingOperator, createConstInt (1));
+		MAP_ADD_STRING_KEY(state, NestingOperator, (Node *)createConstInt (1));
 	}//Check nesting
 	return visit(node, check, state);
 }
@@ -114,13 +122,19 @@ getMonotoneResultMap(Node* qbModel) {
 }//return the result map for all sketches.
 
 
-HashMap *safetyCheck(Node* qbModel, char *hasOpeator) {
+HashMap *
+safetyCheck(Node* qbModel, char *hasOpeator) {
 	HashMap *map = NEW_MAP(Constant, Node);
 	HashMap *data = NEW_MAP(Constant, Node);
-	getData(qbModel, data);
+	getData(qbModel, data);//get the data of node we need
 
 	boolean result = FALSE;
-	result = checkPageSafety(data, hasOpeator);
+	if(!strcmp(hasOpeator,"OrderOperator")){
+		result = checkPageSafety_rownum(data);		//rownum check
+		DEBUG_LOG("The result is: %d", result);
+	}else{
+		result = checkPageSafety(data, hasOpeator); // window and aggregation
+	}
 
 	char *PAGE = "PAGE";
 	if (!result) {
@@ -179,12 +193,6 @@ getData(Node* node, HashMap *data)
 
 		MAP_ADD_STRING_KEY(data, aggregation_key, (Node *)aggreation_map);
 	}
-	if(isA(node, SelectionOperator)){
-		char *SelectionOperator_key = "SelectionOperator";
-
-		Node *cond = ((SelectionOperator *) node)->cond;
-		MAP_ADD_STRING_KEY(data, SelectionOperator_key, (Node *)cond);
-	}
 	if(isA(node, WindowOperator)){
 		char *WindowOperator_key = "WindowOperator";
 		HashMap *WindowOperator_map = NEW_MAP(Constant,Node);
@@ -198,6 +206,16 @@ getData(Node* node, HashMap *data)
 		MAP_ADD_STRING_KEY(WindowOperator_map, partitionBy_key, (Node *)partitionBy);
 
 		MAP_ADD_STRING_KEY(data, WindowOperator_key, (Node *)WindowOperator_map);
+	}
+	if(isA(node, SelectionOperator)){
+		char *SelectionOperator_key = "SelectionOperator";
+		Node *cond = ((SelectionOperator *) node)->cond;
+		MAP_ADD_STRING_KEY(data, SelectionOperator_key, (Node *)cond);
+	}
+	if(isA(node, OrderOperator)){
+		char *OrderOperator_key = "OrderOperator";
+		List *orderExprs = ((OrderOperator *) node)->orderExprs;
+		MAP_ADD_STRING_KEY(data, OrderOperator_key, (Node *)orderExprs);
 	}
 	return visit(node, getData, data);
 }
@@ -314,6 +332,73 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator)
 		return FALSE;
 }
 
+
+boolean
+hasOrder(Node* node, int* find)
+{
+	if(node == NULL)
+		return TRUE;
+	if(isA(node, OrderOperator)){
+		(*find)++;
+	} //Check aggreationOperator
+	return visit(node, hasOrder, find);
+}
+
+
+boolean checkPageSafety_rownum(HashMap *data){
+	char *OrderOperator_key = "OrderOperator";
+	List *orderExprs = (List *) MAP_GET_STRING_ENTRY(data, OrderOperator_key)->value;
+	Node *attribute_reference = ((OrderExpr *) getHeadOfList(orderExprs)->data.ptr_value)->expr;
+	char *orderby_name = ((AttributeReference *) attribute_reference)->name;
+	SortOrder order = ((OrderExpr *) getHeadOfList(orderExprs)->data.ptr_value)->order;
+
+	char *aggregation_key = "aggregation";
+	HashMap *aggreation_map = (HashMap *) MAP_GET_STRING_ENTRY(data, aggregation_key)->value;
+	char *groupby_key = "groupby";
+	List *groupby = (List *) MAP_GET_STRING_ENTRY(aggreation_map, groupby_key)->value;
+	char *groupby_name = ((AttributeReference *) getHeadOfList(groupby)->data.ptr_value)->name;
+
+	char *aggrs_key = "aggrs";
+	List *aggrs = (List *) MAP_GET_STRING_ENTRY(aggreation_map, aggrs_key)->value;
+	char *function_name = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
+
+	if (!strcmp(orderby_name, groupby_name)) {
+		return TRUE;
+	} else {
+		if (!strcmp(function_name, "SUM")) {
+			if (order == SORT_ASC) {
+				return FALSE;
+			} else {
+				return TRUE;
+			}
+		}
+		if (!strcmp(function_name, "AVG")) {
+			return FALSE;
+		}
+		if (!strcmp(function_name, "COUNT")) {
+			if (order == SORT_ASC) {
+				return FALSE;
+			} else {
+				return TRUE;
+			}
+		}
+		if (!strcmp(function_name, "MAX")) {
+			if (order == SORT_ASC) {
+				return FALSE;
+			} else {
+				return TRUE;
+			}
+		}
+		if (!strcmp(function_name, "MIN")) {
+			if (order == SORT_ASC) {
+				return TRUE;
+			} else {
+				return FALSE;
+			}
+		}
+	}
+	return TRUE;
+}
 /*
 HashMap *
 safetyCheck_aggregation(Node* qbModel){
