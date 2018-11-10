@@ -446,7 +446,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-	monotoneCheck(oModel);
+    //Ziyu Liu
+	HashMap *checkResult = NEW_MAP(Constant,Node);
+	checkResult = monotoneCheck(oModel);
+	//Ziyu Liu
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
     		oModel = lateralTranslateQBModel(oModel);
