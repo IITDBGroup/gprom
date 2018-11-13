@@ -41,6 +41,7 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 //#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
+#include "provenance_rewriter/lateral_rewrites/unnesting.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
@@ -443,6 +444,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	Node *rewrittenTree;
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
+
+	//Start unnesting;
+	oModel = unnesting(oModel);
+
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
     		oModel = lateralTranslateQBModel(oModel);
