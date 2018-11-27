@@ -14,6 +14,8 @@
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
+#include <string.h>
+
 
 HashMap*
 monotoneCheck(Node *qbModel)
@@ -100,7 +102,8 @@ check(Node* node, HashMap *state)
 HashMap *
 getSchema(Node* qbModel){
 	HashMap *map = NEW_MAP(Constant,Node);
-	getTableAccessOperator(qbModel, map);
+	//getTableAccessOperator(qbModel, map);
+	getSubset(qbModel, map);
 	return map;
 }//get schema of table
 
@@ -171,6 +174,64 @@ getTableAccessOperator(Node* node, HashMap *map)
 
 	return visit(node, getTableAccessOperator, map);
 }//get the table
+
+boolean
+getSubset(Node* node, HashMap *map)
+{
+	if(node == NULL)
+		return TRUE;
+
+	if(isA(node, TableAccessOperator)){
+		char *tablename = ((TableAccessOperator *) node)->tableName;
+		Schema *schema = ((TableAccessOperator *) node)->op.schema;
+		List *attrDef = schema->attrDefs;
+		int length = getListLength(attrDef);
+		List *result = NIL;
+		result = addBitset(length, result);
+		MAP_ADD_STRING_KEY(map, tablename, (Node *)result);
+	}
+
+	return visit(node, getSubset, map);
+}//get the KeyValue of each table
+
+List*
+addBitset(int length, List *result)
+{
+	char *subset = "SUBSET";
+	char *exact = "EXCAT";
+	int max = 1 << length;
+	for (int i = 1; i < max; i++) {
+		if (i == (max - 1)){
+			KeyValue *element = createStringKeyValue(exact, binDis(length, i));
+			result = appendToTailOfList(result, element);
+			break;
+		}
+		KeyValue *element = createStringKeyValue(subset, binDis(length, i));
+		result = appendToTailOfList(result, element);
+	}
+	return result;
+}//get BitSet of all subsets
+
+char*
+binDis(int length, int value)
+{
+	//List *stringList = NIL;
+	StringInfo stringResult  = makeStringInfo();
+	while(length--)
+	{
+		if(value&1<<length){
+			char *bit = "1";
+			appendStringInfoString(stringResult, bit);
+			//appendToTailOfList(stringList, bit);
+		}else{
+			char *bit = "0";
+			appendStringInfoString(stringResult, bit);
+			//appendToTailOfList(stringList, bit);
+		}
+	}
+	DEBUG_LOG("The bin is: %s", stringResult->data);
+	return stringResult->data;
+}
 
 
 boolean
@@ -334,7 +395,7 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator)
 
 
 boolean
-hasOrder(Node* node, int* find)
+hasOrder(Node* node, int *find)
 {
 	if(node == NULL)
 		return TRUE;
