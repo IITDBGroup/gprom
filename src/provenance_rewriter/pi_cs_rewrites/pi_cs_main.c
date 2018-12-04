@@ -2314,13 +2314,13 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     List *condRightValueList = NULL;  //10,14...
     int k;
     int n = uhIntValue;
-    for (int c = hIntValue-1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+    for (int c = hIntValue,cntOnePos=0; c >= 0; c--,cntOnePos++)
     {
       k = n >> c;
       if (k & 1)
       {
-        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - cntOnePos - 1));
-        DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos - 1);
+        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - cntOnePos));
+        DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos);
       }
     }
 
