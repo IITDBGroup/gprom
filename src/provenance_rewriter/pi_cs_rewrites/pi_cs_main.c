@@ -2335,6 +2335,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
     //get selection condition (prov_r = 10 or prov_r = 14)
     List *condRightValueList = NULL;  //10,14...
+
     long k;
     long n = uhIntValue;
     for (int c = hIntValue,cntOnePos=0; c >= 0; c--,cntOnePos++)
