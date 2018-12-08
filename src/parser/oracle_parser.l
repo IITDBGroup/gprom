@@ -235,6 +235,7 @@ strconcat		"||"
 (?i:PAGE)		TOK(PAGE)
 (?i:RANGESA)		TOK(RANGESA)
 (?i:RANGESB)		TOK(RANGESB)
+(?i:HASH)		TOK(HASH)
 
 	/* booleans */
 {bool}			TOK(boolConst)

@@ -64,7 +64,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB
+%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> TIP INCOMPLETE VTABLE
 %token <stringVal> FROM
@@ -143,7 +143,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
-%type <list> fragmentList pageList rangeAList rangeBList intConstList attrRangeList
+%type <list> hashList fragmentList pageList rangeAList rangeBList intConstList attrRangeList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -704,9 +704,9 @@ provOption:
 	;
 
 coarseGrainedSpec:
-		FRAGMENT '(' fragmentList ')'
+		HASH '(' hashList ')'
 		{
-			RULELOG("coarse_grained::fragmentlist");
+			RULELOG("coarse_grained::hashlist");
 			$$ = (Node *) $3;
 		}
 		|
@@ -725,6 +725,12 @@ coarseGrainedSpec:
 		RANGESB '(' rangeBList ')'
 		{
 			RULELOG("coarse_grained::rangelist");
+			$$ = (Node *) $3;
+		}
+		|
+		FRAGMENT '(' fragmentList ')'
+		{
+			RULELOG("coarse_grained::fragmentlist");
 			$$ = (Node *) $3;
 		}
 
@@ -922,10 +928,64 @@ pageList:
        }
     ;
 
+hashList:
+       identifier '(' identifierList ')' intConst optionalCoarseGrainedPara
+       {
+            RULELOG("hashList::identifier::identifierList::identifier");
+            List *l = NIL;
+            KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"),
+            									(Node *) createConstString("HASH"));
+            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"),
+            									(Node *) stringListToConstList($3));
+            KeyValue *k3 = createNodeKeyValue((Node *) createConstString("HVALUE"),
+            									(Node *) createConstInt($5));
+            if($6 == NULL)
+            {
+             	//l = concatTwoLists(stringListToConstList($3),singleton(createConstInt($5)));
+            		l = LIST_MAKE(k1,k2,k3);
+             }
+            else
+            {
+                //l = CONCAT_LISTS(stringListToConstList($3),singleton(createConstInt($5)), singleton($6));
+                KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"),
+            									(Node *) $6);
+            	    l = LIST_MAKE(k1,k2,k3,k4);
+            }
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($1),
+            									(Node *) l);
+            $$ = singleton(k);
+       }
+       |
+       hashList ',' identifier '(' identifierList ')' intConst optionalCoarseGrainedPara
+       {
+            RULELOG("hashList::hashList::hashList");
+            List *l = NIL;
+            KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"),
+            									(Node *) createConstString("FRAGMENT"));
+            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"),
+            									(Node *) stringListToConstList($5));
+            KeyValue *k3 = createNodeKeyValue((Node *) createConstString("HVALUE"),
+            									(Node *) createConstInt($7));
+            if($8 == NULL)
+            		l = LIST_MAKE(k1,k2,k3);
+            	else
+            	{
+            	    KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"),
+            									(Node *) $8);
+            	    l = LIST_MAKE(k1,k2,k3,k4);
+            	}
+
+            //List *l = concatTwoLists(stringListToConstList($5),singleton(createConstInt($7)));
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($3),
+            									(Node *) l);
+            $$ = appendToTailOfList($1, k);
+       }
+    ;
+
 fragmentList:
        identifier '(' identifierList ')' intConst optionalCoarseGrainedPara
        {
-            RULELOG("fragmentList::identifier::identifierList::identifier");
+            RULELOG("hashList::identifier::identifierList::identifier");
             List *l = NIL;
             KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"),
             									(Node *) createConstString("FRAGMENT"));
@@ -948,31 +1008,6 @@ fragmentList:
             KeyValue *k = createNodeKeyValue((Node *) createConstString($1),
             									(Node *) l);
             $$ = singleton(k);
-       }
-       |
-       fragmentList ',' identifier '(' identifierList ')' intConst optionalCoarseGrainedPara
-       {
-            RULELOG("fragmentList::fragmentList::fragmentList");
-            List *l = NIL;
-            KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"),
-            									(Node *) createConstString("FRAGMENT"));
-            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"),
-            									(Node *) stringListToConstList($5));
-            KeyValue *k3 = createNodeKeyValue((Node *) createConstString("HVALUE"),
-            									(Node *) createConstInt($7));
-            if($8 == NULL)
-            		l = LIST_MAKE(k1,k2,k3);
-            	else
-            	{
-            	    KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"),
-            									(Node *) $8);
-            	    l = LIST_MAKE(k1,k2,k3,k4);
-            	}
-
-            //List *l = concatTwoLists(stringListToConstList($5),singleton(createConstInt($7)));
-            KeyValue *k = createNodeKeyValue((Node *) createConstString($3),
-            									(Node *) l);
-            $$ = appendToTailOfList($1, k);
        }
     ;
 

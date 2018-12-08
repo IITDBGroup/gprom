@@ -1749,7 +1749,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     if (asOf)
         op->asOf = copyObject(asOf);
 
-    // Get the povenance name for each attribute
+    // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
@@ -1849,10 +1849,11 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     //three cases: fragment or range or page
     FunctionCall *of = NULL;
     CaseExpr *caseExpr = NULL;
+    AttributeReference *fragmentProvAttr = NULL;
 
-    if(streq(ptype, "FRAGMENT"))
+    if(streq(ptype, "HASH"))
     {
-    	DEBUG_LOG("Partition by fragment");
+    	DEBUG_LOG("Partition by using ora_hash on columns");
 
     	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
@@ -1876,6 +1877,19 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	}
 
     	of = createFunctionCall ("ORA_HASH", ol);
+    }
+    else if(streq(ptype, "FRAGMENT"))
+    {
+    		DEBUG_LOG("Using existing column as partition");
+        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
+        	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+        	if(LIST_LENGTH(pattrs) == 1) //A
+        	{
+        		Constant *attr = (Constant *) getHeadOfListP(pattrs);
+        		char *attrV = (char *) attr->value;
+			fragmentProvAttr = (AttributeReference *) createAttrsRefByName((QueryOperator *)op, attrV);
+        	}
     }
     else if(streq(ptype, "PAGE"))
     {
@@ -1914,24 +1928,24 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     	int tempCount = lowValue;
     	List *whenList = NIL;
-    	for(int i=0; i<pValue; i++)
+    	for(int i=0; i<pValue + 1; i++)
     	{
     		Operator *leftOperator = NULL;
-    		if(i == 0)
-    			leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
-    		else
-    			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+//    		if(i == 0)
+    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+//    		else
+//    			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		tempCount = tempCount + intervalValue;
     		if(i == pValue - 1)  //used to handle the last one is unequal to the highValue (the right bound)
     			tempCount = highValue;
-    		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    		Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-    		int power = 0;
+    		long power = 0;
     		if(i<2)
     			power = pow(2,i);
     		else
     			power = pow(2,i) + 1;
-    		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
+    		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
     		whenList = appendToTailOfList(whenList, when);
     	}
 
@@ -2027,7 +2041,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	caseExpr = createCaseExpr(NULL, whenList, NULL);
     }
 
-    if(streq(ptype, "FRAGMENT") || streq(ptype, "PAGE"))
+    if(streq(ptype, "HASH") || streq(ptype, "PAGE"))
     {
     	//create power(2, ORA_HASH(A,32)) functioncall
     	Constant *tw = createConstInt(2);
@@ -2043,6 +2057,14 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	//    Constant *sol = createConstLong(pow(2, INT_VALUE(num)) + 1);
     	//    FunctionCall *pf = createFunctionCall ("SHRIGHT", LIST_MAKE(sol,sor));
 
+    	projExpr = appendToTailOfList(projExpr, pf);
+    }
+    else if(streq(ptype, "FRAGMENT"))
+    {
+    	//power(2, dfragment)  where dfragment stored the partition number from 0 to 32 or 64 or...
+    	Constant *tw = createConstInt(2);
+    	List *pl = LIST_MAKE(tw,fragmentProvAttr);
+    	FunctionCall *pf = createFunctionCall ("POWER", pl);
     	projExpr = appendToTailOfList(projExpr, pf);
     }
     else if(streq(ptype, "RANGEA") || streq(ptype, "RANGEB"))
@@ -2272,7 +2294,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          else if(streq(keyV,"UHVALUE")) // "HVALUE"->32
          {
         	 	 uhvalue = (Constant *) kv->value;
-        	 	 DEBUG_LOG("%s -> %d", keyV, LONG_VALUE(uhvalue));
+        	 	 DEBUG_LOG("%s -> %lld", keyV, LONG_VALUE(uhvalue));
          }
          else if(streq(keyV,"BEGIN"))
          {
@@ -2300,7 +2322,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
     int hIntValue = 0; long
     long uhIntValue = LONG_VALUE(uhvalue);
-    //int uhIntValue = INT_VALUE(uhvalue);
+    //int uhIntValue1 = INT_VALUE(uhvalue);
 
     if(streq(ptype, "RANGEB"))
     		hIntValue = rangeLen - 1;
@@ -2309,18 +2331,20 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
     DEBUG_LOG("coarse grained hash value is : %d", hIntValue);
     DEBUG_LOG("coarse grained bitoragg value is : %lld", uhIntValue);
+    //DEBUG_LOG("coarse grained bitoragg value1 is : %lld", uhIntValue1);
 
     //get selection condition (prov_r = 10 or prov_r = 14)
     List *condRightValueList = NULL;  //10,14...
-    int k;
-    int n = uhIntValue;
-    for (int c = hIntValue-1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+    long k;
+    long n = uhIntValue;
+    for (int c = hIntValue,cntOnePos=0; c >= 0; c--,cntOnePos++)
     {
       k = n >> c;
+      //DEBUG_LOG("n is %lld, c is %d, k is: %lld, cntOnePos is: %d", n, c, k, cntOnePos);
       if (k & 1)
       {
-        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - cntOnePos - 1));
-        DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos - 1);
+        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - cntOnePos));
+        DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos);
       }
     }
 
@@ -2367,22 +2391,22 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
         int tempCount = lowValue;
         List *whenList = NIL;
-        for(int i=0; i<pValue; i++)
+        for(int i=0; i<pValue + 1; i++)
         {
         		Operator *leftOperator = NULL;
-        	    if(i == 0)
-        	    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
-        	    else
-        	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+//        	    if(i == 0)
+        	    	leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+//        	    else
+//        	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             tempCount = tempCount + intervalValue;
-            Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+            Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-            int power = 0;
+            long power = 0;
             if(i<2)
                power = pow(2,i);
             else
             	   power = pow(2,i) + 1;
-        		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
+        		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
         		whenList = appendToTailOfList(whenList, when);
         }
         caseExpr = createCaseExpr(NULL, whenList, NULL);
@@ -2477,7 +2501,18 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 //        	}
         caseExpr = createCaseExpr(NULL, whenList, NULL);
     	}
-    else if(streq(ptype, "FRAGMENT"))
+//    else if(streq(ptype, "FRAGMENT"))
+//    {
+//    		DEBUG_LOG("This is fragment provenance scratch");
+//        	if(LIST_LENGTH(pattrs) == 1) //A
+//        	{
+//        		Constant *attr = (Constant *) getHeadOfListP(pattrs);
+//        		char *attrV = (char *) attr->value;
+//        		f = createFunctionCall ("ORA_HASH", l);
+//        		l = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),copyObject(hvalue));
+//        	}
+//    }
+    else if(streq(ptype, "HASH"))
     {
     	List *l = NIL;
     	if(LIST_LENGTH(pattrs) == 1) //A
@@ -2500,10 +2535,19 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     	f = createFunctionCall ("ORA_HASH", l);
     }
 
-    if(streq(ptype, "FRAGMENT") || streq(ptype, "PAGE"))
+    if(streq(ptype, "HASH") || streq(ptype, "PAGE"))
     		projExpr = appendToTailOfList(projExpr, f);
     else if(streq(ptype, "RANGEA") || streq(ptype, "RANGEB"))
     		projExpr = appendToTailOfList(projExpr, caseExpr);
+    else if(streq(ptype, "FRAGMENT"))
+    {
+    	if(LIST_LENGTH(pattrs) == 1) //A
+    	{
+    		Constant *attr = (Constant *) getHeadOfListP(pattrs);
+    		char *attrV = (char *) attr->value;
+    		projExpr = appendToTailOfList(projExpr,createAttrsRefByName((QueryOperator *)op, attrV));
+    	}
+    }
 
     List *newProvPosList = singletonInt(cnt);
 
