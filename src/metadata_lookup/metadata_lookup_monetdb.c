@@ -36,11 +36,11 @@ typedef struct MonetDBPlugin
     Mapi dbConn;
 } MonetDBPlugin;
 
-#define TABLE_EXISTS_QUERY "SELECT DISTINCT 1 AS e FROM sys.tables t, sys.table_types p WHERE name = '?' AND p.table_type_name = 'TABLE' AND p.table_type_id = t.type;"
-#define VIEW_EXISTS_QUERY "SELECT DISTINCT 1 AS e FROM sys.tables t, sys.table_types p WHERE name = '?' AND p.table_type_name = 'VIEW' AND p.table_type_id = t.type;"
-#define GET_TABLE_COL_QUERY "SELECT c.name, c.type FROM sys.tables t, sys.columns c WHERE t.name = '?' AND t.id = c.table_id ORDER BY c.number;"
-#define FUNC_IS_AGG_QUERY "SELECT DISTINCT 1 AS e FROM sys.functions WHERE mod = 'aggr' AND name = '?';"
-#define TABLE_GET_KEY_QUERY "SELECT o.name FROM sys.keys k, sys.objects o, sys.tables t WHERE o.id = k.id AND k.table_id = t.id AND t.name = '?' ORDER BY nr;"
+#define TABLE_EXISTS_QUERY "SELECT DISTINCT 1 AS e FROM sys.tables t, sys.table_types p WHERE name = ? AND p.table_type_name = 'TABLE' AND p.table_type_id = t.type;"
+#define VIEW_EXISTS_QUERY "SELECT DISTINCT 1 AS e FROM sys.tables t, sys.table_types p WHERE name = ? AND p.table_type_name = 'VIEW' AND p.table_type_id = t.type;"
+#define GET_TABLE_COL_QUERY "SELECT c.name, c.type FROM sys.tables t, sys.columns c WHERE t.name = ? AND t.id = c.table_id ORDER BY c.number;"
+#define FUNC_IS_AGG_QUERY "SELECT DISTINCT 1 AS e FROM sys.functions WHERE mod = 'aggr' AND name = ?;"
+#define TABLE_GET_KEY_QUERY "SELECT o.name FROM sys.keys k, sys.objects o, sys.tables t WHERE o.id = k.id AND k.table_id = t.id AND t.name = ? ORDER BY nr;"
 
 // plugin
 static MonetDBPlugin *plugin;
@@ -95,6 +95,8 @@ assembleMonetdbMetadataLookupPlugin (void)
     p->executeQuery = monetdbExecuteQuery;
     p->executeQueryIgnoreResult = monetdbExecuteQueryIgnoreResults;
     p->connectionDescription = monetdbGetConnectionDescription;
+    p->sqlTypeToDT = monetdbBackendSQLTypeToDT;
+    p->dataTypeToSQL = monetdbBackendDatatypeToSQL;
 
     plugin->dbConn = NULL;
     plugin->initialized = FALSE;
@@ -128,9 +130,11 @@ handleConnectionError (void)
 {
     if(plugin->dbConn != NULL)
     {
-        char *error = mapi_error_str(plugin->dbConn);
+        const char *error = mapi_error_str(plugin->dbConn);
         ERROR_LOG("mapi error:\n%s", error);
         mapi_destroy(plugin->dbConn);
+        plugin->dbConn = NULL;
+        monetdbDatabaseConnectionOpen();
     }
     else
         ERROR_LOG("mapi is NULL");
@@ -149,15 +153,16 @@ handleResultSetError (MapiHdl handle, char *query, List *parameters)
         {
             mapi_explain_query(handle, stderr);
             do {
-                char *e = mapi_result_error(handle);
+                const char *e = mapi_result_error(handle);
                 if (e != NULL)
                     ERROR_LOG("mapi query error:\n%s", e);
             } while (mapi_next_result(handle) == 1);
             mapi_close_handle(handle);
             mapi_destroy(plugin->dbConn);
+            plugin->dbConn = NULL;
+            monetdbDatabaseConnectionOpen();
         }
     }
-    //TODO throw error
 }
 
 static void
@@ -169,12 +174,14 @@ handleResultSetErrorNoQuery (MapiHdl handle)
         {
             mapi_explain_query(handle, stderr);
             do {
-                char *e = mapi_result_error(handle);
+                const char *e = mapi_result_error(handle);
                 if (e != NULL)
                     ERROR_LOG("mapi query error:\n%s", e);
             } while (mapi_next_result(handle) == 1);
             mapi_close_handle(handle);
             mapi_destroy(plugin->dbConn);
+            plugin->dbConn = NULL;
+            monetdbDatabaseConnectionOpen();
         }
     }
 }
@@ -308,10 +315,10 @@ monetdbGetAttributes (char *tableName)
 static DataType
 monetdbTypeToDT(char *dt)
 {
-    if (streq(dt, "int"))
+    if (streq(dt, "BIGINT"))
         return DT_INT;
     if (streq(dt, "varchar"))
-        return DT_STRING; //TOTO handle more types
+        return DT_STRING;
 
     return DT_STRING;
 }
@@ -459,6 +466,40 @@ monetdbGetKeyInformation(char *tableName)
     return attrs;
 }
 
+DataType
+monetdbBackendSQLTypeToDT (char *sqlType)
+{
+    return monetdbTypeToDT(sqlType);
+}
+
+char *
+monetdbBackendDatatypeToSQL (DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+            return "INT";
+            break;
+        case DT_LONG:
+            return "HUGEINT";
+            break;
+        case DT_FLOAT:
+            return "DOUBLE";
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            return "TEXT";
+            break;
+        case DT_BOOL:
+            return "BOOL";
+            break;
+    }
+
+    // keep compiler quiet
+    return "TEXT";
+}
+
+
 Relation *
 monetdbExecuteQuery(char *query)
 {
@@ -494,8 +535,7 @@ monetdbExecuteQuery(char *query)
     r->schema = NIL;
     for(int i = 0; i < numFields; i++)
     {
-        const char *name = CONCAT_STRINGS("F", gprom_itoa(i));
-        r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+        r->schema = appendToTailOfList(r->schema, strdup(mapi_get_name(result, i)));
     }
 
     mapi_close_handle(result);
@@ -565,7 +605,8 @@ executeParamQuery (char *query, char *params, ...)
     result = mapi_prepare(plugin->dbConn, query);
     for(int i = 0; i < pos; i++)
     {
-        mapi_param(result, i, &(argv[i]));
+        mapi_param_string(result, i, MAPI_VARCHAR, argv[i], NULL);
+//        mapi_param(result, i, &(argv[i]));
         THROW_ON_ERROR(result, query);
     }
 

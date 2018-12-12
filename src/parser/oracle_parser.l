@@ -282,7 +282,7 @@ strconcat		"||"
  ******************************************************************************/
 
 /* use logging framework in the future */
-void oracleerror(char *s)
+void oracleerror(const char *s)
 {
 	FATAL_LOG("%s at %s\n", s, oracletext);
 }

@@ -16,6 +16,7 @@
 #include "parser/parse_internal_oracle.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
+#include "utility/string_utils.h"
 
 #define RULELOG(grule) \
     { \
@@ -144,7 +145,10 @@ Node *oracleParseResult = NULL;
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
-%type <stringVal> optionalFormat optionalWrapper optionalstringConst 
+%type <stringVal> optionalFormat optionalWrapper optionalstringConst
+%type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample
+%type <list> optionalSummarization
+%type <intVal>	optionalCountDistinct
 
 %start stmtList
 
@@ -414,74 +418,53 @@ provStmt:
 			p->options = NIL;
 			$$ = (Node *) p;
 		}
-		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier
+        | optionalTopK PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate optionalSummarization
         {
             RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
-	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;  
-            $$ = (Node *) p;
-        }
-        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
+            Node *stmt = $7;
 	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;
-            p->userQuestion = $15;
-            p->sampleSize = 10;
-            p->topK = 1;  
-            $$ = (Node *) p;
-        }
-        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;
-            p->userQuestion = $15;
-            p->sampleSize = $20;
-            p->topK = 1;  
-            $$ = (Node *) p;
-        }
-        | TOP intConst PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $8;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $4;
-            p->options = concatTwoLists($5, $10);
-            p->summaryType = $13;
-            p->userQuestion = $17;
-            p->sampleSize = $22;
-            p->topK = $2;  
+		    p->asOf = (Node *) $3;
+            p->options = CONCAT_LISTS(singleton($1),$4,$9,$10,
+									  singleton(createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_DOSUM),
+																   (Node *) createConstBool(TRUE))));
+           	/* p->sumOpts = appendToTailOfList(p->sumOpts,$1); */
+           	/* p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10); */
             $$ = (Node *) p;
         }
     ;
 
-/*
-summaryType:
-		identifier 
-		{ 
-			RULELOG("summaryType::ident");
-			$$ = (Node *) createConstString($1); 
+
+optionalTopK:
+//		/* empty */			{ RULELOG("optionalTopK::EMPTY"); $$ = NULL; }
+//		| 
+		TOP intConst
+		{
+			RULELOG("optionalTopK::topk");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_TOPK),(Node *) createConstInt($2));
 		}
+    ;
+
+
+optionalSummarization:
+		optionalSumType		{ RULELOG("optionalSumType::sumType"); $$ = singleton($1); }
+		| optionalSummarization optionalSumType
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
+        | optionalSummarization optionalToExplain
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
+        | optionalSummarization optionalSumSample
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
 	;
-*/
 
 stmtWithReenactOptionsList: 
 		reenactStmtWithOptions
@@ -546,6 +529,35 @@ reenactOption:
 		} 
 	;
 	
+
+
+optionalSumType:
+		SUMMARIZED BY identifier 
+		{
+			RULELOG("optionalSummarization::SumType");
+			$$ = (Node *) createStringKeyValue(strdup(PROP_SUMMARIZATION_TYPE),strdup($3));
+		}
+	;
+	
+	
+optionalToExplain:
+		TO EXPLAIN '(' attrElemList ')'
+		{
+			RULELOG("optionalToExplain::ToExplain");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_TO_EXPLAIN),(Node *) $4);
+		}
+	;
+
+
+optionalSumSample:
+		WITH SAMPLE '(' intConst ')'
+		{
+			RULELOG("optionalSumSample::WithSample");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_SAMPLE),(Node *) createConstInt($4));
+		}
+ 	;
+ 	
+  
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
 		| provAsOf
@@ -929,6 +941,7 @@ constant:
         | floatConst        { RULELOG("constant::FLOAT"); $$ = (Node *) createConstFloat($1); }
         | stringConst       { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
         | boolConst			{ RULELOG("constant::BOOL"); $$ = (Node *) createConstBoolFromString($1); }
+		| NULLVAL           { RULELOG("constant::NULL"); $$ = (Node *) createNullConst(DT_STRING); }
     ;
             
 /*
@@ -1078,12 +1091,16 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
-		| AMMSC '(' exprList ')' overClause          
+		| AMMSC '(' optionalCountDistinct exprList ')' overClause          
             {
                 RULELOG("sqlFunctionCall::AMMSC::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
-				if ($5 != NULL)
-					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				FunctionCall *f = createFunctionCall($1, $4);
+				if ($3 == 1)
+				{
+					f->isDistinct = TRUE;
+				}
+				if ($6 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $6);
 				else  
                 	$$ = (Node *) f; 
             }
@@ -1098,6 +1115,12 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
+    ;
+
+// optional distinct in count (distinct ...)
+optionalCountDistinct:
+	   /*  EMPTY */ { RULELOG("optionalDistinct::EMPTY"); $$ = 0; }
+	   | DISTINCT { RULELOG("optionalDistinct::DISTINCT"); $$ = 1; }
     ;
 
 /*
@@ -1792,24 +1815,3 @@ attr:
 
 
 
-/* FUTURE WORK 
-
-PRIORITIES
-7)
-4)
-1)
-
-EXHAUSTIVE LIST
-2. Implement support for RETURNING statement in DELETE queries.
-3. Implement support for column list like (col1, col2, col3). 
-   Needed in insert queries, select queries where conditions etc.
-4. Implement support for Transactions.
-5. Implement support for Create queries.
-7. Implement support for AS OF (timestamp) modifier of a table reference
-8. Implement support for casting expressions
-9. Implement support for IN array expressions like a IN (1,2,3,4,5)
-10. Implement support for ASC, DESC, NULLS FIRST/LAST in ORDER BY
-11. Add DDL statements
-12. Add provenance storage policy language
-13. Add provenance export options (also requires several other changes in the application)
-*/

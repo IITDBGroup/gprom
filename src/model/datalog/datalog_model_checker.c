@@ -19,6 +19,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "utility/string_utils.h"
 
 static boolean checkDLProgram (DLProgram *p);
 static boolean checkDLRule (DLRule *r);
@@ -181,12 +182,32 @@ checkDLProgram (DLProgram *p)
                 "occur in the head of any rule: %s", checkIdb);
 
     // answer relation appears as head of a rule
-    if (p->ans && !hasSetElem(idbRels, p->ans))
+    if(p->ans)
     {
-        FATAL_LOG("answer relation %s does not appear in the head of any rule"
-                " in program:\n%s",
-                p->ans, datalogToOverviewString((Node *) p));
-        return FALSE;
+        if(!isSubstr(p->ans,"-"))
+        {
+            if (!hasSetElem(idbRels, p->ans))
+            {
+                FATAL_LOG("answer relation %s does not appear in the head of any rule"
+                        " in program:\n%s",
+                        p->ans, datalogToOverviewString((Node *) p));
+                return FALSE;
+            }
+        }
+        else
+        {
+        	List *ansRels = splitString(copyObject(p->ans),"-");
+    		FOREACH(char,c,ansRels)
+        	{
+    	        if (!hasSetElem(idbRels, c))
+    	        {
+    	            FATAL_LOG("answer relation %s does not appear in the head of any rule"
+    	                    " in program:\n%s",
+    	                    c, datalogToOverviewString((Node *) p));
+    	            return FALSE;
+    	        }
+        	}
+        }
     }
 
     // store some auxiliary results of analysis in properties

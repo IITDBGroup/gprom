@@ -114,6 +114,8 @@ typedef struct GProMMetadataLookupPlugin
     char * (*getViewDefinition) (char *viewName);
 
     int (*getCostEstimation) (char *query);
+	char *(*sqlTypeToDT) (char *sqlType);
+    char *(*dataTypeToSQL) (char *dt);
     /* audit log access */
 //    void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
 //            List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

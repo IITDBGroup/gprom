@@ -38,6 +38,8 @@ extern char *sqliteGetTableDefinition(char *tableName);
 extern char *sqliteGetViewDefinition(char *viewName);
 extern int sqliteGetCostEstimation(char *query);
 extern List *sqliteGetKeyInformation(char *tableName);
+extern DataType sqliteBackendSQLTypeToDT (char *sqlType);
+extern char * sqliteBackendDatatypeToSQL (DataType dt);
 
 extern Relation *sqliteExecuteQuery(char *query);
 extern void sqliteExecuteQueryIgnoreResults(char *query);

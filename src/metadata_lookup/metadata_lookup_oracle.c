@@ -137,6 +137,8 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeQueryIgnoreResult = oracleGenExecQueryIgnoreResult;
     plugin->getCostEstimation = oracleGetCostEstimation;
     plugin->getKeyInformation = oracleGetKeyInformation;
+    plugin->sqlTypeToDT = oracleBackendSQLTypeToDT;
+    plugin->dataTypeToSQL = oracleBackendDatatypeToSQL;
 
     return plugin;
 }
@@ -1308,6 +1310,50 @@ oracleGetKeyInformation(char *tableName)
     addToSet(haveKeys,strdup(tableName));
     return keyList;
 }
+
+DataType
+oracleBackendSQLTypeToDT (char *sqlType)
+{
+    if(isPrefix(sqlType,"NUMERIC") || isPrefix(sqlType,"NUMBER"))
+    {
+        if(regExMatch(sqlType, "[(][0-9 ]*[,][0-9 ]*[)]"))
+            return DT_FLOAT;
+        else
+            return DT_INT;
+    }
+    if (isPrefix(sqlType, "VARCHAR") || isPrefix(sqlType, "CHAR"))
+        return DT_STRING;
+    if (streq(sqlType, "BINARY_FLOAT"))
+        return DT_FLOAT;
+
+    return DT_STRING;
+}
+
+char *
+oracleBackendDatatypeToSQL (DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+        case DT_LONG:
+            return "NUMBER";
+            break;
+        case DT_FLOAT:
+            return "BINARY_FLOAT";
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            return "VARCHAR2(2000)";
+            break;
+        case DT_BOOL:
+            return "NUMBER(1)";
+            break;
+    }
+
+    // keep compiler quiet
+    return "VARCHAR2(2000)";
+}
+
 
 static OCI_Resultset *
 executeStatement(char *statement)

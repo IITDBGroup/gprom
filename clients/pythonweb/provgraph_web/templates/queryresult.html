@@ -1,13 +1,48 @@
 {% extends "layout.html" %}
 {% block content %}
 {% include "queryactions.html" %}
-{%- if returnedError == False and (action == 'provgame' or action == 'provgraph' or action == 'triograph' or action == 'lingraph') -%}
+{%- if returnedError == False and (action == 'provgame' or action == 'provpolygraph' or action == 'provgraph' or action == 'triograph' or action == 'lingraph') -%}
 <div class="container">
 <div class="left">
 {%- if action == 'provgame' -%}
-<h1><p>Provenance Game</p></h1>
-{%- else -%}
-<h1><p>Provenance Graph</p></h1>
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Provenance Game</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Provenance Game Summary</p></h1>
+	{% endif %}
+{%- endif -%}
+{%- if action == 'provgraph' -%}
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Provenance Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Provenance Graph Summary</p></h1>
+	{% endif %}
+{% endif %}
+{%- if action == 'provpolygraph'-%}
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Provenance Polynomial Type Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Provenance Polynomial Type Graph Summary</p></h1>
+	{% endif %}
+{% endif %}	
+{%- if action == 'triograph'-%}
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Trio Type Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Trio Type Graph Summary</p></h1>	
+	{% endif %}
+{% endif %}
+{%- if action == 'lingraph'-%}
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Lineage Type Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Lineage Type Graph Summary</p></h1>
+	{% endif %}
 {% endif %}
 
 {%- if imagefile == '' -%}
@@ -28,31 +63,32 @@
 <!-- show input relations -->
 <p>
 {% for relDB in rels %}
+    <!-- <h1>{{ relDB[0:relDB|length-1] }}</h1> -->
     <h1>{{ relDB|safe }}</h1>
     {% if rels.index(relDB) < (rels|length)-1 %}
-	<table border=0>
-	<!-- attributes (table head) -->
-	{% for insDB in lines[lines.index(relDB)+1:lines.index(relDB)+2] %}
-		<tr>		
-		{% for attr in insDB.split('|') %}
-		    {% if attr != "" %}
-			<th> {{ attr|safe }} </th>
+		<table border=0>
+		<!-- attributes (table head) -->
+		{% for insDB in lines[lines.index(relDB)+1:lines.index(relDB)+2] %}
+			<tr>		
+			{% for attr in insDB.split('|') %}
+			    {% if attr != "" %}
+				<th> {{ attr|safe }} </th>
+			    {% endif %}
+		 	{% endfor %}
+			</tr>
+		{% endfor %}
+		<!-- tuples -->
+		{% for insDB in lines[lines.index(relDB)+2:lines.index(rels[rels.index(relDB)+1])] %}
+		    {% if '-' not in insDB and insDB != "" %}
+			<tr>		
+			{% for attr in insDB.split('|') %}
+			    {% if attr != "" %}
+				<td> {{ attr|safe }} </td>
+			    {% endif %}
+		 	{% endfor %}
+			</tr>
 		    {% endif %}
-	 	{% endfor %}
-		</tr>
-	{% endfor %}
-	<!-- tuples -->
-	{% for insDB in lines[lines.index(relDB)+2:lines.index(rels[rels.index(relDB)+1])] %}
-	    {% if '-' not in insDB and insDB != "" %}
-		<tr>		
-		{% for attr in insDB.split('|') %}
-		    {% if attr != "" %}
-			<td> {{ attr|safe }} </td>
-		    {% endif %}
-	 	{% endfor %}
-		</tr>
-	    {% endif %}
-	{% endfor %}
+		{% endfor %}
 	</table>
     {% else %}
 	<!-- for the last relation -->
@@ -99,6 +135,7 @@
 <!-- show input relations -->
 <p>
 {% for relDB in rels %}
+    <!-- <h1>{{ relDB[0:relDB|length-1] }}</h1> -->
     <h1>{{ relDB|safe }}</h1>
     {% if rels.index(relDB) < (rels|length)-1 %}
 	<table border=0>

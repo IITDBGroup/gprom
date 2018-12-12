@@ -32,7 +32,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_INPUT_SQL_FILE "input.sqlFile"
 #define OPTION_INPUT_QUERY "input.query"
 #define OPTION_INPUT_QUERY_FILE "input.queryFile"
-
+#define OPTION_INPUTDB "inputdb"
 
 /* plugin options */
 #define OPTION_BACKEND "backend"
@@ -115,6 +115,9 @@ NEW_ENUM_WITH_TO_STRING(
 
 // encapsulates option state
 typedef struct option_state OptionState;
+
+/* dl rewrite options */
+#define OPTION_WHYNOT_ADV "whynot_adv"
 
 // declare option fields
 // show help only

@@ -462,7 +462,7 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			rs = runPrepStmt(StmtTypes.getAttr, tableName, con.getSchema());
 			while(rs.next()){
 			    String columnType = rs.getString(2);
-			    String dt = sqlToGpromDT(columnType);
+			    String dt = sqlTypeToDT(columnType).name();
 			    result.add(dt);
 			}
 			rs.close();
@@ -534,5 +534,42 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 		return cost;
 	}
 	
+	@Override
+	public DataType sqlTypeToDT(String sqlType) {
+	    if(sqlType.startsWith("NUMERIC") || sqlType.startsWith("NUMBER"))
+	    {
+	        if(sqlType.matches("[(][0-9 ]*[,][0-9 ]*[)]"))
+	            return DataType.DT_FLOAT;
+	        else
+	            return DataType.DT_INT;
+	    }
+	    if (sqlType.startsWith("VARCHAR") || sqlType.startsWith("CHAR"))
+	        return DataType.DT_STRING;
+	    if (sqlType.equals("BINARY_FLOAT"))
+	        return DataType.DT_FLOAT;
+
+	    return DataType.DT_STRING;
+	}
+	
+	/**
+	 * 
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#dataTypeToSQL(org.gprom.jdbc.jna.GProMJavaInterface.DataType)
+	 */
+	@Override
+	public String dataTypeToSQL (DataType dt) {
+	    switch(dt) {
+	        case DT_INT:
+	        case DT_LONG:
+	            return "NUMBER";
+	        case DT_FLOAT:
+	            return "BINARY_FLOAT";
+	        case DT_STRING:
+	        case DT_VARCHAR2:
+	            return "VARCHAR2(2000)";
+	        case DT_BOOL:
+	            return "NUMBER(1)";
+	    }
+		return "VARCHAR2(2000)";
+	}
 	
 }

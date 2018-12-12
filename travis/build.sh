@@ -24,7 +24,7 @@ docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:late
 testexit log_autotools.log
 
 echo "************************* RUN CONFIGURE"
-docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ./configure --with-oci-headers=/usr/local/oracle/include/oracle/12.2/client64/ --with-oci-lib=/usr/local/oracle/lib/oracle/12.2/client64/lib/ > log_configure.log 2>&1
+docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ./configure --with-oci-headers=/usr/local/oracle/include/oracle/12.2/client64/ --with-oci-lib=/usr/local/oracle/lib/oracle/12.2/client64/lib/ --disable-monetdb > log_configure.log 2>&1
 testexit log_configure.log
 
 echo "************************* RUN MAKE"

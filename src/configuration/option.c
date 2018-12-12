@@ -110,6 +110,7 @@ char *plugin_executor = NULL;
 char *plugin_cbo = NULL;
 
 // instrumentation options
+boolean opt_inputdb = FALSE;
 boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
@@ -176,6 +177,9 @@ struct option_state {
     HashMap *frontendInfo;
     OptionInfo opts[];
 };
+
+// dl rewrite options
+boolean opt_whynot_adv = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -376,6 +380,14 @@ OptionInfo opts[] =
                 wrapOptionString(&sqlFile),
                 defOptionString(NULL)
         },
+        {
+                OPTION_INPUTDB,
+                "-inputdb",
+                "output samples of input database relations",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_inputdb),
+                defOptionBool(FALSE)
+        },
         // backend, frontend and plugin selection
         {
                 OPTION_BACKEND,
@@ -436,7 +448,7 @@ OptionInfo opts[] =
         {
                 OPTION_PLUGIN_SQLSERIALIZER,
                 "-Psqlserializer",
-                "select SQL code generator plugin: oracle, postgres, sqlite",
+                "select SQL code generator plugin: oracle, postgres, sqlite, dl, lb",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
@@ -446,7 +458,7 @@ OptionInfo opts[] =
                 "-Pexecutor",
                 "select Executor plugin: sql (output rewritten SQL code), "
                         "gp (output Game provenance), run (execute the "
-                        "rewritten query and return its result",
+                        "rewritten query and return its result)",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
                 defOptionString("run")
@@ -462,7 +474,7 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         // boolean instrumentation options
-        {
+		{
                 OPTION_TIMING,
                 "-timing",
                 "measure and output execution time of modules.",
@@ -751,6 +763,15 @@ OptionInfo opts[] =
                 opt_operator_model_attr_reference_consistency,
                 TRUE
         ),
+        // dl rewrite options
+		{
+				OPTION_WHYNOT_ADV,
+				"-whynot_adv",
+				"advanced way to create firing rules for whynot.",
+				OPTION_BOOL,
+				wrapOptionBool(&opt_whynot_adv),
+				defOptionBool(FALSE)
+		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
                 "-Cdata_structure_consistency",
                 "Model Check: check that nodes in a query operator graph are not sharing "

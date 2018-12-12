@@ -17,9 +17,10 @@
 #include "execution/exe_run_query.h"
 #include "utility/string_utils.h"
 #include "configuration/option.h"
+#include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
 
 static void outputResult(Relation *res);
-
+static void printDBsample(List *stmts);
 
 
 void
@@ -31,9 +32,20 @@ exeRunQuery (void *code)
     boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
     struct timeval st;
     struct timeval et;
-    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);
+    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);	
     int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
+	// replace \n with new line in format string
+	if (format != NULL)
+		format = replaceSubstr(format, "\\n", "\n");
+
+	if (getBoolOption(OPTION_INPUTDB))
+	{
+		List *codes = splitString(code, ";");
+		printDBsample(codes);
+		return;
+	}
+	
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
 
@@ -83,6 +95,27 @@ exeRunQuery (void *code)
         }
     }
 }
+
+static void
+printDBsample(List *stmts)
+{
+    int s = 0;
+    Relation *res = NULL;
+
+    FOREACH(char,c, stmts)
+    {
+        if (FOREACH_HAS_MORE(c))
+        {
+            char *r = (char *) STRING_VALUE(MAP_GET_STRING(edbRels,gprom_itoa(++s)));
+//            printf("%s", CONCAT_STRINGS(r,gprom_itoa(s)));
+            printf("%s", r);
+            printf("\n");
+            res = executeQuery((char *) c);
+            outputResult(res);
+        }
+    }
+}
+
 
 static void
 outputResult(Relation *res)
@@ -150,4 +183,3 @@ outputResult(Relation *res)
             fflush(stdout);
     }
 }
-

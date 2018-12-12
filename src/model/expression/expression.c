@@ -455,7 +455,7 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
-    	    case T_AttributeReference:
+    	case T_AttributeReference:
         {
             AttributeReference *a = (AttributeReference *) expr;
             return a->attrType;
@@ -655,6 +655,7 @@ backendifyIdentifier(char *name)
                 result = strToUpper(name);
                 break;
             case BACKEND_POSTGRES:
+            case BACKEND_MONETDB:
                 result = strToLower(name);
                 break;
             default:
@@ -923,13 +924,7 @@ lcaType (DataType l, DataType r)
 DataType
 SQLdataTypeToDataType (char *dt)
 {
-    //TODO outsource to metadatalookup for now does only Oracle
-    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER") || streq(dt,"INT"))
-        return DT_INT; //TODO may also be float
-    if (isPrefix(dt, "VARCHAR"))
-        return DT_STRING;
-    FATAL_LOG("unknown SQL datatype %s", dt);
-    return DT_INT;
+    return backendSQLTypeToDT (dt);
 }
 
 DataType
@@ -1003,7 +998,8 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             return DT_BOOL;
     }
 
-    if (streq(opName,OPNAME_NOT))
+    // TODO: operator name is "NOT" or "not"
+    if (streq(opName,OPNAME_NOT) || streq(opName,OPNAME_not))
     {
         if (dLeft == DT_BOOL)
             return DT_BOOL;

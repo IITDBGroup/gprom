@@ -1,13 +1,26 @@
-<!--<h1>GProM Datalog Provenance Graph Generator</h1>-->
-<h1>PUG (Provenance Unification through Graph) Explorer</h1>
+
+<div class="menu">
+  <a href="./">Home</a>
+  <a href="https://github.com/IITDBGroup/gprom/wiki/datalog_prov" target="_blank">PUG Tutorials</a>
+</div>
+<div style="height: 70px;">
+  <h1 style="float:left">PUG (Provenance Unification through Graph) Explorer</h1>
+  <a href="./"><img src="{{ url_for('static', filename='pug.jpg') }}" alt="pug" width=6% align="top" style="float:right"></a>
+</div>
 <form method="post" action="{{ url_for('querysubmit') }}">
         <p><label>Query:</label> <textarea name="query" required>{{ query }}</textarea></p>
         <p>
-	    <button type="submit" name="genprovgame">Generate ProvGame</button>
-	    <button type="submit" name="genprovgraph">Generate ProvGraph</button>
-	    <button type="submit" name="gentriograph">Generate TrioGraph</button>
-	    <button type="submit" name="genlingraph">Generate LinGraph</button>
+	    <button type="submit" name="genprovgame">ProvGame</button>
+	    <button type="submit" name="genprovgraph">ProvGraph</button>
+      <button type="submit" name="genprovpolygraph">ProvPolyGraph</button>
+	    <button type="submit" name="gentriograph">TrioGraph</button>
+	    <button type="submit" name="genlingraph">LinGraph</button>
 	    <button type="submit" name="genquery">Run Query</button>
+      Top-k Patterns: <input type="text" name="topk" style="width: 50px;" value="{{ topk }}" />
+      Sample Size: <input type="text" name="sSize" style="width: 50px;" value="{{ sSize }}" />
+      Failure Pattern: <input type="text" name="fPattern" style="width: 70px;" value="{{ fPattern }}" />
+      Weight for Recall: <input type="text" name="recall" style="width: 50px;" value="{{ recall }}" />
+      Weight for Informativeness: <input type="text" name="info" style="width: 50px;" value="{{ info }}" />
 	</p>
 </form>
 <form method="post" action="{{ url_for('queryload') }}">

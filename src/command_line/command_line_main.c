@@ -486,7 +486,9 @@ readHistory()
         {
             err = read_history(gpromhist);
             if (err != 0)
-                FATAL_LOG("error loading history");
+            {
+                ERROR_LOG("error loading history, errno = %d", err);
+            }
         }
     }
     END_TRY

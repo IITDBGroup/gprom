@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * hash.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -398,6 +398,7 @@ hashFunctionCall (uint64_t cur, FunctionCall *node)
     HASH_NODE(args);
     HASH_BOOLEAN(isAgg);
     HASH_BOOLEAN(isDistinct);
+
     HASH_RETURN();
 }
 

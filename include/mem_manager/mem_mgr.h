@@ -181,6 +181,16 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
     	FREE_IN_CONTEXT(oldC, _origNode); \
     	return (_type *) _resultNode; \
     } while(0)
+#define RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(_node) \
+    do { \
+        List *_resultNode; \
+        List *_origNode = (List *) _node; \
+        RELEASE_MEM_CONTEXT(); \
+        _resultNode = (List *) deepCopyStringList(_origNode); \
+        ASSERT(equalStringList(_resultNode,_origNode)); \
+        return (List *) _resultNode; \
+    } while(0)
+//TODO free string list
 #define RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(_str) \
     do { \
         char *_resultStr; \

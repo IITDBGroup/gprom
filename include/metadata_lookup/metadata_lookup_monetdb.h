@@ -38,6 +38,10 @@ extern char *monetdbGetTableDefinition(char *tableName);
 extern char *monetdbGetViewDefinition(char *viewName);
 extern int monetdbGetCostEstimation(char *query);
 extern List *monetdbGetKeyInformation(char *tableName);
+extern DataType monetdbBackendSQLTypeToDT (char *sqlType);
+extern char * monetdbBackendDatatypeToSQL (DataType dt);
+
+
 
 extern void monetdbGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
