@@ -50,6 +50,7 @@ static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 static QueryOperator *rewriteCoarseGrainedTableAccess(TableAccessOperator *op);
 static QueryOperator *rewriteCoarseGrainedAggregation (AggregationOperator *op);
+static QueryOperator *rewriteUseCoarseGrainedAggregation (AggregationOperator *op);
 static QueryOperator *rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSNestingOp (NestingOperator *op);
 
@@ -128,6 +129,8 @@ rewritePI_CSOperator (QueryOperator *op)
     boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
     boolean isDummyHasProvProj = HAS_STRING_PROP(op, PROP_DUMMY_HAS_PROV_PROJ);
     boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
+    boolean coarseGrainedUseProv = HAS_STRING_PROP(op, USE_PROP_COARSE_GRAINED_AGGREGATION_MARK) ? TRUE : FALSE;
+
     List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
     List *addProvAttrs = NIL;
     Set *ignoreProvAttrs = (Set *) getStringProperty(op, PROP_PROV_IGNORE_ATTRS);
@@ -176,7 +179,10 @@ rewritePI_CSOperator (QueryOperator *op)
             break;
         case T_AggregationOperator:
         	if(combinerAggrOpt) {
-        		rewrittenOp = rewriteCoarseGrainedAggregation ((AggregationOperator *) op);
+        		if(coarseGrainedUseProv == TRUE)
+        			rewrittenOp = rewriteUseCoarseGrainedAggregation ((AggregationOperator *) op);
+        		else
+        			rewrittenOp = rewriteCoarseGrainedAggregation ((AggregationOperator *) op);
         		INFO_LOG("go SEMIRING COMBINER aggregation optimization!");
         	}
         	else
@@ -2196,6 +2202,107 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
 }
 
 
+static QueryOperator *
+rewriteUseCoarseGrainedAggregation (AggregationOperator *op)
+{
+	   ASSERT(OP_LCHILD(op));
+
+	    DEBUG_LOG("REWRITE - Use Coarse grained - Aggregation");
+	    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	    //add semiring options
+	    addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
+
+	    // rewrite child first
+	    rewritePI_CSOperator(OP_LCHILD(op));
+
+	    //prepare add new aggattr
+//	    List *agg = op->aggrs;
+//	    List *provList = NIL;
+	    //List *provList = getOpProvenanceAttrNames(OP_LCHILD(op));
+
+	    ///addProvenanceAttrsToSchema
+	    List *aggDefs = aggOpGetAggAttrDefs(op);
+	    int aggDefsLen = LIST_LENGTH(aggDefs);
+
+	    List *groupbyDefs = NIL;
+	    if(op->groupBy != NIL)
+	    		groupbyDefs = aggOpGetGroupByAttrDefs(op);
+
+	    List *newProvAttrDefs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(op)));
+	    int newProvAttrDefsLen = LIST_LENGTH(newProvAttrDefs);
+
+	    //List *newAttrDefs = CONCAT_LISTS(aggDefs, newProvAttrDefs, groupbyDefs);
+	    //((QueryOperator *) op)->schema->attrDefs = newAttrDefs;
+
+	    List *newProvAttrs = NIL;
+	    int provAttrDefsPos = aggDefsLen;
+	    for(int i=0; i< newProvAttrDefsLen; i++)
+	    {
+	    	newProvAttrs = appendToTailOfListInt(newProvAttrs,provAttrDefsPos);
+	    	provAttrDefsPos ++;
+	    }
+
+	    //finish add new aggattr
+//	    FOREACH(char, c, provList)
+//	    {
+//	        AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), c);
+//	        FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
+//	        agg = appendToTailOfList(agg, f);
+//	    }
+	    //finish adapt schema (adapt provattrs)
+//	    ((QueryOperator *) op)->provAttrs = newProvAttrs;
+
+	    //proj on top
+	    List *provAttrDefs = getProvenanceAttrDefs((QueryOperator *) op);
+	    List *norAttrDefs = getNormalAttrs((QueryOperator *) op);
+
+	    List *projExprs = NIL;
+	    List *projNames = NIL;
+	    List *projProvAttrs = NIL;
+	    int count = 0;
+	    int pos = LIST_LENGTH(provAttrDefs);
+	    FOREACH(AttributeDef, ad, norAttrDefs)
+	    {
+	    		projNames = appendToTailOfList(projNames, strdup(ad->attrName));
+	    		AttributeReference *ar = NULL;
+	    		if(count >= LIST_LENGTH(op->aggrs) - LIST_LENGTH(provAttrDefs))
+	    			ar = createFullAttrReference (strdup(ad->attrName), 0, pos, 0, ad->dataType);
+	    		else
+	    			ar = createFullAttrReference (strdup(ad->attrName), 0, count, 0, ad->dataType);
+	    		projExprs = appendToTailOfList(projExprs, ar);
+	    		count ++;
+	    		pos ++;
+	    }
+
+	    pos = LIST_LENGTH(op->aggrs) - LIST_LENGTH(provAttrDefs);
+	    FOREACH(AttributeDef, ad, provAttrDefs)
+	    {
+	    		projNames = appendToTailOfList(projNames, strdup(ad->attrName));
+	    		AttributeReference *ar = createFullAttrReference (strdup(ad->attrName), 0, pos,
+	    		        0, ad->dataType);
+	    		projExprs = appendToTailOfList(projExprs, ar);
+	    		projProvAttrs = appendToTailOfListInt(projProvAttrs, count);
+	    		count ++;
+	    		pos ++;
+	    }
+
+	    ProjectionOperator *projOp = createProjectionOp(projExprs,
+	            (QueryOperator *) op, ((QueryOperator *) op)->parents, projNames);
+
+	    FOREACH(QueryOperator, o, ((QueryOperator *) op)->parents)
+	    		o->inputs = singleton(projOp);
+
+	    ((QueryOperator *) op)->parents = singleton(projOp);
+
+	    ((QueryOperator *) projOp)->provAttrs = projProvAttrs;
+
+
+	    LOG_RESULT("Rewritten Operator tree", projOp);
+
+	    return (QueryOperator *) projOp;
+}
+
 
 
 static QueryOperator *
@@ -2636,3 +2743,4 @@ static List *combineAndList(List *l)
 
     return result;
 }
+
