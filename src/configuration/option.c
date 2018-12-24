@@ -173,6 +173,9 @@ boolean temporal_agg_combine_with_norm = TRUE;
 boolean opt_lateral_rewrite = FALSE;
 boolean opt_agg_reduction_model_rewrite = FALSE;
 
+// use provenance scratch
+int max_number_paritions_for_uses = 0;
+
 // struct that encapsulates option state
 struct option_state {
     HashMap *optionPos; // optionname -> position of option in list
@@ -637,6 +640,14 @@ OptionInfo opts[] =
                  OPTION_INT,
                  wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
                  defOptionInt(1)
+         },
+         {
+        		 OPTION_MAX_NUMBER_PARTITIONS_FOR_USE,
+                 "-cmax_number_paritions_for_uses",
+                 "max number of partitions can be used in any clause",
+                 OPTION_INT,
+                 wrapOptionInt(&max_number_paritions_for_uses),
+                 defOptionInt(0)
          },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,

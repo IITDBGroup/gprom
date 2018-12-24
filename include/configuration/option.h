@@ -107,6 +107,9 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_LATERAL_REWRITE "lateral_rewrite"
 #define OPTION_AGG_REDUCTION_MODEL_REWRITE "agg_reduction_model_rewrite"
 
+/* use provenance scratch */
+#define OPTION_MAX_NUMBER_PARTITIONS_FOR_USE "number_max_paritions_for_use"
+
 // backend types
 NEW_ENUM_WITH_TO_STRING(
     BackendType,

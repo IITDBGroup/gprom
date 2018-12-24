@@ -2427,7 +2427,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          }
     }
 
-    int hIntValue = 0; long
+    int hIntValue = 0;
     long uhIntValue = LONG_VALUE(uhvalue);
     //int uhIntValue1 = INT_VALUE(uhvalue);
 
@@ -2692,22 +2692,33 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     if(uhIntValue == 0)
     	 	 return (QueryOperator *) newpo;
 
-    //use in clause
-    QuantifiedComparison *qcExpr = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
-    												(List *) copyObject(condRightValueList));
+    int maxNumParts = getIntOption(OPTION_MAX_NUMBER_PARTITIONS_FOR_USE);
+    if (maxNumParts == 0)
+    		maxNumParts = hIntValue - 2;
 
-    SelectionOperator *sel = createSelectionOp ((Node *) qcExpr, (QueryOperator *) newpo, NIL, getQueryOperatorAttrNames((QueryOperator *) newpo));
-    sel->op.provAttrs = (List *)copyObject(newProvPosList);
+    if(LIST_LENGTH(condRightValueList) <= maxNumParts)
+    {
+    	//use in clause
+    	QuantifiedComparison *qcExpr = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
+    			(List *) copyObject(condRightValueList));
+    	SelectionOperator *sel = createSelectionOp ((Node *) qcExpr, (QueryOperator *) newpo, NIL, getQueryOperatorAttrNames((QueryOperator *) newpo));
+    	sel->op.provAttrs = (List *)copyObject(newProvPosList);
 
-    // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) newpo, (QueryOperator *) sel);
+    	// Switch the subtree with this newly created projection operator.
+    	switchSubtrees((QueryOperator *) newpo, (QueryOperator *) sel);
 
-    // Add child to the newly created projections operator,
-    ((QueryOperator *) newpo)->parents = appendToTailOfList(((QueryOperator *) newpo)->parents, (QueryOperator *) sel);
-    //addChildOperator((QueryOperator *) sel, (QueryOperator *) newpo);
+    	// Add child to the newly created projections operator,
+    	((QueryOperator *) newpo)->parents = appendToTailOfList(((QueryOperator *) newpo)->parents, (QueryOperator *) sel);
+    	//addChildOperator((QueryOperator *) sel, (QueryOperator *) newpo);
 
-    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) sel));
-    return (QueryOperator *) sel;
+    	DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) sel));
+    	return (QueryOperator *) sel;
+    }
+    else
+    {
+    	DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
+    	return (QueryOperator *) newpo;
+    }
 }
 
 
