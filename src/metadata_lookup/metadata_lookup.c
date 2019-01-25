@@ -454,3 +454,13 @@ createCache(void)
 
     return result;
 }
+
+boolean
+isPostive(char *tableName, char *colName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->checkPostive(tableName, colName);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}

@@ -17,7 +17,6 @@ HashMap *getSchema(Node *qbModel);
 //HashMap *safetyCheck_windowOperator(Node* qbModel);
 HashMap *safetyCheck(Node* qbModel, char *hasOpeator);
 
-
 boolean check(Node* node, HashMap *state);
 boolean getTableAccessOperator(Node* node, HashMap *map);
 boolean getSubset(Node* node, HashMap *map);
@@ -35,5 +34,6 @@ boolean checkPageSafety_rownum(HashMap *data);
 HashMap *getMonotoneResultMap(Node* qbModel);
 
 boolean hasOrder(Node* node, int *find);
+boolean checkAllIsPostive(HashMap *table_map, char *colName);
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_PS_SAFETY_CHECK_H_ */

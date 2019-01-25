@@ -14,6 +14,7 @@
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include <string.h>
 
 
@@ -31,6 +32,8 @@ monotoneCheck(Node *qbModel)
 		op = (QueryOperator *) qbModel;
 	*/
 	DEBUG_LOG("Safety Check");
+
+
 	HashMap *checkResult = NEW_MAP(Constant,Node);
 	HashMap *operatorState = NEW_MAP(Constant,Node);
 	check(qbModel, operatorState);
@@ -137,6 +140,7 @@ safetyCheck(Node* qbModel, char *hasOpeator) {
 		DEBUG_LOG("The result is: %d", result);
 	}else{
 		result = checkPageSafety(data, hasOpeator); // window and aggregation
+		DEBUG_LOG("The result is: %d", result);
 	}
 
 	char *PAGE = "PAGE";
@@ -229,7 +233,7 @@ binDis(int length, int value)
 			//appendToTailOfList(stringList, bit);
 		}
 	}
-	DEBUG_LOG("The bin is: %s", stringResult->data);
+	//DEBUG_LOG("The bin is: %s", stringResult->data);
 	return stringResult->data;
 }
 
@@ -278,19 +282,42 @@ getData(Node* node, HashMap *data)
 		List *orderExprs = ((OrderOperator *) node)->orderExprs;
 		MAP_ADD_STRING_KEY(data, OrderOperator_key, (Node *)orderExprs);
 	}
+	if (isA(node, TableAccessOperator)) {
+		char *TableAccessOperator_key = "TableAccessOperator";
+		if (hasMapStringKey(data, TableAccessOperator_key)) {
+
+			HashMap *TableAccessOperator_map = NEW_MAP(Constant, Node);
+			char *tablename = ((TableAccessOperator *) node)->tableName;
+			Schema *schema = ((TableAccessOperator *) node)->op.schema;
+			List *attrDef = schema->attrDefs;
+			TableAccessOperator_map = (HashMap *)MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
+			MAP_ADD_STRING_KEY(TableAccessOperator_map, tablename, (Node * )attrDef);
+			MAP_ADD_STRING_KEY(data, TableAccessOperator_key, TableAccessOperator_map);
+		} else {
+			HashMap *TableAccessOperator_map = NEW_MAP(Constant,Node);
+			char *tablename = ((TableAccessOperator *) node)->tableName;
+			Schema *schema = ((TableAccessOperator *) node)->op.schema;
+			List *attrDef = schema->attrDefs;
+			MAP_ADD_STRING_KEY(TableAccessOperator_map, tablename, (Node * )attrDef);
+			MAP_ADD_STRING_KEY(data, TableAccessOperator_key, TableAccessOperator_map);
+		}
+	}
 	return visit(node, getData, data);
 }
-
 
 boolean checkPageSafety(HashMap *data, char *hasOpeator)
 {
 	char *function_name;
+	char *colName;
+	//char *tableName;
 	if(!strcmp(hasOpeator, "WindowOperator")){
 		char *WindowOperator_key = "WindowOperator";
 		HashMap *WindowOperator_map = (HashMap *) MAP_GET_STRING_ENTRY(data, WindowOperator_key)->value;
 		char *f_key = "f";
 		Node *f = (Node *) MAP_GET_STRING_ENTRY(WindowOperator_map, f_key)->value;
 		function_name =((FunctionCall *) f)->functionname;
+		List *args = ((FunctionCall *) f)->args;
+		colName = ((AttributeReference *)getHeadOfList(args)->data.ptr_value)->name;
 	}
 	if(!strcmp(hasOpeator, "aggregation")){
 		char *aggregation_key = "aggregation";
@@ -299,13 +326,23 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator)
 		char *aggrs_key = "aggrs";
 		List *aggrs = (List *) MAP_GET_STRING_ENTRY(aggreation_map, aggrs_key)->value;
 		function_name = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
+		List *args = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->args;
+		colName = ((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 	}
+	//DEBUG_LOG("The COLNAME is: %s", colName);
+	//DEBUG_LOG("The TABLENAME is: %s", tableName);
 
 	char *SelectionOperator_key = "SelectionOperator";
 	Node *cond = MAP_GET_STRING_ENTRY(data, SelectionOperator_key)->value;
 	char *operator_name = ((Operator *) cond)->name;
+	char *TableAccessOperator_key = "TableAccessOperator";
+	HashMap *table_map  = (HashMap *) MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
+
+	//boolean isPostive = checkAllIsPostive(table_map, colName);
+	//DEBUG_LOG("lzy is : %d", isPostive);
 
 	if (!strcmp(function_name, "SUM")) {
+		if (checkAllIsPostive(table_map, colName)){
 			if (!strcmp(operator_name, "<")) {
 				return FALSE;
 			}
@@ -321,6 +358,9 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator)
 			if (!strcmp(operator_name, ">=")) {
 				return TRUE;
 			}
+		} else {
+			return FALSE;
+		}
 		}
 		if (!strcmp(function_name, "AVG")) {
 			if (!strcmp(operator_name, "<")) {
@@ -422,15 +462,28 @@ boolean checkPageSafety_rownum(HashMap *data){
 	char *aggrs_key = "aggrs";
 	List *aggrs = (List *) MAP_GET_STRING_ENTRY(aggreation_map, aggrs_key)->value;
 	char *function_name = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
+	List *args = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->args;
+	char *colName = ((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
+
+	//DEBUG_LOG("The COLNAME is: %s", colName);
+	char *TableAccessOperator_key = "TableAccessOperator";
+	HashMap *table_map  = (HashMap *) MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
+
+	//boolean isPostive = checkAllIsPostive(table_map, colName);
+	//DEBUG_LOG("lzy is : %d", isPostive);
 
 	if (!strcmp(orderby_name, groupby_name)) {
 		return TRUE;
 	} else {
 		if (!strcmp(function_name, "SUM")) {
+			if (checkAllIsPostive(table_map, colName)) {
 			if (order == SORT_ASC) {
 				return FALSE;
 			} else {
 				return TRUE;
+			}
+			} else {
+				return FALSE;
 			}
 		}
 		if (!strcmp(function_name, "AVG")) {
@@ -459,6 +512,19 @@ boolean checkPageSafety_rownum(HashMap *data){
 		}
 	}
 	return TRUE;
+}
+
+boolean
+checkAllIsPostive(HashMap *table_map, char *colName){
+
+		List *key_List = getKeys(table_map);
+		boolean postive;
+		//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
+		FOREACH(Constant, table, key_List){
+			postive = isPostive(table->value, colName) && postive;
+
+		}
+	return postive;
 }
 /*
 HashMap *
