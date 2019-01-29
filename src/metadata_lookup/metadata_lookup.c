@@ -464,3 +464,15 @@ isPostive(char *tableName, char *colName)
     RELEASE_MEM_CONTEXT();
     return result;
 }
+
+
+boolean
+transferRawData(char *data, char *dataType){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->trasnferRawData(data, dataType);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+

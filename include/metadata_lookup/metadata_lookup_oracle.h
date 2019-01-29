@@ -83,7 +83,8 @@ extern boolean oracleIsInitialized (void);
 
 extern boolean oracleCatalogTableExists (char * tableName);
 extern boolean oracleCatalogViewExists (char * viewName);
-extern boolean oracleCheckPostive(char* tableName, char* colName);
+extern boolean oracleCheckPostive(char *tableName, char *colName);
+extern boolean oracleTransferRawData(char *data, char *dataType);
 
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);

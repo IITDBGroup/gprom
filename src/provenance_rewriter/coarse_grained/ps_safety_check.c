@@ -31,8 +31,12 @@ monotoneCheck(Node *qbModel)
 	else if (IS_OP(qbModel))
 		op = (QueryOperator *) qbModel;
 	*/
-	DEBUG_LOG("Safety Check");
 
+	DEBUG_LOG("Safety Check");
+/*
+	boolean lzy = isPostive("R", "A");
+	DEBUG_LOG("The lzy is %d", lzy);
+*/
 
 	HashMap *checkResult = NEW_MAP(Constant,Node);
 	HashMap *operatorState = NEW_MAP(Constant,Node);

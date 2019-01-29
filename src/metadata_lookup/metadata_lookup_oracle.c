@@ -138,6 +138,7 @@ assembleOracleMetadataLookupPlugin(void) {
 	plugin->dataTypeToSQL = oracleBackendDatatypeToSQL;
 
 	plugin->checkPostive = oracleCheckPostive;
+	plugin->trasnferRawData = oracleTransferRawData;
 
 	return plugin;
 }
@@ -411,14 +412,14 @@ boolean oracleCheckPostive(char* tableName, char* colName) {
 
 	StringInfo statement;
 	char *result;
-	//char *result2;
+	char *dataType;
 
 	START_TIMER("module - metadata lookup");
 
 	statement = makeStringInfo();
 	appendStringInfo(statement,
-			"SELECT COLUMN_NAME,LOW_VALUE "
-					"FROM ALL_TAB_COL_STATISTICS "
+			"SELECT COLUMN_NAME,LOW_VALUE,DATA_TYPE "
+					"FROM ALL_TAB_COLUMNS "
 					"WHERE OWNER = 'FGA_USER' AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'",
 			tableName, colName);
 
@@ -429,11 +430,13 @@ boolean oracleCheckPostive(char* tableName, char* colName) {
 			if (OCI_FetchNext(rs)) {
 
 				result = strdup((char * )OCI_GetString(rs, 2));
+				dataType = strdup((char * )OCI_GetString(rs, 3));
 				//result2 = strdup((char * )OCI_GetString(rs, 2));
 				//DEBUG_LOG("result is %s", result);
 				DEBUG_LOG("The lowest value is %s", result);
+				DEBUG_LOG("The datatype is %s", dataType);
 				STOP_TIMER("module - metadata lookup");
-				return TRUE;
+				return transferRawData(result, dataType);
 			} else {
 				return TRUE;
 			}
@@ -445,6 +448,52 @@ boolean oracleCheckPostive(char* tableName, char* colName) {
 	FREE(statement);
 	STOP_TIMER("module - metadata lookup");
 
+	return FALSE;
+}
+
+boolean oracleTransferRawData(char* data, char* dataType) {
+	StringInfo statement;
+	char *result;
+	statement = makeStringInfo();
+	START_TIMER("module - metadata lookup");
+	if (!strcmp(dataType, "NUMBER")) {
+		appendStringInfo(statement,
+				"SELECT utl_raw.cast_to_number('%s') FROM dual", data);
+	} else if (!strcmp(dataType, "DOUBLE")) {
+		appendStringInfo(statement,
+				"SELECT utl_raw.cast_to_binary_double('%s') FROM dual", data);
+	} else if (!strcmp(dataType, "FLOAT")) {
+		appendStringInfo(statement,
+				"SELECT utl_raw.cast_to_binary_float('%s') FROM dual", data);
+	} else {
+		return TRUE;
+	}
+
+	if ((conn = getConnection()) != NULL) {
+		OCI_Resultset *rs = executeStatement(statement->data);
+
+		if (rs != NULL) {
+			if (OCI_FetchNext(rs)) {
+
+				result = strdup((char * )OCI_GetString(rs, 1));
+				DEBUG_LOG("The lowest value is %s", result);
+				if (*result == '-') {
+					DEBUG_LOG("The value is negative");
+					return FALSE;
+				} else {
+					DEBUG_LOG("The value is postive");
+					return TRUE;
+				}
+				STOP_TIMER("module - metadata lookup");
+			} else {
+				return TRUE;
+			}
+		}
+	} else {
+		DEBUG_LOG("No connection");
+	}
+	FREE(statement);
+	STOP_TIMER("module - metadata lookup");
 	return FALSE;
 }
 
