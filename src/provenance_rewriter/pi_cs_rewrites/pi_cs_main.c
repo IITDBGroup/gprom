@@ -2422,7 +2422,12 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         	 		 rangeLen = LIST_LENGTH(subList);
         	 		 DEBUG_LOG("subList values:");
         	 		 FOREACH(Constant, c, subList)
-        	 		 	 DEBUG_LOG("%d", INT_VALUE(c));
+        	 		 {
+        	 			 if(c->constType == DT_INT)
+        	 				 DEBUG_LOG("%d", INT_VALUE(c));
+        	 			 else if(c->constType == DT_STRING)
+        	 				DEBUG_LOG("%s", STRING_VALUE(c));
+        	 		 }
         	 	 }
          }
     }
@@ -2560,9 +2565,25 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		DEBUG_LOG("attr name: %s", pAttrName);
     		//AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(pAttrName));
 
+    		List *anyCondList = NIL;
+    		List *subList = (List *) k->value;
+    		rangeLen = LIST_LENGTH(subList);
+    		DEBUG_LOG("values in any clause:");
+
+    		FOREACH(Constant, c, condRightValueList)
+    		{
+    			int i = INT_VALUE(c);
+    			Constant *tc = getNthOfListP(subList, i);
+    			anyCondList = appendToTailOfList(anyCondList, copyObject(tc));
+    			if(c->constType == DT_INT)
+    				DEBUG_LOG("%d", INT_VALUE(c));
+    			else if(c->constType == DT_STRING)
+    				DEBUG_LOG("%s", STRING_VALUE(c));
+    		}
+
     		AttributeReference *condAttrRef = createAttrsRefByName((QueryOperator *) op, strdup(pAttrName));
     		qcExprRangeB = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
-    				(List *) copyObject(condRightValueList));
+    				(List *) copyObject(anyCondList));
     	}
 
 

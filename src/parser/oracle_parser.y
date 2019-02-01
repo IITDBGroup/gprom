@@ -143,7 +143,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
-%type <list> hashList fragmentList pageList rangeAList rangeBList intConstList attrRangeList
+%type <list> hashList fragmentList pageList rangeAList rangeBList intConstList strConstList attrRangeList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -805,6 +805,11 @@ intConstList:
 		intConst { $$ = singleton((Node *) createConstInt($1)); }
 		| intConstList ',' intConst { $$ = appendToTailOfList($1, (Node *) createConstInt($3)); }
 	;
+	
+strConstList:
+		stringConst { $$ = singleton((Node *) createConstString($1)); }
+		| strConstList ',' stringConst { $$ = appendToTailOfList($1, (Node *) createConstString($3)); }
+	;
 
 
 
@@ -815,7 +820,20 @@ attrRangeList:
             									(Node *) $3);
             $$ = singleton(k);
          }
+         |
+         '(' delimIdentifier strConstList ')'
+         {
+         	KeyValue *k = createNodeKeyValue((Node *) createConstString($2),
+            									(Node *) $3);
+            $$ = singleton(k);
+         }
          | attrRangeList '(' delimIdentifier intConstList ')'
+         {
+         	KeyValue *k = createNodeKeyValue((Node *) createConstString($3),
+            									(Node *) $4);
+            $$ = appendToTailOfList($1, k);
+         }
+         | attrRangeList '(' delimIdentifier strConstList ')'
          {
          	KeyValue *k = createNodeKeyValue((Node *) createConstString($3),
             									(Node *) $4);
