@@ -1786,6 +1786,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
 
     int coaParaCount = 1;
+    int findTable = 0;
     FOREACH(KeyValue, kv, coaParaList)
     {
          Constant *key = (Constant *) kv->key;  //R
@@ -1794,6 +1795,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
          {
         	 	 if(coaParaCount == numTable)
         	 	 {
+        	 		 findTable = 1;
         	 		 coaParaValueList = (List *) kv->value;  //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
         	 		 DEBUG_LOG("key %s",keyV);
         	 		 break;
@@ -1803,6 +1805,8 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
          }
     }
 
+    if(findTable == 1)
+    {
     DEBUG_LOG("list length is %d", coaParaValueList->length);
     //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
     FOREACH(KeyValue, kv, coaParaValueList)
@@ -2096,6 +2100,9 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
     return (QueryOperator *) newpo;
+    }
+    else
+    		return (QueryOperator *) op;
 }
 
 
@@ -2355,6 +2362,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
 
     int coaParaCount = 1;
+    int findTable = 0;
     FOREACH(KeyValue, kv, coaParaList)
     {
          Constant *key = (Constant *) kv->key;  //R
@@ -2363,6 +2371,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          {
         	 	if(coaParaCount == numTable)
         	 	{
+        	 		findTable = 1;
         	 		coaParaValueList = (List *) kv->value;  //e.g., {"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32, "UHVALUE"->32}
         	 		DEBUG_LOG("key %s",keyV);
         	 		break;
@@ -2372,6 +2381,8 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          }
     }
 
+    if(findTable == 1)
+    {
     DEBUG_LOG("list length is %d", coaParaValueList->length);
     //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32, "UHVALUE"->32}
     FOREACH(KeyValue, kv, coaParaValueList)
@@ -2760,6 +2771,10 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 		return (QueryOperator *) sel;
 	else
 		return (QueryOperator *) rOp;
+
+    }
+    else
+    		return (QueryOperator *) op;
 
 }
 
