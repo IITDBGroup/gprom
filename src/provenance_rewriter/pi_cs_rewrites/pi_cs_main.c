@@ -1847,7 +1847,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
         	 	 attrRangeList = (List *) kv->value;
         	 	 FOREACH(KeyValue, k, attrRangeList)
         	 	 {
-        	 		 DEBUG_LOG("attr %s", STRING_VALUE(k));
+        	 		 DEBUG_LOG("attr %s", STRING_VALUE(k->key));
         	 		 List *subList = (List *) k->value;
         	 		 rangeLen = LIST_LENGTH(subList);
         	 		 FOREACH(Constant, c, subList)
@@ -1970,6 +1970,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     List *fList = NIL;
     for(int j=0; j<LIST_LENGTH(attrRangeList); j++)
     {
+
          KeyValue *k = (KeyValue *) getNthOfListP(attrRangeList, j);
     		 char *pAttrName = STRING_VALUE((Constant *) k->key);
     	     AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(pAttrName));
@@ -2363,6 +2364,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
     int coaParaCount = 1;
     int findTable = 0;
+    List *rangeBlist = NIL;
     FOREACH(KeyValue, kv, coaParaList)
     {
          Constant *key = (Constant *) kv->key;  //R
@@ -2574,69 +2576,86 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		KeyValue *k = (KeyValue *) getNthOfListP(attrRangeList, j);
     		char *pAttrName = STRING_VALUE((Constant *) k->key);
     		DEBUG_LOG("attr name: %s", pAttrName);
-    		//AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(pAttrName));
+    		AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(pAttrName));
 
-    		List *anyCondList = NIL;
+    		//List *anyCondList = NIL;
     		List *subList = (List *) k->value;
     		rangeLen = LIST_LENGTH(subList);
-    		DEBUG_LOG("values in any clause:");
-
-    		FOREACH(Constant, c, condRightValueList)
-    		{
-    			int i = INT_VALUE(c);
-    			Constant *tc = getNthOfListP(subList, i);
-    			anyCondList = appendToTailOfList(anyCondList, copyObject(tc));
-    			if(c->constType == DT_INT)
-    				DEBUG_LOG("%d", INT_VALUE(c));
-    			else if(c->constType == DT_STRING)
-    				DEBUG_LOG("%s", STRING_VALUE(c));
-    		}
-
-    		AttributeReference *condAttrRef = createAttrsRefByName((QueryOperator *) op, strdup(pAttrName));
-    		qcExprRangeB = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
-    				(List *) copyObject(anyCondList));
-    	}
+//    		DEBUG_LOG("values in any clause:");
+//
+//    		FOREACH(Constant, c, condRightValueList)
+//    		{
+//    			int i = INT_VALUE(c);
+//    			Constant *tc = getNthOfListP(subList, i);
+//    			anyCondList = appendToTailOfList(anyCondList, copyObject(tc));
+//    			if(c->constType == DT_INT)
+//    				DEBUG_LOG("%d", INT_VALUE(c));
+//    			else if(c->constType == DT_STRING)
+//    				DEBUG_LOG("%s", STRING_VALUE(c));
+//    		}
+//
+//    		AttributeReference *condAttrRef = createAttrsRefByName((QueryOperator *) op, strdup(pAttrName));
+//    		qcExprRangeB = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
+//    				(List *) copyObject(anyCondList));
+//    	}
 
 
 // above use any clause, below is < > condition
 // create each condition, e.g.,  33, 32, 31, 28, 27, 25 ->  33<=x<34 or 32<=x<33 or 31<=x<32
-//					List *elList = NIL;
-//            		FOREACH(Constant, c,	condRightValueList)
+//				List *elList = NIL;
+//				List *l = copyList(condRightValueList);
+//				reverseList(l);
+//				//List *llist = removeFromTail(copyList(l));
+//				//List *rlist = removeFromHead(copyList(l));
+//            		//FOREACH(Constant, c,	condRightValueList)
+//				FOREACH(Constant, c, l)
 //            		{
-//            			DEBUG_LOG("c is : %d", INT_VALUE(c));
-//            			Constant *rConst = createConstInt(INT_VALUE(c) + 1);
-//            			Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(c)));
-//            			Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), rConst));
+//            			int i = INT_VALUE(c);
+//            			//int j = INT_VALUE(c2);
+//            			DEBUG_LOG("c1 is : %d, c2 is : %d", i);
+//            			Constant *lc = getNthOfListP(subList, i);
+//            			Constant *rc = getNthOfListP(subList, i+1);
+//            			if(lc->constType == DT_INT)
+//            				DEBUG_LOG("left is %d, right is ", INT_VALUE(lc), INT_VALUE(rc));
+//            			else if(lc->constType == DT_STRING)
+//            				DEBUG_LOG("left is %s, right is %s", STRING_VALUE(lc), STRING_VALUE(rc));
+//
+//            			//Constant *rConst = createConstInt(INT_VALUE(c) + 1);
+//            			Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(lc)));
+//            			Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), copyObject(rc)));
 //            			Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
 //            			elList = appendToTailOfList(elList, elOp);
 //            		}
 
-// combine each condition, e.g.,  33, 32, 31, 28, 27, 25 ->  31<=x<34 or 27<=x<29 or 25<=x<26
-//            		Constant *ll = (Constant *) popHeadOfListP(condRightValueList);
-//            		Constant *hh = createConstInt(INT_VALUE(ll) + 1);
-//            		FOREACH(Constant, c,	condRightValueList)
-//            		{
-//            			if(INT_VALUE(c) == INT_VALUE(ll) - 1)
-//            				ll = c;
-//            			else
-//            			{
-//            				Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(ll)));
-//            				Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), hh));
-//                			Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
-//                			elList = appendToTailOfList(elList, elOp);
-//                			ll = c;
-//                			hh = createConstInt(INT_VALUE(c) + 1);
-//            			}
-//            		}
-//    				Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(ll)));
-//    				Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), hh));
-//        			Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
-//        			elList = appendToTailOfList(elList, elOp);
-//            		Node *wcond = orExprList(elList);
-//            		//DEBUG_NODE_BEATIFY_LOG("wcond ", wcond);
-//
-//            		rangeBlist = appendToTailOfList(rangeBlist, wcond);
-//            	}
+ //combine each condition, e.g.,  33, 32, 31, 28, 27, 25 ->  31<=x<34 or 27<=x<29 or 25<=x<26
+    			List *elList = NIL;
+        		Constant *ll = (Constant *) popHeadOfListP(condRightValueList);
+        		int hh = INT_VALUE(ll) + 1;
+        		FOREACH(Constant, c,	condRightValueList)
+        		{
+        			if(INT_VALUE(c) == INT_VALUE(ll) - 1)
+        				ll = c;
+        			else
+        			{
+
+        				Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(subList, INT_VALUE(ll)))));
+        				Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(subList, hh))));
+            			Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
+            			elList = appendToTailOfList(elList, elOp);
+            			ll = c;
+            			hh = INT_VALUE(c) + 1;
+        			}
+        		}
+
+				Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(subList, INT_VALUE(ll)))));
+				Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(subList, hh))));
+    				Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
+    				elList = appendToTailOfList(elList, elOp);
+    				Node *wcond = orExprList(elList);
+            		//DEBUG_NODE_BEATIFY_LOG("wcond ", wcond);
+
+            		rangeBlist = appendToTailOfList(rangeBlist, wcond);
+            	}
     	}
     else if(streq(ptype, "HASH"))
     {
@@ -2747,7 +2766,9 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 		if (uhIntValue == 0)
 			return (QueryOperator *) op;
 
-		//	SelectionOperator *sel = createSelectionOp ((Node *) getHeadOfListP(rangeBlist), (QueryOperator *) op, NIL, getQueryOperatorAttrNames((QueryOperator *) op));
+		if(streq(ptype, "RANGEB"))
+			sel = createSelectionOp ((Node *) getHeadOfListP(rangeBlist), (QueryOperator *) op, NIL, getQueryOperatorAttrNames((QueryOperator *) op));
+		else if(streq(ptype, "FRAGMENT"))
 		sel = createSelectionOp((Node *) qcExprRangeB,
 				(QueryOperator *) op, NIL,
 				getQueryOperatorAttrNames((QueryOperator *) op));
