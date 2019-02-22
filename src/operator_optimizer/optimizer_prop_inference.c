@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * optimizer_prop_inference.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -151,7 +151,7 @@ computeKeyProp (QueryOperator *root)
     // dup removal operator has a key {all attributes} if the input does not have a key
     if (isA(root, DuplicateRemoval))
     {
-		if (keyList == NIL)
+		if (keyList == NIL) //TODO check that keyList would always be NIL???
 			keyList = copyObject(lKeyList);
 		else
 		{
@@ -1869,4 +1869,3 @@ removePropsVisitor(QueryOperator *op, void *context)
 
     return TRUE;
 }
-
