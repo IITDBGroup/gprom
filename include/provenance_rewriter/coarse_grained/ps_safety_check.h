@@ -35,5 +35,7 @@ HashMap *getMonotoneResultMap(Node* qbModel);
 
 boolean hasOrder(Node* node, int *find);
 boolean checkAllIsPostive(HashMap *table_map, char *colName);
-
+boolean checkAllIsNegative(HashMap *table_map, char *colName);
+boolean isPostive(char *tableName, char *colName);
+boolean isNegative(char *tableName, char *colName);
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_PS_SAFETY_CHECK_H_ */

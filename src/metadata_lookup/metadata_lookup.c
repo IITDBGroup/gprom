@@ -455,6 +455,7 @@ createCache(void)
     return result;
 }
 
+/*
 boolean
 isPostive(char *tableName, char *colName)
 {
@@ -464,15 +465,23 @@ isPostive(char *tableName, char *colName)
     RELEASE_MEM_CONTEXT();
     return result;
 }
+*/
 
-
-boolean
+char *
 transferRawData(char *data, char *dataType){
 	ASSERT(activePlugin && activePlugin->isInitialized());
 	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    boolean result = activePlugin->trasnferRawData(data, dataType);
+    char * result = activePlugin->trasnferRawData(data, dataType);
     RELEASE_MEM_CONTEXT();
     return result;
 }
 
-
+HashMap *
+getMinAndMax(char *tableName, char *colName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    HashMap * result = activePlugin->getMinAndMax(tableName, colName);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}

@@ -15,6 +15,7 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include <string.h>
 
 
@@ -40,6 +41,11 @@ monotoneCheck(Node *qbModel)
 
 	HashMap *checkResult = NEW_MAP(Constant,Node);
 	HashMap *operatorState = NEW_MAP(Constant,Node);
+	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
+	computeChildOperatorProp(root);
+	//HashMap *min_max = getMinAndMax("R","A");
+	//DEBUG_NODE_BEATIFY_LOG("The min_max is:",min_max);
+	//DEBUG_LOG("The negative is: %d", isNegative("R","A"));
 	check(qbModel, operatorState);
 	//DEBUG_NODE_BEATIFY_LOG("The result_state is:",operatorState);
 	List *entries = getEntries(operatorState);//get all operator in the tree.
@@ -309,29 +315,36 @@ getData(Node* node, HashMap *data)
 	return visit(node, getData, data);
 }
 
-boolean checkPageSafety(HashMap *data, char *hasOpeator)
-{
+boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 	char *function_name;
 	char *colName;
 	//char *tableName;
-	if(!strcmp(hasOpeator, "WindowOperator")){
+	if (!strcmp(hasOpeator, "WindowOperator")) {
 		char *WindowOperator_key = "WindowOperator";
-		HashMap *WindowOperator_map = (HashMap *) MAP_GET_STRING_ENTRY(data, WindowOperator_key)->value;
+		HashMap *WindowOperator_map =
+				(HashMap *) MAP_GET_STRING_ENTRY(data, WindowOperator_key)->value;
 		char *f_key = "f";
-		Node *f = (Node *) MAP_GET_STRING_ENTRY(WindowOperator_map, f_key)->value;
-		function_name =((FunctionCall *) f)->functionname;
+		Node *f =
+				(Node *) MAP_GET_STRING_ENTRY(WindowOperator_map, f_key)->value;
+		function_name = ((FunctionCall *) f)->functionname;
 		List *args = ((FunctionCall *) f)->args;
-		colName = ((AttributeReference *)getHeadOfList(args)->data.ptr_value)->name;
+		colName =
+				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 	}
-	if(!strcmp(hasOpeator, "aggregation")){
+	if (!strcmp(hasOpeator, "aggregation")) {
 		char *aggregation_key = "aggregation";
-		HashMap *aggreation_map = (HashMap *) MAP_GET_STRING_ENTRY(data, aggregation_key)->value;
+		HashMap *aggreation_map =
+				(HashMap *) MAP_GET_STRING_ENTRY(data, aggregation_key)->value;
 
 		char *aggrs_key = "aggrs";
-		List *aggrs = (List *) MAP_GET_STRING_ENTRY(aggreation_map, aggrs_key)->value;
-		function_name = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
-		List *args = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->args;
-		colName = ((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
+		List *aggrs =
+				(List *) MAP_GET_STRING_ENTRY(aggreation_map, aggrs_key)->value;
+		function_name =
+				((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
+		List *args =
+				((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->args;
+		colName =
+				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 	}
 	//DEBUG_LOG("The COLNAME is: %s", colName);
 	//DEBUG_LOG("The TABLENAME is: %s", tableName);
@@ -340,13 +353,14 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator)
 	Node *cond = MAP_GET_STRING_ENTRY(data, SelectionOperator_key)->value;
 	char *operator_name = ((Operator *) cond)->name;
 	char *TableAccessOperator_key = "TableAccessOperator";
-	HashMap *table_map  = (HashMap *) MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
+	HashMap *table_map =
+			(HashMap *) MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
 
 	//boolean isPostive = checkAllIsPostive(table_map, colName);
 	//DEBUG_LOG("lzy is : %d", isPostive);
 
 	if (!strcmp(function_name, "SUM")) {
-		if (checkAllIsPostive(table_map, colName)){
+		if (checkAllIsPostive(table_map, colName)) {
 			if (!strcmp(operator_name, "<")) {
 				return FALSE;
 			}
@@ -361,80 +375,96 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator)
 			}
 			if (!strcmp(operator_name, ">=")) {
 				return TRUE;
+			}
+		} else if (checkAllIsNegative(table_map, colName)) {
+			if (!strcmp(operator_name, "<")) {
+				return TRUE;
+			}
+			if (!strcmp(operator_name, "<=")) {
+				return TRUE;
+			}
+			if (!strcmp(operator_name, "=")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, ">")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, ">=")) {
+				return FALSE;
 			}
 		} else {
 			return FALSE;
 		}
+	}
+	if (!strcmp(function_name, "AVG")) {
+		if (!strcmp(operator_name, "<")) {
+			return FALSE;
 		}
-		if (!strcmp(function_name, "AVG")) {
-			if (!strcmp(operator_name, "<")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, "<=")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, "=")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, ">")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, ">=")) {
-				return FALSE;
-			}
+		if (!strcmp(operator_name, "<=")) {
+			return FALSE;
 		}
-		if (!strcmp(function_name, "COUNT")) {
-			if (!strcmp(operator_name, "<")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, "<=")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, "=")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, ">")) {
-				return TRUE;
-			}
-			if (!strcmp(operator_name, ">=")) {
-				return TRUE;
-			}
+		if (!strcmp(operator_name, "=")) {
+			return FALSE;
 		}
-		if (!strcmp(function_name, "MAX")) {
-			if (!strcmp(operator_name, "<")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, "<=")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, "=")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, ">")) {
-				return TRUE;
-			}
-			if (!strcmp(operator_name, ">=")) {
-				return TRUE;
-			}
+		if (!strcmp(operator_name, ">")) {
+			return FALSE;
 		}
-		if (!strcmp(function_name, "MIN")) {
-			if (!strcmp(operator_name, "<")) {
-				return TRUE;
-			}
-			if (!strcmp(operator_name, "<=")) {
-				return TRUE;
-			}
-			if (!strcmp(operator_name, "=")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, ">")) {
-				return FALSE;
-			}
-			if (!strcmp(operator_name, ">=")) {
-				return FALSE;
-			}
+		if (!strcmp(operator_name, ">=")) {
+			return FALSE;
 		}
-		return FALSE;
+	}
+	if (!strcmp(function_name, "COUNT")) {
+		if (!strcmp(operator_name, "<")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, "<=")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, "=")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, ">")) {
+			return TRUE;
+		}
+		if (!strcmp(operator_name, ">=")) {
+			return TRUE;
+		}
+	}
+	if (!strcmp(function_name, "MAX")) {
+		if (!strcmp(operator_name, "<")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, "<=")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, "=")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, ">")) {
+			return TRUE;
+		}
+		if (!strcmp(operator_name, ">=")) {
+			return TRUE;
+		}
+	}
+	if (!strcmp(function_name, "MIN")) {
+		if (!strcmp(operator_name, "<")) {
+			return TRUE;
+		}
+		if (!strcmp(operator_name, "<=")) {
+			return TRUE;
+		}
+		if (!strcmp(operator_name, "=")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, ">")) {
+			return FALSE;
+		}
+		if (!strcmp(operator_name, ">=")) {
+			return FALSE;
+		}
+	}
+	return FALSE;
 }
 
 
@@ -518,17 +548,47 @@ boolean checkPageSafety_rownum(HashMap *data){
 	return TRUE;
 }
 
-boolean
-checkAllIsPostive(HashMap *table_map, char *colName){
+boolean checkAllIsPostive(HashMap *table_map, char *colName) {
 
-		List *key_List = getKeys(table_map);
-		boolean postive;
-		//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
-		FOREACH(Constant, table, key_List){
-			postive = isPostive(table->value, colName) && postive;
+	List *key_List = getKeys(table_map);
+	boolean postive;
+	//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
+	FOREACH(Constant, table, key_List)
+	{
+		postive = isPostive(table->value, colName) && postive;
 
-		}
+	}
 	return postive;
+}
+
+boolean checkAllIsNegative(HashMap *table_map, char *colName) {
+	List *key_List = getKeys(table_map);
+	boolean negative;
+	//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
+	FOREACH(Constant, table, key_List)
+	{
+		negative = isNegative(table->value, colName) && negative;
+
+	}
+	return negative;
+}
+
+boolean isPostive(char *tableName, char *colName) {
+	HashMap *result = getMinAndMax(tableName, colName);
+	char *MIN = ((Constant *) MAP_GET_STRING_ENTRY(result, "MIN")->value)->value;
+	if (*MIN == '-') {
+		return FALSE;
+	}
+	return TRUE;
+}
+
+boolean isNegative(char *tableName, char *colName) {
+	HashMap *result = getMinAndMax(tableName, colName);
+	char *MAX = ((Constant *) MAP_GET_STRING_ENTRY(result, "MAX")->value)->value;
+	if (*MAX == '-') {
+		return TRUE;
+	}
+	return FALSE;
 }
 /*
 HashMap *

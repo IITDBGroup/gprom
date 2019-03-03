@@ -69,7 +69,8 @@ typedef struct MetadataLookupPlugin
     boolean (*catalogTableExists) (char * tableName);
     boolean (*catalogViewExists) (char * viewName);
     boolean (*checkPostive) (char *tableName, char *colName);
-    boolean (*trasnferRawData) (char *data, char *dataType);
+    char * (*trasnferRawData) (char *data, char *dataType);
+    HashMap * (*getMinAndMax) (char *tableName, char *colName);
 
     List * (*getAttributes) (char *tableName);
     List * (*getAttributeNames) (char *tableName);
@@ -150,8 +151,9 @@ extern int getCostEstimation(char *query);
 /* helper functions for createing the cache */
 extern CatalogCache *createCache(void);
 
-extern boolean isPostive(char *tableName, char *colName);
-extern boolean transferRawData(char *data, char *dataType);
+//extern boolean isPostive(char *tableName, char *colName);
+extern char *transferRawData(char *data, char *dataType);
+extern HashMap *getMinAndMax(char *tableName, char *colName);
 
 
 #endif /* METADATA_LOOKUP_H_ */

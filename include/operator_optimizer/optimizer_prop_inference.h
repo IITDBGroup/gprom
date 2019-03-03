@@ -16,6 +16,9 @@
 
 extern void computeKeyProp (QueryOperator *root);
 
+extern void computeMinMaxProp (QueryOperator *root);
+extern void computeChildOperatorProp(QueryOperator *root);
+
 extern void computeECProp (QueryOperator *root);
 extern void computeECPropBottomUp (QueryOperator *root);
 extern List *GenerateCondECSetListUsedInBottomUp(Node *op);

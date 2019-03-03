@@ -139,7 +139,7 @@ assembleOracleMetadataLookupPlugin(void) {
 
 	plugin->checkPostive = oracleCheckPostive;
 	plugin->trasnferRawData = oracleTransferRawData;
-
+	plugin->getMinAndMax = oracleGetMinAndMax;
 	return plugin;
 }
 
@@ -436,7 +436,8 @@ boolean oracleCheckPostive(char* tableName, char* colName) {
 				DEBUG_LOG("The lowest value is %s", result);
 				DEBUG_LOG("The datatype is %s", dataType);
 				STOP_TIMER("module - metadata lookup");
-				return transferRawData(result, dataType);
+				//return transferRawData(result, dataType);
+				return TRUE;
 			} else {
 				return TRUE;
 			}
@@ -451,9 +452,10 @@ boolean oracleCheckPostive(char* tableName, char* colName) {
 	return FALSE;
 }
 
-boolean oracleTransferRawData(char* data, char* dataType) {
+char*
+oracleTransferRawData(char* data, char* dataType) {
 	StringInfo statement;
-	char *result;
+	char *result = "";
 	statement = makeStringInfo();
 	START_TIMER("module - metadata lookup");
 	if (!strcmp(dataType, "NUMBER")) {
@@ -466,7 +468,7 @@ boolean oracleTransferRawData(char* data, char* dataType) {
 		appendStringInfo(statement,
 				"SELECT utl_raw.cast_to_binary_float('%s') FROM dual", data);
 	} else {
-		return TRUE;
+		return NULL;
 	}
 
 	if ((conn = getConnection()) != NULL) {
@@ -476,17 +478,18 @@ boolean oracleTransferRawData(char* data, char* dataType) {
 			if (OCI_FetchNext(rs)) {
 
 				result = strdup((char * )OCI_GetString(rs, 1));
-				DEBUG_LOG("The lowest value is %s", result);
+				/*DEBUG_LOG("The lowest value is %s", result);
 				if (*result == '-') {
 					DEBUG_LOG("The value is negative");
 					return FALSE;
 				} else {
 					DEBUG_LOG("The value is postive");
 					return TRUE;
-				}
+				}*/
+				DEBUG_LOG("The value is %s", result);
 				STOP_TIMER("module - metadata lookup");
 			} else {
-				return TRUE;
+				return NULL;
 			}
 		}
 	} else {
@@ -494,7 +497,57 @@ boolean oracleTransferRawData(char* data, char* dataType) {
 	}
 	FREE(statement);
 	STOP_TIMER("module - metadata lookup");
-	return FALSE;
+	return result;
+}
+
+
+HashMap *
+oracleGetMinAndMax(char* tableName, char* colName) {
+	StringInfo statement;
+	char *lowest;
+	char *highest;
+	char *dataType;
+	HashMap *result_map = NEW_MAP(Constant, Node);
+	START_TIMER("module - metadata lookup");
+
+	statement = makeStringInfo();
+	appendStringInfo(statement,
+			"SELECT COLUMN_NAME,LOW_VALUE,HIGH_VALUE,DATA_TYPE "
+					"FROM ALL_TAB_COLUMNS "
+					"WHERE OWNER = 'FGA_USER' AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'",
+			tableName, colName);
+
+	if ((conn = getConnection()) != NULL) {
+		OCI_Resultset *rs = executeStatement(statement->data);
+
+		if (rs != NULL) {
+			if (OCI_FetchNext(rs)) {
+
+				lowest = strdup((char * )OCI_GetString(rs, 2));
+				highest = strdup((char * )OCI_GetString(rs, 3));
+				dataType = strdup((char * )OCI_GetString(rs, 4));
+				//result2 = strdup((char * )OCI_GetString(rs, 2));
+				//DEBUG_LOG("result is %s", result);
+				DEBUG_LOG("The lowest value is %s", lowest);
+				DEBUG_LOG("The highest value is %s", highest);
+				DEBUG_LOG("The datatype is %s", dataType);
+				STOP_TIMER("module - metadata lookup");
+				MAP_ADD_STRING_KEY_AND_VAL(result_map, "MIN", transferRawData(lowest, dataType));
+				MAP_ADD_STRING_KEY_AND_VAL(result_map, "MAX", transferRawData(highest, dataType));
+				return result_map;
+			} else {
+				return NULL;
+			}
+		}
+	} else {
+		DEBUG_LOG("No connection");
+	}
+
+	FREE(statement);
+	STOP_TIMER("module - metadata lookup");
+
+
+	return result_map;
 }
 
 List *

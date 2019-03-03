@@ -153,5 +153,10 @@
 /* properties for aggregation operators created by lateral rewrite */
 #define PROP_OPT_AGGREGATION_BY_LATREAL_WRITE "AGGREGATION BY LATERAL REWRITE" //mark the aggregation created by lateral rewrite for nested queries
 
+#define PROP_STORE_MIN_MAX_DONE "HAVE GOT MIN AND MAX"
+#define PROP_STORE_MIN_MAX "STORE MIN AND MAX PROPERTY"
+
+#define PROP_STORE_CHILD_OPERATOR_DONE "HAVE GOT CHILD OPERATOR"
+#define PROP_STORE_CHILD_OPERATOR "STORE CHILD OPERATOR"
 
 #endif /* OPERATOR_PROPERTY_H_ */

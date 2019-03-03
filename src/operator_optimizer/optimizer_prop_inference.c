@@ -28,6 +28,63 @@ static boolean removeOnePropVisitor(QueryOperator *op, void *context);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
 static boolean printECProVisitor(QueryOperator *root, void *context);
 
+void
+computeMinMaxProp (QueryOperator *root){
+	if (root == NULL) {
+		return;
+	}
+
+	if (root->inputs != NULL){
+		FOREACH(QueryOperator, op, root->inputs){
+			if (!HAS_STRING_PROP(op,PROP_STORE_MIN_MAX_DONE))
+			                computeMinMaxProp(op);
+		}
+	}
+	DEBUG_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s", NodeTagToString(root->type), root->schema->name);
+	SET_BOOL_STRING_PROP(root, PROP_STORE_MIN_MAX_DONE);
+
+	if (isA(root, TableAccessOperator)){
+		TableAccessOperator *rel = (TableAccessOperator *) root;
+		char * tableName = rel->tableName;
+		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
+		FOREACH(AttributeDef, attrDef, rel->op.schema->attrDefs){
+			MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName, (Node *)getMinAndMax(tableName,attrDef->attrName));
+		}
+		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *)MIN_MAX);
+		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+	}
+
+}
+
+
+void computeChildOperatorProp(QueryOperator *root) {
+	if (root == NULL) {
+		return;
+	}
+
+	if (root->inputs != NULL) {
+		FOREACH(QueryOperator, op, root->inputs)
+		{
+			if (!HAS_STRING_PROP(op, PROP_STORE_CHILD_OPERATOR_DONE))
+				computeChildOperatorProp(op);
+		}
+	}
+	DEBUG_LOG("BEGIN COMPUTE CHILD OPERATOR OF %s operator %s", NodeTagToString(root->type), root->schema->name);
+	SET_BOOL_STRING_PROP(root, PROP_STORE_CHILD_OPERATOR_DONE);
+	List *ListOfChildOperator = NIL;
+	FOREACH(QueryOperator, op, root->inputs)
+	{
+		List *child = (List *) getStringProperty(op, PROP_STORE_CHILD_OPERATOR);
+		FOREACH(Constant, cd, child){
+			ListOfChildOperator = appendToTailOfList(ListOfChildOperator, createConstString(cd->value));
+		}
+		ListOfChildOperator = appendToTailOfList(ListOfChildOperator, createConstString(op->schema->name));
+		DEBUG_LOG("LZY");
+	}
+	setStringProperty(root, PROP_STORE_CHILD_OPERATOR, (Node *)ListOfChildOperator);
+	DEBUG_NODE_BEATIFY_LOG("child operator is:", ListOfChildOperator);
+
+}
 
 void
 computeKeyProp (QueryOperator *root)
