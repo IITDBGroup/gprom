@@ -297,12 +297,18 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 			
 			return (isAgg) ? 1 : 0;		
 		} catch (SQLException e) {
-			log.error("error while trying to determine whether function is aggregation function", e);
+			log.error("error while trying to determine whether function is aggregation function {}", e);
 		}
 	
 		return 0;
 	}
 
+	@Override
+	public DataType sqlTypeToDT (String type) {
+		log.info("type: {} {}", type, postgresTypenameToDT(type));
+		return postgresTypenameToDT(type);
+	}
+	
 	/**
 	 * 
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#dataTypeToSQL(org.gprom.jdbc.jna.GProMJavaInterface.DataType)
@@ -320,8 +326,10 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 			case DT_BOOL:
 				return "bool";
 		}
-		return "VARCHAR";
+		return "text";
 	}
+	
+	
 	
 	private DataType oidToDT (String oid) {
 		return postgresTypenameToDT(oidToTypeName(oid));

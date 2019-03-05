@@ -46,6 +46,9 @@
             "return; " \
         "end; $$ language plpgsql;"
 
+#define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM " \
+        "(SELECT (regexp_match(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
+
 #define NAME_EXPLAIN_FUNC_EXISTS "GProM_CheckExplainFunctionExists"
 #define PARAMS_EXPLAIN_FUNC_EXISTS 0
 #define QUERY_EXPLAIN_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = '" EXPLAIN_FUNC_NAME "');"
@@ -82,9 +85,19 @@
 #define QUERY_VIEW_EXISTS "SELECT EXISTS (SELECT * FROM pg_class " \
         "WHERE relkind = 'v' AND relname = $1::text);"
 
+#define NAME_IS_WIN_FUNC_11 "GPRoM_IsWinFunc"
+#define PARAMS_IS_WIN_FUNC_11 1
+#define QUERY_IS_WIN_FUNC_11 "SELECT bool_or(prokind = 'w') is_win FROM pg_proc " \
+        "WHERE proname = $1::text;"
+
+#define NAME_IS_AGG_FUNC_11 "GPRoM_IsAggFunc"
+#define PARAMS_IS_AGG_FUNC_11 1
+#define QUERY_IS_AGG_FUNC_11 "SELECT bool_or(prokind = 'a') AS is_agg FROM pg_proc " \
+        "WHERE proname = $1::text;"
+
 #define NAME_IS_WIN_FUNC "GPRoM_IsWinFunc"
 #define PARAMS_IS_WIN_FUNC 1
-#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswindow) is_win FROM pg_proc " \
+#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswin) is_win FROM pg_proc " \
         "WHERE proname = $1::text;"
 
 #define NAME_IS_AGG_FUNC "GPRoM_IsAggFunc"
@@ -131,6 +144,7 @@ static void execCommit(void);
 static PGresult *execPrepared(char *qName, List *values);
 static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
+static void determineServerVersion(void);
 static void prepareLookupQueries(void);
 static boolean hasAnyType (List *oids);
 static boolean isAnyTypeCompaible (List *oids, List *argTypes);
@@ -173,6 +187,8 @@ typedef struct PostgresPlugin
     MetadataLookupPlugin plugin;
     PGconn *conn;
     boolean initialized;
+    int serverMajorVersion;
+    int serverMinorVersion;
 } PostgresPlugin;
 
 // data types: additional cache entries
@@ -295,6 +311,9 @@ postgresDatabaseConnectionOpen (void)
 
     plugin->initialized = TRUE;
 
+    // determine server version
+    determineServerVersion();
+
     // prepare queries
     prepareLookupQueries();
 
@@ -356,6 +375,33 @@ fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
 }
 
 static void
+determineServerVersion(void)
+{
+    PGresult *res = NULL;
+    int numRes = 0;
+
+    // get OID to DT mapping
+    res = execQuery(QUERY_GET_SERVER_VERSION);
+    numRes = PQntuples(res);
+    ASSERT(numRes == 1);
+
+    for(int i = 0; i < numRes; i++)
+    {
+        char *majorStr = PQgetvalue(res,i,0);
+        int majorInt = atoi(majorStr);
+        char *minorStr = PQgetvalue(res,i,1);
+        int minorInt = atoi(minorStr);
+
+        DEBUG_LOG("major = %u, minor = %u", majorInt, minorInt);
+        plugin->serverMajorVersion = majorInt;
+        plugin->serverMinorVersion = minorInt;
+    }
+
+    PQclear(res);
+    execCommit();
+}
+
+static void
 prepareLookupQueries(void)
 {
     PGresult *res;
@@ -384,12 +430,22 @@ prepareLookupQueries(void)
     PREP_QUERY(TABLE_EXISTS);
     PREP_QUERY(VIEW_GET_ATTRS);
     PREP_QUERY(VIEW_EXISTS);
-    PREP_QUERY(IS_WIN_FUNC);
-    PREP_QUERY(IS_AGG_FUNC);
     PREP_QUERY(GET_VIEW_DEF);
     PREP_QUERY(GET_FUNC_DEFS);
     PREP_QUERY(GET_OP_DEFS);
     PREP_QUERY(GET_PK);
+
+    // catalog pg_proc has changed in 11
+    if (plugin->serverMajorVersion == 11)
+    {
+        PREP_QUERY(IS_WIN_FUNC_11);
+        PREP_QUERY(IS_AGG_FUNC_11);
+    }
+    else
+    {
+        PREP_QUERY(IS_WIN_FUNC);
+        PREP_QUERY(IS_AGG_FUNC);
+    }
 }
 
 int

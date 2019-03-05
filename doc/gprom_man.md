@@ -23,12 +23,12 @@
 
 **GProM** is a database middleware that adds provenance support to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called instrumentation. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle).
 
-**gprom** is a command line interface for GProM. gprom can be called in several ways as shown above in the synopsis. The first form starts an interactive shell where the user runs SQL and utility commands. The second form evaluates a single query given as parameter *query*. The third form runs all SQL commands from file *file*. The last form describes the provenance extensions that GProM supports for a particular frontend language, e.g., *oracle* for Oracle SQL. See discussion on parser plugins below for a comprehensive list of supported frontend languages. See the **EXAMPLES** section for some typical usage examples.
+**gprom** is a command line interface for GProM. gprom can be called in several ways as shown above in the synopsis. The first form starts an interactive shell where the user enters queries (in SQL or Datalog) and utility commands. The second form evaluates a single query given as parameter *query*. The third form runs all SQL commands from file *file*. The last form describes the provenance extensions that GProM supports for a particular frontend language, e.g., *oracle* for Oracle SQL. See discussion on parser plugins below for a comprehensive list of supported frontend languages. See the **EXAMPLES** section for some typical usage examples.
 
 [Options](#toc3)
 ----------------
 
-Boolean options take a single argument, e.g., **-time\_queries** *TRUE* activates timing of queries and **-time\_queries** *FALSE* deactivates this options.
+Boolean options take a single argument, e.g., **-time\_queries** *TRUE* activates timing of queries and **-time\_queries** *FALSE* deactivates this option.
 
 ### [Help](#toc4)
 
@@ -55,10 +55,10 @@ read query to be processed from *file*
 These options control what information GProM is printing for an executed query.
 
 **-time\_queries**   
-measure runtimes of executing rewritten queries. This option is ignored for all executor plugins except for *run*.
+measure runtimes of executing rewritten queries. This option is ignored for all executor plugins except for *run* (see the section on *plugins* below).
 
 **-time\_query\_format**   
-if *-time\_queries* is activated, then this format is used for printing query runtimes. The format is printf compatible and should contain exactly on *%f* element (additional formating such as *%12f* is ok).
+if *-time\_queries* is activated, then this format is used for printing query runtimes. The format is printf compatible and should contain exactly on *%f* element (additional formating such as *%12f* is ok). Any occurrence of **"\\n"** in the format string is replaced with a newline. For instance, "query took\\n%f\\nmsecs\\n" will print the time of a query as three lines: "query took", a second line with just the time itself, and a third line "msecs".
 
 **-repeat\_query\_count**   
 execute each query this many times. This is mainly useful for timing queries.
@@ -102,20 +102,20 @@ Configure plugins. Plugins determine mosts of GProM’s behavior including selec
 Select *plugin\_name* as the active plugin for *plugin\_type*. Most components in GProM are pluggable. See the section on plugins below.
 
 **-backend** ***backend\_name***   
-Select *backend* as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized.
+Select *backend* as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this option enabling plugins to be customized even when a backend is selected.
 
 **-frontend** ***frontend\_name***   
-Select the *frontend\_name* as the active frontend language. This is the language in which the user communicates with GProM. For instance, *oracle* corresponds to Oracle’s SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. *frontend* takes precedence over *backend*.
+Select the *frontend\_name* as the active frontend language. This is the language in which the user communicates with GProM. For instance, *oracle* corresponds to a subset of Oracle’s SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. *frontend* takes precedence over *backend*. Use **-languagehelp** to get a brief description of the language features.
 
 ### [Connection Options](#toc9)
 
 Configure the connection to the backend database system.
 
 **-host** ***host***   
-Host IP address for backend DB connection. Default value: *ligeti.cs.iit.edu*.
+Host IP address for backend DB connection, e.g., *127.0.0.1* or *myhost.com*.
 
 **-db** ***orcl***   
-Database name for the backend DB connection. For Oracle connections this determines *SID* or *SERVICE\_NAME*. Default value: *orcl*
+Database name for the backend DB connection. The meaning of this option is backend specific. For Oracle connections this determines *SID* or *SERVICE\_NAME*. For PostgreSQL databases it is the database name. For SQLite databases this is a path to the database file. Default value: *orcl*
 
 **-user** ***user***   
 User for the backend DB connection. Default value: *fga\_user*
@@ -177,7 +177,7 @@ Activate optimization option. Most options correspond to equivalence preserving 
 [Plugins](#toc13)
 -----------------
 
-Most components in GProM are pluggable and can be replaced. The following components are realized as plugins:
+Most components in GProM are pluggable and can be replaced. The components shown below are realized as plugins. Currently, the sequence of components that process a query are hardcoded. An incoming query is first parsed by the **parser** plugin, then GProM applies semantic analysis (**analyzer** plugin), uses the **translator** plugin to translate the query into an intermediate representation (in almost all cases that is relational algebra). Afterwards, any provenance or other extended features are processed by rewriting the query using instrumentation. The result of this step is then translate into backend-specific code (e.g., SQL) using the **sqlcodegen** plugin. The **metadatalookup** plugin provides backend-specific access to schema information.
 
 ### [parser](#toc14)
 

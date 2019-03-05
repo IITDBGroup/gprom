@@ -52,7 +52,9 @@ static gprom_long_t externalGetCommitScn (char *tableName, gprom_long_t maxScn, 
 static Relation *externalGenExecQuery (char *query);
 static void externalGenExecQueryIgnoreQuery (char *query);
 static int externalGetCostEstimation (char *query);
+static DataType externalBackendSQLTypeToDT (char *sqlType);
 static char *externalDataTypeToSQL (DataType dt);
+
 
 #define EXTERNAL_PLUGIN GProMMetadataLookupPlugin *extP = (GProMMetadataLookupPlugin *) activePlugin->cache->cacheHook
 #define COPY_STRING(name) char *name ## Copy = strdup(name)
@@ -89,6 +91,7 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
     p->executeQuery = externalGenExecQuery;
     p->executeQueryIgnoreResult = externalGenExecQueryIgnoreQuery;
     p->getCostEstimation = externalGetCostEstimation;
+	p->sqlTypeToDT = externalBackendSQLTypeToDT;
     p->dataTypeToSQL = externalDataTypeToSQL;
 
     p->cache = createCache();
@@ -352,7 +355,17 @@ static char *
 externalDataTypeToSQL (DataType dt)
 {
     EXTERNAL_PLUGIN;
-    return "VARCHAR";
     char *dtString = DataTypeToString(dt);
-    return extP->dataTypeToSQL(dtString);
+    char *result = extP->dataTypeToSQL(dtString);
+    DEBUG_LOG("in data type to SQL for %s -> %s", DataTypeToString(dt), result);
+    return result;
+}
+
+static DataType
+externalBackendSQLTypeToDT (char *sqlType)
+{
+	EXTERNAL_PLUGIN;
+	char *result =  extP->sqlTypeToDT(sqlType);
+    DEBUG_LOG("sql type %s to dt %s", sqlType, result);
+	return stringToDataType(result);
 }

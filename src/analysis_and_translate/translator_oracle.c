@@ -1501,7 +1501,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
             SelectItem *s = (SelectItem *) getHeadOfListP(
                     ((QueryBlock *) nsq->query)->selectClause);
             AttributeReference *subqueryAttr = createFullAttrReference(
-                    strdup(s->alias), 1, 0, INVALID_ATTR, typeOf(s->expr));
+                    strdup(s->alias), 1, 0, 0, typeOf(s->expr));
             List *args = LIST_MAKE(copyObject(nsq->expr), subqueryAttr);
             cond = (Node *) createOpExpr(nsq->comparisonOp, args);
         }
@@ -1605,7 +1605,7 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         int attrPos = INT_VALUE(info->value);
 
         // create auxiliary attribute reference "nesting_eval_i" to the nested subquery
-        AttributeReference *attr = createFullAttrReference(strdup(attrName), 0, attrPos, INVALID_ATTR, typeOf(node));
+        AttributeReference *attr = createFullAttrReference(strdup(attrName), 0, attrPos, 0, typeOf(node));
 
         // if scalar subquery, e.g., WHERE a  = (SELECT count(*) FROM s),
         // then just replace nested subquery with auxiliary attribute reference "nesting_eval_i"
