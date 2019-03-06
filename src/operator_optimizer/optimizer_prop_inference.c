@@ -53,6 +53,32 @@ computeMinMaxProp (QueryOperator *root){
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *)MIN_MAX);
 		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 	}
+	if (isA(root, ProjectionOperator)) {
+		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
+		if ((HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX) != NULL) {
+			HashMap *childMinMax =(HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX);
+			FOREACH(AttributeDef, attrDef, root->schema->attrDefs)
+			{
+				if (hasMapStringKey(childMinMax, attrDef->attrName)) {
+					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )getMapString(childMinMax,attrDef->attrName));
+				}
+			}
+		}
+		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+	}
+	if (isA(root, SelectionOperator)){
+
+	}
+	if (isA(root, JoinOperator)){
+
+	}
+	if (isA(root, AggregationOperator)){
+
+	}
+	if (isA(root, SetOperator)){
+
+	}
 
 }
 
@@ -83,7 +109,6 @@ void computeChildOperatorProp(QueryOperator *root) {
 	}
 	setStringProperty(root, PROP_STORE_CHILD_OPERATOR, (Node *)ListOfChildOperator);
 	DEBUG_NODE_BEATIFY_LOG("child operator is:", ListOfChildOperator);
-
 }
 
 void

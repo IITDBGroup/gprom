@@ -11,6 +11,16 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 
+#define AGGREGATION_OPERATOR "AggregationOperator"
+#define WINDOW_OPERATOR "WindowOperator"
+#define SET_OPERATOR "SetOperator"
+#define JOIN_OPERATOR "JoinOperator"
+#define NESTING_OPERATOR "NestingOperator"
+#define ORDER_OPERATOR "OrderOperator"
+#define SELECTION_OPERATOR "SelectionOperator"
+#define TABLEACCESS_OPERATOR "TableAccessOperator"
+
+
 extern HashMap *monotoneCheck(Node *qbModel);
 HashMap *getSchema(Node *qbModel);
 //HashMap *safetyCheck_aggregation(Node *qbModel);
@@ -18,6 +28,7 @@ HashMap *getSchema(Node *qbModel);
 HashMap *safetyCheck(Node* qbModel, char *hasOpeator);
 
 boolean check(Node* node, HashMap *state);
+boolean checkMonotone(Node* node, Set *operatorSet);
 boolean getTableAccessOperator(Node* node, HashMap *map);
 boolean getSubset(Node* node, HashMap *map);
 List *addBitset(int length, List* result);
@@ -33,7 +44,7 @@ boolean checkPageSafety_rownum(HashMap *data);
 
 HashMap *getMonotoneResultMap(Node* qbModel);
 
-boolean hasOrder(Node* node, int *find);
+boolean hasOrder(Node* node, Set *operatorSet);
 boolean checkAllIsPostive(HashMap *table_map, char *colName);
 boolean checkAllIsNegative(HashMap *table_map, char *colName);
 boolean isPostive(char *tableName, char *colName);

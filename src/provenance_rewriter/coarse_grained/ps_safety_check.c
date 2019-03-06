@@ -39,39 +39,39 @@ monotoneCheck(Node *qbModel)
 	DEBUG_LOG("The lzy is %d", lzy);
 */
 
-	HashMap *checkResult = NEW_MAP(Constant,Node);
-	HashMap *operatorState = NEW_MAP(Constant,Node);
-	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
-	computeChildOperatorProp(root);
+	//HashMap *operatorState = NEW_MAP(Constant,Node);
+	//QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
+	//computeChildOperatorProp(root);
+	//computeMinMaxProp(root);
 	//HashMap *min_max = getMinAndMax("R","A");
 	//DEBUG_NODE_BEATIFY_LOG("The min_max is:",min_max);
 	//DEBUG_LOG("The negative is: %d", isNegative("R","A"));
-	check(qbModel, operatorState);
+	//check(qbModel, operatorState);
 	//DEBUG_NODE_BEATIFY_LOG("The result_state is:",operatorState);
-	List *entries = getEntries(operatorState);//get all operator in the tree.
-	if(entries == NIL){
+	//List *entries = getEntries(operatorState);//get all operator in the tree.
+	HashMap *checkResult = NEW_MAP(Constant,Node);
+	Set *operatorSet = STRSET();
+	checkMonotone(qbModel, operatorSet);
+	if(setSize(operatorSet) == 0){
 		DEBUG_LOG("It's Monotone");
 		checkResult = getMonotoneResultMap(qbModel); //get the table schema for all sketches
 		DEBUG_NODE_BEATIFY_LOG("The result_map is:",checkResult);
 		return checkResult;
 	}else{
 		DEBUG_LOG("It isn't Monotone");
-		char *WindowOperator = "WindowOperator";
-		if(hasMapStringKey(operatorState, WindowOperator)){
-			checkResult = safetyCheck(qbModel, WindowOperator);
+		//char *WindowOperator = "WindowOperator";
+
+		if(hasSetElem(operatorSet, WINDOW_OPERATOR)){
+			checkResult = safetyCheck(qbModel, WINDOW_OPERATOR);
 			//checkResult = safetyCheck_windowOperator(qbModel);
 		}else{
-			char *hasAggregation = "aggregation";
-			int count = 0;
-			int *findOrder = &count;
+			Set *findOrder = STRSET();
 			hasOrder(qbModel, findOrder);
-			if(*findOrder != 0){
-				char *hasOrder = "OrderOperator";
-				checkResult = safetyCheck(qbModel, hasOrder);
+			if(hasSetElem(findOrder, ORDER_OPERATOR)){
+				checkResult = safetyCheck(qbModel, ORDER_OPERATOR);
 			}else{
-				checkResult = safetyCheck(qbModel, hasAggregation);
+				checkResult = safetyCheck(qbModel, AGGREGATION_OPERATOR);
 			}
-			//checkResult = safetyCheck_aggregation(qbModel);
 		}
 		DEBUG_NODE_BEATIFY_LOG("The result_map is:",checkResult);
 		return checkResult;
@@ -79,36 +79,31 @@ monotoneCheck(Node *qbModel)
 }//check whether it is monotone
 
 boolean
-check(Node* node, HashMap *state)
-{
+checkMonotone(Node* node, Set *operatorSet){
 	if(node == NULL)
-		return TRUE;
-	if(isA(node, AggregationOperator)){
-		char *AggregationOperator = "AggregationOperator";
-		MAP_ADD_STRING_KEY(state, AggregationOperator, (Node *)createConstInt (1));
-	} //Check aggreationOperator
-	if(isA(node, WindowOperator)){
-		char *WindowOperator = "WindowOperator";
-		MAP_ADD_STRING_KEY(state, WindowOperator, (Node *)createConstInt (1));
-	}//Check WindowOperator
-	if(isA(node, SetOperator)){
-		if(((SetOperator *) node)->setOpType == SETOP_DIFFERENCE){
-			char *SetOperator = "SetOperator";
-			MAP_ADD_STRING_KEY(state, SetOperator, (Node *)createConstInt (1));
-		}
-	}//Check set difference
-	if(isA(node, JoinOperator)){
-		JoinOperator *j = (JoinOperator *) node;
-		if(j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER){
-			char *JoinOperator = "JoinOperator";
-			MAP_ADD_STRING_KEY(state, JoinOperator, (Node *)createConstInt (1));
-		}
-	}//Check outer join
-	if(isA(node, NestingOperator)){
-		char *NestingOperator = "NestingOperator";
-		MAP_ADD_STRING_KEY(state, NestingOperator, (Node *)createConstInt (1));
-	}//Check nesting
-	return visit(node, check, state);
+			return TRUE;
+		if(node->type == T_AggregationOperator){
+			addToSet(operatorSet, AGGREGATION_OPERATOR);
+		} //Check aggreationOperator
+		if(node->type == T_WindowOperator){
+			addToSet(operatorSet, WINDOW_OPERATOR);
+		}//Check WindowOperator
+		if(node->type == T_SetOperator){
+			if(((SetOperator *) node)->setOpType == SETOP_DIFFERENCE){
+				addToSet(operatorSet, SET_OPERATOR);
+			}
+		}//Check set difference
+		if(node->type == T_JoinOperator){
+			JoinOperator *j = (JoinOperator *) node;
+			if(j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER){
+				addToSet(operatorSet, JOIN_OPERATOR);
+			}
+		}//Check outer join
+		if(node->type == T_NestingOperator){
+			addToSet(operatorSet, NESTING_OPERATOR);
+		}//Check nesting
+
+		return visit(node, checkMonotone, operatorSet);
 }
 
 
@@ -145,10 +140,12 @@ safetyCheck(Node* qbModel, char *hasOpeator) {
 	getData(qbModel, data);//get the data of node we need
 
 	boolean result = FALSE;
-	if(!strcmp(hasOpeator,"OrderOperator")){
+	if(!strcmp(hasOpeator,ORDER_OPERATOR)){
+		//DEBUG_LOG("it's order");
 		result = checkPageSafety_rownum(data);		//rownum check
 		DEBUG_LOG("The result is: %d", result);
 	}else{
+		//DEBUG_LOG("it's no order");
 		result = checkPageSafety(data, hasOpeator); // window and aggregation
 		DEBUG_LOG("The result is: %d", result);
 	}
@@ -179,7 +176,7 @@ getTableAccessOperator(Node* node, HashMap *map)
 	if(node == NULL)
 		return TRUE;
 
-	if(isA(node, TableAccessOperator)){
+	if(node->type == T_TableAccessOperator){
 		char *tablename = ((TableAccessOperator *) node)->tableName;
 		Schema *schema = ((TableAccessOperator *) node)->op.schema;
 		List *attrDef = schema->attrDefs;
@@ -195,7 +192,7 @@ getSubset(Node* node, HashMap *map)
 	if(node == NULL)
 		return TRUE;
 
-	if(isA(node, TableAccessOperator)){
+	if(node->type == T_TableAccessOperator){
 		char *tablename = ((TableAccessOperator *) node)->tableName;
 		Schema *schema = ((TableAccessOperator *) node)->op.schema;
 		List *attrDef = schema->attrDefs;
@@ -254,8 +251,8 @@ getData(Node* node, HashMap *data)
 	if(node == NULL)
 		return TRUE;
 
-	if(isA(node, AggregationOperator)){
-		char *aggregation_key = "aggregation";
+	if(node->type == T_AggregationOperator){
+		//char *aggregation_key = "aggregation";
 		HashMap *aggreation_map = NEW_MAP(Constant,Node);
 
 		char *aggrs_key = "aggrs";
@@ -266,12 +263,11 @@ getData(Node* node, HashMap *data)
 		MAP_ADD_STRING_KEY(aggreation_map, aggrs_key, (Node *)aggrs);
 		MAP_ADD_STRING_KEY(aggreation_map, groupby_key, (Node *)groupby);
 
-		MAP_ADD_STRING_KEY(data, aggregation_key, (Node *)aggreation_map);
+		MAP_ADD_STRING_KEY(data, AGGREGATION_OPERATOR, (Node *)aggreation_map);
 	}
-	if(isA(node, WindowOperator)){
-		char *WindowOperator_key = "WindowOperator";
+	if(node->type == T_WindowOperator){
+		//char *WindowOperator_key = "WindowOperator";
 		HashMap *WindowOperator_map = NEW_MAP(Constant,Node);
-
 		char *f_key = "f";
 		char *partitionBy_key = "partitionBy";
 		Node *f = ((WindowOperator *) node)->f;
@@ -280,36 +276,36 @@ getData(Node* node, HashMap *data)
 		MAP_ADD_STRING_KEY(WindowOperator_map, f_key, (Node *)f);
 		MAP_ADD_STRING_KEY(WindowOperator_map, partitionBy_key, (Node *)partitionBy);
 
-		MAP_ADD_STRING_KEY(data, WindowOperator_key, (Node *)WindowOperator_map);
+		MAP_ADD_STRING_KEY(data, WINDOW_OPERATOR, (Node *)WindowOperator_map);
 	}
-	if(isA(node, SelectionOperator)){
-		char *SelectionOperator_key = "SelectionOperator";
+	if(node->type == T_SelectionOperator){
+		//char *SelectionOperator_key = "SelectionOperator";
 		Node *cond = ((SelectionOperator *) node)->cond;
-		MAP_ADD_STRING_KEY(data, SelectionOperator_key, (Node *)cond);
+		MAP_ADD_STRING_KEY(data, SELECTION_OPERATOR, (Node *)cond);
 	}
-	if(isA(node, OrderOperator)){
-		char *OrderOperator_key = "OrderOperator";
+	if(node->type == T_OrderOperator){
+		//char *OrderOperator_key = "OrderOperator";
 		List *orderExprs = ((OrderOperator *) node)->orderExprs;
-		MAP_ADD_STRING_KEY(data, OrderOperator_key, (Node *)orderExprs);
+		MAP_ADD_STRING_KEY(data, ORDER_OPERATOR, (Node *)orderExprs);
 	}
-	if (isA(node, TableAccessOperator)) {
-		char *TableAccessOperator_key = "TableAccessOperator";
-		if (hasMapStringKey(data, TableAccessOperator_key)) {
+	if (node->type == T_TableAccessOperator) {
+		//char *TableAccessOperator_key = "TableAccessOperator";
+		if (hasMapStringKey(data, TABLEACCESS_OPERATOR)) {
 
 			HashMap *TableAccessOperator_map = NEW_MAP(Constant, Node);
 			char *tablename = ((TableAccessOperator *) node)->tableName;
 			Schema *schema = ((TableAccessOperator *) node)->op.schema;
 			List *attrDef = schema->attrDefs;
-			TableAccessOperator_map = (HashMap *)MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
+			TableAccessOperator_map = (HashMap *)MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
 			MAP_ADD_STRING_KEY(TableAccessOperator_map, tablename, (Node * )attrDef);
-			MAP_ADD_STRING_KEY(data, TableAccessOperator_key, TableAccessOperator_map);
+			MAP_ADD_STRING_KEY(data, TABLEACCESS_OPERATOR, TableAccessOperator_map);
 		} else {
 			HashMap *TableAccessOperator_map = NEW_MAP(Constant,Node);
 			char *tablename = ((TableAccessOperator *) node)->tableName;
 			Schema *schema = ((TableAccessOperator *) node)->op.schema;
 			List *attrDef = schema->attrDefs;
 			MAP_ADD_STRING_KEY(TableAccessOperator_map, tablename, (Node * )attrDef);
-			MAP_ADD_STRING_KEY(data, TableAccessOperator_key, TableAccessOperator_map);
+			MAP_ADD_STRING_KEY(data, TABLEACCESS_OPERATOR, TableAccessOperator_map);
 		}
 	}
 	return visit(node, getData, data);
@@ -319,10 +315,11 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 	char *function_name;
 	char *colName;
 	//char *tableName;
-	if (!strcmp(hasOpeator, "WindowOperator")) {
-		char *WindowOperator_key = "WindowOperator";
+	if (!strcmp(hasOpeator, WINDOW_OPERATOR)) {
+		//DEBUG_LOG("it's window");
+		//char *WindowOperator_key = "WindowOperator";
 		HashMap *WindowOperator_map =
-				(HashMap *) MAP_GET_STRING_ENTRY(data, WindowOperator_key)->value;
+				(HashMap *) MAP_GET_STRING_ENTRY(data, WINDOW_OPERATOR)->value;
 		char *f_key = "f";
 		Node *f =
 				(Node *) MAP_GET_STRING_ENTRY(WindowOperator_map, f_key)->value;
@@ -331,10 +328,10 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 		colName =
 				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 	}
-	if (!strcmp(hasOpeator, "aggregation")) {
-		char *aggregation_key = "aggregation";
+	if (!strcmp(hasOpeator, AGGREGATION_OPERATOR)) {
+		//char *aggregation_key = "aggregation";
 		HashMap *aggreation_map =
-				(HashMap *) MAP_GET_STRING_ENTRY(data, aggregation_key)->value;
+				(HashMap *) MAP_GET_STRING_ENTRY(data, AGGREGATION_OPERATOR)->value;
 
 		char *aggrs_key = "aggrs";
 		List *aggrs =
@@ -349,17 +346,14 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 	//DEBUG_LOG("The COLNAME is: %s", colName);
 	//DEBUG_LOG("The TABLENAME is: %s", tableName);
 
-	char *SelectionOperator_key = "SelectionOperator";
-	Node *cond = MAP_GET_STRING_ENTRY(data, SelectionOperator_key)->value;
+	//char *SelectionOperator_key = "SelectionOperator";
+	Node *cond = MAP_GET_STRING_ENTRY(data, SELECTION_OPERATOR)->value;
 	char *operator_name = ((Operator *) cond)->name;
-	char *TableAccessOperator_key = "TableAccessOperator";
+	//char *TableAccessOperator_key = "TableAccessOperator";
 	HashMap *table_map =
-			(HashMap *) MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
-
-	//boolean isPostive = checkAllIsPostive(table_map, colName);
-	//DEBUG_LOG("lzy is : %d", isPostive);
-
+			(HashMap *) MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
 	if (!strcmp(function_name, "SUM")) {
+
 		if (checkAllIsPostive(table_map, colName)) {
 			if (!strcmp(operator_name, "<")) {
 				return FALSE;
@@ -469,26 +463,26 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 
 
 boolean
-hasOrder(Node* node, int *find)
+hasOrder(Node* node, Set *operatorSet)
 {
 	if(node == NULL)
 		return TRUE;
-	if(isA(node, OrderOperator)){
-		(*find)++;
+	if(node->type == T_OrderOperator){
+		addToSet(operatorSet, ORDER_OPERATOR);
 	} //Check aggreationOperator
-	return visit(node, hasOrder, find);
+	return visit(node, hasOrder, operatorSet);
 }
 
 
 boolean checkPageSafety_rownum(HashMap *data){
-	char *OrderOperator_key = "OrderOperator";
-	List *orderExprs = (List *) MAP_GET_STRING_ENTRY(data, OrderOperator_key)->value;
+	//char *OrderOperator_key = "OrderOperator";
+	List *orderExprs = (List *) MAP_GET_STRING_ENTRY(data, ORDER_OPERATOR)->value;
 	Node *attribute_reference = ((OrderExpr *) getHeadOfList(orderExprs)->data.ptr_value)->expr;
 	char *orderby_name = ((AttributeReference *) attribute_reference)->name;
 	SortOrder order = ((OrderExpr *) getHeadOfList(orderExprs)->data.ptr_value)->order;
 
-	char *aggregation_key = "aggregation";
-	HashMap *aggreation_map = (HashMap *) MAP_GET_STRING_ENTRY(data, aggregation_key)->value;
+	//char *aggregation_key = "aggregation";
+	HashMap *aggreation_map = (HashMap *) MAP_GET_STRING_ENTRY(data, AGGREGATION_OPERATOR)->value;
 	char *groupby_key = "groupby";
 	List *groupby = (List *) MAP_GET_STRING_ENTRY(aggreation_map, groupby_key)->value;
 	char *groupby_name = ((AttributeReference *) getHeadOfList(groupby)->data.ptr_value)->name;
@@ -500,12 +494,8 @@ boolean checkPageSafety_rownum(HashMap *data){
 	char *colName = ((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 
 	//DEBUG_LOG("The COLNAME is: %s", colName);
-	char *TableAccessOperator_key = "TableAccessOperator";
-	HashMap *table_map  = (HashMap *) MAP_GET_STRING_ENTRY(data, TableAccessOperator_key)->value;
-
-	//boolean isPostive = checkAllIsPostive(table_map, colName);
-	//DEBUG_LOG("lzy is : %d", isPostive);
-
+	//char *TableAccessOperator_key = "TableAccessOperator";
+	HashMap *table_map  = (HashMap *) MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
 	if (!strcmp(orderby_name, groupby_name)) {
 		return TRUE;
 	} else {
@@ -549,13 +539,20 @@ boolean checkPageSafety_rownum(HashMap *data){
 }
 
 boolean checkAllIsPostive(HashMap *table_map, char *colName) {
-
+	//DEBUG_NODE_BEATIFY_LOG("The TABLE_map is:",table_map);
 	List *key_List = getKeys(table_map);
 	boolean postive;
 	//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
 	FOREACH(Constant, table, key_List)
 	{
-		postive = isPostive(table->value, colName) && postive;
+		//DEBUG_LOG("TABLENAME: %s", table->value);
+		List *attrDef = (List *) MAP_GET_STRING_ENTRY(table_map, table->value)->value;
+		FOREACH(AttributeDef, attr, attrDef){
+			if(!strcmp(attr->attrName, colName)){
+				postive = isPostive(table->value, colName) && postive;
+			}
+		}
+
 
 	}
 	return postive;
@@ -567,8 +564,14 @@ boolean checkAllIsNegative(HashMap *table_map, char *colName) {
 	//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
 	FOREACH(Constant, table, key_List)
 	{
-		negative = isNegative(table->value, colName) && negative;
-
+		//DEBUG_LOG("TABLENAME: %s", table->value);
+		List *attrDef = (List *) MAP_GET_STRING_ENTRY(table_map, table->value)->value;
+		FOREACH(AttributeDef, attr, attrDef)
+		{
+			if (!strcmp(attr->attrName, colName)) {
+				negative = isNegative(table->value, colName) && negative;
+			}
+		}
 	}
 	return negative;
 }
@@ -590,6 +593,40 @@ boolean isNegative(char *tableName, char *colName) {
 	}
 	return FALSE;
 }
+/*
+boolean
+check(Node* node, HashMap *state)
+{
+	if(node == NULL)
+		return TRUE;
+	if(isA(node, AggregationOperator)){
+		char *AggregationOperator = "AggregationOperator";
+		MAP_ADD_STRING_KEY(state, AggregationOperator, (Node *)createConstInt (1));
+	} //Check aggreationOperator
+	if(isA(node, WindowOperator)){
+		char *WindowOperator = "WindowOperator";
+		MAP_ADD_STRING_KEY(state, WindowOperator, (Node *)createConstInt (1));
+	}//Check WindowOperator
+	if(isA(node, SetOperator)){
+		if(((SetOperator *) node)->setOpType == SETOP_DIFFERENCE){
+			char *SetOperator = "SetOperator";
+			MAP_ADD_STRING_KEY(state, SetOperator, (Node *)createConstInt (1));
+		}
+	}//Check set difference
+	if(isA(node, JoinOperator)){
+		JoinOperator *j = (JoinOperator *) node;
+		if(j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER){
+			char *JoinOperator = "JoinOperator";
+			MAP_ADD_STRING_KEY(state, JoinOperator, (Node *)createConstInt (1));
+		}
+	}//Check outer join
+	if(isA(node, NestingOperator)){
+		char *NestingOperator = "NestingOperator";
+		MAP_ADD_STRING_KEY(state, NestingOperator, (Node *)createConstInt (1));
+	}//Check nesting
+	return visit(node, check, state);
+}
+*/
 /*
 HashMap *
 safetyCheck_aggregation(Node* qbModel){
