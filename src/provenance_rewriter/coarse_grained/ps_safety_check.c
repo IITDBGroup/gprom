@@ -17,7 +17,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include <string.h>
-
+#include "model/bitset/bitset.h"
 
 HashMap*
 monotoneCheck(Node *qbModel)
@@ -213,36 +213,18 @@ addBitset(int length, List *result)
 	int max = 1 << length;
 	for (int i = 1; i < max; i++) {
 		if (i == (max - 1)){
-			KeyValue *element = createStringKeyValue(exact, binDis(length, i));
+			//KeyValue *element = createStringKeyValue(exact, binDis(length, i));
+			BitSet *bitset = newBitSet(length,i,T_BitSet);
+			KeyValue *element = createStringKeyValue(exact, bitSetToString(bitset));
 			result = appendToTailOfList(result, element);
 			break;
 		}
-		KeyValue *element = createStringKeyValue(subset, binDis(length, i));
+		BitSet *bitset = newBitSet(length,i,T_BitSet);
+		KeyValue *element = createStringKeyValue(subset, bitSetToString(bitset));
 		result = appendToTailOfList(result, element);
 	}
 	return result;
 }//get BitSet of all subsets
-
-char*
-binDis(int length, int value)
-{
-	//List *stringList = NIL;
-	StringInfo stringResult  = makeStringInfo();
-	while(length--)
-	{
-		if(value&1<<length){
-			char *bit = "1";
-			appendStringInfoString(stringResult, bit);
-			//appendToTailOfList(stringList, bit);
-		}else{
-			char *bit = "0";
-			appendStringInfoString(stringResult, bit);
-			//appendToTailOfList(stringList, bit);
-		}
-	}
-	//DEBUG_LOG("The bin is: %s", stringResult->data);
-	return stringResult->data;
-}
 
 
 boolean
@@ -329,6 +311,7 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 	}
 	if (!strcmp(hasOpeator, AGGREGATION_OPERATOR)) {
+
 		//char *aggregation_key = "aggregation";
 		HashMap *aggreation_map =
 				(HashMap *) MAP_GET_STRING_ENTRY(data, AGGREGATION_OPERATOR)->value;
@@ -338,10 +321,12 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 				(List *) MAP_GET_STRING_ENTRY(aggreation_map, aggrs_key)->value;
 		function_name =
 				((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
+		DEBUG_LOG("function name is: %s",function_name);
 		List *args =
 				((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->args;
 		colName =
 				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
+		DEBUG_LOG("col name is: %s",colName);
 	}
 	//DEBUG_LOG("The COLNAME is: %s", colName);
 	//DEBUG_LOG("The TABLENAME is: %s", tableName);
@@ -353,7 +338,7 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 	HashMap *table_map =
 			(HashMap *) MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
 	if (!strcmp(function_name, "SUM")) {
-
+		DEBUG_LOG("Lzy");
 		if (checkAllIsPostive(table_map, colName)) {
 			if (!strcmp(operator_name, "<")) {
 				return FALSE;
@@ -593,6 +578,48 @@ boolean isNegative(char *tableName, char *colName) {
 	}
 	return FALSE;
 }
+
+/*
+List*
+addBitset(int length, List *result)
+{
+	char *subset = "SUBSET";
+	char *exact = "EXCAT";
+	int max = 1 << length;
+	for (int i = 1; i < max; i++) {
+		if (i == (max - 1)){
+			KeyValue *element = createStringKeyValue(exact, binDis(length, i));
+			result = appendToTailOfList(result, element);
+			break;
+		}
+		KeyValue *element = createStringKeyValue(subset, binDis(length, i));
+		result = appendToTailOfList(result, element);
+	}
+	return result;
+}//get BitSet of all subsets
+
+char*
+binDis(int length, int value)
+{
+	//List *stringList = NIL;
+	StringInfo stringResult  = makeStringInfo();
+	while(length--)
+	{
+		if(value&1<<length){
+			char *bit = "1";
+			appendStringInfoString(stringResult, bit);
+			//appendToTailOfList(stringList, bit);
+		}else{
+			char *bit = "0";
+			appendStringInfoString(stringResult, bit);
+			//appendToTailOfList(stringList, bit);
+		}
+	}
+	//DEBUG_LOG("The bin is: %s", stringResult->data);
+	return stringResult->data;
+}
+*/
+
 /*
 boolean
 check(Node* node, HashMap *state)

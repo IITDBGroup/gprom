@@ -32,7 +32,7 @@ boolean checkMonotone(Node* node, Set *operatorSet);
 boolean getTableAccessOperator(Node* node, HashMap *map);
 boolean getSubset(Node* node, HashMap *map);
 List *addBitset(int length, List* result);
-char *binDis(int length, int value);
+//char *binDis(int length, int value);
 //boolean getData_aggregation(Node* node, HashMap *data);
 //boolean checkPageSafety_aggregation(HashMap *data);
 //boolean getData_windowOperator(Node* node, HashMap *data);

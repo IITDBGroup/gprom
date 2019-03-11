@@ -43,7 +43,7 @@ computeMinMaxProp (QueryOperator *root){
 	DEBUG_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s", NodeTagToString(root->type), root->schema->name);
 	SET_BOOL_STRING_PROP(root, PROP_STORE_MIN_MAX_DONE);
 
-	if (isA(root, TableAccessOperator)){
+	if (root->type == T_TableAccessOperator){
 		TableAccessOperator *rel = (TableAccessOperator *) root;
 		char * tableName = rel->tableName;
 		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
@@ -53,30 +53,47 @@ computeMinMaxProp (QueryOperator *root){
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *)MIN_MAX);
 		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 	}
-	if (isA(root, ProjectionOperator)) {
+	if (root->type == T_ProjectionOperator) {
 		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
-		if ((HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX) != NULL) {
+		if ((HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX) != NULL) { //child has min and max
 			HashMap *childMinMax =(HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX);
 			FOREACH(AttributeDef, attrDef, root->schema->attrDefs)
 			{
 				if (hasMapStringKey(childMinMax, attrDef->attrName)) {
 					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )getMapString(childMinMax,attrDef->attrName));
+				} else {
+					HashMap *new_min_max = NEW_MAP(Constant, Node);
+					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "NEGATIVE");
+					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "POSTIVE");
+					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )new_min_max);
 				}
 			}
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
 		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 	}
-	if (isA(root, SelectionOperator)){
+	if (root->type == T_SelectionOperator){
 
 	}
-	if (isA(root, JoinOperator)){
+	if (root->type == T_JoinOperator){
+		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
+		if (((JoinOperator *) root)->joinType == JOIN_CROSS){
+			FOREACH(QueryOperator, op, root->inputs){
+				HashMap *childMinMax =(HashMap *) getStringProperty(op,PROP_STORE_MIN_MAX);
+				FOREACH_HASH_ENTRY(ele, childMinMax){
+					ADD_TO_MAP(MIN_MAX, ele);
+				}
+			}
+
+		}
+		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 
 	}
-	if (isA(root, AggregationOperator)){
+	if (root->type == T_AggregationOperator){
 
 	}
-	if (isA(root, SetOperator)){
+	if (root->type == T_SetOperator){
 
 	}
 
@@ -97,18 +114,23 @@ void computeChildOperatorProp(QueryOperator *root) {
 	}
 	DEBUG_LOG("BEGIN COMPUTE CHILD OPERATOR OF %s operator %s", NodeTagToString(root->type), root->schema->name);
 	SET_BOOL_STRING_PROP(root, PROP_STORE_CHILD_OPERATOR_DONE);
-	List *ListOfChildOperator = NIL;
+	Set* SetOfChildOperator = STRSET();
 	FOREACH(QueryOperator, op, root->inputs)
 	{
-		List *child = (List *) getStringProperty(op, PROP_STORE_CHILD_OPERATOR);
-		FOREACH(Constant, cd, child){
-			ListOfChildOperator = appendToTailOfList(ListOfChildOperator, createConstString(cd->value));
+		Set *child = (Set *) getStringProperty(op, PROP_STORE_CHILD_OPERATOR);
+		FOREACH_SET(char, c, child){
+			//addToSet(SetOfChildOperator,createConstString(c->value));
+			addToSet(SetOfChildOperator,c);
 		}
-		ListOfChildOperator = appendToTailOfList(ListOfChildOperator, createConstString(op->schema->name));
-		DEBUG_LOG("LZY");
+		if (op->type == T_TableAccessOperator){
+			addToSet(SetOfChildOperator,"TableAccess");
+		} else {
+			addToSet(SetOfChildOperator,op->schema->name);
+		}
+		//DEBUG_LOG("LZY");
 	}
-	setStringProperty(root, PROP_STORE_CHILD_OPERATOR, (Node *)ListOfChildOperator);
-	DEBUG_NODE_BEATIFY_LOG("child operator is:", ListOfChildOperator);
+	setStringProperty(root, PROP_STORE_CHILD_OPERATOR, (Node *)SetOfChildOperator);
+	DEBUG_NODE_BEATIFY_LOG("child operator is:", SetOfChildOperator);
 }
 
 void

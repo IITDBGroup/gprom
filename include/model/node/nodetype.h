@@ -14,7 +14,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_Set,
     T_HashMap,
     T_Vector,
-
+	T_BitSet,
     /* options */
     T_KeyValue,
 

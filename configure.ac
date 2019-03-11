@@ -665,6 +665,7 @@ AC_CONFIG_FILES([
 	src/model/expression/Makefile
 	src/model/helperfunction/Makefile
 	src/model/list/Makefile
+	src/model/bitset/Makefile
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
