@@ -38,10 +38,18 @@ monotoneCheck(Node *qbModel)
 	boolean lzy = isPostive("R", "A");
 	DEBUG_LOG("The lzy is %d", lzy);
 */
-
+	unsigned long a = 6, b = 3;
+	BitSet *b1 = newBitSet(3, &a ,T_BitSet);
+	BitSet *b2 = newBitSet(3, &b ,T_BitSet);
+	BitSet *b3 = NULL;
+	DEBUG_LOG("The new bitset length is %d and value is %ld",bitOr(b1,b2)->length,*bitOr(b1,b2)->value);
+	DEBUG_LOG("The new bitset length is %d and value is %ld",bitAnd(b1,b2)->length,*bitAnd(b1,b2)->value);
+	DEBUG_LOG("The new bitset length is %d and value is %ld",bitNot(b2)->length,*bitNot(b2)->value);
+	DEBUG_LOG("The new bitset is %d",bitsetEquals(b1, b3));
+	DEBUG_LOG("The new bitset is %s",bitSetToString(b1));
 	//HashMap *operatorState = NEW_MAP(Constant,Node);
-	//QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
-	//computeChildOperatorProp(root);
+	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
+	computeChildOperatorProp(root);
 	//computeMinMaxProp(root);
 	//HashMap *min_max = getMinAndMax("R","A");
 	//DEBUG_NODE_BEATIFY_LOG("The min_max is:",min_max);
@@ -60,11 +68,15 @@ monotoneCheck(Node *qbModel)
 	}else{
 		DEBUG_LOG("It isn't Monotone");
 		//char *WindowOperator = "WindowOperator";
-
+		Set *findOperator = STRSET();
+		hasOperator(qbModel, findOperator);
+		checkResult = safetyCheck(qbModel, findOperator);
+		/*
 		if(hasSetElem(operatorSet, WINDOW_OPERATOR)){
 			checkResult = safetyCheck(qbModel, WINDOW_OPERATOR);
 			//checkResult = safetyCheck_windowOperator(qbModel);
 		}else{
+
 			Set *findOrder = STRSET();
 			hasOrder(qbModel, findOrder);
 			if(hasSetElem(findOrder, ORDER_OPERATOR)){
@@ -72,7 +84,9 @@ monotoneCheck(Node *qbModel)
 			}else{
 				checkResult = safetyCheck(qbModel, AGGREGATION_OPERATOR);
 			}
-		}
+
+
+		}*/
 		DEBUG_NODE_BEATIFY_LOG("The result_map is:",checkResult);
 		return checkResult;
 	}
@@ -107,6 +121,27 @@ checkMonotone(Node* node, Set *operatorSet){
 }
 
 
+boolean
+hasOperator(Node* node, Set *operatorSet)
+{
+	if(node == NULL)
+		return TRUE;
+	if(node->type == T_OrderOperator){
+		addToSet(operatorSet, ORDER_OPERATOR);
+	} //Check aggreationOperator
+	if(node->type == T_SelectionOperator){
+		addToSet(operatorSet, SELECTION_OPERATOR);
+	} //Check aggreationOperator
+	if(node->type == T_WindowOperator){
+		addToSet(operatorSet, WINDOW_OPERATOR);
+	} //Check aggreationOperator
+	if(node->type == T_AggregationOperator){
+		addToSet(operatorSet, AGGREGATION_OPERATOR);
+	} //Check aggreationOperator
+	return visit(node, hasOperator, operatorSet);
+}
+
+
 HashMap *
 getSchema(Node* qbModel){
 	HashMap *map = NEW_MAP(Constant,Node);
@@ -134,12 +169,13 @@ getMonotoneResultMap(Node* qbModel) {
 
 
 HashMap *
-safetyCheck(Node* qbModel, char *hasOpeator) {
+safetyCheck(Node* qbModel, Set *hasOperator) {
 	HashMap *map = NEW_MAP(Constant, Node);
 	HashMap *data = NEW_MAP(Constant, Node);
 	getData(qbModel, data);//get the data of node we need
 
 	boolean result = FALSE;
+	/*
 	if(!strcmp(hasOpeator,ORDER_OPERATOR)){
 		//DEBUG_LOG("it's order");
 		result = checkPageSafety_rownum(data);		//rownum check
@@ -148,6 +184,15 @@ safetyCheck(Node* qbModel, char *hasOpeator) {
 		//DEBUG_LOG("it's no order");
 		result = checkPageSafety(data, hasOpeator); // window and aggregation
 		DEBUG_LOG("The result is: %d", result);
+	}*/
+	if(hasSetElem(hasOperator, ORDER_OPERATOR)){
+			//DEBUG_LOG("it's order");
+			result = checkPageSafety_rownum(data);		//rownum check
+			DEBUG_LOG("The result is: %d", result);
+		}else{
+			//DEBUG_LOG("it's no order");
+			result = checkPageSafety(data, hasOperator); // window and aggregation
+			DEBUG_LOG("The result is: %d", result);
 	}
 
 	char *PAGE = "PAGE";
@@ -196,7 +241,7 @@ getSubset(Node* node, HashMap *map)
 		char *tablename = ((TableAccessOperator *) node)->tableName;
 		Schema *schema = ((TableAccessOperator *) node)->op.schema;
 		List *attrDef = schema->attrDefs;
-		int length = getListLength(attrDef);
+		unsigned int length = (unsigned int) getListLength(attrDef);
 		List *result = NIL;
 		result = addBitset(length, result);
 		MAP_ADD_STRING_KEY(map, tablename, (Node *)result);
@@ -206,20 +251,22 @@ getSubset(Node* node, HashMap *map)
 }//get the KeyValue of each table
 
 List*
-addBitset(int length, List *result)
+addBitset(unsigned int length, List *result)
 {
 	char *subset = "SUBSET";
 	char *exact = "EXCAT";
-	int max = 1 << length;
-	for (int i = 1; i < max; i++) {
+	unsigned long max = 1 << length;
+	for (unsigned long i = 1; i < max; i++) {
+		unsigned long *value = &i;
 		if (i == (max - 1)){
 			//KeyValue *element = createStringKeyValue(exact, binDis(length, i));
-			BitSet *bitset = newBitSet(length,i,T_BitSet);
+
+			BitSet *bitset = newBitSet(length,value,T_BitSet);
 			KeyValue *element = createStringKeyValue(exact, bitSetToString(bitset));
 			result = appendToTailOfList(result, element);
 			break;
 		}
-		BitSet *bitset = newBitSet(length,i,T_BitSet);
+		BitSet *bitset = newBitSet(length,value,T_BitSet);
 		KeyValue *element = createStringKeyValue(subset, bitSetToString(bitset));
 		result = appendToTailOfList(result, element);
 	}
@@ -293,11 +340,13 @@ getData(Node* node, HashMap *data)
 	return visit(node, getData, data);
 }
 
-boolean checkPageSafety(HashMap *data, char *hasOpeator) {
+boolean checkPageSafety(HashMap *data, Set *hasOperator) {
 	char *function_name;
 	char *colName;
+	HashMap *table_map =
+			(HashMap *) MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
 	//char *tableName;
-	if (!strcmp(hasOpeator, WINDOW_OPERATOR)) {
+	if (hasSetElem(hasOperator, WINDOW_OPERATOR)) {
 		//DEBUG_LOG("it's window");
 		//char *WindowOperator_key = "WindowOperator";
 		HashMap *WindowOperator_map =
@@ -310,7 +359,7 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 		colName =
 				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 	}
-	if (!strcmp(hasOpeator, AGGREGATION_OPERATOR)) {
+	if (hasSetElem(hasOperator, AGGREGATION_OPERATOR)) {
 
 		//char *aggregation_key = "aggregation";
 		HashMap *aggreation_map =
@@ -321,25 +370,76 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 				(List *) MAP_GET_STRING_ENTRY(aggreation_map, aggrs_key)->value;
 		function_name =
 				((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
-		DEBUG_LOG("function name is: %s",function_name);
 		List *args =
 				((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->args;
 		colName =
 				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
-		DEBUG_LOG("col name is: %s",colName);
 	}
 	//DEBUG_LOG("The COLNAME is: %s", colName);
 	//DEBUG_LOG("The TABLENAME is: %s", tableName);
 
 	//char *SelectionOperator_key = "SelectionOperator";
-	Node *cond = MAP_GET_STRING_ENTRY(data, SELECTION_OPERATOR)->value;
-	char *operator_name = ((Operator *) cond)->name;
-	//char *TableAccessOperator_key = "TableAccessOperator";
-	HashMap *table_map =
-			(HashMap *) MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
-	if (!strcmp(function_name, "SUM")) {
-		DEBUG_LOG("Lzy");
-		if (checkAllIsPostive(table_map, colName)) {
+	if (hasSetElem(hasOperator, SELECTION_OPERATOR)) {
+		Node *cond = MAP_GET_STRING_ENTRY(data, SELECTION_OPERATOR)->value;
+		char *operator_name = ((Operator *) cond)->name;
+
+		//char *TableAccessOperator_key = "TableAccessOperator";
+
+		if (!strcmp(function_name, "SUM")) {
+			if (checkAllIsPostive(table_map, colName)) {
+				if (!strcmp(operator_name, "<")) {
+					return FALSE;
+				}
+				if (!strcmp(operator_name, "<=")) {
+					return FALSE;
+				}
+				if (!strcmp(operator_name, "=")) {
+					return FALSE;
+				}
+				if (!strcmp(operator_name, ">")) {
+					return TRUE;
+				}
+				if (!strcmp(operator_name, ">=")) {
+					return TRUE;
+				}
+			} else if (checkAllIsNegative(table_map, colName)) {
+				if (!strcmp(operator_name, "<")) {
+					return TRUE;
+				}
+				if (!strcmp(operator_name, "<=")) {
+					return TRUE;
+				}
+				if (!strcmp(operator_name, "=")) {
+					return FALSE;
+				}
+				if (!strcmp(operator_name, ">")) {
+					return FALSE;
+				}
+				if (!strcmp(operator_name, ">=")) {
+					return FALSE;
+				}
+			} else {
+				return FALSE;
+			}
+		}
+		if (!strcmp(function_name, "AVG")) {
+			if (!strcmp(operator_name, "<")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, "<=")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, "=")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, ">")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, ">=")) {
+				return FALSE;
+			}
+		}
+		if (!strcmp(function_name, "COUNT")) {
 			if (!strcmp(operator_name, "<")) {
 				return FALSE;
 			}
@@ -355,7 +455,25 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 			if (!strcmp(operator_name, ">=")) {
 				return TRUE;
 			}
-		} else if (checkAllIsNegative(table_map, colName)) {
+		}
+		if (!strcmp(function_name, "MAX")) {
+			if (!strcmp(operator_name, "<")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, "<=")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, "=")) {
+				return FALSE;
+			}
+			if (!strcmp(operator_name, ">")) {
+				return TRUE;
+			}
+			if (!strcmp(operator_name, ">=")) {
+				return TRUE;
+			}
+		}
+		if (!strcmp(function_name, "MIN")) {
 			if (!strcmp(operator_name, "<")) {
 				return TRUE;
 			}
@@ -371,92 +489,11 @@ boolean checkPageSafety(HashMap *data, char *hasOpeator) {
 			if (!strcmp(operator_name, ">=")) {
 				return FALSE;
 			}
-		} else {
-			return FALSE;
-		}
-	}
-	if (!strcmp(function_name, "AVG")) {
-		if (!strcmp(operator_name, "<")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, "<=")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, "=")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, ">")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, ">=")) {
-			return FALSE;
-		}
-	}
-	if (!strcmp(function_name, "COUNT")) {
-		if (!strcmp(operator_name, "<")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, "<=")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, "=")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, ">")) {
-			return TRUE;
-		}
-		if (!strcmp(operator_name, ">=")) {
-			return TRUE;
-		}
-	}
-	if (!strcmp(function_name, "MAX")) {
-		if (!strcmp(operator_name, "<")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, "<=")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, "=")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, ">")) {
-			return TRUE;
-		}
-		if (!strcmp(operator_name, ">=")) {
-			return TRUE;
-		}
-	}
-	if (!strcmp(function_name, "MIN")) {
-		if (!strcmp(operator_name, "<")) {
-			return TRUE;
-		}
-		if (!strcmp(operator_name, "<=")) {
-			return TRUE;
-		}
-		if (!strcmp(operator_name, "=")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, ">")) {
-			return FALSE;
-		}
-		if (!strcmp(operator_name, ">=")) {
-			return FALSE;
 		}
 	}
 	return FALSE;
 }
 
-
-boolean
-hasOrder(Node* node, Set *operatorSet)
-{
-	if(node == NULL)
-		return TRUE;
-	if(node->type == T_OrderOperator){
-		addToSet(operatorSet, ORDER_OPERATOR);
-	} //Check aggreationOperator
-	return visit(node, hasOrder, operatorSet);
-}
 
 
 boolean checkPageSafety_rownum(HashMap *data){

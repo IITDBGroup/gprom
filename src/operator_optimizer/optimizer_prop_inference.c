@@ -63,8 +63,8 @@ computeMinMaxProp (QueryOperator *root){
 					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )getMapString(childMinMax,attrDef->attrName));
 				} else {
 					HashMap *new_min_max = NEW_MAP(Constant, Node);
-					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "NEGATIVE");
-					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "POSTIVE");
+					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "-INFINTY");
+					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "INFINTY");
 					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )new_min_max);
 				}
 			}
@@ -82,6 +82,48 @@ computeMinMaxProp (QueryOperator *root){
 				HashMap *childMinMax =(HashMap *) getStringProperty(op,PROP_STORE_MIN_MAX);
 				FOREACH_HASH_ENTRY(ele, childMinMax){
 					ADD_TO_MAP(MIN_MAX, ele);
+				}
+			}
+
+		}
+		if (((JoinOperator *) root)->joinType == JOIN_INNER) {
+			Set *colSet = STRSET();
+			FOREACH(QueryOperator, op, root->inputs)
+			{
+				HashMap *childMinMax = (HashMap *) getStringProperty(op,
+						PROP_STORE_MIN_MAX);
+				//List *keyList = getKeys(MIN_MAX);
+				FOREACH_HASH_ENTRY(ele, childMinMax)
+				{
+					if (hasSetElem(colSet, ((Constant *)ele->key)->value)){
+						HashMap *preColMap = (HashMap *) getMapString(MIN_MAX,((Constant *)ele->key)->value);
+						HashMap *curColMap = (HashMap *) getMapString(childMinMax,((Constant *)ele->key)->value);
+						DEBUG_NODE_BEATIFY_LOG("preColMap is :", preColMap);
+						DEBUG_NODE_BEATIFY_LOG("curColMap is :", curColMap);
+						char *preMin = ((Constant *) MAP_GET_STRING_ENTRY(preColMap, "MIN")->value)->value;
+						char *curMin = ((Constant *) MAP_GET_STRING_ENTRY(preColMap, "MIN")->value)->value;
+						char *preMax = ((Constant *) MAP_GET_STRING_ENTRY(preColMap, "MAX")->value)->value;
+						char *curMax = ((Constant *) MAP_GET_STRING_ENTRY(preColMap, "MAX")->value)->value;
+						if ((*preMin != '-') || (*curMin != '-')){  // MIN >0 || MIN > 0
+							HashMap *new_min_max = NEW_MAP(Constant, Node);
+							MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "INFINTY");
+							MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "INFINTY");
+							MAP_ADD_STRING_KEY(MIN_MAX, ((Constant *)ele->key)->value ,(Node * )new_min_max);
+						} else if ((*preMax == '-') || (*curMax == '-')){  // MAX <0 || MAX <0
+							HashMap *new_min_max = NEW_MAP(Constant, Node);
+							MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "-INFINTY");
+							MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "-INFINTY");
+							MAP_ADD_STRING_KEY(MIN_MAX, ((Constant *)ele->key)->value ,(Node * )new_min_max);
+						} else {
+							HashMap *new_min_max = NEW_MAP(Constant, Node);
+							MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "-INFINTY");
+							MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "INFINTY");
+							MAP_ADD_STRING_KEY(MIN_MAX, ((Constant *)ele->key)->value ,(Node * )new_min_max);
+						}
+						continue;
+					}
+						ADD_TO_MAP(MIN_MAX, ele);
+						addToSet(colSet,((Constant *)ele->key)->value);
 				}
 			}
 

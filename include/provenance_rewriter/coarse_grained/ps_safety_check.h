@@ -25,13 +25,13 @@ extern HashMap *monotoneCheck(Node *qbModel);
 HashMap *getSchema(Node *qbModel);
 //HashMap *safetyCheck_aggregation(Node *qbModel);
 //HashMap *safetyCheck_windowOperator(Node* qbModel);
-HashMap *safetyCheck(Node* qbModel, char *hasOpeator);
+HashMap *safetyCheck(Node* qbModel, Set *hasOpeator);
 
 boolean check(Node* node, HashMap *state);
 boolean checkMonotone(Node* node, Set *operatorSet);
 boolean getTableAccessOperator(Node* node, HashMap *map);
 boolean getSubset(Node* node, HashMap *map);
-List *addBitset(int length, List* result);
+List *addBitset(unsigned int length, List* result);
 //char *binDis(int length, int value);
 //boolean getData_aggregation(Node* node, HashMap *data);
 //boolean checkPageSafety_aggregation(HashMap *data);
@@ -39,12 +39,12 @@ List *addBitset(int length, List* result);
 //boolean checkPageSafety_windowOperator(HashMap *data);
 
 boolean getData(Node* node, HashMap *data);
-boolean checkPageSafety(HashMap *data, char *hasOpeator);
+boolean checkPageSafety(HashMap *data, Set *hasOpeator);
 boolean checkPageSafety_rownum(HashMap *data);
 
 HashMap *getMonotoneResultMap(Node* qbModel);
 
-boolean hasOrder(Node* node, Set *operatorSet);
+boolean hasOperator(Node* node, Set *operatorSet);
 boolean checkAllIsPostive(HashMap *table_map, char *colName);
 boolean checkAllIsNegative(HashMap *table_map, char *colName);
 boolean isPostive(char *tableName, char *colName);
