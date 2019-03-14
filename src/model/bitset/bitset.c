@@ -32,6 +32,37 @@ bitSetToString (BitSet *bitset)
 	}
 	return stringResult->data;
 }
+/*
+BitSet*
+singleton(int pos)
+{
+}*/
+//001000
+boolean
+isBitSet(BitSet *bitset, unsigned int pos){
+	unsigned int length = bitset->length;
+	if(length <= pos){
+		DEBUG_LOG("OUT OF RANGE");
+		return FALSE;
+	}
+	if(*bitset->value&1<<(length - pos - 1)){
+		return TRUE;
+	}else{
+		return FALSE;
+	}
+}
+void
+setBit(BitSet *bitset, unsigned int pos, boolean val){
+	if(pos >= bitset->length || isBitSet(bitset, pos) == val){
+		return;
+	}
+	if(isBitSet(bitset, pos)){
+		*bitset->value = *bitset->value - (1<<(bitset->length - pos - 1));
+	} else {
+		*bitset->value = *bitset->value + (1<<(bitset->length - pos - 1));
+	}
+}
+
 
 BitSet*
 newBitSet (unsigned int length, unsigned long *value, NodeTag type){
@@ -40,7 +71,6 @@ newBitSet (unsigned int length, unsigned long *value, NodeTag type){
 	newBitSet->value = value;
 	newBitSet->length = length;
 	return newBitSet;
-
 }
 
 BitSet*

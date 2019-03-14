@@ -47,6 +47,10 @@ monotoneCheck(Node *qbModel)
 	DEBUG_LOG("The new bitset length is %d and value is %ld",bitNot(b2)->length,*bitNot(b2)->value);
 	DEBUG_LOG("The new bitset is %d",bitsetEquals(b1, b3));
 	DEBUG_LOG("The new bitset is %s",bitSetToString(b1));
+	setBit(b1,3,FALSE);
+	setBit(b1,2,TRUE);
+	DEBUG_LOG("The position is %d",isBitSet(b1, 0));
+	DEBUG_LOG("The new bitset is %s",bitSetToString(b1));
 	//HashMap *operatorState = NEW_MAP(Constant,Node);
 	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
 	computeChildOperatorProp(root);
@@ -71,24 +75,22 @@ monotoneCheck(Node *qbModel)
 		Set *findOperator = STRSET();
 		hasOperator(qbModel, findOperator);
 		checkResult = safetyCheck(qbModel, findOperator);
-		/*
-		if(hasSetElem(operatorSet, WINDOW_OPERATOR)){
-			checkResult = safetyCheck(qbModel, WINDOW_OPERATOR);
-			//checkResult = safetyCheck_windowOperator(qbModel);
-		}else{
-
-			Set *findOrder = STRSET();
-			hasOrder(qbModel, findOrder);
-			if(hasSetElem(findOrder, ORDER_OPERATOR)){
-				checkResult = safetyCheck(qbModel, ORDER_OPERATOR);
-			}else{
-				checkResult = safetyCheck(qbModel, AGGREGATION_OPERATOR);
-			}
-
-
-		}*/
 		DEBUG_NODE_BEATIFY_LOG("The result_map is:",checkResult);
 		return checkResult;
+		/*
+				if(hasSetElem(operatorSet, WINDOW_OPERATOR)){
+					checkResult = safetyCheck(qbModel, WINDOW_OPERATOR);
+					//checkResult = safetyCheck_windowOperator(qbModel);
+				}else{
+
+					Set *findOrder = STRSET();
+					hasOrder(qbModel, findOrder);
+					if(hasSetElem(findOrder, ORDER_OPERATOR)){
+						checkResult = safetyCheck(qbModel, ORDER_OPERATOR);
+					}else{
+						checkResult = safetyCheck(qbModel, AGGREGATION_OPERATOR);
+					}
+						}*/
 	}
 }//check whether it is monotone
 
