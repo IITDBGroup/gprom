@@ -15,6 +15,8 @@
 #include "model/set/hashmap.h"
 #include <string.h>
 
+#define LONGSIZE 8 * sizeof(unsigned long)
+
 char*
 bitSetToString (BitSet *bitset)
 {
@@ -38,6 +40,7 @@ singleton(int pos)
 {
 }*/
 //001000
+
 boolean
 isBitSet(BitSet *bitset, unsigned int pos){
 	unsigned int length = bitset->length;
@@ -50,22 +53,23 @@ isBitSet(BitSet *bitset, unsigned int pos){
 	}else{
 		return FALSE;
 	}
+
+
 }
-void
-setBit(BitSet *bitset, unsigned int pos, boolean val){
-	if(pos >= bitset->length || isBitSet(bitset, pos) == val){
+void setBit(BitSet *bitset, unsigned int pos, boolean val) {
+	if(pos >= bitset->length || isBitSet(bitset, pos) == val) {
 		return;
 	}
-	if(isBitSet(bitset, pos)){
-		*bitset->value = *bitset->value - (1<<(bitset->length - pos - 1));
+	if (isBitSet(bitset, pos)) {
+		*bitset->value = *bitset->value - (1 << (bitset->length - pos - 1));
 	} else {
-		*bitset->value = *bitset->value + (1<<(bitset->length - pos - 1));
+		*bitset->value = *bitset->value + (1 << (bitset->length - pos - 1));
+
 	}
 }
 
-
 BitSet*
-newBitSet (unsigned int length, unsigned long *value, NodeTag type){
+newBitSet(unsigned int length, unsigned long *value, NodeTag type) {
 	BitSet *newBitSet = makeNode(BitSet);
 	newBitSet->type = type;
 	newBitSet->value = value;
@@ -73,11 +77,68 @@ newBitSet (unsigned int length, unsigned long *value, NodeTag type){
 	return newBitSet;
 }
 
+/*
+boolean
+isBitSet2(BitSet *bitset, unsigned int pos){
+	size_t wordpos = pos % LONGSIZE;
+	unsigned long w = bitset->value[wordpos];
+	unsigned int remainder = pos / LONGSIZE;
+
+	if(bitset->length <= pos){
+		DEBUG_LOG("OUT OF RANGE");
+		return FALSE;
+	}
+	if(w & (1 << remainder)) {
+		return TRUE;
+	}else{
+		return FALSE;
+	}
+}
+
+void
+setBit2(BitSet *bitset, unsigned int pos, boolean val)
+{
+	size_t wordpos = pos % LONGSIZE;
+	unsigned long w;
+	unsigned int remainder = pos / LONGSIZE;
+
+    if (isBitSet(bitset, pos) == val)
+    {
+		return;
+	}
+	if(wordpos >= bitset->numWords)
+	{
+		unsigned long origWords = bitset->value;
+		bitset->value = MALLOC(sizeof(unsigned long) * (wordpos + 1));
+		bitset->value[wordpos] = 0;
+		bitset->numWords = wordpos + 1;
+	}
+	if (pos >= bitset->length)
+		bitset->length = pos + 1;
+	if(val)
+	{
+		bitset->value[wordpos] |= (1 << remainder);
+	}
+	else
+	{
+		bitset->value[wordpos] &= ~(1 << remainder);
+	}
+}
+
+BitSet*
+newBitSet2 () {
+	BitSet *newBitSet = makeNode(BitSet);
+	newBitSet->value = MALLOC(sizeof(unsigned long));
+	newBitSet->length = LONGSIZE;
+	return newBitSet;
+}*/
+
 BitSet*
 bitOr(BitSet *b1, BitSet *b2){
 	unsigned int length = b1->length > b2->length ? b1->length : b2->length;
-	unsigned long value = *b1->value|*b2->value;
-	return newBitSet(length, &value ,T_BitSet);
+	unsigned long *value = MALLOC(sizeof(unsigned long));
+	*value = *b1->value|*b2->value;
+	return newBitSet(length, value ,T_BitSet);
 }
 
 BitSet*

@@ -449,6 +449,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
     //Ziyu Liu
 	HashMap *checkResult = NEW_MAP(Constant,Node);
 	checkResult = monotoneCheck(oModel);
+	FREE(checkResult);
 	//Ziyu Liu
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))

@@ -20,6 +20,7 @@
 #include "parser/parser.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "utility/string_utils.h"
+#include <stdlib.h>
 
 /* If OCILIB and OCI are available then use it */
 #if HAVE_ORACLE_BACKEND
@@ -140,6 +141,7 @@ assembleOracleMetadataLookupPlugin(void) {
 	plugin->checkPostive = oracleCheckPostive;
 	plugin->trasnferRawData = oracleTransferRawData;
 	plugin->getMinAndMax = oracleGetMinAndMax;
+	plugin->getRowNum = oracleGetRowNum;
 	return plugin;
 }
 
@@ -451,7 +453,7 @@ boolean oracleCheckPostive(char* tableName, char* colName) {
 
 	return FALSE;
 }
-
+/*
 char*
 oracleTransferRawData(char* data, char* dataType) {
 	StringInfo statement;
@@ -478,14 +480,6 @@ oracleTransferRawData(char* data, char* dataType) {
 			if (OCI_FetchNext(rs)) {
 
 				result = strdup((char * )OCI_GetString(rs, 1));
-				/*DEBUG_LOG("The lowest value is %s", result);
-				if (*result == '-') {
-					DEBUG_LOG("The value is negative");
-					return FALSE;
-				} else {
-					DEBUG_LOG("The value is postive");
-					return TRUE;
-				}*/
 				DEBUG_LOG("The value is %s", result);
 				STOP_TIMER("module - metadata lookup");
 			} else {
@@ -499,7 +493,55 @@ oracleTransferRawData(char* data, char* dataType) {
 	STOP_TIMER("module - metadata lookup");
 	return result;
 }
+*/
+Constant*
+oracleTransferRawData(char* data, char* dataType) {
+	StringInfo statement;
+	char *result = "";
+	statement = makeStringInfo();
+	START_TIMER("module - metadata lookup");
+	if (!strcmp(dataType, "NUMBER")) {
+		appendStringInfo(statement,
+				"SELECT utl_raw.cast_to_number('%s') FROM dual", data);
+	} else if (!strcmp(dataType, "DOUBLE")) {
+		appendStringInfo(statement,
+				"SELECT utl_raw.cast_to_binary_double('%s') FROM dual", data);
+	} else if (!strcmp(dataType, "FLOAT")) {
+		appendStringInfo(statement,
+				"SELECT utl_raw.cast_to_binary_float('%s') FROM dual", data);
+	} else {
+		return NULL;
+	}
 
+	if ((conn = getConnection()) != NULL) {
+		OCI_Resultset *rs = executeStatement(statement->data);
+
+		if (rs != NULL) {
+			if (OCI_FetchNext(rs)) {
+
+				result = strdup((char * )OCI_GetString(rs, 1));
+				if (!strcmp(dataType, "NUMBER")){
+					Constant *value = createConstInt(atoi(result));
+					DEBUG_LOG("The value is %d", *((int *) value->value));
+					return value;
+				}
+				if (!strcmp(dataType, "DOUBLE")||!strcmp(dataType, "FLOAT")) {
+					Constant *value = createConstFloat(atof(result));
+					DEBUG_LOG("The value is %d", *((float *) value->value));
+					return value;
+				}
+				STOP_TIMER("module - metadata lookup");
+			} else {
+				return NULL;
+			}
+		}
+	} else {
+		DEBUG_LOG("No connection");
+	}
+	FREE(statement);
+	STOP_TIMER("module - metadata lookup");
+	return NULL;
+}
 
 HashMap *
 oracleGetMinAndMax(char* tableName, char* colName) {
@@ -532,8 +574,8 @@ oracleGetMinAndMax(char* tableName, char* colName) {
 				DEBUG_LOG("The highest value is %s", highest);
 				DEBUG_LOG("The datatype is %s", dataType);
 				STOP_TIMER("module - metadata lookup");
-				MAP_ADD_STRING_KEY_AND_VAL(result_map, "MIN", transferRawData(lowest, dataType));
-				MAP_ADD_STRING_KEY_AND_VAL(result_map, "MAX", transferRawData(highest, dataType));
+				MAP_ADD_STRING_KEY(result_map, "MIN", (Node *) transferRawData(lowest, dataType));
+				MAP_ADD_STRING_KEY(result_map, "MAX", (Node *) transferRawData(highest, dataType));
 				return result_map;
 			} else {
 				return NULL;
@@ -549,6 +591,42 @@ oracleGetMinAndMax(char* tableName, char* colName) {
 
 	return result_map;
 }
+
+int
+oracleGetRowNum(char* tableName) {
+	StringInfo statement;
+	char *rowNum;
+	START_TIMER("module - metadata lookup");
+
+	statement = makeStringInfo();
+	appendStringInfo(statement,
+			"SELECT NUM_ROWS FROM ALL_TABLES WHERE OWNER = 'FGA_USER' AND TABLE_NAME = '%s'"
+			,tableName);
+
+	if ((conn = getConnection()) != NULL) {
+		OCI_Resultset *rs = executeStatement(statement->data);
+
+		if (rs != NULL) {
+			if (OCI_FetchNext(rs)) {
+
+				rowNum = strdup((char * )OCI_GetString(rs, 1));
+				STOP_TIMER("module - metadata lookup");
+				return atoi(rowNum);
+			} else {
+				return 0;
+			}
+		}
+	} else {
+		DEBUG_LOG("No connection");
+	}
+
+	FREE(statement);
+	STOP_TIMER("module - metadata lookup");
+
+
+	return 0;
+}
+
 
 List *
 oracleGetAttributeNames(char *tableName) {

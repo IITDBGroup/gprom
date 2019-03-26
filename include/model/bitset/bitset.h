@@ -14,6 +14,7 @@
 typedef struct BitSet
 {
 	NodeTag type;
+	unsigned int numWords;
     unsigned int length;
     unsigned long *value;
 } BitSet;
@@ -31,5 +32,10 @@ extern BitSet *bitAnd(BitSet *b1, BitSet *b2);
 extern BitSet *bitNot(BitSet *b);
 extern boolean bitsetEquals(BitSet *b1, BitSet *b2);
 //extern boolean doubleLength(BitSet *bitset);
+
+
+extern BitSet* newBitSet2 ();
+extern void setBit2(BitSet *bitset, unsigned int pos, boolean val);
+extern boolean isBitSet2(BitSet *bitset, unsigned int pos);
 
 #endif /* INCLUDE_MODEL_BITSET_BITSET_H_ */

@@ -22,45 +22,8 @@
 HashMap*
 monotoneCheck(Node *qbModel)
 {
-	/*
 	DEBUG_LOG("Safety Check");
-	//DEBUG_NODE_BEATIFY_LOG("check query: ", q);
-	QueryOperator *op = NULL;
-
-	if (isA(qbModel, List))
-		op = getNthOfListP((List *) qbModel, 0);
-	else if (IS_OP(qbModel))
-		op = (QueryOperator *) qbModel;
-	*/
-
-	DEBUG_LOG("Safety Check");
-/*
-	boolean lzy = isPostive("R", "A");
-	DEBUG_LOG("The lzy is %d", lzy);
-*/
-	unsigned long a = 6, b = 3;
-	BitSet *b1 = newBitSet(3, &a ,T_BitSet);
-	BitSet *b2 = newBitSet(3, &b ,T_BitSet);
-	BitSet *b3 = NULL;
-	DEBUG_LOG("The new bitset length is %d and value is %ld",bitOr(b1,b2)->length,*bitOr(b1,b2)->value);
-	DEBUG_LOG("The new bitset length is %d and value is %ld",bitAnd(b1,b2)->length,*bitAnd(b1,b2)->value);
-	DEBUG_LOG("The new bitset length is %d and value is %ld",bitNot(b2)->length,*bitNot(b2)->value);
-	DEBUG_LOG("The new bitset is %d",bitsetEquals(b1, b3));
-	DEBUG_LOG("The new bitset is %s",bitSetToString(b1));
-	setBit(b1,3,FALSE);
-	setBit(b1,2,TRUE);
-	DEBUG_LOG("The position is %d",isBitSet(b1, 0));
-	DEBUG_LOG("The new bitset is %s",bitSetToString(b1));
-	//HashMap *operatorState = NEW_MAP(Constant,Node);
-	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
-	computeChildOperatorProp(root);
-	//computeMinMaxProp(root);
-	//HashMap *min_max = getMinAndMax("R","A");
-	//DEBUG_NODE_BEATIFY_LOG("The min_max is:",min_max);
-	//DEBUG_LOG("The negative is: %d", isNegative("R","A"));
-	//check(qbModel, operatorState);
-	//DEBUG_NODE_BEATIFY_LOG("The result_state is:",operatorState);
-	//List *entries = getEntries(operatorState);//get all operator in the tree.
+	test(qbModel);
 	HashMap *checkResult = NEW_MAP(Constant,Node);
 	Set *operatorSet = STRSET();
 	checkMonotone(qbModel, operatorSet);
@@ -77,20 +40,6 @@ monotoneCheck(Node *qbModel)
 		checkResult = safetyCheck(qbModel, findOperator);
 		DEBUG_NODE_BEATIFY_LOG("The result_map is:",checkResult);
 		return checkResult;
-		/*
-				if(hasSetElem(operatorSet, WINDOW_OPERATOR)){
-					checkResult = safetyCheck(qbModel, WINDOW_OPERATOR);
-					//checkResult = safetyCheck_windowOperator(qbModel);
-				}else{
-
-					Set *findOrder = STRSET();
-					hasOrder(qbModel, findOrder);
-					if(hasSetElem(findOrder, ORDER_OPERATOR)){
-						checkResult = safetyCheck(qbModel, ORDER_OPERATOR);
-					}else{
-						checkResult = safetyCheck(qbModel, AGGREGATION_OPERATOR);
-					}
-						}*/
 	}
 }//check whether it is monotone
 
@@ -175,18 +124,7 @@ safetyCheck(Node* qbModel, Set *hasOperator) {
 	HashMap *map = NEW_MAP(Constant, Node);
 	HashMap *data = NEW_MAP(Constant, Node);
 	getData(qbModel, data);//get the data of node we need
-
 	boolean result = FALSE;
-	/*
-	if(!strcmp(hasOpeator,ORDER_OPERATOR)){
-		//DEBUG_LOG("it's order");
-		result = checkPageSafety_rownum(data);		//rownum check
-		DEBUG_LOG("The result is: %d", result);
-	}else{
-		//DEBUG_LOG("it's no order");
-		result = checkPageSafety(data, hasOpeator); // window and aggregation
-		DEBUG_LOG("The result is: %d", result);
-	}*/
 	if(hasSetElem(hasOperator, ORDER_OPERATOR)){
 			//DEBUG_LOG("it's order");
 			result = checkPageSafety_rownum(data);		//rownum check
@@ -602,21 +540,86 @@ boolean checkAllIsNegative(HashMap *table_map, char *colName) {
 
 boolean isPostive(char *tableName, char *colName) {
 	HashMap *result = getMinAndMax(tableName, colName);
-	char *MIN = ((Constant *) MAP_GET_STRING_ENTRY(result, "MIN")->value)->value;
-	if (*MIN == '-') {
-		return FALSE;
+	Constant *number = (Constant *) MAP_GET_STRING_ENTRY(result, "MIN")->value;
+	if (number->constType == DT_INT) {
+		int *value = (int *) number->value;
+		if (*value <= 0) {
+			return FALSE;
+		} else {
+			return TRUE;
+		}
+	} else if (number->constType == DT_FLOAT) {
+		float *value = (float *) number->value;
+		if (*value <= 0.0) {
+			return FALSE;
+		} else {
+			return TRUE;
+		}
+	} else {
+		return TRUE;
 	}
 	return TRUE;
 }
 
 boolean isNegative(char *tableName, char *colName) {
 	HashMap *result = getMinAndMax(tableName, colName);
-	char *MAX = ((Constant *) MAP_GET_STRING_ENTRY(result, "MAX")->value)->value;
-	if (*MAX == '-') {
+	Constant *number = (Constant *) MAP_GET_STRING_ENTRY(result, "MAX")->value;
+	if (number->constType == DT_INT) {
+		int *value = (int *) number->value;
+		if (*value <= 0) {
+			return TRUE;
+		} else {
+			return FALSE;
+		}
+	} else if (number->constType == DT_FLOAT) {
+		float *value = (float *) number->value;
+		if (*value <= 0.0) {
+			return TRUE;
+		} else {
+			return FALSE;
+		}
+	} else {
 		return TRUE;
 	}
-	return FALSE;
+	return TRUE;
 }
+
+void
+test(Node *qbModel){
+	//110, 011
+	/*
+    unsigned long a = 6, b = 3;
+	BitSet *b1 = newBitSet(3, &a ,T_BitSet);
+	BitSet *b2 = newBitSet(3, &b ,T_BitSet);
+	BitSet *b3 = NULL;
+	DEBUG_LOG("The b1 length is %d and value is %ld",b1->length,*b1->value);
+	DEBUG_LOG("The new bitset length is %d and value is %ld",bitOr(b1,b2)->length,*bitOr(b1,b2)->value);
+	DEBUG_LOG("The new bitset length is %d and value is %ld",bitAnd(b1,b2)->length,*bitAnd(b1,b2)->value);
+	DEBUG_LOG("The new bitset length is %d and value is %ld",bitNot(b2)->length,*bitNot(b2)->value);
+	DEBUG_LOG("The new bitset is %d",bitsetEquals(b1, b3));
+	DEBUG_LOG("The new bitset is %s",bitSetToString(b1));
+	setBit(b1,3,FALSE);
+	setBit(b1,2,TRUE);
+	DEBUG_LOG("The position is %d",isBitSet(b1, 0));
+	DEBUG_LOG("The new bitset is %s",bitSetToString(b1));
+	int value = getRowNum("R");
+	DEBUG_LOG("The numbers of rows is : %d\n", value);*/
+	//HashMap *operatorState = NEW_MAP(Constant,Node);
+	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) qbModel)->data.ptr_value;
+	//computeChildOperatorProp(root);
+	computeMinMaxProp(root);
+	//HashMap *min_max = getMinAndMax("R","A");*/
+
+	//DEBUG_NODE_BEATIFY_LOG("The min_max is:",min_max);
+	//DEBUG_LOG("The negative is: %d", isNegative("R","A"));
+	//DEBUG_LOG("The postive is: %d", isPostive("R","A"));
+	//check(qbModel, operatorState);
+	//DEBUG_NODE_BEATIFY_LOG("The result_state is:",operatorState);
+	//List *entries = getEntries(operatorState);//get all operator in the tree.
+	//boolean lzy = isPostive("R", "A");
+	//	DEBUG_LOG("The lzy is %d", lzy);
+}
+
 
 /*
 List*

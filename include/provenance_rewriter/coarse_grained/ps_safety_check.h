@@ -20,7 +20,7 @@
 #define SELECTION_OPERATOR "SelectionOperator"
 #define TABLEACCESS_OPERATOR "TableAccessOperator"
 
-
+void test(Node *qbModel);
 extern HashMap *monotoneCheck(Node *qbModel);
 HashMap *getSchema(Node *qbModel);
 //HashMap *safetyCheck_aggregation(Node *qbModel);

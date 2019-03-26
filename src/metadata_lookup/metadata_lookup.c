@@ -467,11 +467,11 @@ isPostive(char *tableName, char *colName)
 }
 */
 
-char *
+Constant*
 transferRawData(char *data, char *dataType){
 	ASSERT(activePlugin && activePlugin->isInitialized());
 	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    char * result = activePlugin->trasnferRawData(data, dataType);
+	Constant* result = activePlugin->trasnferRawData(data, dataType);
     RELEASE_MEM_CONTEXT();
     return result;
 }
@@ -485,3 +485,16 @@ getMinAndMax(char *tableName, char *colName)
     RELEASE_MEM_CONTEXT();
     return result;
 }
+
+int
+getRowNum(char* tableName)
+{
+	 ASSERT(activePlugin && activePlugin->isInitialized());
+	    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	    int result = activePlugin->getRowNum(tableName);
+	    RELEASE_MEM_CONTEXT();
+	    return result;
+
+}
+
+
