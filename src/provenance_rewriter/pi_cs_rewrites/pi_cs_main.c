@@ -1950,11 +1950,12 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     			tempCount = highValue;
     		Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-    		long power = 0;
-    		if(i<2)
-    			power = pow(2,i);
-    		else
-    			power = pow(2,i) + 1;
+    		unsigned long long int power = 0;
+//    		if(i<2)
+//    			power = pow(2,i);
+//    		else
+//    			power = pow(2,i) + 1;
+    		power = 1L << i;
     		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
     		whenList = appendToTailOfList(whenList, when);
     	}
@@ -1997,15 +1998,32 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     List *condList = combineAndList(fList);
     	List *whenList = NIL;
+    //	unsigned long long int p1 = 0;
     	for(int i=0; i<LIST_LENGTH(condList); i++)
     	{
-    		long power = 0;
+    		unsigned long long int power = 0;
+    		//unsigned long long int p2 = 0;
     		Node *cond = (Node *) getNthOfListP(condList, i);
 
-    		if(i<2)
-    			power = pow(2,i);
-    		else
-    			power = pow(2,i) + 1;
+//			another way
+//    		if(i==0)
+//    			p1 = 1;
+//    		else
+//    			p1 = p1 * 2;
+
+//		this one is uncorrect when i > 45
+//    		if(i<2)
+//    			power = pow(2,i);
+//    		else
+//    			power = pow(2,i) + 1;
+
+    		power = 1L << i;
+
+//    		DEBUG_LOG(" %d",i);
+    		DEBUG_LOG("powerss: %llu", power);
+//    		DEBUG_LOG("powers1: %llu", p1);
+//    		DEBUG_LOG("powers2: %llu", p2);
+//    		DEBUG_LOG(" ");
     		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
     		whenList = appendToTailOfList(whenList, when);
     	}
@@ -2446,7 +2464,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     }
 
     int hIntValue = 0;
-    long uhIntValue = LONG_VALUE(uhvalue);
+	unsigned long long int uhIntValue = LONG_VALUE(uhvalue);
     //int uhIntValue1 = INT_VALUE(uhvalue);
 
     if(streq(ptype, "RANGEB"))
@@ -2461,19 +2479,66 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     //get selection condition (prov_r = 10 or prov_r = 14)
     List *condRightValueList = NULL;  //10,14...
 
-    long k;
-    long n = uhIntValue;
-    for (int c = hIntValue,cntOnePos=0; c >= 0; c--,cntOnePos++)
+	unsigned long long int k;
+	unsigned long long int n = uhIntValue;
+//	unsigned long long int te = 13;
+//	unsigned long long int te1 = te >> 4;
+//	unsigned long long int te2 = te >> 3;
+//	unsigned long long int te3 = te >> 2;
+//	unsigned long long int te4 = te >> 1;
+//	unsigned long long int te5 = te >> 0;
+//
+//    DEBUG_LOG("te1 is: %llu", te1);
+//    DEBUG_LOG("te2 is: %llu", te2);
+//    DEBUG_LOG("te3 is: %llu", te3);
+//    DEBUG_LOG("te4 is: %llu", te4);
+//    DEBUG_LOG("te5 is: %llu", te5);
+//
+//    if(te1 & 1)
+//    		DEBUG_LOG("te1 is: %llu", te1);
+//    else
+//    		DEBUG_LOG("te1 no");
+//
+//    if(te2 & 1)
+//    		DEBUG_LOG("te2 is: %llu", te2);
+//    else
+//    		DEBUG_LOG("te2 no");
+//
+//    if(te3 & 1)
+//    		DEBUG_LOG("te3 is: %llu", te3);
+//    else
+//    		DEBUG_LOG("te3 no");
+//
+//    if(te4 & 1)
+//    		DEBUG_LOG("te4 is: %llu", te4);
+//    else
+//    		DEBUG_LOG("te4 no");
+//
+//    if(te5 & 1)
+//    		DEBUG_LOG("te5 is: %llu", te5);
+//    else
+//    		DEBUG_LOG("te5 no");
+
+//    List *tee = singletonInt(1);
+//    tee = appendToTailOfListInt(tee, 2);
+//    int t1 = getNthOfListInt(tee, 0);
+//    int t2 = getNthOfListInt(tee, 1);
+//    DEBUG_LOG("t1 %d",t1);
+//    DEBUG_LOG("t2 %d",t2);
+
+
+
+    for (int c = hIntValue - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
     {
       k = n >> c;
-      //DEBUG_LOG("n is %lld, c is %d, k is: %lld, cntOnePos is: %d", n, c, k, cntOnePos);
+      DEBUG_LOG("n is %llu, c is %d, k is: %llu, cntOnePos is: %d", n, c, k, cntOnePos);
       if (k & 1)
       {
-        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - cntOnePos));
+        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - 1  - cntOnePos));
         DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos);
       }
     }
-
+    DEBUG_LOG("cond len: %d", LIST_LENGTH(condRightValueList));
     newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     provAttr = appendToTailOfList(provAttr, newAttrName);
 
@@ -2526,11 +2591,12 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
             tempCount = tempCount + intervalValue;
             Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-            long power = 0;
-            if(i<2)
-               power = pow(2,i);
-            else
-            	   power = pow(2,i) + 1;
+        		unsigned long long int power = 0;
+//            if(i<2)
+//               power = pow(2,i);
+//            else
+//            	   power = pow(2,i) + 1;
+        		power = 1L << i;
         		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
         		whenList = appendToTailOfList(whenList, when);
         }
@@ -2632,7 +2698,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         		Constant *ll = (Constant *) popHeadOfListP(condRightValueList);
         		int hh = INT_VALUE(ll) + 1;
         		FOREACH(Constant, c,	condRightValueList)
-        		{
+        		{   DEBUG_LOG("11111111c %d",INT_VALUE(c));
         			if(INT_VALUE(c) == INT_VALUE(ll) - 1)
         				ll = c;
         			else

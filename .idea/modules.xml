@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/blackboxtests/blackboxtests.iml" filepath="$PROJECT_DIR$/blackboxtests/blackboxtests.iml" />
+      <module fileurl="file://$PROJECT_DIR$/src/interfaces/jdbc/jdbc.iml" filepath="$PROJECT_DIR$/src/interfaces/jdbc/jdbc.iml" />
+      <module fileurl="file://$PROJECT_DIR$/provenance-rewriter-prototype.iml" filepath="$PROJECT_DIR$/provenance-rewriter-prototype.iml" />
+      <module fileurl="file://$PROJECT_DIR$/clients/transaction_debugger/transaction_debugger.iml" filepath="$PROJECT_DIR$/clients/transaction_debugger/transaction_debugger.iml" />
+    </modules>
+  </component>
+</project>

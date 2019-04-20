@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="lib1">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/clients/transaction_debugger/lib/jaretutil-0.32.jar!/" />
+      <root url="jar://$PROJECT_DIR$/clients/transaction_debugger/lib/timebars-1.49.jar!/" />
+      <root url="jar://$PROJECT_DIR$/clients/transaction_debugger/lib/ojdbc6.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

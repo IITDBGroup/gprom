@@ -1,0 +1,21 @@
+<component name="libraryTable">
+  <library name="libbuild">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/build/libbuild/dec-0.1.2.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/ant-junit-1.9.7.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/hamcrest-core-1.3.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/ant-1.10.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/ant-launcher-1.10.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/junit-4.12.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/jarjar-1.3.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/ant-contrib-1.0b3.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/ant-compress-1.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/ant-1.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/xz-1.6.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/commons-compress-1.14.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/libbuild/ivy.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
