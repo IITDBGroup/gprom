@@ -30,6 +30,7 @@
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
+
 #define LOG_RESULT(mes,op) \
     do { \
         INFO_OP_LOG(mes,op); \
@@ -1951,10 +1952,6 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     		Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
     		unsigned long long int power = 0;
-//    		if(i<2)
-//    			power = pow(2,i);
-//    		else
-//    			power = pow(2,i) + 1;
     		power = 1L << i;
     		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
     		whenList = appendToTailOfList(whenList, when);
@@ -2002,28 +1999,10 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	for(int i=0; i<LIST_LENGTH(condList); i++)
     	{
     		unsigned long long int power = 0;
-    		//unsigned long long int p2 = 0;
     		Node *cond = (Node *) getNthOfListP(condList, i);
-
-//			another way
-//    		if(i==0)
-//    			p1 = 1;
-//    		else
-//    			p1 = p1 * 2;
-
-//		this one is uncorrect when i > 45
-//    		if(i<2)
-//    			power = pow(2,i);
-//    		else
-//    			power = pow(2,i) + 1;
-
     		power = 1L << i;
+    		//DEBUG_LOG("power: %llu", power);
 
-//    		DEBUG_LOG(" %d",i);
-    		DEBUG_LOG("powerss: %llu", power);
-//    		DEBUG_LOG("powers1: %llu", p1);
-//    		DEBUG_LOG("powers2: %llu", p2);
-//    		DEBUG_LOG(" ");
     		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
     		whenList = appendToTailOfList(whenList, when);
     	}
@@ -2473,60 +2452,25 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		hIntValue = INT_VALUE(hvalue);
 
     DEBUG_LOG("coarse grained hash value is : %d", hIntValue);
-    DEBUG_LOG("coarse grained bitoragg value is : %lld", uhIntValue);
+    DEBUG_LOG("coarse grained bitoragg value is : %llu", uhIntValue);
     //DEBUG_LOG("coarse grained bitoragg value1 is : %lld", uhIntValue1);
+
+//    get unsigned long long int value
+//    unsigned long long int pp = 16785610555053551055U;
+
+//    str -> unsigned long long int
+//    char str[100] = "16785610555053551055 test";
+//    char *ptr;
+//    unsigned long long int ret;
+//    ret = strtoul(str, &ptr, 10);
+//    printf("The number(unsigned long integer) is %llu\n", ret);
+//    printf("String part is |%s|", ptr);
 
     //get selection condition (prov_r = 10 or prov_r = 14)
     List *condRightValueList = NULL;  //10,14...
 
 	unsigned long long int k;
 	unsigned long long int n = uhIntValue;
-//	unsigned long long int te = 13;
-//	unsigned long long int te1 = te >> 4;
-//	unsigned long long int te2 = te >> 3;
-//	unsigned long long int te3 = te >> 2;
-//	unsigned long long int te4 = te >> 1;
-//	unsigned long long int te5 = te >> 0;
-//
-//    DEBUG_LOG("te1 is: %llu", te1);
-//    DEBUG_LOG("te2 is: %llu", te2);
-//    DEBUG_LOG("te3 is: %llu", te3);
-//    DEBUG_LOG("te4 is: %llu", te4);
-//    DEBUG_LOG("te5 is: %llu", te5);
-//
-//    if(te1 & 1)
-//    		DEBUG_LOG("te1 is: %llu", te1);
-//    else
-//    		DEBUG_LOG("te1 no");
-//
-//    if(te2 & 1)
-//    		DEBUG_LOG("te2 is: %llu", te2);
-//    else
-//    		DEBUG_LOG("te2 no");
-//
-//    if(te3 & 1)
-//    		DEBUG_LOG("te3 is: %llu", te3);
-//    else
-//    		DEBUG_LOG("te3 no");
-//
-//    if(te4 & 1)
-//    		DEBUG_LOG("te4 is: %llu", te4);
-//    else
-//    		DEBUG_LOG("te4 no");
-//
-//    if(te5 & 1)
-//    		DEBUG_LOG("te5 is: %llu", te5);
-//    else
-//    		DEBUG_LOG("te5 no");
-
-//    List *tee = singletonInt(1);
-//    tee = appendToTailOfListInt(tee, 2);
-//    int t1 = getNthOfListInt(tee, 0);
-//    int t2 = getNthOfListInt(tee, 1);
-//    DEBUG_LOG("t1 %d",t1);
-//    DEBUG_LOG("t2 %d",t2);
-
-
 
     for (int c = hIntValue - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
     {
@@ -2592,10 +2536,6 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
             Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
         		unsigned long long int power = 0;
-//            if(i<2)
-//               power = pow(2,i);
-//            else
-//            	   power = pow(2,i) + 1;
         		power = 1L << i;
         		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
         		whenList = appendToTailOfList(whenList, when);

@@ -68,7 +68,7 @@ constantToSQL (StringInfo str, Constant *node)
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
         case DT_LONG:
-            appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
+            appendStringInfo(str, "%llu", *((gprom_long_t *) node->value));
             break;
         case DT_STRING:
             appendStringInfo(str, "'%s'", (char *) node->value);
