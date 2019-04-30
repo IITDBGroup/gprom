@@ -16,24 +16,57 @@
 #include <string.h>
 
 #define LONGSIZE 8 * sizeof(unsigned long)
+#define TRUE_CHAR '1'
+#define FALSE_CHAR '0'
+static
 
 char*
 bitSetToString (BitSet *bitset)
 {
 	StringInfo stringResult  = makeStringInfo();
 	unsigned int length = bitset->length;
-	while(length--)
+    unsigned int longpos = -1;
+    unsigned int pos = -1;
+	unsigned long mask = 1;
+
+	while(++pos < length)
 	{
-		if(*bitset->value&1<<length){       //00001000 & 00001000 = 1
-			char *bit = "1";
-			appendStringInfoString(stringResult, bit);
-		}else{      //00001000 & 10000000 = 0
-			char *bit = "0";
-			appendStringInfoString(stringResult, bit);
-		}
+	    if (!(pos % 64)) {
+	        longpos++;
+	        mask = 1;
+	    }
+	    appendStringInfoChar(stringResult,
+	            (bitset->value[longpos] & mask ? TRUE_CHAR : FALSE_CHAR));
+		mask <<= 1;
 	}
+
 	return stringResult->data;
 }
+
+BitSet *
+stringToBitset (char *v)
+{
+    BitSet *res = createBitSet(strlen(v));
+    unsigned int longpos = -1;
+    unsigned long mask = 1;
+
+    for(int i = 0; i < res->length; i++)
+    {
+        if (!(i % LONG_BITS))
+        {
+            longpos++;
+            mask = 1;
+        }
+        if (v[i] == '1')
+            res->value[longpos] |= mask;
+        else
+            res->value[longpos] &= ~mask;
+        mask <<= 1;
+    }
+
+    return res;
+}
+
 /*
 BitSet*
 singleton(int pos)
@@ -43,37 +76,59 @@ singleton(int pos)
 
 boolean
 isBitSet(BitSet *bitset, unsigned int pos){
-	unsigned int length = bitset->length;
-	if(length <= pos){
+    unsigned int longpos = pos / 64;
+	unsigned int bitpos = pos % 64;
+
+	if(bitset->length <= pos)
+	{
 		DEBUG_LOG("OUT OF RANGE");
 		return FALSE;
 	}
-	if(*bitset->value&1<<(length - pos - 1)){
+	if(bitset->value[longpos] & (1 << bitpos))
 		return TRUE;
-	}else{
+	else
 		return FALSE;
-	}
-
-
 }
-void setBit(BitSet *bitset, unsigned int pos, boolean val) {
-	if(pos >= bitset->length || isBitSet(bitset, pos) == val) {
-		return;
-	}
-	if (isBitSet(bitset, pos)) {
-		*bitset->value = *bitset->value - (1 << (bitset->length - pos - 1));
-	} else {
-		*bitset->value = *bitset->value + (1 << (bitset->length - pos - 1));
 
-	}
+void
+setBit(BitSet *bitset, unsigned int pos, boolean val)
+{
+    unsigned int longpos = pos / 64;
+    unsigned int bitpos = pos % 64;
+
+    // have outgrown the bitset
+    if (longpos + 1 > bitset->numWords) {
+        growBitset(longpos + 1);
+    }
+    // set bit to 1 using bitor with 0...010...0
+    if (val) {
+        bitset->value[longpos] |= 1 << bitpos;
+    }
+    // set bit to 0 using bitand with 1...101...1
+    else {
+        bitset->value[longpos] &= ~(1 << bitpos);
+    }
+}
+
+static void
+growBitset(BitSet *b, unsigned int newLen) {
+    unsigned int powTwoLen = b->numWords;
+    unsigned long *newVal;
+
+    while(powTwoLen < newLen)
+        powTwoLen *= 2;
+    newVal = CALLOC(sizeof(unsigned long), powTwoLen);
+    memcpy(newVal, b->value, b->numWords * sizeof(unsigned long));
 }
 
 BitSet*
-newBitSet(unsigned int length, unsigned long *value, NodeTag type) {
+newBitSet(unsigned int length) {
 	BitSet *newBitSet = makeNode(BitSet);
-	newBitSet->type = type;
-	newBitSet->value = value;
+
+	newBitSet->numWords = ((length - 1) / LONG_BITS) + 1;
+	newBitSet->value = CALLOC(sizeof(unsigned long), newBitSet->numWords);
 	newBitSet->length = length;
+
 	return newBitSet;
 }
 
@@ -134,25 +189,37 @@ newBitSet2 () {
 }*/
 
 BitSet*
-bitOr(BitSet *b1, BitSet *b2){
-	unsigned int length = b1->length > b2->length ? b1->length : b2->length;
-	unsigned long *value = MALLOC(sizeof(unsigned long));
-	*value = *b1->value|*b2->value;
-	return newBitSet(length, value ,T_BitSet);
+bitOr(BitSet *b1, BitSet *b2)
+{
+	BitSet *longer = b1->length > b2->length ? b1 : b2;
+	BitSet *shorter = b1->length > b2->length ? b2 : b1;
+	BitSet *result = copyBitSet(longer);
+
+	for(int i = 0; i < shorter->numWords; i++)
+	    result->value[i] |= shorter->value[i];
+
+	return result;
 }
 
 BitSet*
-bitAnd(BitSet *b1, BitSet *b2){
-	unsigned int length = b1->length > b2->length ? b1->length : b2->length;
-	unsigned long value = *b1->value&*b2->value;
-	return newBitSet(length, &value ,T_BitSet);
+bitAnd(BitSet *b1, BitSet *b2)
+{
+    BitSet *longer = b1->length > b2->length ? b1 : b2;
+    BitSet *shorter = b1->length > b2->length ? b2 : b1;
+    BitSet *result = copyBitSet(longer);
+
+    for(int i = 0; i < shorter->numWords; i++)
+        result->value[i] &= shorter->value[i];
+
+    return result;
 }
 
 BitSet*
 bitNot(BitSet *b){
-	unsigned int length = b->length;
-	unsigned long value = (1<<length) - 1 - *b->value;
-	return newBitSet(length, &value ,T_BitSet);
+	BitSet *result = copyBitSet(b);
+	for(int i = 0; i < result->numWords; i++)
+	    result->value[i] = ~(result->value[i]);
+	return result;
 }
 
 boolean
@@ -166,7 +233,13 @@ bitsetEquals(BitSet *b1, BitSet *b2){
 	return FALSE;
 }
 
-
+BitSet *
+copyBitSet(BitSet *in)
+{
+    BitSet *n = newBitSet(in->length);
+    memcpy(n->value, in->value, sizeof(unsigned long) * in->numWords);
+    return n;
+}
 
 
 
