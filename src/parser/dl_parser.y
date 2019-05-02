@@ -22,7 +22,7 @@
 Node *dlParseResult = NULL;
 %}
 
-%name-prefix "dl"
+%define api.prefix {dl}
 
 %union {
     /* 

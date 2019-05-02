@@ -194,19 +194,21 @@ List*
 addBitset(unsigned int length, List *result)
 {
 	char *subset = "SUBSET";
-	char *exact = "EXCAT";
-	unsigned long max = 1 << length;
-	for (unsigned long i = 1; i < max; i++) {
-		unsigned long *value = &i;
-		if (i == (max - 1)){
-			//KeyValue *element = createStringKeyValue(exact, binDis(length, i));
+//	char *exact = "EXCAT";
+//	unsigned long max = 1 << length;
+	for (int i = 0; i < length; i++)
+	{
+		//unsigned long *value = &i; //TODO why use address of i here?
+		/* if (i == (max - 1)) */
+		/* { */
+		/* 	//KeyValue *element = createStringKeyValue(exact, binDis(length, i)); */
 
-			BitSet *bitset = newBitSet(length,value,T_BitSet);
-			KeyValue *element = createStringKeyValue(exact, bitSetToString(bitset));
-			result = appendToTailOfList(result, element);
-			break;
-		}
-		BitSet *bitset = newBitSet(length,value,T_BitSet);
+		/* 	BitSet *bitset = singletonBitSet(i); */
+		/* 	KeyValue *element = createStringKeyValue(exact, bitSetToString(bitset)); */
+		/* 	result = appendToTailOfList(result, element); */
+		/* 	break; */
+		/* } */
+		BitSet *bitset = newSingletonBitSet(i);
 		KeyValue *element = createStringKeyValue(subset, bitSetToString(bitset));
 		result = appendToTailOfList(result, element);
 	}

@@ -16,6 +16,7 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
@@ -56,6 +57,7 @@ static List *deepCopyList(List *from, OperatorMap **opMap);
 static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
+static BitSet *deepCopyBitSet(BitSet *from, OperatorMap **opMap);
 
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
@@ -251,6 +253,14 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     return new;
 }
 
+static BitSet *
+deepCopyBitSet(BitSet *from, OperatorMap **opMap)
+{
+	BitSet *new = copyBitSet(from);
+
+	return new;
+}
+
 static DLAtom *
 copyDLAtom(DLAtom *from, OperatorMap **opMap)
 {
@@ -369,7 +379,7 @@ copyAttributeReference(AttributeReference *from, OperatorMap **opMap)
 
 static FunctionCall *
 copyFunctionCall(FunctionCall *from, OperatorMap **opMap)
-{ 
+{
     COPY_INIT(FunctionCall);
     COPY_STRING_FIELD(functionname);
     COPY_NODE_FIELD(args);
@@ -392,7 +402,7 @@ copyKeyValue(KeyValue *from, OperatorMap **opMap)
 
 static Operator *
 copyOperator(Operator *from, OperatorMap **opMap)
-{ 
+{
     COPY_INIT(Operator);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(args);
@@ -547,7 +557,7 @@ copySchema(Schema *from, OperatorMap **opMap)
     COPY_INIT(Schema);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(attrDefs);
-    
+
     return new;
 }
 
@@ -798,7 +808,7 @@ copyQueryBlock(QueryBlock *from, OperatorMap **opMap)
     COPY_NODE_FIELD(havingClause);
     COPY_NODE_FIELD(orderByClause);
     COPY_NODE_FIELD(limitClause);
-    
+
     return new;
 }
 
@@ -915,7 +925,7 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(dts);
     COPY_SCALAR_FIELD(provType);
     COPY_SCALAR_FIELD(inputType);
-    COPY_NODE_FIELD(transInfo);    
+    COPY_NODE_FIELD(transInfo);
     COPY_NODE_FIELD(asOf);
     COPY_NODE_FIELD(options);
     COPY_NODE_FIELD(sumOpts);
@@ -987,7 +997,7 @@ static Constant *
 copyConstant(Constant *from, OperatorMap **opMap)
 {
       COPY_INIT(Constant);
-      COPY_SCALAR_FIELD(constType); 
+      COPY_SCALAR_FIELD(constType);
 	  COPY_SCALAR_FIELD(isNull);
 	  if (from->isNull)
 	  {
@@ -1029,7 +1039,7 @@ copyFromSubquery(FromSubquery *from, OperatorMap **opMap)
     COPY_INIT(FromSubquery);
     COPY_FROM();
     COPY_NODE_FIELD(subquery);
-    
+
     return new;
 }
 
@@ -1084,6 +1094,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_Vector:
             retval = deepCopyVector(from, opMap);
+            break;
+        case T_BitSet:
+            retval = deepCopyBitSet(from, opMap);
             break;
 
         /* expression model */

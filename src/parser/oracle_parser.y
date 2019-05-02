@@ -29,9 +29,9 @@
 Node *oracleParseResult = NULL;
 %}
 
-%name-prefix "oracle"
+%define api.prefix {oracle}
 
-%error-verbose
+%define parse.error verbose
 
 %union {
     /*

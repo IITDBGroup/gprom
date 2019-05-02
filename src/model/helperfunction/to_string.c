@@ -16,6 +16,7 @@
 #include "model/set/set.h"
 #include "model/set/vector.h"
 #include "model/set/hashmap.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -33,6 +34,7 @@ static void outStringList (StringInfo str, List *node);
 static void outSet(StringInfo str, Set *node);
 static void outVector(StringInfo str, Vector *node);
 static void outHashMap(StringInfo str, HashMap *node);
+static void outBitSet(StringInfo str, BitSet *node);
 
 // expression types
 static void outConstant (StringInfo str, Constant *node);
@@ -363,6 +365,17 @@ outHashMap(StringInfo str, HashMap *node)
     appendStringInfo(str, "}");
 }
 
+static void
+outBitSet(StringInfo str, BitSet *node)
+{
+	appendStringInfoChar(str, '[');
+
+	appendStringInfoString(str, bitSetToString(node));
+
+	appendStringInfoChar(str, ']');
+	appendStringInfo(str, " (len:%d)", node->length);
+}
+
 // datalog model
 static void
 outDLAtom(StringInfo str, DLAtom *node)
@@ -467,7 +480,7 @@ outInsert(StringInfo str, Insert *node)
     WRITE_NODE_FIELD(query);
 }
 
-static void 
+static void
 outDelete(StringInfo str, Delete *node)
 {
     WRITE_NODE_TYPE(DELETE);
@@ -476,7 +489,7 @@ outDelete(StringInfo str, Delete *node)
     WRITE_NODE_FIELD(cond);
 }
 
-static void 
+static void
 outUpdate(StringInfo str, Update *node)
 {
     WRITE_NODE_TYPE(UPDATE);
@@ -854,7 +867,7 @@ outSQLParameter (StringInfo str, SQLParameter *node)
     WRITE_ENUM_FIELD(parType, DataType);
 }
 
-static void 
+static void
 outSchema (StringInfo str, Schema *node)
 {
     WRITE_NODE_TYPE(SCHEMA);
@@ -885,7 +898,7 @@ outQueryOperator (StringInfo str, QueryOperator *node)
     WRITE_NODE_FIELD(inputs);
 }
 
-static void 
+static void
 outProjectionOperator(StringInfo str, ProjectionOperator *node)
 {
     WRITE_NODE_TYPE(PROJECTION_OPERATOR);
@@ -893,7 +906,7 @@ outProjectionOperator(StringInfo str, ProjectionOperator *node)
 
     WRITE_NODE_FIELD(projExprs); // projection expressions, Expression type
 }
-static void 
+static void
 outSelectionOperator (StringInfo str, SelectionOperator *node)
 {
     WRITE_NODE_TYPE(SELECTION_OPERATOR);
@@ -902,7 +915,7 @@ outSelectionOperator (StringInfo str, SelectionOperator *node)
     WRITE_NODE_FIELD(cond); //  condition expression, Expr type
 }
 
-static void 
+static void
 outJoinOperator(StringInfo str, JoinOperator *node)
 {
     WRITE_NODE_TYPE(JOIN_OPERATOR);
@@ -912,7 +925,7 @@ outJoinOperator(StringInfo str, JoinOperator *node)
     WRITE_NODE_FIELD(cond);
 }
 
-static void 
+static void
 outAggregationOperator(StringInfo str, AggregationOperator *node)
 {
     WRITE_NODE_TYPE(AGGREGATION_OPERATOR);
@@ -922,7 +935,7 @@ outAggregationOperator(StringInfo str, AggregationOperator *node)
     WRITE_NODE_FIELD(groupBy);
 }
 
-static void 
+static void
 outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
@@ -1081,6 +1094,9 @@ outNode(StringInfo str, void *obj)
             case T_HashMap:
                 outHashMap(str, (HashMap *) obj);
                 break;
+		    case T_BitSet:
+				outBitSet(str, (BitSet *) obj);
+			    break;
 
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);

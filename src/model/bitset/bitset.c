@@ -18,7 +18,10 @@
 #define LONGSIZE 8 * sizeof(unsigned long)
 #define TRUE_CHAR '1'
 #define FALSE_CHAR '0'
-static
+
+static void growBitset(BitSet *b, unsigned int newLen);
+
+
 
 char*
 bitSetToString (BitSet *bitset)
@@ -46,7 +49,7 @@ bitSetToString (BitSet *bitset)
 BitSet *
 stringToBitset (char *v)
 {
-    BitSet *res = createBitSet(strlen(v));
+    BitSet *res = newBitSet(strlen(v));
     unsigned int longpos = -1;
     unsigned long mask = 1;
 
@@ -98,7 +101,7 @@ setBit(BitSet *bitset, unsigned int pos, boolean val)
 
     // have outgrown the bitset
     if (longpos + 1 > bitset->numWords) {
-        growBitset(longpos + 1);
+        growBitset(bitset, longpos + 1);
     }
     // set bit to 1 using bitor with 0...010...0
     if (val) {
@@ -111,7 +114,8 @@ setBit(BitSet *bitset, unsigned int pos, boolean val)
 }
 
 static void
-growBitset(BitSet *b, unsigned int newLen) {
+growBitset(BitSet *b, unsigned int newLen)
+{
     unsigned int powTwoLen = b->numWords;
     unsigned long *newVal;
 
@@ -122,7 +126,8 @@ growBitset(BitSet *b, unsigned int newLen) {
 }
 
 BitSet*
-newBitSet(unsigned int length) {
+newBitSet(unsigned int length)
+{
 	BitSet *newBitSet = makeNode(BitSet);
 
 	newBitSet->numWords = ((length - 1) / LONG_BITS) + 1;
@@ -131,6 +136,24 @@ newBitSet(unsigned int length) {
 
 	return newBitSet;
 }
+
+BitSet *
+newSingletonBitSet(int pos)
+{
+	BitSet *b = newBitSet(pos + 1);
+	setBit(b, pos, TRUE);
+
+	return b;
+}
+
+BitSet *
+longToBitSet(unsigned long bits)
+{
+	BitSet *b = newBitSet(sizeof(unsigned long) * 8);
+	b->value[0] = bits;
+	return b;
+}
+
 
 /*
 boolean
@@ -215,19 +238,32 @@ bitAnd(BitSet *b1, BitSet *b2)
 }
 
 BitSet*
-bitNot(BitSet *b){
+bitNot(BitSet *b)
+{
 	BitSet *result = copyBitSet(b);
+	unsigned int lastWordBits = b->length % 64;
+	unsigned int mask = (1 << (lastWordBits)) - 1; // 2^n - 1 to get n 1 bits
+
 	for(int i = 0; i < result->numWords; i++)
 	    result->value[i] = ~(result->value[i]);
+	// if length is not a multiple of LONG_BITS then we have addtiional 1's that should not be there
+	// replace them with zeros
+	result->value[result->numWords - 1] &= mask;
+
 	return result;
 }
 
 boolean
-bitsetEquals(BitSet *b1, BitSet *b2){
+bitsetEquals(BitSet *b1, BitSet *b2)
+{
 	if (b1 == NULL || b2 == NULL){
 		return FALSE;
 	}
-	if (b1->length == b2->length && *b1->value == *b2->value){
+	if (b1->length == b2->length)
+	{
+		for(int i = 0; i < b1->numWords; i++)
+			if (b1->value[i] != b2->value[i])
+				return FALSE;
 		return TRUE;
 	}
 	return FALSE;
@@ -280,10 +316,3 @@ binDis(int length, int value)
 	//DEBUG_LOG("The bin is: %s", stringResult->data);
 	return stringResult->data;
 }*/
-
-
-
-
-
-
-
