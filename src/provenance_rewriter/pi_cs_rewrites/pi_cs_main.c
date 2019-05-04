@@ -1741,7 +1741,6 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 static QueryOperator *
 rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 {
-
 //    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
@@ -2149,7 +2148,11 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
     FOREACH(char, c, provList)
     {
         AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), c);
-        FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
+        FunctionCall *f = NULL;
+        if(getBackend() == BACKEND_ORACLE)
+        		f = createFunctionCall ("BITORAGG", singleton(a));
+        else if(getBackend() == BACKEND_POSTGRES)
+        		f = createFunctionCall ("bit_or", singleton(a));
         agg = appendToTailOfList(agg, f);
     }
     //finish adapt schema (adapt provattrs)
@@ -2638,7 +2641,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         		Constant *ll = (Constant *) popHeadOfListP(condRightValueList);
         		int hh = INT_VALUE(ll) + 1;
         		FOREACH(Constant, c,	condRightValueList)
-        		{   DEBUG_LOG("11111111c %d",INT_VALUE(c));
+        		{
         			if(INT_VALUE(c) == INT_VALUE(ll) - 1)
         				ll = c;
         			else

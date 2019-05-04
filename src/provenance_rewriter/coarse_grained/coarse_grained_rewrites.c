@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include "configuration/option.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/query_operator/query_operator.h"
@@ -36,7 +37,12 @@ addTopAggForCoarse (QueryOperator *op)
     {
         provPosList = appendToTailOfListInt(provPosList, cnt);
         AttributeReference *a = createAttrsRefByName(op, c);
-        FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
+        FunctionCall *f = NULL;
+        if(getBackend() == BACKEND_ORACLE)
+        		f = createFunctionCall ("BITORAGG", singleton(a));
+        else if(getBackend() == BACKEND_POSTGRES)
+        		f = createFunctionCall ("bit_or", singleton(a));
+        //FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
         projExpr = appendToTailOfList(projExpr, f);
         cnt ++;
     }
