@@ -32,6 +32,7 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypes_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getFuncReturnType_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getKeyInformation_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getOpReturnType_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getSqlTypeToDT_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getTableDefinition_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getViewDefinition_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isAgg_callback;
@@ -336,6 +337,13 @@ public abstract class AbstractMetadataLookup {
 				return getCostEstimation(query);
 			}
 		};
+		plugin.sqlTypeToDT = new getSqlTypeToDT_callback() {
+			
+			@Override
+			public String apply(String sqlType) {
+				return sqlTypeToDT(sqlType).name();
+			}
+		};
 		plugin.dataTypeToSQL = new getDataTypeToSQL_callback() {
 		
 			@Override
@@ -521,7 +529,7 @@ public abstract class AbstractMetadataLookup {
 				    null, schema, tableName, null);
 			while(rs.next()){
 			    String columnType = sqlTypeToString.get(rs.getInt(5));
-			    String dt = sqlToGpromDT(columnType);
+			    String dt = jdbcToGpromDT(columnType); 
 			    result.add(dt);
 			}
 			rs.close();
@@ -620,6 +628,34 @@ public abstract class AbstractMetadataLookup {
 		return null;
 	}
 	
+	/**
+	 * return GProM datatype for SQL data type. This default implementation uses 
+	 * a best effort approach. Backend plugins should override this.
+	 * 
+	 * @param sqlType
+	 * @return
+	 */
+	public DataType sqlTypeToDT(String sqlType) {
+		sqlType = sqlType.toUpperCase();
+		if (sqlType.equals("VARCHAR") || sqlType.equals("VARCHAR2") || sqlType.equals("TEXT")) {
+			return DataType.DT_STRING;
+		}
+		if (sqlType.startsWith("INT")
+				|| sqlType.equals("DECIMAL")) {
+			return DataType.DT_INT;
+		}
+		if (sqlType.startsWith("FLOAT")
+				|| sqlType.startsWith("NUMERIC")) {
+			return DataType.DT_FLOAT;
+		}
+		if (sqlType.equals("BOOL") 
+				|| sqlType.equals("BOOLEAN")) {
+			return DataType.DT_BOOL;
+		}
+		//TODO complete this
+		return DataType.DT_STRING;
+	}
+	
 	public String dataTypeToSQL (DataType dt) {
 		switch(dt) {
 			case DT_STRING:
@@ -638,18 +674,20 @@ public abstract class AbstractMetadataLookup {
 		return "VARCHAR";
 	}
 	
-	protected String sqlToGpromDT(String dt) {
+	protected String jdbcToGpromDT(String dt) {
+		String result = DataType.DT_STRING.name();
 		if (dt.equals("VARCHAR") || dt.equals("VARCHAR2")) {
-			return DataType.DT_STRING.name();
+			result = DataType.DT_STRING.name();
 		}
-		if (dt.equals("INT")) {
-			return DataType.DT_INT.name();
+		if (dt.startsWith("INT")) {
+			result = DataType.DT_INT.name();
 		}
 		if (dt.equals("DECIMAL")) {
-			return DataType.DT_INT.name();
+			result = DataType.DT_INT.name();
 		}
 		//TODO complete this
-		return DataType.DT_STRING.name();
+		log.debug("translated JDCB DT {} to GProM DT {}", dt, result);
+		return result;
 	}
 	
 	protected String listToString (List<String> in) {
