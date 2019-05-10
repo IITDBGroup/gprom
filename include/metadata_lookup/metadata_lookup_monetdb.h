@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_monetdb.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -40,6 +40,7 @@ extern int monetdbGetCostEstimation(char *query);
 extern List *monetdbGetKeyInformation(char *tableName);
 extern DataType monetdbBackendSQLTypeToDT (char *sqlType);
 extern char * monetdbBackendDatatypeToSQL (DataType dt);
+extern HashMap *monetdbGetMinAndMax(char* tableName, char* colName);
 
 
 

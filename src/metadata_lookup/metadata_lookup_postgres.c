@@ -1,12 +1,12 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_postgres.c
- *			  
+ *
  *		- Catalog lookup for postgres database
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -236,6 +236,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->connectionDescription = postgresGetConnectionDescription;
     p->sqlTypeToDT = postgresBackendSQLTypeToDT;
     p->dataTypeToSQL = postgresBackendDatatypeToSQL;
+	p->getMinAndMax = postgresGetMinAndMax;
 
     return p;
 }
@@ -959,7 +960,12 @@ postgresBackendDatatypeToSQL (DataType dt)
     return "text";
 }
 
-
+HashMap *
+postgresGetMinAndMax(char* tableName, char* colName)
+{
+	HashMap *result_map = NEW_MAP(Constant, Node);
+	return result_map;
+}
 
 void
 postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
@@ -1315,6 +1321,18 @@ postgresGetViewDefinition(char *viewName)
     return NULL;
 }
 
+char *
+postgresBackendDatatypeToSQL (DataType dt)
+{
+	return NULL;
+}
+
+HashMap *
+postgresGetMinAndMax(char* tableName, char* colName)
+{
+	return NULL;
+}
+
 void
 postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -1352,4 +1370,3 @@ postgresExecuteQueryIgnoreResult (char *query)
 }
 
 #endif
-

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * rewriter.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -447,9 +447,9 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
     //Ziyu Liu
-	HashMap *checkResult = NEW_MAP(Constant,Node);
+	HashMap *checkResult; //TODO only call if we are computing prov sketches
 	checkResult = monotoneCheck(oModel);
-	FREE(checkResult);
+	FREE(checkResult); //TODO why free this?
 	//Ziyu Liu
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
