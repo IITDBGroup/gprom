@@ -16,6 +16,7 @@
 #include "model/set/set.h"
 #include "model/set/vector.h"
 #include "model/set/hashmap.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -33,6 +34,7 @@ static void outStringList (StringInfo str, List *node);
 static void outSet(StringInfo str, Set *node);
 static void outVector(StringInfo str, Vector *node);
 static void outHashMap(StringInfo str, HashMap *node);
+static void outBitSet(StringInfo str, BitSet *node);
 
 // expression types
 static void outConstant (StringInfo str, Constant *node);
@@ -361,6 +363,17 @@ outHashMap(StringInfo str, HashMap *node)
     }
 
     appendStringInfo(str, "}");
+}
+
+static void
+outBitSet(StringInfo str, BitSet *node)
+{
+	appendStringInfoChar(str, '[');
+
+	appendStringInfoString(str, bitSetToString(node));
+
+	appendStringInfoChar(str, ']');
+	appendStringInfo(str, " (len:%d)", node->length);
 }
 
 // datalog model
@@ -1081,6 +1094,9 @@ outNode(StringInfo str, void *obj)
             case T_HashMap:
                 outHashMap(str, (HashMap *) obj);
                 break;
+		    case T_BitSet:
+				outBitSet(str, (BitSet *) obj);
+			    break;
 
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);

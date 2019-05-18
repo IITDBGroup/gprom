@@ -29,9 +29,9 @@
 Node *oracleParseResult = NULL;
 %}
 
-%name-prefix "oracle"
+%define api.prefix {oracle}
 
-%error-verbose
+%define parse.error verbose
 
 %union {
     /*
@@ -1057,10 +1057,11 @@ fragmentList:
 optionalCoarseGrainedPara:
          /* empty */ { RULELOG("optionalCoarseGrainedPara::EMPTY"); $$ = NULL;}
          |
-         intConst
+         stringConst
          {
-         	$$ = (Node *) createConstLong($1);
+         	$$ = (Node *) createConstString($1);
          }
+
 
 semiringCombinerSpec:
    		identifier

@@ -15,6 +15,7 @@
 #include "model/set/set.h"
 #include "model/set/vector.h"
 #include "model/set/hashmap.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -34,6 +35,7 @@ static boolean equalSet (Set *a, Set *b, HashMap *seenOps, MemContext *c);
 static boolean equalKeyValue (KeyValue *a, KeyValue *b, HashMap *seenOps, MemContext *c);
 static boolean equalHashMap (HashMap *a, HashMap *b, HashMap *seenOps, MemContext *c);
 static boolean equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c);
+static boolean equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c);
 
 /* equal functions for expression types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext *c);
@@ -616,6 +618,11 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
     return TRUE;
 }
 
+static boolean
+equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c)
+{
+	return bitsetEquals(a,b);
+}
 
 static boolean
 equalSchema(Schema *a, Schema *b, HashMap *seenOps, MemContext *c)
@@ -1132,6 +1139,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_Vector:
             retval = equalVector(a,b, seenOps, c);
             break;
+	    case T_BitSet:
+			retval = equalBitset(a, b, seenOps, c);
+			break;
 
         case T_FunctionCall:
             retval = equalFunctionCall(a,b, seenOps, c);

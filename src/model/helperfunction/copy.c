@@ -16,6 +16,7 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
@@ -56,6 +57,7 @@ static List *deepCopyList(List *from, OperatorMap **opMap);
 static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
+static BitSet *deepCopyBitSet(BitSet *from, OperatorMap **opMap);
 
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
@@ -249,6 +251,14 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     }
 
     return new;
+}
+
+static BitSet *
+deepCopyBitSet(BitSet *from, OperatorMap **opMap)
+{
+	BitSet *new = copyBitSet(from);
+
+	return new;
 }
 
 static DLAtom *
@@ -1084,6 +1094,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_Vector:
             retval = deepCopyVector(from, opMap);
+            break;
+        case T_BitSet:
+            retval = deepCopyBitSet(from, opMap);
             break;
 
         /* expression model */

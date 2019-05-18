@@ -20,7 +20,7 @@
 Node *postgresParseResult = NULL;
 %}
 
-%name-prefix "postgres"
+%define api.prefix {postgres}
 
 %union {
     /* 

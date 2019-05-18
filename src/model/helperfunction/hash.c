@@ -19,6 +19,7 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/list/list.h"
 #include "log/logger.h"
 
@@ -49,6 +50,7 @@ static uint64_t hashSet (uint64_t cur, Set *node);
 static uint64_t hashHashMap (uint64_t cur, HashMap *node);
 static uint64_t hashVector (uint64_t cur, Vector *node);
 static uint64_t hashKeyValue (uint64_t cur, KeyValue *node);
+static uint64_t hashBitSet (uint64_t cur, BitSet *node);
 
 // hash for expression nodes
 static uint64_t hashConstant (uint64_t cur, Constant *node);
@@ -258,6 +260,17 @@ hashVector (uint64_t cur, Vector *node)
     }
 
     HASH_RETURN();
+}
+
+static uint64_t
+hashBitSet (uint64_t cur, BitSet *node)
+{
+	for(int i = 0; i < node->numWords; i++)
+	{
+		hashLong(cur, node->value[i]);
+	}
+
+	HASH_RETURN();
 }
 
 /* expression node hash functions */
@@ -916,6 +929,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashHashMap(h, (HashMap *) n);
         case T_Vector:
             return hashVector(h, (Vector *) n);
+	    case T_BitSet:
+      		return hashBitSet(h, (BitSet *)n );
         case T_KeyValue:
             return hashKeyValue(h, (KeyValue *) n);
         case T_Constant:

@@ -21,7 +21,7 @@
 Node *jpParseResult = NULL;
 %}
 
-%name-prefix "jp"
+%define api.prefix {jp}
 
 %union {
     /* 

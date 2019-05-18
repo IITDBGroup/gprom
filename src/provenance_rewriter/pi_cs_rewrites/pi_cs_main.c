@@ -25,6 +25,7 @@
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
+#include "model/bitset/bitset.h"
 #include "parser/parser_jp.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
@@ -1950,9 +1951,15 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     			tempCount = highValue;
     		Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-    		unsigned long long int power = 0;
-    		power = 1L << i;
-    		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
+
+        	BitSet *bset = newBitSet(pValue);
+        	setBit(bset, i, TRUE);
+        	char *cbset = bitSetToString(bset);
+        	CaseWhen *when = createCaseWhen(cond, (Node *) createConstString(cbset));
+
+        	//unsigned long long int power = 0;
+    		//power = 1L << i;
+    		//CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
     		whenList = appendToTailOfList(whenList, when);
     	}
 
@@ -1994,15 +2001,20 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     List *condList = combineAndList(fList);
     	List *whenList = NIL;
-    //	unsigned long long int p1 = 0;
     	for(int i=0; i<LIST_LENGTH(condList); i++)
     	{
-    		unsigned long long int power = 0;
     		Node *cond = (Node *) getNthOfListP(condList, i);
-    		power = 1L << i;
-    		//DEBUG_LOG("power: %llu", power);
+        	BitSet *bset = newBitSet(LIST_LENGTH(condList));
+        	setBit(bset, i, TRUE);
+        	char *cbset = bitSetToString(bset);
+        	CaseWhen *when = createCaseWhen(cond, (Node *) createConstString(cbset));
 
-    		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
+        	//old use long where above use bitset
+    		//unsigned long long int power = 0;
+    		//power = 1L << i;
+    		//DEBUG_LOG("power: %llu", power);
+    		//CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
+
     		whenList = appendToTailOfList(whenList, when);
     	}
 
@@ -2413,7 +2425,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          else if(streq(keyV,"UHVALUE")) // "HVALUE"->32
          {
         	 	 uhvalue = (Constant *) kv->value;
-        	 	 DEBUG_LOG("%s -> %lld", keyV, LONG_VALUE(uhvalue));
+        	 	 DEBUG_LOG("%s -> %s", keyV, STRING_VALUE(uhvalue));
          }
          else if(streq(keyV,"BEGIN"))
          {
@@ -2446,7 +2458,8 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     }
 
     int hIntValue = 0;
-	unsigned long long int uhIntValue = LONG_VALUE(uhvalue);
+	//unsigned long long int uhIntValue = LONG_VALUE(uhvalue);
+	char *uhBitString = STRING_VALUE(uhvalue);
     //int uhIntValue1 = INT_VALUE(uhvalue);
 
     if(streq(ptype, "RANGEB"))
@@ -2455,36 +2468,38 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		hIntValue = INT_VALUE(hvalue);
 
     DEBUG_LOG("coarse grained hash value is : %d", hIntValue);
-    DEBUG_LOG("coarse grained bitoragg value is : %llu", uhIntValue);
-    //DEBUG_LOG("coarse grained bitoragg value1 is : %lld", uhIntValue1);
-
-//    get unsigned long long int value
-//    unsigned long long int pp = 16785610555053551055U;
-
-//    str -> unsigned long long int
-//    char str[100] = "16785610555053551055 test";
-//    char *ptr;
-//    unsigned long long int ret;
-//    ret = strtoul(str, &ptr, 10);
-//    printf("The number(unsigned long integer) is %llu\n", ret);
-//    printf("String part is |%s|", ptr);
+    DEBUG_LOG("coarse grained bitoragg value is : %s and length is %d", uhBitString, strlen(uhBitString));
+    //DEBUG_LOG("coarse grained bitoragg value is : %llu", uhIntValue);
 
     //get selection condition (prov_r = 10 or prov_r = 14)
-    List *condRightValueList = NULL;  //10,14...
+    List *condRightValueList = NULL;  //14,10...
 
-	unsigned long long int k;
-	unsigned long long int n = uhIntValue;
 
-    for (int c = hIntValue - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
-    {
-      k = n >> c;
-      DEBUG_LOG("n is %llu, c is %d, k is: %llu, cntOnePos is: %d", n, c, k, cntOnePos);
-      if (k & 1)
-      {
-        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - 1  - cntOnePos));
-        DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos);
-      }
-    }
+    //old
+//	unsigned long long int k;
+//	unsigned long long int n = uhIntValue;
+//
+//    for (int c = hIntValue - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+//    {
+//      k = n >> c;
+//      DEBUG_LOG("n is %llu, c is %d, k is: %llu, cntOnePos is: %d", n, c, k, cntOnePos);
+//      if (k & 1)
+//      {
+//        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - 1  - cntOnePos));
+//        DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos);
+//      }
+//    }
+
+        BitSet *uhbSet = stringToBitset(uhBitString);
+        for(int i=0; i<uhbSet->length; i++)
+        {
+        	    if(isBitSet(uhbSet, i))
+        	    {
+                  condRightValueList = appendToHeadOfList(condRightValueList, createConstInt(i));
+                  DEBUG_LOG("pos is: %d", i);
+        	    }
+        }
+
     DEBUG_LOG("cond len: %d", LIST_LENGTH(condRightValueList));
     newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     provAttr = appendToTailOfList(provAttr, newAttrName);
@@ -2538,9 +2553,14 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
             tempCount = tempCount + intervalValue;
             Operator *rightOperator = createOpExpr("<", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-        		unsigned long long int power = 0;
-        		power = 1L << i;
-        		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
+
+            BitSet *bset = newBitSet(pValue);
+        		setBit(bset, i, TRUE);
+        		char *cbset = bitSetToString(bset);
+        		CaseWhen *when = createCaseWhen(cond, (Node *) createConstString(cbset));
+        		//unsigned long long int power = 0;
+        		//power = 1L << i;
+        		//CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
         		whenList = appendToTailOfList(whenList, when);
         }
         caseExpr = createCaseExpr(NULL, whenList, NULL);
@@ -2748,8 +2768,8 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 				(QueryOperator *) newpo, newAttrName);
 
 		//if bitoragg value is 0, we do not need the any clause
-		if (uhIntValue == 0)
-			return (QueryOperator *) newpo;
+		//if (uhIntValue == 0)
+		//	return (QueryOperator *) newpo;
 
 		//use in clause
 		QuantifiedComparison *qcExpr = createQuantifiedComparison("ANY",
@@ -2772,8 +2792,8 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 	else
 	{
 		//if bitoragg value is 0, we do not need the any clause
-		if (uhIntValue == 0)
-			return (QueryOperator *) op;
+		//if (uhIntValue == 0)
+		//	return (QueryOperator *) op;
 
 		if(streq(ptype, "RANGEB"))
 			sel = createSelectionOp ((Node *) getHeadOfListP(rangeBlist), (QueryOperator *) op, NIL, getQueryOperatorAttrNames((QueryOperator *) op));
