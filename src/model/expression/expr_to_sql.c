@@ -164,6 +164,8 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
         //    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
         //    	exprToSQLString(str, entity);
     }
+    if (streq(node->functionname, "bit_or"))
+    		appendStringInfoString(str,"::bit(400)");
     appendStringInfoString(str,")");
 
     /*	int flag = 0;
