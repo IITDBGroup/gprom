@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * to_dot.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -370,6 +370,37 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
                 appendStringInfo(str, "\t%s [label=\"&#945;\",color="
                         COLOR_DARK_BROWN ",fillcolor="
                         COLOR_LIGHT_BROWN ",texlbl=\"$\\omicron$\"];\n",
+                        opName);
+            }
+        }
+        break;
+	    case T_LimitOperator:
+        {
+            LimitOperator *o = (LimitOperator *) op;
+
+            if (showParameters)
+            {
+                StringInfo limitLabel = makeStringInfo();
+
+				if(o->limitExpr != NULL)
+					appendStringInfo(limitLabel, "limit: %s",
+									 exprToLatex(o->limitExpr));
+
+				if(o->offsetExpr != NULL)
+					appendStringInfo(limitLabel, "limit: %s",
+									 exprToLatex(o->offsetExpr));
+
+                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
+                        COLOR_DARK_BROWN ",fillcolor="
+                        COLOR_LIGHT_BROWN ",texlbl=\"$\\zeta_{%s}$\"];\n",
+                        opName,
+								 strdup(limitLabel->data));
+            }
+            else
+            {
+                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
+                        COLOR_DARK_BROWN ",fillcolor="
+                        COLOR_LIGHT_BROWN ",texlbl=\"$\\zeta$\"];\n",
                         opName);
             }
         }

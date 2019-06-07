@@ -46,6 +46,7 @@ typedef struct QueryBlock
     Node *havingClause;
     List *orderByClause;
     Node *limitClause;
+	Node *offsetClause;
 } QueryBlock;
 
 NEW_ENUM_WITH_TO_STRING(IsolationLevel,

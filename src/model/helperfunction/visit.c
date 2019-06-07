@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * visit.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -186,6 +186,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(havingClause);
         		VISIT(orderByClause);
         		VISIT(limitClause);
+				VISIT(offsetClause);
         	}
         	break;
         case T_SelectItem:
@@ -340,6 +341,14 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 PREP_VISIT(OrderOperator);
                 VISIT_OPERATOR_FIELDS();
                 VISIT(orderExprs);
+            }
+            break;
+	    case T_LimitOperator:
+            {
+                PREP_VISIT(LimitOperator);
+                VISIT_OPERATOR_FIELDS();
+                VISIT(limitExpr);
+                VISIT(offsetExpr);
             }
             break;
         // DLNodes
@@ -530,6 +539,7 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         		MUTATE(Node, havingClause);
         		MUTATE(List, orderByClause);
         		MUTATE(Node, limitClause);
+				MUTATE(Node, offsetClause);
         	}
         	break;
         case T_SelectItem:
@@ -692,7 +702,14 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,orderExprs);
             }
             break;
-        // DL nodes
+        case T_LimitOperator:
+            {
+                NEWN(LimitOperator);
+                MUTATE(Node,limitExpr);
+                MUTATE(Node,offsetExpr);
+            }
+            break;
+		// DL nodes
         case T_DLAtom:
             {
                 NEWN(DLAtom);
@@ -879,6 +896,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(havingClause);
                 VISIT_P(orderByClause);
                 VISIT_P(limitClause);
+                VISIT_P(offsetClause);
             }
             break;
         case T_SelectItem:
@@ -1042,6 +1060,14 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(values);
             }
             break;
+	    case T_LimitOperator:
+            {
+                PREP_VISIT_P(LimitOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(limitExpr);
+				VISIT_P(offsetExpr);
+            }
+            break;
         case T_JsonTableOperator:
             {
                 PREP_VISIT_P(JsonTableOperator);
@@ -1055,4 +1081,3 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
 
     return TRUE;
 }
-

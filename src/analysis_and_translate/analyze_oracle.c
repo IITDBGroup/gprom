@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * analyze_qb.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -41,6 +41,7 @@ static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 static void analyzeWhere (QueryBlock *qb, List *parentFroms);
+static void analyzeLimitAndOffset (QueryBlock *qb);
 
 // adapt identifiers and quoted identifiers based on backend
 static void adaptIdentifiers (Node *stmt);
@@ -289,7 +290,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
-                break;           
+                break;
             case T_FromSubquery:
             	    analyzeFromSubquery((FromSubquery *) f, parentFroms);
             	break;
@@ -370,6 +371,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     // analyze where clause if exists
     if (qb->whereClause != NULL)
         analyzeWhere(qb, parentFroms);
+
+	// check limit and offset
+	analyzeLimitAndOffset(qb);
 
     INFO_LOG("Analysis done");
 }
@@ -985,6 +989,39 @@ analyzeWhere (QueryBlock *qb, List *parentFroms)
         THROW(SEVERITY_RECOVERABLE,
                 "WHERE clause result type should be DT_BOOL, but was %s:\n<%s>",
                 DataTypeToString(returnType), beatify(nodeToString(qb->whereClause)));
+}
+
+static void
+analyzeLimitAndOffset (QueryBlock *qb)
+{
+	List *attrRefs = NIL;
+	List *nestedQs = NIL;
+
+	findAttrReferences(qb->limitClause, &attrRefs);
+	findAttrReferences(qb->offsetClause, &attrRefs);
+
+	if (attrRefs != NIL)
+	{
+		THROW(SEVERITY_RECOVERABLE,
+			  "Attribute references found in LIMIT or OFFSET clause."
+			  "These clauses only support scalar expression:\nLIMIT:%s\nOFFSET:\%s",
+			  nodeToString(qb->limitClause),
+			  nodeToString(qb->offsetClause));
+	}
+
+	findNestedSubqueries(qb->limitClause, &nestedQs);
+	findNestedSubqueries(qb->offsetClause, &nestedQs);
+
+	if (nestedQs != NIL)
+	{
+		THROW(SEVERITY_RECOVERABLE,
+			  "Nested subqueries found in LIMIT or OFFSET clause."
+			  "These clauses only support scalar expression:\nLIMIT:%s\nOFFSET:\%s",
+			  nodeToString(qb->limitClause),
+			  nodeToString(qb->offsetClause));
+	}
+
+	//TODO check that limit and offset are expressions without subqueries and attribute references
 }
 
 static void

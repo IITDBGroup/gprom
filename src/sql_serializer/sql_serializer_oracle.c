@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer_oracle.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -436,6 +436,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             case MATCH_START:
             case MATCH_DISTINCT:
             case MATCH_ORDER:
+		    case MATCH_LIMIT:
             {
                 switch(cur->type)
                 {
@@ -478,7 +479,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                     }
                     break;
                     case T_DuplicateRemoval:
-                        if (state == MATCH_START || state == MATCH_ORDER)
+                        if (state == MATCH_START || state == MATCH_ORDER || state == MATCH_LIMIT)
                         {
                             matchInfo->distinct = (DuplicateRemoval *) cur;
                             state = MATCH_DISTINCT;
@@ -490,9 +491,21 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                         }
                         break;
                     case T_OrderOperator:
-                        if (state == MATCH_START)
+                        if (state == MATCH_START || state == MATCH_LIMIT)
                         {
                             matchInfo->orderBy = (OrderOperator *) cur;
+                            state = MATCH_ORDER;
+                        }
+                        else
+                        {
+                            matchInfo->fromRoot = cur;
+                            state = MATCH_NEXTBLOCK;
+                        }
+                        break;
+                    case T_LimitOperator:
+                        if (state == MATCH_START)
+                        {
+                            matchInfo->limitOffset = (LimitOperator *) cur;
                             state = MATCH_ORDER;
                         }
                         else
@@ -683,6 +696,10 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     if (STRINGLEN(orderString) > 0)
         appendStringInfoString(str, orderString->data);
+
+	if (matchInfo->limitOffset != NULL) {
+		serializeLimit(str, matchInfo->limitOffset);
+	}
 
     FREE(matchInfo);
 
@@ -1295,6 +1312,28 @@ serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs)
     ordExpr = replaceSubstr(ordExpr,")","");
     ordExpr = replaceSubstr(ordExpr,"'","");
     appendStringInfoString(order, ordExpr);
+}
+
+static void
+serializeLimit(StringInfo str, LimitOperator *q)
+{
+	char *limit = "";
+	char *offset = "";
+
+	prependStringInfo(str, "SELECT * FROM (");
+	appendStringInfoString(str, "\n) F0 WHERE ");
+
+	if (q->limitExpr)
+		limit = exprToSQL(q->limitExpr);
+	if (q->offsetExpr)
+		offset = exprToSQL(q->offsetExpr);
+
+	if (q->limitExpr && q->offsetExpr)
+		appendStringInfo(str, "ROWNUM BETWEEN %s AND %s", limit, offset);
+	else if (q->limitExpr)
+		appendStringInfo(str, "ROWNUM <= %s", limit);
+	else if (q->offsetExpr)
+		appendStringInfo(str, "ROWNUM >= %s", offset);
 }
 
 /*

@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer_common.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -26,26 +26,11 @@ NEW_ENUM_WITH_TO_STRING(MatchState,
     MATCH_WHERE,
     MATCH_WINDOW,
     MATCH_ORDER,
+	MATCH_LIMIT,
     MATCH_NEXTBLOCK
 );
 
 #define OUT_MATCH_STATE(_state) MatchStateToString(_state)
-
-
-/*
-#define OUT_MATCH_STATE(_state) \
-    (_state == MATCH_START ? "MATCH_START" : \
-     _state == MATCH_DISTINCT ? "MATCH_DISTINCT" : \
-     _state == MATCH_FIRST_PROJ ? "MATCH_FIRST_PROJ" : \
-     _state == MATCH_HAVING ? "MATCH_HAVING" : \
-     _state == MATCH_AGGREGATION ? "MATCH_AGGREGATION" : \
-     _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
-     _state == MATCH_WHERE ? "MATCH_WHERE" : \
-     _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
-     _state == MATCH_WINDOW ? "MATCH_ORDER" : \
-             "MATCH_NEXTBLOCK" \
-     )
-*/
 
 typedef struct QueryBlockMatch {
     DuplicateRemoval *distinct;
@@ -57,6 +42,7 @@ typedef struct QueryBlockMatch {
     QueryOperator *fromRoot;
     WindowOperator *windowRoot;
     OrderOperator *orderBy;
+	LimitOperator *limitOffset;
 } QueryBlockMatch;
 
 #define OUT_BLOCK_MATCH(_level,_m,_message) \
@@ -71,6 +57,7 @@ typedef struct QueryBlockMatch {
         _level ## _LOG ("fromRoot: %s", operatorToOverviewString((Node *) _m->fromRoot)); \
         _level ## _LOG ("windowRoot: %s", operatorToOverviewString((Node *) _m->windowRoot)); \
         _level ## _LOG ("orderBy: %s", operatorToOverviewString((Node *) _m->orderBy)); \
+		_level ## _LOG ("limitOffset: %s", operatorToOverviewString((Node *) _m->limitOffset)); \
     } while(0)
 
 typedef struct TemporaryViewMap {
@@ -125,6 +112,9 @@ typedef struct SerializeClausesAPI {
             int* curFromItem, struct SerializeClausesAPI *api);
     void (*serializeJoinOperator) (StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
             int* curFromItem, int* attrOffset, List** fromAttrs, struct SerializeClausesAPI *api);
+ 	void (*serializeOrderByOperator) (OrderOperator *q, StringInfo orderby, List *fromAttrs,
+									struct SerializeClausesAPI *api);
+	void (*serializeLimitOperator) (LimitOperator *q, StringInfo limit, struct SerializeClausesAPI *api);
     List *(*createTempView) (QueryOperator *q, StringInfo str,
             QueryOperator *parent, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
@@ -145,6 +135,10 @@ extern void genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q,
         SerializeClausesAPI *api);
 extern void genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs,
         SerializeClausesAPI *api);
+extern void genSerializeLimitOperator (LimitOperator *q, StringInfo limit,
+									struct SerializeClausesAPI *api);
+extern void genSerializeOrderByOperator (OrderOperator *q, StringInfo order,  List *fromAttrs,
+									struct SerializeClausesAPI *api);
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,
         QueryOperator *parent, SerializeClausesAPI *api);
 extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs);
