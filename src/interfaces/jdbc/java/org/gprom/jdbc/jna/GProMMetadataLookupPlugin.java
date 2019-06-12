@@ -53,6 +53,8 @@ public class GProMMetadataLookupPlugin extends Structure {
 	/** C type : getCostEstimation_callback* */
 	public GProMMetadataLookupPlugin.getCostEstimation_callback getCostEstimation;
 	/** C type : getDataTypeToSQL_callback* */
+	public GProMMetadataLookupPlugin.getSqlTypeToDT_callback sqlTypeToDT;	
+	/** C type : getDataTypeToSQL_callback* */
 	public GProMMetadataLookupPlugin.getDataTypeToSQL_callback dataTypeToSQL;
 	
 	public interface isInitialized_callback extends Callback {
@@ -108,10 +110,13 @@ public class GProMMetadataLookupPlugin extends Structure {
 	};
 	public interface getCostEstimation_callback extends Callback {
 		int apply(String query);
-	}
+	};
+	public interface getSqlTypeToDT_callback extends Callback {
+		String apply(String sqlType);
+	};
 	public interface getDataTypeToSQL_callback extends Callback {
 		String apply(String dt);
-	}
+	};
 	
 	public GProMMetadataLookupPlugin() {
 		super();
@@ -135,6 +140,7 @@ public class GProMMetadataLookupPlugin extends Structure {
 				"getTableDefinition", 
 				"getViewDefinition",
 				"getCostEstimation",
+				"sqlTypeToDT",
 				"dataTypeToSQL");
 	}
 	public GProMMetadataLookupPlugin(Pointer peer) {
