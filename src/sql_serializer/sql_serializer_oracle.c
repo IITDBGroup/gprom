@@ -64,6 +64,8 @@ static void serializeSampleClause(StringInfo from, SampleClauseOperator* s, int*
 
 static void serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs);
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
+static void serializeLimit(StringInfo str, LimitOperator *q);
+
 static boolean updateAttributeNamesOracle(Node *node, List *fromAttrs);
 static boolean updateAttributeNamesSimpleOracle(Node *node, List *attrNames);
 static boolean updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state);
