@@ -841,6 +841,25 @@ createOrderOp(List *orderExprs, QueryOperator *input, List *parents)
     return o;
 }
 
+LimitOperator *
+createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents)
+{
+	LimitOperator *o = makeNode(LimitOperator);
+
+	o->limitExpr = limitExpr;
+	o->offsetExpr = offsetExpr;
+	if (input != NULL)
+	{
+		List *inputAttrs = getQueryOperatorAttrNames(input);
+		List *dts = getDataTypes(input->schema);
+		o->op.inputs = singleton(input);
+		o->op.schema = createSchemaFromLists("LIMIT", inputAttrs, dts);
+	}
+	o->op.parents = parents;
+
+	return o;
+}
+
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {

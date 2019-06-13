@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * translator_oracle.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -99,6 +99,9 @@ static QueryOperator *translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
 
 static QueryOperator *translateOrderBy(QueryBlock *qb, QueryOperator *input,
         List *attrsOffsets);
+static QueryOperator *translateLimitOffset(QueryBlock *qb, QueryOperator *input,
+										   List *attrsOffsets);
+
 
 /* helpers */
 static Node *replaceAggsAndGroupByMutator(Node *node,
@@ -253,7 +256,7 @@ translateGeneral (Node *node, List **attrsOffsetsList)
 
     Set *done = PSET();
     disambiguiteAttrNames(result, done);
-	
+
     return result;
 }
 
@@ -555,10 +558,14 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     if (orderBy != distinct)
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
 
-    if(summaryType != NULL)
-    	prop = (Node *) orderBy;
+	QueryOperator *limitAndOffset = translateLimitOffset(qb, orderBy, attrsOffsets);
+	if (limitAndOffset != orderBy)
+		LOG_TRANSLATED_OP("translatedLimitAndOffset is", limitAndOffset);
 
-    return orderBy;
+    if(summaryType != NULL)
+    	prop = (Node *) limitAndOffset;
+
+    return limitAndOffset;
 }
 
 static QueryOperator *
@@ -1987,6 +1994,22 @@ translateOrderBy(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
         return input;
 
     o = createOrderOp(adaptedOrderExprs, input, NIL);
+    addParent(input, (QueryOperator *) o);
+
+    return (QueryOperator *) o;
+}
+
+static QueryOperator *
+translateLimitOffset(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
+{
+    LimitOperator *o;
+    Node *limit = copyObject(qb->limitClause);
+    Node *offset = copyObject(qb->offsetClause);
+
+    if (!qb->limitClause && !qb->offsetClause)
+        return input;
+
+    o = createLimitOp(limit, offset, input, NIL);
     addParent(input, (QueryOperator *) o);
 
     return (QueryOperator *) o;

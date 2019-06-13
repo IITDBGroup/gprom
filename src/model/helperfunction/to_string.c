@@ -95,6 +95,7 @@ static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
 static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
 static void outOrderOperator(StringInfo str, OrderOperator *node);
+static void outLimitOperator(StringInfo str, LimitOperator *node);
 
 //json
 static void outFromJsonTable(StringInfo str, FromJsonTable *node);
@@ -480,7 +481,7 @@ outInsert(StringInfo str, Insert *node)
     WRITE_NODE_FIELD(query);
 }
 
-static void 
+static void
 outDelete(StringInfo str, Delete *node)
 {
     WRITE_NODE_TYPE(DELETE);
@@ -489,7 +490,7 @@ outDelete(StringInfo str, Delete *node)
     WRITE_NODE_FIELD(cond);
 }
 
-static void 
+static void
 outUpdate(StringInfo str, Update *node)
 {
     WRITE_NODE_TYPE(UPDATE);
@@ -549,6 +550,7 @@ outQueryBlock (StringInfo str, QueryBlock *node)
     WRITE_NODE_FIELD(havingClause);
     WRITE_NODE_FIELD(orderByClause);
     WRITE_NODE_FIELD(limitClause);
+	WRITE_NODE_FIELD(offsetClause);
 }
 
 static void
@@ -867,7 +869,7 @@ outSQLParameter (StringInfo str, SQLParameter *node)
     WRITE_ENUM_FIELD(parType, DataType);
 }
 
-static void 
+static void
 outSchema (StringInfo str, Schema *node)
 {
     WRITE_NODE_TYPE(SCHEMA);
@@ -898,7 +900,7 @@ outQueryOperator (StringInfo str, QueryOperator *node)
     WRITE_NODE_FIELD(inputs);
 }
 
-static void 
+static void
 outProjectionOperator(StringInfo str, ProjectionOperator *node)
 {
     WRITE_NODE_TYPE(PROJECTION_OPERATOR);
@@ -906,7 +908,7 @@ outProjectionOperator(StringInfo str, ProjectionOperator *node)
 
     WRITE_NODE_FIELD(projExprs); // projection expressions, Expression type
 }
-static void 
+static void
 outSelectionOperator (StringInfo str, SelectionOperator *node)
 {
     WRITE_NODE_TYPE(SELECTION_OPERATOR);
@@ -915,7 +917,7 @@ outSelectionOperator (StringInfo str, SelectionOperator *node)
     WRITE_NODE_FIELD(cond); //  condition expression, Expr type
 }
 
-static void 
+static void
 outJoinOperator(StringInfo str, JoinOperator *node)
 {
     WRITE_NODE_TYPE(JOIN_OPERATOR);
@@ -925,7 +927,7 @@ outJoinOperator(StringInfo str, JoinOperator *node)
     WRITE_NODE_FIELD(cond);
 }
 
-static void 
+static void
 outAggregationOperator(StringInfo str, AggregationOperator *node)
 {
     WRITE_NODE_TYPE(AGGREGATION_OPERATOR);
@@ -935,7 +937,7 @@ outAggregationOperator(StringInfo str, AggregationOperator *node)
     WRITE_NODE_FIELD(groupBy);
 }
 
-static void 
+static void
 outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
@@ -1025,6 +1027,16 @@ outOrderOperator(StringInfo str, OrderOperator *node)
     WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(orderExprs);
+}
+
+static void
+outLimitOperator(StringInfo str, LimitOperator *node)
+{
+	WRITE_NODE_TYPE(LIMIT_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+
+	WRITE_NODE_FIELD(limitExpr);
+	WRITE_NODE_FIELD(offsetExpr);
 }
 
 static void
@@ -1252,6 +1264,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_OrderOperator:
                 outOrderOperator(str, (OrderOperator *) obj);
+                break;
+		    case T_LimitOperator:
+                outLimitOperator(str, (LimitOperator *) obj);
                 break;
             /* datalog stuff */
             case T_DLAtom:
@@ -1874,6 +1889,16 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfo(str, "%s", exprToSQL((Node *) o->orderExprs));
         }
         break;
+	    case T_LimitOperator:
+		{
+			LimitOperator *o = (LimitOperator *) op;
+			WRITE_NODE_TYPE(LimitOperator);
+			appendStringInfoChar(str, '[');
+			appendStringInfo(str, " limit: %s ", exprToSQL(o->limitExpr));
+			appendStringInfo(str, " offset: %s ", exprToSQL(o->offsetExpr));
+			appendStringInfoChar(str, ']');
+		}
+		break;
         case T_JsonTableOperator:
             WRITE_NODE_TYPE(JsonTable);
             appendStringInfoString(str, " [");

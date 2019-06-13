@@ -73,6 +73,7 @@ static boolean equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b, H
 static boolean equalNestingOperator(NestingOperator *a, NestingOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalWindowOperator(WindowOperator *a, WindowOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalOrderOperator(OrderOperator *a, OrderOperator *b, HashMap *seenOps, MemContext *c);
+static boolean equalLimitOperator(LimitOperator *a, LimitOperator *b, HashMap *seenOps, MemContext *c);
 
 // Json
 static boolean equalFromJsonTable(FromJsonTable *a, FromJsonTable *b, HashMap *seenOps, MemContext *c);
@@ -629,7 +630,7 @@ equalSchema(Schema *a, Schema *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_STRING_FIELD(name);
     COMPARE_NODE_FIELD(attrDefs);
-   
+
     return TRUE;
 }
 
@@ -648,7 +649,7 @@ equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext
 {
     COMPARE_STRING_FIELD(attrName);
     //COMPARE_SCALAR_FIELD(dataType);
-   
+
     return TRUE;
 }
 
@@ -700,63 +701,63 @@ equalSampleClauseOperator(SampleClauseOperator *a, SampleClauseOperator *b, Hash
 	return TRUE;
 }
 
-static boolean 
+static boolean
 equalSelectionOperator(SelectionOperator *a, SelectionOperator *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(cond);
-    
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalProjectionOperator(ProjectionOperator *a, ProjectionOperator *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(projExprs);
-   
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalJoinOperator(JoinOperator *a, JoinOperator *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
     COMPARE_SCALAR_FIELD(joinType);
     COMPARE_NODE_FIELD(cond);
-   
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalAggregationOperator(AggregationOperator *a, AggregationOperator *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(aggrs);
     COMPARE_NODE_FIELD(groupBy);
-   
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalSetOperator(SetOperator *a, SetOperator *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
     COMPARE_SCALAR_FIELD(setOpType);
-  
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(attrs);
-  
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalProvenanceComputation(ProvenanceComputation *a,  ProvenanceComputation *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
@@ -809,6 +810,15 @@ equalOrderOperator(OrderOperator *a, OrderOperator *b, HashMap *seenOps, MemCont
     return TRUE;
 }
 
+static boolean
+equalLimitOperator(LimitOperator *a, LimitOperator *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_QUERY_OP();
+	COMPARE_NODE_FIELD(limitExpr);
+	COMPARE_NODE_FIELD(offsetExpr);
+
+	return TRUE;
+}
 
 static boolean
 equalFromJsonTable(FromJsonTable *a, FromJsonTable *b, HashMap *seenOps, MemContext *c)
@@ -860,7 +870,7 @@ equalJsonPath(JsonPath *a, JsonPath *b, HashMap *seenOps, MemContext *c)
 }
 
 // equal functions for query_block
-static boolean 
+static boolean
 equalQueryBlock(QueryBlock *a, QueryBlock *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(selectClause);
@@ -871,6 +881,7 @@ equalQueryBlock(QueryBlock *a, QueryBlock *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(havingClause);
     COMPARE_NODE_FIELD(orderByClause);
     COMPARE_NODE_FIELD(limitClause);
+    COMPARE_NODE_FIELD(offsetClause);
 
     return TRUE;
 }
@@ -899,36 +910,36 @@ equalNestedSubquery (NestedSubquery *a, NestedSubquery *b, HashMap *seenOps, Mem
 }
 
 
-static boolean 
+static boolean
 equalInsert(Insert *a, Insert *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(schema);
     COMPARE_STRING_FIELD(insertTableName);
     COMPARE_NODE_FIELD(query);
-   
+
     return TRUE;
 
 }
 
-static boolean 
+static boolean
 equalDelete(Delete *a, Delete *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(schema);
     COMPARE_STRING_FIELD(deleteTableName);
     COMPARE_NODE_FIELD(cond);
-   
+
     return TRUE;
 
 }
 
-static boolean 
+static boolean
 equalUpdate(Update *a, Update *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(schema);
     COMPARE_STRING_FIELD(updateTableName);
     COMPARE_NODE_FIELD(selectClause);
     COMPARE_NODE_FIELD(cond);
-   
+
     return TRUE;
 
 }
@@ -976,7 +987,7 @@ equalAlterTable (AlterTable *a, AlterTable *b, HashMap *seenOps, MemContext *c)
 }
 
 
-static boolean 
+static boolean
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(query);
@@ -992,7 +1003,7 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemC
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
         ProvenanceTransactionInfo *b, HashMap *seenOps, MemContext *c)
 {
@@ -1020,42 +1031,42 @@ equalSelectItem(SelectItem *a, SelectItem *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_STRING_FIELD(alias);
     COMPARE_NODE_FIELD(expr);
-   
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalFromItem(FromItem *a, FromItem *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_STRING_FIELD(name);
     COMPARE_STRING_LIST_FIELD(attrNames);
     COMPARE_NODE_FIELD(provInfo);
     COMPARE_NODE_FIELD(dataTypes);
-    
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalFromTableRef(FromTableRef *a, FromTableRef *b, HashMap *seenOps, MemContext *c)
 {
     if (!equalFromItem((FromItem *) a, (FromItem *) b, seenOps, c))
         return FALSE;
     COMPARE_STRING_FIELD(tableId);
-    
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalFromSubquery(FromSubquery *a, FromSubquery *b, HashMap *seenOps, MemContext *c)
 {
     if (!equalFromItem((FromItem *) a, (FromItem *) b, seenOps, c))
         return FALSE;
     COMPARE_NODE_FIELD(subquery);
-   
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b, HashMap *seenOps, MemContext *c)
 {
     if (!equalFromItem((FromItem *) a, (FromItem *) b, seenOps, c))
@@ -1068,15 +1079,15 @@ equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b, HashMap *seenOps, MemContext
         COMPARE_STRING_LIST_FIELD(cond);
     else
         COMPARE_NODE_FIELD(cond);
-  
+
     return TRUE;
 }
 
-static boolean 
+static boolean
 equalDistinctClause(DistinctClause *a,  DistinctClause *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(distinctExprs);
-    
+
     return TRUE;
 }
 
@@ -1300,6 +1311,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_OrderOperator:
             retval = equalOrderOperator(a,b, seenOps, c);
+            break;
+        case T_LimitOperator:
+            retval = equalLimitOperator(a,b, seenOps, c);
             break;
         case T_FromJsonTable:
             retval = equalFromJsonTable(a,b, seenOps, c);

@@ -76,7 +76,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
 %token <stringVal> AMMSC NULLVAL ROWNUM ALL ANY IS SOME
 %token <stringVal> UNION INTERSECT MINUS
-%token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
+%token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT OFFSET SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
@@ -134,7 +134,7 @@ Node *oracleParseResult = NULL;
 			 identifierList optionalAttrAlias optionalProvWith provOptionList optionalReenactOptions reenactOptionList
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalOffset optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> optionalFromTIP optionalFromIncompleteTable optionalFromVTable
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
@@ -805,7 +805,7 @@ intConstList:
 		intConst { $$ = singleton((Node *) createConstInt($1)); }
 		| intConstList ',' intConst { $$ = appendToTailOfList($1, (Node *) createConstInt($3)); }
 	;
-	
+
 strConstList:
 		stringConst { $$ = singleton((Node *) createConstString($1)); }
 		| strConstList ',' stringConst { $$ = appendToTailOfList($1, (Node *) createConstString($3)); }
@@ -1225,7 +1225,7 @@ optionalAll:
  *             'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
  */
 selectQuery:
-        SELECT optionalDistinct selectClause optionalFrom optionalWhere optionalGroupBy optionalHaving optionalOrderBy optionalLimit
+        SELECT optionalDistinct selectClause optionalFrom optionalWhere optionalGroupBy optionalHaving optionalOrderBy optionalLimit optionalOffset
             {
                 RULELOG(selectQuery);
                 QueryBlock *q =  createQueryBlock();
@@ -1238,6 +1238,7 @@ selectQuery:
                 q->havingClause = $7;
                 q->orderByClause = $8;
                 q->limitClause = $9;
+                q->offsetClause = $10;
 
                 $$ = (Node *) q;
             }
@@ -2132,6 +2133,12 @@ optionalLimit:
         /* Empty */        { RULELOG("optionalLimit::NULL"); $$ = NULL; }
         | LIMIT constant        { RULELOG("optionalLimit::CONSTANT"); $$ = $2;}
     ;
+
+optionalOffset:
+        /* Empty */        { RULELOG("optionalOffset::NULL"); $$ = NULL; }
+        | OFFSET constant        { RULELOG("optionalOffset::CONSTANT"); $$ = $2;}
+    ;
+
 
 orderList:
 		 orderExpr

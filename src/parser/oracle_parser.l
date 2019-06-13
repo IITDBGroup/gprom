@@ -151,6 +151,7 @@ strconcat		"||"
 (?i:NOT)        	TOK(NOT)
 (?i:HAVING)        	TOK(HAVING)
 (?i:LIMIT)        	TOK(LIMIT)
+(?i:OFFSET)        	TOK(OFFSET)
 (?i:ORDER)        	TOK(ORDER)
 (?i:BEGIN)        	TOK(BEGIN_TRANS)
 (?i:COMMIT)       	TOK(COMMIT_TRANS)
