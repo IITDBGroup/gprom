@@ -77,6 +77,7 @@ static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, Join
 
 static void serializeOrder (OrderOperator *q, StringInfo order, FromAttrsContext *fac);
 static void serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac);
+static void serializeLimit(StringInfo str, LimitOperator *q);
 static boolean updateAttributeNamesOracle(Node *node, FromAttrsContext *fac);
 static boolean updateAttributeNamesSimpleOracle(Node *node, List *attrNames);
 static boolean updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state);

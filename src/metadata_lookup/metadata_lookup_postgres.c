@@ -1,12 +1,12 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_postgres.c
- *			  
+ *
  *		- Catalog lookup for postgres database
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -47,7 +47,7 @@
         "end; $$ language plpgsql;"
 
 #define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM " \
-        "(SELECT (regexp_match(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
+        "(SELECT (regexp_matches(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
 
 #define NAME_EXPLAIN_FUNC_EXISTS "GProM_CheckExplainFunctionExists"
 #define PARAMS_EXPLAIN_FUNC_EXISTS 0
@@ -1352,4 +1352,3 @@ postgresExecuteQueryIgnoreResult (char *query)
 }
 
 #endif
-
