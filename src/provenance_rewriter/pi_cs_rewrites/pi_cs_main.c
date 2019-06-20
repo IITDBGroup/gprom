@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * pi_cs_main.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -30,7 +30,6 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
-
 
 #define LOG_RESULT(mes,op) \
     do { \
@@ -2911,4 +2910,3 @@ static List *combineAndList(List *l)
 
     return result;
 }
-

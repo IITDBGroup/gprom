@@ -416,7 +416,7 @@ provStmt:
         {
             RULELOG("provStmt::stmt");
             Node *stmt = $7;
-	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = USE_PROV_COARSE_GRAINED;
 		    p->asOf = (Node *) $3;
@@ -1003,7 +1003,7 @@ hashList:
 fragmentList:
        identifier '(' identifierList ')' intConst optionalCoarseGrainedPara
        {
-            RULELOG("hashList::identifier::identifierList::identifier");
+            RULELOG("fragmentList::identifier::identifierList::identifier");
             List *l = NIL;
             KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"),
             									(Node *) createConstString("FRAGMENT"));
@@ -1030,7 +1030,7 @@ fragmentList:
        |
        fragmentList ',' identifier '(' identifierList ')' intConst optionalCoarseGrainedPara
        {
-            RULELOG("hashList::hashList::hashList");
+            RULELOG("fragmentList::fragmentList::fragmentList");
             List *l = NIL;
             KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"),
             									(Node *) createConstString("FRAGMENT"));
@@ -1061,7 +1061,6 @@ optionalCoarseGrainedPara:
          {
          	$$ = (Node *) createConstString($1);
          }
-
 
 semiringCombinerSpec:
    		identifier

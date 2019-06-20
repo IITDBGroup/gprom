@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * rewriter.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -490,30 +490,30 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 //		if (!LIST_EMPTY(summOpts) && qType != NULL)
 //			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
 
-//	    if(applyOptimizations)
-//	    {
-//	        START_TIMER("OptimizeModel");
-//	        rewrittenTree = optimizeOperatorModel(rewrittenTree);
-//	        INFO_OP_LOG("after optimizing AGM graph:", rewrittenTree);
-//	        STOP_TIMER("OptimizeModel");
-//	    }
-//	    else
-//	    {
-//	    	if(!isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
-//	    	{
-//	    		if (isA(rewrittenTree, List))
-//	    		{
-//	    			FOREACH(QueryOperator,o,(List *) rewrittenTree)
-//                	{
-//	    				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
-//                	}
-//	    		}
-//	    		else
-//	    		{
-//	    			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
-//	    		}
-//	    	}
-//	    }
+	    if(applyOptimizations)
+	    {
+	        START_TIMER("OptimizeModel");
+	        rewrittenTree = optimizeOperatorModel(rewrittenTree);
+	        INFO_OP_LOG("after optimizing AGM graph:", rewrittenTree);
+	        STOP_TIMER("OptimizeModel");
+	    }
+	    else
+	    {
+	    	if(!isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
+	    	{
+	    		if (isA(rewrittenTree, List))
+	    		{
+	    			FOREACH(QueryOperator,o,(List *) rewrittenTree)
+                	{
+	    				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                	}
+	    		}
+	    		else
+	    		{
+	    			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+	    		}
+	    	}
+	    }
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}

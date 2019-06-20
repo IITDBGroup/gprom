@@ -26,7 +26,7 @@ if test "x$with_oci" = x; then
     	AC_MSG_RESULT([yes, found at $with_oci])
     else
     	AC_MSG_RESULT([not set])
-	fi	
+	fi
 else
 	if test -d "$with_oci"; then
 		LDFLAGS="$LDFLAGS -L$with_oci"
@@ -128,7 +128,7 @@ AC_ARG_WITH(cplex, [  --with-cplex], , )
 AC_MSG_CHECKING([for user provided cplex location])
 if test "x$with_cplex" != x; then
 	if test -d "$with_cplex"; then
-		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64) 
+		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64)
 		CPLEXSYSTEM=x86-${MYARCH}_${OSTYPE}
 		CPLEXLIBFORMAT=static_pic
 		LDFLAGS="$LDFLAGS -L$with_cplex/lib/$CPLEXSYSTEM/$CPLEXLIBFORMAT"
@@ -329,7 +329,7 @@ AS_IF([test "x$enable_readline" == "xno"], [
 AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
 [
 AC_MSG_CHECKING([set custom C compiler flags])
-AS_IF([test "x$enable_debug" == "xno"], 
+AS_IF([test "x$enable_debug" == "xno"],
 [
 	GPROM_CFLAGS_DEBUG="-g"
 	GPROM_CFLAGS_OPT="-O3"
@@ -407,7 +407,7 @@ GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
-BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`" 
+BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`"
 AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
 AC_CHECK_PROG([pandoc],[pandoc],[yes])
@@ -456,7 +456,7 @@ AC_INCLUDES_DEFAULT
 AC_CHECK_HEADERS([malloc.h])
 AC_CHECK_FUNCS([malloc])
 AC_CHECK_FUNCS([alloca])
-AC_CHECK_FUNCS([realloc]) 
+AC_CHECK_FUNCS([realloc])
 # removed, because they cause trouble with cross-compilation
 #AC_FUNC_ALLOCA
 #AC_FUNC_MALLOC
@@ -486,10 +486,10 @@ AC_CHECK_LIB([m],[pow],[],[
 ])
 ################################################################################
 # check for libpthread if target is not windows
-AS_IF([test "x$OSTYPE" == "xwindows"], 
+AS_IF([test "x$OSTYPE" == "xwindows"],
 [
   AC_MSG_WARN([compiling for windows target do not attempt to link against libpthread])
-], 
+],
 [
 AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
   AC_MSG_ERROR([missing libpthread library (searching for pthread_mutex_lock function)])
@@ -500,10 +500,10 @@ AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
 AC_ENABLE_CPLEX
 ################################################################################
 # cplex library
-AS_CASE(["$enable_cplex"], 
+AS_CASE(["$enable_cplex"],
   [yes], [
 # check if user has provided us with non-standard locations for CPLEX libraries
-  AC_CPLEX_LOCATION  
+  AC_CPLEX_LOCATION
 # check for the libraries
   AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
     AC_MSG_ERROR([missing cplex library - if you want to compile without cplex support do not use --enable-cplex])
@@ -514,7 +514,7 @@ AS_CASE(["$enable_cplex"],
 )
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
-AS_CASE(["$enable_oracle"], 
+AS_CASE(["$enable_oracle"],
   [yes], [
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
   AC_OCI_LOCATION
@@ -526,7 +526,7 @@ AS_CASE(["$enable_oracle"],
     AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
     AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
@@ -544,7 +544,7 @@ AS_CASE(["$enable_oracle"],
     AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
     AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
@@ -568,7 +568,7 @@ AS_IF([test "x$enable_readline" == "xno"], [
 #])
 ################################################################################
 # Postgres C client library (libpq)
-AS_CASE(["$enable_postgres"], 
+AS_CASE(["$enable_postgres"],
   [yes], [
 # check if user has provided us with a non-standard location for Postgres's libpq library
   AC_LIBPQ_LOCATION
@@ -586,19 +586,19 @@ AS_CASE(["$enable_postgres"],
 # check for the libpq library
   AC_CHECK_LIB([pq],[PQconndefaults],[],[
     AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
-  ])  
+  ])
   ]
 )
 ################################################################################
 # SQlite library (libsqlite3)
 # check for the sqlite3 library
-AS_CASE(["$enable_sqlite"], 
+AS_CASE(["$enable_sqlite"],
 	[yes], [
 	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 	])
 	],
-	[no], [], 
+	[no], [],
 	[
 	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
@@ -607,7 +607,7 @@ AS_CASE(["$enable_sqlite"],
 )
 ################################################################################
 # MonetDB C client library (mapi)
-AS_CASE(["$enable_monetdb"], 
+AS_CASE(["$enable_monetdb"],
   [yes], [
 # user has provided us with a non-standard location for MonetDB Mapi library
   AC_MAPI_LOCATION
@@ -625,7 +625,7 @@ AS_CASE(["$enable_monetdb"],
 # check for the libpq library
   AC_CHECK_LIB([mapi],[mapi_unquote],[],[
     AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
-  ])  
+  ])
   ]
 )
 ################################################################################
@@ -698,11 +698,11 @@ AC_OUTPUT
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  OS.................: $OSTYPE-$OSARCH ($OSDETAILS) 
+  OS.................: $OSTYPE-$OSARCH ($OSDETAILS)
   Prefix.............: $prefix
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
-  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
+  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}, MonetDB - ${enable_monetdb:=yes}
   Language bindings..: Java - ${enable_java:=yes}
@@ -714,6 +714,6 @@ echo "
   LDFLAGS........: $LDFLAGS
   C Compiler.....: $C $CPPFLAGS $GPROM_CFLAGS $CFLAGS
   Linker.........: $LD $LDFLAGS $LIBS
-  Bison..........: $BISON 
+  Bison..........: $BISON
   Flex...........: $LEX
 "
