@@ -16,7 +16,8 @@ AC_DEFUN([AC_MACHINE_ARCH],
 ])
 # OCI location
 AC_DEFUN([AC_OCI_LOCATION],
-[AC_ARG_WITH(oci, [  --with-oci], , )
+[AC_ARG_WITH(oci, [AS_HELP_STRING([--with-oci],
+              [location of Oracle OCI client library])], , )
 AC_MSG_CHECKING([for user provided OCI location])
 if test "x$with_oci" = x; then
     with_oci=/usr/local/oracle
@@ -26,7 +27,7 @@ if test "x$with_oci" = x; then
     	AC_MSG_RESULT([yes, found at $with_oci])
     else
     	AC_MSG_RESULT([not set])
-	fi	
+	fi
 else
 	if test -d "$with_oci"; then
 		LDFLAGS="$LDFLAGS -L$with_oci"
@@ -40,7 +41,8 @@ fi
 ])
 # OCI library location
 AC_DEFUN([AC_OCI_LIB_LOCATION],
-[AC_ARG_WITH(oci-lib, [  --with-oci-lib], , )
+[AC_ARG_WITH(oci-lib, [AS_HELP_STRING([--with-oci-lib],
+              [location of Oracle OCI client library shared library files])], , )
 AC_MSG_CHECKING([for user provided OCI library location])
 if test "x$with_oci_lib" != x; then
 	if test -d "$with_oci_lib"; then
@@ -56,7 +58,8 @@ fi
 ])
 # OCI header location
 AC_DEFUN([AC_OCIH_LOCATION],
-[AC_ARG_WITH(oci-headers, [  --with-oci-headers], , )
+[AC_ARG_WITH(oci-headers, [AS_HELP_STRING([--with-oci-headers],
+              [location of Oracle OCI client library header files])], , )
 AC_MSG_CHECKING([for user provided OCI header location])
 if test "x$with_oci_headers" != x; then
 	if test -f "$with_oci_headers/oci.h"; then
@@ -72,7 +75,8 @@ fi
 ])
 # OCILIB location
 AC_DEFUN([AC_OCILIB_LOCATION],
-[AC_ARG_WITH(ocilib, [  --with-ocilib], , )
+[AC_ARG_WITH(ocilib, [AS_HELP_STRING([--with-ocilib],
+              [location of OCILIB library (wrapper around Oracle's OCI library)])], , )
 AC_MSG_CHECKING([for user provided OCILIB location])
 if test "x$with_ocilib" != x; then
 	if test -d "$with_ocilib"; then
@@ -89,7 +93,8 @@ fi
 ])
 # Postgres libpq library location
 AC_DEFUN([AC_LIBPQ_LOCATION],
-[AC_ARG_WITH(libpq, [  --with-libpq], , )
+[AC_ARG_WITH(libpq, [AS_HELP_STRING([--with-libpq],
+              [location of libpq (Postgres client) library])], , )
 AC_MSG_CHECKING([for user provided libpq location])
 if test "x$with_libpq" != x; then
 	if test -d "$with_libpq"; then
@@ -106,7 +111,8 @@ fi
 ])
 # MonetDB Mapi library location
 AC_DEFUN([AC_MAPI_LOCATION],
-[AC_ARG_WITH(mapi, [  --with-mapi], , )
+[AC_ARG_WITH(mapi, [AS_HELP_STRING([--with-mapi],
+              [location of mapi (monetdb client) library])], , )
 AC_MSG_CHECKING([for user provided MonetDB mapi library location])
 if test "x$with_mapi" != x; then
 	if test -d "$with_mapi"; then
@@ -115,7 +121,7 @@ if test "x$with_mapi" != x; then
     	AC_MSG_RESULT([yes, $with_mapi])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no libpq library found in location $with_mapi])
+    	AC_WARN([no mapi library found in location $with_mapi])
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -124,11 +130,12 @@ fi
 # cplex library location
 AC_DEFUN([AC_CPLEX_LOCATION],
 [
-AC_ARG_WITH(cplex, [  --with-cplex], , )
+AC_ARG_WITH(cplex, [AS_HELP_STRING([--with-cplex],
+              [location of cplex library])], , )
 AC_MSG_CHECKING([for user provided cplex location])
 if test "x$with_cplex" != x; then
 	if test -d "$with_cplex"; then
-		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64) 
+		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64)
 		CPLEXSYSTEM=x86-${MYARCH}_${OSTYPE}
 		CPLEXLIBFORMAT=static_pic
 		LDFLAGS="$LDFLAGS -L$with_cplex/lib/$CPLEXSYSTEM/$CPLEXLIBFORMAT"
@@ -143,6 +150,26 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# JSON C library (JSON-C) library location
+AC_DEFUN([AC_JSONPARSER_LOCATION],
+[
+AC_ARG_WITH(jsonparser, [AS_HELP_STRING([--with-jsonparser],
+              [location of json-parser library])], , )
+AC_MSG_CHECKING([for user provided json-parser library location])
+if test "x$with_jsonparser" != x; then
+	if test -d "$with_jsonparser"; then
+		LDFLAGS="$LDFLAGS -L$with_jsonparser"
+    	CPPFLAGS="$CPPFLAGS -I$with_jsonparser/../include/json-parser"
+    	AC_MSG_RESULT([yes, $with_jsonparser])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no jsonparser library found in location $with_jsonparser])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+
 # Activate/Deactivate logging
 AC_DEFUN([AC_LOGGING_ACTIVE],
 [
@@ -197,6 +224,19 @@ AS_IF([test "x$enable_cplex" == "xyes"], [
   AC_MSG_RESULT([no])
 ])
 ])
+# Activate support for translating backend query plans into GProM relational algebra
+AC_DEFUN([AC_ENABLE_PLAN_TO_RA],
+[
+AC_ARG_ENABLE(plan-to-ra, AS_HELP_STRING([--enable-plan-to-ra],[activate support for translation of backend plans into GProM relational algebra]))
+AC_MSG_CHECKING([activate support for plan translation (requires json-parser library)])
+
+AS_IF([test "x$enable_plan_to_ra" == "xyes"], [
+  AC_MSG_RESULT([yes])
+],[
+  AC_MSG_RESULT([no])
+])
+])
+
 # enable or disable assertions
 AC_DEFUN([AC_ASSERT_ACTIVE],
 [
@@ -329,7 +369,7 @@ AS_IF([test "x$enable_readline" == "xno"], [
 AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
 [
 AC_MSG_CHECKING([set custom C compiler flags])
-AS_IF([test "x$enable_debug" == "xno"], 
+AS_IF([test "x$enable_debug" == "xno"],
 [
 	GPROM_CFLAGS_DEBUG="-g"
 	GPROM_CFLAGS_OPT="-O3"
@@ -407,7 +447,7 @@ GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
-BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`" 
+BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`"
 AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
 AC_CHECK_PROG([pandoc],[pandoc],[yes])
@@ -456,7 +496,7 @@ AC_INCLUDES_DEFAULT
 AC_CHECK_HEADERS([malloc.h])
 AC_CHECK_FUNCS([malloc])
 AC_CHECK_FUNCS([alloca])
-AC_CHECK_FUNCS([realloc]) 
+AC_CHECK_FUNCS([realloc])
 # removed, because they cause trouble with cross-compilation
 #AC_FUNC_ALLOCA
 #AC_FUNC_MALLOC
@@ -480,16 +520,19 @@ AC_ENABLE_JAVA_BINDING
 # Enable readline in CLI
 AC_ENABLE_READLINE
 ################################################################################
+# Enable translation of query plans from backend into relational algebra using json-parser
+AC_ENABLE_PLAN_TO_RA
+################################################################################
 # check for libm
 AC_CHECK_LIB([m],[pow],[],[
   AC_MSG_ERROR([missing libm library (searching for pow function)])
 ])
 ################################################################################
 # check for libpthread if target is not windows
-AS_IF([test "x$OSTYPE" == "xwindows"], 
+AS_IF([test "x$OSTYPE" == "xwindows"],
 [
   AC_MSG_WARN([compiling for windows target do not attempt to link against libpthread])
-], 
+],
 [
 AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
   AC_MSG_ERROR([missing libpthread library (searching for pthread_mutex_lock function)])
@@ -500,10 +543,10 @@ AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
 AC_ENABLE_CPLEX
 ################################################################################
 # cplex library
-AS_CASE(["$enable_cplex"], 
+AS_CASE(["$enable_cplex"],
   [yes], [
 # check if user has provided us with non-standard locations for CPLEX libraries
-  AC_CPLEX_LOCATION  
+  AC_CPLEX_LOCATION
 # check for the libraries
   AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
     AC_MSG_ERROR([missing cplex library - if you want to compile without cplex support do not use --enable-cplex])
@@ -514,7 +557,7 @@ AS_CASE(["$enable_cplex"],
 )
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
-AS_CASE(["$enable_oracle"], 
+AS_CASE(["$enable_oracle"],
   [yes], [
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
   AC_OCI_LOCATION
@@ -526,7 +569,7 @@ AS_CASE(["$enable_oracle"],
     AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
     AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
@@ -544,7 +587,7 @@ AS_CASE(["$enable_oracle"],
     AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
   AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
     AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
@@ -568,7 +611,7 @@ AS_IF([test "x$enable_readline" == "xno"], [
 #])
 ################################################################################
 # Postgres C client library (libpq)
-AS_CASE(["$enable_postgres"], 
+AS_CASE(["$enable_postgres"],
   [yes], [
 # check if user has provided us with a non-standard location for Postgres's libpq library
   AC_LIBPQ_LOCATION
@@ -586,19 +629,19 @@ AS_CASE(["$enable_postgres"],
 # check for the libpq library
   AC_CHECK_LIB([pq],[PQconndefaults],[],[
     AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
-  ])  
+  ])
   ]
 )
 ################################################################################
 # SQlite library (libsqlite3)
 # check for the sqlite3 library
-AS_CASE(["$enable_sqlite"], 
+AS_CASE(["$enable_sqlite"],
 	[yes], [
 	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 	])
 	],
-	[no], [], 
+	[no], [],
 	[
 	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
@@ -607,7 +650,7 @@ AS_CASE(["$enable_sqlite"],
 )
 ################################################################################
 # MonetDB C client library (mapi)
-AS_CASE(["$enable_monetdb"], 
+AS_CASE(["$enable_monetdb"],
   [yes], [
 # user has provided us with a non-standard location for MonetDB Mapi library
   AC_MAPI_LOCATION
@@ -625,8 +668,22 @@ AS_CASE(["$enable_monetdb"],
 # check for the libpq library
   AC_CHECK_LIB([mapi],[mapi_unquote],[],[
     AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
-  ])  
+  ])
   ]
+)
+################################################################################
+# Translating plans into RA using json-parser
+AS_CASE(["$enable_plan_to_ra"],
+  [yes], [
+# check if user has provided us with non-standard locations for CPLEX libraries
+  AC_JSONPARSER_LOCATION
+# check for the libraries
+  AC_CHECK_LIB([jsonparser],[json_value_free],[],[
+    AC_MSG_ERROR([missing jsonparser library - if you want to compile withour jsonparser support do not use --enable-plan-to-ra])
+  ])
+  ],
+  [no], [],
+  []
 )
 ################################################################################
 # enable/disable features
@@ -695,12 +752,12 @@ AC_OUTPUT
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  OS.................: $OSTYPE-$OSARCH ($OSDETAILS) 
+  OS.................: $OSTYPE-$OSARCH ($OSDETAILS)
   Prefix.............: $prefix
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
-  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
-  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
+  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
+  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no} jsonparsing:${enable_plan_to_ra:=yes}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}, MonetDB - ${enable_monetdb:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}
@@ -711,6 +768,6 @@ echo "
   LDFLAGS........: $LDFLAGS
   C Compiler.....: $C $CPPFLAGS $GPROM_CFLAGS $CFLAGS
   Linker.........: $LD $LDFLAGS $LIBS
-  Bison..........: $BISON 
+  Bison..........: $BISON
   Flex...........: $LEX
 "

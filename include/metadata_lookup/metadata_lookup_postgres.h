@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_postgres.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -50,5 +50,6 @@ extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sql
 extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern Relation *postgresExecuteQuery(char *query);
 extern void postgresExecuteQueryIgnoreResult (char *query);
+extern Node *postgressGetPlanAsRelationalAlgebra (char *query);
 
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

@@ -20,6 +20,7 @@
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
+#include "metadata_lookup/metadata_lookup_postgres_plans.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
@@ -46,6 +47,18 @@
             "return; " \
         "end; $$ language plpgsql;"
 
+#define EXPLAIN_PLAN_FUNC_NAME "_get_explain_json"
+#define CREATE_EXPLAIN_PLAN_FUNC "create or replace function " EXPLAIN_PLAN_FUNC_NAME "(in qry text, out r jsonb) returns setof jsonb as $$" \
+		"declare " \
+            "explcmd text; " \
+        "begin " \
+            "explcmd := ('EXPLAIN (FORMAT JSON, VERBOSE, ANALYZE, BUFFERS) ' || qry); " \
+            "for r in execute explcmd loop " \
+                "return next; " \
+            "end loop; " \
+            "return; " \
+        "end; $$ language plpgsql;"
+
 // we have to use syntax that works a reasonable range of postgres versions
 #define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
 	    "(SELECT regexp_split_to_array(substring(version() from 'PostgreSQL ([0-9]+[.][0-9]+)'), '[.]') AS version) getv;"
@@ -56,10 +69,18 @@
 #define PARAMS_EXPLAIN_FUNC_EXISTS 0
 #define QUERY_EXPLAIN_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = '" EXPLAIN_FUNC_NAME "');"
 
+#define NAME_EXPLAIN_PLAN_FUNC_EXISTS "GProM_CheckExplainPlanFunctionExists"
+#define PARAMS_EXPLAIN_PLAN_FUNC_EXISTS 0
+#define QUERY_EXPLAIN_PLAN_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = '" EXPLAIN_PLAN_FUNC_NAME "');"
+
 #define NAME_QUERY_GET_COST "GProM_GetQueryCost"
 #define PARAMS_QUERY_GET_COST 1
 #define QUERY_QUERY_GET_COST "SELECT (((plan->0->'Plan'->>'Total Cost')::numeric::float8) * 100.0)::int" \
     " FROM " EXPLAIN_FUNC_NAME "($1::text) AS p(plan);"
+
+#define NAME_QUERY_GET_PLAN "GProM_GetJSONPlan"
+#define PARAMS_QUERY_GET_PLAN 1
+#define QUERY_QUERY_GET_PLAN "SELECT plan FROM " EXPLAIN_PLAN_FUNC_NAME "($1::text) AS p(plan);"
 
 #define NAME_TABLE_GET_ATTRS "GPRoM_GetTableAttributeNames"
 #define PARAMS_TABLE_GET_ATTRS 1
@@ -233,6 +254,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getTransactionSQLAndSCNs = postgresGetTransactionSQLAndSCNs;
     p->executeAsTransactionAndGetXID = postgresExecuteAsTransactionAndGetXID;
     p->getCostEstimation = postgresGetCostEstimation;
+    p->getPlanAsRelationalAlgebra = postgressGetPlanAsRelationalAlgebra;
     p->getKeyInformation = postgresGetKeyInformation;
     p->executeQuery = postgresExecuteQuery;
     p->executeQueryIgnoreResult = postgresExecuteQueryIgnoreResult;
@@ -408,7 +430,9 @@ static void
 prepareLookupQueries(void)
 {
     PGresult *res;
-    boolean funcExists = FALSE;
+    boolean funcCostExists = FALSE;
+    boolean funcPlanExists = FALSE;
+
     // create explain function for costing queries if necessary
     PREP_QUERY(EXPLAIN_FUNC_EXISTS);
 
@@ -417,14 +441,18 @@ prepareLookupQueries(void)
     {
         char *ex = PQgetvalue(res,i,0);
         if (streq(ex, "True"))
-            funcExists = TRUE;
+            funcCostExists = TRUE;
     }
     PQclear(res);
 
-    // create explain function
-    if (!funcExists && plugin->serverMajorVersion >= 9)
+    // create explain functions
+    if (!funcCostExists && plugin->serverMajorVersion >= 9)
     {
         execStmt(CREATE_EXPLAIN_FUNC);
+    }
+    if (!funcPlanExists && plugin->serverMajorVersion >= 9)
+    {
+        execStmt(CREATE_EXPLAIN_PLAN_FUNC);
     }
 
     // prepare other queries used for metadata lookup
@@ -432,6 +460,7 @@ prepareLookupQueries(void)
 	if (plugin->serverMajorVersion >= 9)
 	{
 		PREP_QUERY(QUERY_GET_COST);
+        PREP_QUERY(QUERY_GET_PLAN);
 	}
     PREP_QUERY(TABLE_GET_ATTRS);
     PREP_QUERY(TABLE_EXISTS);
@@ -916,6 +945,35 @@ postgresGetCostEstimation(char *query)
     return cost;
 }
 
+Node *
+postgressGetPlanAsRelationalAlgebra (char *query)
+{
+    PGresult *res = NULL;
+    char *jsonStr;
+    Node *plan;
+
+	if (plugin->serverMajorVersion <= 8)
+	{
+		THROW(SEVERITY_RECOVERABLE, "postgres server major version is %d, but JSON output for explain is only support in version 9+!");
+	}
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+    res = execPrepared(NAME_QUERY_GET_PLAN, singleton(createConstString(query)));
+
+    // loop through results (there should only be one though)
+    for(int i = 0; i < PQntuples(res); i++)
+    {
+        jsonStr = PQgetvalue(res,i,0);
+    }
+    // parse JSON and translate into relational algebra
+    plan = translateJSONplanToRA(jsonStr);
+
+    RELEASE_MEM_CONTEXT();
+
+    return plan;
+}
+
 List *
 postgresGetKeyInformation(char *tableName)
 {
@@ -1241,6 +1299,7 @@ postgresExecuteQueryIgnoreResult (char *query)
     execCommit();
 }
 
+
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
 
@@ -1345,6 +1404,13 @@ postgresGetCostEstimation(char *query)
 {
     return 0;
 }
+
+Node *
+postgressGetPlanAsRelationalAlgebra (char *query)
+{
+    return NULL;
+}
+
 
 List *
 postgresGetKeyInformation(char *tableName)

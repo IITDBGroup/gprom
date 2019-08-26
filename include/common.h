@@ -188,11 +188,6 @@ typedef (void *) gprom_long_t;
 #define HAVE_A_BACKEND 1
 #endif
 
-/* OCI stuff */
-#if HAVE_ORACLE_BACKEND
-#include <ocilib.h>
-#endif
-
 /********************************************************************************
  * Readline
  */

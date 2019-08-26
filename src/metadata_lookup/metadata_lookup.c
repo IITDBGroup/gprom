@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -412,6 +412,17 @@ getCostEstimation(char *query)
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
     int result = activePlugin->getCostEstimation(query);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+Node *
+getPlanAsRelationalAlgebra (char *query)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    Node *result = activePlugin->getPlanAsRelationalAlgebra(query);
+    //TODO copy?
     RELEASE_MEM_CONTEXT();
     return result;
 }

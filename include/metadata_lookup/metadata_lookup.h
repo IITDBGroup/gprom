@@ -92,6 +92,7 @@ typedef struct MetadataLookupPlugin
     Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
     void (*executeQueryIgnoreResult) (char *query);
     int (*getCostEstimation)(char *query);
+    Node * (*getPlanAsRelationalAlgebra) (char *query);
 
     /* cache for catalog information */
     CatalogCache *cache;
@@ -143,6 +144,7 @@ extern void executeQueryIgnoreResult (char *sql);
 extern gprom_long_t getCommitScn (char *tableName, gprom_long_t maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int getCostEstimation(char *query);
+extern Node *getPlanAsRelationalAlgebra (char *query);
 
 /* helper functions for createing the cache */
 extern CatalogCache *createCache(void);

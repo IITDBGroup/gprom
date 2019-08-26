@@ -24,6 +24,8 @@
 /* If OCILIB and OCI are available then use it */
 #if HAVE_ORACLE_BACKEND
 
+#include <ocilib.h>
+
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
 		"(SERVER=DEDICATED)(SID=%s)))"
