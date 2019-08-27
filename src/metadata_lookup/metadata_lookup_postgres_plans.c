@@ -200,6 +200,15 @@ parsePlanNode(json_value *node, QueryOperator *parent)
     return result;
 }
 
+/**
+ * @brief      Store plan node information as properties of a query operator.
+ *
+ * @details    GProM's RA model is not provisioned to store any runtime information. Use the generic property mechanism to store this information.
+ *
+ * @param      q the translated operator
+ * @param      info helper struct storing information extracted from the JSON plan for this operator
+ * @return     void
+ */
 static void
 setCommonProperties(QueryOperator *q, PlanNodeInformation *info)
 {
@@ -212,6 +221,15 @@ setCommonProperties(QueryOperator *q, PlanNodeInformation *info)
 	SET_STRING_PROP(q, QO_PLAN_STARTUP_TIME, createConstFloat(info->startup_time));
 }
 
+/**
+ * @brief      Extract information from the JSON object representing a plan-node.
+ *
+ * @details    Returns a datastructure storing the extracted information.
+ *
+ * @param      p the json object representing the plan
+ *
+ * @return     PlanNodeInformation
+ */
 static PlanNodeInformation *
 readCommonPlanNodeInfo(json_value *p)
 {

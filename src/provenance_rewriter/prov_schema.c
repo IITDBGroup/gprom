@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * prov_schema.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -62,6 +62,10 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         {
             return NIL;
         }
+	    case PROV_PLAN_TO_NAUTILUS:
+		{
+			return NIL;
+		}
     }
     return NIL; //keep compiler quiet
 }

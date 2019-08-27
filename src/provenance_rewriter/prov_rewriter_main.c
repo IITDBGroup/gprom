@@ -2,10 +2,10 @@
  *
  * prov_rewriter_main.c
  *		Main entry point to the provenance rewriter.
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -190,6 +190,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         case PROV_NONE:
             result = OP_LCHILD(op);
             break;
+	    case PROV_PLAN_TO_NAUTILUS:
+		    result = OP_LCHILD(op);
+		    break;
     }
 
 
@@ -210,4 +213,3 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     return result;
 }
-

@@ -229,6 +229,8 @@ strconcat		"||"
 (?i:TIP)			TOK(TIP)
 (?i:INCOMPLETE)		TOK(INCOMPLETE)
 (?i:VTABLE) 		TOK(VTABLE)
+(?i:PLAN)           TOK(PLAN)
+(?i:NAUTILUS)       TOK(NAUTILUS)
 
 	/* booleans */
 {bool}			TOK(boolConst)

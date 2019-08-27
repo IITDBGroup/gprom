@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -22,6 +22,7 @@
 #include "sql_serializer/sql_serializer_lb.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
 #include "sql_serializer/sql_serializer_postgres.h"
+#include "sql_serializer/sql_serializer_nautilus.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
@@ -38,6 +39,7 @@ static SqlserializerPlugin *assembleHivePlugin(void);
 static SqlserializerPlugin *assembleDLPlugin(void);
 static SqlserializerPlugin *assembleLBPlugin(void);
 static SqlserializerPlugin *assembleSQLitePlugin(void);
+static SqlserializerPlugin *assemblePlanToNautilusPlugin(void);
 
 // wrapper interface
 char *
@@ -91,6 +93,9 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
             break;
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
+            break;
+        case SQLSERIALIZER_PLUGIN_NAUTILUS:
+            plugin = assemblePlanToNautilusPlugin();
             break;
     }
 }
@@ -170,6 +175,21 @@ assembleSQLitePlugin(void)
     return p;
 }
 
+static SqlserializerPlugin *
+assemblePlanToNautilusPlugin(void)
+{
+	SqlserializerPlugin *p = NEW(SqlserializerPlugin);
+
+	p->type = SQLSERIALIZER_PLUGIN_NAUTILUS;
+	p->serializeOperatorModel = serializeOperatorModelNautilus;
+	p->serializeQuery = serializeQueryNautilus;
+	p->quoteIdentifier = quoteIdentifierNautilus;
+
+	return p;
+}
+
+
+
 void
 chooseSqlserializerPluginFromString(char *type)
 {
@@ -187,6 +207,8 @@ chooseSqlserializerPluginFromString(char *type)
             chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_LB);
     else if (streq(type,"sqlite"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SQLITE);
+	else if (streq(type,"nautilus"))
+		chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_NAUTILUS);
     else
         FATAL_LOG("unkown sqlserializer plugin type: <%s>", type);
 }

@@ -66,6 +66,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> TIP INCOMPLETE VTABLE
+%token <stringVal> PLAN NAUTILUS
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -433,6 +434,16 @@ provStmt:
            	/* p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10); */
             $$ = (Node *) p;
         }
+		| PLAN TO NAUTILUS '(' stmt ')'
+		{
+			RULELOG("provStmt::plan-to-nautilus");
+			Node *stmt = $5;
+			ProvenanceStmt *p = createProvenanceStmt(stmt);
+			p->inputType = PROV_INPUT_QUERY;
+			p->provType = PROV_PLAN_TO_NAUTILUS;
+			p->options = NIL;
+			$$ = (Node *) p;
+		}
     ;
 
 

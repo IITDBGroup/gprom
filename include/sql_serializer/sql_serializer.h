@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -21,7 +21,8 @@ typedef enum SqlserializerPluginType
     SQLSERIALIZER_PLUGIN_HIVE,
     SQLSERIALIZER_PLUGIN_DL,
 	SQLSERIALIZER_PLUGIN_LB,
-    SQLSERIALIZER_PLUGIN_SQLITE
+    SQLSERIALIZER_PLUGIN_SQLITE,
+    SQLSERIALIZER_PLUGIN_NAUTILUS,
 } SqlserializerPluginType;
 
 /* plugin definition */

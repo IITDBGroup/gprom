@@ -27,6 +27,7 @@
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "analysis_and_translate/translator_dl.h"
+#include "analysis_and_translate/translate_nautilus.h"
 
 #include "parser/parser.h"
 
@@ -40,6 +41,7 @@ static TranslatorPlugin *assembleOraclePlugin(void);
 static TranslatorPlugin *assemblePostgresPlugin(void);
 static TranslatorPlugin *assembleHivePlugin(void);
 static TranslatorPlugin *assembleDLPlugin(void);
+static TranslatorPlugin *assembleNautilusPlugin(void);
 static TranslatorPlugin *assembleDummyPlugin(void);
 
 static Node *echoNode (Node *in);
@@ -88,7 +90,10 @@ chooseTranslatorPlugin(TranslatorPluginType type)
         case TRANSLATOR_PLUGIN_DL:
             plugin = assembleDLPlugin();
             break;
-        case TRANSLATOR_PLUGIN_DUMMY:
+        case TRANSLATOR_PLUGIN_NAUTILUS:
+            plugin = assembleNautilusPlugin();
+            break;
+	    case TRANSLATOR_PLUGIN_DUMMY:
             plugin = assembleDummyPlugin();
             break;
     }
@@ -128,10 +133,21 @@ assembleHivePlugin(void)
 static TranslatorPlugin *
 assembleDLPlugin(void)
 {
-    TranslatorPlugin *p = NEW(TranslatorPlugin);
+	TranslatorPlugin *p = NEW(TranslatorPlugin);
 
     p->translateParse = translateParseDL;
     p->translateQuery = translateQueryDL;
+
+    return p;
+}
+
+static TranslatorPlugin *
+assembleNautilusPlugin(void)
+{
+	TranslatorPlugin *p = NEW(TranslatorPlugin);
+
+    p->translateParse = translateParseNautilus;
+    p->translateQuery = translateQueryNautilus;
 
     return p;
 }
@@ -173,7 +189,9 @@ chooseTranslatorPluginFromString(char *type)
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_HIVE);
     else if (streq(type,"dl"))
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DL);
-    else if (streq(type,"dummy"))
+    else if (streq(type,"nautilus"))
+        chooseTranslatorPlugin(TRANSLATOR_PLUGIN_NAUTILUS);
+	else if (streq(type,"dummy"))
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DUMMY);
     else
         FATAL_LOG("unkown translator plugin type: <%s>", type);
