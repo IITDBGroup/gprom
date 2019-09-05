@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * operator_property.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -69,6 +69,9 @@
 // provenance of transaction
 #define PROP_PROV_IS_UPDATE_ROOT "UPDATE_ROOT"              // root of a translated update reenactment query
 #define PROP_PROV_ORIG_UPDATE_TYPE "ORIG_UPDATE_TYPE"       // store type of update for reenacted queries
+
+// plan to RA
+#define PROP_PLAN_QUERY "PLAN_QUERY"                        // store the query to send to the backedn for planning
 
 /* Operator type specific properties */
 /* provenance computation specific properties */

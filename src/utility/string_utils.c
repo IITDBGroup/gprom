@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * string_utils.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -315,6 +315,51 @@ strieq(char *left, char *right)
             return FALSE;
     }
     return TRUE;
+}
+
+static inline void
+nextLine(char *str, uint *pos)
+{
+	while(str[++(*pos)] != '\0' && str[*pos] != '\n')
+		;
+
+	if (str[*pos] == '\0')
+		THROW(SEVERITY_RECOVERABLE, "no more lines in string: %s at pos %u", str, *pos);
+	(*pos)++;
+}
+
+char *
+multilineSubstr(char *in, uint from_line, uint from_pos, uint to_line, uint to_pos)
+{
+	uint startPos;
+	uint endPos;
+	uint curPos = 0;
+	size_t len = strlen(in);
+
+	DEBUG_LOG("multiline substring %u:%u to %u:%u from:\n%s", from_line, from_pos, to_line, to_pos, in);
+
+	for(int i = 1; i < from_line; i++)
+		nextLine(in, &curPos);
+
+	if(curPos + from_pos >= len)
+		THROW(SEVERITY_RECOVERABLE, "requested range (%u-%u,%u-%u) does not exist in string:\n%s", from_line, from_pos, to_line, to_pos, in);
+
+	startPos = curPos + from_pos;
+
+	for(int i = from_line; i < to_line; i++)
+		nextLine(in, &curPos);
+
+	if(curPos + to_pos >= len)
+		THROW(SEVERITY_RECOVERABLE, "requested range (%u-%u,%u-%u) does not exist in string:\n%s", from_line, from_pos, to_line, to_pos, in);
+
+	/* if (from_line == to_line) */
+	/* 	endPos = curPos + to_pos; */
+	/* else */
+		endPos = curPos + to_pos;
+
+	DEBUG_LOG("translated range into string positions: [%u,%u]", startPos, endPos);
+
+	return substr(in, startPos, endPos);
 }
 
 char *

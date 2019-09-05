@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * hashmap.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -201,6 +201,15 @@ addToMap (HashMap *map, Node *key, Node *value)
 
         return FALSE;
     }
+}
+
+void
+addMapElements(HashMap *target, HashMap *source)
+{
+	FOREACH_HASH_ENTRY(e, source)
+	{
+		addToMap(target, copyObject(e->key), copyObject(e->value));
+	}
 }
 
 int

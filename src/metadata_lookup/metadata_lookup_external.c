@@ -2,10 +2,10 @@
  *
  * metadata_lookup_java.c
  *	    - metadata lookup plugin with external implementation using libgprom interface
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -314,7 +314,7 @@ externalGetKeyInformation (char *tableName)
 static void externalGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
 {
-    //TODO
+    //TODO write function
 }
 
 static Node *

@@ -27,11 +27,15 @@
 #undef malloc
 
 Node *oracleParseResult = NULL;
+char *oracleParseInput = NULL;
 %}
 
 %define api.prefix {oracle}
 
 %define parse.error verbose
+
+// enable locations to be tracked
+%locations
 
 %union {
     /*
@@ -437,11 +441,11 @@ provStmt:
 		| PLAN TO NAUTILUS '(' stmt ')'
 		{
 			RULELOG("provStmt::plan-to-nautilus");
-			Node *stmt = $5;
-			ProvenanceStmt *p = createProvenanceStmt(stmt);
+			char *stmt = multilineSubstr(oracleParseInput,@5.first_line, @5.first_column, @5.last_line, @5.last_column - 1);
+			ProvenanceStmt *p = createProvenanceStmt(NULL);
 			p->inputType = PROV_INPUT_QUERY;
 			p->provType = PROV_PLAN_TO_NAUTILUS;
-			p->options = NIL;
+			p->options = singleton(createStringKeyValue(PROP_PLAN_QUERY, stmt));
 			$$ = (Node *) p;
 		}
     ;

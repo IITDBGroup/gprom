@@ -104,6 +104,7 @@ static boolean initialized = FALSE;
 static QueryOperator *parsePlanNode(json_value *node, QueryOperator *parent);
 static PlanNodeInformation *readCommonPlanNodeInfo(json_value *p);
 static void setCommonProperties(QueryOperator *q, PlanNodeInformation *info);
+static boolean hasField(json_value *o, const char *field);
 static json_value *getObjectField(json_value *o, const char *field);
 static NodeTag planNodeToOp(char *plan_node_type);
 
@@ -120,6 +121,8 @@ translateJSONplanToRA (char *json)
     json_value *root;
     json_value *rootPlan;
     Node *result;
+
+	DEBUG_LOG("translate json:\n%s", json);
 
     // parse document
     root = json_parse(j, jsize);
@@ -176,8 +179,9 @@ parsePlanNode(json_value *node, QueryOperator *parent)
 	{
 	case T_TableAccessOperator:
 	{
-		char *table_name = GET_STRING_FIELD(node, FIELD_RELATION_NAME);
-		char *alias = GET_STRING_FIELD(node, FIELD_ALIAS);
+		char *table_name = strdup(GET_STRING_FIELD(node, FIELD_RELATION_NAME));
+		char *alias = strdup(GET_STRING_FIELD(node, FIELD_ALIAS));
+		DEBUG_LOG("PARSED PLAN OP: table access: %s, %s", table_name, alias);
 		result = (QueryOperator *) createTableAccessOp(table_name, NULL, alias, singleton(parent), info->output_cols, NIL);
 	}
 	break;
@@ -189,6 +193,7 @@ parsePlanNode(json_value *node, QueryOperator *parent)
 	default:
 		result = NULL;
 	}
+
     // register with parent if exists
 	//TODO determine how to connect children here
     if (parent != NULL)
@@ -256,13 +261,20 @@ readCommonPlanNodeInfo(json_value *p)
 	result->output_cols = outputs;
 
 	// read children
-	arr = getObjectField(p, FIELD_PLANS);
-    arr_len = arr->u.array.length;
-	result->num_children = arr_len;
-	result->children = MALLOC(sizeof(json_value *) * result->num_children);
-	for(int i = 0; i < arr_len; i++)
+	if (hasField(p, FIELD_PLANS))
 	{
-		result->children[i] = arr->u.array.values[i];
+		arr = getObjectField(p, FIELD_PLANS);
+		arr_len = arr->u.array.length;
+		result->num_children = arr_len;
+		result->children =
+			MALLOC(sizeof(json_value *) * result->num_children);
+		for (int i = 0; i < arr_len; i++) {
+            result->children[i] = arr->u.array.values[i];
+		}
+	}
+	else
+	{
+		result->num_children = 0;
 	}
 
     return result;
@@ -282,6 +294,20 @@ getObjectField(json_value *o, const char *field)
 	THROW(SEVERITY_RECOVERABLE, "did not find field %s in JSON object", field);
 }
 
+static boolean
+hasField(json_value *o, const char *field)
+{
+	ASSERT(o->type == json_object);
+	size_t len = o->u.object.length;
+	for (int i = 0; i < len; i++)
+	{
+	    char *nam = o->u.object.values[i].name;
+		if (streq(nam, field))
+			return TRUE;
+	}
+	return FALSE;
+}
+
 static NodeTag
 planNodeToOp(char *plan_node_type)
 {
@@ -293,12 +319,15 @@ planNodeToOp(char *plan_node_type)
 		initialized = TRUE;
 		node_to_op = NEW_MAP(Constant,Constant);
 
-		for (NodeTypeToOpType *m = node_to_op_mapping; m != NULL; m++)
+		for (NodeTypeToOpType *m = node_to_op_mapping; m->nodeType != NULL; m++)
 		{
-			MAP_ADD_STRING_KEY(node_to_op, (char *) m->nodeType, createConstInt(m->opType));
+			MAP_ADD_STRING_KEY(node_to_op, (char *) strdup((char *) m->nodeType), createConstInt(m->opType));
 		}
 		RELEASE_MEM_CONTEXT();
 	}
+	DEBUG_LOG("operator type for %s is %s",
+			  plan_node_type,
+			  NodeTagToString(INT_VALUE(MAP_GET_STRING(node_to_op, plan_node_type))));
 	return (NodeTag) INT_VALUE(MAP_GET_STRING(node_to_op, plan_node_type));
 }
 

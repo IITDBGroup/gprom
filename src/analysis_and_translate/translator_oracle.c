@@ -563,6 +563,14 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     result->asOf = copyObject(prov->asOf);
     translateProperties(((QueryOperator *) result), prov->options);
 
+	// if we are creating a query operator tree from a plan produced by the backend then do that and return
+	if(prov->provType == PROV_PLAN_TO_NAUTILUS)
+	{
+		result->op.inputs = singleton(getPlanAsRelationalAlgebra(GET_STRING_PROP_STRING_VAL(result, PROP_PLAN_QUERY)));
+		return (QueryOperator *) result;
+	}
+
+
     switch (prov->inputType)
     {
         case PROV_INPUT_TRANSACTION:

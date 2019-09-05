@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_string_utils.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -18,6 +18,7 @@ static rc testEndTok(void);
 static rc testMatchingSubstring(void);
 static rc testSplit(void);
 static rc testPrefixSuffix(void);
+static rc testMultilineStringSubstr(void);
 
 rc
 testStringUtils(void)
@@ -27,6 +28,7 @@ testStringUtils(void)
     RUN_TEST(testMatchingSubstring(), "Test getMatchingSubstring function");
     RUN_TEST(testSplit(), "Test split string");
     RUN_TEST(testPrefixSuffix(), "Test isPrefix and isSuffix");
+	RUN_TEST(testMultilineStringSubstr(), "Test multiline substring");
 
     return PASS;
 }
@@ -101,4 +103,17 @@ testPrefixSuffix(void)
     ASSERT_FALSE(isSuffix(input,"c"), "c is not suffix");
 
     return PASS;
+}
+
+static rc
+testMultilineStringSubstr(void)
+{
+	char *input = "mytest\nstring\nand\nand\nand\n\n";
+	const char *secondAndThird = "string\nand";
+	const char *second = "str";
+
+	ASSERT_EQUALS_STRING(second,multilineSubstr(input,2,0,2,2),"return second line parts");
+	ASSERT_EQUALS_STRING(secondAndThird,multilineSubstr(input,2,0,3,2),"return second and third line");
+
+	return PASS;
 }

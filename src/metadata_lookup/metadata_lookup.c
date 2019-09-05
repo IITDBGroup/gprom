@@ -421,7 +421,9 @@ getPlanAsRelationalAlgebra (char *query)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    INFO_LOG("fetch plan for query from backend and translate into rel algebra:\n\n%s", query);
     Node *result = activePlugin->getPlanAsRelationalAlgebra(query);
+	INFO_OP_LOG("translated query into:\n", result);
     //TODO copy?
     RELEASE_MEM_CONTEXT();
     return result;

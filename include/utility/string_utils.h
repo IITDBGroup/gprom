@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * string_utils.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -27,6 +27,7 @@ extern boolean isSubstr(char *str, char *substr);
 extern char *specializeTemplate(char *template, List *args);
 extern char *strtrim (char *in);
 extern boolean strieq(char *left, char *right);
+extern char *multilineSubstr(char *in, uint from_line, uint from_pos, uint to_line, uint to_pos);
 
 // string comparison for sorting
 extern int strCompare(const void *a, const void *b);

@@ -50,6 +50,22 @@
 	oraclelval.field = function(oracletext); \
 	return name; \
 	}
+// #include "oracle_parser.tab.h"  /* This is where it gets the definition for oraclelloc from */
+// #define YY_USER_ACTION oraclelloc.first_line = oraclelloc.last_line = yylineno;
+
+#define YY_USER_ACTION \
+    oraclelloc.first_line = oraclelloc.last_line; \
+    oraclelloc.first_column = oraclelloc.last_column; \
+    for(int i = 0; yytext[i] != '\0'; i++) { \
+        if(yytext[i] == '\n') { \
+            oraclelloc.last_line++; \
+            oraclelloc.last_column = 0; \
+        } \
+        else { \
+            oraclelloc.last_column++; \
+        } \
+    }
+
 %}
 
 /********************************************************************
@@ -292,5 +308,10 @@ void oracleerror(const char *s)
 
 void oracleSetupStringInput(char *input)
 {
+    oraclelloc.first_line = 0;
+	oraclelloc.last_line = 0;
+    oraclelloc.first_column = 0;
+	oraclelloc.last_column = 0;
+	oracleParseInput = strdup(input);
 	oracle_scan_string(input);
 }

@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * parse_internal.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -15,6 +15,7 @@
 
 /* for storing results */
 extern Node *oracleParseResult;
+extern char *oracleParseInput;
 
 /* interface to the lexer */
 extern int oraclelineno; /* from lexer */

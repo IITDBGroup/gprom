@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_to_string.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -69,7 +69,7 @@ testQueryBlockToString(void)
     toString = nodeToString(q);
     ASSERT_EQUALS_STRING("{QUERYBLOCK:distinct|<>:selectClause|<>:fromClause|<>"
             ":whereClause|<>:groupByClause|<>:havingClause|<>:orderByClause|<>"
-            ":limitClause|<>}", toString, "");
+            ":limitClause|<>:offsetClause|<>}", toString, "");
 
     return PASS;
 }

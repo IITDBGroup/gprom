@@ -1643,6 +1643,9 @@ analyzeSetQuery (SetQuery *q, List *parentFroms)
 static void
 analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 {
+	// if we translate a query plan created by the backend then there is nothing to be analyzed
+	if (q->provType == PROV_PLAN_TO_NAUTILUS)
+		return;
     switch (q->inputType)
     {
         case PROV_INPUT_TRANSACTION:

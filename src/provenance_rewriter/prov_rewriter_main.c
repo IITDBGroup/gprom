@@ -145,7 +145,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     }
 
     // turn operator graph into a tree since provenance rewrites currently expect a tree
-    if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
+    if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL) && op->provType != PROV_PLAN_TO_NAUTILUS)
     {
         treeify((QueryOperator *) op);
         INFO_OP_LOG("treeified operator model:", op);
@@ -192,6 +192,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             break;
 	    case PROV_PLAN_TO_NAUTILUS:
 		    result = OP_LCHILD(op);
+			addMapElements((HashMap *) op->op.properties, (HashMap *) result->properties);
 		    break;
     }
 
