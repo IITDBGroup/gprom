@@ -22,8 +22,7 @@ typedef enum AnalyzerPluginType
     ANALYZER_PLUGIN_ORACLE,
     ANALYZER_PLUGIN_POSTGRES,
     ANALYZER_PLUGIN_HIVE,
-    ANALYZER_PLUGIN_DL,
-	ANALYZER_PLUGIN_NAUTILUS
+    ANALYZER_PLUGIN_DL
 } AnalyzerPluginType;
 
 /* plugin definition */

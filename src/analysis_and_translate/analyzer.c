@@ -13,7 +13,6 @@
 #include "common.h"
 
 #include "analysis_and_translate/analyze_dl.h"
-#include "analysis_and_translate/analyze_nautilus.h"
 #include "analysis_and_translate/analyze_oracle.h"
 #include "analysis_and_translate/analyzer.h"
 #include "log/logger.h"
@@ -27,7 +26,6 @@ static AnalyzerPlugin *plugin = NULL;
 static AnalyzerPlugin *assembleOraclePlugin(void);
 static AnalyzerPlugin *assemblePostgresPlugin(void);
 static AnalyzerPlugin *assembleHivePlugin(void);
-static AnalyzerPlugin *assembleNautilusPlugin(void);
 static AnalyzerPlugin *assembleDLPlugin(void);
 
 // wrapper interface
@@ -55,9 +53,6 @@ chooseAnalyzerPlugin(AnalyzerPluginType type)
             break;
         case ANALYZER_PLUGIN_DL:
             plugin = assembleDLPlugin();
-            break;
-	    case ANALYZER_PLUGIN_NAUTILUS:
-            plugin = assembleNautilusPlugin();
             break;
     }
 }
@@ -102,15 +97,15 @@ assembleDLPlugin(void)
     return p;
 }
 
-static AnalyzerPlugin *
-assembleNautilusPlugin(void)
-{
-	AnalyzerPlugin *p = NEW(AnalyzerPlugin);
+/* static AnalyzerPlugin * */
+/* assembleNautilusPlugin(void) */
+/* { */
+/* 	AnalyzerPlugin *p = NEW(AnalyzerPlugin); */
 
-    p->analyzeParserModel = analyzeNautilusModel;
+/*     p->analyzeParserModel = analyzeNautilusModel; */
 
-    return p;
-}
+/*     return p; */
+/* } */
 
 void
 chooseAnalyzerPluginFromString(char *type)
@@ -125,8 +120,6 @@ chooseAnalyzerPluginFromString(char *type)
         chooseAnalyzerPlugin(ANALYZER_PLUGIN_HIVE);
 	else if (streq(type,"dl"))
         chooseAnalyzerPlugin(ANALYZER_PLUGIN_DL);
-	else if (streq(type,"nautilus"))
-        chooseAnalyzerPlugin(ANALYZER_PLUGIN_NAUTILUS);
     else
         FATAL_LOG("unkown analyzer plugin type: <%s>", type);
 }
