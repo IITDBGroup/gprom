@@ -83,6 +83,7 @@ static boolean initialized = FALSE;
 #define FIELD_LOCAL_WRITTEN_BLOCKS "Local Written Blocks"
 #define FIELD_TEMP_READ_BLOCKS "Temp Read Blocks"
 #define FIELD_TEMP_WRITTEN_BLOCKS "Temp Written Blocks"
+#define FIELD_FILTER "Filter"
 
 // operator specific fields
 // aggregation
@@ -107,6 +108,7 @@ static void setCommonProperties(QueryOperator *q, PlanNodeInformation *info);
 static boolean hasField(json_value *o, const char *field);
 static json_value *getObjectField(json_value *o, const char *field);
 static NodeTag planNodeToOp(char *plan_node_type);
+static QueryOperator *createSelectionFromFilterString(QueryOperator *in, const char *filterCondStr);
 
 /**
  * @brief Translates a JSON query plan produced by Postgres's EXPLAIN command into an RA graph.
@@ -194,6 +196,16 @@ parsePlanNode(json_value *node, QueryOperator *parent)
 		result = NULL;
 	}
 
+	// deal with filters
+	if (opType == T_TableAccessOperator || opType == T_AggregationOperator)
+	{
+		if(hasField(node, FIELD_FILTER))
+		{
+			//TODO create function that creates a selection from the filter string
+			result = createSelectionFromFilterString(result, getObjectField(node, FIELD_FILTER));
+		}
+	}
+
     // register with parent if exists
 	//TODO determine how to connect children here
     if (parent != NULL)
@@ -204,6 +216,23 @@ parsePlanNode(json_value *node, QueryOperator *parent)
 
     return result;
 }
+
+static QueryOperator *
+createSelectionFromFilterString(QueryOperator *in, const char *filterCondStr)
+{
+	QueryOperator *result;
+	Node *cond;
+	List *attrNammes;
+
+	//TODO compile string
+	cond = (Node *) getHeadOfListP(parseFromStringOracle(filterCondStr));
+	attrNames = getAttrNames(in->schema);
+	result = createSelectionOp(cond, in, NIL, attrNames);
+	in->parents = singleton(result);
+
+	return result;
+}
+
 
 /**
  * @brief      Store plan node information as properties of a query operator.
