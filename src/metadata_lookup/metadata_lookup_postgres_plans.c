@@ -217,6 +217,14 @@ parsePlanNode(json_value *node, QueryOperator *parent)
     return result;
 }
 
+/**
+ * @brief      Create a selection operator from a filter condition (string)
+ *
+ * @param      in the query operator that will be the child of the new selection op
+ * @param      filterCondStr the filter condition
+ *
+ * @return     the selection operator created from the filter condition
+ */
 static QueryOperator *
 createSelectionFromFilterString(QueryOperator *in, const char *filterCondStr)
 {
