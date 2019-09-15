@@ -109,6 +109,11 @@ NEW_ENUM_WITH_TO_STRING(
 
 /* use provenance scratch */
 #define OPTION_MAX_NUMBER_PARTITIONS_FOR_USE "number_max_paritions_for_use"
+#define OPTION_BIT_VECTOR_SIZE "bit_vector_size"
+#define OPTION_PS_BINARY_SEARCH "ps_bianry_search"
+#define OPTION_PS_SETTINGS "ps_settings"
+#define OPTION_PS_SET_BITS "set_bits"
+#define OPTION_PS_USE_BRIN_OP "us_brin_op"
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(

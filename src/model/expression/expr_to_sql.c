@@ -104,6 +104,9 @@ xmlConstantToSQL (StringInfo str, Node *node)
 static void
 functionCallToSQL (StringInfo str, FunctionCall *node)
 {
+	int bitVectorSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
+    if (streq(node->functionname, "binary_search_array_pos") && !getBoolOption(OPTION_PS_SET_BITS))
+    			appendStringInfo(str,"set_bit(0::bit(%d),",bitVectorSize);
 
     int flag = 0;
     if (streq(node->functionname, "AGG_STRAGG"))
@@ -164,9 +167,16 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
         //    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
         //    	exprToSQLString(str, entity);
     }
-    if (streq(node->functionname, "bit_or"))
-    		appendStringInfoString(str,"::bit(400)");
+    if (streq(node->functionname, "bit_or") || streq(node->functionname, "set_bits"))
+    		appendStringInfo(str,"::bit(%d)",bitVectorSize);
     appendStringInfoString(str,")");
+    if (streq(node->functionname, "binary_search_array_pos"))
+    {
+    		if(getBoolOption(OPTION_PS_SET_BITS))
+    			appendStringInfoString(str,"- 1");
+    		else
+    			appendStringInfoString(str,"- 1,1 )");
+    }
 
     /*	int flag = 0;
 	if (streq(node->functionname, "AGG_STRAGG"))
@@ -227,7 +237,8 @@ operatorToSQL (StringInfo str, Operator *node)
             if(arg_his_cell != node->args->tail)
                 appendStringInfo(str, " %s ", node->name);
         }
-
+        if(getBoolOption(OPTION_PS_USE_BRIN_OP) && (streq(node->name,"<@")))
+        	 	 appendStringInfoString(str, "::int[]");
         appendStringInfoString(str, ")");
     }
 }
@@ -244,6 +255,7 @@ caseToSQL(StringInfo str, CaseExpr *expr)
         appendStringInfoString(str, " ");
     }
 
+    int bitVectorSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
     // WHEN ... THEN ...
     FOREACH(CaseWhen,w,expr->whenClauses)
     {
@@ -251,6 +263,9 @@ caseToSQL(StringInfo str, CaseExpr *expr)
         exprToSQLString(str, w->when);
         appendStringInfoString(str, " THEN ");
         exprToSQLString(str, w->then);
+        //appendStringInfoString(str, "::varbit");
+		if(getBoolOption(OPTION_PS_SETTINGS))
+			appendStringInfo(str, "::bit(%d)",bitVectorSize);
     }
 
     // ELSE

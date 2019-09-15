@@ -175,6 +175,11 @@ boolean opt_agg_reduction_model_rewrite = FALSE;
 
 // use provenance scratch
 int max_number_paritions_for_uses = 0;
+int bit_vector_size = 32;
+boolean ps_binary_search = FALSE;
+boolean ps_settings = FALSE;
+boolean ps_set_bits = FALSE;
+boolean ps_use_brin_op = FALSE;
 
 // struct that encapsulates option state
 struct option_state {
@@ -649,6 +654,46 @@ OptionInfo opts[] =
                  wrapOptionInt(&max_number_paritions_for_uses),
                  defOptionInt(0)
          },
+		 {
+				 OPTION_BIT_VECTOR_SIZE,
+				 "-ps_bit_vector_size",
+				 "bit vector length used in bit or",
+				 OPTION_INT,
+				 wrapOptionInt(&bit_vector_size),
+				 defOptionInt(32)
+		 },
+		 {
+				 OPTION_PS_BINARY_SEARCH,
+				 "-ps_binary_search",
+				 "Activate binary search instead of case when",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_binary_search),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_SETTINGS,
+				 "-ps_settings",
+				 "Activate settings about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_settings),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_SET_BITS,
+				 "-ps_set_bits",
+				 "Activate set_bits about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_set_bits),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_USE_BRIN_OP,
+				 "-ps_use_brin_op",
+				 "Activate use_brin_op about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_use_brin_op),
+				 defOptionBool(FALSE)
+		 },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",
