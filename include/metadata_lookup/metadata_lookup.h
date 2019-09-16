@@ -97,8 +97,8 @@ typedef struct MetadataLookupPlugin
     CatalogCache *cache;
     MemContext *metadataLookupContext;
 
-    /* histgram */
-    List * (*getHistgram) (char *tableName, char *attrName, int numPartitions);
+    /* histogram */
+    List * (*getHistogram) (char *tableName, char *attrName, int numPartitions);
 
 } MetadataLookupPlugin;
 

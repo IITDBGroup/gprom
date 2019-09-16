@@ -227,7 +227,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->catalogViewExists = postgresCatalogViewExists;
     p->getAttributes = postgresGetAttributes;
     p->getAttributeNames = postgresGetAttributeNames;
-    p->getHistgram = postgresGetHist;
+    p->getHistogram = postgresGetHist;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
     p->getFuncReturnType = postgresGetFuncReturnType;

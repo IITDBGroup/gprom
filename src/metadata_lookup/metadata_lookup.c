@@ -421,7 +421,7 @@ getHist (char *tableName, char *attrName, int numPartitions)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    List *result = activePlugin->getHistgram(tableName,attrName,numPartitions);
+    List *result = activePlugin->getHistogram(tableName,attrName,numPartitions);
     RELEASE_MEM_CONTEXT();
     return result;
 }
