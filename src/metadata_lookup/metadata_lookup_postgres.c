@@ -127,6 +127,9 @@
                      "FROM pg_constraint c, pg_class t, pg_attribute a " \
                      "WHERE c.contype = 'p' AND c.conrelid = t.oid AND t.relname = $1::text AND a.attrelid = t.oid AND a.attnum = ANY(c.conkey);"
 
+#define NAME_GET_HIST "GPRoM_GetHist"
+#define PARAMS_GET_HIST 2
+#define QUERY_GET_HIST "SELECT histogram_bounds FROM pg_stats WHERE tablename = $1::text AND attname = $2::text;"
 
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
@@ -224,6 +227,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->catalogViewExists = postgresCatalogViewExists;
     p->getAttributes = postgresGetAttributes;
     p->getAttributeNames = postgresGetAttributeNames;
+    p->getHistgram = postgresGetHist;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
     p->getFuncReturnType = postgresGetFuncReturnType;
@@ -441,7 +445,7 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_FUNC_DEFS);
     PREP_QUERY(GET_OP_DEFS);
     PREP_QUERY(GET_PK);
-
+    PREP_QUERY(GET_HIST);
     // catalog pg_proc has changed in 11
     if (plugin->serverMajorVersion == 11)
     {
@@ -802,6 +806,40 @@ postgresGetAttributeNames (char *tableName)
     MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName, attrs);
 
     DEBUG_LOG("table %s attributes are <%s>", tableName, stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+
+    return attrs;
+}
+
+List *
+postgresGetHist (char *tableName, char *attrName, int numPartitions)
+{
+    List *attrs = NIL;
+    PGresult *res = NULL;
+    ASSERT(postgresCatalogTableExists(tableName));
+
+    //if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName))
+    //    return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrs,tableName);
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+	StringInfo setStatics = makeStringInfo();
+	appendStringInfo(setStatics,"ALTER TABLE %s ALTER COLUMN %s SET STATISTICS %d; Analyze %s;",
+			tableName, attrName, (numPartitions > 10000)? 10000:numPartitions, tableName);
+
+    execStmt(setStatics->data);
+    res = execPrepared(NAME_GET_HIST, LIST_MAKE(createConstString(tableName),createConstString(attrName)));
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++)
+        attrs = appendToTailOfList(attrs, strdup(PQgetvalue(res,i,0)));
+
+    // clear result
+    PQclear(res);
+    //MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName, attrs);
+
+    DEBUG_LOG("table %s attributes %s with hist <%s>", tableName, attrName, stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
 
     return attrs;

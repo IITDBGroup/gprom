@@ -30,6 +30,7 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 #define LOG_RESULT(mes,op) \
     do { \
@@ -1751,7 +1752,6 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     DEBUG_LOG("REWRITE-COARSE GRAINED - Table Access <%s> <%u>", op->tableName, relAccessCount);
 
-    // copy any as of clause if there
     if (asOf)
         op->asOf = copyObject(asOf);
 
@@ -1969,6 +1969,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     {
     	DEBUG_LOG("Partition by range type B");
 
+
     	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
     List *fList = NIL;
@@ -2027,6 +2028,13 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	Constant *bs = createConstString(binary_element->data);
     	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
 
+//  auto-range
+//  int histSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
+//	List *hist = getHist(op->tableName, pAttrName, histSize);
+//  char *rangeString = getHeadOfListP(hist);
+//  DEBUG_LOG("test rangeString %s", rangeString);
+//	Constant *bs = createConstString(rangeString);
+//	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
     }
 
     if(streq(ptype, "HASH") || streq(ptype, "PAGE"))
