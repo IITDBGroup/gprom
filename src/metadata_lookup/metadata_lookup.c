@@ -426,6 +426,7 @@ getHist (char *tableName, char *attrName, int numPartitions)
     return result;
 }
 
+
 int
 databaseConnectionOpen (void)
 {

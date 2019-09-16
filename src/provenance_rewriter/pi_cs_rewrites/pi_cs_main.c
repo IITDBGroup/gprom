@@ -2025,16 +2025,31 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     	appendStringInfo(binary_element, "%d}", INT_VALUE((Constant *)getNthOfListP(rangeList, LIST_LENGTH(rangeList)-1)));
     	DEBUG_LOG("binary search array element: %s", binary_element->data);
-    	Constant *bs = createConstString(binary_element->data);
-    	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
+//    	Constant *bs = createConstString(binary_element->data);
+//    	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
 
-//  auto-range
-//  int histSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
-//	List *hist = getHist(op->tableName, pAttrName, histSize);
-//  char *rangeString = getHeadOfListP(hist);
-//  DEBUG_LOG("test rangeString %s", rangeString);
-//	Constant *bs = createConstString(rangeString);
-//	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
+    	/*  auto-range */
+    	int histSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
+    	List *hist = getHist(op->tableName, pAttrName, histSize);
+    	char *rangeString = getHeadOfListP(hist);
+    	char *minValue = getNthOfListP(hist, 1);
+    	char *maxValue = getNthOfListP(hist, 2);
+    	int maxV = atoi(maxValue) + 1;
+
+    	//remove the first and the last and add the min and max
+    	char *firstComma = strchr(rangeString, ',');
+    	char *lastComma = strrchr(rangeString, ',');
+    	char *subRangeString = (char *)calloc(1, lastComma - firstComma + 1);
+    	strncpy(subRangeString, firstComma+1, lastComma-(firstComma+1));
+    	DEBUG_LOG("subRangeString : %s", subRangeString);
+
+    	StringInfo newRangeString = makeStringInfo();
+    appendStringInfo(newRangeString, "{%s,%s,%d}", minValue, subRangeString, maxV);
+	DEBUG_LOG("newRangeString : %s", newRangeString->data);
+
+	Constant *bs = createConstString(newRangeString->data);
+	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
+
     }
 
     if(streq(ptype, "HASH") || streq(ptype, "PAGE"))

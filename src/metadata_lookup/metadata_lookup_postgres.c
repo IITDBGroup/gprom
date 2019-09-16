@@ -446,6 +446,7 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_OP_DEFS);
     PREP_QUERY(GET_PK);
     PREP_QUERY(GET_HIST);
+
     // catalog pg_proc has changed in 11
     if (plugin->serverMajorVersion == 11)
     {
@@ -816,6 +817,7 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
 {
     List *attrs = NIL;
     PGresult *res = NULL;
+    PGresult *resMinMax = NULL;
     ASSERT(postgresCatalogTableExists(tableName));
 
     //if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName))
@@ -840,6 +842,26 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
     //MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName, attrs);
 
     DEBUG_LOG("table %s attributes %s with hist <%s>", tableName, attrName, stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+	StringInfo minMax = makeStringInfo();
+	appendStringInfo(minMax,"SELECT MIN(%s), MAX(%s) FROM %s;",
+			attrName, attrName, tableName);
+	resMinMax = execQuery(minMax->data);
+
+    // loop through results
+    for(int i = 0; i < PQntuples(resMinMax); i++) {
+        attrs = appendToTailOfList(attrs, strdup(PQgetvalue(resMinMax,i,0)));
+        attrs = appendToTailOfList(attrs, strdup(PQgetvalue(resMinMax,i,1)));
+    }
+    // clear result
+    PQclear(resMinMax);
+
+    DEBUG_LOG("SELECT MinMax on %s attributes on %s table <%s>", attrName, tableName, stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
 
     return attrs;
