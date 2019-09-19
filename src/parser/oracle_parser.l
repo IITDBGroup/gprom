@@ -237,6 +237,7 @@ strconcat		"||"
 (?i:RANGESA)		TOK(RANGESA)
 (?i:RANGESB)		TOK(RANGESB)
 (?i:HASH)		TOK(HASH)
+(?i:CAPTUREUSE)		TOK(CAPTUREUSE)
 
 	/* booleans */
 {bool}			TOK(boolConst)

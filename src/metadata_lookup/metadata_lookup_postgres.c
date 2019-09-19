@@ -228,6 +228,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getAttributes = postgresGetAttributes;
     p->getAttributeNames = postgresGetAttributeNames;
     p->getHistogram = postgresGetHist;
+    p->getProvenanceSketch = postgresGetPS;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
     p->getFuncReturnType = postgresGetFuncReturnType;
@@ -812,6 +813,43 @@ postgresGetAttributeNames (char *tableName)
     return attrs;
 }
 
+
+HashMap *
+postgresGetPS (char *sql, List *attrNames)
+{
+    //List *attrs = NIL;
+    PGresult *res = NULL;
+    HashMap *hm = NEW_MAP(Constant,Constant);
+    //ASSERT(postgresCatalogTableExists(tableName));
+
+    //if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName))
+    //    return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrs,tableName);
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+	res = execQuery(sql);
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++) {
+    		for(int j = 0; j < LIST_LENGTH(attrNames); j++) {
+    			//attrs = appendToTailOfList(attrs, strdup(PQgetvalue(res,i,j)));
+    			char *attrName = getNthOfListP(attrNames, j);
+    			MAP_ADD_STRING_KEY(hm, attrName, createConstString(strdup(PQgetvalue(res,i,j))));
+    		}
+    }
+
+    execStmt("commit;");
+    // clear result
+    PQclear(res);
+
+    DEBUG_NODE_LOG("Captured Provenance Sketch :", (Node *) hm);
+    //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+
+    return hm;
+}
+
 List *
 postgresGetHist (char *tableName, char *attrName, int numPartitions)
 {
@@ -853,6 +891,8 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
 			attrName, attrName, tableName);
 	resMinMax = execQuery(minMax->data);
 
+	//have to commit, otherwise, if you run another query, will get warning: there is already a transaction in progress
+	execStmt("commit;");
     // loop through results
     for(int i = 0; i < PQntuples(resMinMax); i++) {
         attrs = appendToTailOfList(attrs, strdup(PQgetvalue(resMinMax,i,0)));

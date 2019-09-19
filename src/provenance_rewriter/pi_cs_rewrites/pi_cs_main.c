@@ -207,10 +207,10 @@ rewritePI_CSOperator (QueryOperator *op)
         case T_TableAccessOperator:
             DEBUG_LOG("go table access");
             //rewrittenOp = rewritePI_CSTableAccess((TableAccessOperator *) op);
-            if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK))
-            		rewrittenOp = rewriteCoarseGrainedTableAccess((TableAccessOperator *) op);
-            else if(HAS_STRING_PROP(op, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK))
+            if(HAS_STRING_PROP(op, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK))
             		rewrittenOp = rewriteUseCoarseGrainedTableAccess((TableAccessOperator *) op);
+            else if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK))
+            		rewrittenOp = rewriteCoarseGrainedTableAccess((TableAccessOperator *) op);
             else
             		rewrittenOp = rewritePI_CSTableAccess((TableAccessOperator *) op);
             break;
@@ -2028,27 +2028,33 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 //    	Constant *bs = createConstString(binary_element->data);
 //    	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
 
-    	/*  auto-range */
-    	int histSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
-    	List *hist = getHist(op->tableName, pAttrName, histSize);
-    	char *rangeString = getHeadOfListP(hist);
-    	char *minValue = getNthOfListP(hist, 1);
-    	char *maxValue = getNthOfListP(hist, 2);
-    	int maxV = atoi(maxValue) + 1;
+//    	/*  auto-range */
+//    	int histSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
+//    	List *hist = getHist(op->tableName, pAttrName, histSize);
+//    	char *rangeString = getHeadOfListP(hist);
+//    	char *minValue = getNthOfListP(hist, 1);
+//    	char *maxValue = getNthOfListP(hist, 2);
+//    	int maxV = atoi(maxValue) + 1;
+//
+//    	//remove the first and the last and add the min and max
+//    	char *firstComma = strchr(rangeString, ',');
+//    	char *lastComma = strrchr(rangeString, ',');
+//    	char *subRangeString = (char *)calloc(1, lastComma - firstComma + 1);
+//    	strncpy(subRangeString, firstComma+1, lastComma-(firstComma+1));
+//    	DEBUG_LOG("subRangeString : %s", subRangeString);
+//
+//    	StringInfo newRangeString = makeStringInfo();
+//    appendStringInfo(newRangeString, "{%s,%s,%d}", minValue, subRangeString, maxV);
+//	DEBUG_LOG("newRangeString : %s", newRangeString->data);
+//
+//	Constant *bs = createConstString(newRangeString->data);
 
-    	//remove the first and the last and add the min and max
-    	char *firstComma = strchr(rangeString, ',');
-    	char *lastComma = strrchr(rangeString, ',');
-    	char *subRangeString = (char *)calloc(1, lastComma - firstComma + 1);
-    	strncpy(subRangeString, firstComma+1, lastComma-(firstComma+1));
-    	DEBUG_LOG("subRangeString : %s", subRangeString);
-
-    	StringInfo newRangeString = makeStringInfo();
-    appendStringInfo(newRangeString, "{%s,%s,%d}", minValue, subRangeString, maxV);
-	DEBUG_LOG("newRangeString : %s", newRangeString->data);
-
-	Constant *bs = createConstString(newRangeString->data);
-	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(bs,copyObject(pAttr)));
+    	Constant *bs = NULL;
+    	if(HAS_STRING_PROP(op, AUTO_HISTOGRAM_TABLEACCESS_MARK))
+    		bs = (Constant *) GET_STRING_PROP(op, AUTO_HISTOGRAM_TABLEACCESS_MARK);
+    	else
+    		bs = createConstString(binary_element->data);
+	bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(copyObject(bs),copyObject(pAttr)));
 
     }
 
@@ -2328,7 +2334,6 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op)
 static QueryOperator *
 rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 {
-
 //    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
@@ -2462,7 +2467,22 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
     int hIntValue = 0;
 	//unsigned long long int uhIntValue = LONG_VALUE(uhvalue);
-	char *uhBitString = STRING_VALUE(uhvalue);
+
+    newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
+    provAttr = appendToTailOfList(provAttr, newAttrName);
+
+    HashMap *psMap = NULL;
+    char *uhBitString = "";
+    if(HAS_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK))
+    {
+    		psMap = (HashMap *) GET_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK);
+    		if(hasMapStringKey(psMap, newAttrName))
+    		{
+    			uhBitString = STRING_VALUE((Constant *) getMapString(psMap, newAttrName));
+    		}
+    }
+    else
+    		uhBitString = STRING_VALUE(uhvalue);
     //int uhIntValue1 = INT_VALUE(uhvalue);
 
     if(streq(ptype, "RANGEB"))
@@ -2493,19 +2513,20 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 //      }
 //    }
 
-        BitSet *uhbSet = stringToBitset(uhBitString);
-        for(int i=0; i<uhbSet->length; i++)
-        {
-        	    if(isBitSet(uhbSet, i))
-        	    {
-                  condRightValueList = appendToHeadOfList(condRightValueList, createConstInt(i));
-                  DEBUG_LOG("pos is: %d", i);
-        	    }
-        }
+
+
+    BitSet *uhbSet = stringToBitset(uhBitString);
+    for(int i=0; i<uhbSet->length; i++)
+    {
+    		if(isBitSet(uhbSet, i))
+    		{
+    			condRightValueList = appendToHeadOfList(condRightValueList, createConstInt(i));
+    			DEBUG_LOG("pos is: %d", i);
+    		}
+    }
 
     DEBUG_LOG("cond lens: %d", LIST_LENGTH(condRightValueList));
-    newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName), gprom_itoa(numTable));
-    provAttr = appendToTailOfList(provAttr, newAttrName);
+
 
     //three cases: fragment or range or page
     FunctionCall *f = NULL;
@@ -2679,8 +2700,34 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		DEBUG_LOG("attr name: %s", pAttrName);
     		AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(pAttrName));
 
-    		List *subList = (List *) k->value;
-    		rangeLen = LIST_LENGTH(subList);
+//    		List *subList = (List *) k->value;
+//    		rangeLen = LIST_LENGTH(subList);
+
+    		List *subList = NIL;
+    		char *histString = "";
+    	    if(HAS_STRING_PROP(op, AUTO_HISTOGRAM_TABLEACCESS_MARK))
+    	    {
+    	    		Constant *histConstant = (Constant *) GET_STRING_PROP(op, AUTO_HISTOGRAM_TABLEACCESS_MARK);
+    	    		histString = STRING_VALUE(histConstant);
+    	    		DEBUG_LOG("histString is %s", histString);
+
+    	    		/* remove the first char { and the last char }*/
+    	    		char *histStringRm = strdup(histString);
+    	    		histStringRm++;
+    	    		histStringRm[strlen(histStringRm)-1] = 0;
+    	    		DEBUG_LOG("histString is %s", histStringRm);
+
+    	    		char *p =  strtok (histStringRm,",");
+    	    		while (p!= NULL)
+    	    		{
+    	    		    subList = appendToTailOfList(subList, createConstString(p));
+    	    		    p = strtok (NULL, ",");
+    	    		}
+    	    }
+    	    else
+    	    		subList = (List *) k->value;
+
+    	    rangeLen = LIST_LENGTH(subList);
 
     		// generate and combine each condition, e.g.,  33, 32, 31, 28, 27, 25 ->  31<=x<34 or 27<=x<29 or 25<=x<26
     		List *elList = NIL;
@@ -2714,8 +2761,8 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     					}
     					else if(cur_brinl->constType == DT_STRING)
     					{
-    						appendStringInfo(brins, "%c,", STRING_VALUE(cur_brinl));
-    						appendStringInfo(brins, "%c,", STRING_VALUE(cur_brinh));
+    						appendStringInfo(brins, "%s,", STRING_VALUE(cur_brinl));
+    						appendStringInfo(brins, "%s,", STRING_VALUE(cur_brinh));
     					}
     				}
     			}
@@ -2724,7 +2771,6 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     		}
     		Node *wcond = orExprList(elList);
     		rangeBlist = appendToTailOfList(rangeBlist, wcond);
-
     	    if(getBoolOption(OPTION_PS_USE_BRIN_OP))
     	    {
     	    		removeTailingStringInfo(brins,1);

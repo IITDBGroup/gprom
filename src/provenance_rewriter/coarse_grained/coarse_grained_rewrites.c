@@ -21,6 +21,7 @@
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
 
@@ -57,6 +58,7 @@ addTopAggForCoarse (QueryOperator *op)
     return (QueryOperator *) newOp;
 }
 
+
 void
 markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
 {
@@ -66,7 +68,10 @@ markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
            if(isA(o,TableAccessOperator))
            {
                DEBUG_LOG("mark tableAccessOperator.");
+
+               /* mark coarsePara info */
                SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, coarsePara);
+
            }
            if(isA(o,AggregationOperator))
            {
@@ -75,7 +80,61 @@ markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
                //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
 
-           markTableAccessAndAggregation(o,coarsePara);
+           markTableAccessAndAggregation(o, coarsePara);
+      }
+}
+
+void
+autoMarkTableAccessAndAggregation (QueryOperator *op, Node *coarsePara, HashMap *map)
+{
+
+      FOREACH(QueryOperator, o, op->inputs)
+      {
+           if(isA(o,TableAccessOperator))
+           {
+        	   	   TableAccessOperator *tableOp = (TableAccessOperator *) o;
+
+               DEBUG_LOG("mark tableAccessOperator.");
+
+               /* mark coarsePara info */
+               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, coarsePara);
+
+               /*  auto-range */
+               int histSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
+               char *attrName = "";
+               if(hasMapStringKey(map, tableOp->tableName))
+               {
+            	   	   attrName = ((Constant *) getMapString(map, tableOp->tableName))->value;
+
+            	   	   List *hist = getHist(tableOp->tableName, attrName, histSize);
+            	   	   char *rangeString = getHeadOfListP(hist);
+            	   	   char *minValue = getNthOfListP(hist, 1);
+            	   	   char *maxValue = getNthOfListP(hist, 2);
+            	   	   int maxV = atoi(maxValue) + 1;
+
+            	   	   /* remove the first and the last and add the min and max (fix first and last) */
+            	   	   char *firstComma = strchr(rangeString, ',');
+            	   	   char *lastComma = strrchr(rangeString, ',');
+            	   	   char *subRangeString = (char *)calloc(1, lastComma - firstComma + 1);
+            	   	   strncpy(subRangeString, firstComma+1, lastComma-(firstComma+1));
+            	   	   DEBUG_LOG("subRangeString : %s", subRangeString);
+
+            	   	   StringInfo newRangeString = makeStringInfo();
+            	   	   appendStringInfo(newRangeString, "{%s,%s,%d}", minValue, subRangeString, maxV);
+            	   	   DEBUG_LOG("newRangeString : %s", newRangeString->data);
+
+            	   	   /* mark histogram */
+            	   	   SET_STRING_PROP(o, AUTO_HISTOGRAM_TABLEACCESS_MARK, createConstString(newRangeString->data));
+               }
+           }
+           if(isA(o,AggregationOperator))
+           {
+               DEBUG_LOG("mark aggregationOperator.");
+               SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+               //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+           }
+
+           autoMarkTableAccessAndAggregation(o, coarsePara, map);
       }
 }
 
@@ -99,6 +158,23 @@ markUseTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
                //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
            markUseTableAccessAndAggregation(o,coarsePara);
+      }
+}
+
+
+void
+markAutoUseTableAccess (QueryOperator *op, HashMap *psMap)
+{
+
+      FOREACH(QueryOperator, o, op->inputs)
+      {
+           if(isA(o,TableAccessOperator))
+           {
+               DEBUG_NODE_LOG("QueryOperator :", o);
+               SET_STRING_PROP(o, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK, psMap);
+           }
+
+           markAutoUseTableAccess(o,psMap);
       }
 }
 

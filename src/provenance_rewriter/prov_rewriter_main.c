@@ -26,7 +26,11 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
+
 #include "temporal_queries/temporal_rewriter.h"
+
+#include "sql_serializer/sql_serializer.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
@@ -159,7 +163,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     //used to get coarse grained parameter used in CASE PROV_COARSE_GRAINED
 	Node *coarsePara = NULL;
-
+	//ProvenanceComputation *useOp = (ProvenanceComputation *) copyObject(op);
     // apply provenance rewriting if required
     switch(op->provType)
     {
@@ -185,6 +189,70 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             }
 
             break;
+        case CAP_USE_PROV_COARSE_GRAINED:
+
+    			coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
+    			DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
+
+    			/* tableName -> attrName used for ps capture and use */
+    			HashMap *map = NEW_MAP(Constant,Constant);
+    		    FOREACH(KeyValue, kv, (List *) coarsePara)
+    		    {
+    		         Constant *tableName = (Constant *) kv->key;  //R
+    		         DEBUG_LOG("tableName : %s", STRING_VALUE(tableName));
+    		         FOREACH(KeyValue, kvv, (List *) kv->value)
+    		         {
+    		             Constant *keyType = (Constant *) kvv->key;
+    		             DEBUG_LOG("keyType : %s", STRING_VALUE(keyType));
+    		             if(streq(STRING_VALUE(keyType),"ATTRSRANGES")) // "ATTRS"->{A,B}
+    		             {
+    		            	 	 FOREACH(KeyValue, k, (List *) kvv->value)
+						{
+    		            	 	 char *attrName = STRING_VALUE(k->key);
+    		            	 	 DEBUG_LOG("attrName : %s", attrName);
+    		            	 	 if(!hasMapStringKey(map, STRING_VALUE(tableName)))
+    		            	 	 {
+    		            	 		 MAP_ADD_STRING_KEY(map, STRING_VALUE(tableName), copyObject(k->key));
+    		            	 		 break;
+    		            	 	 }
+						}
+    		             }
+    		         }
+    		    }
+    		    DEBUG_NODE_LOG("tableName -> attrName :", (Node *) map);
+
+    			/* add annotations for table access and for combiners (aggregation) */
+    		    autoMarkTableAccessAndAggregation((QueryOperator *) op, coarsePara, map);
+
+    			/* copy op for use ps */
+    			ProvenanceComputation *useOp = (ProvenanceComputation *) copyObject(op);
+
+    			/* capture provenance sketch */
+    			QueryOperator *capOp = rewritePI_CS(op);
+    			capOp = addTopAggForCoarse(capOp);
+
+    			List *attrNames = getAttrNames(capOp->schema);
+    			DEBUG_LOG("PS Attr Names : %s", stringListToString(attrNames));
+
+    			char *capSql = serializeQuery(capOp);
+    			StringInfo capSqlString = makeStringInfo();
+    	    		appendStringInfo(capSqlString, "%s;", capSql);
+    			DEBUG_LOG("Capture Provenance Sketch Sql : %s", capSqlString->data);
+
+    			/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
+    			HashMap *psMap = getPS(capSqlString->data,attrNames);
+
+    			/* use provenance sketch */
+        		//coarsePara = (Node *) getStringProperty((QueryOperator *) useOp, PROP_PC_COARSE_GRAINED);
+        		//DEBUG_LOG("use coarse grained fragment parameters: %s",nodeToString(coarsePara));
+        		markAutoUseTableAccess((QueryOperator *) useOp, psMap);
+        		markUseTableAccessAndAggregation((QueryOperator *) useOp, coarsePara);
+
+
+            result = rewritePI_CS(useOp);
+            removeParent(result, (QueryOperator *) useOp);
+
+        		break;
         case PROV_COARSE_GRAINED:
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
@@ -193,7 +261,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
             result = rewritePI_CS(op);
 //            removeParent(result, (QueryOperator *) op);
-            // write method that adds aggregation on top
+            //adds aggregation on top
             result = addTopAggForCoarse(result);
             break;
         case USE_PROV_COARSE_GRAINED:
