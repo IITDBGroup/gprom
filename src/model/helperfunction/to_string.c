@@ -23,6 +23,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/rpq/rpq_model.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -121,6 +122,9 @@ static void operatorToOverviewInternal(StringInfo str, QueryOperator *op,
         int indent, HashMap *map, boolean printChildren);
 static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
+// for provenance sketch
+static void outPSInfo(StringInfo str, psInfo *node);
+static void outPSAttrInfo(StringInfo str, psAttrInfo *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -1081,6 +1085,62 @@ outRPQQuery(StringInfo str, RPQQuery *node)
     WRITE_STRING_FIELD(resultRel);
 }
 
+
+static void
+outPSInfo(StringInfo str, psInfo *node)
+{
+    WRITE_NODE_TYPE(PSINFO);
+
+    WRITE_STRING_FIELD(psType);
+
+//    List *entryStrings = NIL;
+//    List *sortEntries = NIL;
+//
+//    appendStringInfo(str, "{");
+//
+//    // create list of serializations for each hash entry
+//    FOREACH_HASH_ENTRY(el, node->tablePSAttrInfos)
+//    {
+//        StringInfo hashStr = makeStringInfo();
+//        outNode(hashStr, el->key);
+//        appendStringInfoString(hashStr," => ");
+//
+//        List *l = (List *) el->value;
+//        FOREACH(psAttrInfo, psai, l)
+//        {
+//        		appendStringInfoString(hashStr," { ");
+//        		outPSAttrInfo(hashStr, psai);
+//        		appendStringInfoString(hashStr," } ");
+//        }
+//        entryStrings = appendToTailOfList(entryStrings, strdup(hashStr->data));
+//    }
+//
+//    // sort entries lexigraphically (deterministic output)
+//    sortEntries = sortList(entryStrings,
+//            (int (*) (const void *, const void *)) strCompare);
+//
+//    // append entries to output
+//    FOREACH(char,s,sortEntries)
+//    {
+//        appendStringInfoString(str,s);
+//        appendStringInfo(str, "%s", s_his_cell->next ? ", " : "");
+//    }
+//
+//    appendStringInfo(str, "}");
+    //WRITE_NODE_FIELD(tablePSAttrInfos);
+}
+
+
+static void
+outPSAttrInfo(StringInfo str, psAttrInfo *node)
+{
+    WRITE_NODE_TYPE(PSATTRINFO);
+
+    WRITE_STRING_FIELD(attrName);
+    WRITE_NODE_FIELD(rangeList);
+    WRITE_NODE_FIELD(BitVector);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1306,6 +1366,15 @@ outNode(StringInfo str, void *obj)
             case T_RPQQuery:
                 outRPQQuery(str, (RPQQuery *) obj);
                 break;
+
+            /* provenance sketch  */
+		    case T_psInfo:
+				outPSInfo(str, (psInfo *) obj);
+			    break;
+		    case T_psAttrInfo:
+				outPSAttrInfo(str, (psAttrInfo *) obj);
+			    break;
+
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);

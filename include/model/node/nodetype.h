@@ -101,7 +101,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 
     /* ddl */
     T_CreateTable,
-    T_AlterTable
+    T_AlterTable,
+
+	/* provenance sketch */
+	T_psInfo,
+	T_psAttrInfo
 );
 
 typedef struct Node{

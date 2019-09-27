@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
 #include "model/rpq/rpq_model.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 /* data structures for copying operator nodes */
 typedef struct OperatorMap
@@ -137,6 +138,10 @@ static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
 /* copy regex elements */
 static Regex *copyRegex(Regex *from, OperatorMap **opMap);
 static RPQQuery *copyRPQQuery(RPQQuery *from, OperatorMap **opMap);
+
+/* copy structure for provenance sketch */
+static psInfo *copyPSInfo(psInfo *from, OperatorMap **opMap);
+static psAttrInfo *copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -558,6 +563,30 @@ copySchema(Schema *from, OperatorMap **opMap)
     COPY_INIT(Schema);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(attrDefs);
+
+    return new;
+}
+
+static psInfo *
+copyPSInfo(psInfo *from, OperatorMap **opMap)
+{
+    COPY_INIT(psInfo);
+
+    COPY_STRING_FIELD(psType);
+    COPY_NODE_FIELD(tablePSAttrInfos);
+
+    return new;
+}
+
+
+static psAttrInfo *
+copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap)
+{
+    COPY_INIT(psAttrInfo);
+
+    COPY_STRING_FIELD(attrName);
+    COPY_NODE_FIELD(rangeList);
+    COPY_NODE_FIELD(BitVector);
 
     return new;
 }
@@ -1310,6 +1339,14 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_RPQQuery:
             retval = copyRPQQuery(from, opMap);
+            break;
+
+        /* provenance sketch */
+        case T_psInfo:
+            retval = copyPSInfo(from, opMap);
+            break;
+        case T_psAttrInfo:
+            retval = copyPSAttrInfo(from, opMap);
             break;
         default:
             retval = NULL;

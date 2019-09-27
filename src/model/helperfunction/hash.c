@@ -22,6 +22,7 @@
 #include "model/bitset/bitset.h"
 #include "model/list/list.h"
 #include "log/logger.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 // hash constants
 #define FNV_OFFSET ((uint64_t) 14695981039346656037U)
@@ -114,6 +115,10 @@ static uint64_t hashDLVar (uint64_t cur, DLVar *node);
 static uint64_t hashDLRule (uint64_t cur, DLRule *node);
 static uint64_t hashDLProgram (uint64_t cur, DLProgram *node);
 static uint64_t hashDLComparison (uint64_t cur, DLComparison *node);
+
+// hash structure for provenance sketch
+static uint64_t hashPSInfo (uint64_t cur, psInfo *node);
+static uint64_t hashPSAttrInfo (uint64_t cur, psAttrInfo *node);
 
 // hash function entry point
 static uint64_t hashValueInternal(uint64_t h, void *a);
@@ -914,6 +919,25 @@ hashDLComparison (uint64_t cur, DLComparison *node)
 }
 
 
+static uint64_t
+hashPSInfo (uint64_t cur, psInfo *node)
+{
+	HASH_STRING(psType);
+	HASH_NODE(tablePSAttrInfos);
+
+	HASH_RETURN();
+}
+
+
+static uint64_t
+hashPSAttrInfo (uint64_t cur, psAttrInfo *node)
+{
+	HASH_STRING(attrName);
+	HASH_NODE(rangeList);
+	HASH_NODE(BitVector);
+
+	HASH_RETURN();
+}
 
 
 /* generic hash function */
@@ -1055,6 +1079,12 @@ hashValueInternal(uint64_t h, void *a)
             return hashDLProgram(h, (DLProgram *) n);
         case T_DLComparison:
             return hashDLComparison(h, (DLComparison *) n);
+
+        /* provenance sketch */
+	    case T_psInfo:
+      		return hashPSInfo(h, (psInfo *)n );
+	    case T_psAttrInfo:
+      		return hashPSAttrInfo(h, (psAttrInfo *)n );
         default:
             FATAL_LOG("unknown node type");
             break;

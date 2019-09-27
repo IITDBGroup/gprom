@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "configuration/option.h"
+#include "model/node/nodetype.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/query_operator/query_operator.h"
@@ -60,7 +61,7 @@ addTopAggForCoarse (QueryOperator *op)
 
 
 void
-markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
+markTableAccessAndAggregation (QueryOperator *op, Node *psPara)
 {
 
       FOREACH(QueryOperator, o, op->inputs)
@@ -70,7 +71,7 @@ markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
                DEBUG_LOG("mark tableAccessOperator.");
 
                /* mark coarsePara info */
-               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, coarsePara);
+               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
 
            }
            if(isA(o,AggregationOperator))
@@ -80,52 +81,24 @@ markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
                //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
 
-           markTableAccessAndAggregation(o, coarsePara);
+           markTableAccessAndAggregation(o, psPara);
       }
 }
 
 void
-autoMarkTableAccessAndAggregation (QueryOperator *op, Node *coarsePara, HashMap *map)
+autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara)
 {
 
       FOREACH(QueryOperator, o, op->inputs)
       {
            if(isA(o,TableAccessOperator))
            {
-        	   	   TableAccessOperator *tableOp = (TableAccessOperator *) o;
-
+        	   	  // TableAccessOperator *tableOp = (TableAccessOperator *) o;
                DEBUG_LOG("mark tableAccessOperator.");
 
                /* mark coarsePara info */
-               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, coarsePara);
-
-               /*  auto-range */
-               int histSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
-               char *attrName = "";
-               if(hasMapStringKey(map, tableOp->tableName))
-               {
-            	   	   attrName = ((Constant *) getMapString(map, tableOp->tableName))->value;
-
-            	   	   List *hist = getHist(tableOp->tableName, attrName, histSize);
-            	   	   char *rangeString = getHeadOfListP(hist);
-            	   	   char *minValue = getNthOfListP(hist, 1);
-            	   	   char *maxValue = getNthOfListP(hist, 2);
-            	   	   int maxV = atoi(maxValue) + 1;
-
-            	   	   /* remove the first and the last and add the min and max (fix first and last) */
-            	   	   char *firstComma = strchr(rangeString, ',');
-            	   	   char *lastComma = strrchr(rangeString, ',');
-            	   	   char *subRangeString = (char *)calloc(1, lastComma - firstComma + 1);
-            	   	   strncpy(subRangeString, firstComma+1, lastComma-(firstComma+1));
-            	   	   DEBUG_LOG("subRangeString : %s", subRangeString);
-
-            	   	   StringInfo newRangeString = makeStringInfo();
-            	   	   appendStringInfo(newRangeString, "{%s,%s,%d}", minValue, subRangeString, maxV);
-            	   	   DEBUG_LOG("newRangeString : %s", newRangeString->data);
-
-            	   	   /* mark histogram */
-            	   	   SET_STRING_PROP(o, AUTO_HISTOGRAM_TABLEACCESS_MARK, createConstString(newRangeString->data));
-               }
+               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
+               //AUTO_HISTOGRAM_TABLEACCESS_MARK
            }
            if(isA(o,AggregationOperator))
            {
@@ -134,21 +107,20 @@ autoMarkTableAccessAndAggregation (QueryOperator *op, Node *coarsePara, HashMap 
                //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
 
-           autoMarkTableAccessAndAggregation(o, coarsePara, map);
+           autoMarkTableAccessAndAggregation(o, psPara);
       }
 }
 
 
 void
-markUseTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
+markUseTableAccessAndAggregation (QueryOperator *op, Node *psPara)
 {
-
       FOREACH(QueryOperator, o, op->inputs)
       {
            if(isA(o,TableAccessOperator))
            {
                DEBUG_LOG("mark use tableAccessOperator.");
-               SET_STRING_PROP(o, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK, coarsePara);
+               SET_STRING_PROP(o, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
            }
            if(isA(o,AggregationOperator))
            {
@@ -157,7 +129,7 @@ markUseTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
                SET_BOOL_STRING_PROP(o, USE_PROP_COARSE_GRAINED_AGGREGATION_MARK);
                //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
-           markUseTableAccessAndAggregation(o,coarsePara);
+           markUseTableAccessAndAggregation(o,psPara);
       }
 }
 
@@ -170,11 +142,11 @@ markAutoUseTableAccess (QueryOperator *op, HashMap *psMap)
       {
            if(isA(o,TableAccessOperator))
            {
-               DEBUG_NODE_LOG("QueryOperator :", o);
+        	   	   DEBUG_NODE_BEATIFY_LOG("QueryOperator :", (Node *) o);
                SET_STRING_PROP(o, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK, psMap);
            }
 
-           markAutoUseTableAccess(o,psMap);
+           markAutoUseTableAccess(o, psMap);
       }
 }
 
@@ -217,4 +189,110 @@ loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map)
 
 		loopMarkNumOfTableAccess(o, map);
 	}
+}
+
+psInfo*
+createPSInfo(Node *coarsePara)
+{
+	psInfo* result = makeNode(psInfo);
+	List *coarseParaList = (List *) coarsePara;
+
+	Constant *psType = (Constant *) getNthOfListP(coarseParaList, 0);
+	result->psType = STRING_VALUE(psType);
+
+	List *tablePSList = (List *) getNthOfListP(coarseParaList, 1);
+	HashMap *map =  NEW_MAP(Constant,Node);
+
+    FOREACH(KeyValue, tablesKV, tablePSList) //R-> [A 1,2,3,4 '101'] [B 1,2,3,4 '110'], S->......
+    {
+    		List *attrPSInfoList = NIL;
+    		char *tableName = STRING_VALUE(tablesKV->key); //R
+    		FOREACH(List, l, (List *) tablesKV->value) //[A 1,2,3,4 '101'] [B 1,2,3,4 '110']
+    		{
+    			psAttrInfo* curPSAI = createPSAttrInfo(l, tableName);
+    			attrPSInfoList = appendToTailOfList(attrPSInfoList, curPSAI);
+    		}
+    		MAP_ADD_STRING_KEY(map, tableName, (Node *) attrPSInfoList);
+    }
+    result->tablePSAttrInfos = map;
+
+    DEBUG_LOG("psInfo psType: %s", result->psType);
+    HashMap *testMap = result->tablePSAttrInfos;
+    List* listPSInfos = (List *) getMapString(testMap, "customer");
+    FOREACH(psAttrInfo, psif, listPSInfos)
+    {
+     	DEBUG_LOG("psInfo attrName: %s", psif->attrName);
+     	FOREACH(Constant, c, psif->rangeList)
+     	{
+     		if(c->constType == DT_INT)
+    				DEBUG_LOG("psInfo rangeList: %d", INT_VALUE(c));
+     		else if(c->constType == DT_STRING)
+     			DEBUG_LOG("psInfo rangeList: %s", STRING_VALUE(c));
+     	}
+     }
+
+
+	return result;
+}
+
+psAttrInfo*
+createPSAttrInfo(List *l, char *tableName)
+{
+	 psAttrInfo *result = NEW(psAttrInfo);
+
+	 Constant *attrName = (Constant *) getNthOfListP(l, 0);
+	 Constant *rangeList = (Constant *) getNthOfListP(l, 1);
+
+	 result->attrName = STRING_VALUE(attrName);
+	 result->rangeList = (List *) rangeList;
+	 if(LIST_LENGTH(result->rangeList) == 1)
+	 {
+		 int numRanges = INT_VALUE((Constant *) getNthOfListP(result->rangeList, 0));
+		 result->rangeList = getRangeList(numRanges, result->attrName, tableName);
+	 }
+
+	 if(LIST_LENGTH(l) == 3)
+	 {
+		 Constant *bitVector = (Constant *) getNthOfListP(l, 2);
+		 char *bitVectorStr = STRING_VALUE(bitVector);
+		 result->BitVector = stringToBitset(bitVectorStr);
+	 }
+	 else
+		 result->BitVector = NULL;
+
+	 return result;
+}
+
+List *
+getRangeList(int numRanges, char* attrName, char *tableName)
+{
+	List *result = NIL;
+	/*  auto-range */
+	List *hist = getHist(tableName, attrName, numRanges);
+	char *rangeString = getHeadOfListP(hist);
+	char *minValue = getNthOfListP(hist, 1);
+	char *maxValue = getNthOfListP(hist, 2);
+	int maxV = atoi(maxValue) + 1;
+
+	/* remove the first and the last and add the min and max (fix first and last) */
+	char *firstComma = strchr(rangeString, ',');
+	char *lastComma = strrchr(rangeString, ',');
+	char *subRangeString = (char *)calloc(1, lastComma - firstComma + 1);
+	strncpy(subRangeString, firstComma+1, lastComma-(firstComma+1));
+	DEBUG_LOG("subRangeString : %s", subRangeString);
+
+	StringInfo newRangeString = makeStringInfo();
+	appendStringInfo(newRangeString, "%s,%s,%d", minValue, subRangeString, maxV);
+	DEBUG_LOG("newRangeString : %s", newRangeString->data);
+
+
+	char *p =  strtok(strdup(newRangeString->data),",");
+	while (p!= NULL)
+	{
+	    result = appendToTailOfList(result, createConstString(p));
+	    DEBUG_LOG("p: %s", p);
+	    p = strtok (NULL, ",");
+	}
+
+	return result;
 }

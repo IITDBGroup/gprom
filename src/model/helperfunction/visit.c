@@ -18,6 +18,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 /*
  * Traverses a node tree and calls a user provided function for each node in
@@ -383,6 +384,23 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             PREP_VISIT(DLProgram);
             VISIT(rules);
             VISIT(facts);
+        }
+        break;
+
+        /* provenance sketch */
+        case T_psInfo:
+        {
+            PREP_VISIT(psInfo);
+            VISIT(psType);
+            VISIT(tablePSAttrInfos);
+        }
+        break;
+        case T_psAttrInfo:
+        {
+            PREP_VISIT(psAttrInfo);
+            VISIT(attrName);
+            VISIT(rangeList);
+            VISIT(BitVector);
         }
         break;
         default:
@@ -754,6 +772,22 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,facts);
             }
         break;
+        /* provenance sketch */
+        case T_psInfo:
+            {
+                NEWN(psInfo);
+
+                MUTATE(HashMap,tablePSAttrInfos);
+            }
+        break;
+        case T_psAttrInfo:
+            {
+                NEWN(psAttrInfo);
+
+                MUTATE(List,rangeList);
+                MUTATE(BitSet,BitVector);
+            }
+        break;
         default:
             break;
     }
@@ -1086,7 +1120,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 PREP_VISIT_P(LimitOperator);
                 VISIT_OPERATOR_FIELDS_P();
                 VISIT_P(limitExpr);
-				VISIT_P(offsetExpr);
+			    VISIT_P(offsetExpr);
             }
             break;
         case T_JsonTableOperator:
@@ -1094,6 +1128,21 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 PREP_VISIT_P(JsonTableOperator);
                 VISIT_OPERATOR_FIELDS_P();
                 VISIT_P(columns);
+            }
+            break;
+
+        case T_psInfo:
+            {
+                PREP_VISIT_P(psInfo);
+
+                VISIT_P(tablePSAttrInfos);
+            }
+            break;
+        case T_psAttrInfo:
+            {
+                PREP_VISIT_P(psAttrInfo);
+                VISIT_P(rangeList);
+                VISIT_P(BitVector);
             }
             break;
         default:

@@ -12,13 +12,37 @@
 #define INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_COARSE_GRAINED_REWRITE_H_
 
 #include "model/query_operator/query_operator.h"
+#include "model/bitset/bitset.h"
+
+typedef struct psInfo
+{
+	NodeTag type;
+    char    *psType;
+    HashMap *tablePSAttrInfos;
+} psInfo;
+
+typedef struct psAttrInfo
+{
+	NodeTag type;
+    char    *attrName;
+    List    *rangeList;
+    BitSet  *BitVector;
+} psAttrInfo;
 
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
-extern void autoMarkTableAccessAndAggregation (QueryOperator *op, Node *coarsePara, HashMap *map);
-extern void markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara);
-extern void markUseTableAccessAndAggregation (QueryOperator *op, Node *coarsePara);
+extern void autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara);
+extern void markTableAccessAndAggregation (QueryOperator *op, Node *psPara);
+extern void markUseTableAccessAndAggregation (QueryOperator *op, Node *psPara);
 extern void markNumOfTableAccess(QueryOperator *op);
 extern void markAutoUseTableAccess (QueryOperator *op, HashMap *psMap);
+extern psAttrInfo* createPSAttrInfo(List *l, char *tableName);
+extern psInfo* createPSInfo(Node *coarsePara);
+extern List *getRangeList(int numRanges, char* attrName, char *tableName);
+
+
+
+
+
 
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_COARSE_GRAINED_REWRITE_H_ */
