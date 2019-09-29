@@ -1812,6 +1812,10 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     if (asOf)
         op->asOf = copyObject(asOf);
 
+    int numTable = 0;
+    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
+
     psInfo* psPara = (psInfo*) GET_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
     HashMap *map = psPara->tablePSAttrInfos;
     DEBUG_LOG("provenance sketch type: %s", psPara->psType);
@@ -1843,7 +1847,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     			psAttrInfo *curPSAI = (psAttrInfo *) getNthOfListP(psAttrList, j);
     			AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(curPSAI->attrName));
 
-    			newAttrName = CONCAT_STRINGS("prov_", strdup(op->tableName), "_", strdup(curPSAI->attrName));
+    			newAttrName = CONCAT_STRINGS("prov_", strdup(op->tableName), "_", strdup(curPSAI->attrName), gprom_itoa(numTable));
     			provAttr = appendToTailOfList(provAttr, newAttrName);
 
     			if(getBoolOption(OPTION_PS_BINARY_SEARCH))
@@ -1937,7 +1941,7 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
         		if(getBoolOption(OPTION_PS_SET_BITS))
         			f = createFunctionCall ("set_bits", singleton(a));
         		else
-        			f = createFunctionCall ("bit_or", singleton(a));
+        			f = createFunctionCall ("fast_bit_or", singleton(a));
         }
         agg = appendToTailOfList(agg, f);
     }
@@ -2100,6 +2104,10 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         cnt++;
     }
 
+    int numTable = 0;
+    if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+    		numTable = INT_VALUE(GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK));
+
     psInfo* psPara = (psInfo*) GET_STRING_PROP(op, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK);
     HashMap *map = psPara->tablePSAttrInfos;
     List *psAttrList = (List *) getMapString(map, op->tableName);
@@ -2114,7 +2122,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 		{
 			psAttrInfo *curPSAI = (psAttrInfo *) getNthOfListP(psAttrList, j);
 
-			newAttrName = CONCAT_STRINGS("prov_", strdup(op->tableName), "_", strdup(curPSAI->attrName));
+			newAttrName = CONCAT_STRINGS("prov_", strdup(op->tableName), "_", strdup(curPSAI->attrName), gprom_itoa(numTable));
 			provAttr = appendToTailOfList(provAttr, newAttrName);
 
 			AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, curPSAI->attrName);

@@ -1097,6 +1097,8 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             || streq(opName,"^=")
             || streq(opName,"=")
             || streq(opName,"!=")
+			|| streq(opName,"like")
+		    || streq(opName,"LIKE")
                 )
     {
         //if (dLeft == dRight)
