@@ -1480,10 +1480,17 @@ serializeLimit(StringInfo str, LimitOperator *q)
 	if (q->offsetExpr)
 		offset = exprToSQL(q->offsetExpr);
 
+//	if (q->limitExpr && q->offsetExpr)
+//		appendStringInfo(str, "ROWNUM BETWEEN %s AND %s", limit, offset);
+//	else if (q->limitExpr)
+//		appendStringInfo(str, "ROWNUM <= %s", limit);
+//	else if (q->offsetExpr)
+//		appendStringInfo(str, "ROWNUM >= %s", offset);
+
 	if (q->limitExpr && q->offsetExpr)
 		appendStringInfo(str, "ROWNUM BETWEEN %s AND %s", limit, offset);
 	else if (q->limitExpr)
-		appendStringInfo(str, "ROWNUM <= %s", limit);
+		appendStringInfo(str, "LIMIT %s", limit);
 	else if (q->offsetExpr)
 		appendStringInfo(str, "ROWNUM >= %s", offset);
 }
