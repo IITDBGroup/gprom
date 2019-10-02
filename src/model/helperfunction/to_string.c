@@ -1092,42 +1092,7 @@ outPSInfo(StringInfo str, psInfo *node)
     WRITE_NODE_TYPE(PSINFO);
 
     WRITE_STRING_FIELD(psType);
-
-//    List *entryStrings = NIL;
-//    List *sortEntries = NIL;
-//
-//    appendStringInfo(str, "{");
-//
-//    // create list of serializations for each hash entry
-//    FOREACH_HASH_ENTRY(el, node->tablePSAttrInfos)
-//    {
-//        StringInfo hashStr = makeStringInfo();
-//        outNode(hashStr, el->key);
-//        appendStringInfoString(hashStr," => ");
-//
-//        List *l = (List *) el->value;
-//        FOREACH(psAttrInfo, psai, l)
-//        {
-//        		appendStringInfoString(hashStr," { ");
-//        		outPSAttrInfo(hashStr, psai);
-//        		appendStringInfoString(hashStr," } ");
-//        }
-//        entryStrings = appendToTailOfList(entryStrings, strdup(hashStr->data));
-//    }
-//
-//    // sort entries lexigraphically (deterministic output)
-//    sortEntries = sortList(entryStrings,
-//            (int (*) (const void *, const void *)) strCompare);
-//
-//    // append entries to output
-//    FOREACH(char,s,sortEntries)
-//    {
-//        appendStringInfoString(str,s);
-//        appendStringInfo(str, "%s", s_his_cell->next ? ", " : "");
-//    }
-//
-//    appendStringInfo(str, "}");
-    //WRITE_NODE_FIELD(tablePSAttrInfos);
+    WRITE_NODE_FIELD(tablePSAttrInfos);
 }
 
 

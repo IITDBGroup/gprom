@@ -238,7 +238,7 @@ createPSInfo(Node *coarsePara)
 psAttrInfo*
 createPSAttrInfo(List *l, char *tableName)
 {
-	 psAttrInfo *result = NEW(psAttrInfo);
+	 psAttrInfo *result = makeNode(psAttrInfo);
 
 	 Constant *attrName = (Constant *) getNthOfListP(l, 0);
 	 Constant *rangeList = (Constant *) getNthOfListP(l, 1);
