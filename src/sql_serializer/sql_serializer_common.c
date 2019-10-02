@@ -514,11 +514,8 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 void
 genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs, SerializeClausesAPI *api)
 {
-	if(isA(q->cond, Operator) && isA(getHeadOfListP(((Operator *) q->cond)->args), RowNumExpr))
-		appendStringInfoString(where, "\nLIMIT ");
-	else
-		appendStringInfoString(where, "\nWHERE ");
 
+	appendStringInfoString(where, "\nWHERE ");
 	updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
     appendStringInfoString(where, exprToSQL(q->cond));
 }

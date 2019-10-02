@@ -233,12 +233,9 @@ operatorToSQL (StringInfo str, Operator *node)
 
         FOREACH(Node,arg,node->args)
         {
-        		if(!isA(arg,RowNumExpr))
-        		{
-        			exprToSQLString(str,arg);
-        			if(arg_his_cell != node->args->tail)
-        				appendStringInfo(str, " %s ", node->name);
-        		}
+        		exprToSQLString(str,arg);
+        		if(arg_his_cell != node->args->tail)
+        			appendStringInfo(str, " %s ", node->name);
         }
         if(getBoolOption(OPTION_PS_USE_BRIN_OP) && (streq(node->name,"<@")))
         	 	 appendStringInfoString(str, "::int[]");

@@ -39,6 +39,7 @@
     } while(0)
 
 static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
+static QueryOperator *rewritePI_CSLimit (LimitOperator *op);
 static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
 static QueryOperator *rewritePI_CSProjection (ProjectionOperator *op);
 static QueryOperator *rewritePI_CSJoin (JoinOperator *op);
@@ -174,6 +175,10 @@ rewritePI_CSOperator (QueryOperator *op)
     }
     switch(op->type)
     {
+    		case T_LimitOperator:
+    			DEBUG_LOG("go limit");
+    			rewrittenOp = rewritePI_CSLimit((LimitOperator *) op);
+        break;
         case T_SelectionOperator:
             DEBUG_LOG("go selection");
             rewrittenOp = rewritePI_CSSelection((SelectionOperator *) op);
@@ -618,6 +623,28 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 //        return op;
 //    }
 }
+
+static QueryOperator *
+rewritePI_CSLimit (LimitOperator *op)
+{
+    ASSERT(OP_LCHILD(op));
+
+    DEBUG_LOG("REWRITE-PICS - Limit");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
+
+    // rewrite child first
+    rewritePI_CSOperator(OP_LCHILD(op));
+
+    // adapt schema
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+
+    LOG_RESULT("Rewritten Operator tree", op);
+    return (QueryOperator *) op;
+}
+
 
 static QueryOperator *
 rewritePI_CSSelection (SelectionOperator *op)
