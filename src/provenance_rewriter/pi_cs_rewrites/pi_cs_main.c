@@ -1882,7 +1882,16 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     				//case -> binary search
     				char *bsArray = getBinarySearchArryList(curPSAI->rangeList);
     				bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(createConstString(bsArray),copyObject(pAttr)));
-    				projExpr = appendToTailOfList(projExpr, bsfc);
+    				if(getBoolOption(OPTION_PS_SET_BITS))
+    				{
+    					projExpr = appendToTailOfList(projExpr, bsfc);
+    				}
+    				else
+    				{
+    					CastExpr *c = createCastExprOtherDT((Node *) createConstString("0"), "bit", LIST_LENGTH(curPSAI->rangeList)-1);
+    					FunctionCall *setBit = createFunctionCall("set_bit", LIST_MAKE(c, bsfc));
+    					projExpr = appendToTailOfList(projExpr, setBit);
+    				}
     			}
     			else
     			{
@@ -1966,11 +1975,17 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
         else if(getBackend() == BACKEND_POSTGRES)
         {
         		if(getBoolOption(OPTION_PS_SET_BITS))
+        		{
         			f = createFunctionCall ("set_bits", singleton(a));
+        			CastExpr *c = createCastExprOtherDT((Node *) f, "bit", 9);
+        			agg = appendToTailOfList(agg, c);
+        		}
         		else
+        		{
         			f = createFunctionCall ("fast_bit_or", singleton(a));
+        			agg = appendToTailOfList(agg, f);
+        		}
         }
-        agg = appendToTailOfList(agg, f);
     }
     //finish adapt schema (adapt provattrs)
     ((QueryOperator *) op)->provAttrs = newProvAttrs;

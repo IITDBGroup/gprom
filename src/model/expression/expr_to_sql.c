@@ -104,10 +104,6 @@ xmlConstantToSQL (StringInfo str, Node *node)
 static void
 functionCallToSQL (StringInfo str, FunctionCall *node)
 {
-	int bitVectorSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
-    if (streq(node->functionname, "binary_search_array_pos") && !getBoolOption(OPTION_PS_SET_BITS))
-    			appendStringInfo(str,"set_bit(0::bit(%d),",bitVectorSize);
-
     int flag = 0;
     if (streq(node->functionname, "AGG_STRAGG"))
     {
@@ -167,16 +163,15 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
         //    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
         //    	exprToSQLString(str, entity);
     }
-    if (streq(node->functionname, "bit_or") || streq(node->functionname, "set_bits"))
-    		appendStringInfo(str,"::bit(%d)",bitVectorSize);
+
+    if (streq(node->functionname, "set_bit"))
+		appendStringInfoString(str,", 1");
+
     appendStringInfoString(str,")");
+
     if (streq(node->functionname, "binary_search_array_pos"))
-    {
-    		if(getBoolOption(OPTION_PS_SET_BITS))
-    			appendStringInfoString(str,"- 1");
-    		else
-    			appendStringInfoString(str,"- 1,1 )");
-    }
+    		appendStringInfoString(str," - 1");
+
 
     /*	int flag = 0;
 	if (streq(node->functionname, "AGG_STRAGG"))
@@ -405,7 +400,10 @@ castExprToSQL(StringInfo str, CastExpr *c)
             appendStringInfoString(str, "(");
             exprToSQLString(str, c->expr);
             appendStringInfoString(str, ")::");
-            dataTypeToSQL(str, c->resultDT);
+            if(streq(c->otherDT, "bit"))
+            		appendStringInfo(str, "%s(%d)", c->otherDT, c->num);
+            else
+            		dataTypeToSQL(str, c->resultDT);
         }
         break;
         default:

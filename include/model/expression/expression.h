@@ -126,6 +126,8 @@ typedef struct CastExpr {
     NodeTag type;
     DataType resultDT;
     Node *expr;
+    char *otherDT;
+    int num;
 } CastExpr;
 
 NEW_ENUM_WITH_TO_STRING(SortOrder,
@@ -182,6 +184,7 @@ extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
 extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
+extern CastExpr *createCastExprOtherDT (Node *expr, char* otherDT, int num);
 extern Node *concatExprList (List *exprs);
 extern Node *andExprList (List *exprs);
 extern Node *orExprList (List *exprs);

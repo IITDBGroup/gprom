@@ -340,6 +340,8 @@ equalCastExpr (CastExpr *a, CastExpr *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_SCALAR_FIELD(resultDT);
     COMPARE_NODE_FIELD(expr);
+    COMPARE_STRING_FIELD(otherDT);
+    COMPARE_SCALAR_FIELD(num);
 
     return TRUE;
 }

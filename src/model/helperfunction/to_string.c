@@ -750,6 +750,9 @@ outCastExpr (StringInfo str, CastExpr *node)
 
     WRITE_ENUM_FIELD(resultDT,DataType);
     WRITE_NODE_FIELD(expr);
+    WRITE_STRING_FIELD(otherDT);
+    WRITE_INT_FIELD(num);
+
 }
 
 static void

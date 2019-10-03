@@ -106,6 +106,21 @@ createCastExpr (Node *expr, DataType resultDt)
 
     result->expr = expr;
     result->resultDT = resultDt;
+    result->otherDT = NULL;
+    result->num = -1;
+
+    return result;
+}
+
+CastExpr *
+createCastExprOtherDT (Node *expr, char* otherDT, int num)
+{
+    CastExpr *result = makeNode(CastExpr);
+
+    result->expr = expr;
+    result->resultDT = -1;
+    result->otherDT = otherDT;
+    result->num = num;
 
     return result;
 }

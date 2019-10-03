@@ -43,9 +43,22 @@ addTopAggForCoarse (QueryOperator *op)
         if(getBackend() == BACKEND_ORACLE)
         		f = createFunctionCall ("BITORAGG", singleton(a));
         else if(getBackend() == BACKEND_POSTGRES)
-        		f = createFunctionCall ("bit_or", singleton(a));
+        {
+        		if(getBoolOption(OPTION_PS_SET_BITS))
+        		{
+        			f = createFunctionCall ("set_bits", singleton(a));
+        			CastExpr *c = createCastExprOtherDT((Node *) f, "bit", 9);
+        			projExpr = appendToTailOfList(projExpr, c);
+        		}
+        		else
+        		{
+        			f = createFunctionCall ("fast_bit_or", singleton(a));
+        			projExpr = appendToTailOfList(projExpr, f);
+        		}
+        }
+
         //FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
-        projExpr = appendToTailOfList(projExpr, f);
+        //projExpr = appendToTailOfList(projExpr, f);
         cnt ++;
     }
 

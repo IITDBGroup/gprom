@@ -543,6 +543,8 @@ copyCastExpr(CastExpr *from, OperatorMap **opMap)
 
     COPY_SCALAR_FIELD(resultDT);
     COPY_NODE_FIELD(expr);
+    COPY_STRING_FIELD(otherDT);
+    COPY_SCALAR_FIELD(num);
 
     return new;
 }

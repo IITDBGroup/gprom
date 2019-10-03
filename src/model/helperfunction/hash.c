@@ -468,6 +468,9 @@ hashCastExpr (uint64_t cur, CastExpr *node)
     HASH_INT(resultDT);
     HASH_NODE(expr);
 
+    HASH_STRING(otherDT);
+    HASH_INT(num);
+
     HASH_RETURN();
 }
 
