@@ -1,12 +1,12 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_postgres.c
- *			  
+ *
  *		- Catalog lookup for postgres database
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -46,8 +46,11 @@
             "return; " \
         "end; $$ language plpgsql;"
 
-#define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM " \
-        "(SELECT (regexp_match(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
+// we have to use syntax that works a reasonable range of postgres versions
+#define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
+	    "(SELECT regexp_split_to_array(substring(version() from 'PostgreSQL ([0-9]+[.][0-9]+)'), '[.]') AS version) getv;"
+//#define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM " \
+//        "(SELECT (regexp_match(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
 
 #define NAME_EXPLAIN_FUNC_EXISTS "GProM_CheckExplainFunctionExists"
 #define PARAMS_EXPLAIN_FUNC_EXISTS 0
@@ -97,7 +100,7 @@
 
 #define NAME_IS_WIN_FUNC "GPRoM_IsWinFunc"
 #define PARAMS_IS_WIN_FUNC 1
-#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswin) is_win FROM pg_proc " \
+#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswindow) is_win FROM pg_proc " \
         "WHERE proname = $1::text;"
 
 #define NAME_IS_AGG_FUNC "GPRoM_IsAggFunc"
@@ -419,13 +422,17 @@ prepareLookupQueries(void)
     PQclear(res);
 
     // create explain function
-    if (!funcExists)
+    if (!funcExists && plugin->serverMajorVersion >= 9)
     {
         execStmt(CREATE_EXPLAIN_FUNC);
     }
 
     // prepare other queries used for metadata lookup
-    PREP_QUERY(QUERY_GET_COST);
+	// postgres 8 or older does not support JSON explain output we use to extract query cost
+	if (plugin->serverMajorVersion >= 9)
+	{
+		PREP_QUERY(QUERY_GET_COST);
+	}
     PREP_QUERY(TABLE_GET_ATTRS);
     PREP_QUERY(TABLE_EXISTS);
     PREP_QUERY(VIEW_GET_ATTRS);
@@ -889,6 +896,12 @@ postgresGetCostEstimation(char *query)
 {
     PGresult *res = NULL;
     int cost = 0;
+
+	if (plugin->serverMajorVersion <= 8)
+	{
+		THROW(SEVERITY_RECOVERABLE, "postgres server major version is %d, but JSON output for explain is only support in version 9+!");
+	}
+
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_QUERY_GET_COST, singleton(createConstString(query)));
@@ -1352,4 +1365,3 @@ postgresExecuteQueryIgnoreResult (char *query)
 }
 
 #endif
-

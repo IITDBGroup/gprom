@@ -20,7 +20,7 @@
 Node *hiveParseResult = NULL;
 %}
 
-%name-prefix "hive"
+%define api.prefix {hive}
 
 %union {
     /* 

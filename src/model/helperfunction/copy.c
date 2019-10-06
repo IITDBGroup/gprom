@@ -95,6 +95,7 @@ static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMa
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
 static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
 static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
+static LimitOperator *copyLimitOperator(LimitOperator *from, OperatorMap **opMap);
 static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
 static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap ** opMap);
 
@@ -741,6 +742,19 @@ copyOrderOperator(OrderOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static LimitOperator *
+copyLimitOperator(LimitOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(LimitOperator);
+    COPY_OPERATOR();
+
+    COPY_NODE_FIELD(limitExpr);
+    COPY_NODE_FIELD(offsetExpr);
+
+    return new;
+}
+
+
 static JsonColInfoItem *
 copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
 {
@@ -784,6 +798,7 @@ copyQueryBlock(QueryBlock *from, OperatorMap **opMap)
     COPY_NODE_FIELD(havingClause);
     COPY_NODE_FIELD(orderByClause);
     COPY_NODE_FIELD(limitClause);
+    COPY_NODE_FIELD(offsetClause);
 
     return new;
 }
@@ -1226,12 +1241,15 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderOperator:
             retval = copyOrderOperator(from, opMap);
             break;
+	    case T_LimitOperator:
+            retval = copyLimitOperator(from, opMap);
+			break;
         case T_FromJsonTable:
             retval = copyFromJsonTable(from, opMap);
             break;
         case T_JsonColInfoItem:
-	    retval = copyJsonColInfoItem(from, opMap);
-	    break;
+			retval = copyJsonColInfoItem(from, opMap);
+			break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);

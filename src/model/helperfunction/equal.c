@@ -71,6 +71,7 @@ static boolean equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b, H
 static boolean equalNestingOperator(NestingOperator *a, NestingOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalWindowOperator(WindowOperator *a, WindowOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalOrderOperator(OrderOperator *a, OrderOperator *b, HashMap *seenOps, MemContext *c);
+static boolean equalLimitOperator(LimitOperator *a, LimitOperator *b, HashMap *seenOps, MemContext *c);
 
 // Json
 static boolean equalFromJsonTable(FromJsonTable *a, FromJsonTable *b, HashMap *seenOps, MemContext *c);
@@ -791,6 +792,15 @@ equalOrderOperator(OrderOperator *a, OrderOperator *b, HashMap *seenOps, MemCont
     return TRUE;
 }
 
+static boolean
+equalLimitOperator(LimitOperator *a, LimitOperator *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_QUERY_OP();
+	COMPARE_NODE_FIELD(limitExpr);
+	COMPARE_NODE_FIELD(offsetExpr);
+
+	return TRUE;
+}
 
 static boolean
 equalFromJsonTable(FromJsonTable *a, FromJsonTable *b, HashMap *seenOps, MemContext *c)
@@ -853,6 +863,7 @@ equalQueryBlock(QueryBlock *a, QueryBlock *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(havingClause);
     COMPARE_NODE_FIELD(orderByClause);
     COMPARE_NODE_FIELD(limitClause);
+    COMPARE_NODE_FIELD(offsetClause);
 
     return TRUE;
 }
@@ -1276,6 +1287,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_OrderOperator:
             retval = equalOrderOperator(a,b, seenOps, c);
+            break;
+        case T_LimitOperator:
+            retval = equalLimitOperator(a,b, seenOps, c);
             break;
         case T_FromJsonTable:
             retval = equalFromJsonTable(a,b, seenOps, c);

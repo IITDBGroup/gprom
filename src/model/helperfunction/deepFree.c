@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * deepFree.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -52,6 +52,8 @@ static void freeJoinOperator (JoinOperator *node);
 static void freeDuplicateRemoval (DuplicateRemoval *node);
 static void freeSetOperator (SetOperator *node);
 static void freeTableAccessOperator (TableAccessOperator *node);
+static void freeOrderOperator (OrderOperator *node);
+static void freeLimitOperator (LimitOperator *node);
 
 /* definitions */
 static void
@@ -132,6 +134,8 @@ freeQueryBlock (QueryBlock * node)
     FREE_NODE_FIELD(distinct);
     FREE_NODE_FIELD(fromClause);
     FREE_NODE_FIELD(whereClause);
+	FREE_NODE_FIELD(limitClause);
+	FREE_NODE_FIELD(offsetClause);
 
     FINISH_FREE();
 }
@@ -237,6 +241,28 @@ freeTableAccessOperator (TableAccessOperator *node)
     FINISH_FREE();
 }
 
+static void
+freeOrderOperator (OrderOperator *node)
+{
+	FREE_OPERATOR();
+
+	FREE_NODE_FIELD(orderExprs);
+
+	FINISH_FREE();
+}
+
+static void
+freeLimitOperator (LimitOperator *node)
+{
+	FREE_OPERATOR();
+
+	FREE_NODE_FIELD(limitExpr);
+	FREE_NODE_FIELD(offsetExpr);
+
+	FINISH_FREE();
+}
+
+
 /* frees a node and all of its children */
 void
 deepFree (void *a)
@@ -315,7 +341,13 @@ deepFree (void *a)
         case T_DuplicateRemoval:
             freeDuplicateRemoval((DuplicateRemoval *) node);
             break;
-        /* error case */
+	    case T_OrderOperator:
+			freeOrderOperator((OrderOperator *) node);
+			break;
+	    case T_LimitOperator:
+			freeLimitOperator((LimitOperator *) node);
+			break;
+		/* error case */
         case T_Invalid:
         default:
             ERROR_LOG("cannot free invalid node type");
