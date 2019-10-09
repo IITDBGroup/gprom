@@ -25,6 +25,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 
 static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
+#define MAX_NUM_RANGE 10000
 
 QueryOperator *
 addTopAggForCoarse (QueryOperator *op)
@@ -261,6 +262,7 @@ createPSAttrInfo(List *l, char *tableName)
 	 if(LIST_LENGTH(result->rangeList) == 1)
 	 {
 		 int numRanges = INT_VALUE((Constant *) getNthOfListP(result->rangeList, 0));
+		 DEBUG_LOG("test numRanges: %d", numRanges);
 		 result->rangeList = getRangeList(numRanges, result->attrName, tableName);
 	 }
 
@@ -288,16 +290,17 @@ getRangeList(int numRanges, char* attrName, char *tableName)
 	int maxV = atoi(maxValue) + 1;
 
 	/* remove the first and the last and add the min and max (fix first and last) */
-	char *firstComma = strchr(rangeString, ',');
-	char *lastComma = strrchr(rangeString, ',');
-	char *subRangeString = (char *)calloc(1, lastComma - firstComma + 1);
+	/* e.g., 1,2,3,4,5,...,9999,10000 */
+	char *firstComma = strchr(rangeString, ',');  //,2,3,4,5,...,10000
+	char *lastComma = strrchr(rangeString, ',');	 // ,10000
+
+	char *subRangeString =(char *)calloc(1, lastComma - firstComma + 1);
 	strncpy(subRangeString, firstComma+1, lastComma-(firstComma+1));
-	DEBUG_LOG("subRangeString : %s", subRangeString);
+	DEBUG_LOG("subRangeString : %s", subRangeString); //2,3,4,5,...,9999
 
 	StringInfo newRangeString = makeStringInfo();
 	appendStringInfo(newRangeString, "%s,%s,%d", minValue, subRangeString, maxV);
 	DEBUG_LOG("newRangeString : %s", newRangeString->data);
-
 
 	char *p =  strtok(strdup(newRangeString->data),",");
 	while (p!= NULL)
@@ -306,6 +309,57 @@ getRangeList(int numRanges, char* attrName, char *tableName)
 	    DEBUG_LOG("p: %s", p);
 	    p = strtok (NULL, ",");
 	}
+
+	/* revise:  if only 10000 tuples (9999 ranges) but request 10000 range */
+	/* e.g., 1,2,...,9999,10001 ->  1,2,...,9999,10000,10001*/
+//	if(LIST_LENGTH(result) < numRanges+1)
+//	{
+//		Node *curLast = getTailOfListP(result);
+//		result = removeFromTail(result);
+//		result = appendToTailOfList(result, createConstString(maxValue));
+//		result = appendToTailOfList(result, curLast);
+//	}
+
+	DEBUG_LOG("numRanges %d, MAX_NUM_RANGE: %d", numRanges,LIST_LENGTH(result));
+    if(numRanges > MAX_NUM_RANGE && LIST_LENGTH(result) == MAX_NUM_RANGE+1)
+    {
+    	    int numPerRange = numRanges/MAX_NUM_RANGE;
+    		List *largeResult = NIL;
+    		for(int i=0; i<MAX_NUM_RANGE; i++)
+    		{
+    			int l = atoi(STRING_VALUE((Constant *) getNthOfListP(result, i)));
+    			int r = atoi(STRING_VALUE((Constant *) getNthOfListP(result, i+1)));
+
+    			if(l == r)
+    			{
+    				largeResult = appendToTailOfList(largeResult, createConstInt(l));
+    				continue;
+    			}
+
+    			int intervalLen = (r-l)/numPerRange;
+    			if(r-l < numPerRange)
+    			{
+    				numPerRange = r-l;
+    				intervalLen = 1;
+    			}
+
+    			largeResult = appendToTailOfList(largeResult, createConstInt(l));
+    			int next = l;
+    			DEBUG_LOG("range begin: %d",l);
+    			for(int j=1; j<numPerRange; j++)
+    			{
+    				next = next + intervalLen;
+    				largeResult = appendToTailOfList(largeResult, createConstInt(next));
+    				DEBUG_LOG("range middle: %d",next);
+    			}
+    			numPerRange = numRanges/MAX_NUM_RANGE;
+    		}
+
+    		int last = atoi(STRING_VALUE((Constant *) getTailOfListP(result)));
+		largeResult = appendToTailOfList(largeResult, createConstInt(last));
+		DEBUG_LOG("range end: %d",last);
+    		return largeResult;
+    }
 
 	return result;
 }
