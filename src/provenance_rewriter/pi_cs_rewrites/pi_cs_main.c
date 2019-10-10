@@ -2185,10 +2185,12 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 			StringInfo brins = makeStringInfo();
 			appendStringInfoString(brins,"{");
 
+			int psSize = 0;
 			for(int i=0; i<curPSAI->BitVector->length; i++)
 			{
 				if(isBitSet(curPSAI->BitVector, i))
 				{
+					psSize ++;
 					if(isBitSet(curPSAI->BitVector, i+1))
 					{
 						hh++;
@@ -2221,6 +2223,8 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 				ll = i+1;
 				hh = i+2;
 			}
+
+			WARN_LOG("psSize %s: %d", newAttrName, psSize);
 
 			Node *curCond = NULL;
 			if(getBoolOption(OPTION_PS_USE_BRIN_OP))
