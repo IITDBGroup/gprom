@@ -88,8 +88,8 @@ rewritePI_CS (ProvenanceComputation  *op)
     DEBUG_NODE_BEATIFY_LOG("*************************************\nREWRITE INPUT\n"
             "******************************\n", op);
 
-    //mark the number of table - used in provenance scratch
-    markNumOfTableAccess((QueryOperator *) op);
+//    //mark the number of table - used in provenance scratch
+//    markNumOfTableAccess((QueryOperator *) op);
 
     QueryOperator *rewRoot = OP_LCHILD(op);
     DEBUG_NODE_BEATIFY_LOG("rewRoot is:", rewRoot);
@@ -1882,16 +1882,16 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     				//case -> binary search
     				char *bsArray = getBinarySearchArryList(curPSAI->rangeList);
     				bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(createConstString(bsArray),copyObject(pAttr)));
-    				if(getBoolOption(OPTION_PS_SET_BITS))
-    				{
+//    				if(getBoolOption(OPTION_PS_SET_BITS))
+//    				{
     					projExpr = appendToTailOfList(projExpr, bsfc);
-    				}
-    				else
-    				{
-    					CastExpr *c = createCastExprOtherDT((Node *) createConstString("0"), "bit", LIST_LENGTH(curPSAI->rangeList)-1);
-    					FunctionCall *setBit = createFunctionCall("set_bit", LIST_MAKE(c, bsfc));
-    					projExpr = appendToTailOfList(projExpr, setBit);
-    				}
+//    				}
+//    				else
+//    				{
+//    					CastExpr *c = createCastExprOtherDT((Node *) createConstString("0"), "bit", LIST_LENGTH(curPSAI->rangeList)-1);
+//    					FunctionCall *setBit = createFunctionCall("set_bit", LIST_MAKE(c, bsfc));
+//    					projExpr = appendToTailOfList(projExpr, setBit);
+//    				}
     			}
     			else
     			{
@@ -1966,18 +1966,24 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
     }
 
     //finish add new aggattr
+    HashMap *map	 = (HashMap *) GET_STRING_PROP(op, PROP_LEVEL_AGGREGATION_MARK);
     FOREACH(char, c, provList)
     {
+    		List *levelandNumFrags =  (List *) getMapString(map, c);
+    		int level =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0));
+    		int numFrags =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 1));
         AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), c);
         FunctionCall *f = NULL;
         if(getBackend() == BACKEND_ORACLE)
         		f = createFunctionCall ("BITORAGG", singleton(a));
         else if(getBackend() == BACKEND_POSTGRES)
         {
-        		if(getBoolOption(OPTION_PS_SET_BITS))
+
+        		//if(getBoolOption(OPTION_PS_SET_BITS))
+        		if(level == 1)
         		{
         			f = createFunctionCall ("set_bits", singleton(a));
-        			CastExpr *c = createCastExprOtherDT((Node *) f, "bit", 9);
+        			CastExpr *c = createCastExprOtherDT((Node *) f, "bit", numFrags);
         			agg = appendToTailOfList(agg, c);
         		}
         		else

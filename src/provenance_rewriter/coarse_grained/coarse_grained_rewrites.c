@@ -36,8 +36,12 @@ addTopAggForCoarse (QueryOperator *op)
     List *provPosList = NIL;
 //    List *opParents = op->parents;
 
+    HashMap *map	 = (HashMap *) GET_STRING_PROP(op, PROP_LEVEL_AGGREGATION_MARK);
     FOREACH(char, c, provAttr)
     {
+        List *levelandNumFrags =  (List *) getMapString(map, c);
+        int level =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0));
+        int numFrags =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 1));
         provPosList = appendToTailOfListInt(provPosList, cnt);
         AttributeReference *a = createAttrsRefByName(op, c);
         FunctionCall *f = NULL;
@@ -45,10 +49,11 @@ addTopAggForCoarse (QueryOperator *op)
         		f = createFunctionCall ("BITORAGG", singleton(a));
         else if(getBackend() == BACKEND_POSTGRES)
         {
-        		if(getBoolOption(OPTION_PS_SET_BITS))
+        		//if(getBoolOption(OPTION_PS_SET_BITS))
+        		if(level == 0)
         		{
         			f = createFunctionCall ("set_bits", singleton(a));
-        			CastExpr *c = createCastExprOtherDT((Node *) f, "bit", 9);
+        			CastExpr *c = createCastExprOtherDT((Node *) f, "bit", numFrags);
         			projExpr = appendToTailOfList(projExpr, c);
         		}
         		else
@@ -162,6 +167,110 @@ markAutoUseTableAccess (QueryOperator *op, HashMap *psMap)
 
            markAutoUseTableAccess(o, psMap);
       }
+}
+
+
+//void
+//propagateLevelAggregation(QueryOperator *op)
+//{
+//	//R -> 1, S-> 1....
+//	HashMap *map = NEW_MAP(Constant,Node);
+//	bottomUpPropagateNumAggregation(op);
+//}
+
+void
+bottomUpPropagateLevelAggregation(QueryOperator *op, psInfo *psPara)
+{
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		bottomUpPropagateLevelAggregation(o, psPara);
+
+		if(isA(o, TableAccessOperator))
+		{
+			HashMap *map = NEW_MAP(Constant,Node);
+			TableAccessOperator *tbOp = (TableAccessOperator *) o;
+			DEBUG_LOG("table-> %s", tbOp->tableName);
+			/*propagate map: prov_R_A1 -> (level of agg, num of fragments)*/
+
+			/*get num of table for ps attr*/
+			int numTable = 0;
+		    if(HAS_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK))
+		    		numTable = INT_VALUE(GET_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK));
+
+
+		    /*get psInfo -> attrName and num of fragments*/
+			//psInfo* psPara = (psInfo*) GET_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+			if(hasMapStringKey((HashMap *) psPara->tablePSAttrInfos, tbOp->tableName))
+			{
+				List *psAttrList = (List *) getMapString(psPara->tablePSAttrInfos, tbOp->tableName);
+
+				for(int j=0; j<LIST_LENGTH(psAttrList); j++)
+				{
+					psAttrInfo *curPSAI = (psAttrInfo *) getNthOfListP(psAttrList, j);
+					int numFragments = LIST_LENGTH(curPSAI->rangeList);
+					char *newAttrName = CONCAT_STRINGS(  "prov_",
+														strdup(tbOp->tableName),
+														"_",
+														strdup(curPSAI->attrName),
+														gprom_itoa(numTable));
+
+					List *vl = LIST_MAKE(createConstInt(0), createConstInt(numFragments-1));
+					MAP_ADD_STRING_KEY(map, newAttrName, (Node *) vl);
+					DEBUG_LOG("tableAccess mark map: %s -> count: %d, numFragments: %d", newAttrName, 0, numFragments-1);
+
+				}
+			}
+			SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, map);
+		}
+		else if(LIST_LENGTH(o->inputs) > 1)
+		{
+			DEBUG_LOG("table-> more childrens");
+			HashMap *newMap = NEW_MAP(Constant,Node);
+			FOREACH(Operator, child, o->inputs)
+			{
+				HashMap *map = (HashMap *) GET_STRING_PROP(child, PROP_LEVEL_AGGREGATION_MARK);
+				FOREACH_HASH_ENTRY(kv, map)
+				{
+					Constant *k = (Constant *) kv->key;
+					List *v = (List *) kv->value;
+					Constant *firstV = (Constant *) getNthOfListP(v, 0);
+					Constant *secondV = (Constant *) getNthOfListP(v, 1);
+					List* newV = LIST_MAKE(createConstInt(INT_VALUE(firstV)), createConstInt(INT_VALUE(secondV)));
+					MAP_ADD_STRING_KEY(newMap, strdup(STRING_VALUE(k)), (Node *) newV);
+					DEBUG_LOG("join mark map: %s -> count: %d, numFragments: %d", STRING_VALUE(k), INT_VALUE(firstV), INT_VALUE(secondV));
+				}
+			}
+			SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, newMap);
+		}
+		else
+		{
+			DEBUG_LOG("table-> one child");
+			QueryOperator *child = (QueryOperator *) getNthOfListP(o->inputs, 0);
+			HashMap *map = (HashMap *) GET_STRING_PROP(child, PROP_LEVEL_AGGREGATION_MARK);
+			HashMap *newMap = NEW_MAP(Constant,Node);
+			if(isA(o, AggregationOperator))
+			{
+				DEBUG_LOG("table-> aggregation");
+				FOREACH_HASH_ENTRY(kv, map)
+				{
+					Constant *k = (Constant *) kv->key;
+					List *v = (List *) kv->value;
+					Constant *firstV = (Constant *) getNthOfListP(v, 0);
+					Constant *secondV = (Constant *) getNthOfListP(v, 1);
+					List* newV = LIST_MAKE(createConstInt(INT_VALUE(firstV) + 1), createConstInt(INT_VALUE(secondV)));
+					MAP_ADD_STRING_KEY(newMap, strdup(STRING_VALUE(k)), (Node *) newV);
+					DEBUG_LOG("agg mark map: %s -> count: %d, numFragments: %d", STRING_VALUE(k), INT_VALUE(firstV)+1, INT_VALUE(secondV));
+				}
+				SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, newMap);
+			}
+			else
+			{
+				DEBUG_LOG("table-> not aggregation");
+				SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, copyObject(map));
+			}
+		}
+
+	}
 }
 
 

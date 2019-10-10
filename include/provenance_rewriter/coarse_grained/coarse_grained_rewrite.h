@@ -38,6 +38,7 @@ extern void markAutoUseTableAccess (QueryOperator *op, HashMap *psMap);
 extern psAttrInfo* createPSAttrInfo(List *l, char *tableName);
 extern psInfo* createPSInfo(Node *coarsePara);
 extern List *getRangeList(int numRanges, char* attrName, char *tableName);
+extern void bottomUpPropagateLevelAggregation(QueryOperator *op, psInfo *psPara);
 
 
 

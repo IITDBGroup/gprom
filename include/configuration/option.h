@@ -114,6 +114,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PS_SETTINGS "ps_settings"
 #define OPTION_PS_SET_BITS "set_bits"
 #define OPTION_PS_USE_BRIN_OP "us_brin_op"
+#define OPTION_PS_ANALYZE "ps_analyze"
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(

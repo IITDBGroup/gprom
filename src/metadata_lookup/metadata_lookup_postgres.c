@@ -864,11 +864,14 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
 
-	StringInfo setStatics = makeStringInfo();
-	appendStringInfo(setStatics,"ALTER TABLE %s ALTER COLUMN %s SET STATISTICS %d; Analyze %s;",
-			tableName, attrName, (numPartitions > 10000)? 10000:numPartitions, tableName);
+    if(getBoolOption(OPTION_PS_ANALYZE))
+    {
+    		StringInfo setStatics = makeStringInfo();
+    		appendStringInfo(setStatics,"ALTER TABLE %s ALTER COLUMN %s SET STATISTICS %d; Analyze %s;",
+    				tableName, attrName, (numPartitions > 10000)? 10000:numPartitions, tableName);
 
-    execStmt(setStatics->data);
+    		execStmt(setStatics->data);
+    }
     res = execPrepared(NAME_GET_HIST, LIST_MAKE(createConstString(tableName),createConstString(attrName)));
 
     // loop through results

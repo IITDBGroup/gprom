@@ -199,6 +199,10 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         		DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
         		markTableAccessAndAggregation((QueryOperator *) op,  (Node *) psPara);
 
+        	    //mark the number of table - used in provenance scratch
+        	    markNumOfTableAccess((QueryOperator *) op);
+        	    bottomUpPropagateLevelAggregation((QueryOperator *) op, psPara);
+
     			/* copy op for use ps */
     			ProvenanceComputation *useOp = (ProvenanceComputation *) copyObject(op);
 
@@ -209,7 +213,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     			List *attrNames = getAttrNames(capOp->schema);
     			DEBUG_LOG("PS Attr Names : %s", stringListToString(attrNames));
 
-    	    		char *capSql = CONCAT_STRINGS(serializeOperatorModel((Node *)capOp), ";");
+    	    		//char *capSql = CONCAT_STRINGS(serializeOperatorModel((Node *)capOp), ";");
+    	    		char *capSql = serializeOperatorModel((Node *)capOp);
     			DEBUG_LOG("Capture Provenance Sketch Sql : %s", capSql);
 
     			/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
@@ -230,6 +235,11 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         		DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
         		markTableAccessAndAggregation((QueryOperator *) op,  (Node *) psPara);
 
+        	    //mark the number of table - used in provenance scratch
+        	    markNumOfTableAccess((QueryOperator *) op);
+        	    DEBUG_LOG("finish markNumOfTableAccess!");
+        	    bottomUpPropagateLevelAggregation((QueryOperator *) op, psPara);
+        	    DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
             result = rewritePI_CS(op);
             result = addTopAggForCoarse(result);
             break;
@@ -238,6 +248,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         		psPara = createPSInfo(coarsePara);
         		DEBUG_LOG("use coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
         		markUseTableAccessAndAggregation((QueryOperator *) op, (Node *) psPara);
+
+        	    //mark the number of table - used in provenance scratch
+        	    markNumOfTableAccess((QueryOperator *) op);
 
             result = rewritePI_CS(op);
             removeParent(result, (QueryOperator *) op);
