@@ -30,6 +30,7 @@
 #include "temporal_queries/temporal_rewriter.h"
 
 #include "sql_serializer/sql_serializer.h"
+#include "sql_serializer/sql_serializer_postgres.h"
 #include "metadata_lookup/metadata_lookup.h"
 
 #include "model/query_operator/query_operator.h"
@@ -208,7 +209,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     			List *attrNames = getAttrNames(capOp->schema);
     			DEBUG_LOG("PS Attr Names : %s", stringListToString(attrNames));
 
-    	    		char *capSql = CONCAT_STRINGS(serializeQuery(capOp), ";");
+    	    		char *capSql = CONCAT_STRINGS(serializeOperatorModel((Node *)capOp), ";");
     			DEBUG_LOG("Capture Provenance Sketch Sql : %s", capSql);
 
     			/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
