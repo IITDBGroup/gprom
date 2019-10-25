@@ -447,7 +447,8 @@ analyzeFromProvInfo (FromItem *f)
         	//Remove the probability attribute if specified through the TIP flag
         	if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
         	{
-        		int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+				char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+        		int pos = listPosString(f->attrNames, attrname); //TODO adapt identifiers
 				DEBUG_LOG("TIP attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)), pos);
 				f->attrNames = deepCopyStringList(f->attrNames);
 				f->dataTypes 	= copyObject(f->dataTypes);
@@ -464,7 +465,7 @@ analyzeFromProvInfo (FromItem *f)
 			//Removing the probability attribute if specified through the XTABLE flag
 			if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))
 			{
-				if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
+				if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))//TODO backendifyidentifier!!
 				{
 					int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)));
 					DEBUG_LOG("XTABLE groupID attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)), pos);
