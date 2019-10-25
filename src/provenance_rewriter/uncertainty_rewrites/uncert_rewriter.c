@@ -30,8 +30,8 @@
 #define ROW_NUM_BY_ID_ATTR_NAME "ROW_NUM_BY_ID"
 
 /* bound based uncertainty */
-#define ATTR_LOW_BOUND "LOW_"
-#define ATTR_HIGH_BOUND "HIGH_"
+#define ATTR_LOW_BOUND "LB_"
+#define ATTR_HIGH_BOUND "UB_"
 
 /* function declarations */
 static Node *UncertOp(Operator *expr, HashMap *hmp);
@@ -40,7 +40,15 @@ static Node *UncertFun(FunctionCall *expr, HashMap *hmp);
 static Node *createCaseOperator(Node *expr);
 static Node *createReverseCaseOperator(Node *expr);
 static Node *getOutputExprFromInput(Node *expr, int offset);
+Node *getUncertaintyExpr(Node *expr, HashMap *hmp);
 
+//Range expression rewriting
+static Node *RangeUBOp(Operator *expr, HashMap *hmp);
+static Node *RangeLBOp(Operator *expr, HashMap *hmp);
+Node *getUBExpr(Node *expr, HashMap *hmp);
+Node *getLBExpr(Node *expr, HashMap *hmp);
+
+//uncertain query rewriting
 static QueryOperator *rewriteUncertProvComp(QueryOperator *op);
 static QueryOperator *rewrite_UncertTIP(QueryOperator *op);
 static QueryOperator *rewrite_UncertIncompleteTable(QueryOperator *op);
@@ -54,8 +62,15 @@ static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op);
 static QueryOperator *rewrite_UncertSet(QueryOperator *op);
 
 static void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
-//static void addUncertLowBoundToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
-//static void addUncertHighBoundToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
+
+//Range query rewriting
+static QueryOperator *rewrite_RangeTableAccess(QueryOperator *op);
+static QueryOperator *rewrite_RangeProjection(QueryOperator *op);
+static QueryOperator *rewrite_RangeSelection(QueryOperator *op);
+static QueryOperator *rewrite_RangeJoin(QueryOperator *op);
+
+static void addRangeAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
+static void addRangeRowToSchema(HashMap *hmp, QueryOperator *target);
 
 
 static List *putMidListToEnd(List *in, int p1, int p2);
@@ -65,6 +80,7 @@ QueryOperator *
 rewriteUncert(QueryOperator * op)
 {
 	QueryOperator *rewrittenOp;
+
 	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
 	{
 		rewrittenOp = rewrite_UncertTIP(op);
@@ -106,6 +122,72 @@ rewriteUncert(QueryOperator * op)
 		case T_JoinOperator:
 			rewrittenOp = rewrite_UncertJoin(op);
 			INFO_OP_LOG("Uncertainty Rewrite Join:", rewrittenOp);
+			break;
+		case T_AggregationOperator:
+			rewrittenOp = rewrite_UncertAggregation(op);
+			INFO_OP_LOG("Uncertainty Rewrite Aggregation:", rewrittenOp);
+			break;
+		case T_DuplicateRemoval:
+			rewrittenOp = rewrite_UncertDuplicateRemoval(op);
+			INFO_OP_LOG("Uncertainty Rewrite DuplicateRemoval:", rewrittenOp);
+			break;
+		case T_SetOperator:
+			rewrittenOp = rewrite_UncertSet(op);
+			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
+			break;
+		default:
+			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));
+			rewrittenOp = NULL;
+			break;
+	}
+	return rewrittenOp;
+}
+
+QueryOperator *
+rewriteRange(QueryOperator * op)
+{
+	QueryOperator *rewrittenOp;
+	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
+	{
+		rewrittenOp = rewrite_UncertTIP(op);
+		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,PROV_PROP_INCOMPLETE_TABLE))
+	{
+		rewrittenOp = rewrite_UncertIncompleteTable(op);
+		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,PROP_XTABLE_GROUPID))
+	{
+		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
+		{
+			rewrittenOp = rewrite_UncertXTable(op);
+			return rewrittenOp;
+		}
+	}
+
+	switch(op->type)
+	{
+	    case T_ProvenanceComputation:
+	        rewrittenOp = rewriteUncertProvComp(op);
+	        break;
+		case T_TableAccessOperator:
+			rewrittenOp =rewrite_RangeTableAccess(op);
+			INFO_OP_LOG("Range Rewrite TableAccess:", rewrittenOp);
+			break;
+		case T_SelectionOperator:
+			rewrittenOp = rewrite_RangeSelection(op);
+			INFO_OP_LOG("Range Rewrite Selection:", rewrittenOp);
+			break;
+		case T_ProjectionOperator:
+			rewrittenOp = rewrite_RangeProjection(op);
+			INFO_OP_LOG("Range Rewrite Projection:", rewrittenOp);
+			break;
+		case T_JoinOperator:
+			rewrittenOp = rewrite_RangeJoin(op);
+			INFO_OP_LOG("Range Rewrite Join:", rewrittenOp);
 			break;
 		case T_AggregationOperator:
 			rewrittenOp = rewrite_UncertAggregation(op);
@@ -174,9 +256,76 @@ removeUncertOpFromExpr(Node *expr)
 }
 
 Node *
+getUBExpr(Node *expr, HashMap *hmp)
+{
+	switch(expr->type){
+		case T_Constant: {
+			return expr;
+		}
+		case T_AttributeReference: {
+			if(((AttributeReference *)expr)->outerLevelsUp == -1){
+				((AttributeReference *)expr)->outerLevelsUp = 0;
+			}
+//			INFO_LOG("AttrExprUB - %s", nodeToString(hmp));
+//			INFO_LOG("AttrExprUB - %s", nodeToString(expr));
+
+			Node * ret = getNthOfListP((List *)getMap(hmp, expr), 0);
+			((AttributeReference *)ret)->outerLevelsUp = 0;
+//			INFO_LOG("AttrExprUB - %s", ((AttributeReference *)ret)->name);
+			return ret;
+		}
+		case T_Operator: {
+			return RangeUBOp((Operator *) expr, hmp);
+		}
+		case T_CaseExpr: {
+			return UncertIf((CaseExpr *) expr, hmp);
+		}
+		case T_FunctionCall: {
+			return UncertFun((FunctionCall *) expr, hmp);
+		}
+		default: {
+			FATAL_LOG("unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
+		}
+	}
+	return NULL;
+}
+
+Node *
+getLBExpr(Node *expr, HashMap *hmp)
+{
+	switch(expr->type){
+		case T_Constant: {
+			return expr;
+		}
+		case T_AttributeReference: {
+			if(((AttributeReference *)expr)->outerLevelsUp == -1){
+				((AttributeReference *)expr)->outerLevelsUp = 0;
+			}
+			Node * ret = getNthOfListP((List *)getMap(hmp, expr), 1);
+			((AttributeReference *)ret)->outerLevelsUp = 0;
+//			INFO_LOG("AttrExprLB - %s - %s", ((AttributeReference *)expr)->name, ((AttributeReference *)ret)->name);
+			return ret;
+		}
+		case T_Operator: {
+			return RangeLBOp((Operator *) expr, hmp);
+		}
+		case T_CaseExpr: {
+			return UncertIf((CaseExpr *) expr, hmp);
+		}
+		case T_FunctionCall: {
+			return UncertFun((FunctionCall *) expr, hmp);
+		}
+		default: {
+			FATAL_LOG("unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
+		}
+	}
+	return NULL;
+}
+
+Node *
 getUncertaintyExpr(Node *expr, HashMap *hmp)
 {
-	//INFO_LOG("expression: %s ,  %p", exprToSQL(expr), expr);
+	INFO_LOG("expression: %s ,  %p", exprToSQL(expr), expr);
 	switch(expr->type){
 		case T_Constant: {
 			return (Node *)createConstInt(1);
@@ -210,6 +359,24 @@ getUncertString(char *in)
 {
 	StringInfo str = makeStringInfo();
 	appendStringInfo(str, "%s", "U_");
+	appendStringInfo(str, "%s", in);
+	return str->data;
+}
+
+char *
+getUBString(char *in)
+{
+	StringInfo str = makeStringInfo();
+	appendStringInfo(str, "%s", ATTR_HIGH_BOUND);
+	appendStringInfo(str, "%s", in);
+	return str->data;
+}
+
+char *
+getLBString(char *in)
+{
+	StringInfo str = makeStringInfo();
+	appendStringInfo(str, "%s", ATTR_LOW_BOUND);
 	appendStringInfo(str, "%s", in);
 	return str->data;
 }
@@ -298,7 +465,7 @@ rewrite_UncertIncompleteTable(QueryOperator *op)
 		//Set the values of U_nd->name to CASE WHEN entryIsNull
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
 				createCaseExpr(NULL,singleton(createCaseWhen((Node *)createIsNullExpr(nd),
-				(Node *)createConstInt(-1))),(Node *)createConstInt(1)));
+				(Node *)createConstInt(0))),(Node *)createConstInt(1)));
 	}
 
 	//Add U_R to the schema with data type int
@@ -512,13 +679,13 @@ static Node *
 createCaseOperator(Node *expr)
 {
 	CaseWhen * cwhen = createCaseWhen(expr, (Node *)createConstInt(1));
-	return (Node *)createCaseExpr(NULL, singleton(cwhen), (Node *)createConstInt(-1));
+	return (Node *)createCaseExpr(NULL, singleton(cwhen), (Node *)createConstInt(0));
 }
 
 static Node *
 createReverseCaseOperator(Node *expr)
 {
-	CaseWhen * cwhen = createCaseWhen(expr, (Node *)createConstInt(-1));
+	CaseWhen * cwhen = createCaseWhen(expr, (Node *)createConstInt(0));
 	return (Node *)createCaseExpr(NULL, singleton(cwhen), (Node *)createConstInt(1));
 }
 
@@ -574,7 +741,7 @@ static Node *
 UncertFun(FunctionCall *expr, HashMap *hmp)
 {
 	if(streq(expr->functionname,UNCERT_FUNC_NAME)) {
-		return (Node *)createConstInt(-1);
+		return (Node *)createConstInt(0);
 	}
 	else
 	{
@@ -659,7 +826,7 @@ UncertOp(Operator *expr, HashMap *hmp)
 		return NULL;
 	}
 	if(strcmp(expr->name,UNCERT_FUNC_NAME)==0) {
-		return (Node *)createConstInt(-1);
+		return (Node *)createConstInt(0);
 	}
 	if(strcmp(expr->name,"*")==0) {
 		Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
@@ -720,6 +887,176 @@ UncertOp(Operator *expr, HashMap *hmp)
 	return NULL;
 }
 
+static Node *RangeUBOp(Operator *expr, HashMap *hmp){
+	if(!expr){
+			return NULL;
+		}
+		if(strcmp(expr->name,UNCERT_FUNC_NAME)==0) {
+			return (Node *)createConstInt(0);
+		}
+		if(strcmp(expr->name,"+")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			//Upper bound of addition is the sum of upper bounds
+			Node *ret = (Node *)createOpExpr("+", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
+			return ret;
+		}
+		if(strcmp(expr->name,"-")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			//Upper bound of subtraction is the ub-lb
+			Node *ret = (Node *)createOpExpr("-", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,"=")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *c1 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *c2 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *c3 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *c4 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *c5 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *c6 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+
+			Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
+			Node *c34 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c3),c4));
+			Node *c56 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c5),c6));
+			Node *c1234 = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c12),c34));
+			Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c1234),c56));
+			return ret;
+		}
+		if(strcmp(expr->name,">")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr(">", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,"<")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr("<", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,"<=")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,"*")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *c1 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *c2 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *c3 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *c4 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *c12 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c1), c2));
+			Node *c34 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c3), c4));
+			Node *ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
+			return ret;
+		}
+		else if(strcmp(strToUpper(expr->name),"OR")==0){
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			return ret;
+		}
+		else if(strcmp(strToUpper(expr->name),"AND")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr("AND", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			return ret;
+		}
+		else {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			return (Node *)createFunctionCall(LEAST_FUNC_NAME,LIST_MAKE(getUncertaintyExpr(e1, hmp),getUncertaintyExpr(e2, hmp)));
+		}
+		return NULL;
+}
+
+static Node *RangeLBOp(Operator *expr, HashMap *hmp){
+	if(!expr){
+			return NULL;
+		}
+		if(strcmp(expr->name,UNCERT_FUNC_NAME)==0) {
+			return (Node *)createConstInt(0);
+		}
+		if(strcmp(expr->name,"+")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			//Lower bound of addition is the sum of lower bounds
+			Node *ret = (Node *)createOpExpr("+", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,"-")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			//Lower bound of subtraction is the lb-ub
+			Node *ret = (Node *)createOpExpr("-", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,"*")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *c1 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *c2 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *c3 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *c4 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *c12 = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(c1), c2));
+			Node *c34 = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(c3), c4));
+			Node *ret = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
+			return ret;
+		}
+		if(strcmp(expr->name,"=")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *c1 = (Node *)createOpExpr("=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e1, hmp)));
+			Node *c2 = (Node *)createOpExpr("=", appendToTailOfList(singleton(getUBExpr(e2, hmp)),getLBExpr(e2, hmp)));
+			Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
+			Node *ret = (Node *)createOpExpr("AND", appendToTailOfList(singleton(expr),c12));
+			return ret;
+		}
+		if(strcmp(expr->name,">")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr(">", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,">=")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			return ret;
+		}
+		if(strcmp(expr->name,"<")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr("<", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			return ret;
+		}
+		else if(strcmp(strToUpper(expr->name),"OR")==0){
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			return ret;
+		}
+		else if(strcmp(strToUpper(expr->name),"AND")==0) {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			Node *ret = (Node *)createOpExpr("AND", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			return ret;
+		}
+		else {
+			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
+			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
+			return (Node *)createFunctionCall(LEAST_FUNC_NAME,
+			        LIST_MAKE(getUncertaintyExpr(e1, hmp),getUncertaintyExpr(e2, hmp)));
+		}
+		return NULL;
+}
+
 static QueryOperator *
 rewrite_UncertSet(QueryOperator *op)
 {
@@ -747,7 +1084,7 @@ rewrite_UncertSet(QueryOperator *op)
 	if(((SetOperator *)op)->setOpType == SETOP_DIFFERENCE){
 		List *projExpr = getNormalAttrProjectionExprs(op);
 		projExpr = removeFromTail(projExpr);
-		projExpr = appendToTailOfList(projExpr, createConstInt(-1));
+		projExpr = appendToTailOfList(projExpr, createConstInt(0));
 
 		QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, op, NIL, getNormalAttrNames(op));
 		switchSubtrees(op, proj);
@@ -851,7 +1188,7 @@ rewrite_UncertAggregation(QueryOperator *op)
 		if(hasSetElem(groupbyRef, nd)){
 			uncertExpr = appendToTailOfList(uncertExpr, getUncertaintyExpr(nd, hmpIn));
 		} else {
-			uncertExpr = appendToTailOfList(uncertExpr, (Node *)createConstInt(-1));
+			uncertExpr = appendToTailOfList(uncertExpr, (Node *)createConstInt(0));
 		}
 	}
 	addUncertAttrToSchema(hmpProj, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
@@ -982,6 +1319,8 @@ rewrite_UncertJoin(QueryOperator *op)
 
 	List *projExprNew = concatTwoLists(concatTwoLists(attrl, attrR), concatTwoLists(uattrl, uattrR));
 
+
+
 	if(((JoinOperator*)op)->joinType == JOIN_INNER && ((JoinOperator*)op)->cond){
 		Node *outExpr = (Node *)copyObject(((JoinOperator*)op)->cond);
 		outExpr = getOutputExprFromInput(outExpr, divider);
@@ -1006,6 +1345,181 @@ rewrite_UncertJoin(QueryOperator *op)
 
 	return proj;
 
+}
+
+static QueryOperator *
+rewrite_RangeJoin(QueryOperator *op){
+	ASSERT(OP_LCHILD(op));
+	ASSERT(OP_RCHILD(op));
+
+	INFO_LOG("REWRITE-RANGE - Join");
+	INFO_LOG("Operator tree \n%s", nodeToString(op));
+
+	int divider = getNormalAttrNames(OP_LCHILD(op))->length;
+
+	List * nan = getNormalAttrNames(op);
+	List * projattr = copyList(nan);
+	List *nan2 = sublist(nan, divider, nan->length-1);
+	List *nan1 = sublist(nan, 0, divider-1);
+	List *nan1r = NIL;
+	List *nan2r = NIL;
+	FOREACH(char, nm, nan1){
+		nan1r = appendToTailOfList(nan1r, getUBString(nm));
+		nan1r = appendToTailOfList(nan1r, getLBString(nm));
+	}
+	FOREACH(char, nm, nan2){
+		nan2r = appendToTailOfList(nan2r, getUBString(nm));
+		nan2r = appendToTailOfList(nan2r, getLBString(nm));
+	}
+	List *range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
+	List *range_row2 = LIST_MAKE(ROW_CERTAIN_TWO,ROW_BESTGUESS_TWO,ROW_POSSIBLE_TWO);
+	List *n1 = concatTwoLists(nan1, nan1r);
+	List *n2 = concatTwoLists(nan2, nan2r);
+	n1 = concatTwoLists(n1, range_row1);
+	n2 = concatTwoLists(n2, range_row2);
+	n1 = concatTwoLists(n1, n2);
+	INFO_LOG("n1 ====== %s", stringListToString(n1));
+
+	// rewrite child first
+	rewriteRange(OP_LCHILD(op));
+	rewriteRange(OP_RCHILD(op));
+
+
+	List *dt1 = getDataTypes(OP_LCHILD(op)->schema);
+	List *dt2 = getDataTypes(OP_RCHILD(op)->schema);
+	List *jdt = concatTwoLists(dt1, dt2);
+
+	op->schema = createSchemaFromLists(op->schema->name, n1, jdt);
+
+
+	//add projection
+
+	//projection list
+
+	int divider2 = divider*3+3;
+
+	List *attrExpr = getNormalAttrProjectionExprs(op);
+//	INFO_LOG("alllist:%d  %s", attrExpr->length,nodeToString(attrExpr));
+	List *expr2 = sublist(attrExpr, divider2, attrExpr->length-1);
+	List *rExpr2 = sublist(expr2, expr2->length-3, expr2->length-1);
+	List *arExpr2 = sublist(expr2, ((expr2->length)-3)/3, expr2->length-4);
+	expr2 = sublist(expr2, 0, ((expr2->length)-3)/3-1);
+	INFO_LOG("explist2: %s", nodeToString(expr2));
+	INFO_LOG("arexplist2: %s", nodeToString(arExpr2));
+	INFO_LOG("rexplist2: %s", nodeToString(rExpr2));
+	List *expr1 = sublist(attrExpr, 0, divider2-1);
+	List *rExpr1 = sublist(expr1, expr1->length-3, expr1->length-1);
+	List *arExpr1 = sublist(expr1, ((expr1->length)-3)/3, expr1->length-4);
+	expr1 = sublist(expr1, 0, ((expr1->length)-3)/3-1);
+	INFO_LOG("explist1: %s", nodeToString(expr1));
+	INFO_LOG("arexplist1: %s", nodeToString(arExpr1));
+	INFO_LOG("rexplist1: %s", nodeToString(rExpr1));
+
+//	FOREACH(Node, nd, expr1) {
+//		List *valnd = singleTon((Node *)popHeadOfListP(rExpr1));
+//		appendToTailOfList(valnd,(Node *)popHeadOfListP(rExpr1));
+//		((AttributeReference *)nd)->outerLevelsUp = 0;
+//		ADD_TO_MAP(hmp, createNodeKeyValue(nd, valnd));
+//	}
+//	FOREACH(Node, nd, expr2) {
+//		List *valnd2 = singleTon((Node *)popHeadOfListP(rExpr2));
+//		appendToTailOfList(valnd2,(Node *)popHeadOfListP(rExpr2));
+//		((AttributeReference *)nd)->outerLevelsUp = 0;
+//		ADD_TO_MAP(hmp, createNodeKeyValue(nd, valnd2));
+//	}
+
+//	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+
+	//INFO_LOG("Join HashMap: \n%s", nodeToString(hmp));
+
+	Node *CT = (Node *)createOpExpr("*", appendToTailOfList(singleton((Node *)popHeadOfListP(rExpr1)), (Node *)popHeadOfListP(rExpr2)));
+	Node *BG = (Node *)createOpExpr("*", appendToTailOfList(singleton((Node *)popHeadOfListP(rExpr1)), (Node *)popHeadOfListP(rExpr2)));
+	Node *PS = (Node *)createOpExpr("*", appendToTailOfList(singleton((Node *)popHeadOfListP(rExpr1)), (Node *)popHeadOfListP(rExpr2)));
+
+	List *projExprNew = concatTwoLists(concatTwoLists(expr1, expr2), concatTwoLists(arExpr1, arExpr2));
+	appendToTailOfList(projExprNew,CT);
+	appendToTailOfList(projExprNew,BG);
+	appendToTailOfList(projExprNew,PS);
+
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExprNew, op, NIL, projattr);
+	switchSubtrees(op, proj);
+	op->parents = singleton(proj);
+
+	HashMap * hmp2 = NEW_MAP(Node, Node);
+	List *attrExpr2 = getNormalAttrProjectionExprs(proj);
+	FOREACH(Node, nd, attrExpr2){
+		addRangeAttrToSchema(hmp2, proj, nd);
+	}
+	addRangeRowToSchema(hmp2, proj);
+	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp2);
+
+
+//	INFO_LOG("CT: %s", nodeToString(CT));
+//	INFO_LOG("BG: %s", nodeToString(BG));
+//	INFO_LOG("PS: %s", nodeToString(PS));
+
+	//rewrite join condition
+	if(((JoinOperator*)op)->joinType == JOIN_INNER && ((JoinOperator*)op)->cond){
+
+		//hashmap for join condition rewriting into upper bound.
+		//notice that upper bound need to replace original join condition in join operator.
+		//And original join condition need to multiply with best guess in projection operator.
+		//Rewrite join condition into lower bound to multiply with certain in projection operator.
+
+		HashMap * hmpl = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+		HashMap * hmpr = (HashMap *)getStringProperty(OP_RCHILD(op), "UNCERT_MAPPING");
+		HashMap * hmpl2 = copyObject(hmpl);
+		HashMap * hmpr2 = copyObject(hmpr);
+
+		FOREACH_HASH_KEY(Node, kv, hmpr){
+//			INFO_LOG("hmpr: %s", nodeToString(kv));
+			Node *val = getMap(hmpr, kv);
+			((AttributeReference *)kv)->fromClauseItem = 1;
+			if(val->type==T_List){
+				((AttributeReference *)getHeadOfListP((List *)val))->fromClauseItem = 1;
+				((AttributeReference *)getTailOfListP((List *)val))->fromClauseItem = 1;
+				ADD_TO_MAP(hmpl, createNodeKeyValue((Node *)kv, (Node *)val));
+			}
+		}
+		INFO_LOG("hmpl: %s", nodeToString(hmpl));
+		FOREACH_HASH_KEY(Node, kv, hmpr2){
+		//	INFO_LOG("hmpr: %s", nodeToString(kv));
+			Node *val2 = getMap(hmpr2, kv);
+			((AttributeReference *)kv)->attrPosition += divider2;
+			if(val2->type==T_List){
+				((AttributeReference *)getHeadOfListP((List *)val2))->attrPosition += divider2;
+				((AttributeReference *)getTailOfListP((List *)val2))->attrPosition += divider2;
+				ADD_TO_MAP(hmpl2, createNodeKeyValue((Node *)kv, (Node *)val2));
+			}
+		}
+		INFO_LOG("hmpl2: %s", nodeToString(hmpl2));
+
+		Node *condExpr = (Node *)copyObject(((JoinOperator*)op)->cond);
+
+		INFO_LOG("input expr: %s", nodeToString(condExpr));
+		Node *bgExpr = getOutputExprFromInput(copyObject(condExpr), divider2);
+		INFO_LOG("bg expr: %s", nodeToString(bgExpr));
+		Node *ubExpr = getUBExpr(copyObject(condExpr), hmpl);
+		INFO_LOG("ub expr: %s", nodeToString(ubExpr));
+		Node *lbExpr = getLBExpr(copyObject(bgExpr),hmpl2);
+		INFO_LOG("lb expr: %s", nodeToString(lbExpr));
+
+		BG = (Node *)createOpExpr("*", appendToTailOfList(singleton(BG),(Node *)createCaseOperator(bgExpr)));
+		CT = (Node *)createOpExpr("*", appendToTailOfList(singleton(CT),(Node *)createCaseOperator(lbExpr)));
+
+		((JoinOperator*)op)->cond = ubExpr;
+
+		projExprNew = sublist(projExprNew, 0, projExprNew->length-4);
+		appendToTailOfList(projExprNew,CT);
+		appendToTailOfList(projExprNew,BG);
+		appendToTailOfList(projExprNew,PS);
+
+		INFO_LOG("Projexpr with join: %s", nodeToString(projExprNew));
+
+		((ProjectionOperator *)proj)->projExprs = projExprNew;
+	}
+
+	return proj;
 }
 
 static QueryOperator *
@@ -1041,6 +1555,48 @@ rewrite_UncertSelection(QueryOperator *op)
 }
 
 static QueryOperator *
+rewrite_RangeSelection(QueryOperator *op)
+{
+
+	ASSERT(OP_LCHILD(op));
+
+	INFO_LOG("REWRITE-RANGE - Selection");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+	// rewrite child first
+    rewriteRange(OP_LCHILD(op));
+
+    HashMap * hmp = NEW_MAP(Node, Node);
+    //get child hashmap
+    //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+    List *attrExpr = getNormalAttrProjectionExprs(op);
+    FOREACH(Node, nd, attrExpr){
+        	addRangeAttrToSchema(hmp, op, nd);
+    }
+    addRangeRowToSchema(hmp, op);
+    setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+    //modify selection condition to possible
+    Node *cond = getUBExpr(((SelectionOperator *)op)->cond, hmp);
+    Node *ubCond = getUBExpr(((SelectionOperator *)op)->cond, hmp);
+    Node *lbCond = getLBExpr(((SelectionOperator *)op)->cond, hmp);
+    ((SelectionOperator *)op)->cond = ubCond;
+    //create projection to calculate CERT and BG
+    QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getNormalAttrNames(op));
+    switchSubtrees(op, proj);
+    op->parents = singleton(proj);
+    //remove original CERT and BG
+    Node *pos_cond = (Node *)getTailOfListP(((ProjectionOperator *)proj)->projExprs);
+    ((ProjectionOperator *)proj)->projExprs = removeFromTail(((ProjectionOperator *)proj)->projExprs);
+    ((ProjectionOperator *)proj)->projExprs = removeFromTail(((ProjectionOperator *)proj)->projExprs);
+    ((ProjectionOperator *)proj)->projExprs = removeFromTail(((ProjectionOperator *)proj)->projExprs);
+    //add row conditions
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(lbCond));
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(cond));
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs,pos_cond);
+    setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	return proj;
+}
+
+static QueryOperator *
 rewrite_UncertProjection(QueryOperator *op)
 {
 
@@ -1066,9 +1622,49 @@ rewrite_UncertProjection(QueryOperator *op)
     }
     ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
     addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+    INFO_LOG("List: %s", nodeToString(((ProjectionOperator *)op)->projExprs));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn));
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
     //INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
+    return op;
+}
+
+static QueryOperator *
+rewrite_RangeProjection(QueryOperator *op)
+{
+
+    ASSERT(OP_LCHILD(op));
+
+    INFO_LOG("REWRITE-RANGE - Projection");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    //rewrite child first
+    rewriteRange(OP_LCHILD(op));
+
+    HashMap * hmp = NEW_MAP(Node, Node);
+    //get child hashmap
+    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+    //INFO_LOG("HashMap: %s", nodeToString((Node *)hmpIn));
+    List *attrExpr = getNormalAttrProjectionExprs(op);
+    List *uncertlist = NIL;
+    int ict = 0;
+    FOREACH(Node, nd, attrExpr){
+        addRangeAttrToSchema(hmp, op, nd);
+        Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,ict);
+        Node *ubExpr = getUBExpr(projexpr, hmpIn);
+        Node *lbExpr = getLBExpr(projexpr, hmpIn);
+        ict ++;
+        uncertlist = appendToTailOfList(uncertlist, ubExpr);
+        uncertlist = appendToTailOfList(uncertlist, lbExpr);
+        replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeUncertOpFromExpr(projexpr));
+        INFO_LOG(nodeToString(uncertlist));
+    }
+    ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
+    addRangeRowToSchema(hmp, op);
+    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_CERTAIN)));
+    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS)));
+    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE)));
+    setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+    INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     return op;
 }
 
@@ -1093,6 +1689,30 @@ rewrite_UncertTableAccess(QueryOperator *op)
 	return proj;
 }
 
+static QueryOperator *
+rewrite_RangeTableAccess(QueryOperator *op)
+{
+	INFO_LOG("REWRITE-RANGE - TableAccess");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+	HashMap * hmp = NEW_MAP(Node, Node);
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getNormalAttrNames(op));
+	switchSubtrees(op, proj);
+	op->parents = singleton(proj);
+	List *attrExpr = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr){
+		addRangeAttrToSchema(hmp, proj, nd);
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+	}
+	addRangeRowToSchema(hmp, proj);
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
+	return proj;
+}
+
 static void
 addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef)
 {
@@ -1100,21 +1720,26 @@ addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef)
 	((AttributeReference *)aRef)->outerLevelsUp = 0;
 	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
 }
-/*
+
 static void
-addUncertLowBoundToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
+addRangeAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef)
 {
-	addAttrToSchema(target, CONCAT_STRINGS(ATTR_LOW_BOUND, ((AttributeReference *)aRef)->name), DT_INT);
 	((AttributeReference *)aRef)->outerLevelsUp = 0;
-	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
+	addAttrToSchema(target, getUBString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
+	List *refs = singleton((Node *)getTailOfListP(getNormalAttrProjectionExprs(target)));
+	addAttrToSchema(target, getLBString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
+	appendToTailOfList(refs, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target)));
+	//Map each attribute to their upper&lower bounds list
+	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)refs));
 }
 
 static void
-addUncertHighBoundToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
+addRangeRowToSchema(HashMap *hmp, QueryOperator *target)
 {
-	addAttrToSchema(target, CONCAT_STRINGS(ATTR_HIGH_BOUND, ((AttributeReference *)aRef)->name), DT_INT);
-	((AttributeReference *)aRef)->outerLevelsUp = 0;
-	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
+	addAttrToSchema(target, ROW_CERTAIN, DT_INT);
+	ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_CERTAIN), (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
+	addAttrToSchema(target, ROW_BESTGUESS, DT_INT);
+	ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
+	addAttrToSchema(target, ROW_POSSIBLE, DT_INT);
+	ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
 }
-
-*/

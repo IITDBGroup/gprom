@@ -143,6 +143,10 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     {
         return rewriteUncert((QueryOperator *) op);
     }
+    if (op->inputType == PROV_INPUT_RANGE_QUERY)
+    {
+    	return rewriteRange((QueryOperator *) op);
+    }
 
     // turn operator graph into a tree since provenance rewrites currently expect a tree
     if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))

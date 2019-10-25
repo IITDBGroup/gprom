@@ -64,7 +64,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE
 %token <stringVal> TIP INCOMPLETE XTABLE
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
@@ -413,6 +413,16 @@ provStmt:
 			RULELOG("provStmt::uncertain");
 			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
 			p->inputType = PROV_INPUT_UNCERTAIN_QUERY;
+			p->provType = PROV_NONE;
+			p->asOf = NULL;
+			p->options = NIL;
+			$$ = (Node *) p;
+		}
+		| URANGE '(' stmt ')'
+		{
+			RULELOG("provStmt::range");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
+			p->inputType = PROV_INPUT_RANGE_QUERY;
 			p->provType = PROV_NONE;
 			p->asOf = NULL;
 			p->options = NIL;

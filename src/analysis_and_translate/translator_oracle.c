@@ -743,6 +743,12 @@ translateProvenanceStmt(ProvenanceStmt *prov)
             addChildOperator((QueryOperator *) result, child);
         }
         break;
+        case PROV_INPUT_RANGE_QUERY:
+        {
+        	child = translateQueryOracle(prov->query);
+        	addChildOperator((QueryOperator *) result, child);
+        }
+        break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
         {

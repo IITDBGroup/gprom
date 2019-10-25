@@ -241,6 +241,29 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         *dts = appendToTailOfListInt(*dts, DT_INT);
         *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
     }
+    if (stmt->inputType == PROV_INPUT_RANGE_QUERY)
+    {
+    	List *qAttrDef =  getQBAttrDefs(stmt->query);
+
+    	// add attribute range attributes
+    	FOREACH(Node,n,qAttrDef)
+    	{
+            char *ubName = getUBString(((AttributeDef *)n)->attrName);
+            char *lbName = getLBString(((AttributeDef *)n)->attrName);
+            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *attrNames = appendToTailOfList(*attrNames, strdup(ubName));
+            *attrNames = appendToTailOfList(*attrNames, strdup(lbName));
+        }
+
+            // add row Range attribute
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *attrNames = appendToTailOfList(*attrNames, ROW_CERTAIN);
+        *attrNames = appendToTailOfList(*attrNames, ROW_BESTGUESS);
+        *attrNames = appendToTailOfList(*attrNames, ROW_POSSIBLE);
+    }
 }
 
 static boolean

@@ -1722,6 +1722,25 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
         }
         break;
+        case PROV_INPUT_RANGE_QUERY:
+        {
+        	List *provAttrNames = NIL;
+        	List *provDts = NIL;
+
+        	analyzeQueryBlockStmt(q->query, parentFroms);
+
+        	q->selectClause = getQBAttrNames(q->query);
+        	q->dts = getQBAttrDTs(q->query);
+        	// if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
+        	// semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+        	correctFromTableVisitor(q->query, NULL);
+        	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+        	q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
+        	q->dts = concatTwoLists(q->dts,provDts);
+        	INFO_NODE_BEATIFY_LOG("RANGE:", q);
+        }
+        break;
         case PROV_INPUT_TEMPORAL_QUERY:
         {
             DataType *tempDT = NULL;

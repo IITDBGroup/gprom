@@ -30,6 +30,7 @@
 #define PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"			// indicates an incomplete table
 #define PROP_XTABLE_GROUPID "XTABLE_GROUPID"				// indicates group id attribute in v tables
 #define PROP_XTABLE_PROB "XTABLE_PROB"						// indicated probability attribute in v tables
+#define PROP_HAS_RANGE "HAS_RANGE"							// Already has range labeling
 
 // provenance summarization
 #define PROP_SUMMARIZATION_DOSUM "DO_SUMMARIZATION"         // this property is
