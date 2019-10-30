@@ -122,11 +122,11 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
-    INFO_NODE_BEATIFY_LOG("translate QB model", q);
+    //INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q);
 
-    DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
+    //DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
     INFO_OP_LOG("result of translation overview is", result);
     ASSERT(equal(result, copyObject(result)));
 
@@ -1229,6 +1229,13 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 			hasProv = TRUE;
 			//removed strdup
 			from->userProvAttrs = singleton(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR)));
+		}
+
+		if (getStringProvProperty(from, PROV_PROP_RADB_LIST))
+		{
+			setStringProperty(op, PROP_HAS_RANGE, (Node *) createConstBool(1));
+			hasProv = TRUE;
+			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_RADB_LIST);
 		}
 
 		/* table selected as INCOMPLETE */

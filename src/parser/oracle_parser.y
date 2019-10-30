@@ -65,7 +65,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE
-%token <stringVal> TIP INCOMPLETE XTABLE
+%token <stringVal> TIP INCOMPLETE XTABLE RADB
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -135,7 +135,7 @@ Node *oracleParseResult = NULL;
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalOffset optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
-%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable
+%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable optionalFromRADB
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem
@@ -1537,6 +1537,16 @@ optionalFromIncompleteTable:
 		}
 ;
 
+optionalFromRADB:
+		IS RADB
+		{
+			RULELOG("optionalFromRADB");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_RADB, (Node *) createConstBool(1));
+			$$ = (Node *) p;
+		}
+;
+
 optionalFromXTable:
 		IS XTABLE '(' identifier  ',' identifier ')'
 		{
@@ -1551,6 +1561,7 @@ optionalFromXTable:
 optionalFromProv:
 		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
 		| optionalFromTIP {  $$ = $1; }
+		| optionalFromRADB {  $$ = $1; }
 		| optionalFromIncompleteTable { $$ = $1; }
 		| optionalFromXTable { $$ = $1; }
 		| BASERELATION

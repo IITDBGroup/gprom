@@ -227,12 +227,12 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     }
     if (stmt->inputType == PROV_INPUT_UNCERTAIN_QUERY)
     {
-        List *qAttrName =  getQBAttrNames(stmt->query);
+        List *qAttrName = getQBAttrNames(stmt->query);
 
         // add attribute uncertainty attributes
         FOREACH(char,n,qAttrName)
         {
-            char *uName = getUncertString(n);
+            char *uName = backendifyIdentifier(getUncertString(n));
             *dts = appendToTailOfListInt(*dts, DT_INT);
             *attrNames = appendToTailOfList(*attrNames, strdup(uName));
         }
@@ -244,12 +244,12 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     if (stmt->inputType == PROV_INPUT_RANGE_QUERY)
     {
     	List *qAttrDef =  getQBAttrDefs(stmt->query);
-
+    	INFO_LOG("=======================", stringListToString(*attrNames));
     	// add attribute range attributes
     	FOREACH(Node,n,qAttrDef)
     	{
-            char *ubName = getUBString(((AttributeDef *)n)->attrName);
-            char *lbName = getLBString(((AttributeDef *)n)->attrName);
+            char *ubName = backendifyIdentifier(getUBString(((AttributeDef *)n)->attrName));
+            char *lbName = backendifyIdentifier(getLBString(((AttributeDef *)n)->attrName));
             *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
             *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
             *attrNames = appendToTailOfList(*attrNames, strdup(ubName));
@@ -260,9 +260,9 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         *dts = appendToTailOfListInt(*dts, DT_INT);
         *dts = appendToTailOfListInt(*dts, DT_INT);
         *dts = appendToTailOfListInt(*dts, DT_INT);
-        *attrNames = appendToTailOfList(*attrNames, ROW_CERTAIN);
-        *attrNames = appendToTailOfList(*attrNames, ROW_BESTGUESS);
-        *attrNames = appendToTailOfList(*attrNames, ROW_POSSIBLE);
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_CERTAIN));
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_BESTGUESS));
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_POSSIBLE));
     }
 }
 

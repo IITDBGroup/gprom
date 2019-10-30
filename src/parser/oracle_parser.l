@@ -230,6 +230,7 @@ strconcat		"||"
 (?i:INCOMPLETE)		TOK(INCOMPLETE)
 (?i:XTABLE) 		TOK(XTABLE)
 (?i:URANGE)			TOK(URANGE)
+(?i:RADB)			TOK(RADB)
 
 	/* booleans */
 {bool}			TOK(boolConst)
