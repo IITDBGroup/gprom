@@ -71,6 +71,7 @@ static QueryOperator *rewrite_RangeTableAccess(QueryOperator *op);
 static QueryOperator *rewrite_RangeProjection(QueryOperator *op);
 static QueryOperator *rewrite_RangeSelection(QueryOperator *op);
 static QueryOperator *rewrite_RangeJoin(QueryOperator *op);
+static QueryOperator *rewrite_RangeTIP(QueryOperator *op);
 
 //Range query rewriting combiners
 static QueryOperator *combineRowByBG(QueryOperator *op);
@@ -155,7 +156,8 @@ rewriteRange(QueryOperator * op)
 	QueryOperator *rewrittenOp;
 	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
 	{
-		rewrittenOp = rewrite_UncertTIP(op);
+		rewrittenOp = rewrite_RangeTIP(op);
+		INFO_OP_LOG("Range Rewrite TIP:", rewrittenOp);
 		return rewrittenOp;
 	}
 
@@ -180,7 +182,7 @@ rewriteRange(QueryOperator * op)
 	        rewrittenOp = rewriteRangeProvComp(op);
 	        break;
 		case T_TableAccessOperator:
-			if(1){
+			if(0){
 				rewrittenOp = rewrite_RangeTableAccess(op);
 				INFO_OP_LOG("Range Rewrite TableAccess:", rewrittenOp);
 			}
@@ -480,6 +482,45 @@ static QueryOperator *combineRowByBG(QueryOperator *op){
 	setStringProperty(projop, "UNCERT_MAPPING", (Node *)hmp);
 
 	return projop;
+}
+
+static QueryOperator *
+rewrite_RangeTIP(QueryOperator *op)
+{
+	INFO_LOG("rewriteRangeTIP\n");
+
+	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_TIP_ATTR));
+
+//	int pos = getAttrRefByName(op,TIPName)->attrPosition;
+
+	Operator *bgcond = createOpExpr(">=", LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.5)));
+	Operator *certcond = createOpExpr("=", LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(1.0)));
+	Operator *poscond = createOpExpr(">", LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.0)));
+
+	HashMap *hmp = NEW_MAP(Node, Node);
+
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(((ProjectionOperator *)createProjOnAllAttrs(op))->projExprs, op, NIL, getAttrNames(op->schema));
+	switchSubtrees(op, proj);
+	op->parents = singleton(proj);
+
+//	INFO_LOG("Range_TIP_proj: %s", nodeToString(((ProjectionOperator *)proj)->projExprs));
+
+	List *attrExpr = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr){
+		addRangeAttrToSchema(hmp, proj, nd);
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+	}
+	addRangeRowToSchema(hmp, proj);
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)certcond));
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)bgcond));
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)poscond));
+	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+//	INFO_LOG("Range_TIP_HMP: %s", nodeToString(((ProjectionOperator *)proj)->projExprs));
+//	INFO_LOG("Range_TIP_HMP: %s", nodeToString(hmp));
+
+	return proj;
 }
 
 static QueryOperator *
@@ -1694,7 +1735,7 @@ rewrite_RangeSelection(QueryOperator *op)
     addRangeRowToSchema(hmp, op);
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
     //modify selection condition to possible
-    Node *cond = getUBExpr(((SelectionOperator *)op)->cond, hmp);
+    Node *cond = ((SelectionOperator *)op)->cond;
     Node *ubCond = getUBExpr(((SelectionOperator *)op)->cond, hmp);
     Node *lbCond = getLBExpr(((SelectionOperator *)op)->cond, hmp);
     ((SelectionOperator *)op)->cond = ubCond;
@@ -1762,7 +1803,6 @@ rewrite_RangeProjection(QueryOperator *op)
     HashMap * hmp = NEW_MAP(Node, Node);
     //get child hashmap
     HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
-//   INFO_LOG("HashMap: %s", nodeToString((Node *)hmpIn));
     List *attrExpr = getNormalAttrProjectionExprs(op);
     List *uncertlist = NIL;
     int ict = 0;
@@ -1775,7 +1815,6 @@ rewrite_RangeProjection(QueryOperator *op)
         uncertlist = appendToTailOfList(uncertlist, ubExpr);
         uncertlist = appendToTailOfList(uncertlist, lbExpr);
         replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeUncertOpFromExpr(projexpr));
-//        INFO_LOG(nodeToString(uncertlist));
     }
     ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
     addRangeRowToSchema(hmp, op);
@@ -1783,7 +1822,7 @@ rewrite_RangeProjection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS)));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE)));
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
-//    INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
+    INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     return op;
 }
 
