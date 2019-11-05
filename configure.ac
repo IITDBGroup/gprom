@@ -684,6 +684,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/summarization_rewrites/Makefile
 	src/provenance_rewriter/xml_rewrites/Makefile
 	src/provenance_rewriter/lateral_rewrites/Makefile
+	src/provenance_rewriter/unnest_rewrites/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile

@@ -19,7 +19,7 @@
 
 static List *lateralRewriteQueryList(List *list);
 static QueryOperator *lateralRewriteQuery(QueryOperator *input);
-static List *getListNestingOperator (QueryOperator *op);
+//static List *getListNestingOperator (QueryOperator *op);
 static void appendNestingOperator (QueryOperator *op, List **result);
 static int checkAttr (char *name, QueryOperator *op);
 static void adatpUpNestingAttrDataType(QueryOperator *op, DataType nestingAttrDataType, int pos);
@@ -345,7 +345,7 @@ getNestCondNode(Node *n, List **nestOpLists)
 }
 
 
-static List *
+List *
 getListNestingOperator (QueryOperator *op)
 {
     List *result = NIL;

@@ -1891,7 +1891,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 //    					CastExpr *c = createCastExprOtherDT((Node *) createConstString("0"), "bit", LIST_LENGTH(curPSAI->rangeList)-1);
 //    					FunctionCall *setBit = createFunctionCall("set_bit", LIST_MAKE(c, bsfc));
 //    					projExpr = appendToTailOfList(projExpr, setBit);
-//    				}
+ //   				}
     			}
     			else
     			{

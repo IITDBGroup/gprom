@@ -171,6 +171,7 @@ boolean temporal_agg_combine_with_norm = TRUE;
 
 // lateral rewrite for nesting operator
 boolean opt_lateral_rewrite = FALSE;
+boolean opt_unnest_rewrite = FALSE;
 boolean opt_agg_reduction_model_rewrite = FALSE;
 
 // use provenance scratch
@@ -585,6 +586,11 @@ OptionInfo opts[] =
 				"Activate lateral rewrite",
 				opt_lateral_rewrite,
 				FALSE),
+		aRewriteOption(OPTION_UNNEST_REWRITE,
+						"-unnest_rewrite",
+						"Activate unnest rewrite",
+						opt_unnest_rewrite,
+						FALSE),
 		aRewriteOption(OPTION_AGG_REDUCTION_MODEL_REWRITE,
 				"-agg_reduction_model_rewrite",
 				"Activate aggregation reduction model rewrite",

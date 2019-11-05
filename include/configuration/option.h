@@ -105,6 +105,7 @@ NEW_ENUM_WITH_TO_STRING(
 
 /* lateral rewrite for nesting operator */
 #define OPTION_LATERAL_REWRITE "lateral_rewrite"
+#define OPTION_UNNEST_REWRITE "unnest_rewrite"
 #define OPTION_AGG_REDUCTION_MODEL_REWRITE "agg_reduction_model_rewrite"
 
 /* use provenance scratch */
@@ -196,6 +197,7 @@ extern boolean temporal_use_normalization_window;
 
 // lateral rewrite for nesting operator
 extern boolean opt_lateral_rewrite;
+extern boolean opt_unnest_rewrite;
 extern boolean opt_agg_reduction_model_rewrite;
 
 // optimization options for group by

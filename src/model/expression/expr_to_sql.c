@@ -260,6 +260,7 @@ caseToSQL(StringInfo str, CaseExpr *expr)
         appendStringInfoString(str, " THEN ");
         exprToSQLString(str, w->then);
         //appendStringInfoString(str, "::varbit");
+        //appendStringInfo(str, "::bit(1)");
 		if(getBoolOption(OPTION_PS_SETTINGS))
 			appendStringInfo(str, "::bit(%d)",bitVectorSize);
     }
@@ -269,6 +270,7 @@ caseToSQL(StringInfo str, CaseExpr *expr)
     {
         appendStringInfoString(str, " ELSE ");
         exprToSQLString(str, expr->elseRes);
+        //appendStringInfo(str, "::bit(1)");
     }
     appendStringInfoString(str, " END)");
 }

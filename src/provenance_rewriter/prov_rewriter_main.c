@@ -214,6 +214,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     			DEBUG_LOG("PS Attr Names : %s", stringListToString(attrNames));
 
     	    		//char *capSql = CONCAT_STRINGS(serializeOperatorModel((Node *)capOp), ";");
+    			//char *capSql = serializeQueryPostgres(capOp);
     	    		char *capSql = serializeOperatorModel((Node *)capOp);
     			DEBUG_LOG("Capture Provenance Sketch Sql : %s", capSql);
 
