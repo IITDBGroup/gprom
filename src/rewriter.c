@@ -445,10 +445,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
+    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
     		oModel = lateralTranslateQBModel(oModel);
 
-    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE))
+    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
     		oModel = unnestTranslateQBModel(oModel);
 
     rewrittenTree = provRewriteQBModel(oModel);

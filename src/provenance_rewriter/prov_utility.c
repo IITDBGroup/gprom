@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * prov_utility.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -19,6 +19,9 @@
 #include "mem_manager/mem_mgr.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "log/logger.h"
+
+static boolean hasProvVisitor(Node *q, boolean *found);
+
 
 void
 clearAttrsFromSchema(QueryOperator *target)
@@ -442,4 +445,28 @@ substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp)
                 pChild_his_cell->data.ptr_value = newOp;
         }
     }
+}
+
+boolean
+hasProvComputation(Node *op)
+{
+	boolean found = FALSE;
+
+	hasProvVisitor(op, &found);
+	return found;
+}
+
+static boolean
+hasProvVisitor(Node *q, boolean *found)
+{
+	if(q == NULL)
+		return TRUE;
+
+	if(isA(q, ProvenanceComputation))
+	{
+		*found = TRUE;
+		return FALSE;
+	}
+
+	return visit(q, hasProvVisitor, found);
 }
