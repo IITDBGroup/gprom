@@ -8,5 +8,6 @@
 #include "model/query_operator/query_operator.h"
 
 extern Node *unnestTranslateQBModel (Node *qbModel);
+extern QueryOperator *unnestRewriteQuery(QueryOperator *input);
 
 

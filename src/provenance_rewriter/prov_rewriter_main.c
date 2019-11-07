@@ -26,6 +26,7 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 
 #include "temporal_queries/temporal_rewriter.h"
 
@@ -167,6 +168,10 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     //used to get coarse grained parameter used in CASE PROV_COARSE_GRAINED
 	Node *coarsePara = NULL;
 	psInfo* psPara = NULL;
+
+	if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE))
+		op = (ProvenanceComputation *) unnestRewriteQuery((QueryOperator *)op);
+
     // apply provenance rewriting if required
     switch(op->provType)
     {
