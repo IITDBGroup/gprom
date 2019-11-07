@@ -22,7 +22,6 @@ extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *sou
 extern void addProvenanceAttrsToSchemabasedOnList(QueryOperator *target, List *provList);
 extern void makeNamesUnique (List *names, Set *allNames);
 
-
 // create projection expressions
 extern List *getProvAttrProjectionExprs(QueryOperator *op);
 extern List *getNormalAttrProjectionExprs(QueryOperator *op);
@@ -43,5 +42,6 @@ extern void substOpInParents (List *parents, QueryOperator *orig, QueryOperator 
 // graph search
 extern boolean findTableAccessVisitor (Node *node, List **result);
 extern List *findOperatorAttrRefs (QueryOperator *op);
+extern boolean hasProvComputation(Node *op);
 
 #endif /* PROV_UTILITY_H_ */
