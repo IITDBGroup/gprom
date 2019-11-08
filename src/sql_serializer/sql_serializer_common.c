@@ -153,6 +153,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
             case T_ConstRelOperator :
             case T_SetOperator:
             case T_JsonTableOperator:
+            case T_NestingOperator:
                 matchInfo->fromRoot = cur;
                 state = MATCH_NEXTBLOCK;
                 cur = OP_LCHILD(cur);
@@ -482,6 +483,29 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
                 api->serializeConstRel(from, t, fromAttrs, curFromItem, api);
             }
             break;
+            case T_NestingOperator:
+            {
+            		NestingOperator *nest = (NestingOperator *) q;
+
+            		char *subAttr = getTailOfListP(getQueryOperatorAttrNames(q));
+            		QueryOperator *input = OP_LCHILD(nest);
+            		QueryOperator *subquery = OP_RCHILD(nest);
+            		//List *subqueryNames = getQueryOperatorAttrNames(subquery);
+
+            		api->serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fromAttrs, api);
+
+            		appendStringInfoString(from, ",");
+            		appendStringInfo(from, " LATERAL ");
+            		appendStringInfoString(from, "(");
+
+            		AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
+            		a->attrName = strdup(subAttr);
+            		api->serializeQueryOperator(subquery, from, (QueryOperator *) nest, api);
+
+            		appendStringInfoString(from, ")");
+            		appendStringInfo(from, " F%u_0", (*curFromItem)++);
+            }
+            break;
             default:
             {
                 List *attrNames;
@@ -540,7 +564,7 @@ genSerializeOrderByOperator (OrderOperator *q, StringInfo order, List *fromAttrs
 							 SerializeClausesAPI *api) //TODO check since copied from Oracle
 {
 	appendStringInfoString(order, "\nORDER BY ");
-    updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
+    //updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
 
     char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
@@ -558,6 +582,7 @@ updateAttributeNames(Node *node, List *fromAttrs)
     if (isA(node, AttributeReference))
     {
         AttributeReference *a = (AttributeReference *) node;
+        DEBUG_LOG("a: %s",a->name);
         char *newName;
         List *outer = NIL;
         int fromItem = -1;
@@ -575,8 +600,11 @@ updateAttributeNames(Node *node, List *fromAttrs)
             }
         }
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
-        newName = getNthOfListP(outer, attrPos);
-        a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);;
+        if(LIST_LENGTH(outer) > attrPos)
+        {
+        		newName = getNthOfListP(outer, attrPos);
+        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
+        }
     }
 
     return visit(node, updateAttributeNames, fromAttrs);

@@ -169,6 +169,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 	Node *coarsePara = NULL;
 	psInfo* psPara = NULL;
 
+	ProvenanceComputation *originalOp = copyObject(op);
 	if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE))
 		op = (ProvenanceComputation *) unnestRewriteQuery((QueryOperator *)op);
 
@@ -226,6 +227,15 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     			/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
     			HashMap *psMap = getPS(capSql,attrNames);
 
+    			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
+    			{
+    				useOp = originalOp;
+            	    //mark the number of table - used in provenance scratch
+    				//markTableAccessAndAggregation((QueryOperator *) useOp,  (Node *) psPara);
+            	    markNumOfTableAccess((QueryOperator *) useOp);
+            	    bottomUpPropagateLevelAggregation((QueryOperator *) useOp, psPara);
+    			}
+
     			/* use provenance sketch */
         		markAutoUseTableAccess((QueryOperator *) useOp, psMap);
         		markUseTableAccessAndAggregation((QueryOperator *) useOp, (Node *) psPara);
@@ -250,6 +260,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             result = addTopAggForCoarse(result);
             break;
         case USE_PROV_COARSE_GRAINED:
+    			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
+    				op = originalOp;
+
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		psPara = createPSInfo(coarsePara);
         		DEBUG_LOG("use coarse grained fragment parameters: %s",nodeToString((Node *) psPara));

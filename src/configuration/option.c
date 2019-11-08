@@ -182,6 +182,7 @@ boolean ps_settings = FALSE;
 boolean ps_set_bits = FALSE;
 boolean ps_use_brin_op = FALSE;
 boolean ps_analyze = TRUE;
+boolean ps_use_nest = FALSE;
 
 // struct that encapsulates option state
 struct option_state {
@@ -700,6 +701,14 @@ OptionInfo opts[] =
 				 OPTION_BOOL,
 				 wrapOptionBool(&ps_analyze),
 				 defOptionBool(TRUE)
+		 },
+		 {
+				 OPTION_PS_USE_NEST,
+				 "-ps_use_nest",
+				 "Activate ps_use_nest about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_use_nest),
+				 defOptionBool(FALSE)
 		 },
 		 {
 				 OPTION_PS_USE_BRIN_OP,
