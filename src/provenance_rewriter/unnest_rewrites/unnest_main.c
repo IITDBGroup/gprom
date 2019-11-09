@@ -30,8 +30,13 @@ static boolean containOuterLevelAttr(Operator *oper);
 static void upPropagateGroupBys(QueryOperator *op, List *attrRefs, List *attrDefs);
 static void resetPos(AttributeReference *ar,  List* attrDefs);
 static void removeOperator(QueryOperator *op);
+static Node *removeNestCond(Node *n);
+static boolean containNestingAttr(Operator *oper);
+static void adaptJoinCondAttrName(Node *n, char *oldName, char* newName);
+
 
 static QueryOperator *unnestScalar(QueryOperator *op);
+static QueryOperator *unnestInClause(QueryOperator *op);
 
 //static List *getListNestingOperator (QueryOperator *op);
 //static void appendNestingOperator (QueryOperator *op, List **result);
@@ -78,6 +83,10 @@ unnestRewriteQuery(QueryOperator *op)
 	    		DEBUG_LOG("unnest scalar:");
 	    		unnestScalar(nestOp);
 	    		break;
+	    case NESTQ_ANY:
+	    		DEBUG_LOG("unnest in clause:");
+	    		unnestInClause(nestOp);
+	    		break;
 	    default:
 	    		FATAL_LOG("no rewrite implemented this nesting type ", nodeToString(nestOp));
 	    		return NULL;
@@ -87,6 +96,50 @@ unnestRewriteQuery(QueryOperator *op)
 	return (QueryOperator *) op;
 }
 
+
+static QueryOperator *
+unnestInClause(QueryOperator *op)
+{
+	NestingOperator *nest = (NestingOperator *) op;
+	List *inputs = op->inputs;
+	List *parents = op->parents;
+	QueryOperator *rchild = OP_RCHILD(op);
+
+	//TODO: change name
+	AttributeDef *ad = getAttrDef(rchild, 0);
+	char *oldName = strdup(ad->attrName);
+	char *newName = CONCAT_STRINGS(strdup(ad->attrName), "_1");
+	ad->attrName = newName;
+	//adapt nest cond
+	adaptJoinCondAttrName(nest->cond, oldName, newName);
+
+	// add duplicate removal operator
+	DuplicateRemoval *dup = createDuplicateRemovalOp(NIL, rchild,  NIL, NIL);
+	rchild->parents = singleton(dup);
+	inputs = LIST_MAKE(OP_LCHILD(op), dup);
+
+	// change nesting operator to join
+	JoinOperator *join = createJoinOp (JOIN_INNER, copyObject(nest->cond), inputs, parents, NIL);
+	//QueryOperator *joinOp = (QueryOperator *) join;
+
+	FOREACH(QueryOperator, o, parents)
+		o->inputs = singleton(join);
+
+	FOREACH(QueryOperator, o, inputs)
+		o->parents = singleton(join);
+
+	QueryOperator *topNestOp = OP_FIRST_PARENT(op);
+	if(isA(topNestOp, SelectionOperator))
+	{
+		SelectionOperator *topSel = (SelectionOperator *) topNestOp;
+		Node *newCond = removeNestCond(topSel->cond);
+		topSel->cond = newCond;
+	}
+	AttributeDef *nestAttr = (AttributeDef *) getHeadOfListP(rchild->schema->attrDefs);
+	adaptSchema (topNestOp->schema->attrDefs, nestAttr->attrName);
+
+	return op;
+}
 
 static QueryOperator *
 unnestScalar(QueryOperator *op)
@@ -233,6 +286,83 @@ unnestScalar(QueryOperator *op)
 	}
 
 	return op;
+}
+
+//TODO: might use visit
+static void
+adaptJoinCondAttrName(Node *n, char *oldName, char* newName)
+{
+	Operator *oper = (Operator *) n;
+	List *attrs = oper->args;
+	Node *n1 = getNthOfListP(attrs, 0);
+	Node *n2 = getNthOfListP(attrs, 1);
+
+	if(isA(n1, AttributeReference))
+	{
+		AttributeReference *a1 = (AttributeReference *) n1;
+		if(streq(a1->name, oldName))
+			a1->name = newName;
+
+	}
+
+	if(isA(n2, AttributeReference))
+	{
+		AttributeReference *a2 = (AttributeReference *) n2;
+		if(streq(a2->name, oldName))
+			a2->name = newName;
+	}
+}
+
+static Node *
+removeNestCond(Node *n)
+{
+	List *condList = NIL;
+	getSelectionCondOperatorList(n, &condList);
+
+	List *newConds = NIL;
+	FOREACH(Operator, oper, condList)
+	{
+		if(!containNestingAttr(oper))
+			newConds = appendToTailOfList(newConds, oper);
+	}
+
+	Node *newCond = andExprList(newConds);
+
+	return newCond;
+}
+
+static boolean
+containNestingAttr(Operator *oper)
+{
+	List *args = oper->args;
+	Node *l = getNthOfListP(args, 0);
+	Node *r = getNthOfListP(args, 1);
+
+	if(isA(l, AttributeReference))
+	{
+		char *lName = ((AttributeReference *) l)->name;
+		if(strlen(lName) > 12)
+		{
+			char *prefix = substr(strdup(lName), 0, 12);
+
+			if (streq(prefix, "nesting_eval_"))
+				return TRUE;
+		}
+	}
+
+	if(isA(r, AttributeReference))
+	{
+		char *rName = ((AttributeReference *) r)->name;
+		if(strlen(rName) > 12)
+		{
+			char *prefix = substr(strdup(rName), 0, 12);
+
+			if (streq(prefix, "nesting_eval_"))
+				return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 
