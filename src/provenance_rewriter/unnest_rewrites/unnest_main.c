@@ -22,7 +22,10 @@
 
 static List *unnestRewriteQueryList(List *list);
 static boolean adaptAttrName (Node *node, char *attr);
-static void adaptSchema (List *attrDefs, char *attr);
+static boolean getScalarAttrName (Node *node, char **attr);
+static boolean isNestAttr(AttributeReference *a);
+//static void adaptSchema (List *attrDefs, char *attr);
+static void adaptSchemaByName (List *attrDefs, char *name, char *attr);
 
 static List *getListAggregationOperator (QueryOperator *op);
 static void appendAggregationOperator (QueryOperator *op, List **result);
@@ -30,8 +33,10 @@ static boolean containOuterLevelAttr(Operator *oper);
 static void upPropagateGroupBys(QueryOperator *op, List *attrRefs, List *attrDefs);
 static void resetPos(AttributeReference *ar,  List* attrDefs);
 static void removeOperator(QueryOperator *op);
-static Node *removeNestCond(Node *n);
-static boolean containNestingAttr(Operator *oper);
+static int getInAttrPos(List *conds);
+static char* getInAttrName(Node *node);
+//static Node *removeNestCond(Node *n);
+//static boolean containNestingAttr(Operator *oper);
 static void adaptJoinCondAttrName(Node *n, char *oldName, char* newName);
 
 
@@ -123,20 +128,50 @@ unnestInClause(QueryOperator *op)
 	//QueryOperator *joinOp = (QueryOperator *) join;
 
 	FOREACH(QueryOperator, o, parents)
-		o->inputs = singleton(join);
+		replaceNode(o->inputs, op, join);
+	//o->inputs = singleton(join);
 
 	FOREACH(QueryOperator, o, inputs)
 		o->parents = singleton(join);
 
-	QueryOperator *topNestOp = OP_FIRST_PARENT(op);
-	if(isA(topNestOp, SelectionOperator))
+	QueryOperator *topSelOp = OP_FIRST_PARENT(op);
+	while(!isA(topSelOp, SelectionOperator))
 	{
-		SelectionOperator *topSel = (SelectionOperator *) topNestOp;
-		Node *newCond = removeNestCond(topSel->cond);
-		topSel->cond = newCond;
+		topSelOp = OP_FIRST_PARENT(topSelOp);
 	}
-	AttributeDef *nestAttr = (AttributeDef *) getHeadOfListP(rchild->schema->attrDefs);
-	adaptSchema (topNestOp->schema->attrDefs, nestAttr->attrName);
+
+	if(isA(topSelOp, SelectionOperator))
+	{
+		SelectionOperator *topSel = (SelectionOperator *) topSelOp;
+
+		List *condList = NIL;
+		getSelectionCondOperatorList(topSel->cond, &condList);
+		int inCondPos = getInAttrPos(condList);
+		DEBUG_LOG("len: %d, inCondPos: %d", LIST_LENGTH(condList), inCondPos);
+		Node *inCond = getNthOfListP(condList, inCondPos);
+		char *nestAttrName = getInAttrName(inCond);
+		DEBUG_LOG("nestAttrName: %s", nestAttrName);
+
+		List *newCondList = removeListElemAtPos(condList, inCondPos);
+		Node *newCond = andExprList(newCondList);
+		topSel->cond = newCond;
+
+		AttributeDef *nestAttr = (AttributeDef *) getHeadOfListP(rchild->schema->attrDefs);
+
+		QueryOperator *topNestOp = OP_FIRST_PARENT(op);
+		while(!isA(topNestOp, SelectionOperator))
+		{
+			adaptSchemaByName(topNestOp->schema->attrDefs, nestAttrName, nestAttr->attrName);
+			topNestOp = OP_FIRST_PARENT(topNestOp);
+		}
+		adaptSchemaByName(topNestOp->schema->attrDefs, nestAttrName, nestAttr->attrName);
+
+//		Node *newCond = removeNestCond(topSel->cond);
+//		topSel->cond = newCond;
+//		AttributeDef *nestAttr = (AttributeDef *) getHeadOfListP(rchild->schema->attrDefs);
+//		adaptSchema (topNestOp->schema->attrDefs, nestAttr->attrName);
+	}
+
 
 	return op;
 }
@@ -153,8 +188,11 @@ unnestScalar(QueryOperator *op)
 	//TODO: check is it a selection
 	SelectionOperator *selTop = (SelectionOperator *) getHeadOfListP(op->parents);
 	QueryOperator *selTopOp = (QueryOperator *) selTop;
+	char *nestAttrName = NULL;
+	getScalarAttrName(selTop->cond, &nestAttrName);
 	adaptAttrName(selTop->cond, agg0->attrName);
-	adaptSchema (selTopOp->schema->attrDefs, agg0->attrName);
+	adaptSchemaByName (selTopOp->schema->attrDefs,nestAttrName, agg0->attrName);
+	//adaptSchema (selTopOp->schema->attrDefs, agg0->attrName);
 
 	List *aggOpList = getListAggregationOperator (rchild);
 
@@ -288,6 +326,7 @@ unnestScalar(QueryOperator *op)
 	return op;
 }
 
+
 //TODO: might use visit
 static void
 adaptJoinCondAttrName(Node *n, char *oldName, char* newName)
@@ -313,57 +352,57 @@ adaptJoinCondAttrName(Node *n, char *oldName, char* newName)
 	}
 }
 
-static Node *
-removeNestCond(Node *n)
-{
-	List *condList = NIL;
-	getSelectionCondOperatorList(n, &condList);
+//static Node *
+//removeNestCond(Node *n)
+//{
+//	List *condList = NIL;
+//	getSelectionCondOperatorList(n, &condList);
+//
+//	List *newConds = NIL;
+//	FOREACH(Operator, oper, condList)
+//	{
+//		if(!containNestingAttr(oper))
+//			newConds = appendToTailOfList(newConds, oper);
+//	}
+//
+//	Node *newCond = andExprList(newConds);
+//
+//	return newCond;
+//}
 
-	List *newConds = NIL;
-	FOREACH(Operator, oper, condList)
-	{
-		if(!containNestingAttr(oper))
-			newConds = appendToTailOfList(newConds, oper);
-	}
-
-	Node *newCond = andExprList(newConds);
-
-	return newCond;
-}
-
-static boolean
-containNestingAttr(Operator *oper)
-{
-	List *args = oper->args;
-	Node *l = getNthOfListP(args, 0);
-	Node *r = getNthOfListP(args, 1);
-
-	if(isA(l, AttributeReference))
-	{
-		char *lName = ((AttributeReference *) l)->name;
-		if(strlen(lName) > 12)
-		{
-			char *prefix = substr(strdup(lName), 0, 12);
-
-			if (streq(prefix, "nesting_eval_"))
-				return TRUE;
-		}
-	}
-
-	if(isA(r, AttributeReference))
-	{
-		char *rName = ((AttributeReference *) r)->name;
-		if(strlen(rName) > 12)
-		{
-			char *prefix = substr(strdup(rName), 0, 12);
-
-			if (streq(prefix, "nesting_eval_"))
-				return TRUE;
-		}
-	}
-
-	return FALSE;
-}
+//static boolean
+//containNestingAttr(Operator *oper)
+//{
+//	List *args = oper->args;
+//	Node *l = getNthOfListP(args, 0);
+//	Node *r = getNthOfListP(args, 1);
+//
+//	if(isA(l, AttributeReference))
+//	{
+//		char *lName = ((AttributeReference *) l)->name;
+//		if(strlen(lName) > 12)
+//		{
+//			char *prefix = substr(strdup(lName), 0, 12);
+//
+//			if (streq(prefix, "nesting_eval_"))
+//				return TRUE;
+//		}
+//	}
+//
+//	if(isA(r, AttributeReference))
+//	{
+//		char *rName = ((AttributeReference *) r)->name;
+//		if(strlen(rName) > 12)
+//		{
+//			char *prefix = substr(strdup(rName), 0, 12);
+//
+//			if (streq(prefix, "nesting_eval_"))
+//				return TRUE;
+//		}
+//	}
+//
+//	return FALSE;
+//}
 
 
 static void
@@ -374,6 +413,38 @@ removeOperator(QueryOperator *op)
 	child->parents = op->parents;
 	FOREACH(QueryOperator, o, op->parents)
 		o->inputs = singleton(child);
+}
+
+static char*
+getInAttrName (Node *node)
+{
+	Operator *oper = (Operator *) node;
+    Node *nl = getNthOfListP(oper->args, 0);
+    Node *nr = getNthOfListP(oper->args, 1);
+
+    if(isA(nl, AttributeReference))
+    		return ((AttributeReference *) nl)->name;
+    else
+    		return ((AttributeReference *) nr)->name;
+}
+
+static int
+getInAttrPos(List *conds)
+{
+	int count = 0;
+	FOREACH(Operator, oper, conds)
+	{
+	    Node *nl = getNthOfListP(oper->args, 0);
+	    Node *nr = getNthOfListP(oper->args, 1);
+	    if((isA(nl, AttributeReference) && isA(nr, Constant) && ((Constant *)nr)->constType == DT_BOOL) ||
+	    		(isA(nr, AttributeReference) && isA(nl, Constant) && ((Constant *)nl)->constType == DT_BOOL))
+	    {
+	    		return count;
+	    }
+	    count ++;
+	}
+
+	return -1;
 }
 
 static void
@@ -467,40 +538,111 @@ appendAggregationOperator (QueryOperator *op, List **result)
 
 
 static void
-adaptSchema (List *attrDefs, char *attr)
+adaptSchemaByName (List *attrDefs, char *name, char *attr)
 {
 	FOREACH(AttributeDef, ad, attrDefs)
 	{
-		   char *name = strdup(ad->attrName);
-	       if(strlen(name) > 12)
-	       {
-	    	   	   char *prefix = substr(strdup(name), 0, 12);
-	    	   	   if (streq(prefix, "nesting_eval_"))
-	    	   		   ad->attrName = strdup(attr);
-	       }
+	       if(streq(ad->attrName, name))
+	    	   	   ad->attrName = strdup(attr);
 	}
+}
+
+//static void
+//adaptSchema (List *attrDefs, char *attr)
+//{
+//	FOREACH(AttributeDef, ad, attrDefs)
+//	{
+//		   char *name = strdup(ad->attrName);
+//	       if(strlen(name) > 12)
+//	       {
+//	    	   	   char *prefix = substr(strdup(name), 0, 12);
+//	    	   	   if (streq(prefix, "nesting_eval_"))
+//	    	   		   ad->attrName = strdup(attr);
+//	       }
+//	}
+//}
+
+
+static boolean
+isNestAttr(AttributeReference *a)
+{
+	char *name = strdup(a->name);
+	if(strlen(name) > 12)
+	{
+		char *prefix = substr(strdup(name), 0, 12);
+
+		if (streq(prefix, "nesting_eval_"))
+			return TRUE;
+	}
+
+	return FALSE;
 }
 
 static boolean
 adaptAttrName (Node *node, char *attr)
 {
     if (node == NULL)
-        return TRUE;
+        return FALSE;
 
-    if (isA(node, AttributeReference))
+    if(isA(node, Operator))
     {
-        AttributeReference *a = (AttributeReference *) node;
-        char *name = strdup(a->name);
+    		Operator *oper = (Operator *) node;
+    		Node *nl = getNthOfListP(oper->args, 0);
+    		Node *nr = getNthOfListP(oper->args, 1);
 
-       if(strlen(name) > 12)
-       {
-    	   	   char *prefix = substr(strdup(name), 0, 12);
-
-    	   	   if (streq(prefix, "nesting_eval_"))
-    	   		   a->name = strdup(attr);
-       }
+    		//|| isA(nr, Constant) && ((Constant *)nr)->constType != DT_BOOL
+    		if(isA(nl, AttributeReference) && isA(nr, AttributeReference) )
+    		{
+    			AttributeReference *al = (AttributeReference *) nl;
+    			AttributeReference *ar = (AttributeReference *) nr;
+    			if(isNestAttr(al))
+    				al->name = attr;
+    			if(isNestAttr(ar))
+    				ar->name = attr;
+    		}
     }
+
+//    if (isA(node, AttributeReference))
+//    {
+//        AttributeReference *a = (AttributeReference *) node;
+//        char *name = strdup(a->name);
+//
+//       if(strlen(name) > 12)
+//       {
+//    	   	   char *prefix = substr(strdup(name), 0, 12);
+//
+//    	   	   if (streq(prefix, "nesting_eval_"))
+//    	   		   a->name = strdup(attr);
+//       }
+//    }
 
     return visit(node, adaptAttrName, attr);
 }
 
+
+
+static boolean
+getScalarAttrName (Node *node, char **attr)
+{
+    if (node == NULL)
+        return FALSE;
+
+    if(isA(node, Operator))
+    {
+    		Operator *oper = (Operator *) node;
+    		Node *nl = getNthOfListP(oper->args, 0);
+    		Node *nr = getNthOfListP(oper->args, 1);
+
+    		//|| isA(nr, Constant) && ((Constant *)nr)->constType != DT_BOOL
+    		if(isA(nl, AttributeReference) && isA(nr, AttributeReference) )
+    		{
+    			AttributeReference *al = (AttributeReference *) nl;
+    			AttributeReference *ar = (AttributeReference *) nr;
+    			if(isNestAttr(al))
+    				*attr = al->name;
+    			if(isNestAttr(ar))
+    				*attr = ar->name;
+    		}
+    }
+    return visit(node, getScalarAttrName, attr);
+}
