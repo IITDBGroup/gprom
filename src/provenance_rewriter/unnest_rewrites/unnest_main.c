@@ -35,6 +35,11 @@ static void resetPos(AttributeReference *ar,  List* attrDefs);
 static void removeOperator(QueryOperator *op);
 static int getInAttrPos(List *conds);
 static char* getInAttrName(Node *node);
+static void adaptCond(Operator *oper, List *inputs);
+static boolean existsAttr(char *name, List *defs);
+static List *duplicateList(List *l);
+static List *getCorrelatedAttrRefs(List *conds);
+static List *refsToNames(List *attrRefs);
 //static Node *removeNestCond(Node *n);
 //static boolean containNestingAttr(Operator *oper);
 static void adaptJoinCondAttrName(Node *n, char *oldName, char* newName);
@@ -42,6 +47,7 @@ static void adaptJoinCondAttrName(Node *n, char *oldName, char* newName);
 
 static QueryOperator *unnestScalar(QueryOperator *op);
 static QueryOperator *unnestInClause(QueryOperator *op);
+static QueryOperator *unnestExists(QueryOperator *op);
 
 //static List *getListNestingOperator (QueryOperator *op);
 //static void appendNestingOperator (QueryOperator *op, List **result);
@@ -92,6 +98,10 @@ unnestRewriteQuery(QueryOperator *op)
 	    		DEBUG_LOG("unnest in clause:");
 	    		unnestInClause(nestOp);
 	    		break;
+	    case NESTQ_EXISTS:
+    			DEBUG_LOG("unnest in clause:");
+    			unnestExists(nestOp);
+    			break;
 	    default:
 	    		FATAL_LOG("no rewrite implemented this nesting type ", nodeToString(nestOp));
 	    		return NULL;
@@ -100,6 +110,103 @@ unnestRewriteQuery(QueryOperator *op)
 
 	return (QueryOperator *) op;
 }
+
+
+static QueryOperator *
+unnestExists(QueryOperator *op)
+{
+	//NestingOperator *nest = (NestingOperator *) op;
+	List *inputs = op->inputs;
+	//List *parents = op->parents;
+	QueryOperator *rchild = OP_RCHILD(op);
+
+	//TODO: check is it a selection
+	SelectionOperator *selTop = (SelectionOperator *) OP_FIRST_PARENT(op);
+	QueryOperator *selTopOp = (QueryOperator *) selTop;
+	SelectionOperator *selBot = (SelectionOperator *) OP_LCHILD(rchild);
+	//QueryOperator *selBotOp = (QueryOperator *) selBot;
+
+	List *selTopCondList = NIL;
+	getSelectionCondOperatorList(selTop->cond, &selTopCondList);
+	int inCondPos = getInAttrPos(selTopCondList);
+	//Node *inCond = getNthOfListP(selTopCondList, inCondPos);
+	//char *nestAttrName = getInAttrName(inCond);
+
+	List *newCondList = removeListElemAtPos(selTopCondList, inCondPos);
+	Node *newCond = andExprList(newCondList);
+	selTop->cond = newCond;
+
+	List *selBotCondList = NIL;
+	getSelectionCondOperatorList(selBot->cond, &selBotCondList);
+
+	List *newConds = NIL;
+	List *rmConds = NIL;
+	FOREACH(Operator, oper, selBotCondList)
+	{
+		if(containOuterLevelAttr(oper))
+			rmConds = appendToTailOfList(rmConds, oper);
+		else
+			newConds = appendToTailOfList(newConds, oper);
+	}
+
+	if(LIST_LENGTH(rmConds) > 0) //with correlation:
+	{
+		//if only contain correlated condition, need to remove selection operator
+		if(newConds != NIL)
+		{
+			Node *newCond = andExprList(newConds);
+			selBot->cond = newCond;
+		}
+		else
+		{
+			removeOperator((QueryOperator *) selBot);
+		}
+	}
+
+//	Constant *limitExpr = createConstInt(1);
+//	LimitOperator *limit = createLimitOp((Node *) limitExpr, NULL, rchild, NIL);
+//	rchild->parents = singleton(limit);
+//	replaceNode(inputs, rchild, limit);
+
+	List *newProjExprs = getCorrelatedAttrRefs(rmConds);
+	FOREACH(AttributeReference, a, newProjExprs)
+		resetPos(a, rchild->schema->attrDefs);
+	List *newProjAttrNames = refsToNames(newProjExprs);
+
+	ProjectionOperator *newProj = createProjectionOp(newProjExprs, rchild, NIL, newProjAttrNames);
+	rchild->parents = singleton(newProj);
+	QueryOperator *newProjOp = (QueryOperator *) newProj;
+
+	List* dupExprs = duplicateList(newProjExprs);
+	FOREACH(AttributeReference, a, dupExprs)
+		resetPos(a, newProjOp->schema->attrDefs);
+	List *dupAttrNames = refsToNames(dupExprs);
+
+	DuplicateRemoval *dup = createDuplicateRemovalOp(dupExprs, newProjOp, NIL, dupAttrNames);
+	newProjOp->parents = singleton(dup);
+	replaceNode(inputs, rchild, dup);
+
+	JoinOperator *join = createJoinOp (JOIN_INNER, NULL, inputs, singleton(selTop), NIL);
+	QueryOperator *joinOp = (QueryOperator *) join;
+
+	((QueryOperator *)selTop)->inputs = singleton(join);
+	FOREACH(QueryOperator, o, inputs)
+		o->parents = singleton(join);
+
+	List *selTopSchema = duplicateList(joinOp->schema->attrDefs);
+	selTopOp->schema->attrDefs = selTopSchema;
+
+	//adapt condition: outlevelup and pos
+	FOREACH(Operator, oper, rmConds)
+		adaptCond(oper, inputs);
+
+	Node *newJoinCond = andExprList(rmConds);
+	join->cond = newJoinCond;
+
+
+	return op;
+}
+
 
 
 static QueryOperator *
@@ -403,6 +510,99 @@ adaptJoinCondAttrName(Node *n, char *oldName, char* newName)
 //
 //	return FALSE;
 //}
+
+static List *
+refsToNames(List *attrRefs)
+{
+	List *l = NIL;
+	FOREACH(AttributeReference, a, attrRefs)
+	{
+		//AttributeDef *ad = createAttributeDef(strdup(a->name), a->attrType);
+		l = appendToTailOfList(l, strdup(a->name));
+	}
+
+	return l;
+}
+
+
+static List *
+getCorrelatedAttrRefs(List *conds)
+{
+	List *l = NIL;
+
+	FOREACH(Operator, oper, conds)
+	{
+		AttributeReference *al = (AttributeReference *) getNthOfListP(oper->args, 0);
+		AttributeReference *ar = (AttributeReference *) getNthOfListP(oper->args, 1);
+
+		if(al->fromClauseItem != 1)
+		{
+			//AttributeDef *ad = createAttributeDef(strdup(al->name), al->attrType);
+			l = appendToTailOfList(l, copyObject(al));
+		}
+		else
+		{
+			//AttributeDef *ad = createAttributeDef(strdup(ar->name), ar->attrType);
+			l = appendToTailOfList(l, copyObject(ar));
+		}
+	}
+
+	return l;
+}
+
+static List *
+duplicateList(List *l)
+{
+	List *result = NIL;
+	FOREACH(Node, n, l)
+		result = appendToTailOfList(result, copyObject(n));
+
+	return result;
+}
+
+static boolean
+existsAttr(char *name, List *defs)
+{
+	FOREACH(AttributeDef, ad, defs)
+	{
+		if(streq(name, ad->attrName))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+static void
+adaptCond(Operator *oper, List *inputs)
+{
+	AttributeReference *al = (AttributeReference *) getNthOfListP(oper->args, 0);
+	AttributeReference *ar = (AttributeReference *) getNthOfListP(oper->args, 1);
+
+	QueryOperator *lchild =  (QueryOperator *) getNthOfListP(inputs, 0);
+	QueryOperator *rchild =  (QueryOperator *) getNthOfListP(inputs, 1);
+
+	List *lschema = lchild->schema->attrDefs;
+	List *rschema = rchild->schema->attrDefs;
+
+	if(existsAttr(al->name, lschema))
+	{
+		resetPos(al, lschema);
+		resetPos(ar, rschema);
+		al->fromClauseItem = 0;
+		ar->fromClauseItem = 1;
+
+	}
+	else
+	{
+		resetPos(ar, lschema);
+		resetPos(al, rschema);
+		al->fromClauseItem = 1;
+		ar->fromClauseItem = 0;
+	}
+
+	al->outerLevelsUp = 0;
+	ar->outerLevelsUp = 0;
+}
 
 
 static void
