@@ -24,11 +24,14 @@ static List *unnestRewriteQueryList(List *list);
 static boolean adaptAttrName (Node *node, char *attr);
 static boolean getScalarAttrName (Node *node, char **attr);
 static boolean isNestAttr(AttributeReference *a);
-//static void adaptSchema (List *attrDefs, char *attr);
+static void adaptSchema (List *attrDefs, char *attr);
 static void adaptSchemaByName (List *attrDefs, char *name, char *attr);
 
 static List *getListAggregationOperator (QueryOperator *op);
 static void appendAggregationOperator (QueryOperator *op, List **result);
+static List *getListSelectionOperatorUp(QueryOperator *op);
+static void appendSelectionOperator (QueryOperator *op, List **result);
+
 static boolean containOuterLevelAttr(Operator *oper);
 static void upPropagateGroupBys(QueryOperator *op, List *attrRefs, List *attrDefs);
 static void resetPos(AttributeReference *ar,  List* attrDefs);
@@ -40,6 +43,7 @@ static boolean existsAttr(char *name, List *defs);
 static List *duplicateList(List *l);
 static List *getCorrelatedAttrRefs(List *conds);
 static List *refsToNames(List *attrRefs);
+static boolean isCorrelatedCond(Node *node);
 //static Node *removeNestCond(Node *n);
 //static boolean containNestingAttr(Operator *oper);
 static void adaptJoinCondAttrName(Node *n, char *oldName, char* newName);
@@ -291,14 +295,31 @@ unnestScalar(QueryOperator *op)
 	//QueryOperator *rchild = getNthOfListP(inputs, 1);
 	QueryOperator *rchild = OP_RCHILD(op);
 	AttributeDef *agg0 = (AttributeDef *) getHeadOfListP(rchild->schema->attrDefs);
-
 	//TODO: check is it a selection
 	SelectionOperator *selTop = (SelectionOperator *) getHeadOfListP(op->parents);
 	QueryOperator *selTopOp = (QueryOperator *) selTop;
 	char *nestAttrName = NULL;
+
+	//TODO: handle having
+	if(!isCorrelatedCond(selTop->cond))
+	{
+		List *selUpList = getListSelectionOperatorUp(selTopOp);
+		FOREACH(SelectionOperator, s, selUpList)
+		{
+			if(isCorrelatedCond(s->cond))
+			{
+				selTop = s;
+				selTopOp = (QueryOperator *) selTop;
+			}
+		}
+	}
+
 	getScalarAttrName(selTop->cond, &nestAttrName);
 	adaptAttrName(selTop->cond, agg0->attrName);
-	adaptSchemaByName (selTopOp->schema->attrDefs,nestAttrName, agg0->attrName);
+	if(nestAttrName != NULL)
+		adaptSchemaByName (selTopOp->schema->attrDefs, nestAttrName, agg0->attrName);
+	else
+		adaptSchema (selTopOp->schema->attrDefs, agg0->attrName);
 	//adaptSchema (selTopOp->schema->attrDefs, agg0->attrName);
 
 	List *aggOpList = getListAggregationOperator (rchild);
@@ -310,8 +331,19 @@ unnestScalar(QueryOperator *op)
 	{
 		AggregationOperator *agg = (AggregationOperator *) getHeadOfListP(aggOpList);
 		QueryOperator *aggOp = (QueryOperator *) agg;
-		SelectionOperator *selBot = (SelectionOperator *) OP_LCHILD(agg);
-		QueryOperator *selBotOp = (QueryOperator *) selBot;
+
+		QueryOperator *selBotOp = OP_LCHILD(agg); //
+		while(!isA(selBotOp,SelectionOperator))
+		{
+			if(selBotOp->inputs != NIL)
+				selBotOp = OP_LCHILD(selBotOp);
+			else
+				break; //TODO: handle no selection
+
+		}
+		//SelectionOperator *selBot = (SelectionOperator *) OP_LCHILD(agg);
+		//QueryOperator *selBotOp = (QueryOperator *) selBot;
+		SelectionOperator *selBot = (SelectionOperator *) selBotOp;
 
 		List *condList = NIL;
 		getSelectionCondOperatorList(selBot->cond, &condList);
@@ -510,6 +542,69 @@ adaptJoinCondAttrName(Node *n, char *oldName, char* newName)
 //
 //	return FALSE;
 //}
+
+static boolean
+isCorrelatedCond(Node *node)
+{
+	List *condList = NIL;
+	getSelectionCondOperatorList(node, &condList);
+
+	FOREACH(Operator, oper, condList)
+	{
+		Node *nl = getNthOfListP(oper->args, 0);
+		Node *nr = getNthOfListP(oper->args, 1);
+
+		//|| isA(nr, Constant) && ((Constant *)nr)->constType != DT_BOOL
+		if(isA(nl, AttributeReference) && isA(nr, AttributeReference) )
+		{
+			AttributeReference *al = (AttributeReference *) nl;
+			AttributeReference *ar = (AttributeReference *) nr;
+
+			char *namel = strdup(al->name);
+			char *namer = strdup(ar->name);
+
+			if(strlen(namel) > 12)
+			{
+				char *prefix = substr(strdup(namel), 0, 12);
+
+				if (streq(prefix, "nesting_eval_"))
+					return TRUE;
+			}
+
+			if(strlen(namer) > 12)
+			{
+				char *prefix = substr(strdup(namer), 0, 12);
+
+				if (streq(prefix, "nesting_eval_"))
+					return TRUE;
+			}
+
+		}
+	}
+
+	return FALSE;
+}
+
+static List *
+getListSelectionOperatorUp (QueryOperator *op)
+{
+    List *result = NIL;
+    appendSelectionOperator(op, &result);
+
+    return result;
+}
+
+static void
+appendSelectionOperator (QueryOperator *op, List **result)
+{
+	FOREACH(QueryOperator, p, op->parents)
+    	{
+		if(isA(op, SelectionOperator))
+			*result = appendToTailOfList(*result, op);
+
+		appendSelectionOperator(p, result);
+    	}
+}
 
 static List *
 refsToNames(List *attrRefs)
@@ -747,20 +842,20 @@ adaptSchemaByName (List *attrDefs, char *name, char *attr)
 	}
 }
 
-//static void
-//adaptSchema (List *attrDefs, char *attr)
-//{
-//	FOREACH(AttributeDef, ad, attrDefs)
-//	{
-//		   char *name = strdup(ad->attrName);
-//	       if(strlen(name) > 12)
-//	       {
-//	    	   	   char *prefix = substr(strdup(name), 0, 12);
-//	    	   	   if (streq(prefix, "nesting_eval_"))
-//	    	   		   ad->attrName = strdup(attr);
-//	       }
-//	}
-//}
+static void
+adaptSchema (List *attrDefs, char *attr)
+{
+	FOREACH(AttributeDef, ad, attrDefs)
+	{
+		   char *name = strdup(ad->attrName);
+	       if(strlen(name) > 12)
+	       {
+	    	   	   char *prefix = substr(strdup(name), 0, 12);
+	    	   	   if (streq(prefix, "nesting_eval_"))
+	    	   		   ad->attrName = strdup(attr);
+	       }
+	}
+}
 
 
 static boolean
