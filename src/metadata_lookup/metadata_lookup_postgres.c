@@ -49,7 +49,7 @@
 // we have to use syntax that works a reasonable range of postgres versions
 #define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
 	    "(SELECT regexp_split_to_array(substring(version() from 'PostgreSQL ([0-9]+[.][0-9]+)'), '[.]') AS version) getv;"
-//#define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM " \
+//#define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM "
 //        "(SELECT (regexp_match(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
 
 #define NAME_EXPLAIN_FUNC_EXISTS "GProM_CheckExplainFunctionExists"
