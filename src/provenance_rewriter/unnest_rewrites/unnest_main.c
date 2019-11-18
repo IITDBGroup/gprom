@@ -38,7 +38,8 @@ static void resetPos(AttributeReference *ar,  List* attrDefs);
 static void removeOperator(QueryOperator *op);
 static int getInAttrPos(List *conds);
 static char* getInAttrName(Node *node);
-static void adaptCond(Operator *oper, List *inputs);
+static void adaptCond(Operator *oper, List *inputs); //might use following one
+static boolean adaptCondNode (Node *node, List *defs);
 static boolean existsAttr(char *name, List *defs);
 static List *duplicateList(List *l);
 static List *getCorrelatedAttrRefs(List *conds);
@@ -47,11 +48,29 @@ static boolean isCorrelatedCond(Node *node);
 //static Node *removeNestCond(Node *n);
 //static boolean containNestingAttr(Operator *oper);
 static void adaptJoinCondAttrName(Node *n, char *oldName, char* newName);
+static List *getAdditionalConds(List *l1, List *l2);
+static TableAccessOperator *getTableAccess(QueryOperator *childNestRchild);
+static boolean adaptCondsPos (Node *node, List *defs);
+static void addSuffixInCond(List *l);
 
+static boolean isExistSpecial(List *nestOps);
+static boolean isExistAndNotExist(NestingOperator *nest);
+static boolean isNotContainNestingAttr (Node *node, char *status);
+static boolean isContainOverlappedConds(NestingOperator *nest, NestingOperator* childNest);
+static boolean isContainOperator(List *l, Operator *oper);
+static boolean getAttrRefs (Node *node, List **l);
+static boolean isContainAttr(List *l, AttributeReference *ar);
+//static TableAccessOperator *getTableAccessByName(QueryOperator *op, char *name);
+static void getTableAccessByName(QueryOperator *op, char *name, TableAccessOperator **table);
+static List *getUnNestAttrsInExistsSqecial(List *conds);
+static void propagateUpSchema(QueryOperator *base, QueryOperator *top);
+static List* createDefsByInputs(QueryOperator *op);
+static boolean addSuffixAdditionalCond(Node *node, char *state);
 
 static QueryOperator *unnestScalar(QueryOperator *op);
 static QueryOperator *unnestInClause(QueryOperator *op);
 static QueryOperator *unnestExists(QueryOperator *op);
+static QueryOperator *unnestExistsSpecial(List *l);
 
 //static List *getListNestingOperator (QueryOperator *op);
 //static void appendNestingOperator (QueryOperator *op, List **result);
@@ -88,6 +107,12 @@ QueryOperator *
 unnestRewriteQuery(QueryOperator *op)
 {
 	List *nestOps = getListNestingOperator(op);
+	if(isExistSpecial(nestOps))
+	{
+		unnestExistsSpecial(nestOps);
+		return op;
+	}
+
 	FOREACH(NestingOperator, nest, nestOps)
 	{
 		QueryOperator *nestOp = (QueryOperator *) nest;
@@ -115,6 +140,342 @@ unnestRewriteQuery(QueryOperator *op)
 	return (QueryOperator *) op;
 }
 
+static QueryOperator *
+unnestExistsSpecial(List *l)
+{
+	DEBUG_LOG("unnestExistsSpecial");
+	NestingOperator *nest = (NestingOperator *) getHeadOfListP(l);
+	NestingOperator *childNest = (NestingOperator *) OP_LCHILD(nest);
+	QueryOperator *nestOp = (QueryOperator *) nest;
+	QueryOperator *childNestOP = (QueryOperator *) childNestOP;
+
+	List *parentNest = nestOp->parents;
+	QueryOperator *lchild = OP_LCHILD(childNest);
+	QueryOperator *nestRchild = OP_RCHILD(nest);
+	QueryOperator *childNestRchild = OP_RCHILD(childNest);
+
+	//TODO: check if selection
+	SelectionOperator *selTopNest = (SelectionOperator *) OP_FIRST_PARENT(nestOp);
+	SelectionOperator *selNotExist = (SelectionOperator *) OP_LCHILD(nestRchild);
+	SelectionOperator *selExist = (SelectionOperator *) OP_LCHILD(childNestRchild);
+
+	//remove nest = true cond
+	List *selTopNestConds = NIL;
+	getSelectionCondOperatorList(selTopNest->cond, &selTopNestConds);
+	List *newSelTopNestConds = getUnNestAttrsInExistsSqecial(selTopNestConds);
+	selTopNest->cond = andExprList(newSelTopNestConds);
+	QueryOperator *selTopNestOp = (QueryOperator *) selTopNest;
+
+	List *condsNotExist = NIL;
+	List *condsExist = NIL;
+	getSelectionCondOperatorList(selExist->cond, &condsExist);
+	getSelectionCondOperatorList(selNotExist->cond, &condsNotExist);
+
+	List *addConds = getAdditionalConds(condsNotExist, condsExist);
+
+	TableAccessOperator *table= getTableAccess(childNestRchild);
+	QueryOperator *tableOp = (QueryOperator *) table;
+
+	//the attr in condsNotExist add suffix 1
+	FOREACH(Node, n, addConds)
+		addSuffixAdditionalCond(n,"x");
+
+	List *joinAttrNames = NIL;
+	FOREACH(char, c, getAttrNames(tableOp->schema))
+		joinAttrNames = appendToTailOfList(joinAttrNames, strdup(c));
+	FOREACH(char, c, getAttrNames(tableOp->schema))
+		joinAttrNames = appendToTailOfList(joinAttrNames, CONCAT_STRINGS(strdup(c),"1"));
+
+	TableAccessOperator *tablel = copyObject(table);
+	TableAccessOperator *tabler = copyObject(table);
+	QueryOperator *tableOpl = (QueryOperator *) tablel;
+	QueryOperator *tableOpr = (QueryOperator *) tabler;
+	tableOpl->schema->name = "L1";
+	tableOpr->schema->name = "L2";
+
+	JoinOperator *join = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(tableOpl,tableOpr), NIL, joinAttrNames);
+	tableOpl->parents = singleton(join);
+	tableOpr->parents = singleton(join);
+	QueryOperator *joinOp = (QueryOperator *) join;
+
+	addSuffixInCond(condsExist);
+
+	FOREACH(Node, n, condsExist)
+		adaptCondsPos(n, joinOp->schema->attrDefs);
+
+	Node *selCond = andExprList(condsExist);
+
+	SelectionOperator *sel = createSelectionOp(selCond, (QueryOperator *) join, NIL, NIL);
+	joinOp->parents = singleton(sel);
+	QueryOperator *selOp = (QueryOperator *) sel;
+
+	FOREACH(Node, n, addConds)
+		adaptCondsPos(n, selOp->schema->attrDefs);
+
+	Node *caseCond = getHeadOfListP(addConds);
+
+	List *projAttrsTemp = NIL;
+	getAttrRefs((Node *) condsNotExist, &projAttrsTemp);
+//	FOREACH(AttributeReference, a, projAttrsTemp)
+//		DEBUG_LOG("projAttrsTemp: %s", a->name);
+
+	List *projAttrs = NIL;
+	FOREACH(AttributeReference, a, projAttrsTemp)
+	{
+		if(!isContainAttr(projAttrs, a))
+		{
+			AttributeReference *cura = copyObject(a);
+			resetPos(cura, selOp->schema->attrDefs);
+			projAttrs = appendToTailOfList(projAttrs, cura);
+		}
+	}
+
+	List *projAttrNames = NIL;
+	List *topProjAttrNames = NIL;
+	FOREACH(AttributeReference, a, projAttrs)
+	{
+		projAttrNames = appendToTailOfList(projAttrNames, strdup(a->name));
+		topProjAttrNames = appendToTailOfList(topProjAttrNames, strdup(a->name));
+	}
+
+	List *groupBy = NIL;
+	List *topProjAttrs = NIL;
+	FOREACH(AttributeReference, a, projAttrs)
+	{
+		groupBy = appendToTailOfList(groupBy, copyObject(a));
+		topProjAttrs = appendToTailOfList(topProjAttrs, copyObject(a));
+	}
+
+	CaseWhen *when = createCaseWhen(caseCond, (Node *) createConstInt(1));
+	CaseExpr *caseExpr = createCaseExpr(NULL, singleton(when), (Node *) createConstInt(0));
+	projAttrs = appendToTailOfList(projAttrs, caseExpr);
+
+	List *aggAttrNames = NIL;
+	FOREACH(char, c, projAttrNames)
+		aggAttrNames = appendToTailOfList(aggAttrNames, strdup(c));
+
+	projAttrNames = appendToTailOfList(projAttrNames, "dateb");
+	aggAttrNames = appendToHeadOfList(aggAttrNames, "dateb");
+
+	ProjectionOperator *proj = createProjectionOp(projAttrs, selOp, NIL, projAttrNames);
+	selOp->parents = singleton(proj);
+	QueryOperator *projOp = (QueryOperator *) proj;
+
+	FOREACH(AttributeReference, a, groupBy)
+	{
+		resetPos(a, projOp->schema->attrDefs);
+	}
+
+	AttributeReference *dateb = getAttrRefByName(projOp, "dateb");
+	FunctionCall *f = createFunctionCall("sum", singleton(dateb));
+	AggregationOperator *agg = createAggregationOp (singleton(f), groupBy, projOp, NIL, aggAttrNames);
+	projOp->parents = singleton(agg);
+	QueryOperator *aggOp = (QueryOperator *) agg;
+
+	AttributeReference *datebAgg = getAttrRefByName(aggOp, "dateb");
+	Operator *selTopCond = createOpExpr("=", LIST_MAKE(datebAgg, createConstInt(0)));
+	SelectionOperator *selTop = createSelectionOp((Node *) selTopCond, aggOp, NIL, NIL);
+	aggOp->parents = singleton(selTop);
+	QueryOperator *selTopOp = (QueryOperator *) selTop;
+
+	FOREACH(AttributeReference, a, topProjAttrs)
+	{
+		resetPos(a, selTopOp->schema->attrDefs);
+	}
+
+	FOREACH(AttributeReference,a,topProjAttrs)
+		DEBUG_NODE_BEATIFY_LOG("test a: ",a);
+
+	ProjectionOperator *projTop = createProjectionOp(topProjAttrs, selTopOp, NIL, topProjAttrNames);
+	selTopOp->parents = singleton(projTop);
+	QueryOperator *projTopOp = (QueryOperator *) projTop;
+
+	DuplicateRemoval *dup = createDuplicateRemovalOp(NIL, projTopOp, NIL, NIL);
+	projTopOp->parents = singleton(dup);
+	QueryOperator *dupOp = (QueryOperator *) dup;
+
+	TableAccessOperator *swapTable = NULL;
+	getTableAccessByName(lchild, table->tableName, &swapTable);
+	QueryOperator *swapTableOp = (QueryOperator *) swapTable;
+//	QueryOperator *pSwapTable = (QueryOperator *) getHeadOfListP(swapTableOp->parents);
+//	QueryOperator *lpSwapTable = OP_LCHILD(pSwapTable);
+//	pSwapTable->inputs = LIST_MAKE(lpSwapTable, dup);
+//	dupOp->parents = singleton(pSwapTable);
+
+
+//	QueryOperator *swapTableOp = (QueryOperator *) swapTable;
+	switchSubtrees(swapTableOp, dupOp);
+	lchild->parents = parentNest;
+	FOREACH(QueryOperator, o, parentNest)
+		o->inputs = singleton(lchild);
+
+	QueryOperator *baseJoinOp = OP_FIRST_PARENT(dupOp);
+	propagateUpSchema(baseJoinOp, selTopNestOp);
+	adaptCondNode(selTopNest->cond, OP_LCHILD(selTopNestOp)->schema->attrDefs);
+
+//	dupOp->parents = swapTableOp->parents;
+//	FOREACH(QueryOperator, o, dupOp->parents)
+//		replaceNode(o->inputs, swapTable, dupOp);
+
+
+//	JoinOperator *joinTop = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(lchild, dup), parentNest, NIL);
+//	dupOp->parents = singleton(joinTop);
+//	lchild->parents = singleton(joinTop);
+//
+//	FOREACH(QueryOperator, o, parentNest)
+//		o->inputs = singleton(joinTop);
+//
+	INFO_OP_LOG("dupOp overview:", dupOp);
+
+	return (QueryOperator *) dupOp;
+}
+
+static boolean
+addSuffixAdditionalCond(Node *node, char *state)
+{
+    if (node == NULL)
+        return FALSE;
+
+    if(isA(node, AttributeReference))
+    {
+    		AttributeReference *a = (AttributeReference *) node;
+    		a->name = CONCAT_STRINGS(a->name, "1");
+    }
+    return visit(node, addSuffixAdditionalCond, state);
+}
+
+static void
+addSuffixInCond(List *l)
+{
+	FOREACH(Operator,oper,l)
+	{
+		Node *n1 = getNthOfListP(oper->args,0);
+		Node *n2 = getNthOfListP(oper->args,1);
+		if(isA(n1, AttributeReference) && isA(n2, AttributeReference))
+		{
+			AttributeReference *a1 = (AttributeReference *) n1;
+			AttributeReference *a2 = (AttributeReference *) n2;
+			if(streq(a1->name,a2->name))
+			{
+				a1->name = CONCAT_STRINGS(a1->name, "1");
+			}
+		}
+	}
+}
+
+static void
+propagateUpSchema(QueryOperator *base, QueryOperator *top)
+{
+	while(!ptrEqual(base, top))
+	{
+		base->schema->attrDefs = createDefsByInputs(base);
+		base = OP_FIRST_PARENT(base);
+	}
+	top->schema->attrDefs = createDefsByInputs(top);
+}
+
+static List*
+createDefsByInputs(QueryOperator *op)
+{
+	List *defs = NIL;
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		FOREACH(AttributeDef, ad, o->schema->attrDefs)
+			defs = appendToTailOfList(defs, copyObject(ad));
+	}
+
+	return defs;
+}
+
+static void
+getTableAccessByName(QueryOperator *op, char *name, TableAccessOperator **table)
+{
+
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		if(isA(o, TableAccessOperator))
+		{
+			TableAccessOperator *t = (TableAccessOperator *) o;
+			DEBUG_LOG("t: %s",t->tableName);
+			DEBUG_LOG("name: %s", name);
+			if(streq(t->tableName, name))
+			{
+				*table = t;
+			}
+		}
+
+		getTableAccessByName(o, name, table);
+	}
+}
+
+static boolean
+getAttrRefs (Node *node, List **l)
+{
+    if (node == NULL)
+        return FALSE;
+
+    if(isA(node, AttributeReference))
+    {
+    	 	 *l = appendToTailOfList(*l, node);
+    }
+
+    return visit(node, getAttrRefs, l);
+}
+
+
+static boolean
+isContainAttr(List *l, AttributeReference *ar)
+{
+	if(l == NIL)
+		return FALSE;
+
+	FOREACH(AttributeReference, a, l)
+	{
+		if(streq(ar->name, a->name))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+static boolean
+adaptCondsPos (Node *node, List *defs)
+{
+    if (node == NULL)
+        return FALSE;
+
+    if(isA(node, AttributeReference))
+    {
+    		AttributeReference *a = (AttributeReference *) node;
+    		a->fromClauseItem = 0;
+    		a->outerLevelsUp = 0;
+    		resetPos(a, defs);
+    }
+
+    return visit(node, adaptCondsPos, defs);
+}
+
+static List *
+getAdditionalConds(List *l1, List *l2)
+{
+	List *conds = NIL;
+	FOREACH(Operator, oper, l1)
+	{
+		if(!isContainOperator(l2, oper))
+			conds = appendToTailOfList(conds, copyObject(oper));
+	}
+
+    return conds;
+}
+
+static TableAccessOperator *
+getTableAccess(QueryOperator *op)
+{
+	while(op->inputs != NIL)
+		op = OP_LCHILD(op);
+
+	return (TableAccessOperator *) op;
+}
 
 static QueryOperator *
 unnestExists(QueryOperator *op)
@@ -466,6 +827,127 @@ unnestScalar(QueryOperator *op)
 }
 
 
+static boolean
+isExistSpecial(List *nestOps)
+{
+
+	NestingOperator *nest = (NestingOperator *) getHeadOfListP(nestOps);
+	QueryOperator *childNestOp = OP_LCHILD(nest);
+
+	if(!isA(childNestOp, NestingOperator))
+		return FALSE;
+
+	NestingOperator *childNest =  (NestingOperator *) childNestOp;
+	//TODO: also need to check same table
+	if(isExistAndNotExist(nest) && isContainOverlappedConds(nest, childNest))
+		return TRUE;
+
+	return FALSE;
+}
+
+static boolean
+isContainOverlappedConds(NestingOperator *nest, NestingOperator* childNest)
+{
+	QueryOperator *op1 = OP_RCHILD(nest);
+	QueryOperator *op2 = OP_RCHILD(childNest);
+
+	//TODO: check if selection
+	SelectionOperator *selNotExist = (SelectionOperator *) OP_LCHILD(op1);
+	SelectionOperator *selExist = (SelectionOperator *) OP_LCHILD(op2);
+
+	List *condsNotExist = NIL;
+	List *condsExist = NIL;
+	getSelectionCondOperatorList(selExist->cond, &condsExist);
+	getSelectionCondOperatorList(selNotExist->cond, &condsNotExist);
+
+	List *resCondsExist = NIL;
+	FOREACH(Operator, oper, condsNotExist)
+	{
+		if(isContainOperator(condsExist, oper))
+			resCondsExist = appendToTailOfList(resCondsExist, oper);
+	}
+
+	if(LIST_LENGTH(resCondsExist) == LIST_LENGTH(condsExist))
+		return TRUE;
+
+	return FALSE;
+}
+
+static boolean
+isContainOperator(List *l, Operator *oper)
+{
+	AttributeReference *operAttr1 = (AttributeReference *) getHeadOfListP(oper->args);
+	AttributeReference *operAttr2 = (AttributeReference *) getTailOfListP(oper->args);
+
+	FOREACH(Operator, o, l)
+	{
+		Node *oAttr1 = getHeadOfListP(o->args);
+		Node *oAttr2 = getTailOfListP(o->args);
+
+		if(isA(oAttr1, AttributeReference) && isA(oAttr2, AttributeReference))
+		{
+			AttributeReference *a1 = (AttributeReference *) oAttr1;
+			AttributeReference *a2 = (AttributeReference *) oAttr2;
+
+			if(((streq(operAttr1->name, a1->name) && streq(operAttr2->name, a2->name)) ||
+					(streq(operAttr1->name, a2->name) && streq(operAttr2->name, a1->name))) &&
+						streq(oper->name,o->name))
+				return TRUE;
+		}
+
+	}
+
+	return FALSE;
+}
+
+static boolean
+isExistAndNotExist(NestingOperator *nest)
+{
+	QueryOperator *op = OP_FIRST_PARENT(nest);
+	if(isA(op, SelectionOperator))
+	{
+		SelectionOperator *sel = (SelectionOperator *) OP_FIRST_PARENT(nest);
+		List *condList = NIL;
+		getSelectionCondOperatorList(sel->cond, &condList);
+		int containExist = FALSE;
+		int containNotExist = FALSE;
+		FOREACH(Operator, oper, condList)
+		{
+
+			if(!streq(oper->name, "NOT") && !isNotContainNestingAttr((Node *) oper, "x"))
+				containExist = TRUE;
+
+			if(streq(oper->name, "NOT") && !isNotContainNestingAttr((Node *) oper,"x"))
+				containNotExist = TRUE;
+		}
+
+		return containExist && containNotExist;
+	}
+
+	return FALSE;
+}
+
+
+static boolean
+isNotContainNestingAttr (Node *node, char *status)
+{
+    if (node == NULL)
+        return FALSE;
+
+    if(isA(node, AttributeReference))
+    {
+    		AttributeReference *a = (AttributeReference *) node;
+    		if(isNestAttr(a))
+    		{
+    			DEBUG_LOG("attr: %s", a->name);
+    			return FALSE;
+    		}
+    }
+
+    return visit(node, isNotContainNestingAttr, status);
+}
+
+
 //TODO: might use visit
 static void
 adaptJoinCondAttrName(Node *n, char *oldName, char* newName)
@@ -667,6 +1149,23 @@ existsAttr(char *name, List *defs)
 	return FALSE;
 }
 
+
+
+static boolean
+adaptCondNode (Node *node, List *defs)
+{
+    if (node == NULL)
+        return FALSE;
+
+    if(isA(node, AttributeReference))
+    {
+    		AttributeReference *a = (AttributeReference *) node;
+    		resetPos(a, defs);
+    }
+    return visit(node, adaptCondNode, defs);
+}
+
+
 static void
 adaptCond(Operator *oper, List *inputs)
 {
@@ -723,6 +1222,17 @@ getInAttrName (Node *node)
     		return ((AttributeReference *) nr)->name;
 }
 
+static List *
+getUnNestAttrsInExistsSqecial(List *conds)
+{
+	List *l = NIL;
+	FOREACH(Node, n, conds){
+		if(isNotContainNestingAttr(n, "x"))
+			l = appendToTailOfList(l, n);
+	}
+	return l;
+}
+
 static int
 getInAttrPos(List *conds)
 {
@@ -731,8 +1241,10 @@ getInAttrPos(List *conds)
 	{
 	    Node *nl = getNthOfListP(oper->args, 0);
 	    Node *nr = getNthOfListP(oper->args, 1);
-	    if((isA(nl, AttributeReference) && isA(nr, Constant) && ((Constant *)nr)->constType == DT_BOOL) ||
-	    		(isA(nr, AttributeReference) && isA(nl, Constant) && ((Constant *)nl)->constType == DT_BOOL))
+	    if((isA(nl, AttributeReference) && isA(nr, Constant) &&
+	    		((Constant *)nr)->constType == DT_BOOL && isNestAttr((AttributeReference *) nl))
+	    		|| (isA(nr, AttributeReference) && isA(nl, Constant) &&
+	    		   ((Constant *)nl)->constType == DT_BOOL && isNestAttr((AttributeReference *) nr)) )
 	    {
 	    		return count;
 	    }
