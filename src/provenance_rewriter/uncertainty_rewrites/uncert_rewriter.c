@@ -66,6 +66,13 @@ static QueryOperator *rewrite_UncertAggregation(QueryOperator *op);
 static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op);
 static QueryOperator *rewrite_UncertSet(QueryOperator *op);
 
+//row level uncertain rewriting
+static QueryOperator *rewriteUncertRowProvComp(QueryOperator *op);
+static QueryOperator *rewrite_UncertRowSelection(QueryOperator *op);
+static QueryOperator *rewrite_UncertRowProjection(QueryOperator *op);
+static QueryOperator *rewrite_UncertRowTableAccess(QueryOperator *op);
+static QueryOperator *rewrite_UncertRowJoin(QueryOperator *op);
+
 static void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
 
 //Range query rewriting
@@ -147,6 +154,41 @@ rewriteUncert(QueryOperator * op)
 		case T_SetOperator:
 			rewrittenOp = rewrite_UncertSet(op);
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
+			break;
+		default:
+			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));
+			rewrittenOp = NULL;
+			break;
+	}
+	return rewrittenOp;
+}
+
+//TODO
+QueryOperator *
+rewriteUncertRow(QueryOperator * op)
+{
+	QueryOperator *rewrittenOp;
+
+	switch(op->type)
+	{
+	    case T_ProvenanceComputation:
+	        rewrittenOp = rewriteUncertRowProvComp(op);
+	        break;
+		case T_TableAccessOperator:
+			rewrittenOp = rewrite_UncertRowTableAccess(op);
+			INFO_OP_LOG("UncertaintyRow Rewrite TableAccess:", rewrittenOp);
+			break;
+		case T_SelectionOperator:
+			rewrittenOp = rewrite_UncertRowSelection(op);
+			INFO_OP_LOG("UncertaintyRow Rewrite Selection:", rewrittenOp);
+			break;
+		case T_ProjectionOperator:
+			rewrittenOp = rewrite_UncertRowProjection(op);
+			INFO_OP_LOG("UncertaintyRow Rewrite Projection:", rewrittenOp);
+			break;
+		case T_JoinOperator:
+			rewrittenOp = rewrite_UncertRowJoin(op);
+			INFO_OP_LOG("UncertaintyRow Rewrite Join:", rewrittenOp);
 			break;
 		default:
 			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));
@@ -881,6 +923,25 @@ rewrite_UncertXTable(QueryOperator *op)
 */
 
 	return proj;
+}
+
+static QueryOperator *
+rewriteUncertRowProvComp(QueryOperator *op)
+{
+    ASSERT(LIST_LENGTH(op->inputs) == 1);
+    QueryOperator *top = getHeadOfListP(op->inputs);
+
+    top = rewriteUncertRow(top);
+
+    // make sure we do not introduce name clashes, but keep the top operator's schema intact
+    Set *done = PSET();
+    disambiguiteAttrNames((Node *) top, done);
+
+    // adapt inputs of parents to remove provenance computation
+    switchSubtrees((QueryOperator *) op, top);
+    DEBUG_NODE_BEATIFY_LOG("rewritten query root for uncertainty is:", top);
+
+    return top;
 }
 
 static QueryOperator *
@@ -2398,6 +2459,100 @@ rewrite_UncertTableAccess(QueryOperator *op)
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
 	return proj;
+}
+
+static QueryOperator *
+rewrite_UncertRowTableAccess(QueryOperator *op){
+	INFO_LOG("REWRITE-UNCERT - TableAccess");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	List *normalAttr = getNormalAttrNames(op);
+	List *projExpr = getNormalAttrProjectionExprs(op);
+	projExpr = appendToTailOfList(projExpr, createConstInt(1));
+	normalAttr = appendToTailOfList(normalAttr, UNCERTAIN_ROW_NAME);
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, op, NIL, normalAttr);
+	switchSubtrees(op, proj);
+	op->parents = singleton(proj);
+	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
+
+	if(HAS_STRING_PROP(op,PROP_HAS_UNCERT)){
+		INFO_LOG("TableAccess - HAS_UNCERT");
+		List *pexpr = getProvAttrProjectionExprs(op);
+		//INFO_LOG("pexpr %s", nodeToString(pexpr));
+		List *nexpr = getNormalAttrProjectionExprs(op);
+		//INFO_LOG("nexpr %s", nodeToString(nexpr));
+		((ProjectionOperator *)proj)->projExprs = concatTwoLists(nexpr, pexpr);
+	}
+
+	return proj;
+}
+
+static QueryOperator *
+rewrite_UncertRowSelection(QueryOperator *op){
+	INFO_LOG("REWRITE-UNCERT - Selection");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	//rewrite child first
+	rewriteUncertRow(OP_LCHILD(op));
+
+	addAttrToSchema(op, UNCERTAIN_ROW_NAME, DT_INT);
+	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
+	return op;
+}
+
+static QueryOperator *
+rewrite_UncertRowJoin(QueryOperator *op){
+	INFO_LOG("REWRITE-UNCERT - Join");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	//rewrite child first
+	rewriteUncertRow(OP_LCHILD(op));
+	rewriteUncertRow(OP_RCHILD(op));
+
+	List *attrnames = getNormalAttrNames(op);
+	int len = attrnames->length;
+	int len_l = getNormalAttrNames(OP_LCHILD(op))->length-1;
+	List *attrnames_r = sublist(attrnames, len_l, len-1);
+	List *attrnames_l = sublist(attrnames, 0, len_l-1);
+	appendToTailOfList(attrnames_l, UNCERTAIN_ROW_NAME);
+	appendToTailOfList(attrnames_r, UNCERTAIN_ROW_NAME_TWO);
+	List *newattrnames = concatTwoLists(attrnames_l, attrnames_r);
+
+	JoinOperator *jop = (JoinOperator *)op;
+	QueryOperator *newjoin = (QueryOperator *)createJoinOp(jop->joinType, jop->cond, op->inputs, NIL, newattrnames);
+	switchSubtrees(op, newjoin);
+	OP_LCHILD(newjoin)->parents = singleton(newjoin);
+	OP_RCHILD(newjoin)->parents = singleton(newjoin);
+
+	//insert projection
+	List *projExpr = NIL;
+	List *projAttr = getNormalAttrNames(op);
+	FOREACH(char , n, projAttr){
+		projExpr = appendToTailOfList(projExpr, getAttrRefByName(newjoin, n));
+	}
+	Node *rowExpr = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(getAttrRefByName(newjoin, UNCERTAIN_ROW_NAME), getAttrRefByName(newjoin, UNCERTAIN_ROW_NAME_TWO)));
+	projExpr = appendToTailOfList(projExpr, rowExpr);
+	projAttr = appendToTailOfList(projAttr, UNCERTAIN_ROW_NAME);
+
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, newjoin, NIL, projAttr);
+	switchSubtrees(newjoin, proj);
+	newjoin->parents = singleton(proj);
+
+	return proj;
+}
+
+static QueryOperator *
+rewrite_UncertRowProjection(QueryOperator *op){
+	INFO_LOG("REWRITE-UNCERT - Projection");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	//rewrite child first
+	rewriteUncertRow(OP_LCHILD(op));
+
+	appendToTailOfList(((ProjectionOperator *)op)->projExprs, getAttrRefByName(OP_LCHILD(op), UNCERTAIN_ROW_NAME));
+	addAttrToSchema(op, UNCERTAIN_ROW_NAME, DT_INT);
+	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
+	return op;
 }
 
 static QueryOperator *
