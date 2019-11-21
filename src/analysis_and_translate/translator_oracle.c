@@ -743,12 +743,6 @@ translateProvenanceStmt(ProvenanceStmt *prov)
             addChildOperator((QueryOperator *) result, child);
         }
         break;
-        case PROV_INPUT_UNCERTROW_QUERY:
-        {
-        	child = translateQueryOracle(prov->query);
-        	addChildOperator((QueryOperator *) result, child);
-        }
-        break;
         case PROV_INPUT_RANGE_QUERY:
         {
         	child = translateQueryOracle(prov->query);
@@ -1235,13 +1229,6 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 			hasProv = TRUE;
 			//removed strdup
 			from->userProvAttrs = singleton(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR)));
-		}
-
-		if (getStringProvProperty(from, PROV_PROP_UADB_LIST))
-		{
-			setStringProperty(op, PROP_HAS_UNCERT, (Node *) createConstBool(1));
-			hasProv = TRUE;
-			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_UADB_LIST);
 		}
 
 		if (getStringProvProperty(from, PROV_PROP_RADB_LIST))

@@ -226,13 +226,11 @@ strconcat		"||"
 (?i:COMBINER)		TOK(COMBINER)
 (?i:MULT)           TOK(MULT)
 (?i:UNCERTAIN)		TOK(UNCERTAIN)
-(?i:UNCERTROW)		TOK(UNCERTROW)
 (?i:TIP)			TOK(TIP)
 (?i:INCOMPLETE)		TOK(INCOMPLETE)
 (?i:XTABLE) 		TOK(XTABLE)
 (?i:URANGE)			TOK(URANGE)
 (?i:RADB)			TOK(RADB)
-(?i:UADB)			TOK(UADB)
 
 	/* booleans */
 {bool}			TOK(boolConst)

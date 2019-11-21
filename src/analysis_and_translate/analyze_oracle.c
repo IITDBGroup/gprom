@@ -463,24 +463,6 @@ analyzeFromProvInfo (FromItem *f)
 				DEBUG_LOG("INCOMPLETE TABLE");
 			}
 
-			//Assuming uncertainty labeling u_r as last column
-			if (getStringProvProperty(fp, PROV_PROP_UADB))
-			{
-				DEBUG_LOG("UADB INPUT");
-
-				f->attrNames = deepCopyStringList(f->attrNames);
-				f->dataTypes = copyObject(f->dataTypes);
-
-				int listlen = f->attrNames->length;
-				char *val = (char *)getNthOfListP(f->attrNames, listlen-1);
-				ASSERT(strcmp(val, UNCERTAIN_ROW_NAME)==0);
-
-				f->attrNames = sublist(f->attrNames, 0, listlen-2);
-				f->dataTypes = sublist(f->dataTypes, 0, listlen-2);
-
-				setStringProvProperty(fp, PROV_PROP_RADB_LIST, (Node *)singleton(val));
-			}
-
 			//Assuming a schema format of [a,ub_a,lb_a,b,ub_b,lb_b,...,cet_r,bg_r,pos_r]
 			if (getStringProvProperty(fp, PROV_PROP_RADB))
 			{
@@ -1775,25 +1757,6 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
             INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
-        }
-        break;
-        case PROV_INPUT_UNCERTROW_QUERY:
-        {
-        	List *provAttrNames = NIL;
-        	List *provDts = NIL;
-
-        	analyzeQueryBlockStmt(q->query, parentFroms);
-
-        	q->selectClause = getQBAttrNames(q->query);
-        	q->dts = getQBAttrDTs(q->query);
-        	// if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
-        	// semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
-        	correctFromTableVisitor(q->query, NULL);
-        	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
-
-        	q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
-        	q->dts = concatTwoLists(q->dts,provDts);
-//        	INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
         }
         break;
         case PROV_INPUT_RANGE_QUERY:

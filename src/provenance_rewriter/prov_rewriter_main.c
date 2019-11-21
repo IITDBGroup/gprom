@@ -143,10 +143,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     {
         return rewriteUncert((QueryOperator *) op);
     }
-    if (op->inputType == PROV_INPUT_UNCERTROW_QUERY)
-    {
-    	return rewriteUncertRow((QueryOperator *) op);
-    }
     if (op->inputType == PROV_INPUT_RANGE_QUERY)
     {
     	return rewriteRange((QueryOperator *) op);
