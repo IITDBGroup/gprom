@@ -811,6 +811,7 @@ static  QueryOperator *
 rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 {
 	DEBUG_LOG("rewriteXTable - %s\n", UncertaintyTypeToString(typ));
+	QueryOperator *prevWOp;
 
 	//Uncert attributes Hashmap
 	HashMap * hmp = NEW_MAP(Node, Node);
@@ -845,45 +846,36 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 	maxProbWOp->parents = singleton(sumProbWOp);
 
 	/* Window function 3+ - count attr */
-	//TODO count is not necessary (and window count distinct does not work in postgres, can just check min == max
-	QueryOperator *prevWOp = sumProbWOp;
-	/* List *attrExpr1 = getNormalAttrProjectionExprs(op); */
-	/* FOREACH(Node, nd, attrExpr1) */
-	/* { */
-	/* 	char *countAttrName = CONCAT_STRINGS(COUNT_ATTR_NAME,((AttributeReference *)nd)->name); */
-	/* 	//Make count(nd) function call */
-	/* 	FunctionCall *countNdFC = createFunctionCall(COUNT_FUNC_NAME,singleton(nd)); */
-	/* 	countNdFC->isDistinct = TRUE; */
-	/* 	QueryOperator *countNdWOp = (QueryOperator *)createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL); */
+	prevWOp = sumProbWOp;
 
-	/* 	prevWOp->parents = singleton(countNdWOp); */
-	/* 	prevWOp = countNdWOp; */
-	/* } */
-
-	/* Window function 4+ - min attr*/
-	List *attrExpr2 = getNormalAttrProjectionExprs(op);
-	FOREACH(Node, nd, attrExpr2)
+	// only need to check min and max attribute values for attribute-level semantics
+	if (typ != UNCERTAIN_TUPLE_LEVEL)
 	{
-		char *lowAttrName = getLBString(((AttributeReference *) nd)->name);
-		//Make the MIN(nd) function call
-		FunctionCall *minNdFC = createFunctionCall(MIN_FUNC_NAME,singleton(nd));
-		QueryOperator *minNdWOp = (QueryOperator *)createWindowOp((Node *)minNdFC, partByGroupId, NIL, NULL, lowAttrName, prevWOp, NIL);
+		/* Window function 4+ - min attr*/
+		List *attrExpr2 = getNormalAttrProjectionExprs(op);
+		FOREACH(Node, nd, attrExpr2)
+		{
+			char *lowAttrName = getLBString(((AttributeReference *) nd)->name);
+			//Make the MIN(nd) function call
+			FunctionCall *minNdFC = createFunctionCall(MIN_FUNC_NAME,singleton(nd));
+			QueryOperator *minNdWOp = (QueryOperator *)createWindowOp((Node *)minNdFC, partByGroupId, NIL, NULL, lowAttrName, prevWOp, NIL);
 
-		prevWOp->parents = singleton(minNdWOp);
-		prevWOp = minNdWOp;
-	}
+			prevWOp->parents = singleton(minNdWOp);
+			prevWOp = minNdWOp;
+		}
 
-	/* Window function 5+ - max attr*/
-	List *attrExpr3 = getNormalAttrProjectionExprs(op);
-	FOREACH(Node, nd, attrExpr3)
-	{
-		char *highAttrName = getUBString(((AttributeReference *)nd)->name);
-		//Make the MAX(nd) function call
-		FunctionCall *maxNdFC = createFunctionCall(MAX_FUNC_NAME,singleton(nd));
-		QueryOperator *maxNdWOp = (QueryOperator *)createWindowOp((Node *)maxNdFC, partByGroupId, NIL, NULL, highAttrName, prevWOp, NIL);
+		/* Window function 5+ - max attr*/
+		List *attrExpr3 = getNormalAttrProjectionExprs(op);
+		FOREACH(Node, nd, attrExpr3)
+		{
+			char *highAttrName = getUBString(((AttributeReference *)nd)->name);
+			//Make the MAX(nd) function call
+			FunctionCall *maxNdFC = createFunctionCall(MAX_FUNC_NAME,singleton(nd));
+			QueryOperator *maxNdWOp = (QueryOperator *)createWindowOp((Node *)maxNdFC, partByGroupId, NIL, NULL, highAttrName, prevWOp, NIL);
 
-		prevWOp->parents = singleton(maxNdWOp);
-		prevWOp = maxNdWOp;
+			prevWOp->parents = singleton(maxNdWOp);
+			prevWOp = maxNdWOp;
+		}
 	}
 
 	Operator *selec1Cond = NULL;
@@ -926,7 +918,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selecRowNumberIsOne), selecRowNumberIsOne, NIL, getNormalAttrNames(selecRowNumberIsOne));
 	selecRowNumberIsOne->parents = singleton(proj);
 
-	/* either add uncertain attributes or add range bounds */
+	/* either add uncertain attributes or add range bounds or none (tuple-level) */
 	List *attrExpr4 = getNormalAttrProjectionExprs(op);
 	FOREACH(Node, nd, attrExpr4)
 	{
@@ -942,10 +934,11 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 		// attribute or tuple level cerainty
 		else if (typ == UNCERTAIN_ATTR_LEVEL)
 		{
-			//Add U_nd->name to the schema, with data type int
+			//Add U_nd->name to the schema, with data type int, if LB == UB then the attribute's value is certain
 			addUncertAttrToSchema(hmp, proj, nd);
 			appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
-							   createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)))));
+							   createCaseOperator((Node *) createOpExpr("=",LIST_MAKE(getAttrRefByName(selecRowNumberIsOne,getLBString(((AttributeReference *) nd)->name)),
+																					  getAttrRefByName(selecRowNumberIsOne,getUBString(((AttributeReference *) nd)->name))))));
 		}
 	}
 
@@ -967,12 +960,19 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 		// possible (always 1)
 		appendToTailOfList(((ProjectionOperator *) proj)->projExprs, createConstInt(1));
 	}
-	else
+	else if (typ == UNCERTAIN_ATTR_LEVEL)
 	{
 		Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
 		//Add U_R to the schema with data type int
 		addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
+	}
+	// tuple level
+	else
+	{
+		Node *maxProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)));
+		addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(maxProbIsOne));
 	}
 
 	switchSubtrees(op, proj);
