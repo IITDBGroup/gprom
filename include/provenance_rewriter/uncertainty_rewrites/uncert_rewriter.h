@@ -1,5 +1,6 @@
 #include "common.h"
 #include "model/query_operator/query_operator.h"
+#include "model/set/hashmap.h"
 #include "model/set/set.h"
 
 #define UNCERTAIN_ROW_ATTR backendifyIdentifier("R")
@@ -13,6 +14,7 @@
 #define ROW_POSSIBLE_TWO backendifyIdentifier("POS_R1")
 
 extern QueryOperator *rewriteUncert(QueryOperator *op);
+extern QueryOperator *rewriteUncertTuple(QueryOperator *op);
 extern QueryOperator *rewriteRange(QueryOperator *op);
 extern Node *getUncertaintyExpr(Node *expr, HashMap *hmp); //hashmap of attrref->attrref(attribute->attribute uncertainty)
 extern Node *removeUncertOpFromExpr(Node *expr);

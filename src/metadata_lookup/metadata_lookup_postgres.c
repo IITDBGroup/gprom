@@ -443,7 +443,7 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_PK);
 
     // catalog pg_proc has changed in 11
-    if (plugin->serverMajorVersion == 11)
+    if (plugin->serverMajorVersion >= 11)
     {
         PREP_QUERY(IS_WIN_FUNC_11);
         PREP_QUERY(IS_AGG_FUNC_11);

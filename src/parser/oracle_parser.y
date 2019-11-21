@@ -418,6 +418,15 @@ provStmt:
 			p->options = NIL;
 			$$ = (Node *) p;
 		}
+		| TUPLE UNCERTAIN '(' stmt ')'
+		{
+			RULELOG("provStmt::uncertain");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $4);
+			p->inputType = PROV_INPUT_UNCERTAIN_TUPLE_QUERY;
+			p->provType = PROV_NONE;
+			p->options = NULL;
+			$$ = (Node *) p;
+		}
 		| URANGE '(' stmt ')'
 		{
 			RULELOG("provStmt::range");

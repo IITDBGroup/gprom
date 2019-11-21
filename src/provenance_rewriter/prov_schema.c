@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * prov_schema.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -241,6 +241,12 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         *dts = appendToTailOfListInt(*dts, DT_INT);
         *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
     }
+	if (stmt->inputType == PROV_INPUT_UNCERTAIN_TUPLE_QUERY)
+	{
+        // add row uncertainty attribute
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
+	}
     if (stmt->inputType == PROV_INPUT_RANGE_QUERY)
     {
     	List *qAttrDef =  getQBAttrDefs(stmt->query);
