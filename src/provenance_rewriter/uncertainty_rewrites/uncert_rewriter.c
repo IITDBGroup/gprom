@@ -9,11 +9,20 @@
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "model/query_operator/query_operator_model_checker.h"
 
 #include "analysis_and_translate/translator_oracle.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
+#include "utility/enum_magic.h"
 #include "utility/string_utils.h"
+
+/* type of uncertainty annotations we produce */
+NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
+						UNCERTAIN_TUPLE_LEVEL,
+						UNCERTAIN_ATTR_LEVEL,
+						UNCERTAIN_ATTR_RANGES
+	);
 
 #define LEAST_FUNC_NAME backendifyIdentifier("least")
 #define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
@@ -53,18 +62,21 @@ Node *getLBExpr(Node *expr, HashMap *hmp);
 extern char *getAttrTwoString(char *in);
 //extern char *getAttrOneString(char *in);
 
-//uncertain query rewriting
-static QueryOperator *rewriteUncertProvComp(QueryOperator *op);
-static QueryOperator *rewrite_UncertTIP(QueryOperator *op);
+// uncertain data ingeation rewrites
+static QueryOperator *rewrite_UncertTIP(QueryOperator *op, UncertaintyType typ);
 static QueryOperator *rewrite_UncertIncompleteTable(QueryOperator *op);
-static QueryOperator *rewrite_UncertXTable(QueryOperator *op);
-static QueryOperator *rewrite_UncertSelection(QueryOperator *op);
-static QueryOperator *rewrite_UncertProjection(QueryOperator *op);
-static QueryOperator *rewrite_UncertTableAccess(QueryOperator *op);
-static QueryOperator *rewrite_UncertJoin(QueryOperator *op);
-static QueryOperator *rewrite_UncertAggregation(QueryOperator *op);
-static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op);
-static QueryOperator *rewrite_UncertSet(QueryOperator *op);
+static QueryOperator *rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ);
+static QueryOperator *rewrite_RangeTIP(QueryOperator *op);
+
+//uncertain query rewriting
+static QueryOperator *rewriteUncertProvComp(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertSelection(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertProjection(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertJoin(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertSet(QueryOperator *op, boolean attrLevel);
 
 static void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
 
@@ -74,7 +86,6 @@ static QueryOperator *rewrite_RangeTableAccess(QueryOperator *op);
 static QueryOperator *rewrite_RangeProjection(QueryOperator *op);
 static QueryOperator *rewrite_RangeSelection(QueryOperator *op);
 static QueryOperator *rewrite_RangeJoin(QueryOperator *op);
-static QueryOperator *rewrite_RangeTIP(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation(QueryOperator *op);
 
 //Range query rewriting combiners
@@ -84,7 +95,6 @@ static QueryOperator *combinePosToOne(QueryOperator *op);
 
 static void addRangeAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
 static void addRangeRowToSchema(HashMap *hmp, QueryOperator *target);
-
 
 static List *putMidListToEnd(List *in, int p1, int p2);
 
@@ -96,7 +106,7 @@ rewriteUncert(QueryOperator * op)
 
 	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
 	{
-		rewrittenOp = rewrite_UncertTIP(op);
+		rewrittenOp = rewrite_UncertTIP(op, UNCERTAIN_ATTR_LEVEL);
 		return rewrittenOp;
 	}
 
@@ -110,7 +120,7 @@ rewriteUncert(QueryOperator * op)
 	{
 		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
 		{
-			rewrittenOp = rewrite_UncertXTable(op);
+			rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_ATTR_LEVEL);
 			return rewrittenOp;
 		}
 	}
@@ -118,34 +128,34 @@ rewriteUncert(QueryOperator * op)
 	switch(op->type)
 	{
 	    case T_ProvenanceComputation:
-	        rewrittenOp = rewriteUncertProvComp(op);
+	        rewrittenOp = rewriteUncertProvComp(op, TRUE);
 	        break;
 		case T_TableAccessOperator:
-			rewrittenOp =rewrite_UncertTableAccess(op);
+			rewrittenOp =rewrite_UncertTableAccess(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite TableAccess:", rewrittenOp);
 			break;
 		case T_SelectionOperator:
-			rewrittenOp = rewrite_UncertSelection(op);
+			rewrittenOp = rewrite_UncertSelection(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Selection:", rewrittenOp);
 			break;
 		case T_ProjectionOperator:
-			rewrittenOp = rewrite_UncertProjection(op);
+			rewrittenOp = rewrite_UncertProjection(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Projection:", rewrittenOp);
 			break;
 		case T_JoinOperator:
-			rewrittenOp = rewrite_UncertJoin(op);
+			rewrittenOp = rewrite_UncertJoin(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Join:", rewrittenOp);
 			break;
 		case T_AggregationOperator:
-			rewrittenOp = rewrite_UncertAggregation(op);
+			rewrittenOp = rewrite_UncertAggregation(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Aggregation:", rewrittenOp);
 			break;
 		case T_DuplicateRemoval:
-			rewrittenOp = rewrite_UncertDuplicateRemoval(op);
+			rewrittenOp = rewrite_UncertDuplicateRemoval(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite DuplicateRemoval:", rewrittenOp);
 			break;
 		case T_SetOperator:
-			rewrittenOp = rewrite_UncertSet(op);
+			rewrittenOp = rewrite_UncertSet(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
 		default:
@@ -153,6 +163,75 @@ rewriteUncert(QueryOperator * op)
 			rewrittenOp = NULL;
 			break;
 	}
+
+	return rewrittenOp;
+}
+
+QueryOperator *
+rewriteUncertTuple(QueryOperator *op)
+{
+	QueryOperator *rewrittenOp;
+
+	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
+	{
+		rewrittenOp = rewrite_UncertTIP(op, UNCERTAIN_TUPLE_LEVEL);
+		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,PROV_PROP_INCOMPLETE_TABLE))
+	{
+		rewrittenOp = rewrite_UncertIncompleteTable(op);
+		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,PROP_XTABLE_GROUPID))
+	{
+		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
+		{
+			rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_TUPLE_LEVEL);
+			return rewrittenOp;
+		}
+	}
+
+	switch(op->type)
+	{
+	    case T_ProvenanceComputation:
+	        rewrittenOp = rewriteUncertProvComp(op, FALSE);
+	        break;
+		case T_TableAccessOperator:
+			rewrittenOp = rewrite_UncertTableAccess(op, FALSE);
+			INFO_OP_LOG("Uncertainty Rewrite TableAccess:", rewrittenOp);
+			break;
+		case T_SelectionOperator:
+			rewrittenOp = rewrite_UncertSelection(op, FALSE);
+			INFO_OP_LOG("Uncertainty Rewrite Selection:", rewrittenOp);
+			break;
+		case T_ProjectionOperator:
+			rewrittenOp = rewrite_UncertProjection(op, FALSE);
+			INFO_OP_LOG("Uncertainty Rewrite Projection:", rewrittenOp);
+			break;
+		case T_JoinOperator:
+			rewrittenOp = rewrite_UncertJoin(op, FALSE);
+			INFO_OP_LOG("Uncertainty Rewrite Join:", rewrittenOp);
+			break;
+		case T_AggregationOperator:
+			rewrittenOp = rewrite_UncertAggregation(op, FALSE);
+			INFO_OP_LOG("Uncertainty Rewrite Aggregation:", rewrittenOp);
+			break;
+		case T_DuplicateRemoval:
+			rewrittenOp = rewrite_UncertDuplicateRemoval(op, FALSE);
+			INFO_OP_LOG("Uncertainty Rewrite DuplicateRemoval:", rewrittenOp);
+			break;
+		case T_SetOperator:
+			rewrittenOp = rewrite_UncertSet(op, FALSE);
+			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
+			break;
+		default:
+			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));
+			rewrittenOp = NULL;
+			break;
+	}
+
 	return rewrittenOp;
 }
 
@@ -177,7 +256,7 @@ rewriteRange(QueryOperator * op)
 	{
 		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
 		{
-			rewrittenOp = rewrite_UncertXTable(op);
+			rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_ATTR_RANGES);
 			return rewrittenOp;
 		}
 	}
@@ -211,11 +290,11 @@ rewriteRange(QueryOperator * op)
 			INFO_OP_LOG("Range Rewrite Aggregation:", rewrittenOp);
 			break;
 		case T_DuplicateRemoval:
-			rewrittenOp = rewrite_UncertDuplicateRemoval(op);
+			rewrittenOp = rewrite_UncertDuplicateRemoval(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite DuplicateRemoval:", rewrittenOp);
 			break;
 		case T_SetOperator:
-			rewrittenOp = rewrite_UncertSet(op);
+			rewrittenOp = rewrite_UncertSet(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
 		default:
@@ -586,7 +665,7 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 static QueryOperator *
 rewrite_RangeTIP(QueryOperator *op)
 {
-	INFO_LOG("rewriteRangeTIP\n");
+	INFO_LOG("rewriteRangeTIP - %s\n", UncertaintyTypeToString(UNCERTAIN_ATTR_RANGES));
 
 	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_TIP_ATTR));
 
@@ -623,9 +702,12 @@ rewrite_RangeTIP(QueryOperator *op)
 }
 
 static QueryOperator *
-rewrite_UncertTIP(QueryOperator *op)
+rewrite_UncertTIP(QueryOperator *op, UncertaintyType typ)
 {
-	DEBUG_LOG("rewriteUncertTIP\n");
+	if(typ == UNCERTAIN_ATTR_RANGES)
+		return rewrite_RangeTIP(op);
+
+	DEBUG_LOG("rewriteUncertTIP - %s\n", UncertaintyTypeToString(typ));
 	//prints the op->provAttr = singletonint
 	//get TIP attribute name using PROP_USER_TIP_ATTR as the key
 	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_TIP_ATTR));
@@ -655,13 +737,17 @@ rewrite_UncertTIP(QueryOperator *op)
 	//parent pointer for op
 	op->parents = singleton(selec);
 
-	//Final projection? U_A.... U_R
-	List *attrExpr = getNormalAttrProjectionExprs(op);
-	FOREACH(Node, nd, attrExpr){
-		//Add U_nd->name to the schema, with data type int
-		addUncertAttrToSchema(hmp, proj, nd);
-		//Set the values of U_nd->name to 1
-		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+	if (typ == UNCERTAIN_ATTR_LEVEL)
+	{
+		//Final projection? U_A.... U_R
+		List *attrExpr = getNormalAttrProjectionExprs(op);
+		FOREACH(Node, nd, attrExpr)
+		{
+			//Add U_nd->name to the schema, with data type int
+			addUncertAttrToSchema(hmp, proj, nd);
+			//Set the values of U_nd->name to 1
+			appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+		}
 	}
 
 	//Create operator expression when P==1
@@ -716,13 +802,15 @@ rewrite_UncertIncompleteTable(QueryOperator *op)
 
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
+	DEBUG_NODE_BEATIFY_LOG("rewritten query root for INCOMPLETE uncertainty is:", proj);
+
 	return proj;
 }
 
 static  QueryOperator *
-rewrite_UncertXTable(QueryOperator *op)
+rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 {
-	DEBUG_LOG("rewriteXTable\n");
+	DEBUG_LOG("rewriteXTable - %s\n", UncertaintyTypeToString(typ));
 
 	//Uncert attributes Hashmap
 	HashMap * hmp = NEW_MAP(Node, Node);
@@ -743,7 +831,7 @@ rewrite_UncertXTable(QueryOperator *op)
 	//WindowBound *winBoundCountOpen = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
 	//WindowFrame *winFrameCountOpen = createWindowFrame(WINFRAME_ROWS,winBoundCountOpen,NULL);
 
-	/* Window function 1 - max */
+	/* Window nnnfunction 1 - max */
 	//Make max(prob) function call
 	FunctionCall *maxProbFC = createFunctionCall(MAX_FUNC_NAME,singleton(copyObject(probRef)));
 	char *maxProbName = MAX_PROB_ATTR_NAME;
@@ -757,27 +845,28 @@ rewrite_UncertXTable(QueryOperator *op)
 	maxProbWOp->parents = singleton(sumProbWOp);
 
 	/* Window function 3+ - count attr */
+	//TODO count is not necessary (and window count distinct does not work in postgres, can just check min == max
 	QueryOperator *prevWOp = sumProbWOp;
-	List *attrExpr1 = getNormalAttrProjectionExprs(op);
-	FOREACH(Node, nd, attrExpr1)
-	{
-		char *countAttrName = CONCAT_STRINGS(COUNT_ATTR_NAME,((AttributeReference *)nd)->name);
-		//Make count(nd) function call
-		FunctionCall *countNdFC = createFunctionCall(COUNT_FUNC_NAME,singleton(nd));
-		countNdFC->isDistinct = TRUE;
-		QueryOperator *countNdWOp = (QueryOperator *)createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL);
+	/* List *attrExpr1 = getNormalAttrProjectionExprs(op); */
+	/* FOREACH(Node, nd, attrExpr1) */
+	/* { */
+	/* 	char *countAttrName = CONCAT_STRINGS(COUNT_ATTR_NAME,((AttributeReference *)nd)->name); */
+	/* 	//Make count(nd) function call */
+	/* 	FunctionCall *countNdFC = createFunctionCall(COUNT_FUNC_NAME,singleton(nd)); */
+	/* 	countNdFC->isDistinct = TRUE; */
+	/* 	QueryOperator *countNdWOp = (QueryOperator *)createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL); */
 
-		prevWOp->parents = singleton(countNdWOp);
-		prevWOp = countNdWOp;
-	}
+	/* 	prevWOp->parents = singleton(countNdWOp); */
+	/* 	prevWOp = countNdWOp; */
+	/* } */
 
 	/* Window function 4+ - min attr*/
 	List *attrExpr2 = getNormalAttrProjectionExprs(op);
 	FOREACH(Node, nd, attrExpr2)
 	{
-		char *lowAttrName = CONCAT_STRINGS(ATTR_LOW_BOUND,((AttributeReference *)nd)->name);
+		char *lowAttrName = getLBString(((AttributeReference *) nd)->name);
 		//Make the MIN(nd) function call
-		FunctionCall *minNdFC = createFunctionCall("MIN",singleton(nd));
+		FunctionCall *minNdFC = createFunctionCall(MIN_FUNC_NAME,singleton(nd));
 		QueryOperator *minNdWOp = (QueryOperator *)createWindowOp((Node *)minNdFC, partByGroupId, NIL, NULL, lowAttrName, prevWOp, NIL);
 
 		prevWOp->parents = singleton(minNdWOp);
@@ -788,21 +877,31 @@ rewrite_UncertXTable(QueryOperator *op)
 	List *attrExpr3 = getNormalAttrProjectionExprs(op);
 	FOREACH(Node, nd, attrExpr3)
 	{
-		char *highAttrName = CONCAT_STRINGS(ATTR_HIGH_BOUND,((AttributeReference *)nd)->name);
+		char *highAttrName = getUBString(((AttributeReference *)nd)->name);
 		//Make the MAX(nd) function call
-		FunctionCall *maxNdFC = createFunctionCall("MIN",singleton(nd));
+		FunctionCall *maxNdFC = createFunctionCall(MAX_FUNC_NAME,singleton(nd));
 		QueryOperator *maxNdWOp = (QueryOperator *)createWindowOp((Node *)maxNdFC, partByGroupId, NIL, NULL, highAttrName, prevWOp, NIL);
 
 		prevWOp->parents = singleton(maxNdWOp);
 		prevWOp = maxNdWOp;
 	}
 
+	Operator *selec1Cond = NULL;
 
-	Operator *oneMinusSum = createOpExpr("-",LIST_MAKE(createConstInt(1),getAttrRefByName(prevWOp, sumProbName)));
-	Operator *firstParam = createOpExpr(">",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
+	// range semantics, only show most likely alternative, but return one alternative per x-tuple
+	if (typ == UNCERTAIN_ATTR_RANGES)
+	{
+		selec1Cond = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
+	}
+	// UADB, only show rows that are best guess (maximal probability alternative unless not including an alternative has the highest probability)
+	else if (typ == UNCERTAIN_TUPLE_LEVEL || typ == UNCERTAIN_ATTR_LEVEL)
+	{
+		Operator *oneMinusSum = createOpExpr("-",LIST_MAKE(createConstInt(1),getAttrRefByName(prevWOp, sumProbName)));
+		Operator *firstParam = createOpExpr(">",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
 
-	Operator *secondParam = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
-	Operator *selec1Cond = createOpExpr("AND", LIST_MAKE(firstParam,secondParam));
+		Operator *secondParam = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
+		selec1Cond = createOpExpr("AND", LIST_MAKE(firstParam,secondParam));
+	}
 
 	/* Selection - Select rows with the maximum probability  */
 	QueryOperator *selecMaxProbRow = (QueryOperator *)createSelectionOp((Node *)selec1Cond, prevWOp, NIL, getAttrNames(prevWOp->schema));
@@ -827,69 +926,77 @@ rewrite_UncertXTable(QueryOperator *op)
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selecRowNumberIsOne), selecRowNumberIsOne, NIL, getNormalAttrNames(selecRowNumberIsOne));
 	selecRowNumberIsOne->parents = singleton(proj);
 
+	/* either add uncertain attributes or add range bounds */
 	List *attrExpr4 = getNormalAttrProjectionExprs(op);
 	FOREACH(Node, nd, attrExpr4)
 	{
-		//Add U_nd->name to the schema, with data type int
-		addUncertAttrToSchema(hmp, proj, nd);
-		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
-							createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)))));
-
-		/*0
-		addUncertLowBoundToSchema(hmp, proj, nd);
-		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createConstFloat(4));
-
-
-		addUncertHighBoundToSchema(hmp, proj, nd);
-		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createConstFloat(5));
-		*/
-
+		// range uncertainty
+		if(typ == UNCERTAIN_ATTR_RANGES)
+		{
+			addRangeAttrToSchema(hmp, proj, nd);
+			appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
+							   getAttrRefByName(selecRowNumberIsOne, getUBString(((AttributeReference *) nd)->name)));
+			appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
+							   getAttrRefByName(selecRowNumberIsOne, getLBString(((AttributeReference *) nd)->name)));
+		}
+		// attribute or tuple level cerainty
+		else if (typ == UNCERTAIN_ATTR_LEVEL)
+		{
+			//Add U_nd->name to the schema, with data type int
+			addUncertAttrToSchema(hmp, proj, nd);
+			appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
+							   createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)))));
+		}
 	}
 
 	//Condition for U_R
-	Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
-	//Add U_R to the schema with data type int
-	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
+	if (typ == UNCERTAIN_ATTR_RANGES)
+	{
+		addRangeRowToSchema(hmp, proj);
+
+		// certain = sum probability is 1.0 (there is only one alternative with probability of one
+		Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
+
+		// best guess (max probability of option is larger equals to 0.5
+		Node *maxProbLargerOneMinusSum = (Node *)createOpExpr("<=",LIST_MAKE(
+															   createOpExpr("-", LIST_MAKE(createConstFloat(1), getAttrRefByName(selecRowNumberIsOne, sumProbName))),
+															   getAttrRefByName(selecRowNumberIsOne,maxProbName)));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(maxProbLargerOneMinusSum));
+
+		// possible (always 1)
+		appendToTailOfList(((ProjectionOperator *) proj)->projExprs, createConstInt(1));
+	}
+	else
+	{
+		Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
+		//Add U_R to the schema with data type int
+		addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
+	}
 
 	switchSubtrees(op, proj);
 	op->parents = singleton(maxProbWOp);
 
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
-/*
-	List *projParents = proj->parents;
-	FOREACH(Node, parent, projParents)
-	{
-		List *parentAttrExprs = findOperatorAttrRefs((QueryOperator *)parent);
-		//List *parentAttrExpr = ((QueryOperator*)parent)->provAttrs;
-		FOREACH(Node, attrRef, parentAttrExprs)
-		{
-			DEBUG_LOG("?Parent's attr %s is at parents position %d",((AttributeReference *)attrRef)->name, getAttrPos((QueryOperator *)parent,((AttributeReference *)attrRef)->name));
-			DEBUG_LOG("/Parent's attr %s immediate pos %d\n",((AttributeReference *)attrRef)->name, ((AttributeReference *)attrRef)->attrPosition);
-			//((AttributeReference *)attrRef)->attrPosition = getAttrPos((QueryOperator *)parent,((AttributeReference *)attrRef)->name);
-		}
-	}
-	*/
-	/*
-	List *projAttrExprs = findOperatorAttrRefs(proj);
-	FOREACH(Node, nd, projAttrExprs)
-	{
-		DEBUG_LOG("????Proj's attr %s is at proj's position %d",((AttributeReference *)nd)->name, getAttrPos(proj,((AttributeReference *)nd)->name));
-		DEBUG_LOG("////Proj's attr %s immediate pos is %d\n",((AttributeReference *)nd)->name,((AttributeReference *)nd)->attrPosition);
-	}
-*/
-
 	return proj;
 }
 
 static QueryOperator *
-rewriteUncertProvComp(QueryOperator *op)
+rewriteUncertProvComp(QueryOperator *op, boolean attrLevel)
 {
     ASSERT(LIST_LENGTH(op->inputs) == 1);
     QueryOperator *top = getHeadOfListP(op->inputs);
 
-    top = rewriteUncert(top);
+	if (attrLevel)
+	{
+		top = rewriteUncert(top);
+	}
+	else
+	{
+		top = rewriteUncertTuple(top);
+	}
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
@@ -1318,29 +1425,44 @@ static Node *RangeLBOp(Operator *expr, HashMap *hmp){
 }
 
 static QueryOperator *
-rewrite_UncertSet(QueryOperator *op)
+rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 {
 	ASSERT(OP_LCHILD(op));
 	ASSERT(OP_RCHILD(op));
 
-	INFO_LOG("REWRITE-UNCERT - Set");
+	INFO_LOG("REWRITE-UNCERT - Set (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
-	// rewrite child first
-	rewriteUncert(OP_LCHILD(op));
-	rewriteUncert(OP_RCHILD(op));
+	// rewrite children first
+	if (attrLevel)
+	{
+		rewriteUncert(OP_LCHILD(op));
+		rewriteUncert(OP_RCHILD(op));
+	}
+	else
+	{
+		rewriteUncertTuple(OP_LCHILD(op));
+		rewriteUncertTuple(OP_RCHILD(op));
+	}
 
 	HashMap * hmp = NEW_MAP(Node, Node);
 
 	List *projExpr = getNormalAttrProjectionExprs(op);
 
-	FOREACH(Node, nd, projExpr){
-		addUncertAttrToSchema(hmp, op, nd);
+	if (attrLevel)
+	{
+		FOREACH(Node, nd, projExpr){
+			addUncertAttrToSchema(hmp, op, nd);
+		}
 	}
 	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
 
-	if(((SetOperator *)op)->setOpType == SETOP_DIFFERENCE){
+	//TODO intersection is not handled correctly
+
+	// set difference
+	if(((SetOperator *)op)->setOpType == SETOP_DIFFERENCE)
+	{
 		List *projExpr = getNormalAttrProjectionExprs(op);
 		projExpr = removeFromTail(projExpr);
 		projExpr = appendToTailOfList(projExpr, createConstInt(0));
@@ -1348,10 +1470,11 @@ rewrite_UncertSet(QueryOperator *op)
 		QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, op, NIL, getNormalAttrNames(op));
 		switchSubtrees(op, proj);
 		op->parents = singleton(proj);
-		setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+		setStringProperty(proj, "UNCERT_MAPPING", (Node *) copyObject(hmp));
 
 		return proj;
 	}
+
 	return op;
 }
 
@@ -1810,7 +1933,7 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 
 
 static QueryOperator *
-rewrite_UncertDuplicateRemoval(QueryOperator *op)
+rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel)
 {
 	ASSERT(OP_LCHILD(op));
 
@@ -1822,7 +1945,14 @@ rewrite_UncertDuplicateRemoval(QueryOperator *op)
 	List *attrName = getNormalAttrNames(OP_LCHILD(op));
 
 	// rewrite child first
-	rewriteUncert(OP_LCHILD(op));
+	if (attrLevel)
+	{
+		rewriteUncert(OP_LCHILD(op));
+	}
+	else
+	{
+		rewriteUncertTuple(OP_LCHILD(op));
+	}
 
 	HashMap * hmp = NEW_MAP(Node, Node);
 	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
@@ -1867,7 +1997,7 @@ rewrite_UncertDuplicateRemoval(QueryOperator *op)
 }
 
 static QueryOperator *
-rewrite_UncertAggregation(QueryOperator *op)
+rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 {
 	ASSERT(OP_LCHILD(op));
 
@@ -1879,13 +2009,42 @@ rewrite_UncertAggregation(QueryOperator *op)
 	List *attrName = getNormalAttrNames(OP_LCHILD(op));
 
 	// rewrite child first
-	rewriteUncert(OP_LCHILD(op));
+	if (attrLevel)
+	{
+		rewriteUncert(OP_LCHILD(op));
+	}
+	else
+	{
+		rewriteUncertTuple(OP_LCHILD(op));
+	}
 
-	HashMap * hmp = NEW_MAP(Node, Node);
-	HashMap * hmpProj = NEW_MAP(Node, Node);
-	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+	// for tuple level all tuples are uncertain (any group may contain other possible tuples we do not know about changing the aggregation result)
+	if(!attrLevel)
+	{
+		QueryOperator *proj;
 
-	// create projection before aggregation (for now we mark all aggregation result into uncertain)
+		HashMap *hmp = NEW_MAP(Node, Node);
+
+		proj = createProjOnAllAttrs(op);
+		proj->inputs = singleton(op);
+		switchSubtrees(op, proj);
+		op->parents = singleton(proj);
+
+		// add row uncertainty (all rows are uncertain)
+		((ProjectionOperator *) proj)->projExprs = appendToTailOfList(((ProjectionOperator *) proj)->projExprs,
+			createConstInt(0));
+		addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+		setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+		return proj;
+	}
+
+
+	HashMap* hmp = NEW_MAP(Node, Node);
+	HashMap* hmpProj = NEW_MAP(Node, Node);
+	HashMap* hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+
+	// create projection before aggregation (for now we mark all aggregation results as uncertain)
 
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, OP_LCHILD(op), singleton(op), attrName);
 
@@ -1971,19 +2130,67 @@ rewrite_UncertAggregation(QueryOperator *op)
 }
 
 static QueryOperator *
-rewrite_UncertJoin(QueryOperator *op)
+rewrite_UncertJoin(QueryOperator *op, boolean attrLevel)
 {
+	HashMap * hmp;
+
 	ASSERT(OP_LCHILD(op));
 	ASSERT(OP_RCHILD(op));
 
-	INFO_LOG("REWRITE-UNCERT - Join");
+	INFO_LOG("REWRITE-UNCERT - Join (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
-	List * nan = getNormalAttrNames(op);
-	// rewrite child first
-	rewriteUncert(OP_LCHILD(op));
-	rewriteUncert(OP_RCHILD(op));
-	HashMap * hmp =(HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+	List *nan = getNormalAttrNames(op);
+	// rewrite children first
+	if (attrLevel)
+	{
+		rewriteUncert(OP_LCHILD(op));
+		rewriteUncert(OP_RCHILD(op));
+	}
+	else
+	{
+		rewriteUncertTuple(OP_LCHILD(op));
+		rewriteUncertTuple(OP_RCHILD(op));
+	}
+
+	// tuple level uncertainty is much easier
+	if(!attrLevel)
+	{
+		QueryOperator *proj;
+	    // create join schema by concatinating child schemas
+		op->schema->attrDefs = CONCAT_LISTS(
+			copyObject(OP_LCHILD(op)->schema->attrDefs),
+			copyObject(OP_RCHILD(op)->schema->attrDefs));
+		char *rightUrowName = CONCAT_STRINGS(UNCERTAIN_FULL_ROW_ATTR, "_right");
+		//disambiguiate the second row level uncertainty atttribute
+		AttributeDef *urow2 = getTailOfListP(op->schema->attrDefs);
+		urow2->attrName = rightUrowName;
+
+		// uncertain attribute map
+		hmp = NEW_MAP(Node, Node);
+
+		// project on all normal attributes
+		makeAttrNamesUnique(op);
+		proj = createProjOnAttrsByName(op, nan, NIL);
+		proj->inputs = singleton(op);
+		switchSubtrees(op, proj);
+		op->parents = singleton(proj);
+
+		// add row uncertainty expression
+		((ProjectionOperator *) proj)->projExprs = appendToTailOfList(((ProjectionOperator *) proj)->projExprs,
+																	  createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(
+																					   getAttrRefByName(op, UNCERTAIN_FULL_ROW_ATTR),
+																					   getAttrRefByName(op, rightUrowName))));
+		addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+
+
+		// store mappings and switch trees
+		setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+
+		return proj;
+	}
+
+	hmp =(HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
 	List *dt1 = getDataTypes(OP_LCHILD(op)->schema);
 	List *n1 = getAttrNames(OP_LCHILD(op)->schema);
 	List *dt2 = getDataTypes(OP_RCHILD(op)->schema);
@@ -2027,11 +2234,9 @@ rewrite_UncertJoin(QueryOperator *op)
 	List *uattrl = sublist(listl, (listl->length)/2, listl->length-1);
 	List *attrl = sublist(listl, 0, (listl->length)/2-1);
 
-	Node *rU = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(uRl), uRR));
+ 	Node *rU = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(uRl), uRR));
 
 	List *projExprNew = concatTwoLists(concatTwoLists(attrl, attrR), concatTwoLists(uattrl, uattrR));
-
-
 
 	if(((JoinOperator*)op)->joinType == JOIN_INNER && ((JoinOperator*)op)->cond){
 		Node *outExpr = (Node *)copyObject(((JoinOperator*)op)->cond);
@@ -2043,8 +2248,8 @@ rewrite_UncertJoin(QueryOperator *op)
 
 	appendToTailOfList(projExprNew, rU);
 
-	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExprNew, op, NIL, nan);
-	switchSubtrees(op, proj);
+ 	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExprNew, op, NIL, nan);
+ 	switchSubtrees(op, proj);
 	op->parents = singleton(proj);
 
 	HashMap * hmp2 = NEW_MAP(Node, Node);
@@ -2052,7 +2257,8 @@ rewrite_UncertJoin(QueryOperator *op)
 	FOREACH(Node, nd, attrExpr2){
 		addUncertAttrToSchema(hmp2, proj, nd);
 	}
-	addUncertAttrToSchema(hmp2, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+	addUncertAttrToSchema(hmp2, proj, (Node *) createAttributeReference(UNCERTAIN_ROW_ATTR));
+
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp2);
 
 	return proj;
@@ -2225,7 +2431,7 @@ rewrite_RangeJoin(QueryOperator *op){
 		appendToTailOfList(projExprNew,BG);
 		appendToTailOfList(projExprNew,PS);
 
-//		INFO_LOG("Projexpr with join: %s", nodeToString(projExprNew));
+  //		INFO_LOG("Projexpr with join: %s", nodeToString(projExprNew));
 
 		((ProjectionOperator *)proj)->projExprs = projExprNew;
 	}
@@ -2234,34 +2440,56 @@ rewrite_RangeJoin(QueryOperator *op){
 }
 
 static QueryOperator *
-rewrite_UncertSelection(QueryOperator *op)
+rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
 {
 
 	ASSERT(OP_LCHILD(op));
 
-	INFO_LOG("REWRITE-UNCERT - Selection");
-    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
-	// rewrite child first
-    rewriteUncert(OP_LCHILD(op));
+    INFO_LOG("REWRITE-UNCERT - Selection (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
-    HashMap * hmp = NEW_MAP(Node, Node);
+	// rewrite child first
+	if (attrLevel)
+	{
+		rewriteUncert(OP_LCHILD(op));
+	}
+	else
+	{
+		rewriteUncertTuple(OP_LCHILD(op));
+	}
+
+    HashMap *hmp = NEW_MAP(Node, Node);
+
     //get child hashmap
     //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
-    List *attrExpr = getNormalAttrProjectionExprs(op);
-    FOREACH(Node, nd, attrExpr){
+	if(attrLevel)
+	{
+		List *attrExpr = getNormalAttrProjectionExprs(op);
+		FOREACH(Node, nd, attrExpr){
         	addUncertAttrToSchema(hmp, op, nd);
-    }
-    addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-    setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+		}
+	}
+	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+
     //create projection to calculate row uncertainty
     QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getNormalAttrNames(op));
     switchSubtrees(op, proj);
     op->parents = singleton(proj);
-    Node *uExpr = (Node *)getTailOfListP(((ProjectionOperator *)proj)->projExprs);
-    ((ProjectionOperator *)proj)->projExprs = removeFromTail(((ProjectionOperator *)proj)->projExprs);
-    Node *newUR = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(uExpr), getUncertaintyExpr(((SelectionOperator *)op)->cond, hmp)));
-    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, newUR);
-    setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+	if (attrLevel)
+	{
+		Node *uExpr = (Node *)getTailOfListP(((ProjectionOperator *)proj)->projExprs);
+		((ProjectionOperator *)proj)->projExprs = removeFromTail(((ProjectionOperator *)proj)->projExprs);
+		Node *newUR = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(uExpr), getUncertaintyExpr(((SelectionOperator *)op)->cond, hmp)));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, newUR);
+	}
+	else
+	{
+		//TODO check that is ok
+	}
+    setStringProperty(proj, "UNCERT_MAPPING", (Node *) copyObject(hmp));
+
 	return proj;
 }
 
@@ -2308,30 +2536,41 @@ rewrite_RangeSelection(QueryOperator *op)
 }
 
 static QueryOperator *
-rewrite_UncertProjection(QueryOperator *op)
+rewrite_UncertProjection(QueryOperator *op, boolean attrLevel)
 {
-
     ASSERT(OP_LCHILD(op));
 
-    INFO_LOG("REWRITE-UNCERT - Projection");
+    INFO_LOG("REWRITE-UNCERT - Projection (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
     //rewrite child first
-    rewriteUncert(OP_LCHILD(op));
+	if (attrLevel)
+	{
+		rewriteUncert(OP_LCHILD(op));
+	}
+	else
+	{
+		rewriteUncertTuple(OP_LCHILD(op));
+	}
 
     HashMap * hmp = NEW_MAP(Node, Node);
     //get child hashmap
     HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
     //INFO_LOG("HashMap: %s", nodeToString((Node *)hmpIn));
-    List *attrExpr = getNormalAttrProjectionExprs(op);
-    List *uncertlist = NIL;
-    FOREACH(Node, nd, attrExpr){
-        addUncertAttrToSchema(hmp, op, nd);
-        Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,LIST_LENGTH(uncertlist));
-        Node *reExpr = getUncertaintyExpr(projexpr, hmpIn);
-        uncertlist = appendToTailOfList(uncertlist, reExpr);
-        replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeUncertOpFromExpr(projexpr));
-    }
-    ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
+	if (attrLevel)
+	{
+		List *attrExpr = getNormalAttrProjectionExprs(op);
+		List *uncertlist = NIL;
+		FOREACH(Node, nd, attrExpr)
+		{
+			addUncertAttrToSchema(hmp, op, nd);
+			Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,LIST_LENGTH(uncertlist));
+			Node *reExpr = getUncertaintyExpr(projexpr, hmpIn);
+			uncertlist = appendToTailOfList(uncertlist, reExpr);
+			replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeUncertOpFromExpr(projexpr));
+		}
+		((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
+	}
+
     addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
     INFO_LOG("List: %s", nodeToString(((ProjectionOperator *)op)->projExprs));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn));
@@ -2343,7 +2582,6 @@ rewrite_UncertProjection(QueryOperator *op)
 static QueryOperator *
 rewrite_RangeProjection(QueryOperator *op)
 {
-
     ASSERT(OP_LCHILD(op));
 
     INFO_LOG("REWRITE-RANGE - Projection");
@@ -2380,21 +2618,29 @@ rewrite_RangeProjection(QueryOperator *op)
 }
 
 static QueryOperator *
-rewrite_UncertTableAccess(QueryOperator *op)
+rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel)
 {
-	INFO_LOG("REWRITE-UNCERT - TableAccess");
+	INFO_LOG("REWRITE-UNCERT - TableAccess (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
 	HashMap * hmp = NEW_MAP(Node, Node);
+
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getNormalAttrNames(op));
 	switchSubtrees(op, proj);
 	op->parents = singleton(proj);
-	List *attrExpr = getNormalAttrProjectionExprs(op);
-	FOREACH(Node, nd, attrExpr){
-		addUncertAttrToSchema(hmp, proj, nd);
-		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+
+	if (attrLevel)
+	{
+		List *attrExpr = getNormalAttrProjectionExprs(op);
+		FOREACH(Node, nd, attrExpr){
+			addUncertAttrToSchema(hmp, proj, nd);
+			appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+		}
 	}
+
 	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
 	return proj;

@@ -1759,6 +1759,23 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
         }
         break;
+        case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
+        {
+        	List *provAttrNames = NIL;
+        	List *provDts = NIL;
+
+        	analyzeQueryBlockStmt(q->query, parentFroms);
+
+        	q->selectClause = getQBAttrNames(q->query);
+        	q->dts = getQBAttrDTs(q->query);
+        	correctFromTableVisitor(q->query, NULL);
+        	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+        	q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+        	q->dts = concatTwoLists(q->dts,provDts);
+        	//INFO_NODE_BEATIFY_LOG("RANGE:", q);
+        }
+		break;
         case PROV_INPUT_RANGE_QUERY:
         {
         	List *provAttrNames = NIL;

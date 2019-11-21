@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "analysis_and_translate/translator.h"
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -23,6 +24,7 @@
 #include "model/list/list.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
 #include "parser/parser.h"
@@ -738,17 +740,13 @@ translateProvenanceStmt(ProvenanceStmt *prov)
         }
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
-        {
+     	case PROV_INPUT_RANGE_QUERY:
+	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
+		{
             child = translateQueryOracle(prov->query);
             addChildOperator((QueryOperator *) result, child);
         }
-        break;
-        case PROV_INPUT_RANGE_QUERY:
-        {
-        	child = translateQueryOracle(prov->query);
-        	addChildOperator((QueryOperator *) result, child);
-        }
-        break;
+		break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
