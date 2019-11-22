@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_sqlite.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -482,10 +482,11 @@ static DataType
 stringToDT (char *dataType)
 {
    DEBUG_LOG("data type %s", dataType);
+   char *lowerDT = strToLower(dataType);
 
-   if (streq(dataType, "NUMERIC") || streq(dataType, "REAL"))//TODO
+   if (streq(lowerDT, "numeric") || streq(lowerDT, "real") || streq(lowerDT, "float"))//TODO
        return DT_FLOAT;
-   if (streq(dataType, "int"))
+   if (streq(lowerDT, "int") || streq(lowerDT, "integer"))
        return DT_INT;
 
    return DT_STRING;
@@ -628,5 +629,3 @@ sqliteExecuteQuery(char *query)
 }
 
 #endif
-
-
