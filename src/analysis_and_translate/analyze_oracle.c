@@ -497,6 +497,25 @@ analyzeFromProvInfo (FromItem *f)
 
 				setStringProvProperty(fp, PROV_PROP_RADB_LIST, (Node *)provattr);
 			}
+			if (getStringProvProperty(fp, PROV_PROP_UADB))
+			{
+				DEBUG_LOG("UADB INPUT");
+
+				f->attrNames = deepCopyStringList(f->attrNames);
+				f->dataTypes = copyObject(f->dataTypes);
+
+				int numofrealattr = f->attrNames->length-1;
+
+				//need to contain u_r at end
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-1), getUncertString(UNCERTAIN_ROW_ATTR))==0);
+
+				List *provattr = sublist(f->attrNames, numofrealattr, f->attrNames->length-1);
+
+				f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
+				f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
+
+				setStringProvProperty(fp, PROV_PROP_UADB_LIST, (Node *)provattr);
+			}
 			//Removing the probability attribute if specified through the XTABLE flag
 			if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))
 			{

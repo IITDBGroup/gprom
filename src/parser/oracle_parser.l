@@ -231,6 +231,7 @@ strconcat		"||"
 (?i:XTABLE) 		TOK(XTABLE)
 (?i:URANGE)			TOK(URANGE)
 (?i:RADB)			TOK(RADB)
+(?i:UADB)			TOK(UADB)
 
 	/* booleans */
 {bool}			TOK(boolConst)

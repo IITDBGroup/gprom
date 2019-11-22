@@ -1235,6 +1235,12 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 			hasProv = TRUE;
 			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_RADB_LIST);
 		}
+		if (getStringProvProperty(from, PROV_PROP_UADB_LIST))
+		{
+			setStringProperty(op, PROP_HAS_UNCERT, (Node *) createConstBool(1));
+			hasProv = TRUE;
+			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_UADB_LIST);
+		}
 
 		/* table selected as INCOMPLETE */
 		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))

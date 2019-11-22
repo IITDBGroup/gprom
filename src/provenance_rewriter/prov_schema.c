@@ -244,7 +244,9 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 	if (stmt->inputType == PROV_INPUT_UNCERTAIN_TUPLE_QUERY)
 	{
         // add row uncertainty attribute
-        *dts = appendToTailOfListInt(*dts, DT_INT);
+		List *qAttrDef =  getQBAttrDefs(stmt->query);
+		AttributeDef *nd = (AttributeDef *)getTailOfListP(qAttrDef);
+        *dts = appendToTailOfListInt(*dts, nd->dataType);
         *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
 	}
     if (stmt->inputType == PROV_INPUT_RANGE_QUERY)

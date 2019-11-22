@@ -2639,8 +2639,16 @@ rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel)
 	}
 
 	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
-
+	if(HAS_STRING_PROP(op,PROP_HAS_UNCERT)){
+		INFO_LOG("TableAccess - HAS_UNCERT");
+		List *pexpr = getProvAttrProjectionExprs(op);
+		//INFO_LOG("pexpr %s", nodeToString(pexpr));
+		List *nexpr = getNormalAttrProjectionExprs(op);
+		//INFO_LOG("nexpr %s", nodeToString(nexpr));
+		((ProjectionOperator *)proj)->projExprs = concatTwoLists(nexpr, pexpr);
+	} else {
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+	}
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
 	return proj;

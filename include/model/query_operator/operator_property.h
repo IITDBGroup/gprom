@@ -31,6 +31,7 @@
 #define PROP_XTABLE_GROUPID "XTABLE_GROUPID"				// indicates group id attribute in v tables
 #define PROP_XTABLE_PROB "XTABLE_PROB"						// indicated probability attribute in v tables
 #define PROP_HAS_RANGE "HAS_RANGE"							// Already has range labeling
+#define PROP_HAS_UNCERT "HAS_UNCERT"						// Already has uncertainty labeling
 
 // provenance summarization
 #define PROP_SUMMARIZATION_DOSUM "DO_SUMMARIZATION"         // this property is
@@ -147,6 +148,8 @@
 #define PROV_PROP_XTABLE_GROUPID "PROV_PROP_XTABLE_GROUPID"
 #define PROV_PROP_XTABLE_PROB "PROV_PROP_XTABLE_PROB"
 #define PROV_PROP_RADB "PROV_PROP_RADB"
+#define PROV_PROP_UADB "PROV_PROP_UADB"
 #define PROV_PROP_RADB_LIST "PROV_PROP_RADB_LIST"
+#define PROV_PROP_UADB_LIST "PROV_PROP_UADB_LIST"
 
 #endif /* OPERATOR_PROPERTY_H_ */
