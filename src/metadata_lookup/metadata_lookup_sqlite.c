@@ -484,10 +484,12 @@ stringToDT (char *dataType)
    DEBUG_LOG("data type %s", dataType);
    char *lowerDT = strToLower(dataType);
 
-   if (streq(lowerDT, "numeric") || streq(lowerDT, "real") || streq(lowerDT, "float"))//TODO
+   if (isSubstr(lowerDT, "int"))
+	   return DT_INT;
+   if (isSubstr(lowerDT, "char") || isSubstr(lowerDT, "clob") || isSubstr(lowerDT, "text"))
+	   return DT_STRING;
+   if (isSubstr(lowerDT, "real") || isSubstr(lowerDT, "floa") || isSubstr(lowerDT, "doub"))
        return DT_FLOAT;
-   if (streq(lowerDT, "int") || streq(lowerDT, "integer"))
-       return DT_INT;
 
    return DT_STRING;
 }
