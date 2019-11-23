@@ -376,12 +376,17 @@ quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o)
 {
     exprToSQLString(str, (Node *) o->checkExpr);
 
-    appendStringInfo(str, " %s", strdup(o->opName));
+    if(streq(o->opName, "=") && o->qType == QUANTIFIED_EXPR_ANY)
+    		appendStringInfo(str, " IN ");
+    else
+    {
+    		appendStringInfo(str, " %s", strdup(o->opName));
 
-    if (o->qType == QUANTIFIED_EXPR_ANY)
-        appendStringInfoString(str, " ANY ");
-    else if (o->qType == QUANTIFIED_EXPR_ALL)
-        appendStringInfoString(str, " ALL ");
+    		if (o->qType == QUANTIFIED_EXPR_ANY)
+    			appendStringInfoString(str, " ANY ");
+    		else if (o->qType == QUANTIFIED_EXPR_ALL)
+    			appendStringInfoString(str, " ALL ");
+    }
 
     exprToSQLString(str, (Node *) o->exprList);
 }

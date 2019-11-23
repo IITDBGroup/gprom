@@ -66,11 +66,22 @@ static List *getUnNestAttrsInExistsSqecial(List *conds);
 static void propagateUpSchema(QueryOperator *base, QueryOperator *top);
 static List* createDefsByInputs(QueryOperator *op);
 static boolean addSuffixAdditionalCond(Node *node, char *state);
+static Node *removeNestingConds(Node *node);
+static void adaptSchemaByChild(QueryOperator *op1, QueryOperator *op2);
+static Node *likeToNotLike(Node *node);
+static void getEachConds(Node *expr, List **opList);
+static List *removeNotOperator(List *l);
+
+
+static boolean isNotLikeOperator(Node *node);
+static boolean isUnequalOperator(Node *node);
+static boolean isNotInLike(NestingOperator *op);
 
 static QueryOperator *unnestScalar(QueryOperator *op);
 static QueryOperator *unnestInClause(QueryOperator *op);
 static QueryOperator *unnestExists(QueryOperator *op);
 static QueryOperator *unnestExistsSpecial(List *l);
+static QueryOperator * unnestNotInLike(NestingOperator *nestOp);
 
 //static List *getListNestingOperator (QueryOperator *op);
 //static void appendNestingOperator (QueryOperator *op, List **result);
@@ -127,6 +138,12 @@ unnestRewriteQuery(QueryOperator *op)
 	    		DEBUG_LOG("unnest in clause:");
 	    		unnestInClause(nestOp);
 	    		break;
+	    case NESTQ_ALL:
+	    		DEBUG_LOG("unnest ALL clause:");
+	    		if(isNotInLike(nest))
+	    			DEBUG_LOG("Special case: not in clause, subquery contains like clause and no correlation.");
+	    			unnestNotInLike(nest);
+	    		break;
 	    case NESTQ_EXISTS:
     			DEBUG_LOG("unnest in clause:");
     			unnestExists(nestOp);
@@ -139,6 +156,214 @@ unnestRewriteQuery(QueryOperator *op)
 
 	return (QueryOperator *) op;
 }
+
+static QueryOperator *
+unnestNotInLike(NestingOperator *nest)
+{
+	QueryOperator *nestOp = (QueryOperator *) nest;
+	List *parents = nestOp->parents;
+	Node *nestCond = nest->cond;
+	QueryOperator *rchild = OP_RCHILD(nestOp);
+	QueryOperator *lchild = OP_LCHILD(nestOp);
+
+	//TODO: check selection
+	QueryOperator *selBotOp = OP_LCHILD(rchild);
+	SelectionOperator *selBot = (SelectionOperator *) selBotOp;
+	QueryOperator *selTopOp = OP_FIRST_PARENT(nestOp);
+	SelectionOperator *selTop = (SelectionOperator *) selTopOp;
+
+	selBot->cond = likeToNotLike(selBot->cond);
+	List *dupAttrNames = getAttrNames(rchild->schema);
+	DuplicateRemoval *dup = createDuplicateRemovalOp (NIL, rchild, NIL, dupAttrNames);
+	rchild->parents = singleton(dup);
+	QueryOperator *dupOp = (QueryOperator *) dup;
+
+	JoinOperator *join = createJoinOp (JOIN_CROSS, NULL, LIST_MAKE(lchild, dup), parents, NIL);
+	dupOp->parents = singleton(join);
+	lchild->parents = singleton(join);
+	QueryOperator *joinOp = (QueryOperator *) join;
+	FOREACH(QueryOperator, p, parents)
+		p->inputs = singleton(join);
+
+	adaptCondsPos(nestCond, joinOp->schema->attrDefs);
+	Operator *nestCondOper = (Operator *) nestCond;
+	if(streq(nestCondOper->name, "<>"))
+		nestCondOper->name = "=";
+
+	Node *selTopCond = removeNestingConds(selTop->cond);
+	selTopCond = AND_EXPRS(nestCond, selTopCond);
+	selTop->cond = selTopCond;
+	adaptSchemaByChild(selTopOp, joinOp);
+
+
+
+
+	return nestOp;
+}
+
+static void
+getEachConds(Node *expr, List **opList)
+{
+    // only are interested in operators here
+	if (isA(expr,Operator)) {
+	    Operator *op = (Operator *) copyObject(expr);
+
+	    // uppercase operator name
+	    char *opName = op->name;
+	    while (*opName) {
+	      *opName = toupper((unsigned char) *opName);
+	      opName++;
+	    }
+
+	    if(streq(op->name,OPNAME_AND))
+	    {
+	        FOREACH(Node,arg,op->args)
+				getEachConds(arg,opList);
+	    }
+	    else
+	        *opList = appendToTailOfList(*opList, op);
+	}
+	 else
+		 *opList = appendToTailOfList(*opList, expr);
+}
+
+static void
+adaptSchemaByChild(QueryOperator *op1, QueryOperator *op2)
+{
+	op1->schema->attrDefs = duplicateList(op2->schema->attrDefs);
+}
+
+static List *
+removeNotOperator(List *l)
+{
+	List *res = NIL;
+	FOREACH(Operator, oper, l)
+	{
+		if(!streq(oper->name, OPNAME_NOT))
+			res = appendToTailOfList(res, oper);
+	}
+
+	return res;
+}
+
+static Node *
+removeNestingConds(Node *node)
+{
+	List *condsList = NIL;
+	List *notList = NIL;
+	//getSelectionCondOperatorList(node, &condsList);
+	getEachConds(node, &condsList);
+	DEBUG_LOG("LIST LENGTH: %d", LIST_LENGTH(condsList));
+	FOREACH(Node,n,condsList)
+	{
+		if(isA(n, Operator))
+		{
+			Operator *not = (Operator *) n;
+		    // uppercase operator name
+//		    char *opName = not->name;
+//		    while (*opName) {
+//		      *opName = toupper((unsigned char) *opName);
+//		      opName++;
+//		    }
+
+			if(streq(not->name, OPNAME_NOT))
+			{
+				getEachConds((Node *) getHeadOfListP(not->args), &notList);
+			}
+
+		}
+	}
+
+	if(notList != NIL)
+	{
+		condsList = removeNotOperator(condsList);
+		for(int i=0; i<LIST_LENGTH(notList); i++)
+		{
+			Node *cur = getNthOfListP(notList, i);
+			if(i==0)
+				condsList = appendToTailOfList(condsList, createOpExpr(OPNAME_NOT, singleton(cur)));
+			else
+				condsList = appendToHeadOfList(condsList, cur);
+		}
+	}
+
+	DEBUG_LOG("NEW LIST LENGTH: %d", LIST_LENGTH(condsList));
+	FOREACH(Node, n, condsList)
+		DEBUG_NODE_BEATIFY_LOG("new cur node: ", n);
+
+	List *unnestCondList = NIL;
+	FOREACH(Node, n, condsList)
+	{
+		if(isNotContainNestingAttr(n, "x"))
+			unnestCondList = appendToTailOfList(unnestCondList, n);
+	}
+
+	return andExprList(unnestCondList);
+}
+
+//TODO: list of conds?
+static Node *
+likeToNotLike(Node *node)
+{
+	Operator *oper = (Operator *) node;
+	if(streq(oper->name, "LIKE"))
+	{
+		return (Node *) createOpExpr(OPNAME_NOT, singleton(node));
+	}
+
+	return node;
+}
+
+
+static boolean
+isNotInLike(NestingOperator *nest)
+{
+	QueryOperator *nestOp = (QueryOperator *) nest;
+	QueryOperator *child1 = OP_RCHILD(nestOp);
+	QueryOperator *child2 = OP_LCHILD(child1);
+
+	//TODO: might not selectionOperator
+	if(isA(child2, SelectionOperator))
+	{
+		SelectionOperator *sel = (SelectionOperator *) child2;
+		if(isUnequalOperator(nest->cond) && isNotLikeOperator(sel->cond))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+static boolean
+isUnequalOperator(Node *node)
+{
+	if(isA(node, Operator))
+	{
+		Operator *oper = (Operator *) node;
+		if(streq(oper->name, "<>"))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+static boolean
+isNotLikeOperator(Node *node)
+{
+	List *conds = NIL;
+	getSelectionCondOperatorList(node, &conds);
+
+	FOREACH(Operator, oper, conds)
+	{
+		if(streq(oper->name,"LIKE"))
+			return TRUE;
+
+		//TODO: NOT LIKE
+	}
+
+	return FALSE;
+}
+
+
 
 static QueryOperator *
 unnestExistsSpecial(List *l)
