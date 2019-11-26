@@ -54,9 +54,11 @@ static TableAccessOperator *getTableAccess(QueryOperator *childNestRchild);
 static boolean adaptCondsPos (Node *node, List *defs);
 static void addSuffixInCond(List *l);
 
+static boolean hasNestingAttr(Node *node);
+static boolean hasNestingAttrVisitor(Node *q, boolean *found);
 static boolean isExistSpecial(List *nestOps);
 static boolean isExistAndNotExist(NestingOperator *nest);
-static boolean isNotContainNestingAttr (Node *node, char *status);
+//static boolean isNotContainNestingAttr (Node *node, char *status);
 static boolean isContainOverlappedConds(NestingOperator *nest, NestingOperator* childNest);
 static boolean isContainOperator(List *l, Operator *oper);
 static boolean getAttrRefs (Node *node, List **l);
@@ -150,7 +152,7 @@ unnestRewriteQuery(QueryOperator *op)
 	    		break;
 	    case NESTQ_ALL:
 	    		DEBUG_LOG("unnest ALL clause:");
-	    		if(isNotInLike(nest))
+	    		if(isNotInLike(nest)) //q16
 	    			DEBUG_LOG("Special case: not in clause, subquery contains like clause and no correlation.");
 	    			unnestNotInLike(nest);
 	    		break;
@@ -491,6 +493,7 @@ removeNestingConds(Node *node)
 			if(streq(not->name, OPNAME_NOT))
 			{
 				getEachConds((Node *) getHeadOfListP(not->args), &notList);
+				DEBUG_LOG("NOT LIST LENGTH: %d", LIST_LENGTH(notList));
 			}
 
 		}
@@ -516,7 +519,7 @@ removeNestingConds(Node *node)
 	List *unnestCondList = NIL;
 	FOREACH(Node, n, condsList)
 	{
-		if(isNotContainNestingAttr(n, "x"))
+		if(!hasNestingAttr(n))
 			unnestCondList = appendToTailOfList(unnestCondList, n);
 	}
 
@@ -1373,10 +1376,10 @@ isExistAndNotExist(NestingOperator *nest)
 		FOREACH(Operator, oper, condList)
 		{
 
-			if(!streq(oper->name, "NOT") && !isNotContainNestingAttr((Node *) oper, "x"))
+			if(!streq(oper->name, "NOT") && hasNestingAttr((Node *) oper))
 				containExist = TRUE;
 
-			if(streq(oper->name, "NOT") && !isNotContainNestingAttr((Node *) oper,"x"))
+			if(streq(oper->name, "NOT") && hasNestingAttr((Node *) oper))
 				containNotExist = TRUE;
 		}
 
@@ -1387,25 +1390,54 @@ isExistAndNotExist(NestingOperator *nest)
 }
 
 
-static boolean
-isNotContainNestingAttr (Node *node, char *status)
-{
-    if (node == NULL)
-        return FALSE;
+//static boolean
+//isNotContainNestingAttr (Node *node, char *status)
+//{
+//    if (node == NULL)
+//        return FALSE;
+//
+//    if(isA(node, AttributeReference))
+//    {
+//    		AttributeReference *a = (AttributeReference *) node;
+//    		if(isNestAttr(a))
+//    		{
+//    			DEBUG_LOG("attr: %s", a->name);
+//    			return FALSE;
+//    		}
+//    }
+//
+//    return visit(node, isNotContainNestingAttr, status);
+//}
 
-    if(isA(node, AttributeReference))
+
+static boolean
+hasNestingAttr(Node *node)
+{
+    boolean found = FALSE;
+
+    hasNestingAttrVisitor(node, &found);
+    return found;
+}
+
+static boolean
+hasNestingAttrVisitor(Node *q, boolean *found)
+{
+    if(q == NULL)
+        return TRUE;
+
+    if(isA(q, AttributeReference))
     {
-    		AttributeReference *a = (AttributeReference *) node;
+    		AttributeReference *a = (AttributeReference *) q;
     		if(isNestAttr(a))
     		{
     			DEBUG_LOG("attr: %s", a->name);
+    			*found = TRUE;
     			return FALSE;
     		}
     }
 
-    return visit(node, isNotContainNestingAttr, status);
+    return visit(q, hasNestingAttrVisitor, found);
 }
-
 
 //TODO: might use visit
 static void
@@ -1686,7 +1718,7 @@ getUnNestAttrsInExistsSqecial(List *conds)
 {
 	List *l = NIL;
 	FOREACH(Node, n, conds){
-		if(isNotContainNestingAttr(n, "x"))
+		if(!hasNestingAttr(n))
 			l = appendToTailOfList(l, n);
 	}
 	return l;
