@@ -1887,6 +1887,7 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 	List *name_bg = NIL;
 
 	FOREACH(Node, n, aggrl){
+		INFO_LOG("%s", nodeToString(n));
 		char *attrname = (char *)getNthOfListP(aggr_out_names, pos);
 		char *ubname = getUBString(attrname);
 		char *lbname = getLBString(attrname);
@@ -1897,6 +1898,7 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 		pos++;
 	}
 	FOREACH(Node, n, aggr_groupby_list){
+		INFO_LOG("%s", nodeToString(n));
 		char *attrname = (char *)getNthOfListP(aggr_out_names, pos);
 		char *ubname = getUBString(attrname);
 		char *lbname = getLBString(attrname);
