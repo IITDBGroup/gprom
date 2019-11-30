@@ -73,10 +73,22 @@ typedef struct UpdateAggAndGroupByAttrState {
     List *groupByNames;
 } UpdateAggAndGroupByAttrState;
 
+
+typedef struct FromAttrsContext {
+    List *fromAttrs;
+    List *fromAttrsList;
+} FromAttrsContext;
+
 typedef struct JoinAttrRenameState {
     int rightFromOffsets;
-    List *fromAttrs;
+    FromAttrsContext *fac;
 } JoinAttrRenameState;
+
+
+//typedef struct JoinStateFac {
+//	JoinAttrRenameState *state;
+//	FromAttrsContext *fac;
+//} JoinStateFac;
 
 #define MAP_HAS_POINTER(map,p) MAP_HAS_LONG_KEY(map, (gprom_long_t) p)
 #define MAP_GET_POINTER(map,p) MAP_GET_LONG(map,(gprom_long_t) p)
@@ -97,26 +109,26 @@ typedef struct JoinAttrRenameState {
 // struct that stores functions that serialize clauses of a select statement
 typedef struct SerializeClausesAPI {
     List *(*serializeQueryOperator) (QueryOperator *q, StringInfo str,
-            QueryOperator *parent, struct SerializeClausesAPI *api);
-    List *(*serializeQueryBlock) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
+            QueryOperator *parent, FromAttrsContext *fac, struct SerializeClausesAPI *api);
+    List *(*serializeQueryBlock) (QueryOperator *q, StringInfo str, FromAttrsContext *fac, struct SerializeClausesAPI *api);
     List * (*serializeProjectionAndAggregation) (QueryBlockMatch *m, StringInfo select,
-            StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize, struct SerializeClausesAPI *api);
-    void (*serializeFrom) (QueryOperator *q, StringInfo from, List **fromAttrs, struct SerializeClausesAPI *api);
-    void (*serializeWhere) (SelectionOperator *q, StringInfo where, List *fromAttrs, struct SerializeClausesAPI *api);
-    List *(*serializeSetOperator) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
+            StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, struct SerializeClausesAPI *api);
+    void (*serializeFrom) (QueryOperator *q, StringInfo from, FromAttrsContext *fac, struct SerializeClausesAPI *api);
+    void (*serializeWhere) (SelectionOperator *q, StringInfo where, FromAttrsContext *fac, struct SerializeClausesAPI *api);
+    List *(*serializeSetOperator) (QueryOperator *q, StringInfo str, FromAttrsContext *fac, struct SerializeClausesAPI *api);
     void (*serializeFromItem) (QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
-            int *curFromItem, int *attrOffset, List **fromAttrs, struct SerializeClausesAPI *api);
+            int *curFromItem, int *attrOffset, FromAttrsContext *fac, struct SerializeClausesAPI *api);
     void (*serializeTableAccess) (StringInfo from, TableAccessOperator* t, int* curFromItem,
-            List** fromAttrs, int* attrOffset, struct SerializeClausesAPI *api);
-    void (*serializeConstRel) (StringInfo from, ConstRelOperator* t, List** fromAttrs,
+    			FromAttrsContext *fac, int* attrOffset, struct SerializeClausesAPI *api);
+    void (*serializeConstRel) (StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
             int* curFromItem, struct SerializeClausesAPI *api);
     void (*serializeJoinOperator) (StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
-            int* curFromItem, int* attrOffset, List** fromAttrs, struct SerializeClausesAPI *api);
- 	void (*serializeOrderByOperator) (OrderOperator *q, StringInfo orderby, List *fromAttrs,
+            int* curFromItem, int* attrOffset, FromAttrsContext *fac, struct SerializeClausesAPI *api);
+ 	void (*serializeOrderByOperator) (OrderOperator *q, StringInfo orderby, FromAttrsContext *fac,
 									struct SerializeClausesAPI *api);
 	void (*serializeLimitOperator) (LimitOperator *q, StringInfo limit, struct SerializeClausesAPI *api);
     List *(*createTempView) (QueryOperator *q, StringInfo str,
-            QueryOperator *parent, struct SerializeClausesAPI *api);
+            QueryOperator *parent, FromAttrsContext *fac, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
     int viewCounter;
 } SerializeClausesAPI;
@@ -125,26 +137,31 @@ typedef struct SerializeClausesAPI {
 extern SerializeClausesAPI *createAPIStub (void);
 extern void genQuoteAttributeNames (Node *q);
 extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
-        QueryOperator *parent, SerializeClausesAPI *api);
-extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str,
+        QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api);
+extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
         SerializeClausesAPI *api);
 extern void genSerializeFrom (QueryOperator *q, StringInfo from,
-        List **fromAttrs, SerializeClausesAPI *api);
+		FromAttrsContext *fac, SerializeClausesAPI *api);
 extern void genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q,
-        StringInfo from, int *curFromItem, int *attrOffset, List **fromAttrs,
+        StringInfo from, int *curFromItem, int *attrOffset,FromAttrsContext *fac,
         SerializeClausesAPI *api);
-extern void genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs,
+extern void genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac,
         SerializeClausesAPI *api);
 extern void genSerializeLimitOperator (LimitOperator *q, StringInfo limit,
 									struct SerializeClausesAPI *api);
-extern void genSerializeOrderByOperator (OrderOperator *q, StringInfo order,  List *fromAttrs,
+extern void genSerializeOrderByOperator (OrderOperator *q, StringInfo order,  FromAttrsContext *fac,
 									struct SerializeClausesAPI *api);
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,
-        QueryOperator *parent, SerializeClausesAPI *api);
-extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs);
+        QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api);
+extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac);
 extern boolean updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state);
-extern boolean updateAttributeNames(Node *node, List *fromAttrs);
+extern boolean updateAttributeNames(Node *node, FromAttrsContext *fac);
 extern boolean updateAttributeNamesSimple(Node *node, List *attrNames);
+
+//for nesting
+extern FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
+extern void printFromAttrsContext(FromAttrsContext *fac);
+extern FromAttrsContext *initializeFromAttrsContext ();
 
 #define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
     do { \

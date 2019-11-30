@@ -31,7 +31,7 @@ static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
-static char *createAttrName (char *name, int fItem);
+static char *createAttrName (char *name, int fItem, FromAttrsContext *fac);
 
 /*
  * create API struct
@@ -110,11 +110,75 @@ quoteAttributeNames (Node *node, void *context)
     return visit(node, quoteAttributeNames, context);
 }
 
+FromAttrsContext *
+initializeFromAttrsContext ()
+{
+  	struct FromAttrsContext *fac;
+  	fac =  CALLOC(sizeof(FromAttrsContext),1);
+  	fac->fromAttrsList = NIL;
+  	fac->fromAttrs = NIL;
+
+  	return fac;
+}
+
+FromAttrsContext *
+copyFromAttrsContext(FromAttrsContext *fac)
+{
+  	struct FromAttrsContext *result;
+  	result =  CALLOC(sizeof(FromAttrsContext),1);
+  	result->fromAttrsList = copyList(fac->fromAttrsList);
+  	result->fromAttrs = copyList(fac->fromAttrs);
+
+  	return result;
+}
+
+void
+printFromAttrsContext(FromAttrsContext *fac)
+{
+     DEBUG_LOG("FromAttrsContext:");
+     if(fac->fromAttrsList != NIL)
+     {
+     StringInfo s1 = makeStringInfo();
+     appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
+     FOREACH(List, l1, fac->fromAttrsList)
+     {
+     	 FOREACH(List, l2, l1)
+		{
+     	    appendStringInfo(s1, "(");
+		 	 FOREACH(char, c, l2)
+			    appendStringInfo(s1, " %s ", c);
+			 	 //DEBUG_LOG("%s",c);
+		 	appendStringInfo(s1, ")");
+		}
+     	appendStringInfo(s1, " , ");
+     }
+     DEBUG_LOG(" %s ", s1->data);
+     }
+     else
+    	 	 DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
+
+     if(fac->fromAttrs != NIL)
+     {
+     StringInfo s2 = makeStringInfo();
+     appendStringInfo(s2,"Len: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
+     FOREACH(List, l1, fac->fromAttrs)
+     {
+    	    appendStringInfo(s2, "(");
+ 	 	 FOREACH(char, c, l1)
+		 	 appendStringInfo(s2, " %s ", c);
+ 	 	appendStringInfo(s2, ")");
+     }
+     DEBUG_LOG(" %s ", s2->data);
+     }
+     else
+    	 DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
+}
+
 /*
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
 List *
-genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *api)
+genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
     StringInfo fromString = makeStringInfo();
@@ -392,20 +456,23 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
-    List *fromAttrs = NIL;
-    api->serializeFrom(matchInfo->fromRoot, fromString, &fromAttrs, api);
+    //List *fromAttrs = NIL;
+    //sine want to use fac->fromAttrs as a local variable in serializeFrom
+    FromAttrsContext *cfac = copyFromAttrsContext(fac);
+    cfac->fromAttrs = NIL;
+    api->serializeFrom(matchInfo->fromRoot, fromString, cfac, api);
 
     DEBUG_LOG("serializeWhere");
     if(matchInfo->where != NULL)
-        api->serializeWhere(matchInfo->where, whereString, fromAttrs, api);
+        api->serializeWhere(matchInfo->where, whereString, cfac, api);
 
     DEBUG_LOG("serialize projection + aggregation + groupBy +  having + window functions");
     api->serializeProjectionAndAggregation(matchInfo, selectString, havingString,
-            groupByString, fromAttrs, topMaterialize, api);
+            groupByString, cfac, topMaterialize, api);
 
 	DEBUG_LOG("serializeOrder");
 	if (matchInfo->orderBy != NULL)
-		api->serializeOrderByOperator(matchInfo->orderBy, orderString, fromAttrs, api);
+		api->serializeOrderByOperator(matchInfo->orderBy, orderString, cfac, api);
 
 	DEBUG_LOG("serializeLimit");
 	if (matchInfo->limitOffset != NULL)
@@ -442,17 +509,17 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
 }
 
 void
-genSerializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs, SerializeClausesAPI *api)
+genSerializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    api->serializeFromItem (q, q, from, &curFromItem, &attrOffset, fromAttrs, api);
+    api->serializeFromItem (q, q, from, &curFromItem, &attrOffset, fac, api);
 }
 
 void
 genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
-        int *attrOffset, List **fromAttrs, SerializeClausesAPI *api)
+        int *attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // if operator has more than one parent then it will be represented as a CTE
     // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
@@ -465,14 +532,14 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             {
                 JoinOperator *j = (JoinOperator *) q;
                 api->serializeJoinOperator(from, fromRoot, j, curFromItem,
-                        attrOffset, fromAttrs, api);
+                        attrOffset, fac, api);
             }
             break;
             // Table Access
             case T_TableAccessOperator:
             {
                 TableAccessOperator *t = (TableAccessOperator *) q;
-                api->serializeTableAccess(from, t, curFromItem, fromAttrs,
+                api->serializeTableAccess(from, t, curFromItem, fac,
                         attrOffset, api);
             }
             break;
@@ -480,7 +547,7 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             case T_ConstRelOperator:
             {
                 ConstRelOperator *t = (ConstRelOperator *) q;
-                api->serializeConstRel(from, t, fromAttrs, curFromItem, api);
+                api->serializeConstRel(from, t, fac, curFromItem, api);
             }
             break;
             case T_NestingOperator:
@@ -492,7 +559,16 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             		QueryOperator *subquery = OP_RCHILD(nest);
             		//List *subqueryNames = getQueryOperatorAttrNames(subquery);
 
-            		api->serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fromAttrs, api);
+            		api->serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fac, api);
+
+
+            		fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr)));
+
+            		//fromAttrsList: ( ((C,D)) , ((A,B), (nesting)) ) -> format: (L1, L2)
+            		//here (((A,B))) -> (((A,B), (nesting_eval_1)))
+            		fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            		fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+            		printFromAttrsContext(fac);
 
             		appendStringInfoString(from, ",");
             		appendStringInfo(from, " LATERAL ");
@@ -500,7 +576,7 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 
             		AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
             		a->attrName = strdup(subAttr);
-            		api->serializeQueryOperator(subquery, from, (QueryOperator *) nest, api);
+            		api->serializeQueryOperator(subquery, from, (QueryOperator *) nest, fac, api);
 
             		appendStringInfoString(from, ")");
             		appendStringInfo(from, " F%u_0", (*curFromItem)++);
@@ -511,9 +587,14 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
                 List *attrNames;
 
                 appendStringInfoString(from, "(");
-                attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
-                *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                appendStringInfo(from, ") F%u", (*curFromItem)++);
+                attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac, api); //TODO ok to use first?
+                fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+                //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+                fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+                printFromAttrsContext(fac);
+                appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+                //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+                //appendStringInfo(from, ") F%u", (*curFromItem)++);
             }
             break;
         }
@@ -525,9 +606,12 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             List *attrNames;
 
             appendStringInfoString(from, "(");
-            attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
-            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, ") F%u", (*curFromItem)++);
+            attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac, api); //TODO ok to use first?
+            //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+            fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+            //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+            appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
         }
     }
 }
@@ -536,11 +620,11 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
  * Translate a selection into a WHERE clause
  */
 void
-genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs, SerializeClausesAPI *api)
+genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
 
 	appendStringInfoString(where, "\nWHERE ");
-	updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
+	updateAttributeNames((Node *) q->cond, fac);
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
@@ -560,7 +644,7 @@ genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesA
 }
 
 void
-genSerializeOrderByOperator (OrderOperator *q, StringInfo order, List *fromAttrs,
+genSerializeOrderByOperator (OrderOperator *q, StringInfo order, FromAttrsContext *fac,
 							 SerializeClausesAPI *api) //TODO check since copied from Oracle
 {
 	appendStringInfoString(order, "\nORDER BY ");
@@ -574,7 +658,7 @@ genSerializeOrderByOperator (OrderOperator *q, StringInfo order, List *fromAttrs
 
 
 boolean
-updateAttributeNames(Node *node, List *fromAttrs)
+updateAttributeNames(Node *node, FromAttrsContext *fac)
 {
     if (node == NULL)
         return TRUE;
@@ -588,48 +672,72 @@ updateAttributeNames(Node *node, List *fromAttrs)
         int fromItem = -1;
         int attrPos = 0;
 
-        // LOOP THROUGH fromItems (outer list)
-        FOREACH(List, attrs, fromAttrs)
+//        // LOOP THROUGH fromItems (outer list)
+//        FOREACH(List, attrs, fromAttrs)
+//        {
+//            attrPos += LIST_LENGTH(attrs);
+//            fromItem++;
+//            if (attrPos > a->attrPosition)
+//            {
+//                outer = attrs;
+//                break;
+//            }
+//        }
+        List *attrsList = NIL;
+        if(a->outerLevelsUp >= 0)
+        		attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp);
+        else
+        		attrsList = (List *) getNthOfListP(fac->fromAttrsList, 0);
+
+        FOREACH(List, attrs, attrsList)
         {
-            attrPos += LIST_LENGTH(attrs);
-            fromItem++;
-            if (attrPos > a->attrPosition)
-            {
-                outer = attrs;
-                break;
-            }
+        		attrPos += LIST_LENGTH(attrs);
+        		fromItem++;
+        		if (attrPos > a->attrPosition)
+        		{
+        			outer = attrs;
+        			break;
+        		}
         }
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
-        if(LIST_LENGTH(outer) > attrPos)
-        {
-        		newName = getNthOfListP(outer, attrPos);
-        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
-        }
+        newName = getNthOfListP(outer, attrPos);
+
+        if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
+         	a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-1) , ".", newName);
+        else
+         	a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
+
+//        attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
+//        if(LIST_LENGTH(outer) > attrPos)
+//        {
+//        		newName = getNthOfListP(outer, attrPos);
+//        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
+//        }
     }
 
-    return visit(node, updateAttributeNames, fromAttrs);
+    return visit(node, updateAttributeNames, fac);
 }
 
 /*
  * Main entry point for serialization.
  */
 List *
-genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, SerializeClausesAPI *api)
+genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // operator with multiple parents
     if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
-        return api->createTempView (q, str, parent, api);
+        return api->createTempView (q, str, parent, fac, api);
     else if (isA(q, SetOperator))
-        return api->serializeSetOperator(q, str, api);
+        return api->serializeSetOperator(q, str, fac, api);
     else
-        return api->serializeQueryBlock(q, str, api);
+        return api->serializeQueryBlock(q, str, fac, api);
 }
 
 /*
  * Create a temporary view
  */
 List *
-genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, SerializeClausesAPI *api)
+genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     StringInfo viewDef = makeStringInfo();
     char *viewName = createViewName(api);
@@ -655,9 +763,9 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     // create sql code to create view
     appendStringInfo(viewDef, "%s AS (", viewName);
     if (isA(q, SetOperator))
-        resultAttrs = api->serializeSetOperator(q, viewDef, api);
+        resultAttrs = api->serializeSetOperator(q, viewDef, fac, api);
     else
-        resultAttrs = api->serializeQueryBlock(q, viewDef, api);
+        resultAttrs = api->serializeQueryBlock(q, viewDef, fac, api);
 
     appendStringInfoString(viewDef, ")");
 
@@ -690,12 +798,12 @@ createViewName (SerializeClausesAPI *api)
 }
 
 char *
-exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
+exprToSQLWithNamingScheme (Node *expr, int rOffset,FromAttrsContext *fac)
 {
     JoinAttrRenameState *state = NEW(JoinAttrRenameState);
 
     state->rightFromOffsets = rOffset;
-    state->fromAttrs = fromAttrs;
+    state->fac = fac;
     renameAttrsVisitor(expr, state);
 
     FREE(state);
@@ -720,10 +828,10 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 
         // if right join input find first from item from right input
         if (isRight)
-            for(lc = getHeadOfList(state->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
+            for(lc = getHeadOfList(state->fac->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
                 ;
         else
-            lc = getHeadOfList(state->fromAttrs);
+            lc = getHeadOfList(state->fac->fromAttrs);
 
         // find from position and attr name
         for(; lc != NULL; lc = lc->next)
@@ -741,7 +849,7 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
         pos = a->attrPosition - pos + LIST_LENGTH(from);
         name = getNthOfListP(from, pos);
 
-        a->name = createAttrName(name, fPos);
+        a->name = createAttrName(name, fPos, state->fac);
 
         return TRUE;
     }
@@ -750,12 +858,12 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 }
 
 static char *
-createAttrName (char *name, int fItem)
+createAttrName (char *name, int fItem, FromAttrsContext *fac)
 {
    StringInfo str = makeStringInfo();
    char *result = NULL;
 
-   appendStringInfo(str, "F%u.%s", fItem, name);
+   appendStringInfo(str, "F%u_%u.%s", fItem, LIST_LENGTH(fac->fromAttrsList) - 1, name);
    result = str->data;
    FREE(str);
 
