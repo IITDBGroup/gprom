@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_sqlite.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -217,9 +217,9 @@ sqliteGetAttributes (char *tableName)
         const unsigned char *colName = sqlite3_column_text(rs,1);
         const unsigned char *dt = sqlite3_column_text(rs,2);
         DataType ourDT = stringToDT((char *) dt);
-                ;
+
         AttributeDef *a = createAttributeDef(
-                         strdup((char *) colName),
+			strToUpper(strdup((char *) colName)),
                          ourDT
                          );
         result = appendToTailOfList(result, a);
@@ -482,11 +482,14 @@ static DataType
 stringToDT (char *dataType)
 {
    DEBUG_LOG("data type %s", dataType);
+   char *lowerDT = strToLower(dataType);
 
-   if (streq(dataType, "NUMERIC") || streq(dataType, "REAL"))//TODO
+   if (isSubstr(lowerDT, "int"))
+	   return DT_INT;
+   if (isSubstr(lowerDT, "char") || isSubstr(lowerDT, "clob") || isSubstr(lowerDT, "text"))
+	   return DT_STRING;
+   if (isSubstr(lowerDT, "real") || isSubstr(lowerDT, "floa") || isSubstr(lowerDT, "doub"))
        return DT_FLOAT;
-   if (streq(dataType, "int"))
-       return DT_INT;
 
    return DT_STRING;
 }
@@ -628,5 +631,3 @@ sqliteExecuteQuery(char *query)
 }
 
 #endif
-
-

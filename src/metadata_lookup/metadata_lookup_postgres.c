@@ -1,12 +1,12 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_postgres.c
- *			  
+ *
  *		- Catalog lookup for postgres database
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -46,6 +46,12 @@
             "return; " \
         "end; $$ language plpgsql;"
 
+// we have to use syntax that works a reasonable range of postgres versions
+#define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
+	    "(SELECT regexp_split_to_array(substring(version() from 'PostgreSQL ([0-9]+[.][0-9]+)'), '[.]') AS version) getv;"
+//#define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM "
+//        "(SELECT (regexp_match(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
+
 #define NAME_EXPLAIN_FUNC_EXISTS "GProM_CheckExplainFunctionExists"
 #define PARAMS_EXPLAIN_FUNC_EXISTS 0
 #define QUERY_EXPLAIN_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = '" EXPLAIN_FUNC_NAME "');"
@@ -81,6 +87,16 @@
 #define PARAMS_VIEW_EXISTS 1
 #define QUERY_VIEW_EXISTS "SELECT EXISTS (SELECT * FROM pg_class " \
         "WHERE relkind = 'v' AND relname = $1::text);"
+
+#define NAME_IS_WIN_FUNC_11 "GPRoM_IsWinFunc"
+#define PARAMS_IS_WIN_FUNC_11 1
+#define QUERY_IS_WIN_FUNC_11 "SELECT bool_or(prokind = 'w') is_win FROM pg_proc " \
+        "WHERE proname = $1::text;"
+
+#define NAME_IS_AGG_FUNC_11 "GPRoM_IsAggFunc"
+#define PARAMS_IS_AGG_FUNC_11 1
+#define QUERY_IS_AGG_FUNC_11 "SELECT bool_or(prokind = 'a') AS is_agg FROM pg_proc " \
+        "WHERE proname = $1::text;"
 
 #define NAME_IS_WIN_FUNC "GPRoM_IsWinFunc"
 #define PARAMS_IS_WIN_FUNC 1
@@ -131,6 +147,7 @@ static void execCommit(void);
 static PGresult *execPrepared(char *qName, List *values);
 static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
+static void determineServerVersion(void);
 static void prepareLookupQueries(void);
 static boolean hasAnyType (List *oids);
 static boolean isAnyTypeCompaible (List *oids, List *argTypes);
@@ -173,6 +190,8 @@ typedef struct PostgresPlugin
     MetadataLookupPlugin plugin;
     PGconn *conn;
     boolean initialized;
+    int serverMajorVersion;
+    int serverMinorVersion;
 } PostgresPlugin;
 
 // data types: additional cache entries
@@ -295,6 +314,9 @@ postgresDatabaseConnectionOpen (void)
 
     plugin->initialized = TRUE;
 
+    // determine server version
+    determineServerVersion();
+
     // prepare queries
     prepareLookupQueries();
 
@@ -356,6 +378,33 @@ fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
 }
 
 static void
+determineServerVersion(void)
+{
+    PGresult *res = NULL;
+    int numRes = 0;
+
+    // get OID to DT mapping
+    res = execQuery(QUERY_GET_SERVER_VERSION);
+    numRes = PQntuples(res);
+    ASSERT(numRes == 1);
+
+    for(int i = 0; i < numRes; i++)
+    {
+        char *majorStr = PQgetvalue(res,i,0);
+        int majorInt = atoi(majorStr);
+        char *minorStr = PQgetvalue(res,i,1);
+        int minorInt = atoi(minorStr);
+
+        DEBUG_LOG("major = %u, minor = %u", majorInt, minorInt);
+        plugin->serverMajorVersion = majorInt;
+        plugin->serverMinorVersion = minorInt;
+    }
+
+    PQclear(res);
+    execCommit();
+}
+
+static void
 prepareLookupQueries(void)
 {
     PGresult *res;
@@ -373,23 +422,37 @@ prepareLookupQueries(void)
     PQclear(res);
 
     // create explain function
-    if (!funcExists)
+    if (!funcExists && plugin->serverMajorVersion >= 9)
     {
         execStmt(CREATE_EXPLAIN_FUNC);
     }
 
     // prepare other queries used for metadata lookup
-    PREP_QUERY(QUERY_GET_COST);
+	// postgres 8 or older does not support JSON explain output we use to extract query cost
+	if (plugin->serverMajorVersion >= 9)
+	{
+		PREP_QUERY(QUERY_GET_COST);
+	}
     PREP_QUERY(TABLE_GET_ATTRS);
     PREP_QUERY(TABLE_EXISTS);
     PREP_QUERY(VIEW_GET_ATTRS);
     PREP_QUERY(VIEW_EXISTS);
-    PREP_QUERY(IS_WIN_FUNC);
-    PREP_QUERY(IS_AGG_FUNC);
     PREP_QUERY(GET_VIEW_DEF);
     PREP_QUERY(GET_FUNC_DEFS);
     PREP_QUERY(GET_OP_DEFS);
     PREP_QUERY(GET_PK);
+
+    // catalog pg_proc has changed in 11
+    if (plugin->serverMajorVersion >= 11)
+    {
+        PREP_QUERY(IS_WIN_FUNC_11);
+        PREP_QUERY(IS_AGG_FUNC_11);
+    }
+    else
+    {
+        PREP_QUERY(IS_WIN_FUNC);
+        PREP_QUERY(IS_AGG_FUNC);
+    }
 }
 
 int
@@ -833,6 +896,12 @@ postgresGetCostEstimation(char *query)
 {
     PGresult *res = NULL;
     int cost = 0;
+
+	if (plugin->serverMajorVersion <= 8)
+	{
+		THROW(SEVERITY_RECOVERABLE, "postgres server major version is %d, but JSON output for explain is only support in version 9+!");
+	}
+
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_QUERY_GET_COST, singleton(createConstString(query)));
@@ -1001,7 +1070,7 @@ execPrepared(char *qName, List *values)
         params[i++] = STRING_VALUE(c);
 
     DEBUG_LOG("run query %s with parameters <%s>",
-            qName, exprToSQL((Node *) values));
+			  qName, exprToSQL((Node *) values, NULL));
 
     res = PQexecPrepared(plugin->conn,
             qName,
@@ -1296,4 +1365,3 @@ postgresExecuteQueryIgnoreResult (char *query)
 }
 
 #endif
-

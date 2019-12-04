@@ -27,6 +27,11 @@
 #define PROP_PROV_IGNORE_ATTRS "IGNORE_PROV_ATTRS"          // these attributes should be ignored during rewrite
 #define PROP_TRANSLATE_AS "TRANSLATE AS"
 #define PROP_TIP_ATTR "TIP_ATTR"							// indicates TIP attribute
+#define PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"			// indicates an incomplete table
+#define PROP_XTABLE_GROUPID "XTABLE_GROUPID"				// indicates group id attribute in v tables
+#define PROP_XTABLE_PROB "XTABLE_PROB"						// indicated probability attribute in v tables
+#define PROP_HAS_RANGE "HAS_RANGE"							// Already has range labeling
+#define PROP_HAS_UNCERT "HAS_UNCERT"						// Already has uncertainty labeling
 
 // provenance summarization
 #define PROP_SUMMARIZATION_DOSUM "DO_SUMMARIZATION"         // this property is
@@ -138,8 +143,13 @@
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
 
 /* fromProvInfo provProperties */
-#define PROV_PROP_TIP_ATTR "TIP_ATTR"
-#define PROV_PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"
-#define PROV_PROP_V_TABLE "V_TABLE"
+#define PROV_PROP_TIP_ATTR "PROV_PROP_TIP_ATTR"
+#define PROV_PROP_INCOMPLETE_TABLE "PROV_PROP_INCOMPLETE_TABLE"
+#define PROV_PROP_XTABLE_GROUPID "PROV_PROP_XTABLE_GROUPID"
+#define PROV_PROP_XTABLE_PROB "PROV_PROP_XTABLE_PROB"
+#define PROV_PROP_RADB "PROV_PROP_RADB"
+#define PROV_PROP_UADB "PROV_PROP_UADB"
+#define PROV_PROP_RADB_LIST "PROV_PROP_RADB_LIST"
+#define PROV_PROP_UADB_LIST "PROV_PROP_UADB_LIST"
 
 #endif /* OPERATOR_PROPERTY_H_ */

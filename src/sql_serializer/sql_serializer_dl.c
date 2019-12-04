@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer_dl.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -131,7 +131,7 @@ datalogToStr(StringInfo str, Node *n, int indent)
         default:
         {
             if (IS_EXPR(n))
-                appendStringInfo(str, "%s", exprToSQL(n));
+                appendStringInfo(str, "%s", exprToSQL(n, NULL));
             else
                 FATAL_LOG("should have never come here, datalog program should"
                         " not have nodes like this: %s",

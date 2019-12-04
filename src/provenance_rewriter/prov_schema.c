@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * prov_schema.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -227,12 +227,12 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     }
     if (stmt->inputType == PROV_INPUT_UNCERTAIN_QUERY)
     {
-        List *qAttrName =  getQBAttrNames(stmt->query);
+        List *qAttrName = getQBAttrNames(stmt->query);
 
         // add attribute uncertainty attributes
         FOREACH(char,n,qAttrName)
         {
-            char *uName = getUncertString(n);
+            char *uName = backendifyIdentifier(getUncertString(n));
             *dts = appendToTailOfListInt(*dts, DT_INT);
             *attrNames = appendToTailOfList(*attrNames, strdup(uName));
         }
@@ -240,6 +240,37 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         // add row uncertainty attribute
         *dts = appendToTailOfListInt(*dts, DT_INT);
         *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
+    }
+	if (stmt->inputType == PROV_INPUT_UNCERTAIN_TUPLE_QUERY)
+	{
+        // add row uncertainty attribute
+		List *qAttrDef =  getQBAttrDefs(stmt->query);
+		AttributeDef *nd = (AttributeDef *)getTailOfListP(qAttrDef);
+        *dts = appendToTailOfListInt(*dts, nd->dataType);
+        *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
+	}
+    if (stmt->inputType == PROV_INPUT_RANGE_QUERY)
+    {
+    	List *qAttrDef =  getQBAttrDefs(stmt->query);
+    	INFO_LOG("=======================", stringListToString(*attrNames));
+    	// add attribute range attributes
+    	FOREACH(Node,n,qAttrDef)
+    	{
+            char *ubName = backendifyIdentifier(getUBString(((AttributeDef *)n)->attrName));
+            char *lbName = backendifyIdentifier(getLBString(((AttributeDef *)n)->attrName));
+            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *attrNames = appendToTailOfList(*attrNames, strdup(ubName));
+            *attrNames = appendToTailOfList(*attrNames, strdup(lbName));
+        }
+
+            // add row Range attribute
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_CERTAIN));
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_BESTGUESS));
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_POSSIBLE));
     }
 }
 

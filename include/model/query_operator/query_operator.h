@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * query_operator.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -156,6 +156,13 @@ typedef struct SampleClauseOperator
 	Node *sampPerc;
 } SampleClauseOperator;
 
+typedef struct LimitOperator
+{
+	QueryOperator op;
+	Node *limitExpr;
+	Node *offsetExpr;
+} LimitOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator) \
@@ -167,6 +174,7 @@ typedef struct SampleClauseOperator
         || isA(op,DuplicateRemoval)                     \
         || isA(op,WindowOperator)                       \
 		|| isA(op,OrderOperator)                        \
+		|| isA(op,LimitOperator)                        \
 		|| isA(op,JsonTableOperator)                    \
 		)
 
@@ -229,6 +237,7 @@ extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
         QueryOperator *input, List *parents);
 extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
         List *parents);
+extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

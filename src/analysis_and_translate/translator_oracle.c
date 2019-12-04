@@ -1,15 +1,16 @@
 /*-----------------------------------------------------------------------------
  *
  * translator_oracle.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
 
+#include "analysis_and_translate/translator.h"
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -23,6 +24,7 @@
 #include "model/list/list.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
 #include "parser/parser.h"
@@ -95,6 +97,9 @@ static QueryOperator *translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
 
 static QueryOperator *translateOrderBy(QueryBlock *qb, QueryOperator *input,
         List *attrsOffsets);
+static QueryOperator *translateLimitOffset(QueryBlock *qb, QueryOperator *input,
+										   List *attrsOffsets);
+
 
 /* helpers */
 static Node *replaceAggsAndGroupByMutator(Node *node,
@@ -119,11 +124,11 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
-    INFO_NODE_BEATIFY_LOG("translate QB model", q);
+    //INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q);
 
-    DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
+    //DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
     INFO_OP_LOG("result of translation overview is", result);
     ASSERT(equal(result, copyObject(result)));
 
@@ -238,7 +243,7 @@ translateGeneral (Node *node)
 
     Set *done = PSET();
     disambiguiteAttrNames(result, done);
-	
+
     return result;
 }
 
@@ -537,10 +542,14 @@ translateQueryBlock(QueryBlock *qb)
     if (orderBy != distinct)
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
 
-    if(summaryType != NULL)
-    	prop = (Node *) orderBy;
+	QueryOperator *limitAndOffset = translateLimitOffset(qb, orderBy, attrsOffsets);
+	if (limitAndOffset != orderBy)
+		LOG_TRANSLATED_OP("translatedLimitAndOffset is", limitAndOffset);
 
-    return orderBy;
+    if(summaryType != NULL)
+    	prop = (Node *) limitAndOffset;
+
+    return limitAndOffset;
 }
 
 static QueryOperator *
@@ -731,11 +740,13 @@ translateProvenanceStmt(ProvenanceStmt *prov)
         }
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
-        {
+     	case PROV_INPUT_RANGE_QUERY:
+	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
+		{
             child = translateQueryOracle(prov->query);
             addChildOperator((QueryOperator *) result, child);
         }
-        break;
+		break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
@@ -1206,22 +1217,51 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 
-    /* user TIP attribute selected */
-	if (getStringProvProperty(from, PROV_PROP_TIP_ATTR) != NULL)
-	{
-		setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
-		hasProv = TRUE;
-		from->userProvAttrs = singleton(strdup(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
-	}
-
-    /* table selected as incomplete */
+    /* table has a provProperty*/
     if (from->provProperties)
-	{
+    {
+    	/* user TIP attribute selected */
+		if (getStringProvProperty(from, PROV_PROP_TIP_ATTR))
+		{
+			setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
+			hasProv = TRUE;
+			//removed strdup
+			from->userProvAttrs = singleton(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR)));
+		}
+
+		if (getStringProvProperty(from, PROV_PROP_RADB_LIST))
+		{
+			setStringProperty(op, PROP_HAS_RANGE, (Node *) createConstBool(1));
+			hasProv = TRUE;
+			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_RADB_LIST);
+		}
+		if (getStringProvProperty(from, PROV_PROP_UADB_LIST))
+		{
+			setStringProperty(op, PROP_HAS_UNCERT, (Node *) createConstBool(1));
+			hasProv = TRUE;
+			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_UADB_LIST);
+		}
+
+		/* table selected as INCOMPLETE */
 		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))
 		{
-			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
+			setStringProperty(op, PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
 		}
-	}
+
+		/* table selected as XTABLE*/
+		if (getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))
+		{
+			if (getStringProvProperty(from, PROV_PROP_XTABLE_PROB))
+			{
+				setStringProperty(op, PROP_XTABLE_GROUPID, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))));
+				setStringProperty(op, PROP_XTABLE_PROB, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB))));
+				hasProv = TRUE;
+				from->userProvAttrs = LIST_MAKE(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID)), STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB)));
+			}
+		}
+    }
+
+
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
@@ -1482,7 +1522,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
             SelectItem *s = (SelectItem *) getHeadOfListP(
                     ((QueryBlock *) nsq->query)->selectClause);
             AttributeReference *subqueryAttr = createFullAttrReference(
-                    strdup(s->alias), 1, 0, INVALID_ATTR, typeOf(s->expr));
+                    strdup(s->alias), 1, 0, 0, typeOf(s->expr));
             List *args = LIST_MAKE(copyObject(nsq->expr), subqueryAttr);
             cond = (Node *) createOpExpr(nsq->comparisonOp, args);
         }
@@ -1581,7 +1621,7 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         int attrPos = INT_VALUE(info->value);
 
         // create auxiliary attribute reference "nesting_eval_i" to the nested subquery
-        AttributeReference *attr = createFullAttrReference(strdup(attrName), 0, attrPos, INVALID_ATTR, typeOf(node));
+        AttributeReference *attr = createFullAttrReference(strdup(attrName), 0, attrPos, 0, typeOf(node));
 
         // if scalar subquery, e.g., WHERE a  = (SELECT count(*) FROM s),
         // then just replace nested subquery with auxiliary attribute reference "nesting_eval_i"
@@ -1929,6 +1969,22 @@ translateOrderBy(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     return (QueryOperator *) o;
 }
 
+static QueryOperator *
+translateLimitOffset(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
+{
+    LimitOperator *o;
+    Node *limit = copyObject(qb->limitClause);
+    Node *offset = copyObject(qb->offsetClause);
+
+    if (!qb->limitClause && !qb->offsetClause)
+        return input;
+
+    o = createLimitOp(limit, offset, input, NIL);
+    addParent(input, (QueryOperator *) o);
+
+    return (QueryOperator *) o;
+}
+
 static List *
 getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByClause)
 {
@@ -2012,7 +2068,7 @@ visitAggregFunctionCall(Node *n, List **aggregs)
         FunctionCall *fc = (FunctionCall *) n;
         if (fc->isAgg)
         {
-            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc));
+            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL));
             *aggregs = appendToTailOfList(*aggregs, fc);
 
             // do not recurse into aggregation function calls
@@ -2031,7 +2087,7 @@ visitFindWindowFuncs(Node *n, List **wfs)
 
     if (isA(n, WindowFunction))
     {
-        DEBUG_LOG("Found window function <%s>", exprToSQL(n));
+        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL));
         *wfs = appendToTailOfList(*wfs, n);
         return TRUE;
     }

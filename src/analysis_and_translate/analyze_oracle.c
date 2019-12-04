@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * analyze_qb.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -28,6 +28,7 @@
 #include "model/query_operator/operator_property.h"
 #include "temporal_queries/temporal_rewriter.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -41,6 +42,7 @@ static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 static void analyzeWhere (QueryBlock *qb, List *parentFroms);
+static void analyzeLimitAndOffset (QueryBlock *qb);
 
 // adapt identifiers and quoted identifiers based on backend
 static void adaptIdentifiers (Node *stmt);
@@ -289,7 +291,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
-                break;           
+                break;
             case T_FromSubquery:
             	    analyzeFromSubquery((FromSubquery *) f, parentFroms);
             	break;
@@ -371,6 +373,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     if (qb->whereClause != NULL)
         analyzeWhere(qb, parentFroms);
 
+	// check limit and offset
+	analyzeLimitAndOffset(qb);
+
     INFO_LOG("Analysis done");
 }
 
@@ -443,8 +448,9 @@ analyzeFromProvInfo (FromItem *f)
         	//Remove the probability attribute if specified through the TIP flag
         	if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
         	{
-        		int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
-				DEBUG_LOG("TIP attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)), pos);
+				char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+        		int pos = listPosString(f->attrNames, attrname);
+				DEBUG_LOG("TIP attribute %s at position %u", attrname, pos);
 				f->attrNames = deepCopyStringList(f->attrNames);
 				f->dataTypes 	= copyObject(f->dataTypes);
 				f->attrNames = removeListElemAtPos(f->attrNames, pos);
@@ -457,15 +463,80 @@ analyzeFromProvInfo (FromItem *f)
 				DEBUG_LOG("INCOMPLETE TABLE");
 			}
 
-			//Removing the probability attribute if specified through the VTABLE flag
-			if (getStringProvProperty(fp, PROV_PROP_V_TABLE))
+			//Assuming a schema format of [a,ub_a,lb_a,b,ub_b,lb_b,...,cet_r,bg_r,pos_r]
+			if (getStringProvProperty(fp, PROV_PROP_RADB))
 			{
-				int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)));
-				DEBUG_LOG("VTABLE attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)), pos);
+				DEBUG_LOG("RADB INPUT");
+				//need to contain at least one real attribute
+				ASSERT(f->attrNames->length >= 6);
+				//need to contain 3 row range annotation and 2 attribute range annotation per attribute
+				ASSERT((f->attrNames->length-3)%3 == 0);
+				//number of real attributes
+
+				int numofrealattr = (f->attrNames->length-3)/3;
+
 				f->attrNames = deepCopyStringList(f->attrNames);
-				f->dataTypes 	= copyObject(f->dataTypes);
-				f->attrNames = removeListElemAtPos(f->attrNames, pos);
-				f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+				f->dataTypes = copyObject(f->dataTypes);
+
+				//Check Attr names
+				for(int i=0; i<numofrealattr; i++){
+					char *val = (char *)getNthOfListP(f->attrNames, i);
+					char *ub = (char *)getNthOfListP(f->attrNames, numofrealattr+2*i);
+					char *lb = (char *)getNthOfListP(f->attrNames, numofrealattr+2*i+1);
+					ASSERT(strcmp(getUBString(val), ub)==0);
+					ASSERT(strcmp(getLBString(val), lb)==0);
+				}
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-3), ROW_CERTAIN)==0);
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-2), ROW_BESTGUESS)==0);
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-1), ROW_POSSIBLE)==0);
+
+				List *provattr = sublist(f->attrNames, numofrealattr, f->attrNames->length-1);
+
+				f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
+				f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
+
+				setStringProvProperty(fp, PROV_PROP_RADB_LIST, (Node *)provattr);
+			}
+			if (getStringProvProperty(fp, PROV_PROP_UADB))
+			{
+				DEBUG_LOG("UADB INPUT");
+
+				f->attrNames = deepCopyStringList(f->attrNames);
+				f->dataTypes = copyObject(f->dataTypes);
+
+				int numofrealattr = f->attrNames->length-1;
+
+				//need to contain u_r at end
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-1), getUncertString(UNCERTAIN_ROW_ATTR))==0);
+
+				List *provattr = sublist(f->attrNames, numofrealattr, f->attrNames->length-1);
+
+				f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
+				f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
+
+				setStringProvProperty(fp, PROV_PROP_UADB_LIST, (Node *)provattr);
+			}
+			//Removing the probability attribute if specified through the XTABLE flag
+			if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))
+			{
+				if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
+				{
+					char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)));
+					int pos = listPosString(f->attrNames, attrname);
+					DEBUG_LOG("XTABLE groupID attribute %s at position %u", attrname, pos);
+					f->attrNames = deepCopyStringList(f->attrNames);
+					f->dataTypes 	= copyObject(f->dataTypes);
+					f->attrNames = removeListElemAtPos(f->attrNames, pos);
+					f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+
+					attrname = STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB));
+					pos = listPosString(f->attrNames, attrname);
+					DEBUG_LOG("XTABLE probability attribute %s at position %u", attrname, pos);
+					f->attrNames = deepCopyStringList(f->attrNames);
+					f->dataTypes 	= copyObject(f->dataTypes);
+					f->attrNames = removeListElemAtPos(f->attrNames, pos);
+					f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+				}
 			}
 		}
 
@@ -988,6 +1059,39 @@ analyzeWhere (QueryBlock *qb, List *parentFroms)
 }
 
 static void
+analyzeLimitAndOffset (QueryBlock *qb)
+{
+	List *attrRefs = NIL;
+	List *nestedQs = NIL;
+
+	findAttrReferences(qb->limitClause, &attrRefs);
+	findAttrReferences(qb->offsetClause, &attrRefs);
+
+	if (attrRefs != NIL)
+	{
+		THROW(SEVERITY_RECOVERABLE,
+			  "Attribute references found in LIMIT or OFFSET clause."
+			  "These clauses only support scalar expression:\nLIMIT:%s\nOFFSET:\%s",
+			  nodeToString(qb->limitClause),
+			  nodeToString(qb->offsetClause));
+	}
+
+	findNestedSubqueries(qb->limitClause, &nestedQs);
+	findNestedSubqueries(qb->offsetClause, &nestedQs);
+
+	if (nestedQs != NIL)
+	{
+		THROW(SEVERITY_RECOVERABLE,
+			  "Nested subqueries found in LIMIT or OFFSET clause."
+			  "These clauses only support scalar expression:\nLIMIT:%s\nOFFSET:\%s",
+			  nodeToString(qb->limitClause),
+			  nodeToString(qb->offsetClause));
+	}
+
+	//TODO check that limit and offset are expressions without subqueries and attribute references
+}
+
+static void
 analyzeFromTableRef(FromTableRef *f)
 {
     // attribute names already set (view or temporary view for now)
@@ -1497,7 +1601,7 @@ getFromTreeLeafs (List *from)
 static char *
 generateAttrNameFromExpr(SelectItem *s)
 {
-    char *name = exprToSQL(s->expr);
+    char *name = exprToSQL(s->expr, NULL);
     char c;
     StringInfo str = makeStringInfo();
 
@@ -1672,6 +1776,42 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
             INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
+        }
+        break;
+        case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
+        {
+        	List *provAttrNames = NIL;
+        	List *provDts = NIL;
+
+        	analyzeQueryBlockStmt(q->query, parentFroms);
+
+        	q->selectClause = getQBAttrNames(q->query);
+        	q->dts = getQBAttrDTs(q->query);
+        	correctFromTableVisitor(q->query, NULL);
+        	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+        	q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+        	q->dts = concatTwoLists(q->dts,provDts);
+        	//INFO_NODE_BEATIFY_LOG("RANGE:", q);
+        }
+		break;
+        case PROV_INPUT_RANGE_QUERY:
+        {
+        	List *provAttrNames = NIL;
+        	List *provDts = NIL;
+
+        	analyzeQueryBlockStmt(q->query, parentFroms);
+
+        	q->selectClause = getQBAttrNames(q->query);
+        	q->dts = getQBAttrDTs(q->query);
+        	// if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
+        	// semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+        	correctFromTableVisitor(q->query, NULL);
+        	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+        	q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+        	q->dts = concatTwoLists(q->dts,provDts);
+        	//INFO_NODE_BEATIFY_LOG("RANGE:", q);
         }
         break;
         case PROV_INPUT_TEMPORAL_QUERY:

@@ -73,6 +73,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_WindowOperator,
     T_OrderOperator,
 	T_SampleClauseOperator,
+	T_LimitOperator,
 
     /* datalog model nodes */
     T_DLNode,
@@ -88,7 +89,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_JsonTableOperator,
     T_JsonColInfoItem,
     T_JsonPath,
-			
+
     /* relation */
     T_Relation,
 
@@ -121,7 +122,9 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_REENACT_WITH_TIMES,
     PROV_INPUT_TRANSACTION,
     PROV_INPUT_TEMPORAL_QUERY,
-    PROV_INPUT_UNCERTAIN_QUERY
+    PROV_INPUT_UNCERTAIN_QUERY,
+	PROV_INPUT_UNCERTAIN_TUPLE_QUERY,
+	PROV_INPUT_RANGE_QUERY
 );
 
 /* stringinfo provides the string data type*/

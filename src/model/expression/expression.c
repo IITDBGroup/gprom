@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * expression.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -277,7 +277,7 @@ FunctionCall *
 createFunctionCall(char *fName, List *args)
 {
     FunctionCall *result = makeNode(FunctionCall);
-    
+
     if(fName != NULL)
     {
         result->functionname = (char *) CALLOC(1,strlen(fName) + 1);
@@ -290,7 +290,7 @@ createFunctionCall(char *fName, List *args)
     result->isAgg = FALSE;
     result->isDistinct = FALSE;
 
-    return result; 
+    return result;
 }
 
 Operator *
@@ -645,6 +645,9 @@ backendifyIdentifier(char *name)
     if (strlen(name) > 0 && name[0] == '"')
     {
         result = substr(name, 1, strlen(name) - 2);
+		// SQLite ignores all cases for matching, make sure we do too!
+		if (getBackend() == BACKEND_SQLITE)
+			result = strToUpper(result);
     }
     // non quoted part upcase or downcase based on database system
     else
@@ -658,6 +661,8 @@ backendifyIdentifier(char *name)
             case BACKEND_MONETDB:
                 result = strToLower(name);
                 break;
+		    case BACKEND_SQLITE: // treat everything as upper case since SQLite completely ignores all cases when it comes to matching attribute names even through internally identifiers are stored case sensitive
+				result = strToUpper(name);
             default:
                 result = strToUpper(name);
                 break;
