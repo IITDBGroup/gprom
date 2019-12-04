@@ -421,7 +421,7 @@ getLBExpr(Node *expr, HashMap *hmp)
 Node *
 getUncertaintyExpr(Node *expr, HashMap *hmp)
 {
-	INFO_LOG("expression: %s ,  %p", exprToSQL(expr), expr);
+	INFO_LOG("expression: %s ,  %p", exprToSQL(expr, NULL), expr); //TODO deal with nested subqueries
 	switch(expr->type){
 		case T_Constant: {
 			return (Node *)createConstInt(1);
@@ -1567,13 +1567,13 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 
 		//rewrite aggregation
 
-//		int pos = 0;
+		/* int pos = 0; */
 		int aggpos = 0;
 
 		FOREACH(Node, nd, aggrl){
 			Node * funattr = getHeadOfListP(((FunctionCall *)nd)->args);
 			INFO_LOG("%s", nodeToString(funattr));
-//			pos = ((AttributeReference *)funattr)->attrPosition;
+			/* pos = ((AttributeReference *)funattr)->attrPosition; */
 			if(strcmp(((FunctionCall *)nd)->functionname, COUNT_FUNC_NAME)==0){
 				Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
 				Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));

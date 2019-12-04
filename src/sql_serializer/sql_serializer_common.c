@@ -516,7 +516,7 @@ genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs, Seri
 {
     appendStringInfoString(where, "\nWHERE ");
     updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
-    appendStringInfoString(where, exprToSQL(q->cond));
+    appendStringInfoString(where, exprToSQL(q->cond, NULL));
 }
 
 void
@@ -525,12 +525,12 @@ genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesA
 	if (q->limitExpr != NULL)
 	{
 		appendStringInfoString(limit, "\nLIMIT ");
-		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr));
+		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr, NULL));
 	}
 	if (q->offsetExpr != NULL)
 	{
 		appendStringInfoString(limit, "\nOFFSET ");
-		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr));
+		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr, NULL));
 	}
 }
 
@@ -541,7 +541,7 @@ genSerializeOrderByOperator (OrderOperator *q, StringInfo order, List *fromAttrs
 	appendStringInfoString(order, "\nORDER BY ");
     updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
 
-    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs),"(","");
+    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
     ordExpr = replaceSubstr(ordExpr,"'","");
     appendStringInfoString(order, ordExpr);
@@ -670,7 +670,7 @@ exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
     renameAttrsVisitor(expr, state);
 
     FREE(state);
-    return exprToSQL(expr);
+    return exprToSQL(expr, NULL);
 }
 
 static boolean
