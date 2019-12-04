@@ -217,9 +217,9 @@ sqliteGetAttributes (char *tableName)
         const unsigned char *colName = sqlite3_column_text(rs,1);
         const unsigned char *dt = sqlite3_column_text(rs,2);
         DataType ourDT = stringToDT((char *) dt);
-                ;
+
         AttributeDef *a = createAttributeDef(
-                         strdup((char *) colName),
+			strToUpper(strdup((char *) colName)),
                          ourDT
                          );
         result = appendToTailOfList(result, a);
