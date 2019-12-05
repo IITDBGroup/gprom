@@ -43,6 +43,7 @@ static void analyzeAlterTable (AlterTable *a);
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 static void analyzeWhere (QueryBlock *qb, List *parentFroms);
 static void analyzeLimitAndOffset (QueryBlock *qb);
+static void analyzeOrderBy(QueryBlock *qb);
 
 // adapt identifiers and quoted identifiers based on backend
 static void adaptIdentifiers (Node *stmt);
@@ -334,7 +335,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
     findAttrReferences((Node *) qb->havingClause, &attrRefs);
     findAttrReferences((Node *) qb->limitClause, &attrRefs);
-    findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+    //TODO orderby needs to be treated differently findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findAttrReferences((Node *) qb->selectClause, &attrRefs);
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
 
@@ -372,6 +373,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     // analyze where clause if exists
     if (qb->whereClause != NULL)
         analyzeWhere(qb, parentFroms);
+
+	// check order by
+	analyzeOrderBy(qb);
 
 	// check limit and offset
 	analyzeLimitAndOffset(qb);
@@ -1059,6 +1063,63 @@ analyzeWhere (QueryBlock *qb, List *parentFroms)
 }
 
 static void
+analyzeOrderBy(QueryBlock *qb)
+{
+	List *attrRefs = NIL;
+	List *nestedQs = NIL;
+	List *selectAttrNames = NIL;
+
+	// get attribute names from select clause
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+		selectAttrNames = appendToTailOfList(selectAttrNames, strdup(s->alias));
+	}
+
+	findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+	findNestedSubqueries((Node *) qb->orderByClause, &nestedQs);
+
+	// find attribute references in from or in select
+	    // adapt attribute references
+    FOREACH(AttributeReference,a,attrRefs)
+    {
+        // split name on each "."
+        boolean isFound = FALSE;
+        List *nameParts = splitAttrOnDot(a->name);
+		int pos;
+
+        DEBUG_LOG("attr split: %s", stringListToString(nameParts));
+
+        if (LIST_LENGTH(nameParts) == 1)
+        {
+
+            a->name = getNthOfListP(nameParts, 0);
+            isFound = findAttrRefInFrom(a, NIL); //TODO add support for correlated attributes here?
+        }
+        else if (LIST_LENGTH(nameParts) == 2)
+        {
+            isFound = findQualifiedAttrRefInFrom(nameParts, a, NIL);
+        }
+        else
+            FATAL_LOG(
+                    "right now attribute names should have at most two parts");
+
+		// exists in select clause? if yes, then use this
+		pos = listPosString(selectAttrNames, a->name);
+		if (pos != -1)
+		{
+			SelectItem *selectExpr = (SelectItem *) getNthOfListP(qb->selectClause, pos);
+			a->attrPosition = pos;
+			a->fromClauseItem = INVALID_ATTR; // use this to indicate that this is a SELECT clause attribute
+			a->attrType = typeOf(selectExpr->expr);
+			isFound = TRUE;
+		}
+
+        if (!isFound)
+            FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
+    }
+}
+
+static void
 analyzeLimitAndOffset (QueryBlock *qb)
 {
 	List *attrRefs = NIL;
@@ -1087,8 +1148,6 @@ analyzeLimitAndOffset (QueryBlock *qb)
 			  nodeToString(qb->limitClause),
 			  nodeToString(qb->offsetClause));
 	}
-
-	//TODO check that limit and offset are expressions without subqueries and attribute references
 }
 
 static void
