@@ -41,9 +41,13 @@ static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
-static void analyzeWhere (QueryBlock *qb, List *parentFroms);
+static void analyzeWhere(QueryBlock *qb, List *parentFroms);
+static void analyzeGroupByAgg(QueryBlock *qb, List *parentFroms);
 static void analyzeLimitAndOffset (QueryBlock *qb);
 static void analyzeOrderBy(QueryBlock *qb);
+
+// search for non-group and non-aggregate expressions
+static boolean searchNonGroupByRefs (Node *node, List *state);
 
 // adapt identifiers and quoted identifiers based on backend
 static void adaptIdentifiers (Node *stmt);
@@ -373,6 +377,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     // analyze where clause if exists
     if (qb->whereClause != NULL)
         analyzeWhere(qb, parentFroms);
+
+	// if group by or aggregation, check that no non-group by attribute references exist
+	analyzeGroupByAgg(qb, parentFroms);
 
 	// check order by
 	analyzeOrderBy(qb);
@@ -1061,6 +1068,66 @@ analyzeWhere (QueryBlock *qb, List *parentFroms)
                 "WHERE clause result type should be DT_BOOL, but was %s:\n<%s>",
                 DataTypeToString(returnType), beatify(nodeToString(qb->whereClause)));
 }
+
+static void
+analyzeGroupByAgg(QueryBlock *qb, List *parentFroms)
+{
+	boolean hasAgg = FALSE;
+	List *funcCalls = NIL;
+
+	// is there any aggregation in this query block?
+	hasAgg = qb->groupByClause != NIL || qb->havingClause != NULL;
+	findFunctionCall((Node *) qb->selectClause, &funcCalls);
+	FOREACH(FunctionCall,f,funcCalls)
+	{
+		if (f->isAgg)
+			hasAgg = TRUE;
+	}
+
+	if (hasAgg)
+	{
+		// if yes, then check SELECT clause for non-groupby and unaggregated attribute references
+		searchNonGroupByRefs((Node *) qb->selectClause, qb->groupByClause);
+		searchNonGroupByRefs((Node *) qb->havingClause, qb->groupByClause);
+	}
+}
+
+static boolean
+searchNonGroupByRefs (Node *node, List *state)
+{
+	if(node == NULL)
+        return TRUE;
+
+	// if agg call, do not traverse deeper
+    if(isA(node, FunctionCall))
+	{
+		FunctionCall *f = (FunctionCall *) node;
+		if (f->isAgg)
+		{
+			return TRUE;
+		}
+	}
+	// is node equal to one of the group-by expressions then do not traverse further
+	FOREACH(Node,g,state)
+	{
+		if(equal(g, node))
+			return TRUE;
+	}
+
+    if (isA(node, AttributeReference))
+    {
+        THROW(SEVERITY_RECOVERABLE,
+                "Queries with aggregation and group-by only allow for group-by expressions or aggregated attributed to appear in the SELECT and HAVING clause. Offender was:\n<%s>",
+                beatify(nodeToString(node)));
+    }
+
+    if(isQBQuery(node))
+        return TRUE;
+
+    return visit(node, searchNonGroupByRefs, state);
+}
+
+
 
 static void
 analyzeOrderBy(QueryBlock *qb)
