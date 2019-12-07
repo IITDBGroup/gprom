@@ -46,7 +46,10 @@ addTopAggForCoarse (QueryOperator *op)
         AttributeReference *a = createAttrsRefByName(op, c);
         FunctionCall *f = NULL;
         if(getBackend() == BACKEND_ORACLE)
+        {
         		f = createFunctionCall ("BITORAGG", singleton(a));
+        		projExpr = appendToTailOfList(projExpr, f);
+        }
         else if(getBackend() == BACKEND_POSTGRES)
         {
         		//if(getBoolOption(OPTION_PS_SET_BITS))

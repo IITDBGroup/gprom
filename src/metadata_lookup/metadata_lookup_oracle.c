@@ -123,6 +123,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->catalogViewExists = oracleCatalogViewExists;
     plugin->getAttributes = oracleGetAttributes;
     plugin->getAttributeNames = oracleGetAttributeNames;
+    plugin->getHistogram = oracleGetHist;
     plugin->getAttributeDefaultVal = oracleGetAttributeDefaultVal;
     plugin->isAgg = oracleIsAgg;
     plugin->isWindowFunction = oracleIsWindowFunction;
@@ -463,6 +464,86 @@ oracleGetAttributeNames (char *tableName)
         attrNames = appendToTailOfList(attrNames, a->attrName);
 
     return attrNames;
+}
+
+
+List *
+oracleGetHist(char *tableName, char *attrName, int numPartitions)
+{
+	List *l = NIL;
+	StringInfo setStatement = makeStringInfo();
+	StringInfo statement = makeStringInfo();
+	StringInfo intervalPoints = makeStringInfo();
+
+
+    ACQUIRE_MEM_CONTEXT(context);
+    START_TIMER("module - metadata lookup");
+
+    DEBUG_LOG("Get histogram for %s.%s with number of ps %d", tableName, attrName, numPartitions);
+
+
+    appendStringInfo(setStatement, "BEGIN  DBMS_STATS.GATHER_TABLE_STATS (  \n"
+            "  ownname  => 'TPCH_1GB' \n"
+            ", tabname  => '%s' \n"
+            ", method_opt  => 'FOR COLUMNS %s SIZE 32' \n"
+			", estimate_percent => 100 \n"
+			"); \n"
+			"END;",
+			tableName, attrName);
+
+    appendStringInfo(statement, "SELECT ENDPOINT_NUMBER, ENDPOINT_VALUE \n"
+            "FROM USER_HISTOGRAMS \n"
+            "WHERE  TABLE_NAME='%s'\n"
+            "AND    COLUMN_NAME='%s'",
+			tableName, attrName);
+
+    if ((conn = getConnection()) != NULL)
+    {
+    		executeStatement(setStatement->data);
+        OCI_Resultset *rs = executeStatement(statement->data);
+        char *defaultExpr = NULL;
+        //Node *result = NULL;
+
+        // loop through
+        int cnt = 0;
+        char *min = "";
+        char *max = "";
+        appendStringInfo(intervalPoints, "{");
+        while(OCI_FetchNext(rs))
+        {
+            defaultExpr = (char *) OCI_GetString(rs,2);
+            if(cnt == 0)
+            		min = strdup(defaultExpr);
+            if(cnt == numPartitions)
+            		max = strdup(defaultExpr);
+            appendStringInfo(intervalPoints, defaultExpr);
+            appendStringInfo(intervalPoints, ",");
+
+            cnt ++;
+            DEBUG_LOG("histogram for %s.%s is <%s>",
+                    tableName, attrName, defaultExpr);
+        }
+        removeTailingStringInfo(intervalPoints,1);
+        appendStringInfo(intervalPoints, "}");
+        DEBUG_LOG("Statement: %s executed successfully.", statement->data);
+        DEBUG_LOG("intervalPoints: %s .", intervalPoints->data);
+        l = appendToTailOfList(l, intervalPoints->data);
+        l = appendToTailOfList(l, min);
+        l = appendToTailOfList(l, max);
+
+        FREE(statement);
+
+        STOP_TIMER("module - metadata lookup");
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+    }
+    else
+    {
+        FATAL_LOG("Statement: %s failed.", statement);
+        FREE(statement);
+    }
+    STOP_TIMER("module - metadata lookup");
+    RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+
 }
 
 Node *
