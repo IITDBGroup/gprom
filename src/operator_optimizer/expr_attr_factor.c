@@ -82,7 +82,7 @@ static Node *
 factorAttrRefs (Node *node)
 {
     Node *previous;
-    DEBUG_LOG("simplify:\n%s", exprToSQL(node));
+    DEBUG_LOG("simplify:\n%s", exprToSQL(node, NULL));
 
     // compute fix-point of simplification rules
     //TODO we may have to explore alternative options
@@ -99,7 +99,7 @@ factorAttrRefs (Node *node)
         node = mergeSameResultCase(node, NULL);
     } while(!equal(node,previous));
 
-    DEBUG_LOG("simplified expression is:\n%s", exprToSQL(node));
+    DEBUG_LOG("simplified expression is:\n%s", exprToSQL(node, NULL));
 
     return node;
 }

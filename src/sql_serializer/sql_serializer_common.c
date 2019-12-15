@@ -32,6 +32,8 @@ static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
 static char *createAttrName (char *name, int fItem, FromAttrsContext *fac);
+static HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api);
+static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api);
 
 /*
  * create API struct
@@ -172,6 +174,46 @@ printFromAttrsContext(FromAttrsContext *fac)
      }
      else
     	 DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
+}
+
+static HashMap *
+getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api)
+{
+	HashMap *map = NEW_MAP(Constant, Constant);
+	setNestAttrMap(op, &map, fac, api);
+
+	return map;
+}
+
+static void
+setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api)
+{
+	if(isA(op, NestingOperator))
+	{
+//		NestingOperator *nest = (NestingOperator *) op;
+//		char *type = "";
+//		if(nest->nestingType == NESTQ_EXISTS)
+//			type = "e";
+//		else if(nest->nestingType == NESTQ_ANY)
+//			type = "a";
+
+		List *names = getAttrNames(op->schema);
+		char *nestName = (char *) getTailOfListP(names);
+		DEBUG_LOG("nestName %s", nestName);
+
+		if(!hasMapStringKey(*map, nestName))
+		{
+			StringInfo s = makeStringInfo();
+			api->serializeQueryOperator(OP_RCHILD(op), s, NULL, fac, api);
+			//appendStringInfoString(s, type);
+			DEBUG_LOG("serialized nested subquery: %s", s->data);
+			MAP_ADD_STRING_KEY(*map, strdup(nestName), createConstString(s->data));
+		}
+		//MAP_ADD_STRING_KEY(*map, strdup(nestName), (Node *) OP_RCHILD(op));
+	}
+
+	FOREACH(QueryOperator, o, op->inputs)
+		setNestAttrMap(o, map, fac, api);
 }
 
 /*
@@ -561,7 +603,6 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 
             		api->serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fac, api);
 
-
             		fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr)));
 
             		//fromAttrsList: ( ((C,D)) , ((A,B), (nesting)) ) -> format: (L1, L2)
@@ -570,16 +611,11 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             		fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
             		printFromAttrsContext(fac);
 
-            		appendStringInfoString(from, ",");
-            		appendStringInfo(from, " LATERAL ");
-            		appendStringInfoString(from, "(");
-
             		AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
             		a->attrName = strdup(subAttr);
-            		api->serializeQueryOperator(subquery, from, (QueryOperator *) nest, fac, api);
-
-            		appendStringInfoString(from, ")");
-            		appendStringInfo(from, " F%u_0", (*curFromItem)++);
+            		//api->serializeQueryOperator(subquery, from, (QueryOperator *) nest, fac, api);
+            		//appendStringInfoString(from, ")");
+            		//appendStringInfo(from, " F%u_0", (*curFromItem)++);
             }
             break;
             default:
@@ -622,10 +658,11 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 void
 genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
+	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api);
 
 	appendStringInfoString(where, "\nWHERE ");
 	updateAttributeNames((Node *) q->cond, fac);
-    appendStringInfoString(where, exprToSQL(q->cond));
+    appendStringInfoString(where, exprToSQL(q->cond, nestAttrMap));
 }
 
 void
@@ -634,12 +671,12 @@ genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesA
 	if (q->limitExpr != NULL)
 	{
 		appendStringInfoString(limit, "\nLIMIT ");
-		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr));
+		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr, NULL));
 	}
 	if (q->offsetExpr != NULL)
 	{
 		appendStringInfoString(limit, "\nOFFSET ");
-		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr));
+		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr, NULL));
 	}
 }
 
@@ -650,7 +687,7 @@ genSerializeOrderByOperator (OrderOperator *q, StringInfo order, FromAttrsContex
 	appendStringInfoString(order, "\nORDER BY ");
     //updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
 
-    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs),"(","");
+    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
     ordExpr = replaceSubstr(ordExpr,"'","");
     appendStringInfoString(order, ordExpr);
@@ -807,7 +844,7 @@ exprToSQLWithNamingScheme (Node *expr, int rOffset,FromAttrsContext *fac)
     renameAttrsVisitor(expr, state);
 
     FREE(state);
-    return exprToSQL(expr);
+    return exprToSQL(expr, NULL);
 }
 
 static boolean

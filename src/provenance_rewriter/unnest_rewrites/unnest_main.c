@@ -23,7 +23,6 @@
 static List *unnestRewriteQueryList(List *list);
 static boolean adaptAttrName (Node *node, char *attr);
 static boolean getScalarAttrName (Node *node, char **attr);
-static boolean isNestAttr(AttributeReference *a);
 static void adaptSchema (List *attrDefs, char *attr);
 static void adaptSchemaByName (List *attrDefs, char *name, char *attr);
 static void upPropAdaptSchemaByName(QueryOperator *op, char *name, char *attr);
@@ -1870,21 +1869,46 @@ adaptSchema (List *attrDefs, char *attr)
 	}
 }
 
+boolean
+isNestAttrName(char* c)
+{
+	if(strlen(c) > 12 && strstr(c, "nesting_eval_") != NULL)
+		return TRUE;
 
-static boolean
+	return FALSE;
+}
+
+boolean
 isNestAttr(AttributeReference *a)
 {
 	char *name = strdup(a->name);
 	if(strlen(name) > 12)
 	{
-		char *prefix = substr(strdup(name), 0, 12);
+		//char *prefix = substr(strdup(name), 0, 12);
 
-		if (streq(prefix, "nesting_eval_"))
+		//if (streq(prefix, "nesting_eval_"))
+		if(strstr(name, "nesting_eval_") != NULL)
 			return TRUE;
 	}
 
 	return FALSE;
 }
+
+//static boolean
+//isNestAttr(AttributeReference *a)
+//{
+//	char *name = strdup(a->name);
+//	if(strlen(name) > 12)
+//	{
+//		char *prefix = substr(strdup(name), 0, 12);
+//
+//		if (streq(prefix, "nesting_eval_"))
+//			return TRUE;
+//	}
+//
+//	return FALSE;
+//}
+
 
 static boolean
 adaptAttrName (Node *node, char *attr)
@@ -1953,4 +1977,27 @@ getScalarAttrName (Node *node, char **attr)
     		}
     }
     return visit(node, getScalarAttrName, attr);
+}
+
+
+boolean
+isNestOp(Node* n)
+{
+	if(isA(n, Operator))
+	{
+		Operator *o = (Operator *) n;
+		Node *arg = getHeadOfListP(o->args);
+		if(isA(arg, AttributeReference))
+		{
+			AttributeReference *a = (AttributeReference *) arg;
+			if(isNestAttr(a))
+				return TRUE;
+
+			return FALSE;
+		}
+
+		return FALSE;
+	}
+
+	return FALSE;
 }

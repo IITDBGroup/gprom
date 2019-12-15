@@ -5,6 +5,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "utility/enum_magic.h"
+#include "model/set/hashmap.h"
 
 typedef struct FunctionCall {
     NodeTag type;
@@ -223,7 +224,7 @@ extern Constant *createNullConst (DataType dt);
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
-#define CONST_TO_STRING(_c) (exprToSQL((Node *) _c))
+#define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL))
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
@@ -242,7 +243,7 @@ extern DataType lcaType (DataType l, DataType r);
 extern DataType SQLdataTypeToDataType (char *dt);
 
 /* create an SQL expression from an expression tree */
-extern char *exprToSQL (Node *expr);
+extern char *exprToSQL (Node *expr, HashMap *map);
 
 /* create an Latex expression from an expression tree */
 extern char *exprToLatex (Node *expr);

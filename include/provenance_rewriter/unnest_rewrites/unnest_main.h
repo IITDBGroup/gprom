@@ -9,5 +9,9 @@
 
 extern Node *unnestTranslateQBModel (Node *qbModel);
 extern QueryOperator *unnestRewriteQuery(QueryOperator *input);
+extern boolean isNestOp(Node* n);
+extern boolean isNestAttrName(char* c);
+extern boolean isNestAttr(AttributeReference *a);
+
 
 

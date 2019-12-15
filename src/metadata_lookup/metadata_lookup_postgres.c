@@ -1173,7 +1173,7 @@ execPrepared(char *qName, List *values)
         params[i++] = STRING_VALUE(c);
 
     DEBUG_LOG("run query %s with parameters <%s>",
-            qName, exprToSQL((Node *) values));
+            qName, exprToSQL((Node *) values, NULL));
 
     res = PQexecPrepared(plugin->conn,
             qName,

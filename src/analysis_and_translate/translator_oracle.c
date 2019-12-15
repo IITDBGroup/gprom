@@ -2098,7 +2098,7 @@ visitAggregFunctionCall(Node *n, List **aggregs)
         FunctionCall *fc = (FunctionCall *) n;
         if (fc->isAgg)
         {
-            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc));
+            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL));
             *aggregs = appendToTailOfList(*aggregs, fc);
 
             // do not recurse into aggregation function calls
@@ -2117,7 +2117,7 @@ visitFindWindowFuncs(Node *n, List **wfs)
 
     if (isA(n, WindowFunction))
     {
-        DEBUG_LOG("Found window function <%s>", exprToSQL(n));
+        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL));
         *wfs = appendToTailOfList(*wfs, n);
         return TRUE;
     }

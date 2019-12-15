@@ -21,19 +21,21 @@
 #include "model/datalog/datalog_model.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "utility/string_utils.h"
+#include "model/set/hashmap.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 
 /* function declarations */
-static void exprToSQLString(StringInfo str, Node *expr);
+static void exprToSQLString(StringInfo str, Node *expr, HashMap *map);
 static void exprToLatexString(StringInfo str,  Node *expr);
-static void attributeReferenceToSQL (StringInfo str, AttributeReference *node);
+static void attributeReferenceToSQL (StringInfo str, AttributeReference *node, HashMap *map);
 static void constantToSQL (StringInfo str, Constant *node);
-static void functionCallToSQL (StringInfo str, FunctionCall *node);
-static void operatorToSQL (StringInfo str, Operator *node);
-static void caseToSQL(StringInfo str, CaseExpr *expr);
-static void winFuncToSQL(StringInfo str, WindowFunction *expr);
-static void winBoundToSQL (StringInfo str, WindowBound *b);
-static void orderExprToSQL (StringInfo str, OrderExpr *o);
-static void quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o);
+static void functionCallToSQL (StringInfo str, FunctionCall *node, HashMap *map);
+static void operatorToSQL (StringInfo str, Operator *node, HashMap *map);
+static void caseToSQL(StringInfo str, CaseExpr *expr, HashMap *map);
+static void winFuncToSQL(StringInfo str, WindowFunction *expr, HashMap *map);
+static void winBoundToSQL (StringInfo str, WindowBound *b, HashMap *map);
+static void orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *map);
+static void quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o, HashMap *map);
 static void dataTypeToSQL (StringInfo str, DataType dt);
 
 static void functionCallToLatex (StringInfo str, FunctionCall *node);
@@ -45,9 +47,28 @@ static void attributeReferenceToLatex (StringInfo str, AttributeReference *node)
 static void xmlConstantToSQL (StringInfo str, Node *node);
 
 static void
-attributeReferenceToSQL (StringInfo str, AttributeReference *node)
+attributeReferenceToSQL (StringInfo str, AttributeReference *node, HashMap *map)
 {
-    appendStringInfoString(str, node->name);
+	DEBUG_LOG("attributeReferenceToSQL %s", node->name);
+	if(map != NULL && strstr(node->name, "\"nesting_eval_") != NULL)
+	{
+		char *extractName = strchr(strdup(node->name), '"');
+		DEBUG_LOG("Extract Name %s", extractName);
+
+		if(hasMapStringKey(map, extractName))
+		{
+			char *sql = STRING_VALUE(getMapString(map, extractName));
+			DEBUG_LOG("Nested subquery: %s", sql);
+			appendStringInfoString(str, "(");
+			appendStringInfoString(str, sql);
+			appendStringInfoString(str, ")");
+		}
+		else
+			appendStringInfoString(str, node->name);
+	}
+	else
+		appendStringInfoString(str, node->name);
+
 }
 
 static void
@@ -102,7 +123,7 @@ xmlConstantToSQL (StringInfo str, Node *node)
 
 
 static void
-functionCallToSQL (StringInfo str, FunctionCall *node)
+functionCallToSQL (StringInfo str, FunctionCall *node, HashMap *map)
 {
     int flag = 0;
     if (streq(node->functionname, "AGG_STRAGG"))
@@ -139,7 +160,7 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
         if (streq(node->functionname, "XMLELEMENT") && xmlCnt == 0)
         	xmlConstantToSQL(str, arg);
         else
-        	exprToSQLString(str, arg);
+        	exprToSQLString(str, arg, map);
         //entity = arg;
         xmlCnt ++;
     }
@@ -204,14 +225,14 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
 }
 
 static void
-operatorToSQL (StringInfo str, Operator *node)
+operatorToSQL (StringInfo str, Operator *node, HashMap *map)
 {
     // handle special operators
     if (streq(node->name,"BETWEEN"))
     {
-        char *expr = exprToSQL(getNthOfListP(node->args,0));
-        char *lower = exprToSQL(getNthOfListP(node->args,1));
-        char *upper = exprToSQL(getNthOfListP(node->args,2));
+        char *expr = exprToSQL(getNthOfListP(node->args,0), map);
+        char *lower = exprToSQL(getNthOfListP(node->args,1), map);
+        char *upper = exprToSQL(getNthOfListP(node->args,2), map);
 
         appendStringInfo(str, "(%s BETWEEN %s AND %s)", expr, lower, upper);
     }
@@ -219,35 +240,63 @@ operatorToSQL (StringInfo str, Operator *node)
     {
         appendStringInfo(str, "(%s ", node->name);
         appendStringInfoString(str, "(");
-        exprToSQLString(str,getNthOfListP(node->args,0));
+        exprToSQLString(str,getNthOfListP(node->args,0), map);
         appendStringInfoString(str, "))");
     }
     else
     {
-        appendStringInfoString(str, "(");
+//    		if(isNestOp((Node *) node))
+//    		{
+//    			Operator *o = (Operator *) node;
+//    			AttributeReference *a = (AttributeReference  *) getHeadOfListP(o->args);
+//    			DEBUG_LOG("attrName %s", a->name);
+//    			if(map != NULL && strstr(a->name, "\"nesting_eval_") != NULL)
+//    			{
+//    				char *extractName = strchr(strdup(a->name), '"');
+//    				DEBUG_LOG("extractName %s", extractName);
+//    				if(hasMapStringKey(map, extractName))
+//    				{
+//    					char *sql = STRING_VALUE(getMapString(map, extractName));
+//    					char c = sql[strlen(sql)-1];
+//    					DEBUG_LOG("nest type %c", c);
+//    					if(c == 'e')
+//    						appendStringInfoString(str, "exists ");
+//    					else if(c == 'a')
+//    					{
+//    						appendStringInfoString(str, strdup(a->name));
+//    						appendStringInfoString(str, " in ");
+//    					}
+//    					attributeReferenceToSQL(str, a, map);
+//    				}
+//    			}
+//    		}
+//    		else
+//    		{
+    			appendStringInfoString(str, "(");
 
-        FOREACH(Node,arg,node->args)
-        {
-        		exprToSQLString(str,arg);
-        		if(arg_his_cell != node->args->tail)
-        			appendStringInfo(str, " %s ", node->name);
-        }
-        if(getBoolOption(OPTION_PS_USE_BRIN_OP) && (streq(node->name,"<@")))
-        	 	 appendStringInfoString(str, "::int[]");
+    			FOREACH(Node,arg,node->args)
+    			{
+    				exprToSQLString(str,arg, map);
+    				if(arg_his_cell != node->args->tail)
+    					appendStringInfo(str, " %s ", node->name);
+    			}
+    			if(getBoolOption(OPTION_PS_USE_BRIN_OP) && (streq(node->name,"<@")))
+    				appendStringInfoString(str, "::int[]");
 
-        appendStringInfoString(str, ")");
-    }
+    			appendStringInfoString(str, ")");
+    		}
+//    }
 }
 
 static void
-caseToSQL(StringInfo str, CaseExpr *expr)
+caseToSQL(StringInfo str, CaseExpr *expr, HashMap *map)
 {
     appendStringInfoString(str, "(CASE ");
 
     // CASE expression
     if (expr->expr != NULL)
     {
-        exprToSQLString(str, expr->expr);
+        exprToSQLString(str, expr->expr, map);
         appendStringInfoString(str, " ");
     }
 
@@ -256,9 +305,9 @@ caseToSQL(StringInfo str, CaseExpr *expr)
     FOREACH(CaseWhen,w,expr->whenClauses)
     {
         appendStringInfoString(str, " WHEN ");
-        exprToSQLString(str, w->when);
+        exprToSQLString(str, w->when, map);
         appendStringInfoString(str, " THEN ");
-        exprToSQLString(str, w->then);
+        exprToSQLString(str, w->then, map);
         //appendStringInfoString(str, "::varbit");
         //appendStringInfo(str, "::bit(1)");
 		if(getBoolOption(OPTION_PS_SETTINGS))
@@ -269,19 +318,19 @@ caseToSQL(StringInfo str, CaseExpr *expr)
     if (expr->elseRes != NULL)
     {
         appendStringInfoString(str, " ELSE ");
-        exprToSQLString(str, expr->elseRes);
+        exprToSQLString(str, expr->elseRes, map);
         //appendStringInfo(str, "::bit(1)");
     }
     appendStringInfoString(str, " END)");
 }
 
 static void
-winFuncToSQL(StringInfo str, WindowFunction *expr)
+winFuncToSQL(StringInfo str, WindowFunction *expr, HashMap *map)
 {
     WindowDef *w = expr->win;
 
     // the function call
-    functionCallToSQL(str, expr->f);
+    functionCallToSQL(str, expr->f, map);
 
     // OVER clause
     appendStringInfoString(str, " OVER (");
@@ -290,7 +339,7 @@ winFuncToSQL(StringInfo str, WindowFunction *expr)
         appendStringInfoString(str, "PARTITION BY ");
         FOREACH(Node,p,w->partitionBy)
         {
-            exprToSQLString(str, p);
+            exprToSQLString(str, p, map);
             if(FOREACH_HAS_MORE(p))
                 appendStringInfoString(str, ", ");
         }
@@ -301,7 +350,7 @@ winFuncToSQL(StringInfo str, WindowFunction *expr)
 
         FOREACH(Node,o,w->orderBy)
         {
-            exprToSQLString(str, o);
+            exprToSQLString(str, o, map);
             if(FOREACH_HAS_MORE(o))
                 appendStringInfoString(str, ", ");
         }
@@ -322,19 +371,19 @@ winFuncToSQL(StringInfo str, WindowFunction *expr)
         if (f->higher)
         {
             appendStringInfoString(str, "BETWEEN ");
-            winBoundToSQL(str, f->lower);
+            winBoundToSQL(str, f->lower, map);
             appendStringInfoString(str, " AND ");
-            winBoundToSQL(str, f->higher);
+            winBoundToSQL(str, f->higher, map);
         }
         else
-            winBoundToSQL(str, f->lower);
+            winBoundToSQL(str, f->lower, map);
     }
 
     appendStringInfoString(str, ")");
 }
 
 static void
-winBoundToSQL (StringInfo str, WindowBound *b)
+winBoundToSQL (StringInfo str, WindowBound *b, HashMap *map)
 {
     switch(b->bType)
     {
@@ -345,20 +394,20 @@ winBoundToSQL (StringInfo str, WindowBound *b)
             appendStringInfoString(str,"CURRENT ROW");
             break;
         case WINBOUND_EXPR_PREC:
-            exprToSQLString(str, b->expr);
+            exprToSQLString(str, b->expr, map);
             appendStringInfoString(str," PRECEDING");
             break;
         case WINBOUND_EXPR_FOLLOW:
-            exprToSQLString(str, b->expr);
+            exprToSQLString(str, b->expr, map);
             appendStringInfoString(str," FOLLOWING");
             break;
     }
 }
 
 static void
-orderExprToSQL (StringInfo str, OrderExpr *o)
+orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *map)
 {
-    exprToSQLString(str, (Node *) o->expr);
+    exprToSQLString(str, (Node *) o->expr, map);
 
     if (o->order == SORT_ASC)
         appendStringInfoString(str, " ASC");
@@ -372,9 +421,9 @@ orderExprToSQL (StringInfo str, OrderExpr *o)
 }
 
 static void
-quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o)
+quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o, HashMap *map)
 {
-    exprToSQLString(str, (Node *) o->checkExpr);
+    exprToSQLString(str, (Node *) o->checkExpr, map);
 
     if(streq(o->opName, "=") && o->qType == QUANTIFIED_EXPR_ANY)
     		appendStringInfo(str, " IN ");
@@ -388,24 +437,24 @@ quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o)
     			appendStringInfoString(str, " ALL ");
     }
 
-    exprToSQLString(str, (Node *) o->exprList);
+    exprToSQLString(str, (Node *) o->exprList, map);
 }
 
 static void
-sqlParamToSQL(StringInfo str, SQLParameter *p)
+sqlParamToSQL(StringInfo str, SQLParameter *p, HashMap *map)
 {
     appendStringInfo(str, ":%s", p->name);
 }
 
 static void
-castExprToSQL(StringInfo str, CastExpr *c)
+castExprToSQL(StringInfo str, CastExpr *c, HashMap *map)
 {
     switch(getBackend())
     {
         case BACKEND_POSTGRES:
         {
             appendStringInfoString(str, "(");
-            exprToSQLString(str, c->expr);
+            exprToSQLString(str, c->expr, map);
             appendStringInfoString(str, ")::");
             if(streq(c->otherDT, "bit"))
             		appendStringInfo(str, "%s(%d)", c->otherDT, c->num);
@@ -416,7 +465,7 @@ castExprToSQL(StringInfo str, CastExpr *c)
         default:
         {
             appendStringInfoString(str, "CAST (");
-            exprToSQLString(str, c->expr);
+            exprToSQLString(str, c->expr, map);
             appendStringInfoString(str, " AS ");
             dataTypeToSQL(str, c->resultDT);
             appendStringInfoString(str, ")");
@@ -431,7 +480,7 @@ dataTypeToSQL (StringInfo str, DataType dt)
 }
 
 static void
-exprToSQLString(StringInfo str, Node *expr)
+exprToSQLString(StringInfo str, Node *expr, HashMap *map)
 {
     if (expr == NULL)
         return;
@@ -439,7 +488,7 @@ exprToSQLString(StringInfo str, Node *expr)
     switch(expr->type)
     {
         case T_AttributeReference:
-            attributeReferenceToSQL(str, (AttributeReference *) expr);
+            attributeReferenceToSQL(str, (AttributeReference *) expr, map);
             break;
         case T_DLVar:
             appendStringInfo(str, "%s", ((DLVar *) expr)->name);
@@ -448,10 +497,10 @@ exprToSQLString(StringInfo str, Node *expr)
             constantToSQL(str, (Constant *) expr);
             break;
         case T_FunctionCall:
-            functionCallToSQL(str, (FunctionCall *) expr);
+            functionCallToSQL(str, (FunctionCall *) expr, map);
             break;
         case T_Operator:
-            operatorToSQL(str, (Operator *) expr);
+            operatorToSQL(str, (Operator *) expr, map);
             break;
         case T_List:
         {
@@ -459,34 +508,34 @@ exprToSQLString(StringInfo str, Node *expr)
             FOREACH(Node,arg,(List *) expr)
             {
                 appendStringInfoString(str, ((i++ == 0) ? "(" : ", "));
-                exprToSQLString(str, arg);
+                exprToSQLString(str, arg, map);
             }
             appendStringInfoString(str,")");
         }
         break;
         case T_CaseExpr:
-            caseToSQL(str, (CaseExpr *) expr);
+            caseToSQL(str, (CaseExpr *) expr, map);
         break;
         case T_WindowFunction:
-            winFuncToSQL(str, (WindowFunction *) expr);
+            winFuncToSQL(str, (WindowFunction *) expr, map);
         break;
         case T_IsNullExpr:
-            appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr));
+            appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr, map));
         break;
         case T_RowNumExpr:
             appendStringInfoString(str, "ROWNUM");
         break;
         case T_OrderExpr:
-            orderExprToSQL(str, (OrderExpr *) expr);
+            orderExprToSQL(str, (OrderExpr *) expr, map);
         break;
         case T_QuantifiedComparison:
-        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr);
+        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr, map);
         break;
         case T_SQLParameter:
-            sqlParamToSQL(str, (SQLParameter *) expr);
+            sqlParamToSQL(str, (SQLParameter *) expr, map);
         break;
         case T_CastExpr:
-            castExprToSQL(str, (CastExpr *) expr);
+            castExprToSQL(str, (CastExpr *) expr, map);
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
@@ -494,7 +543,7 @@ exprToSQLString(StringInfo str, Node *expr)
 }
 
 char *
-exprToSQL (Node *expr)
+exprToSQL (Node *expr, HashMap *map)
 {
     StringInfo str = makeStringInfo();
     char *result;
@@ -502,7 +551,7 @@ exprToSQL (Node *expr)
     if (expr == NULL)
         return "";
 
-    exprToSQLString(str, expr);
+    exprToSQLString(str, expr, map);
 
     result = str->data;
     FREE(str);
@@ -545,10 +594,10 @@ exprToLatexString(StringInfo str,  Node *expr)
         }
         break;
         case T_CaseExpr:
-            caseToSQL(str, (CaseExpr *) expr);
+            caseToSQL(str, (CaseExpr *) expr, NULL);
         break;
         case T_WindowFunction:
-            winFuncToSQL(str, (WindowFunction *) expr);
+            winFuncToSQL(str, (WindowFunction *) expr, NULL);
         break;
         case T_IsNullExpr:
             appendStringInfo(str, "(%s IS NULL)", exprToLatex(((IsNullExpr *) expr)->expr));
@@ -557,13 +606,13 @@ exprToLatexString(StringInfo str,  Node *expr)
             appendStringInfoString(str, "ROWNUM");
         break;
         case T_OrderExpr:
-            orderExprToSQL(str, (OrderExpr *) expr);
+            orderExprToSQL(str, (OrderExpr *) expr, NULL);
         break;
         case T_QuantifiedComparison:
-        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr);
+        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr, NULL);
         break;
         case T_SQLParameter:
-            sqlParamToSQL(str, (SQLParameter *) expr);
+            sqlParamToSQL(str, (SQLParameter *) expr, NULL);
         break;
         case T_CastExpr:
         {
@@ -626,9 +675,9 @@ operatorToLatex (StringInfo str, Operator *node)
     // handle special operators
     if (streq(node->name,"BETWEEN"))
     {
-        char *expr = exprToSQL(getNthOfListP(node->args,0));
-        char *lower = exprToSQL(getNthOfListP(node->args,1));
-        char *upper = exprToSQL(getNthOfListP(node->args,2));
+        char *expr = exprToSQL(getNthOfListP(node->args,0), NULL);
+        char *lower = exprToSQL(getNthOfListP(node->args,1), NULL);
+        char *upper = exprToSQL(getNthOfListP(node->args,2), NULL);
 
         appendStringInfo(str, "(%s < %s \\wedge %s < %s)", lower, expr, expr, upper);
     }

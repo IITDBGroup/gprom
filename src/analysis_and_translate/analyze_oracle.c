@@ -1536,7 +1536,7 @@ getFromTreeLeafs (List *from)
 static char *
 generateAttrNameFromExpr(SelectItem *s)
 {
-    char *name = exprToSQL(s->expr);
+    char *name = exprToSQL(s->expr, NULL);
     char c;
     StringInfo str = makeStringInfo();
 

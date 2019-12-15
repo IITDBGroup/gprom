@@ -87,9 +87,9 @@ void testExpr(Node *result){
 		else {
 			ERROR_LOG("Invalid input: %s", nodeToString(result));
 		}
-		INFO_LOG("expression in: %s\n", exprToSQL(result));
+		INFO_LOG("expression in: %s\n", exprToSQL(result, NULL));
 			Node * retexp = getUncertaintyExpr(result, hmp);
-			INFO_LOG("expression out: %s\n", exprToSQL(retexp));
+			INFO_LOG("expression out: %s\n", exprToSQL(retexp, NULL));
 }
 
 void testRemoveUncert(Node* result){
@@ -105,9 +105,9 @@ void testRemoveUncert(Node* result){
 			else {
 				ERROR_LOG("Invalid input: %s", nodeToString(result));
 			}
-			INFO_LOG("expression in: %s\n", exprToSQL(result));
+			INFO_LOG("expression in: %s\n", exprToSQL(result, NULL));
 			Node * retexp = removeUncertOpFromExpr(result);
-			INFO_LOG("expression out: %s\n", exprToSQL(retexp));
+			INFO_LOG("expression out: %s\n", exprToSQL(retexp, NULL));
 }
 
 void testQuery(Node *result) {

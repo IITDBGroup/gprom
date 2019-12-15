@@ -941,10 +941,10 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             {
                 Constant* c = (Constant*) t->asOf;
                 if (c->constType == DT_LONG)
-                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
+                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf, NULL));
                 else
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(",
-                            exprToSQL(t->asOf), ")");
+                            exprToSQL(t->asOf,NULL), ")");
             }
             else
             {
@@ -952,7 +952,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                 Node* begin = (Node*) getNthOfListP(scns, 0);
                 Node* end = (Node*) getNthOfListP(scns, 1);
                 asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ",
-                        exprToSQL(begin), " AND ", exprToSQL(end));
+                        exprToSQL(begin, NULL), " AND ", exprToSQL(end, NULL));
             }
         }
 
@@ -994,7 +994,7 @@ serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem
 {
 	char* samp = NULL;
 	if (s->sampPerc)
-		samp = CONCAT_STRINGS(" ", s->op.schema->name, "(", exprToSQL(s->sampPerc), ")");
+		samp = CONCAT_STRINGS(" ", s->op.schema->name, "(", exprToSQL(s->sampPerc, NULL), ")");
 
 	List* attrNames = getAttrNames(((QueryOperator*) s)->schema);
 	fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
@@ -1067,7 +1067,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         if (pos != 0)
             appendStringInfoString(from, ", ");
         value = getNthOfListP(t->values, pos++);
-        appendStringInfo(from, "%s AS %s", exprToSQL(value), attrName);
+        appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL), attrName);
 
     }
     appendStringInfo(from, "\nFROM dual) F%u", (*curFromItem)++);
@@ -1142,7 +1142,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             	// Call updateAtrrNames on jsonColumn and then serialize
             	updateAttributeNamesOracle((Node*)jt->jsonColumn, fac);
 
-            	appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn));
+            	appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn, NULL));
             	appendStringInfoString(from, ",");
             	appendStringInfo(from, " '%s'", jt->documentcontext);
             	appendStringInfoString(from, " COLUMNS");
@@ -1250,7 +1250,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                    break;
                    case NESTQ_ANY:
                    {
-                       char *expr = exprToSQL(no->cond);
+                       char *expr = exprToSQL(no->cond, NULL);
                        appendStringInfo(from, "SELECT MAX(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
                        appendStringInfoString(from, ") F0_0");
@@ -1258,7 +1258,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                    break;
                    case NESTQ_ALL:
                    {
-                       char *expr = exprToSQL(no->cond);
+                       char *expr = exprToSQL(no->cond, NULL);
                        appendStringInfo(from, "SELECT MIN(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
                        serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
                        appendStringInfoString(from, ") F0_0");
@@ -1370,7 +1370,7 @@ oracleExprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac)
     renameAttrsVisitor(expr, state);
 
     FREE(state);
-    return exprToSQL(expr);
+    return exprToSQL(expr, NULL);
 }
 
 static boolean
@@ -1464,7 +1464,7 @@ serializeOrder (OrderOperator *q, StringInfo order, FromAttrsContext *fac)
     appendStringInfoString(order, "\nORDER BY ");
     updateAttributeNamesOracle((Node *) q->orderExprs, fac);
 
-    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs),"(","");
+    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
     ordExpr = replaceSubstr(ordExpr,"'","");
     appendStringInfoString(order, ordExpr);
@@ -1480,9 +1480,9 @@ serializeLimit(StringInfo str, LimitOperator *q)
 	appendStringInfoString(str, "\n) F0 WHERE ");
 
 	if (q->limitExpr)
-		limit = exprToSQL(q->limitExpr);
+		limit = exprToSQL(q->limitExpr, NULL);
 	if (q->offsetExpr)
-		offset = exprToSQL(q->offsetExpr);
+		offset = exprToSQL(q->offsetExpr, NULL);
 
 //	if (q->limitExpr && q->offsetExpr)
 //		appendStringInfo(str, "ROWNUM BETWEEN %s AND %s", limit, offset);
@@ -1508,7 +1508,7 @@ serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac)
     appendStringInfoString(where, "\nWHERE ");
     //updateAttributeNamesOracle((Node *) q->cond, (List *) fromAttrs); //old version which uses fromAttrs
     updateAttributeNamesOracle((Node *) q->cond, fac);
-    appendStringInfoString(where, exprToSQL(q->cond));
+    appendStringInfoString(where, exprToSQL(q->cond, NULL));
 }
 
 static boolean
@@ -1679,7 +1679,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(Node,n,m->secondProj->projExprs)
         {
             updateAttributeNamesOracle(n, fac);
-            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
@@ -1698,7 +1698,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            aggs = appendToTailOfList(aggs, exprToSQL(expr));
+            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL));
         }
         DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
 
@@ -1716,7 +1716,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            g = exprToSQL(expr);
+            g = exprToSQL(expr, NULL);
 
             groupBys = appendToTailOfList(groupBys, g);
             appendStringInfo(groupBy, "%s", strdup(g));
@@ -1743,7 +1743,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             Node *expr = wOp->f;
 
             DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
-                                (WindowOperator *) curOp)));
+                                (WindowOperator *) curOp), NULL));
 
             UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
@@ -1755,10 +1755,10 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
 
             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp)));
+                    (WindowOperator *) curOp), NULL));
 
             DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp)));
+                    (WindowOperator *) curOp), NULL));
 
             curOp = OP_LCHILD(curOp);
         }
@@ -1778,7 +1778,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         SelectionOperator *sel = (SelectionOperator *) m->having;
         DEBUG_LOG("having condition %s", nodeToString(sel->cond));
         updateAggsAndGroupByAttrsOracle(sel->cond, state);
-        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond));
+        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL));
         DEBUG_LOG("having translation %s", having->data);
     }
 
@@ -1841,7 +1841,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             else
                 updateAttributeNamesOracle(a, fac);
 
-            appendStringInfo(select, "%s%s", exprToSQL(a), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+            appendStringInfo(select, "%s%s", exprToSQL(a, NULL), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
         resultAttrs = attrNames;
