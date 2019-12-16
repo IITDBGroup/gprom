@@ -589,6 +589,7 @@ copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap)
     COPY_STRING_FIELD(attrName);
     COPY_NODE_FIELD(rangeList);
     COPY_NODE_FIELD(BitVector);
+    COPY_NODE_FIELD(psIndexList);
 
     return new;
 }

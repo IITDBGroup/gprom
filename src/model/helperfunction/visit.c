@@ -401,6 +401,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             VISIT(attrName);
             VISIT(rangeList);
             VISIT(BitVector);
+            VISIT(psIndexList);
         }
         break;
         default:
@@ -786,6 +787,7 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
 
                 MUTATE(List,rangeList);
                 MUTATE(BitSet,BitVector);
+                MUTATE(List,psIndexList);
             }
         break;
         default:
@@ -1143,6 +1145,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 PREP_VISIT_P(psAttrInfo);
                 VISIT_P(rangeList);
                 VISIT_P(BitVector);
+                VISIT_P(psIndexList);
             }
             break;
         default:

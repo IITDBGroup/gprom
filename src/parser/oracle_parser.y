@@ -1043,6 +1043,11 @@ optionalCoarseGrainedPara:
          {
          	$$ = (Node *) createConstString($1);
          }
+         |
+         intConst
+         {
+         	$$ = (Node *) createConstInt($1);
+         }
 
 semiringCombinerSpec:
    		identifier

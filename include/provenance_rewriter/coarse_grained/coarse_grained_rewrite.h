@@ -27,6 +27,7 @@ typedef struct psAttrInfo
     char    *attrName;
     List    *rangeList;
     BitSet  *BitVector;
+    List *psIndexList;
 } psAttrInfo;
 
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);

@@ -1105,6 +1105,7 @@ equalPSAttrInfo(psAttrInfo *a, psAttrInfo *b, HashMap *seenOps, MemContext *c)
 	COMPARE_STRING_FIELD(attrName);
 	COMPARE_NODE_FIELD(rangeList);
 	COMPARE_NODE_FIELD(BitVector);
+	COMPARE_NODE_FIELD(psIndexList);
 
     return TRUE;
 }

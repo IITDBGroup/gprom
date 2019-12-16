@@ -938,6 +938,7 @@ hashPSAttrInfo (uint64_t cur, psAttrInfo *node)
 	HASH_STRING(attrName);
 	HASH_NODE(rangeList);
 	HASH_NODE(BitVector);
+	HASH_NODE(psIndexList);
 
 	HASH_RETURN();
 }

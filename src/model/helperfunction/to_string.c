@@ -1107,6 +1107,7 @@ outPSAttrInfo(StringInfo str, psAttrInfo *node)
     WRITE_STRING_FIELD(attrName);
     WRITE_NODE_FIELD(rangeList);
     WRITE_NODE_FIELD(BitVector);
+    WRITE_NODE_FIELD(psIndexList);
 }
 
 void

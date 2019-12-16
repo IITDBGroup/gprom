@@ -69,6 +69,7 @@ static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *use
 /* provenance sketch */
 static List* getCondList(AttributeReference *attr, List *rangeList);
 static List* getWhenList(List *condList);
+static List* getWhenListOracle(List *condList);
 static char* getBinarySearchArryList(List *rangeList);
 
 static Node *asOf;
@@ -1807,6 +1808,23 @@ getCondList(AttributeReference *attr, List *rangeList)
 }
 
 static List*
+getWhenListOracle(List *condList)
+{
+	List *whenList = NIL;
+	unsigned long long int power = 0;
+	for(int i=0; i<LIST_LENGTH(condList); i++)
+	{
+		Node *cond = (Node *) getNthOfListP(condList, i);
+		power = 1L << i;
+		DEBUG_LOG("power: %llu", power);
+		CaseWhen *when = createCaseWhen(cond, (Node *) createConstLong(power));
+		whenList = appendToTailOfList(whenList, when);
+	}
+
+	return whenList;
+}
+
+static List*
 getWhenList(List *condList)
 {
 	List *whenList = NIL;
@@ -1896,7 +1914,13 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     			else
     			{
     				List *condList = getCondList(pAttr, curPSAI->rangeList);
-    				List *whenList = getWhenList(condList);
+    				List *whenList = NIL;
+
+    		        if(getBackend() == BACKEND_ORACLE)
+    		        		whenList = getWhenListOracle(condList);
+    		        else if(getBackend() == BACKEND_POSTGRES)
+    		        		whenList = getWhenList(condList);
+
     				CaseExpr *caseExpr = createCaseExpr(NULL, whenList, NULL);
     				projExpr = appendToTailOfList(projExpr, caseExpr);
     			}
@@ -2175,82 +2199,113 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
 			AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, curPSAI->attrName);
 
-			if(HAS_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK)) //or curPSAI->BitVector == NULL
+			if(getBackend() == BACKEND_ORACLE)
 			{
-			    	HashMap *psMap  = (HashMap *) GET_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK);
-			    	if(hasMapStringKey(psMap, newAttrName))
-			   	{
-			    		char * BitVectorStr = STRING_VALUE((Constant *) getMapString(psMap, newAttrName));
-			    		curPSAI->BitVector = stringToBitset(BitVectorStr);
-			    	}
+			    List *condRightValueList = curPSAI->psIndexList;;
+			    List *elList = NIL;
+			    Constant *ll = (Constant *) popHeadOfListP(condRightValueList);
+			    int hh = INT_VALUE(ll) + 1;
+			    FOREACH(Constant, c,	condRightValueList)
+			    {
+			    		if(INT_VALUE(c) == INT_VALUE(ll) - 1)
+			    			ll = c;
+			    		else
+			    		{
+			    			Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, INT_VALUE(ll)))));
+			    			Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, hh))));
+			    			Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
+			    			elList = appendToTailOfList(elList, elOp);
+			    			ll = c;
+			    			hh = INT_VALUE(c) + 1;
+			    		}
+			    }
+
+			    Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, INT_VALUE(ll)))));
+			    Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, hh))));
+			    Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
+			    elList = appendToTailOfList(elList, elOp);
+			    newCond = orExprList(elList);
+			    DEBUG_NODE_BEATIFY_LOG("newCond ", newCond);
 			}
-
-			// generate and combine each condition, e.g.,  33, 32, 31, 28, 27, 25 ->  31<=x<34 or 27<=x<29 or 25<=x<26
-			List *operatorList = NIL;
-			int ll=0, hh=1;
-			StringInfo brins = makeStringInfo();
-			appendStringInfoString(brins,"{");
-
-			int psSize = 0;
-			for(int i=0; i<curPSAI->BitVector->length; i++)
+			else if(getBackend() == BACKEND_POSTGRES)
 			{
-				if(isBitSet(curPSAI->BitVector, i))
+				if(HAS_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK)) //or curPSAI->BitVector == NULL
 				{
-					psSize ++;
-					if(isBitSet(curPSAI->BitVector, i+1))
+					HashMap *psMap  = (HashMap *) GET_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK);
+					if(hasMapStringKey(psMap, newAttrName))
 					{
-						hh++;
-						continue;
-					}
-
-					if(getBoolOption(OPTION_PS_USE_BRIN_OP))
-					{
-						Constant *cur_brinl = (Constant *)getNthOfListP(curPSAI->rangeList, ll);
-						Constant *cur_brinh = (Constant *)getNthOfListP(curPSAI->rangeList, hh);
-						if(cur_brinl->constType == DT_INT)
-						{
-							appendStringInfo(brins, "%d,", INT_VALUE(cur_brinl));
-							appendStringInfo(brins, "%d,", INT_VALUE(cur_brinh));
-						}
-						else if(cur_brinl->constType == DT_STRING)
-						{
-							appendStringInfo(brins, "%s,", STRING_VALUE(cur_brinl));
-							appendStringInfo(brins, "%s,", STRING_VALUE(cur_brinh));
-						}
-					}
-					else
-					{
-						Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, ll))));
-						Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, hh))));
-						Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
-						operatorList = appendToTailOfList(operatorList, elOp);
+						char * BitVectorStr = STRING_VALUE((Constant *) getMapString(psMap, newAttrName));
+						curPSAI->BitVector = stringToBitset(BitVectorStr);
 					}
 				}
-				ll = i+1;
-				hh = i+2;
-			}
 
-			WARN_LOG("psSize %s: %d", newAttrName, psSize);
+				// generate and combine each condition, e.g.,  33, 32, 31, 28, 27, 25 ->  31<=x<34 or 27<=x<29 or 25<=x<26
+				List *operatorList = NIL;
+				int ll=0, hh=1;
+				StringInfo brins = makeStringInfo();
+				appendStringInfoString(brins,"{");
 
-			Node *curCond = NULL;
-			if(getBoolOption(OPTION_PS_USE_BRIN_OP))
-			{
-				if(!streq(brins->data,"{")) //used for the case if the query result is empty
+				int psSize = 0;
+				for(int i=0; i<curPSAI->BitVector->length; i++)
 				{
-					removeTailingStringInfo(brins,1);
-					appendStringInfoString(brins,"}");
-					Constant *bsArray = createConstString(brins->data);
-					curCond = (Node *) createOpExpr("<@", LIST_MAKE(copyObject(pAttr), bsArray));
-					DEBUG_LOG("brins cond: %s", brins->data);
-				}
-			}
-			else
-				curCond = orExprList(operatorList);
+					if(isBitSet(curPSAI->BitVector, i))
+					{
+						psSize ++;
+						if(isBitSet(curPSAI->BitVector, i+1))
+						{
+							hh++;
+							continue;
+						}
 
-			if(newCond == NULL)
-				newCond = curCond;
-			else
-				newCond = AND_EXPRS(newCond, curCond);
+						if(getBoolOption(OPTION_PS_USE_BRIN_OP))
+						{
+							Constant *cur_brinl = (Constant *)getNthOfListP(curPSAI->rangeList, ll);
+							Constant *cur_brinh = (Constant *)getNthOfListP(curPSAI->rangeList, hh);
+							if(cur_brinl->constType == DT_INT)
+							{
+								appendStringInfo(brins, "%d,", INT_VALUE(cur_brinl));
+								appendStringInfo(brins, "%d,", INT_VALUE(cur_brinh));
+							}
+							else if(cur_brinl->constType == DT_STRING)
+							{
+								appendStringInfo(brins, "%s,", STRING_VALUE(cur_brinl));
+								appendStringInfo(brins, "%s,", STRING_VALUE(cur_brinh));
+							}
+						}
+						else
+						{
+							Operator *lOpr =  createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, ll))));
+							Operator *rOpr =  createOpExpr("<", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(curPSAI->rangeList, hh))));
+							Node *elOp = andExprList(LIST_MAKE(lOpr, rOpr));
+							operatorList = appendToTailOfList(operatorList, elOp);
+						}
+					}
+					ll = i+1;
+					hh = i+2;
+				}
+
+				WARN_LOG("psSize %s: %d", newAttrName, psSize);
+
+				Node *curCond = NULL;
+				if(getBoolOption(OPTION_PS_USE_BRIN_OP))
+				{
+					if(!streq(brins->data,"{")) //used for the case if the query result is empty
+					{
+						removeTailingStringInfo(brins,1);
+						appendStringInfoString(brins,"}");
+						Constant *bsArray = createConstString(brins->data);
+						curCond = (Node *) createOpExpr("<@", LIST_MAKE(copyObject(pAttr), bsArray));
+						DEBUG_LOG("brins cond: %s", brins->data);
+					}
+				}
+				else
+					curCond = orExprList(operatorList);
+
+				if(newCond == NULL)
+					newCond = curCond;
+				else
+					newCond = AND_EXPRS(newCond, curCond);
+			}
 		}
 		if(newCond != NULL)
 			sel = createSelectionOp ((Node *) newCond, (QueryOperator *) op, NIL, getQueryOperatorAttrNames((QueryOperator *) op));

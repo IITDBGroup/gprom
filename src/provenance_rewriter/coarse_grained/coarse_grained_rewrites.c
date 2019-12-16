@@ -380,12 +380,38 @@ createPSAttrInfo(List *l, char *tableName)
 
 	 if(LIST_LENGTH(l) == 3)
 	 {
-		 Constant *bitVector = (Constant *) getNthOfListP(l, 2);
-		 char *bitVectorStr = STRING_VALUE(bitVector);
-		 result->BitVector = stringToBitset(bitVectorStr);
+		 Constant *ps = (Constant *) getNthOfListP(l, 2);
+		 if(typeOf((Node *)ps) == DT_INT)
+		 {
+			 result->BitVector = NULL;
+			 int psValue = INT_VALUE(ps);
+			 unsigned long long int k;
+			 unsigned long long int n = psValue;
+			 int numPoints = LIST_LENGTH(result->rangeList);
+
+			 for (int c = numPoints - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+			 {
+				 k = n >> c;
+				 DEBUG_LOG("n is %llu, c is %d, k is: %llu, cntOnePos is: %d", n, c, k, cntOnePos);
+				 if (k & 1)
+				 {
+					 result->psIndexList = appendToTailOfList(result->psIndexList, createConstInt(numPoints - 1  - cntOnePos));
+					 DEBUG_LOG("cnt is: %d", numPoints - cntOnePos);
+				 }
+			 }
+		 }
+		 else
+		 {
+			 char *bitVectorStr = STRING_VALUE(ps);
+			 result->BitVector = stringToBitset(bitVectorStr);
+			 result->psIndexList = NIL;
+		 }
 	 }
 	 else
+	 {
 		 result->BitVector = NULL;
+		 result->psIndexList = NIL;
+	 }
 
 	 return result;
 }
