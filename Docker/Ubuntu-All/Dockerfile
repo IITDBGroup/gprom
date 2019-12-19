@@ -6,7 +6,7 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Clone GProM github repository
 ########################################
-RUN git clone https://github.com/IITDBGroup/PUG.git /gprom/src
+RUN git clone https://github.com/IITDBGroup/gprom.git /gprom/src
 ########################################
 # Build GProM
 ########################################

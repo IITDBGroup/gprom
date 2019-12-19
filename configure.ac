@@ -117,7 +117,7 @@ AC_DEFUN([AC_LIBPQ_HEADER_LOCATION],
 [AC_ARG_WITH(libpq-headers, [  --with-libpq-headers], , )
 AC_MSG_CHECKING([for user provided libpq header location])
 if test "x$with_libpq_headers" != x; then
-	if test -f "$with_libpq_headers/libpq.h"; then
+	if test -f "$with_libpq_headers/libpq-fe.h"; then
     	CPPFLAGS="$CPPFLAGS -I$with_libpq_headers"
     	AC_MSG_RESULT([yes, found at $with_libpq_headers])
 	else
