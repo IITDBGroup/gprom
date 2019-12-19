@@ -21,8 +21,8 @@ RUN apt-get -y update && apt-get install -y \
 	libtool \
 	make \
 	man-db \
-	libreadline6 \
-	libreadline6-dev \
+	libreadline7 \
+	libreadline-dev \
 	sqlite3 \
 	&& rm -rf /var/lib/apt/lists/*
 ########################################
