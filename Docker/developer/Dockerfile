@@ -113,6 +113,7 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libstream.so.13 /usr/lib/x86_64-linux-gnu/li
 ########################################
 # Clone GProM github repository
 ########################################
+RUN echo "test" > /test.txt
 RUN git clone https://github.com/IITDBGroup/gprom.git /home/ubuntu/gprom
 ########################################
 # Build GProM
@@ -121,9 +122,7 @@ RUN cd /home/ubuntu/gprom \
 	&& make -f Makefile.maintainer \
 	&& LIBS='-lstream -llzma -lcurl -lbz2' ./configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient/ --with-mapi-lib=/usr/lib/x86_64-linux-gnu/ --with-libpq-headers=/usr/include/postgresql --with-mapi-headers=/usr/include/monetdb \
 	&& make \
-	&& make install \
-	&& make dist \
-	&& make distcheck
+	&& make install
 ########################################
 # Expose VNC port
 ########################################
@@ -134,4 +133,5 @@ EXPOSE 5900
 ########################################
 # copy ojdbc driver into gprom lib dir
 ########################################
-RUN cp /opt/oracle/instantclient/ojdbc7.jar /home/ubuntu/gprom/javalib/ojdbc7.jar
+RUN cp /opt/oracle/instantclient/ojdbc7.jar /home/ubuntu/gprom/build/javalib/ojdbc7.ja \
+    && cp /opt/oracle/instantclient/ojdbc7.jar /home/ubuntu/gprom/build/javatestlib/ojdbc7.ja
