@@ -1,7 +1,7 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-FROM sergeymakinen/oracle-instant-client:12.2
+FROM iitdbgroup/oic:latest
 MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Create working directories
@@ -10,26 +10,29 @@ WORKDIR /gprom
 ########################################
 # Install monetdb repository
 ########################################
-RUN apt-get -y update && apt-get -y install apt-transport-https software-properties-common wget
+RUN apt-get -y update && apt-get -y --no-install-recommends install apt-transport-https software-properties-common wget
 RUN echo "deb http://dev.monetdb.org/downloads/deb/ xenial monetdb" > /etc/apt/sources.list.d/monetdb.list \
-    && 	echo "deb-src http://dev.monetdb.org/downloads/deb/ xenial monetdb" >> /etc/apt/sources.list.d/monetdb.list \
+    && echo "deb-src http://dev.monetdb.org/downloads/deb/ xenial monetdb" >> /etc/apt/sources.list.d/monetdb.list \
 	&& wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
 ########################################
 # Install Java 8
 ########################################
-RUN echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
-  add-apt-repository -y ppa:webupd8team/java && \
-  apt-get update && \
-  apt-get install -y oracle-java8-installer && \
-  rm -rf /var/lib/apt/lists/* && \
-  rm -rf /var/cache/oracle-jdk8-installer
-RUN apt install oracle-java8-set-default
+# RUN echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
+#   add-apt-repository -y ppa:webupd8team/java && \
+#   apt-get update && \
+#   apt-get install -y --no-install-recommends oracle-java8-installer && \
+#   rm -rf /var/lib/apt/lists/* && \
+#   rm -rf /var/cache/oracle-jdk8-installer
+# RUN apt install oracle-java8-set-default
+# Try default-jdk instead
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-8-jdk-headless openjdk-8-jdk
 ENV JAVA_VER 8
-ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 ########################################
 # Install packages needed for building
 ########################################
-RUN apt-get -y update && apt-get install -y \
+RUN apt-get -y update && apt-get --no-install-recommends install -y \
 	ant \
 	autoconf \
 	automake \
