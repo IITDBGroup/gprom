@@ -943,10 +943,14 @@ postgresGetKeyInformation(char *tableName)
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
+	{
         addToSet(keySet, strdup(PQgetvalue(res,i,0)));
+	}
 
 	if (PQntuples(res) > 0)
+	{
 		result = singleton(keySet);
+	}
 
     // cleanup
     PQclear(res);
