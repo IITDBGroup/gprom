@@ -681,25 +681,38 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     DEBUG_LOG("mergePartsTogether");
 
     if (STRINGLEN(selectString) > 0)
+	{
         appendStringInfoString(str, selectString->data);
+	}
     else
+	{
         appendStringInfoString(str, "\nSELECT *");
+	}
 
     appendStringInfoString(str, fromString->data);
 
     if (STRINGLEN(whereString) > 0)
+	{
         appendStringInfoString(str, whereString->data);
+	}
 
     if (STRINGLEN(groupByString) > 0)
+	{
         appendStringInfoString(str, groupByString->data);
+	}
 
     if (STRINGLEN(havingString) > 0)
+	{
         appendStringInfoString(str, havingString->data);
+	}
 
     if (STRINGLEN(orderString) > 0)
+	{
         appendStringInfoString(str, orderString->data);
+	}
 
-	if (matchInfo->limitOffset != NULL) {
+	if (matchInfo->limitOffset != NULL)
+	{
 		serializeLimit(str, matchInfo->limitOffset);
 	}
 

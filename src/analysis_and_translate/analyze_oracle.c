@@ -376,7 +376,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
     // analyze where clause if exists
     if (qb->whereClause != NULL)
+	{
         analyzeWhere(qb, parentFroms);
+	}
 
 	// if group by or aggregation, check that no non-group by attribute references exist
 	analyzeGroupByAgg(qb, parentFroms);

@@ -28,13 +28,13 @@ RUN apt-get -y update && apt-get install -y \
 ########################################
 # Clone GProM github repository
 ########################################
-RUN git clone https://github.com/IITDBGroup/gprom.git /gprom/src
+RUN git clone  https://github.com/IITDBGroup/gprom.git /gprom/src
 ########################################
 # Build GProM
 ########################################
 RUN cd /gprom/src \
 	&& make -f Makefile.maintainer \
-	&& ./configure --disable-oracle --disable-postgres --disable-monetdb --disable-java \
+	&& ./configure --disable-oracle --disable-postgres --disable-monetdb --disable-java  \
 	&& make \
 	&& make install
 ########################################
