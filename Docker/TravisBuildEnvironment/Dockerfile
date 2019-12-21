@@ -36,12 +36,14 @@ RUN apt-get -y update && apt-get --no-install-recommends install -y \
 	ant \
 	autoconf \
 	automake \
-	autotools-dev \
+    autotools-dev \
     bison \
+    build-essential:native \
     bzip2 \
 	curl \
 	dh-make \
-	flex \
+    fakeroot \
+    flex \
 	git \
     graphviz \
     libbz2-dev \
