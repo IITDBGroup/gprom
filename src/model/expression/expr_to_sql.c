@@ -59,9 +59,7 @@ attributeReferenceToSQL (StringInfo str, AttributeReference *node, HashMap *map)
 		{
 			char *sql = STRING_VALUE(getMapString(map, extractName));
 			DEBUG_LOG("Nested subquery: %s", sql);
-			appendStringInfoString(str, "(");
 			appendStringInfoString(str, sql);
-			appendStringInfoString(str, ")");
 		}
 		else
 			appendStringInfoString(str, node->name);
@@ -245,33 +243,6 @@ operatorToSQL (StringInfo str, Operator *node, HashMap *map)
     }
     else
     {
-//    		if(isNestOp((Node *) node))
-//    		{
-//    			Operator *o = (Operator *) node;
-//    			AttributeReference *a = (AttributeReference  *) getHeadOfListP(o->args);
-//    			DEBUG_LOG("attrName %s", a->name);
-//    			if(map != NULL && strstr(a->name, "\"nesting_eval_") != NULL)
-//    			{
-//    				char *extractName = strchr(strdup(a->name), '"');
-//    				DEBUG_LOG("extractName %s", extractName);
-//    				if(hasMapStringKey(map, extractName))
-//    				{
-//    					char *sql = STRING_VALUE(getMapString(map, extractName));
-//    					char c = sql[strlen(sql)-1];
-//    					DEBUG_LOG("nest type %c", c);
-//    					if(c == 'e')
-//    						appendStringInfoString(str, "exists ");
-//    					else if(c == 'a')
-//    					{
-//    						appendStringInfoString(str, strdup(a->name));
-//    						appendStringInfoString(str, " in ");
-//    					}
-//    					attributeReferenceToSQL(str, a, map);
-//    				}
-//    			}
-//    		}
-//    		else
-//    		{
     			appendStringInfoString(str, "(");
 
     			FOREACH(Node,arg,node->args)
@@ -285,7 +256,6 @@ operatorToSQL (StringInfo str, Operator *node, HashMap *map)
 
     			appendStringInfoString(str, ")");
     		}
-//    }
 }
 
 static void

@@ -190,12 +190,7 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 {
 	if(isA(op, NestingOperator))
 	{
-//		NestingOperator *nest = (NestingOperator *) op;
-//		char *type = "";
-//		if(nest->nestingType == NESTQ_EXISTS)
-//			type = "e";
-//		else if(nest->nestingType == NESTQ_ANY)
-//			type = "a";
+		NestingOperator *nest = (NestingOperator *) op;
 
 		List *names = getAttrNames(op->schema);
 		char *nestName = (char *) getTailOfListP(names);
@@ -204,12 +199,25 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 		if(!hasMapStringKey(*map, nestName))
 		{
 			StringInfo s = makeStringInfo();
+			if(nest->nestingType == NESTQ_EXISTS)
+				appendStringInfoString(s, "EXISTS ");
+			else if(nest->nestingType == NESTQ_ANY)
+			{
+				Operator *cond = (Operator *) nest->cond;
+				Node *a = getHeadOfListP(cond->args);
+				char *name = exprToSQL(a, *map);
+				appendStringInfoString(s, name);
+				appendStringInfoString(s, cond->name);
+				appendStringInfoString(s, " ANY ");
+			}
+
+
+			appendStringInfoString(s, "(");
 			api->serializeQueryOperator(OP_RCHILD(op), s, NULL, fac, api);
-			//appendStringInfoString(s, type);
+			appendStringInfoString(s, ")");
 			DEBUG_LOG("serialized nested subquery: %s", s->data);
 			MAP_ADD_STRING_KEY(*map, strdup(nestName), createConstString(s->data));
 		}
-		//MAP_ADD_STRING_KEY(*map, strdup(nestName), (Node *) OP_RCHILD(op));
 	}
 
 	FOREACH(QueryOperator, o, op->inputs)
