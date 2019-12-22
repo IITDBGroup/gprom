@@ -47,7 +47,7 @@ addTopAggForCoarse (QueryOperator *op)
         FunctionCall *f = NULL;
         if(getBackend() == BACKEND_ORACLE)
         {
-        		f = createFunctionCall ("BITORAGG", singleton(a));
+        		f = createFunctionCall ("dbgroup.BITORAGG", singleton(a));
         		projExpr = appendToTailOfList(projExpr, f);
         }
         else if(getBackend() == BACKEND_POSTGRES)
@@ -374,7 +374,7 @@ createPSAttrInfo(List *l, char *tableName)
 	 if(LIST_LENGTH(result->rangeList) == 1)
 	 {
 		 int numRanges = INT_VALUE((Constant *) getNthOfListP(result->rangeList, 0));
-		 DEBUG_LOG("test numRanges: %d", numRanges);
+		 DEBUG_LOG("Number of ranges: %d", numRanges);
 		 result->rangeList = getRangeList(numRanges, result->attrName, tableName);
 	 }
 

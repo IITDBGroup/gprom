@@ -2201,7 +2201,32 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
 			if(getBackend() == BACKEND_ORACLE)
 			{
-			    List *condRightValueList = curPSAI->psIndexList;;
+				if(HAS_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK)) //or curPSAI->BitVector == NULL
+				{
+					DEBUG_LOG("Auto use - BACKEND_ORACLE");
+					HashMap *psMap  = (HashMap *) GET_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK);
+					if(hasMapStringKey(psMap, newAttrName))
+					{
+						int psValue = INT_VALUE((Constant *) getMapString(psMap, newAttrName));
+						unsigned long long int k;
+						unsigned long long int n = psValue;
+						DEBUG_LOG("psValue is %llu", psValue);
+						int numPoints = LIST_LENGTH(curPSAI->rangeList);
+
+						for (int c = numPoints - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+						{
+							k = n >> c;
+							DEBUG_LOG("n is %llu, c is %d, k is: %llu, cntOnePos is: %d", n, c, k, cntOnePos);
+							if (k & 1)
+							{
+								curPSAI->psIndexList = appendToTailOfList(curPSAI->psIndexList, createConstInt(numPoints - 1  - cntOnePos));
+								DEBUG_LOG("cnt is: %d", numPoints - cntOnePos);
+							}
+						}
+					}
+				}
+
+			    List *condRightValueList = curPSAI->psIndexList;
 			    List *elList = NIL;
 			    Constant *ll = (Constant *) popHeadOfListP(condRightValueList);
 			    int hh = INT_VALUE(ll) + 1;
