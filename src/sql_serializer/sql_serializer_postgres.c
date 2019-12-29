@@ -57,7 +57,6 @@ serializeOperatorModelPostgres(Node *q)
     DEBUG_OP_LOG("after attr quoting", q);
 
     // add casts to null constants to make postgres aware of their types
-
     visitWithPointers(q,addNullCasts,(void **) &q, PSET());
 
     // serialize query

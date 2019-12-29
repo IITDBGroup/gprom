@@ -1021,6 +1021,10 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
         // otherwise we use the metadata lookup plugin to make sure we get the right type
         if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT || dLeft == DT_LONG))
             return dLeft;
+
+        // if a int with a float, the result type should be float
+        if((dLeft == DT_INT && dRight == DT_FLOAT) || (dLeft == DT_FLOAT && dRight == DT_INT))
+            return DT_FLOAT;
     }
 
     // string ops
@@ -1039,6 +1043,8 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             || streq(opName,"^=")
             || streq(opName,"=")
             || streq(opName,"!=")
+		    || streq(opName,"like")
+		    || streq(opName,"LIKE")
                 )
     {
         //if (dLeft == dRight)
