@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * summarize_main.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: seokki
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -106,7 +106,7 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 	origDataTypes = NIL;
 	givenConsts = NIL;
 	isDL = FALSE;
-	
+
 
 	if (summOpts != NULL)
 	{
@@ -206,7 +206,7 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 			  thPrecision,
 			  thRecall,
 			  thInfo);
-		
+
 	/*
 	 * store edge relation in separate
 	 * TODO: not safe to check whether input comes from dl or SQL
