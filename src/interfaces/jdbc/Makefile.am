@@ -1,11 +1,11 @@
-AM_CPPFLAGS = -I$(top_builddir)/include
+AM_CPPFLAGS = -I@GPROM_TOP_SRCDIR@/include
 AM_CFLAGS = @GPROM_CFLAGS@
 
 rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
 ANT_BUILDFILE=@GPROM_TOP_SRCDIR@/build.xml
-GPROM_JDBC_JAR=$(top_builddir)/jdbcbuild/gprom-jdbc.jar
-GPROM_LIBRARY=$(top_builddir)/src/libgprom/libgprom.la
+GPROM_JDBC_JAR=@GPROM_TOP_SRCDIR@/jdbcbuild/gprom-jdbc.jar
+GPROM_LIBRARY=@GPROM_TOP_SRCDIR@/src/libgprom/libgprom.la
 JAVA_JDBC_SRC=$(call rwildcard,java,*.java)
 
 if JAVABINDING

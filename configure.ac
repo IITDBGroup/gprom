@@ -409,7 +409,7 @@ AS_IF([test "x$enable_java" == "xno"], [
 [
   AC_MSG_RESULT([yes])
 ])
-AM_CONDITIONAL(JAVABINDING, test "x$enable_java" != "xno")
+AM_CONDITIONAL([JAVABINDING], [test "x$enable_java" != "xno"])
 ])
 # enable/disable readline support
 AC_DEFUN([AC_ENABLE_READLINE],
@@ -500,9 +500,10 @@ AC_PROG_CC_STDC
 AC_C_INLINE
 ################################################################################
 # SET OUTPUT VARIABLE FOR TOP SOURCE DIR
-mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
-AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
-GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
+#mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
+#AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
+gprom_srcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
+AC_SUBST([GPROM_TOP_SRCDIR],[$gprom_srcdir])
 ################################################################################
 # CHECK FOR PROGRAM BINARIES AND FEATURES
 AM_PROG_AR
@@ -759,7 +760,7 @@ echo "
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   OS.................: $OSTYPE-$OSARCH ($OSDETAILS)
   Prefix.............: $prefix
-  Top src dir........: $GPROM_SRCDIR
+  Top src dir........: $GPROM_TOP_SRCDIR
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
