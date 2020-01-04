@@ -1,12 +1,13 @@
-AM_CPPFLAGS = -I$(top_srcdir)/include
+AM_CPPFLAGS = -I@GPROM_TOP_SRCDIR@/include
 AM_CFLAGS = @GPROM_CFLAGS@
+LOCAL_TOP_SRCIDR = @GPROM_TOP_SRCDIR@
 
-ANT_BUILDFILE=$(top_srcdir)/blackboxtests/build.xml
-GPROM_JDBC_TEST_JAR=$(top_srcdir)/build/gprom-jdbc-test.jar
-GPROM_JDBC_JAR=$(top_srcdir)/build/gprom-jdbc.jar
-#JAVA_TEST_SRC=$(wildcard $(top_srcdir)/javatest/*.java)
-JAVA_TEST_SRC=$(shell find $(top_srcdir)/javatest -type f -name '*.java')
-TEST_XML_SRC=$(wildcard $(top_srcdir)/blackboxtests/testcases/*.xml)
+ANT_BUILDFILE=$(LOCAL_TOP_SRCDIR)/blackboxtests/build.xml
+GPROM_JDBC_TEST_JAR=$(LOCAL_TOP_SRCDIR)/build/gprom-jdbc-test.jar
+GPROM_JDBC_JAR=$(LOCAL_TOP_SRCDIR)/build/gprom-jdbc.jar
+#JAVA_TEST_SRC=$(wildcard $(LOCAL_TOP_SRCDIR)/javatest/*.java)
+JAVA_TEST_SRC=$(shell find $(LOCAL_TOP_SRCDIR)/javatest -type f -name '*.java')
+TEST_XML_SRC=$(wildcard $(LOCAL_TOP_SRCDIR)/blackboxtests/testcases/*.xml)
 
 if JAVABINDING
 

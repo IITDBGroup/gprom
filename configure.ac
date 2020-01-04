@@ -504,16 +504,43 @@ mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
 AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
 GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
 ################################################################################
-# CHECK FOR PROGRAM BINARIES
+# CHECK FOR PROGRAM BINARIES AND FEATURES
 AM_PROG_AR
 AC_PROG_YACC
 BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`"
 AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
+#TODO check that versions are sufficient
+# check for pandoc and test whether we can use it for man -> html translation of the documentation
 AC_CHECK_PROG([pandoc],[pandoc],[yes])
+AS_IF([ test "x$pandoc" == "xyes" ],
+[
+AC_CACHE_CHECK([checking for pandoc that supports man],
+               [ac_cv_path_PANDOC],
+               [AC_PATH_PROGS_FEATURE_CHECK([PANDOC], [pandoc],
+                    [[$ac_path_PANDOC -f man ./doc/gprom.man > /dev/null ;
+                      test "x$?" = x0 \
+                      && ac_cv_path_PANDOC=$ac_path_PANDOC ac_path_PANDOC_found=:]],
+                    [AC_MSG_ERROR([could not find pandoc that supports the man format])])
+               ])
+],
+[]
+)
+AC_SUBST([PANDOC], [$ac_cv_path_PANDOC])
 AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
+AM_CONDITIONAL([HAVE_PROG_PANDOC_WITH_MAN], [test "x$ac_cv_path_PANDOC" != "x"])
 AC_CHECK_PROG([rman],[rman],[yes])
 AM_CONDITIONAL([HAVE_PROG_RMAN], [test "x$rman" = xyes])
+# set tool for building documentation
+if test "x$pandoc" = "xyes" -a "x$ac_cv_path_PANDOC" != "x"; then
+   AC_SUBST([DOCTOOL], ["pandoc"])
+else
+    if test "x$rman" = "xyes"; then
+       AC_SUBST([DOCTOOL], ["rman"])
+    else
+       AC_SUBST([DOCTOOL], ["none"])
+    fi
+fi
 # INIT LIBTOOL
 LT_INIT([win32-dll])
 ################################################################################
@@ -739,6 +766,7 @@ echo "
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}, MonetDB - ${enable_monetdb:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}
+  Documentation......: Tool to build documentation: $DOCTOOL
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   CFLAGS ........: $CFLAGS
   CPPFLAGS ......: $CPPFLAGS

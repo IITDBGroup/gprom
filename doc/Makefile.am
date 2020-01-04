@@ -26,25 +26,27 @@ endif
 
 # create markdown page from gprom manual page
 if HAVE_PROG_PANDOC
+if HAVE_PROG_PANDOC_WITH_MAN
 
 all-local: $(GPROM_MAN_MD)
 
 $(GPROM_MAN_HTML): $(GPROM_MAN)
-	pandoc -f man $(GPROM_MAN) -o $(GPROM_MAN_HTML)
+	$(PANDOC) -f man $(GPROM_MAN) -o $(GPROM_MAN_HTML)
 # sed -e 's/[*]*//g' > $(GPROM_MAN_HTML)
 
 $(GPROM_MAN_MD): $(GPROM_MAN_HTML)
-	pandoc -f html -t markdown_github $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD) || (echo "pandoc with markdown_github failed $$?")
+	$(PANDOC) -f html -t markdown_github $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD) || (echo "pandoc with markdown_github failed $$?")
 	@if test -f $(GPROM_MAN_MD); then :; else \
-		pandoc -f html -t markdown $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD); \
+		$(PANDOC) -f html -t markdown $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD); \
 	fi
 
 CLEAN_FILES = $(GPROM_MAN_HTML) $(GPROM_MAN_MD)
 
 endif
+endif
 
 # only use rman if we do not have pandoc
-if !HAVE_PROG_PANDOC
+if !HAVE_PROG_PANDOC_WITH_MAN
 if HAVE_PROG_RMAN
 
 all-local: $(GPROM_MAN_HTML)
