@@ -522,7 +522,7 @@ AC_CACHE_CHECK([checking for pandoc that supports man],
                     [[$ac_path_PANDOC -f man ./doc/gprom.man > /dev/null ;
                       test "x$?" = x0 \
                       && ac_cv_path_PANDOC=$ac_path_PANDOC ac_path_PANDOC_found=:]],
-                    [AC_MSG_ERROR([could not find pandoc that supports the man format])])
+                    [AC_MSG_WARNING([could not find pandoc that supports the man format, may not be able to build documentation.])])
                ])
 ],
 []
