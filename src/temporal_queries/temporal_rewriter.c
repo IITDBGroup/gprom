@@ -1406,6 +1406,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     	projCPExprs = appendToTailOfList(projCPExprs,getAttrRefByName(d3Op,c));
     	if(!streq(c, "T"))
     	{
+        DEBUG_LOG("Unequal to T");
     		char *cc = concatStrings(c,"_1");
     		projCPNames = appendToTailOfList(projCPNames,cc);
     		leftList = appendToTailOfList(leftList, strdup(c));
