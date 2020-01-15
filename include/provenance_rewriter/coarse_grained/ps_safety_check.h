@@ -19,18 +19,37 @@
 #define ORDER_OPERATOR "OrderOperator"
 #define SELECTION_OPERATOR "SelectionOperator"
 #define TABLEACCESS_OPERATOR "TableAccessOperator"
+#define DUPLICATEREMOVAL "DuplicateRemoval"
+#define SETOPINTERSECTION "SetOperator_Intersection"
+#define PAGE "PAGE"
+#define RANGE "RANGE"
+#define BLOOM_FILTER "BLOOM_FILTER"
+#define HASH "HASH"
 
 void test(Node *qbModel);
 extern HashMap *monotoneCheck(Node *qbModel);
 HashMap *getSchema(Node *qbModel);
+
 //HashMap *safetyCheck_aggregation(Node *qbModel);
 //HashMap *safetyCheck_windowOperator(Node* qbModel);
 HashMap *safetyCheck(Node* qbModel, Set *hasOpeator);
+boolean getSafeProvenanceSketch(Node* node, HashMap *map);
+Set *findFiltering(List* operatorList);
+boolean findSetDifference(List* operatorList);
+OrderOperator* findOrderOperator(List* operatorList);
+boolean monotonicity1(SelectionOperator *selectOperator, Node *node, HashMap *table_map);
+boolean monotonicity2(OrderOperator *orderOperator, Node *node, HashMap *table_map, char *groupByColName);
+HashMap* hashRangeOnGroupbySafe(HashMap *map, HashMap *result, char *tableName, char *groupByColName);
+HashMap* hashRangeOnGroupbyNotSafe(HashMap *map, HashMap *result, char *tableName, char *groupByColName);
 
+char* findTable(HashMap *table_map, char *colName);
+HashMap* updateResultMap(HashMap *map, HashMap *orginalResult, char *type, HashMap *newResultMapOfType);
 boolean check(Node* node, HashMap *state);
 boolean checkMonotone(Node* node, Set *operatorSet);
 boolean getTableAccessOperator(Node* node, HashMap *map);
 boolean getSubset(Node* node, HashMap *map);
+boolean getAll(Node* node, HashMap *map);
+
 List *addBitset(unsigned int length, List* result);
 //char *binDis(int length, int value);
 //boolean getData_aggregation(Node* node, HashMap *data);

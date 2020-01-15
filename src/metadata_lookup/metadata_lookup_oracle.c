@@ -556,7 +556,7 @@ oracleGetMinAndMax(char* tableName, char* colName) {
 	appendStringInfo(statement,
 			"SELECT COLUMN_NAME,LOW_VALUE,HIGH_VALUE,DATA_TYPE "
 					"FROM ALL_TAB_COLUMNS "
-					"WHERE OWNER = 'FGA_USER' AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'",
+					"WHERE OWNER = 'TPCH_1GB' AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'",
 			tableName, colName);
 
 	if ((conn = getConnection()) != NULL) {
@@ -600,7 +600,7 @@ oracleGetRowNum(char* tableName) {
 
 	statement = makeStringInfo();
 	appendStringInfo(statement,
-			"SELECT NUM_ROWS FROM ALL_TABLES WHERE OWNER = 'FGA_USER' AND TABLE_NAME = '%s'"
+			"SELECT NUM_ROWS FROM ALL_TABLES WHERE OWNER = 'TPCH_1GB' AND TABLE_NAME = '%s'"
 			,tableName);
 
 	if ((conn = getConnection()) != NULL) {
