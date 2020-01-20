@@ -97,7 +97,7 @@ assembleSqliteMetadataLookupPlugin (void)
     p->connectionDescription = sqliteGetConnectionDescription;
     p->sqlTypeToDT = sqliteBackendSQLTypeToDT;
     p->dataTypeToSQL = sqliteBackendDatatypeToSQL;
-
+	p->getMinAndMax = sqliteGetMinAndMax;
     return p;
 }
 
@@ -378,6 +378,13 @@ sqliteBackendDatatypeToSQL (DataType dt)
     return "TEXT";
 }
 
+HashMap *
+sqliteGetMinAndMax(char* tableName, char* colName)
+{
+	HashMap *result_map = NEW_MAP(Constant, Node);
+	return result_map;
+}
+
 void
 sqliteGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -598,6 +605,24 @@ char *
 sqliteGetViewDefinition(char *viewName)
 {
     return NULL;
+}
+
+DataType
+sqliteBackendSQLTypeToDT (char *sqlType)
+{
+	return DT_INT;
+}
+
+char *
+sqliteBackendDatatypeToSQL (DataType dt)
+{
+	return NULL;
+}
+
+HashMap *
+sqliteGetMinAndMax(char* tableName, char* colName)
+{
+	return NULL;
 }
 
 void

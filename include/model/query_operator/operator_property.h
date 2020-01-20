@@ -95,6 +95,8 @@
 #define PROP_PC_COMMIT_SCN "COMMIT_SCN"                     // stores commit SCN for REENACT WITH COMMIT SCN
 #define PROP_PC_SEMIRING_COMBINER "SEMIRING_COMBINER"       // use combiner in provenance computation
 #define PROP_PC_SC_AGGR_OPT "SEMIRING_COMBINER_AGGR_OPT" //use aggregation optimization in semiring combiner
+#define PROP_PC_COARSE_GRAINED "COARSE_GRAINED"             // used in data skipping
+#define USE_PROP_PC_COARSE_GRAINED "USE_COARSE_GRAINED"             // used in data skipping
 
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
@@ -142,6 +144,12 @@
 #define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
 
+/* for data skipping  */
+#define PROP_COARSE_GRAINED_TABLEACCESS_MARK "COARSE_GRAINED_TABLEACCESS_MARK"
+#define USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK "USE_COARSE_GRAINED_TABLEACCESS_MARK"
+#define PROP_COARSE_GRAINED_AGGREGATION_MARK "COARSE_GRAINED_AGGREGATION_MARK"
+#define PROP_NUM_TABLEACCESS_MARK "NUM_TABLEACCESS_MARK"
+
 /* fromProvInfo provProperties */
 #define PROV_PROP_TIP_ATTR "PROV_PROP_TIP_ATTR"
 #define PROV_PROP_INCOMPLETE_TABLE "PROV_PROP_INCOMPLETE_TABLE"
@@ -151,5 +159,14 @@
 #define PROV_PROP_UADB "PROV_PROP_UADB"
 #define PROV_PROP_RADB_LIST "PROV_PROP_RADB_LIST"
 #define PROV_PROP_UADB_LIST "PROV_PROP_UADB_LIST"
+
+/* properties for aggregation operators created by lateral rewrite */
+#define PROP_OPT_AGGREGATION_BY_LATREAL_WRITE "AGGREGATION BY LATERAL REWRITE" //mark the aggregation created by lateral rewrite for nested queries
+
+#define PROP_STORE_MIN_MAX_DONE "HAVE GOT MIN AND MAX"
+#define PROP_STORE_MIN_MAX "STORE MIN AND MAX PROPERTY"
+
+#define PROP_STORE_CHILD_OPERATOR_DONE "HAVE GOT CHILD OPERATOR"
+#define PROP_STORE_CHILD_OPERATOR "STORE CHILD OPERATOR"
 
 #endif /* OPERATOR_PROPERTY_H_ */

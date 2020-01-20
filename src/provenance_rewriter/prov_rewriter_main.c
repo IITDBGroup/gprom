@@ -16,6 +16,7 @@
 
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
@@ -164,6 +165,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     //semiring comb operations
     boolean isCombinerActivated = isSemiringCombinerActivatedOp((QueryOperator *) op);
 
+    //used to get coarse grained parameter used in CASE PROV_COARSE_GRAINED
+	Node *coarsePara = NULL;
+
     // apply provenance rewriting if required
     switch(op->provType)
     {
@@ -189,6 +193,25 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             }
 
             break;
+        case PROV_COARSE_GRAINED:
+        		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
+        		DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
+            // add annotations for table access and for combiners (aggregation)
+        		markTableAccessAndAggregation((QueryOperator *) op, coarsePara);
+
+            result = rewritePI_CS(op);
+//            removeParent(result, (QueryOperator *) op);
+            // write method that adds aggregation on top
+            result = addTopAggForCoarse(result);
+            break;
+        case USE_PROV_COARSE_GRAINED:
+        		coarsePara = (Node *) getStringProperty((QueryOperator *)op, USE_PROP_PC_COARSE_GRAINED);
+        		DEBUG_LOG("use coarse grained fragment parameters: %s",nodeToString(coarsePara));
+        		markUseTableAccessAndAggregation((QueryOperator *) op, coarsePara);
+
+            result = rewritePI_CS(op);
+            removeParent(result, (QueryOperator *) op);
+        	break;
         case PROV_TRANSFORMATION:
             result =  rewriteTransformationProvenance((QueryOperator *) op);
             break;

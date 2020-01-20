@@ -203,6 +203,59 @@ createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder)
     return result;
 }
 
+QuantifiedComparison *
+createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList)
+{
+	QuantifiedComparison *result = makeNode(QuantifiedComparison);
+
+    result->checkExpr = checkExpr;
+    result->exprList = exprList;
+    result->opName = strdup(opName);
+
+    if (!strcmp(nType, "ANY"))
+        result->qType = QUANTIFIED_EXPR_ANY;
+    if (!strcmp(nType, "ALL"))
+        result->qType = QUANTIFIED_EXPR_ALL;
+
+    return result;
+}
+
+Node *
+concatExprs (Node *expr, ...)
+{
+    Node *result = NULL;
+    Node *curArg = NULL;
+    List *argList = singleton(expr);
+
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args,Node*)))
+        argList = appendToTailOfList(argList, copyObject(curArg));
+
+    va_end(args);
+
+    if (LIST_LENGTH(argList) == 1)
+        return expr;
+
+    result = (Node *) createFunctionCall(OPNAME_CONCAT, argList);
+
+    return result;
+}
+
+Node *
+concatExprList (List *exprs)
+{
+    Node *result = popHeadOfListP(exprs);
+
+    FOREACH(Node,e,exprs)
+        result = CONCAT_EXPRS(result,e);
+
+    return result;
+}
+
+
 Node *
 andExprs (Node *expr, ...)
 {
@@ -492,6 +545,8 @@ typeOf (Node *expr)
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:
             return DT_INT;//TODO should use something else?
+        case T_QuantifiedComparison:
+            return DT_BOOL;
         case T_DLVar:
             return ((DLVar *) expr)->dt;
         case T_CastExpr:
@@ -510,8 +565,10 @@ typeOf (Node *expr)
                     return DT_BOOL;
                 }
                 case NESTQ_SCALAR:
+                case NESTQ_LATERAL:
                 {
-                    return DT_STRING; //TODO
+                    //return DT_LONG; //TODO
+                		return q->nestingAttrDatatype;
                 }
                 break;
             }
@@ -602,6 +659,11 @@ isConstExpr (Node *expr)
         {
             OrderExpr *o = (OrderExpr *) expr;
             return isConstExpr(o->expr);
+        }
+        case T_QuantifiedComparison:
+        {
+        		QuantifiedComparison *o = (QuantifiedComparison *) expr;
+            return isConstExpr(o->checkExpr);
         }
         case T_DLVar:
             return FALSE;
@@ -724,6 +786,7 @@ addCastsMutator (Node *node, boolean errorOnFailure)
         case T_IsNullExpr:
         case T_RowNumExpr:
         case T_SQLParameter:
+        case T_QuantifiedComparison:
         case T_OrderExpr:
         {
             return node;
@@ -1088,6 +1151,7 @@ typeOfFunc (FunctionCall *f)
     result = getFuncReturnType(f->functionname, argDTs, &fExists);
     if (!fExists)
         DEBUG_NODE_BEATIFY_LOG("Function does not exist: ", f);
+
     return result;
 }
 

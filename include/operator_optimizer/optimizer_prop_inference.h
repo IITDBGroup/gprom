@@ -13,8 +13,13 @@
 
 #include "model/query_operator/query_operator.h"
 #include "model/set/set.h"
+#include "model/set/hashmap.h"
 
 extern void computeKeyProp (QueryOperator *root);
+
+extern void computeMinMaxProp (QueryOperator *root);
+extern void computeChildOperatorProp(QueryOperator *root);
+extern boolean getConMap(Operator *root, HashMap *result);
 
 extern void computeECProp (QueryOperator *root);
 extern void computeECPropBottomUp (QueryOperator *root);

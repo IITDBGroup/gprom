@@ -17,12 +17,12 @@ testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_metadata_lookup.c test_string.c test_set.c test_hashmap.c \
 		   test_vector.c test_parameter.c test_metadata_postgres.c test_string_utils.c \
 		   test_dl.c test_hash.c test_exception.c test_rpq.c test_common.c \
-		   test_autocast.c
+		   test_autocast.c test_bitset.c
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
 
 testexprcplex_SOURCES = test_expr_to_cplex.c
-testexprcplex_LDADD = $(top_builddir)/src/libsrc.la 
+testexprcplex_LDADD = $(top_builddir)/src/libsrc.la
 
 # testcplex_SOURCES = test_cplex.c
 # testcplex_LDADD = $(top_builddir)/src/libsrc.la
@@ -58,7 +58,7 @@ testrpq_SOURCES = test_rpq_to_dl.c
 testrpq_LDADD = $(top_builddir)/src/libsrc.la
 
 testlibgprom_SOURCES = test_libgprom.c test_common.c
-testlibgprom_LDADD = $(top_builddir)/src/libgprom/libgprom.la $(top_builddir)/src/libsrc.la 
+testlibgprom_LDADD = $(top_builddir)/src/libgprom/libgprom.la $(top_builddir)/src/libsrc.la
 
 
 # running test cases with make check

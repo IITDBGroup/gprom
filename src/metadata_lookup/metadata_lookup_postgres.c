@@ -239,6 +239,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->connectionDescription = postgresGetConnectionDescription;
     p->sqlTypeToDT = postgresBackendSQLTypeToDT;
     p->dataTypeToSQL = postgresBackendDatatypeToSQL;
+	p->getMinAndMax = postgresGetMinAndMax;
 
     return p;
 }
@@ -972,7 +973,12 @@ postgresBackendDatatypeToSQL (DataType dt)
     return "text";
 }
 
-
+HashMap *
+postgresGetMinAndMax(char* tableName, char* colName)
+{
+	HashMap *result_map = NEW_MAP(Constant, Node);
+	return result_map;
+}
 
 void
 postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
@@ -1326,6 +1332,18 @@ char *
 postgresGetViewDefinition(char *viewName)
 {
     return NULL;
+}
+
+char *
+postgresBackendDatatypeToSQL (DataType dt)
+{
+	return NULL;
+}
+
+HashMap *
+postgresGetMinAndMax(char* tableName, char* colName)
+{
+	return NULL;
 }
 
 void
