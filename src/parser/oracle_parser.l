@@ -228,13 +228,10 @@ strconcat		"||"
 (?i:UNCERTAIN)		TOK(UNCERTAIN)
 (?i:TIP)			TOK(TIP)
 (?i:INCOMPLETE)		TOK(INCOMPLETE)
-<<<<<<< HEAD
 (?i:XTABLE) 		TOK(XTABLE)
 (?i:URANGE)			TOK(URANGE)
 (?i:RADB)			TOK(RADB)
 (?i:UADB)			TOK(UADB)
-=======
-(?i:VTABLE) 		TOK(VTABLE)
 (?i:CAPTURE)		TOK(CAPTURE)
 (?i:COARSE)			TOK(COARSE)
 (?i:GRAINED)		TOK(GRAINED)
@@ -242,7 +239,6 @@ strconcat		"||"
 (?i:PAGE)		TOK(PAGE)
 (?i:RANGESA)		TOK(RANGESA)
 (?i:RANGESB)		TOK(RANGESB)
->>>>>>> nesting_LZY
 
 	/* booleans */
 {bool}			TOK(boolConst)

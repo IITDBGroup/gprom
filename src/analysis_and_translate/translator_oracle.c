@@ -130,13 +130,10 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
-<<<<<<< HEAD
     //INFO_NODE_BEATIFY_LOG("translate QB model", q);
-=======
     List *attrsOffsetsList = NIL;
 
     INFO_NODE_BEATIFY_LOG("translate QB model", q);
->>>>>>> nesting_LZY
 
     result = translateGeneral(q, &attrsOffsetsList);
 
@@ -762,15 +759,10 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
         }
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
-<<<<<<< HEAD
      	case PROV_INPUT_RANGE_QUERY:
 	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
-		{
-            child = translateQueryOracle(prov->query);
-=======
         {
             child = translateQueryOracleInternal(prov->query, attrsOffsetsList);
->>>>>>> nesting_LZY
             addChildOperator((QueryOperator *) result, child);
         }
 		break;
