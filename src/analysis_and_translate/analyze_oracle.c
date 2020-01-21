@@ -985,6 +985,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     {
         case T_FromTableRef:
         {
+			FromTableRef *lt = (FromTableRef *) left;
+			lt->tableId = backendifyIdentifier(lt->tableId);
         	analyzeFromTableRef((FromTableRef *)left);
             analyzeFromProvInfo(left);
         }
@@ -1006,6 +1008,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 	{
 		case T_FromTableRef:
 		{
+			FromTableRef *rt = (FromTableRef *) right;
+			rt->tableId = backendifyIdentifier(rt->tableId);
             analyzeFromTableRef((FromTableRef *)right);
 		    analyzeFromProvInfo(right);
 		}
