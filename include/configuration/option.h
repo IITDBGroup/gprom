@@ -117,6 +117,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PS_USE_BRIN_OP "us_brin_op"
 #define OPTION_PS_ANALYZE "ps_analyze"
 #define OPTION_PS_USE_NEST "ps_use_nest"
+#define OPTION_PS_POST_TO_ORACLE "ps_post_to_oracle"
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(

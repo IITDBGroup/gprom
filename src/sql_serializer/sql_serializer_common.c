@@ -14,7 +14,7 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
-
+#include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
@@ -25,7 +25,10 @@
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer.h"
 
-#define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
+
+//#define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
+#define TEMP_VIEW_NAME_PATTERN "temp_view_%u"
+
 
 static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);

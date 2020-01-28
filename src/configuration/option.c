@@ -183,6 +183,7 @@ boolean ps_set_bits = FALSE;
 boolean ps_use_brin_op = FALSE;
 boolean ps_analyze = TRUE;
 boolean ps_use_nest = FALSE;
+boolean ps_post_to_oracle = FALSE;
 
 // struct that encapsulates option state
 struct option_state {
@@ -708,6 +709,14 @@ OptionInfo opts[] =
 				 "Activate ps_use_nest about provenance sketch",
 				 OPTION_BOOL,
 				 wrapOptionBool(&ps_use_nest),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_POST_TO_ORACLE,
+				 "-ps_post_to_oracle",
+				 "Activate using postgres generate oracle sql",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_post_to_oracle),
 				 defOptionBool(FALSE)
 		 },
 		 {

@@ -13,7 +13,7 @@
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
-
+#include "configuration/option.h"
 #include "log/logger.h"
 
 #include "sql_serializer/sql_serializer_common.h"
@@ -53,7 +53,10 @@ serializeOperatorModelPostgres(Node *q)
     createAPI();
 
     // quote idents for postgres
-    genQuoteAttributeNames(q);
+
+    if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+		genQuoteAttributeNames(q);
+
     DEBUG_OP_LOG("after attr quoting", q);
 
     // add casts to null constants to make postgres aware of their types
@@ -651,9 +654,18 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 //            appendStringInfo(from, "%s%s AS F%u",
 //                    quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
 //                    (*curFromItem)++);
+        	if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+        	{
     			appendStringInfo(from, "%s%s F%u_%u",
     					quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
     					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+        	}
+        	else
+        	{
+    			appendStringInfo(from, "%s%s F%u_%u",
+    					t->tableName, asOf ? asOf : "",
+    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+        	}
         }
 
 
