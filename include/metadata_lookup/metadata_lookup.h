@@ -31,6 +31,7 @@ NEW_ENUM_WITH_TO_STRING(MetadataLookupPluginType,
     METADATA_LOOKUP_PLUGIN_ORACLE,
     METADATA_LOOKUP_PLUGIN_POSTGRES,
     METADATA_LOOKUP_PLUGIN_SQLITE,
+    METADATA_LOOKUP_PLUGIN_MONETDB,
     METADATA_LOOKUP_PLUGIN_EXTERNAL
 );
 
@@ -75,6 +76,8 @@ typedef struct MetadataLookupPlugin
     boolean (*isWindowFunction) (char *functionName);
     DataType (*getFuncReturnType) (char *fName, List *argTypes, boolean *funcExists);
     DataType (*getOpReturnType) (char *oName, List *argTypes, boolean *funcExists);
+    DataType (*sqlTypeToDT) (char *sqlType);
+    char * (*dataTypeToSQL) (DataType dt);
 
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
@@ -82,11 +85,12 @@ typedef struct MetadataLookupPlugin
     /* audit log access */
     void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
             List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
-    long (*getCommitScn) (char *tableName, long maxScn, char *xid);
+    gprom_long_t (*getCommitScn) (char *tableName, gprom_long_t maxScn, char *xid);
 
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
     Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    void (*executeQueryIgnoreResult) (char *query);
     int (*getCostEstimation)(char *query);
 
     /* cache for catalog information */
@@ -126,6 +130,8 @@ extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
 extern DataType getFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
 extern DataType getOpReturnType (char *oName, List *argTypes, boolean *opExists);
+extern DataType backendSQLTypeToDT (char *sqlType);
+extern char * backendDatatypeToSQL (DataType dt);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern List *getKeyInformation (char *tableName);
@@ -133,7 +139,8 @@ extern List *getKeyInformation (char *tableName);
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Relation *executeQuery (char *sql);
-extern long getCommitScn (char *tableName, long maxScn, char *xid);
+extern void executeQueryIgnoreResult (char *sql);
+extern gprom_long_t getCommitScn (char *tableName, gprom_long_t maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int getCostEstimation(char *query);
 

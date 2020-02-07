@@ -6,7 +6,7 @@ DIR=$(pwd -L)
 popd > /dev/null
 pushd ${DIR}/..
 
-CONF_OPTIONS=--disable-postgres
+CONF_OPTIONS=--disable-postgres --disable-monetdb
  
 # Mac OS X
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
@@ -18,7 +18,7 @@ else
 	echo "LINUX DISTRIBUTION = <${LINUX_DISTRIBUTION}>" 
 	if [[ "${LINUX_DISTRIBUTION}" != '12.04' ]]; then
 		make dist
-		export DISTCHECK_CONFIGURE_FLAGS="--disable-postgres" && make distcheck
+		export DISTCHECK_CONFIGURE_FLAGS="--disable-postgres --disable-monetdb" && make distcheck
 	fi
 fi
 

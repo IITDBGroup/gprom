@@ -50,6 +50,7 @@ public interface GProM_JNA extends Library {
 
     public String gprom_getOptionType(String key);
     public boolean gprom_optionExists(String key);
+    public String gprom_getOptionHelp();
     
     // logging  callback interface
     interface GProMLoggerCallbackFunction extends Callback {

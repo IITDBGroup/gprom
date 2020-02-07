@@ -26,7 +26,7 @@ if test "x$with_oci" = x; then
     	AC_MSG_RESULT([yes, found at $with_oci])
     else
     	AC_MSG_RESULT([not set])
-	fi	
+	fi
 else
 	if test -d "$with_oci"; then
 		LDFLAGS="$LDFLAGS -L$with_oci"
@@ -87,7 +87,48 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
-# libpq library location
+# All Oracle Checks
+AC_DEFUN([AC_ORACLE_ALL_CHECKS],
+[
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_OCI_LOCATION
+  AC_OCIH_LOCATION
+  AC_OCI_LIB_LOCATION
+  AC_OCILIB_LOCATION
+  AC_CHECK_HEADERS([ocilib.h],
+# do nothing if header exists
+    [],
+# fail if header not found
+    [AC_MSG_ERROR([missing Oracle ocilib.h header])]
+    )
+# check for the libraries
+  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
+    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
+    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+])
+# Postgres libpq header location
+AC_DEFUN([AC_LIBPQ_HEADER_LOCATION],
+[AC_ARG_WITH(libpq-headers, [  --with-libpq-headers], , )
+AC_MSG_CHECKING([for user provided libpq header location])
+if test "x$with_libpq_headers" != x; then
+	if test -f "$with_libpq_headers/libpq-fe.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_libpq_headers"
+    	AC_MSG_RESULT([yes, found at $with_libpq_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no headers for Postgres libpq found in location $with_libpq_headers])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# Postgres libpq library location
 AC_DEFUN([AC_LIBPQ_LOCATION],
 [AC_ARG_WITH(libpq, [  --with-libpq], , )
 AC_MSG_CHECKING([for user provided libpq location])
@@ -104,13 +145,90 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# All Postgres Checks
+AC_DEFUN([AC_POSTGRES_ALL_CHECKS],
+[
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_LIBPQ_LOCATION
+  AC_LIBPQ_HEADER_LOCATION
+  AC_CHECK_HEADERS([libpq-fe.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find PostgreSQL libpq-fe.h])]
+  )
+# check for the libpq library
+  AC_CHECK_LIB([pq],[PQconndefaults],[],[
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
+  ])
+]
+)
+# MonetDB Mapi header location
+AC_DEFUN([AC_MAPIH_LOCATION],
+[AC_ARG_WITH(mapi-headers, [  --with-mapi-headers], , )
+AC_MSG_CHECKING([for user provided mapi header location])
+if test "x$with_mapi_headers" != x; then
+	if test -f "$with_mapi_headers/mapi.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_mapi_headers"
+    	AC_MSG_RESULT([yes, found at $with_mapi_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no headers for MonetDB mapi found in location $with_mapi_headers])
+	fi
+else
+    # monetdb install in monetdb subdir of include directory
+    CPPFLAGS="$CPPFLAGS -I/usr/lib/monetdb"
+	AC_MSG_RESULT([not set])
+fi
+])
+# MonetDB Mapi library location
+AC_DEFUN([AC_MAPI_LOCATION],
+[AC_ARG_WITH(mapi, [  --with-mapi-lib], , )
+AC_MSG_CHECKING([for user provided MonetDB mapi library location])
+if test "x$with_mapi_lib" != x; then
+	if test -d "$with_mapi_lib"; then
+		LDFLAGS="$LDFLAGS -L$with_mapi_lib"
+    	AC_MSG_RESULT([yes, $with_mapi_lib])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no libmapi library found in location $with_mapi_lib])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# All Monetdb Checks
+AC_DEFUN([AC_MONETDB_ALL_CHECKS],
+[
+# user has provided us with a non-standard location for MonetDB Mapi library
+  AC_MAPI_LOCATION
+  AC_MAPIH_LOCATION
+  AC_CHECK_HEADERS([mapi.h],
+# do nothing if header exists
+    [],
+# fail if header does not exists
+    [AC_MSG_ERROR([Unable to find MonetDB mapi.h header])]
+  )
+# check for the mapi library
+  AC_CHECK_LIB([mapi],[mapi_unquote],[],[
+    AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
+  ])
+])
+# All SQLite Checks
+AC_DEFUN([AC_SQLITE_ALL_CHECKS],
+[
+    AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+	])
+])
 # cplex library location
 AC_DEFUN([AC_CPLEX_LOCATION],
-[AC_ARG_WITH(cplex, [  --with-cplex], , )
+[
+AC_ARG_WITH(cplex, [  --with-cplex], , )
 AC_MSG_CHECKING([for user provided cplex location])
 if test "x$with_cplex" != x; then
 	if test -d "$with_cplex"; then
-		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64) 
+		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64)
 		CPLEXSYSTEM=x86-${MYARCH}_${OSTYPE}
 		CPLEXLIBFORMAT=static_pic
 		LDFLAGS="$LDFLAGS -L$with_cplex/lib/$CPLEXSYSTEM/$CPLEXLIBFORMAT"
@@ -168,7 +286,8 @@ AS_IF([test "x$enable_gprof" == "xyes"], [
 ])
 # Activate cplex support
 AC_DEFUN([AC_ENABLE_CPLEX],
-[AC_ARG_ENABLE(cplex, AS_HELP_STRING([--enable-cplex],[activate support for cplex]))
+[
+AC_ARG_ENABLE(cplex, AS_HELP_STRING([--enable-cplex],[activate support for cplex]))
 AC_MSG_CHECKING([activate linking against cplex])
 
 AS_IF([test "x$enable_cplex" == "xyes"], [
@@ -221,7 +340,7 @@ AS_IF([test "x$enable_timing" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
-# compile with Postgres support
+# compile with SQLite support
 AC_DEFUN([AC_ENABLE_SQLITE],
 [
 AC_MSG_CHECKING([should be compiled with support for SQLite backends])
@@ -229,6 +348,20 @@ AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--disable-sqlite],[Disable compilation wit
 
 AS_IF([test "x$enable_sqlite" == "xno"], [
   AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
+# compile with MonetDB support
+AC_DEFUN([AC_ENABLE_MONETDB],
+[
+AC_MSG_CHECKING([should be compiled with support for MonetDB backends])
+AC_ARG_ENABLE(monetdb, AS_HELP_STRING([--disable-monetdb],[Disable compilation with support for MonetDB backends]))
+
+AS_IF([test "x$enable_monetdb" == "xno"], [
+  AC_DEFINE([DISABLE_MONETDB],[],[Disable support for MonetDB backends])
   AC_MSG_RESULT([no])
 ],
 [
@@ -296,7 +429,7 @@ AS_IF([test "x$enable_readline" == "xno"], [
 AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
 [
 AC_MSG_CHECKING([set custom C compiler flags])
-AS_IF([test "x$enable_debug" == "xno"], 
+AS_IF([test "x$enable_debug" == "xno"],
 [
 	GPROM_CFLAGS_DEBUG="-g"
 	GPROM_CFLAGS_OPT="-O3"
@@ -315,7 +448,15 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ])
 ################################################################################
 # Init autoconf
-AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
+AC_INIT([GProM],[1.0.3],[bglavic@iit.edu])
+# CFLAGS from user or set to nothing
+AS_IF([test "x$CFLAGS" != "x"],
+[
+	userCFLAGS="$CFLAGS"
+],
+[]
+)
+: ${CFLAGS=""}
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([-Wall foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
@@ -326,9 +467,14 @@ AC_CANONICAL_HOST
 AS_CASE([$host_os],
    [*linux*], [OSTYPE=linux],
    [*darwin*], [OSTYPE=osx],
-   [*windows*],[OSTYPE=windows],
+   [*windows*], [OSTYPE=windows],
+   [*mingw*], [OSTYPE=windows],
    [OSTYPE=unknown]
 )
+AS_IF([test "x$OSTYPE" == "xwindows"], [
+  AC_DEFINE([OS_WINDOWS],[],[Compiling for windows])
+  AC_DEFINE([GPROM_BUILD_DLL],[],[Compiling for windows, build dll])
+], [])
 AC_SUBST([OSTYPE])
 AC_SUBST([OSDETAILS],$host_os)
 AC_SUBST([OSARCH],$host_cpu)
@@ -338,35 +484,30 @@ AC_DEFINE_UNQUOTED([OS_ARCH],["${OSARCH}"],[OS architecture])
 AC_MACHINE_ARCH
 ################################################################################
 # CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
-AS_IF([test "x$CFLAGS" != "x"],
-[
-	userCFLAGS="$CFLAGS"	
-],
-[]
-) 
-AC_PROG_CC
-# restore user CFLAGS
-AS_IF([test "x$userCFLAGS" == "x"],
-[
-	CFLAGS=""
-],
-[
-	CFLAGS="$userCFLAGS"
-]
-) 
+#CFLAGS="${GPROM_CFLAGS}"
 AC_PROG_CC_STDC
+# restore user CFLAGS
+#CFLAGS=""
+#AS_IF([test "x$userCFLAGS" == "x"],
+#[
+#	CFLAGS=""
+#],
+#[
+#	CFLAGS="$userCFLAGS"
+#]
+#)
 # CAN INLINE FUNCTIONS?
 AC_C_INLINE
 ################################################################################
 # SET OUTPUT VARIABLE FOR TOP SOURCE DIR
-mysrcdir="$(pushd "$(srcdir)" > /dev/null; pwd)"
+mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
 AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
-GPROM_SRCDIR="$(pushd "$(srcdir)" > /dev/null; pwd)"
+GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
 ################################################################################
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
-BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`" 
+BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`"
 AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
 AC_CHECK_PROG([pandoc],[pandoc],[yes])
@@ -374,7 +515,7 @@ AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
 AC_CHECK_PROG([rman],[rman],[yes])
 AM_CONDITIONAL([HAVE_PROG_RMAN], [test "x$rman" = xyes])
 # INIT LIBTOOL
-LT_INIT
+LT_INIT([win32-dll])
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -385,7 +526,7 @@ AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
-AC_CHECK_TYPES([ptrdiff_t])
+AC_TYPE_LONG_LONG_INT
 ################################################################################
 # HEADERS
 AC_CHECK_HEADERS([stddef.h])
@@ -404,20 +545,34 @@ AC_CHECK_HEADERS([pwd.h])
 #AC_CHECK_HEADERS([readline/history.h])
 AC_HEADER_ASSERT
 ################################################################################
+# CHECK FOR ADDITIONAL TYPES IN DISCOVERED HEADERS
+AC_CHECK_TYPES([ptrdiff_t])
+AC_CHECK_TYPES([sigjmp_buf], [], [], [
+AC_INCLUDES_DEFAULT
+#include <setjmp.h>
+])
+################################################################################
 # MEMORY ALLOCATION STUFF
 AC_CHECK_HEADERS([malloc.h])
-AC_FUNC_ALLOCA
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
+AC_CHECK_FUNCS([malloc])
+AC_CHECK_FUNCS([alloca])
+AC_CHECK_FUNCS([realloc])
+# removed, because they cause trouble with cross-compilation
+#AC_FUNC_ALLOCA
+#AC_FUNC_MALLOC
+#AC_FUNC_REALLOC
 # CHECK FOR STD C FUNCS
 AC_CHECK_FUNCS([memset])
 AC_CHECK_FUNCS([strdup])
 AC_CHECK_FUNCS([strcmp])
+#AC_CHECK_FUNCS([sigsetjmp])
+AC_CHECK_FUNCS([strsep])
 ################################################################################
 # Check which backends should be supported
 AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
 AC_ENABLE_SQLITE
+AC_ENABLE_MONETDB
 ################################################################################
 # Check which language bindings to build
 AC_ENABLE_JAVA_BINDING
@@ -430,64 +585,41 @@ AC_CHECK_LIB([m],[pow],[],[
   AC_MSG_ERROR([missing libm library (searching for pow function)])
 ])
 ################################################################################
+# check for libpthread if target is not windows
+AS_IF([test "x$OSTYPE" == "xwindows"],
+[
+  AC_MSG_WARN([compiling for windows target do not attempt to link against libpthread])
+],
+[
+AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
+  AC_MSG_ERROR([missing libpthread library (searching for pthread_mutex_lock function)])
+])
+])
+################################################################################
 # Enable cplex
 AC_ENABLE_CPLEX
 ################################################################################
 # cplex library
-AS_CASE(["$enable_cplex"], 
+AS_CASE(["$enable_cplex"],
   [yes], [
-  AC_CHECK_LIB([pthread],[pthread_self],[],[
-    AC_MSG_ERROR([missing libpthread library (searching for pthread_self function)])
-  ])
-# check if user has provided us with non-standard locations for OCI/OCILIB libraries
-  AC_CPLEX_LOCATION  
+# check if user has provided us with non-standard locations for CPLEX libraries
+  AC_CPLEX_LOCATION
 # check for the libraries
   AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
-    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex  support do not use --enable-cplex])
+    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex support do not use --enable-cplex])
   ])
   ],
+  # No and default
   [no], [],
   []
-])
+)
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
-AS_CASE(["$enable_oracle"], 
-  [yes], [
-# check if user has provided us with non-standard locations for OCI/OCILIB libraries
-  AC_OCI_LOCATION
-  AC_OCIH_LOCATION
-  AC_OCI_LIB_LOCATION
-  AC_OCILIB_LOCATION
-# check for the libraries
-  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
-    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
-  ])
-  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
-  ])
-  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
-    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
-  ])
-  ],
+AS_CASE(["$enable_oracle"],
+  [yes], [AC_ORACLE_ALL_CHECKS],
   [no], [],
-  [
-# check if user has provided us with non-standard locations for OCI/OCILIB libraries
-  AC_OCI_LOCATION
-  AC_OCIH_LOCATION
-  AC_OCI_LIB_LOCATION
-  AC_OCILIB_LOCATION
-# check for the libraries
-  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
-    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
-  ])
-  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
-  ])
-  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
-    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
-  ])
-  ]
-])
+  [AC_ORACLE_ALL_CHECKS]
+)
 ################################################################################
 # Readline
 AC_CHECK_LIB([readline],[readline],[],[
@@ -504,49 +636,33 @@ AS_IF([test "x$enable_readline" == "xno"], [
 #  AC_MSG_ERROR([missing cplex library])
 #])
 ################################################################################
-# Postgres access library (libpq)
-AS_CASE(["$enable_postgres"], 
-  [yes], [
-# check if user has provided us with a non-standard location for Postgres's libpq library
-  AC_LIBPQ_LOCATION
-  AC_CHECK_HEADERS([libpq-fe.h])
-# check for the libpq library
-  AC_CHECK_LIB([pq],[PQconndefaults],[],[
-    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
-  ])
-  ],
+# Postgres C client library (libpq)
+AS_CASE(["$enable_postgres"],
+  [yes], [AC_POSTGRES_ALL_CHECKS],
+  # Deactivated
   [no], [],
-  [
-# check if user has provided us with a non-standard location for Postgres's libpq library
-  AC_LIBPQ_LOCATION
-  AC_CHECK_HEADERS([libpq-fe.h])
-# check for the libpq library
-  AC_CHECK_LIB([pq],[PQconndefaults],[],[
-    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
-  ])  
-  ]
+  # Default (active)
+  [AC_POSTGRES_ALL_CHECKS]
 )
 ################################################################################
 # SQlite library (libsqlite3)
 # check for the sqlite3 library
-AS_CASE(["$enable_sqlite"], 
-	[yes], [
-	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
-    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
-	])
-	],
-	[no], [], 
-	[
-	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
-    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
-	])
-	]
+AS_CASE(["$enable_sqlite"],
+	[yes], [AC_SQLITE_ALL_CHECKS],
+    # Deactivated
+    [no], [],
+    # Default (active)
+	[AC_SQLITE_ALL_CHECKS]
 )
-#AS_IF([test "x$enable_sqlite" == "xno"], [
-#  AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
-#    AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
-#  ])
-#])
+################################################################################
+# MonetDB C client library (mapi)
+AS_CASE(["$enable_monetdb"],
+  [yes], [AC_MONETDB_ALL_CHECKS],
+# Deactivated
+  [no], [],
+# Default (active)
+  [AC_MONETDB_ALL_CHECKS]
+)
 ################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
@@ -593,12 +709,17 @@ AC_CONFIG_FILES([
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
 	src/provenance_rewriter/game_provenance/Makefile
+	src/provenance_rewriter/semiring_combiner/Makefile
+	src/provenance_rewriter/uncertainty_rewrites/Makefile
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
 	src/provenance_rewriter/update_and_transaction/Makefile
+	src/provenance_rewriter/summarization_rewrites/Makefile
+	src/provenance_rewriter/xml_rewrites/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile
+	src/temporal_queries/Makefile
 	src/utility/Makefile
 	src/libgprom/Makefile
 	test/Makefile
@@ -609,13 +730,13 @@ AC_OUTPUT
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  OS.................: $OSTYPE-$OSARCH ($OSDETAILS) 
+  OS.................: $OSTYPE-$OSARCH ($OSDETAILS)
   Prefix.............: $prefix
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
-  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
+  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
-  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}
+  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}, MonetDB - ${enable_monetdb:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -625,6 +746,6 @@ echo "
   LDFLAGS........: $LDFLAGS
   C Compiler.....: $C $CPPFLAGS $GPROM_CFLAGS $CFLAGS
   Linker.........: $LD $LDFLAGS $LIBS
-  Bison..........: $BISON 
+  Bison..........: $BISON
   Flex...........: $LEX
 "

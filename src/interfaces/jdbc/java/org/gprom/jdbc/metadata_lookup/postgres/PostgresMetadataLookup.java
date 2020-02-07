@@ -1,17 +1,123 @@
 package org.gprom.jdbc.metadata_lookup.postgres;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
+import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup.FunctionDesc;
 
+import static org.gprom.jdbc.jna.GProMJavaInterface.DataType.*;
+import static org.gprom.jdbc.utility.LoggerUtil.logException;
 
 public class PostgresMetadataLookup extends AbstractMetadataLookup {
-	private static Logger log = Logger.getLogger(PostgresMetadataLookup.class);
+	
+	private static Logger log = LogManager.getLogger(PostgresMetadataLookup.class);
 
+	enum MetadataStmtType {
+		GetFuncReturnType,
+		isAggFunction,
+		GetOpReturnType,
+		GetPK,
+		isWinFunc,
+		GetViewDef,
+		OidGetTypename
+	}
+	
+	private Map<MetadataStmtType, PreparedStatement> stmts;
+	private Map<String, String> viewDefs;
+	private HashMap<String, Boolean> aggFuncs;
+	private HashMap<String, Boolean> winFuncs;
+	private Map<FuncDef, DataType> funcReturnTypes;
+	private Map<FuncDef, DataType> opReturnTypes;
+	private Map<Integer, String> oidToTypename;
+	
+	private static class FuncDef {
+		private final DataType[] inTypes;
+		private final String name;
+		
+		public FuncDef (String name, DataType[] inTypes) {
+			this.name = name;
+			this.inTypes = inTypes;
+		}
+		
+		@Override
+		public boolean equals(Object o) {
+			FuncDef other;
+			if (! (o instanceof FuncDef))
+				return false;
+			
+			other = (FuncDef) o;
+			
+			if(!this.name.equals(other.name))
+				return false;
+			
+			if (!Arrays.equals(this.inTypes, other.inTypes))
+				return false;
+			
+			return true;
+		}
+		
+		@Override
+		public int hashCode () {
+			int result = name.hashCode();
+			result |= Arrays.hashCode(inTypes);
+			
+			return result;
+		}
+		
+	}
+	
 	public PostgresMetadataLookup(Connection con) throws SQLException {
 		super(con);
+		stmts = new HashMap<MetadataStmtType, PreparedStatement> ();
+		prepareStatements();
+		setupMetadataCache();
+	}
+
+	/**
+	 * 
+	 */
+	private void setupMetadataCache() {
+		viewDefs = new HashMap<String, String> ();
+		aggFuncs = new HashMap<String, Boolean> ();
+		winFuncs = new HashMap<String, Boolean> ();
+		funcReturnTypes = new HashMap<FuncDef, DataType> ();
+		opReturnTypes = new HashMap<FuncDef, DataType> ();
+		oidToTypename = new HashMap<Integer, String> ();
+	}
+
+	/**
+	 * @throws SQLException 
+	 * 
+	 */
+	private void prepareStatements() throws SQLException {
+		stmts.put(MetadataStmtType.isAggFunction, 
+				con.prepareStatement("SELECT bool_or(proisagg) AS is_agg FROM pg_proc WHERE proname = ?::text;"));
+		stmts.put(MetadataStmtType.GetFuncReturnType, 
+				con.prepareStatement("SELECT prorettype, proargtypes, proallargtypes FROM pg_proc WHERE proname = ?::name AND pronargs = ?::smallint;"));		
+		stmts.put(MetadataStmtType.GetOpReturnType, 
+				con.prepareStatement("SELECT oprleft, oprright, oprresult FROM pg_operator WHERE oprname = ?::name;"));		
+		stmts.put(MetadataStmtType.GetPK, 
+				con.prepareStatement("SELECT a.attname FROM pg_constraint c, pg_class t, pg_attribute a WHERE c.contype = 'p' AND c.conrelid = t.oid AND t.relname = ?::text AND a.attrelid = t.oid AND a.attnum = ANY(c.conkey);"));
+		stmts.put(MetadataStmtType.isWinFunc, 
+				con.prepareStatement("SELECT bool_or(proiswindow OR proisagg) is_win FROM pg_proc WHERE proname = ?::text;"));
+		stmts.put(MetadataStmtType.GetViewDef, 
+				con.prepareStatement("SELECT definition FROM pg_views WHERE viewname = ?::text;"));
+		stmts.put(MetadataStmtType.OidGetTypename, 
+				con.prepareStatement("SELECT typname FROM pg_type WHERE oid = ?::oid;"));
 	}
 
 	/* (non-Javadoc)
@@ -19,18 +125,109 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 */
 	@Override
 	public String getOpReturnType(String oName, String[] stringArray,
-			int numArgs) {
-		// TODO Auto-generated method stub
-		return null;
+			int numArgs)  {
+		DataType[] args = Arrays.stream(stringArray).map(x -> DataType.valueOf(x)).toArray(DataType[]::new);
+		FuncDef oIn= new FuncDef(oName, args);
+		if (opReturnTypes.containsKey(oIn))
+			return opReturnTypes.get(oIn).toString();
+		
+		try {
+			PreparedStatement s = stmts.get(MetadataStmtType.GetOpReturnType);
+			s.setString(1, oName);
+			ResultSet rs = s.executeQuery();
+			DataType[] inTypes = new DataType[2];
+			
+			while(rs.next()) {
+				String retTypeString = rs.getString(3); 
+				String lOidString = rs.getString(1);
+				String rOidString = rs.getString(2);
+				inTypes[0] = oidToDT(lOidString);
+				inTypes[1] = oidToDT(rOidString);
+				DataType retType = oidToDT(retTypeString);
+				
+				opReturnTypes.put(new FuncDef (oName, inTypes), retType);
+				
+				if (Arrays.equals(inTypes, args)) {
+					return retType.toString();
+				}
+			}
+			
+			rs.close();
+		
+		} catch (SQLException e) {
+			log.error("error while trying to determine op return type: ", e);
+		}
+	
+		return DT_STRING.toString();
 	}
 
+	@Override
+	public String getFuncReturnType(String fName, String[] stringArray,
+			int numArgs) {
+		DataType[] args = Arrays.stream(stringArray).map(x -> DataType.valueOf(x)).toArray(DataType[]::new);
+		FuncDef fIn= new FuncDef(fName, args);
+		if (funcReturnTypes.containsKey(fIn))
+			return funcReturnTypes.get(fIn).toString();
+		
+		try {
+			PreparedStatement s = stmts.get(MetadataStmtType.GetFuncReturnType);
+			s.setString(1, fName);
+			s.setInt(2, numArgs);
+			
+			ResultSet rs = s.executeQuery();
+			
+			while(rs.next()) {
+				String retTypeString = rs.getString(1); 
+				String oidString = rs.getString(2);
+				DataType[] inTypes = oidVecToDataTypes(oidString);
+				DataType retType = oidToDT(retTypeString);
+				
+				funcReturnTypes.put(new FuncDef (fName, inTypes), retType);
+				
+				if (Arrays.equals(inTypes, args)) {
+					return retType.toString();
+				}
+			}
+			
+			rs.close();
+		
+		} catch (SQLException e) {
+			log.error("error while trying to determine op return type: ", e);
+		}
+	
+		return DT_STRING.toString();
+	}
+	
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getViewDefinition(java.lang.String)
 	 */
 	@Override
 	public String getViewDefinition(String viewName) {
-		// TODO Auto-generated method stub
-		return null;
+		String result = null;
+		
+		if (viewDefs.containsKey(viewName))
+			return viewDefs.get(viewName);
+		
+		try {
+			PreparedStatement s = stmts.get(MetadataStmtType.GetViewDef);
+			s.setString(1, viewName);
+			ResultSet rs = s.executeQuery();
+
+			
+			while(rs.next()) {
+				result = rs.getString(1).trim(); 
+			}
+			
+			if (result != null)
+				viewDefs.put(viewName, result);
+			
+			rs.close();
+		
+		} catch (SQLException e) {
+			log.error("error while trying to determine definition of view: ", e);
+		}
+		
+		return result;
 	}
 
 	/* (non-Javadoc)
@@ -47,7 +244,30 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 */
 	@Override
 	public int isWindow(String functionName) {
-		// TODO Auto-generated method stub
+		if (winFuncs.containsKey(functionName))
+			return winFuncs.get(functionName) ? 1 : 0;
+		
+		try {
+			PreparedStatement s = stmts.get(MetadataStmtType.isWinFunc);
+			s.setString(1, functionName);
+			ResultSet rs = s.executeQuery();
+			String retString = null;
+			boolean isWin;
+			
+			while(rs.next()) {
+				retString = rs.getString(1); 
+			}
+						
+			rs.close();
+			
+			isWin = ("t".equals(retString));
+			winFuncs.put(functionName, isWin);
+			
+			return (isWin) ? 1 : 0;		
+		} catch (SQLException e) {
+			log.error("error while trying to determine whether function is aggregation function", e);
+		}
+	
 		return 0;
 	}
 
@@ -56,11 +276,136 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 */
 	@Override
 	public int isAgg(String functionName) {
-		// TODO Auto-generated method stub
+		if (aggFuncs.containsKey(functionName))
+			return aggFuncs.get(functionName) ? 1 : 0;
+		
+		try {
+			PreparedStatement s = stmts.get(MetadataStmtType.isAggFunction);
+			s.setString(1, functionName);
+			ResultSet rs = s.executeQuery();
+			String retString = null;
+			boolean isAgg;
+			
+			while(rs.next()) {
+				retString = rs.getString(1); 
+			}
+			
+			rs.close();
+			
+			isAgg = ("t".equals(retString));
+			aggFuncs.put(functionName, isAgg);
+			
+			return (isAgg) ? 1 : 0;		
+		} catch (SQLException e) {
+			log.error("error while trying to determine whether function is aggregation function {}", e);
+		}
+	
 		return 0;
 	}
 
+	@Override
+	public DataType sqlTypeToDT (String type) {
+		log.info("type: {} {}", type, postgresTypenameToDT(type));
+		return postgresTypenameToDT(type);
+	}
+	
+	/**
+	 * 
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#dataTypeToSQL(org.gprom.jdbc.jna.GProMJavaInterface.DataType)
+	 */
+	public String dataTypeToSQL (DataType dt) {
+		switch(dt) {
+			case DT_STRING:
+			case DT_VARCHAR2:
+				return "text";
+			case DT_FLOAT:
+				return "float8";
+			case DT_INT:
+			case DT_LONG:
+				return "int8";
+			case DT_BOOL:
+				return "bool";
+		}
+		return "text";
+	}
+	
+	
+	
+	private DataType oidToDT (String oid) {
+		return postgresTypenameToDT(oidToTypeName(oid));
+	}
+	
+	private String oidToTypeName (String oid) {
+		String typName = null;
+		int oidInt = Integer.parseInt(oid);
+		
+		if (oidToTypename.containsKey(oidInt))
+			oidToTypename.get(oidInt);
+		
+		try {
+			PreparedStatement s = stmts.get(MetadataStmtType.OidGetTypename);
+			s.setInt(1, oidInt);
+			ResultSet rs = s.executeQuery();
+			
+			while(rs.next()) {
+				typName = rs.getString(1); 
+			}
+			
+			rs.close();
+			
+			oidToTypename.put(oidInt, typName);
+				
+		} catch (SQLException e) {
+			log.error("error while trying to determine whether function is aggregation function", e);
+		}
+		
+		return typName;
+	}
+	
+	private DataType[] oidVecToDataTypes (String oidString) {
+		String[] oids = oidString.split("\\s+");
+		DataType[] result = new DataType[oids.length];
+		
+		for(int i = 0; i < result.length; i++) {
+			result[i] = oidToDT(oids[i]);
+		}
+		
+		return result;
+	}
+	
+	private DataType postgresTypenameToDT (String typName) {
+		if (typName.equals("char")
+				|| typName.equals("name")
+				|| typName.equals("text")
+				|| typName.equals("tsquery")
+				|| typName.equals("varchar")
+				|| typName.equals("xml")
+				)
+			return DT_STRING;
 
+		// integer data types
+		if (typName.equals("int2")
+				|| typName.equals("int4"))
+			return DT_INT;
+
+		// long data types
+		if (typName.equals("int8"))
+			return DT_LONG;
+
+		// numeric data types
+		if (typName.equals("float4")
+				|| typName.equals("float8")
+				)
+			return DT_FLOAT;
+
+		// boolean
+		if (typName.equals("bool"))
+			return DT_BOOL;
+
+		return DT_STRING;
+	}
+	
+	
 //	/**
 //	 * Checks if the relation name exists and saves also the schema name
 //	 * 

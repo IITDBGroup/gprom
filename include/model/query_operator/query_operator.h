@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * query_operator.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -45,6 +45,7 @@ typedef struct TableAccessOperator
     QueryOperator op;
     char *tableName;
     Node *asOf;
+//    Node *sampClause;
 } TableAccessOperator;
 
 typedef struct SelectionOperator
@@ -98,7 +99,9 @@ NEW_ENUM_WITH_TO_STRING(ReenactUpdateType,
         UPDATE_TYPE_DELETE,
         UPDATE_TYPE_UPDATE,
         UPDATE_TYPE_INSERT_VALUES,
-        UPDATE_TYPE_INSERT_QUERY
+        UPDATE_TYPE_INSERT_QUERY,
+        UPDATE_TYPE_DDL,
+        UPDATE_TYPE_QUERY
 );
 
 typedef struct UpdateOperator
@@ -147,9 +150,23 @@ typedef struct JsonTableOperator
     char *forOrdinality;
 } JsonTableOperator;
 
+typedef struct SampleClauseOperator
+{
+	QueryOperator op;
+	Node *sampPerc;
+} SampleClauseOperator;
+
+typedef struct LimitOperator
+{
+	QueryOperator op;
+	Node *limitExpr;
+	Node *offsetExpr;
+} LimitOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
-                        || isA(op, ConstRelOperator))
+                        || isA(op, ConstRelOperator) \
+						|| isA(op, SampleClauseOperator))
 
 #define IS_UNARY_OP(op) (isA(op,ProjectionOperator)     \
         || isA(op,SelectionOperator)                    \
@@ -157,6 +174,7 @@ typedef struct JsonTableOperator
         || isA(op,DuplicateRemoval)                     \
         || isA(op,WindowOperator)                       \
 		|| isA(op,OrderOperator)                        \
+		|| isA(op,LimitOperator)                        \
 		|| isA(op,JsonTableOperator)                    \
 		|| isA(op,ProvenanceComputation)                \
 		)
@@ -195,6 +213,7 @@ extern List *inferOpResultDTs (QueryOperator *op);
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
         char *alias, List *parents, List *attrNames, List *dataTypes);
+extern SampleClauseOperator *createSampleClauseOp(QueryOperator *input, Node *sampPerc, List *attrNames, List *dataTypes);
 extern JsonTableOperator *createJsonTableOperator(FromJsonTable *fjt);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input,
         List *parents, List *attrNames);
@@ -219,6 +238,7 @@ extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
         QueryOperator *input, List *parents);
 extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
         List *parents);
+extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents);
 
 /* navigation functions */
 #define OP_LCHILD(op) \
@@ -247,6 +267,7 @@ extern void removeStringProperty (QueryOperator *op, char *key);
 #define SET_BOOL_STRING_PROP(op,key) (setStringProperty((QueryOperator *) op, \
         key, (Node *) createConstBool(TRUE)))
 #define GET_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key))
+#define GET_STRING_PROP_STRING_VAL(op,key) (HAS_STRING_PROP(op,key) ? STRING_VALUE(getStringProperty((QueryOperator *) op, key)) : NULL)
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
     && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
 
@@ -278,6 +299,8 @@ extern int getNumAttrs(QueryOperator *op);
 extern int getAttrPos(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByName(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
+extern AttributeReference *getAttrRefByPos (QueryOperator *op, int pos);
+extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
 extern List *getAttrRefsInOperator (QueryOperator *op);

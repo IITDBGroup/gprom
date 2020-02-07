@@ -16,28 +16,116 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/exe_run_query.h"
 #include "utility/string_utils.h"
+#include "configuration/option.h"
+#include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
+
+static void outputResult(Relation *res);
+static void printDBsample(List *stmts);
+
 
 void
 exeRunQuery (void *code)
 {
-    Relation *res;
-    int i = 0;
-    int l = 0;
+    Relation *res = NULL;
     char *adaptedQuery;
-    int *colSizes;
-    int numCol;
-//    int numRows;
-    int totalSize = 0;
+    boolean showResult = getBoolOption(OPTION_SHOW_QUERY_RESULT);
+    boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
+    struct timeval st;
+    struct timeval et;
+    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);	
+    int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
+	// replace \n with new line in format string
+	if (format != NULL)
+		format = replaceSubstr(format, "\\n", "\n");
+
+	if (getBoolOption(OPTION_INPUTDB))
+	{
+		List *codes = splitString(code, ";");
+		printDBsample(codes);
+		return;
+	}
+	
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
 
     // execute query
-    INFO_LOG("run query:\n%s", (char *) adaptedQuery);
-    res = executeQuery((char *) adaptedQuery);
+    INFO_LOG("run query (show results: %s, time query: %s):\n%s", showResult ? "yes" : "no", showTime ? "yes" : "no", (char *) adaptedQuery);
 
+    for (int i = 0; i < repeats; i++)
+    {
+        if (showTime)
+        {
+            gettimeofday(&st, NULL);
+        }
+
+        if (showResult)
+            res = executeQuery((char *) adaptedQuery);
+        else
+            executeQueryIgnoreResult((char *) adaptedQuery);
+
+        if (showTime)
+        {
+            gettimeofday(&et, NULL);
+        }
+
+        if (showResult == TRUE)
+        {
+            outputResult(res);
+        }
+
+        if (showTime)
+        {
+            long usecDiff;
+            long secDiff;
+            double msecs;
+
+            secDiff = et.tv_sec - st.tv_sec;
+            usecDiff = et.tv_usec - st.tv_usec;
+
+            msecs = secDiff * 1000 + (((double) usecDiff) / 1000.0);
+            if (showResult)
+                printf("\n");
+
+            if (format != NULL)
+                printf(format, msecs);
+            else
+                printf("query took %12f msec\n", msecs);
+            fflush(stdout);
+        }
+    }
+}
+
+static void
+printDBsample(List *stmts)
+{
+    int s = 0;
+    Relation *res = NULL;
+
+    FOREACH(char,c, stmts)
+    {
+        if (FOREACH_HAS_MORE(c))
+        {
+            char *r = (char *) STRING_VALUE(MAP_GET_STRING(edbRels,gprom_itoa(++s)));
+//            printf("%s", CONCAT_STRINGS(r,gprom_itoa(s)));
+            printf("%s", r);
+            printf("\n");
+            res = executeQuery((char *) c);
+            outputResult(res);
+        }
+    }
+}
+
+
+static void
+outputResult(Relation *res)
+{
+    int *colSizes;
+    int numCol;
+    int totalSize = 0;
+    int i = 0;
+    int l = 0;
     numCol = LIST_LENGTH(res->schema);
-//    numRows = LIST_LENGTH(res->tuples);
     colSizes = MALLOC(numCol * sizeof(int));
 
     // determine column sizes

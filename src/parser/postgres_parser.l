@@ -1,4 +1,4 @@
-%option prefix="postgres" 
+%option prefix="postgres"
 %option outfile="postgres_parser.lex.c"
 
 /*
@@ -8,7 +8,7 @@
 
 
 /*******************************************************************************
- * options section 
+ * options section
  ******************************************************************************/
 
 /* set lexer options */
@@ -53,13 +53,13 @@
 %}
 
 /********************************************************************
- * lexer states 
+ * lexer states
  */
 
 %s SQL
 
 /********************************************************************
- * predefined regular expressions 
+ * predefined regular expressions
  */
 
 /* whitespace */
@@ -86,13 +86,13 @@ identifiers		({identStart}({identDelim}?{identContinue}+)*)
 parameters		[:]{identifiers}
 
 /* operators */
-/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
+/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		["<<"|">>"] */
 
 
 /*******************************************************************************
- * Token definitions and actions 
+ * Token definitions and actions
  ******************************************************************************/
 %%
 
@@ -147,6 +147,7 @@ STARLL				TOK(STARALL)
 (?i:NOT)        	TOK(NOT)
 (?i:HAVING)        	TOK(HAVING)
 (?i:LIMIT)        	TOK(LIMIT)
+(?i:OFFSET)        	TOK(OFFSET)
 (?i:ORDER)        	TOK(ORDER)
 (?i:BEGIN)        	TOK(BEGIN_TRANS)
 (?i:COMMIT)       	TOK(COMMIT_TRANS)
@@ -189,13 +190,13 @@ STARLL				TOK(STARALL)
 
 	/* names */
 {identifiers}	DOWNCASE_TOK(identifier)
-{quotedIdentifier}   { 		
+{quotedIdentifier}   {
 		postgreslval.stringVal = MALLOC(strlen(postgrestext) - 1);
 		memcpy(postgreslval.stringVal, postgrestext + 1, strlen(postgrestext) - 2);
 		postgreslval.stringVal[strlen(postgrestext) - 2] = '\0';
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", postgrestext);
 		return identifier;
-	}	
+	}
 
 {parameters} {
 		postgreslval.stringVal = MALLOC(strlen(postgrestext));
@@ -211,7 +212,7 @@ STARLL				TOK(STARALL)
 	/* operators */
 {comparisonOps}		TOK(comparisonOps)
 [-+*%/^~&|!]		TOKSELF()
-	
+
 
 
 	/* numbers */
@@ -227,7 +228,7 @@ STARLL				TOK(STARALL)
 		return stringConst;
 	}
 
-		
+
 '[^'\n]*$	{postgreserror("Unterminated string"); }
 
 	/* failure - no token matched */
@@ -242,7 +243,7 @@ STARLL				TOK(STARALL)
 /* use logging framework in the future */
 void postgreserror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, postgrestext);
+	FATAL_LOG("%s at %s\n", s, postgrestext);
 }
 
 void postgresSetupStringInput(char *input)

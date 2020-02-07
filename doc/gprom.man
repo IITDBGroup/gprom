@@ -1,4 +1,4 @@
-.TH gprom 1 "02 October 2016" "version 0.0.1"
+.TH gprom 1 "2018-06-18" "version 1.0.3"
 .\" ********************************************************************************
 .SH NAME
 .B gprom
@@ -25,11 +25,12 @@
 
 .PP
 \fBgprom\fR
-is a command line interface for GProM. gprom can be called in several ways as shown above in the synopsis. The first form starts an interactive shell where the user runs SQL and utility commands. The second form evaluates a single query given as parameter \fIquery\fR.
+is a command line interface for GProM. gprom can be called in several ways as shown above in the synopsis. The first form starts an interactive shell where the user enters queries (in SQL or Datalog) and utility commands. The second form evaluates a single query given as parameter \fIquery\fR.
 The third form runs all SQL commands from file \fIfile\fR.
 The last form describes the provenance extensions that GProM supports for a particular frontend language, e.g., \fIoracle\fR for Oracle SQL. See discussion on parser plugins below for a comprehensive list of supported frontend languages. See the \fBEXAMPLES\fR section for some typical usage examples.
 .\" ********************************************************************************
 .SH OPTIONS
+Boolean options take a single argument, e.g., \fB-time_queries\fR \fITRUE\fR activates timing of queries and \fB-time_queries\fR \fIFALSE\fR deactivates this option. 
 \"****************************************
 .SS HELP
 Options to get help on GProM usage.
@@ -40,10 +41,10 @@ show help message and quit
 \"********************
 .TP
 .BR \-languagehelp " " \fIlanguage\fR
-show help for the selected language (see section on parser plugins below for supported language)
+show help for the selected language (see section on parser plugins below for a list of supported languages)
 \"****************************************
 .SS INPUT
-These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is opened.
+These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is created.
 \"********************
 .TP
 .BR \-query " " \fIquery\fR
@@ -51,8 +52,27 @@ process
 .I query
 \"********************
 .TP
-.BR \-queryfile " " \fIfile\fR
+.BR \-queryFile " " \fIfile\fR
 read query to be processed from \fIfile\fR
+\"****************************************
+.SS OUTPUT AND TIMING QUERIES
+These options control what information GProM is printing for an executed query.
+\"********************
+.TP
+.BR \-time_queries
+measure runtimes of executing rewritten queries. This option is ignored for all executor plugins except for \fIrun\fR (see the section on \fIplugins\fR below).
+\"********************
+.TP
+.BR \-time_query_format
+if \fI-time_queries\fR is activated, then this format is used for printing query runtimes. The format is printf compatible and should contain exactly on \fI%f\fR element (additional formating such as \fI%12f\fR is ok). Any occurrence of \fB"\\n"\fR in the format string is replaced with a newline. For instance, "query took\\n%f\\nmsecs\\n" will print the time of a query as three lines: "query took", a second line with just the time itself, and a third line "msecs". 
+\"********************
+.TP
+.BR \-repeat_query_count
+execute each query this many times. This is mainly useful for timing queries.
+\"********************
+.TP
+.BR \-show_result
+show query result (default if \fItrue\fR). This option is ignored for all executor plugins except for \fIrun\fR. The main use case for deactivating this is to measure query runtimes without spending time on serializing query results.
 \"****************************************
 .SS LOGGING AND DEBUG
 Set logging and debugging options.
@@ -86,11 +106,11 @@ Show operator parameters in graphviz scripts. Is ignored unless \fB\-show_graphv
 Aggressively check validity of generated relational algebra graphs after each processing step
 \"********************
 .TP
-.BR \-C " " \fIcheck_option\fR
+.BR \-C \fIcheck_option\fR
 Activate \fIcheck_option\fR where \fIcheck_option\fR is one of \fIschema_consistency\fR, \fIunique_attr_names\fR, \fIparent_child_links\fR, or \fIattr_reference_consistency\fR.
 \"****************************************
 .SS PLUGINS
-Configure plugins. Plugins determine mosts of GProM's behavior including selecting frontend languages and backend database backends.
+Configure plugins. Plugins determine mosts of GProM's behavior including selecting frontend languages and database backends.
 \"********************
 .TP
 .BR \-P\fIplugin_type\fR " " \fIplugin_name\fR
@@ -98,22 +118,22 @@ Select \fIplugin_name\fR as the active plugin for \fIplugin_type\fR. Most compon
 \"********************
 .TP
 .BR \-backend\fR " " \fIbackend_name\fR
-Select \fIbackend\fR as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized.
+Select \fIbackend\fR as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this option enabling plugins to be customized even when a backend is selected.
 \"********************
 .TP
 .BR \-frontend\fR " " \fIfrontend_name\fR
-Select the \fIfrontend_name\fR as the active frontend language. This is the language in which the user communicates with GProM. For instance, \fIoracle\fR corresponds to Oracle's SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized. \fIfrontend\fR takes precedence over \fIbackend\fR.
+Select the \fIfrontend_name\fR as the active frontend language. This is the language in which the user communicates with GProM. For instance, \fIoracle\fR corresponds to a subset of Oracle's SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. \fIfrontend\fR takes precedence over \fIbackend\fR. Use \fB-languagehelp\fR to get a brief description of the language features.
 \"****************************************
 .SS CONNECTION OPTIONS
 Configure the connection to the backend database system.
 \"********************
 .TP
 .BR \-host " " \fIhost\fR
-Host IP address for backend DB connection. Default value: \fIligeti.cs.iit.edu\fR.
+Host IP address for backend DB connection, e.g., \fI127.0.0.1\fR or \fImyhost.com\fR.
 \"********************
 .TP
 .BR \-db " " \fIorcl\fR
-Database name for the backend DB connection. For Oracle connections this determines \fISID\fR or \fISERVICE_NAME\fR. Default value: \fIorcl\fR
+Database name for the backend DB connection. The meaning of this option is backend specific. For Oracle connections this determines \fISID\fR or \fISERVICE_NAME\fR. For PostgreSQL databases it is the database name. For SQLite databases this is a path to the database file. Default value: \fIorcl\fR
 \"********************
 .TP
 .BR \-user " " \fIuser\fR
@@ -154,6 +174,21 @@ If the user requests the provenance of a transaction restricted to rows that whe
 .BR \-prov_use_composable
 Use composable version of provenance instrumentation that adds additional columns which enumerate duplicates of result rows introduced by provenance instrumentation
 \"****************************************
+.SS TEMPORAL FEATURES
+GProM also implements a form of temporal queries called sequenced semantics over interval-timestamped data. These options control the application of normalization operations applied by the rewrites for sequenced semantics.
+\"********************
+.TP
+.BR \-temporal_use_coalesce
+If activated (the default), then GProM applies coalescing to the result of a temporal query to produce a unique interval-timestamped representation of a temporal query result.
+\"********************
+.TP
+.BR \-temporal_use_normalization
+If activated (the default), then GProM normalizes the input to temporal aggregation and set difference operators. The correctness of results depends on normalization. Thus, this option should only be deactivated for testing.
+\"********************
+.TP
+.BR \-temporal_use_normalization_window
+GProM supports two implementations of temporal normalization one based on joins and one which uses analytical functions (window functions). If this option is activated, then GProM applies the window based implementation.
+\"****************************************
 .SS OPTIMIZATION
 GProM features a heuristic and cost-based optimizer for relational algebra and provenance instrumentation. These options control the optimizer. Additional options are described in the \fBOPTIMIZATION\fR section below.
 \"********************
@@ -171,7 +206,7 @@ Activate optimization option. Most options correspond to equivalence preserving 
 
 \"********************************************************************************
 .SH PLUGINS
-Most components in GProM are pluggable and can be replaced. The following components are realized as plugins:
+Most components in GProM are pluggable and can be replaced. The components shown below are realized as plugins. Currently, the sequence of components that process a query are hardcoded. An incoming query is first parsed by the \fBparser\fR plugin, then GProM applies semantic analysis (\fBanalyzer\fR plugin), uses the \fBtranslator\fR plugin to translate the query into an intermediate representation (in almost all cases that is relational algebra). Afterwards, any provenance or other extended features are processed by rewriting the query using instrumentation. The result of this step is then translate into backend-specific code (e.g., SQL) using the \fBsqlcodegen\fR plugin. The \fBmetadatalookup\fR plugin provides backend-specific access to schema information.
 \"****************************************
 .SS parser
 The parser plugin determines what input language is used.
@@ -212,7 +247,10 @@ The metadata lookup plugin handles communication with the backend database. This
 .IP
 \fBpostgres\fR \- This plugin manages communication with a PostgreSQL database backend. We use PostgreSQL's \fIlibpq\fR library.
 .IP
-\fBsqlite\fR \- This plugin manages communication with a SQLite database backend. We use PostgreSQL's \fIsqlite3-dev\fR library.
+\fBsqlite\fR \- This plugin manages communication with a SQLite database backend. We use the \fIsqlite3-dev\fR library.
+.IP
+\fBmonetdb\fR \- This plugin manages communication with a MonetDB database backend. We use the MonetDB's \fImapi\fR library.
+
 \"****************************************
 .SS sqlcodegen
 This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect. 
@@ -315,7 +353,7 @@ gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
 .fi
 .PP
 \"****************************************
-\fBExample 3.\fR Using the same database as in examples 1 and 2, return an SQL Query that captures provenance of the query \fBSELECT a FROM r\fR:
+\fBExample 3.\fR Using the same database as in examples 1 and 2, return an SQL Query that captures provenance for the query \fBSELECT a FROM r\fR:
 .PP
 .nf
 .RS
@@ -363,6 +401,15 @@ gprom -backend sqlite -frontend dl -db test.db \\
 \fBXing Niu\fR (\fIxniu7@hawk.iit.edu\fR)
 
 \"********************************************************************************
+.SH BUGS
+
+.IP
+To see a list of current bugs or to report a new bug: \fIhttps://github.com/IITDBGroup/gprom/issues\fR
+
+
+
+\"********************************************************************************
 .SH SEE ALSO
 
-
+.IP
+To learn more about the research behind GProM see \fIhttp://www.cs.iit.edu/%7edbgroup/research/gprom.php\fR

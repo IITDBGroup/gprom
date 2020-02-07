@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_sqlite.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -23,7 +23,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
-
+#include "utility/string_utils.h"
 
 // Mem context
 #define CONTEXT_NAME "SQLiteMemContext"
@@ -58,7 +58,9 @@ static void initCache(CatalogCache *c);
         { \
             StringInfo _newmes = makeStringInfo(); \
             appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
-            FATAL_LOG("error (%s)\n%u\n\n%s", strdup((char *) sqlite3_errmsg(plugin->conn)), _rc, _newmes->data); \
+            StringInfo _errMes = makeStringInfo(); \
+            appendStringInfo(_errMes, strdup((char *) sqlite3_errmsg(plugin->conn))); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", _errMes, _rc, _newmes->data); \
         } \
     } while(0)
 
@@ -91,7 +93,10 @@ assembleSqliteMetadataLookupPlugin (void)
     p->getCostEstimation = sqliteGetCostEstimation;
     p->getKeyInformation = sqliteGetKeyInformation;
     p->executeQuery = sqliteExecuteQuery;
+    p->executeQueryIgnoreResult = sqliteExecuteQueryIgnoreResults;
     p->connectionDescription = sqliteGetConnectionDescription;
+    p->sqlTypeToDT = sqliteBackendSQLTypeToDT;
+    p->dataTypeToSQL = sqliteBackendDatatypeToSQL;
 
     return p;
 }
@@ -184,7 +189,7 @@ boolean
 sqliteCatalogTableExists (char * tableName)
 {
     sqlite3 *c = plugin->conn;
-    boolean res = (sqlite3_table_column_metadata(c,NULL,tableName,NULL,NULL,NULL,NULL,NULL, NULL) == SQLITE_OK);
+    boolean res = (sqlite3_table_column_metadata(c,NULL,tableName,strdup("rowid"),NULL,NULL,NULL,NULL, NULL) == SQLITE_OK);
 
     return res;//TODO
 }
@@ -212,15 +217,17 @@ sqliteGetAttributes (char *tableName)
         const unsigned char *colName = sqlite3_column_text(rs,1);
         const unsigned char *dt = sqlite3_column_text(rs,2);
         DataType ourDT = stringToDT((char *) dt);
-                ;
+
         AttributeDef *a = createAttributeDef(
-                         strdup((char *) colName),
+			strToUpper(strdup((char *) colName)),
                          ourDT
                          );
         result = appendToTailOfList(result, a);
     }
 
     HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting attributes of table <%s>", tableName);
+
+    DEBUG_NODE_LOG("columns are: ", result);
 
     return result;
 }
@@ -294,8 +301,6 @@ sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
     *opExists = FALSE;
 
     return DT_STRING;
-
-    return DT_STRING;
 }
 
 char *
@@ -322,6 +327,55 @@ sqliteGetKeyInformation(char *tableName)
 {
     THROW(SEVERITY_RECOVERABLE,"%s","not supported yet");
     return NIL;
+}
+
+DataType
+sqliteBackendSQLTypeToDT (char *sqlType)
+{
+    if (regExMatch("INT", sqlType))
+    {
+        return DT_INT;
+    }
+    if (regExMatch("NUMERIC", sqlType)
+            || regExMatch("REAL", sqlType)
+            || regExMatch("FLOA", sqlType)
+            || regExMatch("DOUB", sqlType))
+    {
+        return DT_FLOAT;
+    }
+    if (regExMatch("CHAR", sqlType)
+            || regExMatch("CLOB", sqlType)
+            || regExMatch("TEXT", sqlType))
+    {
+        return DT_STRING;
+    }
+
+    return DT_FLOAT;
+}
+
+char *
+sqliteBackendDatatypeToSQL (DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+        case DT_LONG:
+            return "INT";
+            break;
+        case DT_FLOAT:
+            return "DOUBLE";
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            return "TEXT";
+            break;
+        case DT_BOOL:
+            return "BOOLEAN";
+            break;
+    }
+
+    // keep compiler quiet
+    return "TEXT";
 }
 
 void
@@ -385,6 +439,21 @@ sqliteExecuteQuery(char *query)
     return r;
 }
 
+void
+sqliteExecuteQueryIgnoreResults(char *query)
+{
+    sqlite3_stmt *rs = runQuery(query);
+    int rc = SQLITE_OK;
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
+        ;
+
+    HANDLE_ERROR_MSG(rc,SQLITE_DONE, "failed to execute query <%s>", query);
+
+    rc = sqlite3_finalize(rs);
+    HANDLE_ERROR_MSG(rc,SQLITE_OK, "failed to finalize query <%s>", query);
+}
+
 static sqlite3_stmt *
 runQuery (char *q)
 {
@@ -393,8 +462,17 @@ runQuery (char *q)
     int rc;
 
     DEBUG_LOG("run query:\n<%s>", q);
-    rc = sqlite3_prepare(conn, q, -1, &stmt, NULL);
-    HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
+    rc = sqlite3_prepare(conn, strdup(q), -1, &stmt, NULL);
+//    HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
+
+   if (rc != SQLITE_OK)
+   {
+       StringInfo _newmes = makeStringInfo();
+       appendStringInfo(_newmes, "failed to prepare query <%s>", q);
+       StringInfo _errMes = makeStringInfo();
+       appendStringInfo(_errMes, strdup((char *) sqlite3_errmsg(plugin->conn)));
+       FATAL_LOG("error (%s)\n%u\n\n%s", _errMes->data, rc, _newmes->data);
+   }
 
     return stmt;
 }
@@ -404,11 +482,14 @@ static DataType
 stringToDT (char *dataType)
 {
    DEBUG_LOG("data type %s", dataType);
+   char *lowerDT = strToLower(dataType);
 
-   if (streq(dataType, "NUMERIC") || streq(dataType, "REAL"))//TODO
+   if (isSubstr(lowerDT, "int"))
+	   return DT_INT;
+   if (isSubstr(lowerDT, "char") || isSubstr(lowerDT, "clob") || isSubstr(lowerDT, "text"))
+	   return DT_STRING;
+   if (isSubstr(lowerDT, "real") || isSubstr(lowerDT, "floa") || isSubstr(lowerDT, "doub"))
        return DT_FLOAT;
-   if (streq(dataType, "int"))
-       return DT_INT;
 
    return DT_STRING;
 }
@@ -550,5 +631,3 @@ sqliteExecuteQuery(char *query)
 }
 
 #endif
-
-

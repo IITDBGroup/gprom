@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * enum_magic.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -269,9 +269,15 @@
         STRING_ENUM_IF(_name_,__VA_ARGS__); \
     }
 
-
-
-
+#define NEW_ENUM_WITH_ONLY_TO_STRING(_name_,...) \
+    typedef enum _name_ { \
+        __VA_ARGS__ \
+    } _name_; \
+    \
+    static inline char * _name_ ## ToString (_name_ in) \
+    { \
+    	ENUM_STRING_CASE(_name_,__VA_ARGS__); \
+    }
 
 
 

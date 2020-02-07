@@ -7,9 +7,12 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;
@@ -20,8 +23,8 @@ import com.sun.jna.Pointer;
  */
 public class GProMWrapper implements GProMJavaInterface {
 
-	static Logger libLog = Logger.getLogger("LIBGPROM");
-	static Logger log = Logger.getLogger(GProMWrapper.class);
+	static Logger libLog = LogManager.getLogger("LIBGPROM");
+	static Logger log = LogManager.getLogger(GProMWrapper.class);
 
 	public static final String KEY_CONNECTION_HOST = "connection.host";
 	public static final String KEY_CONNECTION_DATABASE = "connection.db";
@@ -53,6 +56,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	private GProM_JNA.GProMExceptionCallbackFunction exceptionCallback;
 	private List<ExceptionInfo> exceptions;
 	private GProMMetadataLookupPlugin p;
+	private boolean initialized;
 	
 	// singleton instance	
 	public static GProMWrapper inst = new GProMWrapper ();
@@ -62,6 +66,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	private GProMWrapper () {
+		initialized = false;
 		exceptions = new ArrayList<ExceptionInfo> ();
 	}
 
@@ -70,15 +75,30 @@ public class GProMWrapper implements GProMJavaInterface {
 	 */
 	@Override
 	public String gpromRewriteQuery(String query) throws SQLException {
+		log.debug("WILL REWRITE:\n\n{}", query);
+		
+		try {
+			String parserPlugin = getOption("plugin.parser");
+			if (!parserPlugin.equals("dl")) {
+				if (!query.trim().endsWith(";"))
+					query += ";";
+			}
+		}
+		catch (Exception e) {
+			LoggerUtil.logException(e, log);
+		}
+		
+//		Scanner in = new Scanner(System.in);
+//		String password = in.nextLine();
+//		
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
-		String result = p.getString(0);
 		
 		// check whether exception has occured
 		if (exceptions.size() > 0) {
 			StringBuilder mes = new StringBuilder();
 			for(ExceptionInfo i: exceptions)
 			{
-				mes.append("ERROR (" + i + ")");
+				mes.append("ERROR (" + i + ")\n");
 				mes.append(i.toString());
 				mes.append("\n\n");
 			}
@@ -87,12 +107,16 @@ public class GProMWrapper implements GProMJavaInterface {
 			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
 		}
 		//TODO use string builder to avoid creation of two large strings
+		String result = p.getString(0);
 		result = result.replaceFirst(";\\s+\\z", "");
 		log.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
 		return result;
 	}
 
 	public void init () {
+		if (initialized)
+			return;
+		
 		loggerCallback = new GProM_JNA.GProMLoggerCallbackFunction () {
 			public void invoke(String message, String file, int line, int level) {
 				logCallbackFunction(message, file, line, level);
@@ -112,6 +136,8 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_registerExceptionCallbackFunction(exceptionCallback);
 		GProM_JNA.INSTANCE.gprom_init();
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(4);
+		
+		initialized = true;
 	}
 
 	public void setLogLevel (int level)
@@ -171,7 +197,7 @@ public class GProMWrapper implements GProMJavaInterface {
 		String printMes = "EXCEPTION: " + file + " at " + line + ": " + message;
 		libLog.error(printMes);
 		exceptions.add(new ExceptionInfo(message, file, line, intToSeverity(severity)));
-		return exceptionHandlerToInt(ExceptionHandler.Abort);
+		return exceptionHandlerToInt(ExceptionHandler.Wipe);
 	}
 
 	
@@ -376,6 +402,14 @@ public class GProMWrapper implements GProMJavaInterface {
 
 	public void setP(GProMMetadataLookupPlugin p) {
 		this.p = p;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#optionsHelp()
+	 */
+	@Override
+	public String optionsHelp() {
+		return GProM_JNA.INSTANCE.gprom_getOptionHelp();
 	}
 	
 }

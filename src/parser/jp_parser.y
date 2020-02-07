@@ -21,7 +21,7 @@
 Node *jpParseResult = NULL;
 %}
 
-%name-prefix "jp"
+%define api.prefix {jp}
 
 %union {
     /* 
@@ -125,7 +125,7 @@ pathstep:
 
                 | '[' intConst ']'
                 {
-                 RULELOG("pathstep::[*]"); $$ = itoa($2);
+                 RULELOG("pathstep::[*]"); $$ = gprom_itoa($2);
                 }
                 ;
                 

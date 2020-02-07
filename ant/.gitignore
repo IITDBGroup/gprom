@@ -4,3 +4,5 @@ ant-contrib.jar
 ivy.jar
 ant-launcher.jar
 antlr-runtime.jar
+antlr.jar
+antlr4-runtime.jar

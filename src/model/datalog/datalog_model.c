@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * datalog_model.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 
 static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames);
+static boolean findVarsVisitor (Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
@@ -75,7 +76,7 @@ createDLRule (DLAtom *head, List *body)
 
 
 DLProgram *
-createDLProgram (List *dlRules, List *facts, char *ans, List *doms)
+createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts)
 {
     DLProgram *result = makeNode(DLProgram);
 
@@ -83,6 +84,8 @@ createDLProgram (List *dlRules, List *facts, char *ans, List *doms)
     result->facts = facts;
     result->ans = ans;
     result->doms = doms;
+    result->func = func;
+    result->sumOpts = sumOpts;
 
     return result;
 }
@@ -206,7 +209,7 @@ unifyRule (DLRule *r, List *headBinds)
     {
         DLVar *var = (DLVar *) v;
         MAP_ADD_STRING_KEY(varToBind,var->name,bind);
-        DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind));
+        DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind, NULL));
     }
 
     result = (DLRule *) unificationMutator((Node *) result, varToBind);
@@ -235,14 +238,14 @@ getUnificationString(DLAtom *a)
 
             if (entry == NULL)
             {
-                stringArg = CONCAT_STRINGS("V", itoa(curId++));
+                stringArg = CONCAT_STRINGS("V", gprom_itoa(curId++));
                 MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
             }
             else
                 stringArg = strdup(STRING_VALUE(entry));
         }
         else if (isA(arg,Constant))
-            stringArg = exprToSQL(arg);
+            stringArg = exprToSQL(arg, NULL);
         else
             FATAL_LOG("unexpected type: %u", arg->type);
 
@@ -322,10 +325,10 @@ makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
             {
                 // skip varnames that already exist
                 if (doNotOrigNames)
-                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", itoa((*varId)++))))
+                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
                         ;
                 else
-                    stringArg = CONCAT_STRINGS("V", itoa((*varId)++));
+                    stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));
 
                 MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
             }
@@ -389,7 +392,9 @@ applyVarMapAsLists(Node *input, List *vars, List *replacements)
         if (isA(l, DLVar))
         {
             DLVar *v = (DLVar *) l;
-            MAP_ADD_STRING_KEY(h,v->name,r);
+
+            if(v->dt != DT_BOOL)
+            	MAP_ADD_STRING_KEY(h,v->name,r);
         }
     }
 
@@ -421,6 +426,42 @@ static List *
 getAtomArgs(DLAtom *a)
 {
     return copyObject(a->args);
+}
+
+List *
+getHeadExprVars (DLRule *r)
+{
+    return getAtomExprVars(r->head);
+}
+
+List *
+getAtomExprVars (DLAtom *a)
+{
+    return getExprVars((Node *) a);
+}
+
+List *
+getExprVars(Node *expr)
+{
+    List *result = NIL;
+
+    findVarsVisitor(expr, &result);
+
+    return result;
+}
+
+static boolean
+findVarsVisitor (Node *node, List **context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, DLVar))
+    {
+        *context = appendToTailOfList(*context, node);
+    }
+
+    return visit(node, findVarsVisitor, context);
 }
 
 static List *

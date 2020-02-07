@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * hash.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -37,7 +37,7 @@
 
 // hash functions for simple types
 static inline uint64_t hashInt(uint64_t cur, int value);
-static inline uint64_t hashLong(uint64_t cur, long value);
+static inline uint64_t hashLong(uint64_t cur, gprom_long_t value);
 static inline uint64_t hashFloat(uint64_t cur, float value);
 static inline uint64_t hashString(uint64_t cur, char *value);
 static inline uint64_t hashBool(uint64_t cur, boolean value);
@@ -102,6 +102,7 @@ static uint64_t hashConstRelOperator (uint64_t cur, ConstRelOperator *node);
 static uint64_t hashNestingOperator (uint64_t cur, NestingOperator *node);
 static uint64_t hashWindowOperator (uint64_t cur, WindowOperator *node);
 static uint64_t hashOrderOperator (uint64_t cur, OrderOperator *node);
+static uint64_t hashLimitOperator (uint64_t cur, LimitOperator *node);
 
 // hash functions for datalog model
 static uint64_t hashDLNode (uint64_t cur, DLNode *node);
@@ -137,9 +138,9 @@ hashBool(uint64_t cur, boolean value)
 }
 
 static inline uint64_t
-hashLong(uint64_t cur, long value)
+hashLong(uint64_t cur, gprom_long_t value)
 {
-    return hashMemory(cur, &value, sizeof(long));
+    return hashMemory(cur, &value, sizeof(gprom_long_t));
 }
 
 static inline uint64_t
@@ -216,7 +217,7 @@ hashSet (uint64_t cur, Set *node)
             break;
         case SET_TYPE_POINTER:
             FOREACH_SET(void,p,node)
-                hashLong(cur, (long) p);
+                hashLong(cur, (gprom_long_t) p);
             break;
     }
 
@@ -397,6 +398,7 @@ hashFunctionCall (uint64_t cur, FunctionCall *node)
     HASH_STRING(functionname);
     HASH_NODE(args);
     HASH_BOOLEAN(isAgg);
+    HASH_BOOLEAN(isDistinct);
 
     HASH_RETURN();
 }
@@ -492,6 +494,7 @@ hashQueryBlock (uint64_t cur, QueryBlock *node)
     HASH_NODE(havingClause);
     HASH_NODE(orderByClause);
     HASH_NODE(limitClause);
+    HASH_NODE(offsetClause);
 
     HASH_RETURN();
 }
@@ -513,7 +516,7 @@ hashFromProvInfo (uint64_t cur, FromProvInfo *node)
     HASH_BOOLEAN(baserel);
     HASH_BOOLEAN(intermediateProv);
     HASH_NODE(userProvAttrs);
-
+    HASH_NODE(provProperties);
     HASH_RETURN();
 }
 
@@ -673,7 +676,7 @@ hashQueryOperator (uint64_t cur, QueryOperator *node)
 
     // want to hash parents, but cannot traverse because it may result infinite loops
     FOREACH(void,p,node->parents)
-        hashLong(cur, (long) p);
+        hashLong(cur, (gprom_long_t) p);
 
     HASH_RETURN();
 }
@@ -809,6 +812,17 @@ hashOrderOperator (uint64_t cur, OrderOperator *node)
 
     HASH_RETURN();
 }
+
+static uint64_t
+hashLimitOperator (uint64_t cur, LimitOperator *node)
+{
+    HASH_QO();
+    HASH_NODE(limitExpr);
+    HASH_NODE(offsetExpr);
+
+    HASH_RETURN();
+}
+
 
 static uint64_t
 hashDLNode (uint64_t cur, DLNode *node)
@@ -999,6 +1013,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashWindowOperator(h, (WindowOperator *) n);
         case T_OrderOperator:
             return hashOrderOperator(h, (OrderOperator *) n);
+        case T_LimitOperator:
+            return hashLimitOperator(h, (LimitOperator *) n);
             /* datalog model */
         case T_DLAtom:
             return hashDLAtom(h, (DLAtom *) n);

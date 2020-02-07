@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Temporal Sequenced Rewrites Test Cases for Aggregation queries</comment>
+
+<entry key="q1.query">
+SEQUENCED TEMPORAL (
+	SELECT * 
+	FROM 
+		(SELECT A,B, CAST (TO_CHAR(T_BEGIN, 'YYYY') AS INT) AS T_BEGIN, CAST(TO_CHAR(T_END, 'YYYY') AS INT) +1 AS T_END 
+		FROM TEMP_DATE) WITH TIME(T_BEGIN, T_END)
+);
+</entry>
+<entry key="q1.result">
+ A | B | T_B  | T_E  |
+----------------------
+ 1 | 1 | 2017 | 2018 |
+ 1 | 1 | 2017 | 2018 |
+ 1 | 1 | 2017 | 2018 |
+</entry>
+
+<entry key="q2.query">
+SELECT * 
+FROM 
+	(SEQUENCED TEMPORAL (
+		SELECT count(*) AS c 
+		FROM 
+			(SELECT count(*) AS BOO, A 
+			FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) 
+			GROUP BY A) a
+		)
+	) sub
+WHERE c = 0;
+</entry>
+<entry key="q2.result">
+ C | T_B         | T_E        |
+-------------------------------
+ 0 | -2000000000 | 1          |
+ 0 | 13          | 2000000000 |
+</entry>
+
+<entry key="q3.query">
+SELECT * 
+FROM 
+	(SEQUENCED TEMPORAL (
+		SELECT count(*) AS c 
+		FROM 
+			(SELECT count(*) AS BOO, A 
+			FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) 
+			GROUP BY A) a
+		)
+	) sub
+WHERE T_E &lt; 2;
+</entry>
+<entry key="q3.result">
+ C | T_B         | T_E |
+------------------------
+ 0 | -2000000000 | 1   |
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+
+
+</properties>
+

@@ -15,8 +15,9 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/list/list.h"
 #include "utility/string_utils.h"
-#include <regex.h>
 #include "model/node/nodetype.h"
+
+#ifdef HAVE_REGEX_H
 
 char *
 getMatchingSubstring(const char *string, const char *pattern)
@@ -74,11 +75,102 @@ getFullMatchingSubstring(const char *string, const char *pattern)
     return result;
 }
 
+boolean
+regExMatch (const char *reg, const char *str)
+{
+    regex_t regex;
+    int reti;
+    char msgbuf[100];
+
+    DEBUG_LOG("Match <%s> against <%s>", reg, str);
+
+    reti = regcomp(&regex, reg, 0);
+    if (reti)
+    {
+        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
+        FATAL_LOG("Could not compile regex <%s>:\n%s", reg, msgbuf);
+    }
+
+    /* Execute regular expression */
+    reti = regexec(&regex, str, 0, NULL, 0);
+    if (!reti)
+    {
+        regfree(&regex);
+        return TRUE;
+    }
+    else if (reti == REG_NOMATCH)
+    {
+        regfree(&regex);
+        return FALSE;
+    }
+    else
+    {
+        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
+        FATAL_LOG("Regex match for <%s> on <%s> failed: %s", reg, str, msgbuf);
+    }
+
+    return FALSE;
+}
+
+#else
+
+char *
+getMatchingSubstring(const char *string, const char *pattern)
+{
+    FATAL_LOG("regex not supported if regex.h not available for your architecture!");
+
+    return NULL;
+}
+
+char *
+getFullMatchingSubstring(const char *string, const char *pattern)
+{
+    FATAL_LOG("regex not supported if regex.h not available for your architecture!");
+
+    return NULL;
+}
+
+boolean
+regExMatch (const char *reg, const char *str)
+{
+    FATAL_LOG("regex not supported if regex.h not available for your architecture!");
+
+    return FALSE;
+}
+
+#endif
+
+#ifndef HAVE_STRSEP
+
+static char*strsep(char** stringp, const char* delim);
+
+static char*
+strsep(char** stringp, const char* delim)
+{
+  char* start = *stringp;
+  char* p;
+
+  p = (start != NULL) ? strpbrk(start, delim) : NULL;
+
+  if (p == NULL)
+  {
+      *stringp = NULL;
+  }
+  else
+  {
+      *p = '\0';
+      *stringp = p + 1;
+  }
+
+  return start;
+}
+
+#endif
+
 List *
 splitString(char *str, const char *delim)
 {
     char* token;
-//    char **pos = &str;
     List *result = NIL;
 
     if (str == NULL)
@@ -86,16 +178,10 @@ splitString(char *str, const char *delim)
     while ((token = strsep(&str, delim)) != NULL)
         if (*token != '\0')
             result = appendToTailOfList(result, strdup(token));
-//    token = strsep(str, delim, pos);
-//
-//    while (token)
-//    {
-//
-//        token = strtok_r(str, delim, pos);
-//    }
 
     return result;
 }
+
 
 char *
 strEndTok(char *string, char *delim)
@@ -139,7 +225,7 @@ replaceSubstr(char *str, char *pattern, char *repl)
 char *
 substr(char *str, int from, int to)
 {
-    ASSERT(from >= 0 && from < to && to < strlen(str));
+    ASSERT(from >= 0 && from <= to && to < strlen(str));
     int len = to - from  + 1;
     char *result = MALLOC(len + 1);
     memcpy(result, str + from, len);
@@ -205,11 +291,30 @@ strtrim (char *in)
 
     while(*in != '\0')
     {
-        if (*in != '\t' && *in != ' ' && *in != '\n')
+    	//TODO: check whether empty spaces are required to be removed
+//    	if (*in != '\t' && *in != ' ' && *in != '\n')
+        if (*in != '\t' && *in != '\r' && *in != '\n')
             appendStringInfoChar(result, *in);
         in++;
     }
     return result->data;
+}
+
+boolean
+strieq(char *left, char *right)
+{
+    if (left == NULL && right == NULL)
+        return TRUE;
+    if (left == NULL || right == NULL)
+        return FALSE;
+    if (strlen(left) != strlen(right))
+        return FALSE;
+    for(int i = 0; i < strlen(left); i++)
+    {
+        if (toupper(left[i]) != toupper(right[i]))
+            return FALSE;
+    }
+    return TRUE;
 }
 
 char *
@@ -220,7 +325,7 @@ specializeTemplate(char *template, List *args)
 
     FOREACH(char,arg,args)
     {
-        char *var = CONCAT_STRINGS("$",itoa(i));
+        char *var = CONCAT_STRINGS("$",gprom_itoa(i));
 
         result = replaceSubstr(result,var,arg);
         i++;
@@ -249,6 +354,21 @@ strToUpper(const char *input)
 
     for(char *p = result; *p != '\0'; p++)
         *p = toupper(*p);
+
+    return result;
+}
+
+char *
+strToLower(const char *input)
+{
+    char *result;
+
+    if (input == NULL)
+        return NULL;
+    result = strdup((char *) input);
+
+    for(char *p = result; *p != '\0'; p++)
+        *p = tolower(*p);
 
     return result;
 }

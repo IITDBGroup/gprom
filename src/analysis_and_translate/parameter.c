@@ -19,6 +19,7 @@
 #include "model/list/list.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "analysis_and_translate/parameter.h"
+#include "utility/string_utils.h"
 
 // data types
 typedef struct ParByNameState
@@ -32,7 +33,6 @@ static boolean findParamVisitor(Node *node, List **state);
 static Node *replaceParamMutator (Node *node, List *state);
 static Node *replaceParamByNameMutator (Node *node, ParByNameState *state);
 static Constant *createBindConstant (char *value);
-static boolean regExMatch (char *reg, char *str);
 
 Node *
 setParameterValues (Node *qbModel, List *values)
@@ -184,39 +184,4 @@ createBindConstant (char *value)
 }
 
 
-static boolean
-regExMatch (char *reg, char *str)
-{
-    regex_t regex;
-    int reti;
-    char msgbuf[100];
 
-    DEBUG_LOG("Match <%s> against <%s>", reg, str);
-
-    reti = regcomp(&regex, reg, 0);
-    if (reti)
-    {
-        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-        FATAL_LOG("Could not compile regex <%s>:\n%s", reg, msgbuf);
-    }
-
-    /* Execute regular expression */
-    reti = regexec(&regex, str, 0, NULL, 0);
-    if (!reti)
-    {
-        regfree(&regex);
-        return TRUE;
-    }
-    else if (reti == REG_NOMATCH)
-    {
-        regfree(&regex);
-        return FALSE;
-    }
-    else
-    {
-        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-        FATAL_LOG("Regex match for <%s> on <%s> failed: %s", reg, str, msgbuf);
-    }
-
-    return FALSE;
-}

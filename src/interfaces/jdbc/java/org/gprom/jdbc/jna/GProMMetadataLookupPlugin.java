@@ -50,6 +50,13 @@ public class GProMMetadataLookupPlugin extends Structure {
 	public GProMMetadataLookupPlugin.getTableDefinition_callback getTableDefinition;
 	/** C type : getViewDefinition_callback* */
 	public GProMMetadataLookupPlugin.getViewDefinition_callback getViewDefinition;
+	/** C type : getCostEstimation_callback* */
+	public GProMMetadataLookupPlugin.getCostEstimation_callback getCostEstimation;
+	/** C type : getDataTypeToSQL_callback* */
+	public GProMMetadataLookupPlugin.getSqlTypeToDT_callback sqlTypeToDT;	
+	/** C type : getDataTypeToSQL_callback* */
+	public GProMMetadataLookupPlugin.getDataTypeToSQL_callback dataTypeToSQL;
+	
 	public interface isInitialized_callback extends Callback {
 		int apply();
 	};
@@ -66,7 +73,7 @@ public class GProMMetadataLookupPlugin extends Structure {
 		int apply();
 	};
 	public interface catalogTableExists_callback extends Callback {
-		int apply(String tableName);
+		int apply(Pointer tableName);
 	};
 	public interface catalogViewExists_callback extends Callback {
 		int apply(String viewName);
@@ -101,11 +108,40 @@ public class GProMMetadataLookupPlugin extends Structure {
 	public interface getViewDefinition_callback extends Callback {
 		String apply(String viewName);
 	};
+	public interface getCostEstimation_callback extends Callback {
+		int apply(String query);
+	};
+	public interface getSqlTypeToDT_callback extends Callback {
+		String apply(String sqlType);
+	};
+	public interface getDataTypeToSQL_callback extends Callback {
+		String apply(String dt);
+	};
+	
 	public GProMMetadataLookupPlugin() {
 		super();
 	}
 	protected List<? > getFieldOrder() {
-		return Arrays.asList("isInitialized", "initMetadataLookupPlugin", "databaseConnectionOpen", "databaseConnectionClose", "shutdownMetadataLookupPlugin", "catalogTableExists", "catalogViewExists", "getKeyInformation", "getDataTypes", "getAttributeNames", "getAttributeDefaultVal", "isAgg", "isWindowFunction", "getFuncReturnType", "getOpReturnType", "getTableDefinition", "getViewDefinition");
+		return Arrays.asList("isInitialized", 
+				"initMetadataLookupPlugin", 
+				"databaseConnectionOpen", 
+				"databaseConnectionClose", 
+				"shutdownMetadataLookupPlugin", 
+				"catalogTableExists", 
+				"catalogViewExists", 
+				"getKeyInformation", 
+				"getDataTypes", 
+				"getAttributeNames", 
+				"getAttributeDefaultVal", 
+				"isAgg", 
+				"isWindowFunction", 
+				"getFuncReturnType", 
+				"getOpReturnType", 
+				"getTableDefinition", 
+				"getViewDefinition",
+				"getCostEstimation",
+				"sqlTypeToDT",
+				"dataTypeToSQL");
 	}
 	public GProMMetadataLookupPlugin(Pointer peer) {
 		super(peer);

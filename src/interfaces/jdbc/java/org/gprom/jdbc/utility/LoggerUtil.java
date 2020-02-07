@@ -6,24 +6,25 @@ package org.gprom.jdbc.utility;
 import java.lang.reflect.Method;
 import java.util.Collection;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 
 
 /**
  *
- * Part of Project SesamUtil
+ * Utilities for logging, mostly logging whole stack traces of exceptions.
+ * 
  * @author Boris Glavic
  *
  */
 public class LoggerUtil {
 
 	public static void logException (Throwable e, Logger log) {
-		log.error(getCompleteTrace(e));
+		log.error(e.toString() + "\n\n" + getCompleteTrace(e));
 	}
 	
 	public static void logException (Exception e, Logger log, String message) {
-		if (log.isEnabledFor(Level.ERROR))
+		if (log.isEnabled(Level.ERROR))
 		log.error(message + "\n\n" + getCompleteTrace(e));
 	}
 	

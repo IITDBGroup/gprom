@@ -14,10 +14,10 @@ if JAVABINDING
 all-local: $(GPROM_JDBC_TEST_JAR)
 
 $(GPROM_JDBC_TEST_JAR): $(JAVA_TEST_SRC) $(TEST_XML_SRC)
-	ant -f $(ANT_BUILDFILE) compileTests
+	ant -f $(ANT_BUILDFILE) compile
 
 # clean should also run ant's clean task
 clean-local:
-	ant -f $(ANT_BUILDFILE) distClean
+	ant -f $(ANT_BUILDFILE) clean-all
 
 endif

@@ -21,7 +21,7 @@ class GProMWrapper:
    'Wrapper around the gprom commandline'
 
    # stores connection parameters and other gprom options
-   def __init__(self, user, passwd, host, port='1521', db='orcl', frontend='dl', backend='oracle', plugins={ 'executor' : 'run' }):
+   def __init__(self, user, passwd, host, port='1521', db='orcl', frontend='', backend='oracle', plugins={ 'executor' : 'run' }, options={}):
       self.user = user
       self.passwd = passwd
       self.host = host
@@ -30,9 +30,13 @@ class GProMWrapper:
       self.frontend = frontend
       self.backend = backend
       self.plugins = plugins
+      self.options = options
    
-   def constructCommand(self,query,loglevel=0,plugins={}):
-       gprom_cmd=['gprom','-loglevel',loglevel,'-backend',self.backend,'-frontend',self.frontend]
+   def constructCommand(self,query,loglevel=0,plugins={},frontend='',options=''):
+       gprom_cmd=['gprom','-loglevel',loglevel,'-backend',self.backend]
+       # set frontend
+       if (frontend != ''):
+          gprom_cmd+=['-frontend',frontend]
        # set connection options
        gprom_cmd+=['-user',self.user,'-passwd',self.passwd,'-host',self.host,'-port',self.port,'-db',self.db]
        # setup plugins
@@ -41,6 +45,9 @@ class GProMWrapper:
                gprom_cmd+=['-P'+key, plugins[key]]
            else:
                gprom_cmd+=['-P'+key, value]
+       # boolean options
+       if len(options) > 0:
+           gprom_cmd+=[options]
        # pass quoted query
        quotedQuery='"' + query + '"'
        gprom_cmd+=['-query', quotedQuery]
@@ -49,18 +56,20 @@ class GProMWrapper:
        print gprom_cmd
        return gprom_cmd
 
-   def executeAndCollectErrors(self,query,errorloglevel=3,mode='run'):
+   def executeAndCollectErrors(self,query,errorloglevel=3,mode='run',frontend='',inputdb=''):
        runPlugins={'executor':mode}
-       orig_cmd=self.constructCommand(query,plugins=runPlugins)
+       runFrontend=frontend
+       runOptions=inputdb
+       orig_cmd=self.constructCommand(query,plugins=runPlugins,frontend=runFrontend,options=runOptions)
        err, std, errcode = run_command(orig_cmd)
        if errcode != 0:
-           debug_cmd=self.constructCommand(query,errorloglevel,plugins=runPlugins)
+           debug_cmd=self.constructCommand(query,errorloglevel,plugins=runPlugins,frontend=runFrontend,options=runOptions)
            err, std, errcode = run_command(debug_cmd)
            return errcode, std + '\n' + err
        return 0, std
    
    def createDotFile (self,query,dotfile):
-       errcode, output = self.executeAndCollectErrors(query,mode='gp')
+       errcode, output = self.executeAndCollectErrors(query,mode='gp',frontend='dl',inputdb='')
        if errcode != 0:
            return errcode, output
        writer = open(dotfile, 'w')
@@ -81,8 +90,16 @@ class GProMWrapper:
            dot_return, dot_log = 0, ''
        return (gprom_return + dot_return), gprom_log, dot_log
 
-   def runDLQuery (self,query,mode='run'):
-       errcode, output = self.executeAndCollectErrors(query,mode=mode)
+   def runDLQuery (self,query,mode='run',frontend='dl'):
+       errcode, output = self.executeAndCollectErrors(query,mode=mode,frontend=frontend)
+       return errcode, output
+
+   def runInputDB (self,query,mode='run',frontend='dl',inputdb='-inputdb'):
+       errcode, output = self.executeAndCollectErrors(query,mode=mode,frontend=frontend,inputdb=inputdb)
+       return errcode, output
+
+   def runQuery (self,query,mode='run',frontend=''):
+       errcode, output = self.executeAndCollectErrors(query,mode=mode,frontend=frontend)
        return errcode, output
 
    def printHelp (self):

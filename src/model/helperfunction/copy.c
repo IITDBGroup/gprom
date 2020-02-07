@@ -81,6 +81,7 @@ static Schema *copySchema(Schema *from, OperatorMap **opMap);
 /*functions to copy query_operator*/
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
 static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
+static SampleClauseOperator *copySampleClauseOperator(SampleClauseOperator *from, OperatorMap **opMap);
 static JsonTableOperator *copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap);
 static JsonPath *copyJsonPath(JsonPath *from, OperatorMap **opMap);
 static SelectionOperator *copySelectionOperator(SelectionOperator *from, OperatorMap **opMap);
@@ -94,6 +95,7 @@ static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMa
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
 static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
 static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
+static LimitOperator *copyLimitOperator(LimitOperator *from, OperatorMap **opMap);
 static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
 static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap ** opMap);
 
@@ -321,6 +323,8 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_NODE_FIELD(doms);
     COPY_NODE_FIELD(n.properties);
     COPY_NODE_FIELD(comp);
+    COPY_NODE_FIELD(func);
+    COPY_NODE_FIELD(sumOpts);
 
     return new;
 }
@@ -365,11 +369,12 @@ copyAttributeReference(AttributeReference *from, OperatorMap **opMap)
 
 static FunctionCall *
 copyFunctionCall(FunctionCall *from, OperatorMap **opMap)
-{ 
+{
     COPY_INIT(FunctionCall);
     COPY_STRING_FIELD(functionname);
     COPY_NODE_FIELD(args);
     COPY_SCALAR_FIELD(isAgg);
+    COPY_SCALAR_FIELD(isDistinct);
 
     return new;
 }
@@ -387,7 +392,7 @@ copyKeyValue(KeyValue *from, OperatorMap **opMap)
 
 static Operator *
 copyOperator(Operator *from, OperatorMap **opMap)
-{ 
+{
     COPY_INIT(Operator);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(args);
@@ -529,7 +534,7 @@ copySchema(Schema *from, OperatorMap **opMap)
     COPY_INIT(Schema);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(attrDefs);
-    
+
     return new;
 }
 
@@ -576,8 +581,19 @@ copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap)
     COPY_OPERATOR();
     COPY_STRING_FIELD(tableName);
     COPY_NODE_FIELD(asOf);
+//    COPY_NODE_FIELD(sampClause);
 
     return new;
+}
+
+static SampleClauseOperator *
+copySampleClauseOperator(SampleClauseOperator *from, OperatorMap **opMap)
+{
+	COPY_INIT(SampleClauseOperator);
+	COPY_OPERATOR();
+	COPY_NODE_FIELD(sampPerc);
+
+	return new;
 }
 
 static JsonTableOperator *
@@ -726,6 +742,19 @@ copyOrderOperator(OrderOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static LimitOperator *
+copyLimitOperator(LimitOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(LimitOperator);
+    COPY_OPERATOR();
+
+    COPY_NODE_FIELD(limitExpr);
+    COPY_NODE_FIELD(offsetExpr);
+
+    return new;
+}
+
+
 static JsonColInfoItem *
 copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
 {
@@ -769,7 +798,8 @@ copyQueryBlock(QueryBlock *from, OperatorMap **opMap)
     COPY_NODE_FIELD(havingClause);
     COPY_NODE_FIELD(orderByClause);
     COPY_NODE_FIELD(limitClause);
-    
+    COPY_NODE_FIELD(offsetClause);
+
     return new;
 }
 
@@ -824,7 +854,7 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(baserel);
     COPY_SCALAR_FIELD(intermediateProv);
     COPY_STRING_LIST_FIELD(userProvAttrs);
-
+    COPY_NODE_FIELD(provProperties);
     return new;
 }
 
@@ -886,9 +916,10 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(dts);
     COPY_SCALAR_FIELD(provType);
     COPY_SCALAR_FIELD(inputType);
-    COPY_NODE_FIELD(transInfo);    
+    COPY_NODE_FIELD(transInfo);
     COPY_NODE_FIELD(asOf);
     COPY_NODE_FIELD(options);
+    COPY_NODE_FIELD(sumOpts);
 
     return new;
 }
@@ -957,7 +988,7 @@ static Constant *
 copyConstant(Constant *from, OperatorMap **opMap)
 {
       COPY_INIT(Constant);
-      COPY_SCALAR_FIELD(constType); 
+      COPY_SCALAR_FIELD(constType);
 	  COPY_SCALAR_FIELD(isNull);
 	  if (from->isNull)
 	  {
@@ -999,7 +1030,7 @@ copyFromSubquery(FromSubquery *from, OperatorMap **opMap)
     COPY_INIT(FromSubquery);
     COPY_FROM();
     COPY_NODE_FIELD(subquery);
-    
+
     return new;
 }
 
@@ -1189,6 +1220,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_TableAccessOperator:
             retval = copyTableAccessOperator(from, opMap);
             break;
+        case T_SampleClauseOperator:
+        	retval = copySampleClauseOperator(from, opMap);
+        	break;
         case T_SetOperator:
             retval = copySetOperator(from, opMap);
             break;
@@ -1207,12 +1241,15 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderOperator:
             retval = copyOrderOperator(from, opMap);
             break;
+	    case T_LimitOperator:
+            retval = copyLimitOperator(from, opMap);
+			break;
         case T_FromJsonTable:
             retval = copyFromJsonTable(from, opMap);
             break;
         case T_JsonColInfoItem:
-	    retval = copyJsonColInfoItem(from, opMap);
-	    break;
+			retval = copyJsonColInfoItem(from, opMap);
+			break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);

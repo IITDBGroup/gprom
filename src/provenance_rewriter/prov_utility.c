@@ -158,16 +158,54 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
 }
 
 QueryOperator *
-createProjOnAttrsByName(QueryOperator *op, List *attrNames)
+createProjOnAttrsByName(QueryOperator *op, List *attrNames, List *newAttrNames)
 {
     List *attrPos = NIL;
+    QueryOperator *p;
 
     FOREACH(char,c,attrNames)
         attrPos = appendToTailOfListInt(attrPos, getAttrPos(op,c));
     DEBUG_LOG("child attr pos: %s", nodeToString(attrPos));
 
-    return createProjOnAttrs(op, attrPos);
+    p = createProjOnAttrs(op, attrPos);
+
+    if (newAttrNames != NULL)
+    {
+        FORBOTH(void,def,name,p->schema->attrDefs, newAttrNames)
+        {
+            AttributeDef *a = (AttributeDef *) def;
+            char *n = (char *) name;
+            a->attrName = n;
+        }
+    }
+
+    return p;
 }
+
+//AttributeReference *
+//createAttrsRefByName(QueryOperator *op, char *attrNames)
+//{
+//	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
+//
+//	ASSERT(ad != NULL);
+//
+//	int defPos = getAttrPos(op, ad->attrName);
+//	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, defPos, INVALID_ATTR, ad->dataType);
+//
+//	return ar;
+//}
+//
+//AttributeReference *
+//createAttrRefByPos(QueryOperator *op, int pos)
+//{
+//    AttributeDef *ad = copyObject(getAttrDefByPos(op, pos));
+//    ASSERT(ad != NULL);
+//
+//    AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
+//
+//    return ar;
+//}
+
 
 
 /*
@@ -196,8 +234,8 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
         else
         {
             FOREACH(QueryOperator,pChild,parent->inputs)
-            {
-                if (equal(pChild,orig))
+            {//TODO check whether this change is correct: we want to check for pointer equality here
+                if (pChild == orig)
                     pChild_his_cell->data.ptr_value = new;
             }
         }
@@ -238,7 +276,7 @@ switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new)
         {
             FOREACH(QueryOperator,pChild,parent->inputs)
             {
-                if (equal(pChild,orig))
+                if (pChild == orig)
                     pChild_his_cell->data.ptr_value = new;
             }
         }
@@ -359,12 +397,12 @@ makeNamesUnique (List *names, Set *allNames)
         if (count != 0)
         {
             // create a new unique name
-            newName = CONCAT_STRINGS(oldName, itoa(count));
+            newName = CONCAT_STRINGS(oldName, gprom_itoa(count));
             while(hasSetElem(allNames, newName))
-                newName = CONCAT_STRINGS(oldName, itoa(++count));
+                newName = CONCAT_STRINGS(oldName, gprom_itoa(++count));
 
-            if(searchListString(names, newName))
-            	newName = CONCAT_STRINGS(oldName, itoa(++count));
+            while(searchListString(names, newName))
+            	newName = CONCAT_STRINGS(oldName, gprom_itoa(++count));
         }
 
         LC_P_VAL(lc) = newName;
@@ -380,4 +418,17 @@ removeParentFromOps (List *operators, QueryOperator *parent)
 {
     FOREACH(QueryOperator,op,operators)
         op->parents = REMOVE_FROM_LIST_PTR(op->parents, parent);
+}
+
+void
+substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp)
+{
+    FOREACH(QueryOperator,p,parents)
+    {
+        FOREACH(QueryOperator,pChild,p->inputs)
+        {
+            if (equal(pChild,orig))
+                pChild_his_cell->data.ptr_value = newOp;
+        }
+    }
 }

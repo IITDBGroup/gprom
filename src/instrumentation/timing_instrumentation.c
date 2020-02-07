@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * timing_instrumentation.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -65,7 +65,7 @@ static int compareTimerName (const void *a, const void *b);
 #define CREATE_OR_USE_MEMCONTEXT() \
     do { \
     	if (context == NULL)    \
-            context = NEW_MEM_CONTEXT("TimerContext");  \
+            context = NEW_LONGLIVED_MEMCONTEXT("TimerContext");  \
         ACQUIRE_MEM_CONTEXT(context); \
     } while (0)
 
@@ -121,6 +121,24 @@ endTimer(char *name, int line, const char *function, const char *sourceFile)
     updateStats(t);
 
     RELEASE_MEM_CONTEXT();
+}
+
+boolean
+isTimerRunning(char *name)
+{
+  Timer *t;
+  boolean isRunning = FALSE;
+
+  if (!isRewriteOptionActivated("timing"))
+    return isRunning;
+
+  HASH_FIND_STR(allTimers, name, t);
+
+  isRunning = t != NULL && t->isRunning;
+
+  CREATE_OR_USE_MEMCONTEXT();
+  RELEASE_MEM_CONTEXT();
+  return isRunning;
 }
 
 static void

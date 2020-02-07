@@ -81,15 +81,15 @@ newList(NodeTag type)
 }
 
 int
-getListLength(List *list) 
+getListLength(List *list)
 {
 	if (list == NIL)
 		return 0;
 	if (list->length != -1)
 		return list->length;
 
-	ListCell *node; 
-    
+	ListCell *node;
+
     node = list->head;
 	list->length = 0;
 
@@ -114,7 +114,7 @@ getHeadOfListInt (List *list)
 {
 	ASSERT(isIntList(list));
     ListCell *head;
-    
+
     head = getHeadOfList(list);
     return head ? head->data.int_value : -1;
 }
@@ -182,9 +182,9 @@ int
 getTailOfListInt(List *list)
 {
     ASSERT(isIntList(list));
-    
+
     ListCell *tail;
-    
+
     tail = getTailOfList(list);
     return tail ? tail->data.int_value : -1;
 }
@@ -208,15 +208,15 @@ getNthOfList(List *list, int n)
 	if (list == NIL)
 		return NULL;
 	ASSERT(getListLength(list) >= n);
-    
+
 	ListCell * node;
-    
+
     node = list->head;
 	while (node != NULL && n--)
 	{
 		node = node->next;
 	}
-    
+
     return node ? node : NULL;
 }
 
@@ -264,10 +264,10 @@ void
 newListTail(List *list)
 {
     ListCell *newTail;
-    
+
     newTail = (ListCell *) NEW(ListCell);
     newTail->next = NULL;
-    
+
     list->tail->next = newTail;
     list->tail = newTail;
     list->length++;
@@ -277,12 +277,12 @@ List *
 appendToTailOfList(List *list, void *value)
 {
     ASSERT(isPtrList(list));
-	
+
     if (list == NIL || list->length == 0)
 		list = newList(T_List);
 	else
         newListTail(list);
-    
+
     list->tail->data.ptr_value = value;
 
     ASSERT(checkList(list));
@@ -293,12 +293,12 @@ List *
 appendToTailOfListInt(List *list, int value)
 {
     ASSERT(isIntList(list));
-    
+
     if (list == NIL)
         list = newList(T_IntList);
     else
         newListTail(list);
-    
+
     list->tail->data.int_value = value;
     ASSERT(checkList(list));
     return list;
@@ -324,7 +324,7 @@ appendToHeadOfList(List *list, void *value)
         list = newList(T_List);
     else
         newListHead(list);
-    
+
     list->head->data.ptr_value = value;
     ASSERT(checkList(list));
     return list;
@@ -454,11 +454,27 @@ deepFreeList(List *list)
 {
     if (list == NIL)
         return;
-    
+
     for(ListCell *lc = list->head->next, *prev = list->head; lc != NULL;
             prev = lc, lc = lc->next)
     {
         deepFree(LC_P_VAL(lc));
+        FREE(prev);
+    }
+
+    FREE(list);
+}
+
+void
+deepFreeStringList(List *list)
+{
+    if (list == NIL)
+        return;
+
+    for(ListCell *lc = list->head->next, *prev = list->head; lc != NULL;
+                prev = lc, lc = lc->next)
+    {
+        FREE(LC_P_VAL(lc));
         FREE(prev);
     }
 
@@ -479,10 +495,19 @@ stringListToConstList(List *list)
 List *
 concatTwoLists(List *lista, List*listb)
 {
+    if (lista == listb)
+	{
+        listb = copyList(listb);
+	}
+
 	if (lista == NIL)
+	{
 		return  listb;
+	}
 	if (listb == NIL)
+	{
 		return lista;
+	}
 
     ASSERT(lista->type == listb->type);
 
@@ -693,7 +718,7 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 List *
 removeFromTail(List *X)
 {
-	DEBUG_LOG("remove from list %s", nodeToString(X));
+	//DEBUG_LOG("remove from list %s", nodeToString(X));
 	List *result = NIL;
 	ListCell *el;
 	int l = LIST_LENGTH(X);
@@ -731,14 +756,38 @@ removeFromHead(List *X)
     result->head = head->next;
     result->length--;
 
-//    FOREACH_INT(lc, X)
-//    {
-//        if(c != 0)
-//           result = appendToTailOfListInt(result, lc);
-//
-//        c++;
-//    }
     return result;
+}
+
+List *
+removeListElemAtPos (List *list, int pos)
+{
+    ListCell *lc, *prev;
+    ASSERT(LIST_LENGTH(list) > pos && pos >= 0);
+
+    if (LIST_LENGTH(list) == 1)
+        return NIL;
+
+    for(lc = list->head, prev = NULL; lc != NULL; prev = lc, lc = lc->next)
+    {
+        if (pos-- <= 0)
+        {
+            if (lc == list->head)
+            {
+                list->head = lc->next;
+            }
+            else
+            {
+                prev->next = lc->next;
+            }
+            list->length--;
+            if (lc == list->tail)
+                list->tail = prev;
+            break;
+        }
+    }
+
+    return list;
 }
 
 //remove all the elements of list l1 from list l2, l1 is a sublist of l2
@@ -770,4 +819,3 @@ removeListElementsFromAnotherList(List *l1, List *l2)
 
     return result;
 }
-

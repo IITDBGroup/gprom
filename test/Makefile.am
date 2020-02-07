@@ -6,7 +6,7 @@ AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(top_srcdir)/\"
 
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
-				testrpq testlibgprom
+				testrpq testlibgprom testuncert
 bin_PROGRAMS = testexprcplex
 
 # testcplex
@@ -29,6 +29,9 @@ testexprcplex_LDADD = $(top_builddir)/src/libsrc.la
 
 testparser_SOURCES = test_parser.c
 testparser_LDADD = $(top_builddir)/src/libsrc.la
+
+testuncert_SOURCES = test_uncert.c
+testuncert_LDADD = $(top_builddir)/src/libsrc.la
 
 testupana_SOURCES = test_update_analysis.c
 testupana_LDADD = $(top_builddir)/src/libsrc.la

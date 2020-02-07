@@ -21,7 +21,7 @@
 Node *rpqParseResult = NULL;
 %}
 
-%name-prefix "rpq"
+%define api.prefix {rpq}
 
 %union {
     /* 

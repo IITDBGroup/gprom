@@ -46,6 +46,7 @@ typedef struct QueryBlock
     Node *havingClause;
     List *orderByClause;
     Node *limitClause;
+	Node *offsetClause;
 } QueryBlock;
 
 NEW_ENUM_WITH_TO_STRING(IsolationLevel,
@@ -82,6 +83,11 @@ typedef struct ProvenanceStmt
     ProvenanceTransactionInfo *transInfo;
     Node *asOf;
     List *options;
+    List *sumOpts;
+//    char *summaryType;
+//    List *userQuestion;
+//    int sampleSize;
+//    int topK;
 } ProvenanceStmt;
 
 typedef struct SelectItem
@@ -100,6 +106,7 @@ typedef struct FromProvInfo
     boolean baserel;
     boolean intermediateProv;
     List *userProvAttrs;
+    Node *provProperties;
 } FromProvInfo;
 
 typedef struct FromItem
@@ -283,6 +290,10 @@ typedef struct DDLStatement
     DDLStmtType ddlType;
 } DDLStatement;
 
+/* get attributes from query block nodes */
+extern List *getQBAttrDefs(Node *qb);
+extern List *getQBAttrNames (Node *qb);
+extern List *getQBAttrDTs (Node *qb);
 
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/
@@ -317,5 +328,11 @@ extern CreateTable *createCreateTable (char *tName, List *tableElem);
 extern CreateTable *createCreateTableQuery (char *tName, Node *q);
 extern AlterTable *createAlterTableAddColumn (char *tName, char *newColName, char *newColDT);
 extern AlterTable *createAlterTableRemoveColumn (char *tName, char *colName);
+
+/* deal with provProperties*/
+extern void setProvProperty (FromProvInfo *from, Node *key, Node *value);
+extern Node *getProvProperty (FromProvInfo *from, Node *key);
+extern void setStringProvProperty (FromProvInfo *from, char *key, Node *value);
+extern Node *getStringProvProperty (FromProvInfo *from, char *key);
 
 #endif /* QUERY_BLOCK_H */

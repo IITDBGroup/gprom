@@ -5,7 +5,8 @@ package org.gprom.jdbc.test.testgenerator.dataset;
 
 import java.util.Arrays;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author lord_pretzel
@@ -13,7 +14,7 @@ import org.apache.log4j.Logger;
  */
 public class TableCompartor {
 
-	Logger log = Logger.getLogger(TableCompartor.class);
+	Logger log = LogManager.getLogger(TableCompartor.class);
 	
 	public static final TableCompartor inst = new TableCompartor ();
 	

@@ -10,16 +10,22 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
 
 public class GProMStatement implements GProMStatementInterface {
 	// static fields
-	static Logger log = Logger.getLogger(GProMStatement.class);
+	static Logger log = LogManager.getLogger(GProMStatement.class);
 
-	private static final String[] gpromKeywords = { "PROVENANCE", "BASERELATION",
-			"TRANSSQL" };
+	private static final String[] gpromKeywords = { "PROVENANCE", 
+			"BASERELATION",
+			"SEQUENCED",
+			"TEMPORAL",
+			"REENACT",
+			"UNCERTAIN"
+			};
 	private static final String[] utilityKeywords = { "DROP"};
 	private static final Set<String> keywordSet;
 	private static final Set<String> utilityKeywordSet;
@@ -64,6 +70,10 @@ public class GProMStatement implements GProMStatementInterface {
 			sqlQuery = w.gpromRewriteQuery(sqlQuery);
 		}
 		return executeQuery(sqlQuery);
+	}
+	
+	public ResultSet executeBackendQuery(String sqlQuery) throws SQLException {
+		return  stat.executeQuery(sqlQuery);
 	}
 
 	public void addBatch(String sql) throws SQLException {

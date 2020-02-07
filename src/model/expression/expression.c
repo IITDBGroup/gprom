@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * expression.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -14,11 +14,14 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "sql_serializer/sql_serializer.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
+#include "configuration/option.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 typedef struct FindNotesContext
 {
@@ -38,6 +41,9 @@ static CastGraphEdge stopper = STOPPER;
 static CastGraphEdge castGraph[] = {
         { DT_INT, DT_FLOAT },
         { DT_INT, DT_STRING },
+        { DT_INT, DT_LONG },
+        { DT_LONG, DT_FLOAT },
+        { DT_LONG, DT_STRING },
         { DT_FLOAT, DT_STRING },
         { DT_BOOL, DT_INT },
         { DT_BOOL, DT_STRING },
@@ -216,7 +222,7 @@ andExprs (Node *expr, ...)
     if (LIST_LENGTH(argList) == 1)
         return expr;
 
-    result = (Node *) createOpExpr("AND", argList);
+    result = (Node *) createOpExpr(OPNAME_AND, argList);
 
     return result;
 }
@@ -228,6 +234,17 @@ andExprList (List *exprs)
 
     FOREACH(Node,e,exprs)
         result = AND_EXPRS(result,e);
+
+    return result;
+}
+
+Node *
+orExprList (List *exprs)
+{
+    Node *result = popHeadOfListP(exprs);
+
+    FOREACH(Node,e,exprs)
+        result = OR_EXPRS(result,e);
 
     return result;
 }
@@ -251,7 +268,7 @@ orExprs (Node *expr, ...)
     if (LIST_LENGTH(argList) == 1)
         return expr;
 
-    result = (Node *) createOpExpr("OR", argList);
+    result = (Node *) createOpExpr(OPNAME_OR, argList);
 
     return result;
 }
@@ -260,7 +277,7 @@ FunctionCall *
 createFunctionCall(char *fName, List *args)
 {
     FunctionCall *result = makeNode(FunctionCall);
-    
+
     if(fName != NULL)
     {
         result->functionname = (char *) CALLOC(1,strlen(fName) + 1);
@@ -271,8 +288,9 @@ createFunctionCall(char *fName, List *args)
 
     result->args = args; //should we copy?
     result->isAgg = FALSE;
+    result->isDistinct = FALSE;
 
-    return result; 
+    return result;
 }
 
 Operator *
@@ -306,19 +324,38 @@ createIsNullExpr (Node *expr)
 Node *
 createIsNotDistinctExpr (Node *lArg, Node *rArg)
 {
-    Operator *eq; //, *nullTest;
+    Node *eq; //, *nullTest;
+    SqlserializerPluginType backend = getActiveSqlserializerPlugin();
 
-    eq = createOpExpr("=", LIST_MAKE(
-            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
-            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+    switch(backend)
+    {
+        case SQLSERIALIZER_PLUGIN_ORACLE:
+        {
+            eq = (Node *) createOpExpr("=", LIST_MAKE(
+                    createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
+                    createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+        }
+        break;
+        case SQLSERIALIZER_PLUGIN_POSTGRES:
+        {
+            eq = (Node *) createOpExpr("IS NOT DISTINCT FROM",
+                    LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+        }
+        break;
+        default:
+        {
+            Node *nullTest, *eqTest;
+
+            eqTest = (Node *) createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+            nullTest = (Node *) createOpExpr(OPNAME_AND, LIST_MAKE(
+                    createIsNullExpr(copyObject(lArg)),
+                    createIsNullExpr(copyObject(rArg))));
+
+            eq = (Node *) createOpExpr(OPNAME_OR, LIST_MAKE(eqTest, nullTest));
+        }
+    }
     return (Node *) eq;
 
-//    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
-//    nullTest = createOpExpr("AND", LIST_MAKE(
-//            createIsNullExpr(copyObject(lArg)),
-//            createIsNullExpr(copyObject(rArg))));
-//
-//    return (Node *) createOpExpr("OR", LIST_MAKE(eq, nullTest));
 }
 
 Constant *
@@ -336,10 +373,10 @@ createConstInt (int value)
 }
 
 Constant *
-createConstLong (long value)
+createConstLong (gprom_long_t value)
 {
     Constant *result = makeNode(Constant);
-    long *v = NEW(long);
+    gprom_long_t *v = NEW(gprom_long_t);
 
     *v = value;
     result->constType  = DT_LONG;
@@ -599,6 +636,43 @@ isCondition(Node *expr)
     return FALSE;
 }
 
+char *
+backendifyIdentifier(char *name)
+{
+    char *result;
+
+    // remove quotes of quoted identifier
+    if (strlen(name) > 0 && name[0] == '"')
+    {
+        result = substr(name, 1, strlen(name) - 2);
+		// SQLite ignores all cases for matching, make sure we do too!
+		if (getBackend() == BACKEND_SQLITE)
+			result = strToUpper(result);
+    }
+    // non quoted part upcase or downcase based on database system
+    else
+    {
+        switch(getBackend())
+        {
+            case BACKEND_ORACLE:
+                result = strToUpper(name);
+                break;
+            case BACKEND_POSTGRES:
+            case BACKEND_MONETDB:
+                result = strToLower(name);
+                break;
+		    case BACKEND_SQLITE: // treat everything as upper case since SQLite completely ignores all cases when it comes to matching attribute names even through internally identifiers are stored case sensitive
+				result = strToUpper(name);
+            default:
+                result = strToUpper(name);
+                break;
+        }
+    }
+
+    return result;
+}
+
+
 List *
 createCasts(Node *lExpr, Node *rExpr)
 {
@@ -855,13 +929,7 @@ lcaType (DataType l, DataType r)
 DataType
 SQLdataTypeToDataType (char *dt)
 {
-    //TODO outsource to metadatalookup for now does only Oracle
-    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER") || streq(dt,"INT"))
-        return DT_INT; //TODO may also be float
-    if (isPrefix(dt, "VARCHAR"))
-        return DT_STRING;
-    FATAL_LOG("unkown SQL datatype %s", dt);
-    return DT_INT;
+    return backendSQLTypeToDT (dt);
 }
 
 DataType
@@ -914,6 +982,7 @@ static DataType
 typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 {
     *exists = TRUE;
+    char *upCaseOpName = strToUpper(opName);
     DataType result = DT_INT;
     DataType dLeft = DT_INT;
     DataType dRight = DT_INT;
@@ -926,14 +995,21 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
         dRight = getNthOfListInt(argDTs,1);
 
     // logical operators
-    if (streq(opName,"OR")
-            || streq(opName,"AND")
-            || streq(opName,"NOT")
+    if (streq(upCaseOpName,OPNAME_OR)
+            || streq(upCaseOpName,OPNAME_AND)
             )
     {
         if (dLeft == dRight && dLeft == DT_BOOL)
             return DT_BOOL;
     }
+
+    // TODO: operator name is "NOT" or "not"
+    if (streq(opName,OPNAME_NOT) || streq(opName,OPNAME_not))
+    {
+        if (dLeft == DT_BOOL)
+            return DT_BOOL;
+    }
+
     // standard arithmetic operators
     if (streq(opName,"+")
             || streq(opName,"*")
@@ -943,7 +1019,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
-        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT))
+        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT || dLeft == DT_LONG))
             return dLeft;
     }
 
@@ -957,6 +1033,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     if (streq(opName,"<")
             || streq(opName,">")
             || streq(opName,"<=")
+            || streq(opName,">=")
             || streq(opName,"=>")
             || streq(opName,"<>")
             || streq(opName,"^=")
@@ -964,7 +1041,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             || streq(opName,"!=")
                 )
     {
-        if (dLeft == dRight)
+        //if (dLeft == dRight)
             return DT_BOOL;
     }
 
@@ -1002,10 +1079,15 @@ typeOfFunc (FunctionCall *f)
     boolean fExists = FALSE;
     DataType result;
 
+    if (strieq(f->functionname, UNCERTAIN_MAKER_FUNC_NAME))
+    {
+        return getNthOfListInt(typeOfArgs(f->args), 0);
+    }
+
     argDTs = typeOfArgs(f->args);
     result = getFuncReturnType(f->functionname, argDTs, &fExists);
     if (!fExists)
-        DEBUG_NODE_BEATIFY_LOG("Function does not exist: %s", f);
+        DEBUG_NODE_BEATIFY_LOG("Function does not exist: ", f);
     return result;
 }
 
@@ -1013,6 +1095,12 @@ static boolean
 funcExists (char *fName, List *argDTs)
 {
     boolean fExists = FALSE;
+
+    // uncertainty dummy functions
+    if (strieq(fName, UNCERTAIN_MAKER_FUNC_NAME))
+    {
+        return TRUE;
+    }
 
     getFuncReturnType(fName, argDTs, &fExists);
 
@@ -1135,7 +1223,7 @@ getSelectionCondOperatorList(Node *expr, List **opList)
     // only are interested in operators here
 	if (isA(expr,Operator)) {
 	    Operator *op = (Operator *) copyObject(expr);
-	    if(streq(op->name,"AND"))
+	    if(streq(op->name,OPNAME_AND))
 	    {
 	        FOREACH(Node,arg,op->args)
                 getSelectionCondOperatorList(arg,opList);
@@ -1152,7 +1240,7 @@ changeListOpToAnOpNode(List *l1)
     Node *opNode1;
 
     if (LIST_LENGTH(l1) == 2)
-        opNode1 = (Node *) createOpExpr("AND", (List *) l1);
+        opNode1 = (Node *) createOpExpr(OPNAME_AND, (List *) l1);
     else if(LIST_LENGTH(l1) > 2)
     {
         int i;
@@ -1164,7 +1252,7 @@ changeListOpToAnOpNode(List *l1)
         helpList = appendToTailOfList(helpList, helpO1);
         helpList = appendToTailOfList(helpList, helpO2);
 
-	Operator *helpO = createOpExpr("AND", (List *) helpList);
+	Operator *helpO = createOpExpr(OPNAME_AND, (List *) helpList);
         int length_l1 = LIST_LENGTH(l1);
 
         for(i=0; i<length_l1; i++)
@@ -1174,7 +1262,7 @@ changeListOpToAnOpNode(List *l1)
             helpO = getHeadOfListP(l1);
             l1 = REMOVE_FROM_LIST_PTR(l1, helpO);
             helpList = appendToTailOfList(helpList, helpO);
-            helpO =  createOpExpr("AND", (List *) helpList);
+            helpO =  createOpExpr(OPNAME_AND, (List *) helpList);
         }
         opNode1 = (Node *)helpO;
     }

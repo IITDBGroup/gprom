@@ -30,7 +30,7 @@ public class OptionsManager {
 	private Properties givenSettings;
 	private Vector<String> options;
 	
-	private OptionsManager () throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	private OptionsManager () throws Exception {
 		options = new Vector<String> ();
 		currentSettings = new Vector<String> ();
 		
@@ -40,14 +40,14 @@ public class OptionsManager {
 		createInitialSettings ();
 	}
 	
-	public static OptionsManager getInstance () throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public static OptionsManager getInstance () throws Exception {
 		if (instance == null) {
 			instance = new OptionsManager ();
 		}
 		return instance;
 	}
 	
-	public void reloadOptions() throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public void reloadOptions() throws Exception {
 		options = new Vector<String> ();
 		currentSettings = new Vector<String> ();
 		

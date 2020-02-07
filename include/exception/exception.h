@@ -46,21 +46,22 @@ extern void deregisterSignalHandler(void);
 extern void processException(void);
 extern void storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int l);
 extern char *currentExceptionToString(void);
+extern void setWipeContext(char *wContext);
 
 extern sigjmp_buf *exceptionBuf;
 
 // macro try block implementation
 #define TRY \
     do { \
-        sigjmp_buf _exceptionBuf; \
         sigjmp_buf *save_previous_jmpbuf = exceptionBuf; \
-        if(!setjmp(_exceptionBuf)) { \
-        	exceptionBuf = &_exceptionBuf; \
+        sigjmp_buf _exceptionBuf; \
+        if(sigsetjmp(_exceptionBuf, 0) == 0) { \
+        	    exceptionBuf = &_exceptionBuf; \
 
 #define END_TRY \
         } else { \
+        	    exceptionBuf = save_previous_jmpbuf; \
 			processException(); \
-			exceptionBuf = save_previous_jmpbuf; \
 		}   \
 		exceptionBuf = save_previous_jmpbuf; \
     } while (0);
@@ -72,10 +73,11 @@ extern sigjmp_buf *exceptionBuf;
 
 #define END_ON_EXCEPTION \
             processException(); \
-            exceptionBuf = NULL; \
         } \
 		exceptionBuf = save_previous_jmpbuf; \
     } while (0);
+
+//            exceptionBuf = save_previous_jmpbuf;
 
 #define PROCESS_EXCEPTION_AND_DIE() \
     do { \
@@ -100,7 +102,7 @@ extern sigjmp_buf *exceptionBuf;
     do { \
         storeExceptionInfo(severity, formatMes(format, ##__VA_ARGS__),__FILE__,__LINE__); \
         if (exceptionBuf != NULL) \
-            longjmp(*exceptionBuf, 1); \
+            siglongjmp(*exceptionBuf, 1); \
         else \
             exit(1); \
     } while(0)
@@ -108,7 +110,9 @@ extern sigjmp_buf *exceptionBuf;
 // rethrow an exception in an ON_EXCEPTION block
 #define RETHROW() \
     do { \
-    	longjmp(*exceptionBuf, 1); \
+    	    if (exceptionBuf != NULL)  { \
+            siglongjmp(*exceptionBuf, 1); \
+        } \
     } while(0)
 
 

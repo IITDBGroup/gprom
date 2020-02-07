@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer_common.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -20,11 +20,15 @@
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+#include "utility/string_utils.h"
 
 #include "sql_serializer/sql_serializer_common.h"
+#include "sql_serializer/sql_serializer.h"
 
 #define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
 
+static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
+static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
 static char *createAttrName (char *name, int fItem);
@@ -48,11 +52,62 @@ createAPIStub (void)
     api->serializeTableAccess = NULL;
     api->serializeConstRel = NULL;
     api->serializeJoinOperator = NULL;
+	api->serializeLimitOperator = genSerializeLimitOperator;
+	api->serializeOrderByOperator = genSerializeOrderByOperator;
     api->createTempView = genCreateTempView;
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
 
     return api;
+}
+
+void
+genQuoteAttributeNames (Node *q)
+{
+    // quote ident names if necessary
+    ASSERT(IS_OP(q) || isA(q,List));
+    if (isA(q,List))
+    {
+        FOREACH(QueryOperator,el, (List *) q)
+            visitQOGraph((QueryOperator *) el, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+    }
+    else
+        visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+}
+
+static boolean
+quoteAttributeNamesVisitQO (QueryOperator *op, void *context)
+{
+    return quoteAttributeNames((Node *) op, op);
+}
+
+static boolean
+quoteAttributeNames (Node *node, void *context)
+{
+     if (node == NULL)
+        return TRUE;
+
+    // do not traverse into query operator nodes to avoid repeated traversal of paths in the graph
+    if (node != context && IS_OP(node))
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        a->name = quoteIdentifier(a->name);
+    }
+    if (isA(node, SelectItem))
+    {
+        SelectItem *a = (SelectItem *) node;
+        a->alias = quoteIdentifier(a->alias);
+    }
+    if (isA(node, AttributeDef))
+    {
+        AttributeDef *a = (AttributeDef *) node;
+        a->attrName = quoteIdentifier(a->attrName);
+    }
+
+    return visit(node, quoteAttributeNames, context);
 }
 
 /*
@@ -67,6 +122,8 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     StringInfo selectString = makeStringInfo();
     StringInfo groupByString = makeStringInfo();
     StringInfo havingString = makeStringInfo();
+	StringInfo orderString = makeStringInfo();
+	StringInfo limitOffsetString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
     List *attrNames = getAttrNames(q->schema);
@@ -110,6 +167,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
             case MATCH_START:
             case MATCH_DISTINCT:
             case MATCH_ORDER:
+		    case MATCH_LIMIT:
             {
                 switch(cur->type)
                 {
@@ -152,7 +210,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                     }
                     break;
                     case T_DuplicateRemoval:
-                        if (state == MATCH_START || state == MATCH_ORDER)
+                        if (state == MATCH_START || state == MATCH_ORDER || state == MATCH_LIMIT)
                         {
                             matchInfo->distinct = (DuplicateRemoval *) cur;
                             state = MATCH_DISTINCT;
@@ -164,7 +222,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                         }
                         break;
                     case T_OrderOperator:
-                        if (state == MATCH_START)
+                        if (state == MATCH_START || state == MATCH_LIMIT)
                         {
                             matchInfo->orderBy = (OrderOperator *) cur;
                             state = MATCH_ORDER;
@@ -183,6 +241,18 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                         matchInfo->windowRoot = (WindowOperator *) cur;
                         state = MATCH_WINDOW;
                         break;
+				    case T_LimitOperator:
+						if (state == MATCH_START)
+                        {
+							matchInfo->limitOffset = (LimitOperator *) cur;
+							state = MATCH_LIMIT;
+                        }
+                        else
+                        {
+                            matchInfo->fromRoot = cur;
+                            state = MATCH_NEXTBLOCK;
+                        }
+						break;
                     default:
                         matchInfo->fromRoot = cur;
                         state = MATCH_NEXTBLOCK;
@@ -332,24 +402,52 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     api->serializeProjectionAndAggregation(matchInfo, selectString, havingString,
             groupByString, fromAttrs, topMaterialize, api);
 
+	DEBUG_LOG("serializeOrder");
+	if (matchInfo->orderBy != NULL)
+		api->serializeOrderByOperator(matchInfo->orderBy, orderString, fromAttrs, api);
+
+	DEBUG_LOG("serializeLimit");
+	if (matchInfo->limitOffset != NULL)
+		api->serializeLimitOperator(matchInfo->limitOffset, limitOffsetString, api);
+
     // put everything together
     DEBUG_LOG("mergePartsTogether");
     //TODO DISTINCT
     if (STRINGLEN(selectString) > 0)
+	{
         appendStringInfoString(str, selectString->data);
+	}
     else
+	{
         appendStringInfoString(str, "\nSELECT *");
+	}
 
     appendStringInfoString(str, fromString->data);
 
     if (STRINGLEN(whereString) > 0)
+	{
         appendStringInfoString(str, whereString->data);
+	}
 
     if (STRINGLEN(groupByString) > 0)
+	{
         appendStringInfoString(str, groupByString->data);
+	}
 
     if (STRINGLEN(havingString) > 0)
+	{
         appendStringInfoString(str, havingString->data);
+	}
+
+	if (STRINGLEN(orderString) > 0)
+	{
+		appendStringInfoString(str, orderString->data);
+	}
+
+	if (STRINGLEN(limitOffsetString) > 0)
+	{
+		appendStringInfoString(str, limitOffsetString->data);
+	}
 
     FREE(matchInfo);
 
@@ -416,10 +514,10 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
         {
             List *attrNames;
 
-            appendStringInfoString(from, "((");
+            appendStringInfoString(from, "(");
             attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, ") F%u)", (*curFromItem)++);
+            appendStringInfo(from, ") F%u", (*curFromItem)++);
         }
     }
 }
@@ -432,8 +530,37 @@ genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs, Seri
 {
     appendStringInfoString(where, "\nWHERE ");
     updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
-    appendStringInfoString(where, exprToSQL(q->cond));
+    appendStringInfoString(where, exprToSQL(q->cond, NULL));
 }
+
+void
+genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesAPI *api)
+{
+	if (q->limitExpr != NULL)
+	{
+		appendStringInfoString(limit, "\nLIMIT ");
+		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr, NULL));
+	}
+	if (q->offsetExpr != NULL)
+	{
+		appendStringInfoString(limit, "\nOFFSET ");
+		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr, NULL));
+	}
+}
+
+void
+genSerializeOrderByOperator (OrderOperator *q, StringInfo order, List *fromAttrs,
+							 SerializeClausesAPI *api) //TODO check since copied from Oracle
+{
+	appendStringInfoString(order, "\nORDER BY ");
+    updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
+
+    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL),"(","");
+    ordExpr = replaceSubstr(ordExpr,")","");
+    ordExpr = replaceSubstr(ordExpr,"'","");
+    appendStringInfoString(order, ordExpr);
+}
+
 
 boolean
 updateAttributeNames(Node *node, List *fromAttrs)
@@ -462,7 +589,7 @@ updateAttributeNames(Node *node, List *fromAttrs)
         }
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
-        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
+        a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);;
     }
 
     return visit(node, updateAttributeNames, fromAttrs);
@@ -502,10 +629,10 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
         view = (HashMap *) MAP_GET_POINTER(tempViewMap, q);
         char *name = strdup(TVIEW_GET_NAME(view));
 
-        if (isA(parent, SetOperator))
+//        if (isA(parent, SetOperator))
             appendStringInfo(str, "SELECT * FROM %s", name);
-        else
-            appendStringInfoString(str, name);
+//        else
+//            appendStringInfoString(str, name);
 
         return deepCopyStringList(TVIEW_GET_ATTRNAMES(view));
     }
@@ -522,10 +649,10 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     DEBUG_LOG("created view definition:\n%s for %p", viewDef->data, q);
 
     // add reference to view
-    if (isA(parent, SetOperator))
+//    if (isA(parent, SetOperator))
         appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
-    else
-        appendStringInfoString(str, strdup(viewName));
+//    else
+//        appendStringInfoString(str, strdup(viewName));
 
     // add to view table
     view = NEW_MAP(Constant,Node);
@@ -557,7 +684,7 @@ exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
     renameAttrsVisitor(expr, state);
 
     FREE(state);
-    return exprToSQL(expr);
+    return exprToSQL(expr, NULL);
 }
 
 static boolean
@@ -663,4 +790,3 @@ updateAttributeNamesSimple(Node *node, List *attrNames)
 
     return visit(node, updateAttributeNamesSimple, attrNames);
 }
-

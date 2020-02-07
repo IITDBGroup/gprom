@@ -27,9 +27,8 @@
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
+#include "../../include/parser/parse_internal_oracle.h"
 #include "parser/parser.h"
-#include "../src/parser/sql_parser.tab.h"
 #include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/executor.h"
@@ -37,13 +36,15 @@
 #include "rewriter.h"
 #include "utility/string_utils.h"
 
+#define PROCESS_CONTEXT_NAME "PROCESS_CONTEXT"
 static const char *commandHelp = "\n"
             "\\q(uit)\t\t\texit CLI\n"
             "\\h(elp)\t\t\tshow this helptext\n"
             "\\i(nput language)\tshow help for currently selected parser\n"
             "\\o(ptions)\t\tshow current parameter settings\n"
             "\\s(et) PAR VAL\t\tset parameter PAR to value VAL\n"
-            "\\b(ackend) QUERY\tsend QUERY directly to the backend"
+            "\\b(ackend) QUERY\tsend QUERY directly to the backend\n"
+            "\\m(ultiline)\t\t\ttoggle multiline editing mode, if on, then semicolon ends a query"
         ;
 
 static char *prompt = "GProM";
@@ -51,11 +52,14 @@ static char *userhomedir = NULL;
 static char *gpromconf = NULL;
 static char *gpromhist = NULL;
 static boolean histExists = FALSE;
+static boolean multiLine = FALSE;
+static boolean multiLineDone = FALSE;
 
 #define GPROM_ENV_CONFFILE "GPROM_CONF"
 #define GPROM_ENV_HISTFILE "GPROM_HIST"
-
+#define BUFFER_SIZE 10000
 #define IS_UTILITY(cmd) (strStartsWith((cmd), "\\"))
+
 static boolean isInteractiveSession;
 
 static void process(char *sql);
@@ -63,10 +67,15 @@ static void inputLoop(void);
 static void utility(char *command);
 static ExceptionHandler handleCLIException (const char *message, const char *file, int line, ExceptionSeverity s);
 static char *readALine(char **str);
+static char *readMultiLine (char **str);
+static boolean statementFinished(char *stmt);
+static void addToHistory(char *res);
 static void readHistory(void);
 static void persistHistory(void);
 static char *createPromptString (void);
 static void readConf (void);
+
+#define HELLO_MESSAGE "Welcome to the GProM " PACKAGE_VERSION " command line interface"
 
 int
 main(int argc, char* argv[])
@@ -86,7 +95,7 @@ main(int argc, char* argv[])
     readConf();
 
     // read options, determine session type, and setup plugins
-    int returnVal = readOptions("gprom", "GProM command line application.", argc, argv);
+    int returnVal = readOptions("gprom", HELLO_MESSAGE, argc, argv);
 
     isInteractiveSession = !(getStringOption("languagehelp") != NULL
             || getBoolOption("help")
@@ -113,9 +122,9 @@ main(int argc, char* argv[])
     }
     else if (getStringOption("input.sql") != NULL)
     {
-        result = rewriteQuery(getStringOption("input.sql"));
-        // call executor
-        execute(result);
+        process(getStringOption("input.sql"));
+//        // call executor
+//        execute(result);
     }
     else if (getStringOption("input.sqlFile") != NULL)
     {
@@ -135,7 +144,7 @@ main(int argc, char* argv[])
     else
     {
         readHistory();
-        printf("GProM Commandline Client\n");
+        printf(HELLO_MESSAGE "\n");
         printf("Please input a SQL command, '\\q' to exit the program, or '\\h' for help\n");
         printf("======================================================================\n\n");
         inputLoop();
@@ -159,43 +168,36 @@ createPromptString (void)
 static void
 inputLoop(void)
 {
-	char* sql=(char*) CALLOC(100000,1);
-	while(TRUE)
-	{
-	    char *returnVal;
+    char* sql=(char*) CALLOC(BUFFER_SIZE,1);
+    while(TRUE)
+    {
+        char *returnVal;
 
-	    returnVal = readALine(&sql);
+        if (multiLine)
+            returnVal = readMultiLine(&sql);
+        else
+            returnVal = readALine(&sql);
 
-		// deal with failure
-		if (returnVal == NULL && ferror(stdin))
-		{
-		    printf("\n\nError reading from stdin\n");
-		    exit(EXIT_FAILURE);
-		}
+        // deal with failure
+        if (returnVal == NULL && ferror(stdin))
+        {
+            printf("\n\nError reading from stdin\n");
+            exit(EXIT_FAILURE);
+        }
 
-		DEBUG_LOG("process command:\n<%s>", sql);
+        DEBUG_LOG("process command:\n<%s>", sql);
 
-		// deal with utility commands
-		if (IS_UTILITY(sql))
-		{
-		    utility(sql);
-		    continue;
-		}
+        // deal with utility commands
+        if (IS_UTILITY(sql))
+        {
+            utility(sql);
+            continue;
+        }
 
-		// process query
-		TRY
-		{
-            NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
-            process(sql);
-            FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-		}
-		ON_EXCEPTION
-		{
-		    printf("\nError occured\n");
-		}
-		END_ON_EXCEPTION
-	}
-	FREE(sql);
+        // process query
+        process(sql);
+    }
+    FREE(sql);
 }
 
 /*
@@ -204,7 +206,19 @@ inputLoop(void)
 static void
 process(char *sql)
 {
-    processInput(sql);
+    // process query
+    TRY
+    {
+        NEW_AND_ACQUIRE_MEMCONTEXT(PROCESS_CONTEXT_NAME);
+        processInput(sql);
+    }
+    ON_EXCEPTION
+    {
+        printf("\nError occured\n");
+        fflush(stdout);
+    }
+    END_ON_EXCEPTION
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 }
 
 /*
@@ -258,6 +272,20 @@ utility(char *command)
             exeRunQuery(cmd);
         }
         END_TRY
+        return;
+    }
+
+    // TOGGLE MULTILINE EDITING
+    if (strStartsWith(command, "\\m"))
+    {
+        multiLine = ! multiLine;
+        if (multiLine)
+        {
+            printf("Activated multi line commands (use ; to end command)\n");
+        }
+        else
+            printf("Activated  single line commands\n");
+
         return;
     }
 
@@ -315,10 +343,11 @@ handleCLIException (const char *message, const char *file, int line, ExceptionSe
     else
         printf(TCOL(RED,"(%s:%u) ") "\n%s\n",
                 file, line, message);
+    fflush(stdout);
 
     // throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
     if (isInteractiveSession)
-        return EXCEPTION_WIPE;
+        return EXCEPTION_ABORT;
     else
         return EXCEPTION_DIE;
 }
@@ -430,25 +459,22 @@ readConf (void)
 }
 
 
+
+/********************************************************************************/
 #ifdef HAVE_READLINE
 
-static char *
-readALine(char **str)
+static void
+addToHistory(char *res)
 {
-    char *res;
-
-    /* Get a line from the user. */
-    res = readline (prompt);
-    DEBUG_LOG(res);
     /* If the line has any text in it, save it to the history. */
     if (res && *res)
     {
         if (!streq(res, "\\q"))
             add_history (res);
     }
-    *str = res;
-    return *str;
 }
+
+
 
 static void
 readHistory()
@@ -460,7 +486,9 @@ readHistory()
         {
             err = read_history(gpromhist);
             if (err != 0)
-                FATAL_LOG("error loading history");
+            {
+                ERROR_LOG("error loading history, errno = %d", err);
+            }
         }
     }
     END_TRY
@@ -484,20 +512,114 @@ persistHistory()
     END_TRY
 }
 
+static char *
+readALine(char **str)
+{
+    char *res;
+
+    /* Get a line from the user. */
+    res = readline (prompt);
+    TRACE_LOG(res);
+    /* If the line has any text in it, save it to the history. */
+    addToHistory(res);
+    *str = res;
+    return *str;
+}
+
+static char *
+readMultiLine (char **str)
+{
+    multiLineDone = FALSE;
+    StringInfo result = makeStringInfo();
+    char *line;
+    int lineNum = 0;
+
+    // online show prompt for first line
+    while(!multiLineDone)
+    {
+        if (lineNum == 0)
+            line = readline(prompt);
+        else
+            line = readline("> ");
+        appendStringInfoString(result, line);
+
+        if (statementFinished(line) || IS_UTILITY(line))
+            multiLineDone = TRUE;
+
+        if (!multiLineDone)
+            appendStringInfoString(result, "\n");
+
+        lineNum++;
+    }
+
+    // add to history if the line is not empty
+    addToHistory(result->data);
+    *str = result->data;
+    return *str;
+}
+
+static boolean
+statementFinished(char *stmt)
+{
+    char *trimLine = strtrim(stmt);
+    char lastChar = trimLine[strlen(trimLine) - 1];
+    TRACE_LOG("line <%s> , trimmed <%s>, last char <%c>", stmt, trimLine, lastChar);
+    if (lastChar == ';') //TODO accept whitepsace
+        return TRUE;
+    return FALSE;
+}
+
 #else
+
+static char *readLine(char *buffer, size_t buflen, FILE *fp);
 
 static char *
 readALine(char **str)
 {
     printf(TB_FG_BG(WHITE,BLACK,"%s"), prompt);
     printf(" ");
-    return gets(*str);
+    addToHistory(NULL);
+    return readLine(*str, BUFFER_SIZE, stdin);
+}
+
+static char *
+readLine(char *buffer, size_t buflen, FILE *fp)
+{
+    if (fgets(buffer, buflen, fp) != 0)
+    {
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len-1] == '\n')
+            buffer[len-1] = '\0';
+        return buffer;
+    }
+    return 0;
+}
+
+static char *
+readMultiLine (char **str)
+{
+    if (statementFinished(NULL))
+        return readALine(str);
+    multiLineDone = TRUE;
+    return NULL;
+}
+
+static void
+addToHistory(char *res)
+{
+
 }
 
 static void
 readHistory()
 {
 
+}
+
+static boolean
+statementFinished(char *stmt)
+{
+    return TRUE;
 }
 
 static void
