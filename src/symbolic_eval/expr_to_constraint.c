@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * expr_to_constraint.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: Bahareh
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -54,6 +54,7 @@ static int default_num_cols = 100;
  */
 
 //static char *tableName;
+//TODO having all this global datastructures is bad!
 static HashMap *attrIndex;    // hashmap attributename -> attribute index in obj
 static int *lastIndex; // hashmap attributename -> get last attribute index that was used
 static double *obj;
@@ -142,8 +143,8 @@ static int getObjectIndex(char *attrName) {
 }
 
 static List *
-getOpExpStack(List *stackList, Operator *opExpList) {
-
+getOpExpStack(List *stackList, Operator *opExpList)
+{
 	stackList = appendToTailOfList(stackList, opExpList);
 	Node *left = (Node *) getHeadOfListP(opExpList->args);
 	Node *right = (Node *) getTailOfListP(opExpList->args);
@@ -163,8 +164,9 @@ getOpExpStack(List *stackList, Operator *opExpList) {
 	return stackList;
 }
 
-static double constrToDouble(Constant *cons) {
-
+static double
+constrToDouble(Constant *cons)
+{
 	switch (cons->constType) {
 	case DT_INT:
 		return (double) INT_VALUE(cons);
@@ -176,9 +178,9 @@ static double constrToDouble(Constant *cons) {
 		return (double) LONG_VALUE(cons);
 	case DT_VARCHAR2:
 	case DT_STRING:
-		return 0;
+		return 0.0;
 	}
-	return 0;
+	return 0.0;
 }
 
 static int setToConstr(Node *query, CPXENVptr env, CPXLPptr lp) {
