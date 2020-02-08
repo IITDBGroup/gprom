@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_expr_cplex.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -44,12 +44,11 @@ static rc
 testLogicExpr (void)
 {
     initializeCPlex();
-    Node *test = createOpExpr("AND", LIST_MAKE(createConstBool(TRUE), createConstBool(FALSE)));
-
+    Node *test = (Node *) createOpExpr("AND", LIST_MAKE(createConstBool(TRUE), createConstBool(FALSE)));
+	test = NULL;
     //TODO create constraint
     //TODO solve constraint
     //TODO LOG constraints
     //TODO compare result against expected result
     return PASS;
 }
-

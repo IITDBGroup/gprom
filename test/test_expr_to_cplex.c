@@ -40,7 +40,7 @@ static void whatIfResult(List *updates, boolean ds);
 static Node *getCond(Node *node);
 
 static ExceptionHandler handleCLIException(const char *message,
-		const char *file, int line, ExceptionSeverity s);
+										   const char *file, int line, ExceptionSeverity s);
 
 int main(int argc, char* argv[]) {
 	List *history;
@@ -57,61 +57,61 @@ int main(int argc, char* argv[]) {
 	// parse input string
 	else {
 		TRY
-					{
-						history = (List *) parseFromString(
-								getStringOption("input.query"));
+		{
+			history = (List *) parseFromString(
+				getStringOption("input.query"));
 
-						ERROR_LOG("Total Number of updates: %d \n",
-								getListLength(history) - 1);
+			ERROR_LOG("Total Number of updates: %d \n",
+					  getListLength(history) - 1);
 
-						List *updates = SymbolicExeAlgo(history);
+			List *updates = SymbolicExeAlgo(history);
 
-						int depUp = getListLength(updates) - 2;
+			int depUp = getListLength(updates) - 2;
 
-						 ERROR_LOG("Number of dependent statements: %d \n",
-						 depUp);
+			ERROR_LOG("Number of dependent statements: %d \n",
+					  depUp);
 
-						 ERROR_LOG("What-if result for all updates:\n");
-						 whatIfResult(history, FALSE);
-
-
-						 ERROR_LOG(
-						 "What-if result for all updates with data slicing:\n");
-						 whatIfResult(history, TRUE);
+			ERROR_LOG("What-if result for all updates:\n");
+			whatIfResult(history, FALSE);
 
 
-						 if(depUp>0)
-						 {
-						ERROR_LOG(
-						 "What-if result for just dependent updates:\n");
-						 whatIfResult(updates, FALSE);
-						 }
+			ERROR_LOG(
+				"What-if result for all updates with data slicing:\n");
+			whatIfResult(history, TRUE);
+
+
+			if(depUp>0)
+			{
+				ERROR_LOG(
+					"What-if result for just dependent updates:\n");
+				whatIfResult(updates, FALSE);
+			}
 /*
-						struct timespec tstart={0,0}, tend={0,0};
-						    clock_gettime(CLOCK_MONOTONIC, &tstart);
-						    */
-						if (depUp > 0) {
-							ERROR_LOG(
-									"What-if result for just dependent updates with data slicing:\n");
-							whatIfResult(updates, TRUE);
-						}
-						/*
-						clock_gettime(CLOCK_MONOTONIC, &tend);
-						ERROR_LOG("%.5f seconds took for Reenactment and data slicing of dependent updates\n",
-						           ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
-						           ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
+  struct timespec tstart={0,0}, tend={0,0};
+  clock_gettime(CLOCK_MONOTONIC, &tstart);
 */
-					}ON_EXCEPTION
-					{
-						// if an exception is thrown then the query memory context has been
-						// destroyed and we can directly create an empty string in the callers
-						// context
-						DEBUG_LOG("allocated in memory context: %s",
-								getCurMemContext()->contextName);
-					}
-					END_ON_EXCEPTION
+			if (depUp > 0) {
+				ERROR_LOG(
+					"What-if result for just dependent updates with data slicing:\n");
+				whatIfResult(updates, TRUE);
+			}
+			/*
+			  clock_gettime(CLOCK_MONOTONIC, &tend);
+			  ERROR_LOG("%.5f seconds took for Reenactment and data slicing of dependent updates\n",
+			  ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+			  ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
+			*/
+		}ON_EXCEPTION
+		 {
+			 // if an exception is thrown then the query memory context has been
+			 // destroyed and we can directly create an empty string in the callers
+			 // context
+			 DEBUG_LOG("allocated in memory context: %s",
+					   getCurMemContext()->contextName);
+		 }
+		END_ON_EXCEPTION
 
-	}
+			}
 
 	shutdownApplication();
 
@@ -154,13 +154,13 @@ static void whatIfResult(List *updates, boolean ds) {
 
 	if (!ds) {
 		diff1 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
-				LIST_MAKE(reop1, reop2), NIL,
-				NIL);
+													LIST_MAKE(reop1, reop2), NIL,
+													NIL);
 		diff2 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
-				LIST_MAKE(reop2, reop1), NIL,
-				NIL);
+													LIST_MAKE(reop2, reop1), NIL,
+													NIL);
 		uni = (QueryOperator *) createSetOperator(SETOP_UNION,
-				LIST_MAKE(diff1, diff2), NIL, NIL);
+												  LIST_MAKE(diff1, diff2), NIL, NIL);
 
 		addChildOperator(uni, diff1);
 		addChildOperator(uni, diff2);
@@ -200,13 +200,13 @@ static void whatIfResult(List *updates, boolean ds) {
 		addChildOperator((QueryOperator *) so2, reop2);
 
 		diff1 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
-				LIST_MAKE(so1, so2), NIL,
-				NIL);
+													LIST_MAKE(so1, so2), NIL,
+													NIL);
 		diff2 = (QueryOperator *) createSetOperator(SETOP_DIFFERENCE,
-				LIST_MAKE(so2, so1), NIL,
-				NIL);
+													LIST_MAKE(so2, so1), NIL,
+													NIL);
 		uni = (QueryOperator *) createSetOperator(SETOP_UNION,
-				LIST_MAKE(diff1, diff2), NIL, NIL);
+												  LIST_MAKE(diff1, diff2), NIL, NIL);
 
 		addChildOperator(uni, diff1);
 		addChildOperator(uni, diff2);
@@ -233,7 +233,7 @@ static Node *getCond(Node *node) {
  * Function that handles exceptions
  */
 static ExceptionHandler handleCLIException(const char *message,
-		const char *file, int line, ExceptionSeverity s) {
+										   const char *file, int line, ExceptionSeverity s) {
 	if (streq(file, "sql_parser.l")) {
 		printf(TCOL(RED, "PARSE ERORR:") " %s", message);
 	} else

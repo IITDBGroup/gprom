@@ -9,12 +9,12 @@
  *
  *-----------------------------------------------------------------------------
  */
-/*
- // only include cplex headers if the library is available
- #ifdef HAVE_LIBCPLEX
- #include <ilcplex/cplex.h>
- #endif
- */
+
+// only include cplex headers if the library is available
+#ifdef HAVE_LIBCPLEX
+#include <ilcplex/cplex.h>
+#endif
+
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -39,22 +39,24 @@ static double default_lb = 0.0;
 static double default_ub = 1000000000000;
 static int default_num_cols = 100;
 
-//#ifdef HAVE_LIBCPLEX
-/*
- typedef struct CplexObjects {
+// added guard here to only reference cplex data structure if we are linking with cplex
+#ifdef HAVE_LIBCPLEX
+
+//TODO should switch to using this instead and eventually remove the global static variable and pass the context around
+typedef struct CplexObjects {
  char *tableName;
  HashMap *attrIndex;       // hashmap attributename -> attribute index in obj
- double obj[];
- double lb[];
- double ub[];
- char *colname[];
+ double *obj;
+ double *lb;
+ double *ub;
+ char **colname;
  } CplexObjects;
 
- static CplexObjects *cplexObjects = NULL; // global pointer to current cplex objects
- */
+//TODO static CplexObjects *cplexObjects = NULL; // global pointer to current cplex objects
+
 
 //static char *tableName;
-//TODO having all this global datastructures is bad!
+//TODO having all this global datastructures is bad! whew!
 static HashMap *attrIndex;    // hashmap attributename -> attribute index in obj
 static int *lastIndex; // hashmap attributename -> get last attribute index that was used
 static double *obj;
@@ -84,7 +86,9 @@ static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp);
 static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp);
 static int firstInsExe(Node *expr, CPXENVptr env, CPXLPptr lp);
 
-static void setCplexObjects(Node *expr) {
+static void
+setCplexObjects(Node *expr)
+{
 	totalObjects = 0;
 	char *tbName = NULL;
 	switch (expr->type) {
@@ -120,6 +124,7 @@ static void setCplexObjects(Node *expr) {
 	ub = (double *) MALLOC(sizeof(double) * default_num_cols);
 	colname = (char **) MALLOC(sizeof(char *) * default_num_cols);
 
+	//TODO should free or use memory context here probably (copy out if necessary)
 	DEBUG_LOG("working setCplexObjects.\n");
 
 	//tableName = tbName;
@@ -138,7 +143,9 @@ static void setCplexObjects(Node *expr) {
 //}
 }
 
-static int getObjectIndex(char *attrName) {
+static int
+getObjectIndex(char *attrName)
+{
 	return INT_VALUE(MAP_GET_STRING(attrIndex,(char *)attrName));
 }
 
@@ -183,7 +190,9 @@ constrToDouble(Constant *cons)
 	return 0.0;
 }
 
-static int setToConstr(Node *query, CPXENVptr env, CPXLPptr lp) {
+static int
+setToConstr(Node *query, CPXENVptr env, CPXLPptr lp)
+{
 	int status = 0;
 
 	if (isA(query, List)) {
@@ -229,10 +238,13 @@ static int setToConstr(Node *query, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
-static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
+static int
+condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp)
+{
 
 	int status = 0;
 
+	//TODO assumes that it's an opertors and if not then this will fail
 	char *opName = ((Operator *) cond)->name;
 	if (strcmp(opName, "AND") == 0) {
 		DEBUG_LOG("we have AND Operator");
@@ -240,7 +252,9 @@ static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 				lp);
 		condToConstr((Node *) getTailOfListP(((Operator *) cond)->args), env,
 				lp);
-	} else {
+	}
+	else
+	{
 
 		List *result = NIL;
 		result = getAttrNameFromOpExpList(result, (Operator *) cond);
@@ -370,6 +384,7 @@ static int invertCondToConstr(Node *cond, List *selectClause, CPXENVptr env,
 		if (!isFound)
 			return condToConstr(cond, env, lp);
 		else {
+
 			int numCols = getListLength(conAttr);
 			int index = 0;
 			int numRows = 1;
@@ -396,6 +411,7 @@ static int invertCondToConstr(Node *cond, List *selectClause, CPXENVptr env,
 			Node *right = (Node *) getTailOfListP(((Operator *) cond)->args);
 			char *attrName = ((AttributeReference *) left)->name;
 
+			//TODO these are only several hard-coded cases. This needs to be working recursively like the rules in the paper to work for more general cases (We can still optimize certain special cases later).
 			//if the condition likes c>10
 			if (isA(left, AttributeReference)) {
 				index = getObjectIndex(attrName);
@@ -703,7 +719,7 @@ static void setSymbolicObjects(List *exprsList) {
 //create initial attributes
 	FOREACH(char,a,schema)
 	{
-		cName = CONCAT_STRINGS(a, "_", itoa(0));
+		cName = CONCAT_STRINGS(a, "_", gprom_itoa(0));
 		MAP_ADD_STRING_KEY(attrIndex, cName, createConstInt(totalObjects));
 		colname[totalObjects] = cName;
 		lb[totalObjects] = default_lb;
@@ -717,6 +733,7 @@ static void setSymbolicObjects(List *exprsList) {
 	char *attName;
 	List *sClause;
 
+	//TODO find better names (I think these are value before update, after updates, and does tuple exist
 	//we must create new attribute states, U,V, and X
 	i = 1;
 	FOREACH(Node,exp,exprs)
@@ -728,7 +745,7 @@ static void setSymbolicObjects(List *exprsList) {
 			{
 				selectAttr = getHeadOfListP((List *) s->expr);
 				attName = ((AttributeReference *) selectAttr)->name;
-				cName = CONCAT_STRINGS(attName, "_", itoa(i));
+				cName = CONCAT_STRINGS(attName, "_", gprom_itoa(i));
 				MAP_ADD_STRING_KEY(attrIndex, cName,
 						createConstInt(totalObjects));
 				colname[totalObjects] = cName;
@@ -738,7 +755,7 @@ static void setSymbolicObjects(List *exprsList) {
 				ctype[totalObjects] = 'C';
 				totalObjects++;
 				if (i > 1) {
-					cName = CONCAT_STRINGS("u_", attName, "_", itoa(i));
+					cName = CONCAT_STRINGS("u_", attName, "_", gprom_itoa(i));
 					MAP_ADD_STRING_KEY(attrIndex, cName,
 							createConstInt(totalObjects));
 					colname[totalObjects] = cName;
@@ -748,7 +765,7 @@ static void setSymbolicObjects(List *exprsList) {
 					ctype[totalObjects] = 'C';
 					totalObjects++;
 
-					cName = CONCAT_STRINGS("v_", attName, "_", itoa(i));
+					cName = CONCAT_STRINGS("v_", attName, "_", gprom_itoa(i));
 					MAP_ADD_STRING_KEY(attrIndex, cName,
 							createConstInt(totalObjects));
 					colname[totalObjects] = cName;
@@ -760,7 +777,7 @@ static void setSymbolicObjects(List *exprsList) {
 				}
 			}
 			//for x
-			cName = CONCAT_STRINGS("x_", itoa(i));
+			cName = CONCAT_STRINGS("x_", gprom_itoa(i));
 			MAP_ADD_STRING_KEY(attrIndex, cName, createConstInt(totalObjects));
 			colname[totalObjects] = cName;
 			lb[totalObjects] = 0;
@@ -772,7 +789,7 @@ static void setSymbolicObjects(List *exprsList) {
 			count--;
 			for (int j = 1; j <= count; j++) {
 
-				cName = CONCAT_STRINGS("x_", itoa(i), "_", itoa(j));
+				cName = CONCAT_STRINGS("x_", gprom_itoa(i), "_", gprom_itoa(j));
 				MAP_ADD_STRING_KEY(attrIndex, cName,
 						createConstInt(totalObjects));
 				colname[totalObjects] = cName;
@@ -785,7 +802,7 @@ static void setSymbolicObjects(List *exprsList) {
 			deepFreeList(sClause);
 		} else if (exp->type == T_Delete) {
 			//for x
-			cName = CONCAT_STRINGS("x_", itoa(i));
+			cName = CONCAT_STRINGS("x_", gprom_itoa(i));
 			MAP_ADD_STRING_KEY(attrIndex, cName, createConstInt(totalObjects));
 			colname[totalObjects] = cName;
 			lb[totalObjects] = 0;
@@ -797,7 +814,7 @@ static void setSymbolicObjects(List *exprsList) {
 			count--;
 			for (int j = 1; j <= count; j++) {
 
-				cName = CONCAT_STRINGS("x_", itoa(i), "_", itoa(j));
+				cName = CONCAT_STRINGS("x_", gprom_itoa(i), "_", gprom_itoa(j));
 				MAP_ADD_STRING_KEY(attrIndex, cName,
 						createConstInt(totalObjects));
 				colname[totalObjects] = cName;
@@ -851,8 +868,8 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	left = getHeadOfListP((List *) s->expr);
 	selectAttName = ((AttributeReference *) left)->name;
 	uIndex = getObjectIndex(
-			CONCAT_STRINGS("u_", selectAttName, "_", itoa(upNum)));
-	rowname[j] = CONCAT_STRINGS("u1_", selectAttName, itoa(upNum));
+			CONCAT_STRINGS("u_", selectAttName, "_", gprom_itoa(upNum)));
+	rowname[j] = CONCAT_STRINGS("u1_", selectAttName, gprom_itoa(upNum));
 	rmatind[i] = uIndex;
 	rmatval[i] = 1.0;
 	i++;
@@ -878,20 +895,20 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 
 			if (isA(r, AttributeReference) && isA(l, Constant)) {
 				attr = ((AttributeReference *) r)->name;
-				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				aIndex = lastIndex[aIndex];
 				aIndex = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(aIndex)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(aIndex)));
 				rmatind[i] = aIndex;
 				rmatval[i] = -1;
 				rhs[j] = constrToDouble((Constant *) l) * neg;
 
 			} else if (isA(l, AttributeReference) && isA(r, Constant)) {
 				attr = ((AttributeReference *) l)->name;
-				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				aIndex = lastIndex[aIndex];
 				aIndex = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(aIndex)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(aIndex)));
 				rmatind[i] = aIndex;
 				rmatval[i] = -1;
 				rhs[j] = constrToDouble((Constant *) r) * neg;
@@ -900,20 +917,20 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 		} else if (strcmp(op, "*") == 0) {
 			if (isA(r, AttributeReference) && isA(l, Constant)) {
 				attr = ((AttributeReference *) r)->name;
-				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				aIndex = lastIndex[aIndex];
 				aIndex = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(aIndex)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(aIndex)));
 				rmatind[i] = aIndex;
 				rmatval[i] = -constrToDouble((Constant *) l);
 				rhs[j] = 0;
 
 			} else if (isA(l, AttributeReference) && isA(r, Constant)) {
 				attr = ((AttributeReference *) l)->name;
-				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				aIndex = lastIndex[aIndex];
 				aIndex = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(aIndex)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(aIndex)));
 				rmatind[i] = aIndex;
 				rmatval[i] = -constrToDouble((Constant *) r);
 				rhs[j] = 0;
@@ -922,20 +939,20 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 		} else if (strcmp(op, "/") == 0) {
 			if (isA(r, AttributeReference) && isA(l, Constant)) {
 				attr = ((AttributeReference *) r)->name;
-				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				aIndex = lastIndex[aIndex];
 				aIndex = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(aIndex)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(aIndex)));
 				rmatind[i] = aIndex;
 				rmatval[i] = -1 / constrToDouble((Constant *) l);
 				rhs[j] = 0;
 
 			} else if (isA(l, AttributeReference) && isA(r, Constant)) {
 				attr = ((AttributeReference *) l)->name;
-				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				aIndex = lastIndex[aIndex];
 				aIndex = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(aIndex)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(aIndex)));
 				rmatind[i] = aIndex;
 				rmatval[i] = -1 / constrToDouble((Constant *) r);
 				rhs[j] = 0;
@@ -949,13 +966,13 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 
 //create second constraints for u: u.Aj<= x*M => u.Aj- x*M <= 0
 	rmatbeg[j] = i;
-	rowname[j] = CONCAT_STRINGS("u2_", selectAttName, "_", itoa(upNum));
+	rowname[j] = CONCAT_STRINGS("u2_", selectAttName, "_", gprom_itoa(upNum));
 	sense[j] = 'L';
 	rmatind[i] = uIndex;
 	rmatval[i] = 1.0;
 	i++;
 // xIndex
-	xIndex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
+	xIndex = getObjectIndex(CONCAT_STRINGS("x_", gprom_itoa(upNum)));
 	rmatind[i] = xIndex;
 	rmatval[i] = -default_ub;
 	i++;
@@ -965,7 +982,7 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 //create third constraints for u: u.Aj>= mod(t).Aj -(1- x) *M => u.Aj- mod(t).Aj- x*M >=-M
 
 	rmatbeg[j] = i;
-	rowname[j] = CONCAT_STRINGS("u3_", selectAttName, "_", itoa(upNum));
+	rowname[j] = CONCAT_STRINGS("u3_", selectAttName, "_", gprom_itoa(upNum));
 	sense[j] = 'G';
 	rmatind[i] = uIndex;
 	rmatval[i] = 1.0;
@@ -1028,6 +1045,7 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
+//TODO variable naming the LP program is ad hoc. It would be better to fix some naming scheme and for ease of development provide methods to track mappings between LP variables and expression parts / objects in some context
 static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 	int status = 0;
 	int numRows = 3; //setSize(attrSet);
@@ -1043,15 +1061,15 @@ static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 
 //create first constraints for v: v.Aj<= Aj => v.Aj- Aj <=0
 	rmatbeg[j] = i;
-	rowname[j] = CONCAT_STRINGS("v1_", attr, "_", itoa(upNum));
+	rowname[j] = CONCAT_STRINGS("v1_", attr, "_", gprom_itoa(upNum));
 	sense[j] = 'L';
-	vIndex = getObjectIndex(CONCAT_STRINGS("v_", attr, "_", itoa(upNum)));
+	vIndex = getObjectIndex(CONCAT_STRINGS("v_", attr, "_", gprom_itoa(upNum)));
 	rmatind[i] = vIndex;
 	rmatval[i] = 1.0;
 	i++;
-	aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+	aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 	aIndex = lastIndex[aIndex];
-	aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(aIndex)));
+	aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(aIndex)));
 	rmatind[i] = aIndex;
 	rmatval[i] = -1.0;
 	i++;
@@ -1059,13 +1077,13 @@ static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 	j++;
 //create second constraints for v: v.Aj<= (1-x)*M => v.Aj+ x*M <= M
 	rmatbeg[j] = i;
-	rowname[j] = CONCAT_STRINGS("v2_", attr, "_", itoa(upNum));
+	rowname[j] = CONCAT_STRINGS("v2_", attr, "_", gprom_itoa(upNum));
 	sense[j] = 'L';
 	rmatind[i] = vIndex;
 	rmatval[i] = 1.0;
 	i++;
 // xIndex
-	xIndex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
+	xIndex = getObjectIndex(CONCAT_STRINGS("x_", gprom_itoa(upNum)));
 	rmatind[i] = xIndex;
 	rmatval[i] = default_ub;
 	i++;
@@ -1073,7 +1091,7 @@ static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 	j++;
 //create third constraints for v: v.Aj>= Aj - x*M => v.Aj- Aj+ x*M >=0
 	rmatbeg[j] = i;
-	rowname[j] = CONCAT_STRINGS("v3_", attr, "_", itoa(upNum));
+	rowname[j] = CONCAT_STRINGS("v3_", attr, "_", gprom_itoa(upNum));
 	sense[j] = 'G';
 	rmatind[i] = vIndex;
 	rmatval[i] = 1.0;
@@ -1115,17 +1133,17 @@ static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 
 //create first constraints for Aj: Aj= U + V => Aj-U-V = 0
 	rmatbeg[0] = 0;
-	rowname[0] = CONCAT_STRINGS("uv", itoa(upNum));
+	rowname[0] = CONCAT_STRINGS("uv", gprom_itoa(upNum));
 	sense[0] = 'E';
-	rmatind[i] = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(upNum)));
+	rmatind[i] = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(upNum)));
 	rmatval[i] = 1.0;
 	i++;
-	uIndex = getObjectIndex(CONCAT_STRINGS("u_", attr, "_", itoa(upNum)));
+	uIndex = getObjectIndex(CONCAT_STRINGS("u_", attr, "_", gprom_itoa(upNum)));
 	rmatind[i] = uIndex;
 	rmatval[i] = -1.0;
 	i++;
 //vIndex
-	vIndex = getObjectIndex(CONCAT_STRINGS("v_", attr, "_", itoa(upNum)));
+	vIndex = getObjectIndex(CONCAT_STRINGS("v_", attr, "_", gprom_itoa(upNum)));
 	rmatind[i] = vIndex;
 	rmatval[i] = -1.0;
 	rhs[0] = 0;
@@ -1136,7 +1154,7 @@ static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 			rmatval, NULL, rowname);
 
 	//increase lastIndex for the modified attribute
-	int aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+	int aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 	lastIndex[aIndex] = upNum;
 
 	if (status) {
@@ -1191,15 +1209,15 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		setX(upNum, curIndex + 1, left, env, lp);
 		setX(upNum, curIndex + 2, right, env, lp);
 		if (index == 0)
-			xindex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
+			xindex = getObjectIndex(CONCAT_STRINGS("x_", gprom_itoa(upNum)));
 		else
 			xindex = getObjectIndex(
-					CONCAT_STRINGS("x_", itoa(upNum), "_", itoa(index)));
+					CONCAT_STRINGS("x_", gprom_itoa(upNum), "_", gprom_itoa(index)));
 		DEBUG_LOG("we have AND Operator for %s", colname[xindex]);
 		x1index = getObjectIndex(
-				CONCAT_STRINGS("x_", itoa(upNum), "_", itoa(curIndex + 1)));
+				CONCAT_STRINGS("x_", gprom_itoa(upNum), "_", gprom_itoa(curIndex + 1)));
 		x2index = getObjectIndex(
-				CONCAT_STRINGS("x_", itoa(upNum), "_", itoa(curIndex + 2)));
+				CONCAT_STRINGS("x_", gprom_itoa(upNum), "_", gprom_itoa(curIndex + 2)));
 		int numCols = 3;
 		int numRows = 2;
 		int numZ = numRows * numCols;
@@ -1211,7 +1229,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		double rmatval[numZ];
 		int i = 0, j = 0;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1225,7 +1243,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		rhs[j] = 1;
 		j++;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1260,15 +1278,15 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		setX(upNum, curIndex + 1, left, env, lp);
 		setX(upNum, curIndex + 2, right, env, lp);
 		if (index == 0)
-			xindex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
+			xindex = getObjectIndex(CONCAT_STRINGS("x_", gprom_itoa(upNum)));
 		else
 			xindex = getObjectIndex(
-					CONCAT_STRINGS("x_", itoa(upNum), "_", itoa(index)));
+					CONCAT_STRINGS("x_", gprom_itoa(upNum), "_", gprom_itoa(index)));
 		DEBUG_LOG("we have AND Operator for %s", colname[xindex]);
 		x1index = getObjectIndex(
-				CONCAT_STRINGS("x_", itoa(upNum), "_", itoa(curIndex + 1)));
+				CONCAT_STRINGS("x_", gprom_itoa(upNum), "_", gprom_itoa(curIndex + 1)));
 		x2index = getObjectIndex(
-				CONCAT_STRINGS("x_", itoa(upNum), "_", itoa(curIndex + 2)));
+				CONCAT_STRINGS("x_", gprom_itoa(upNum), "_", gprom_itoa(curIndex + 2)));
 		int numCols = 3;
 		int numRows = 2;
 		int numZ = numRows * numCols;
@@ -1280,7 +1298,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		double rmatval[numZ];
 		int i = 0, j = 0;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1294,7 +1312,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		rhs[j] = 0;
 		j++;
 		rmatbeg[j] = i;
-		rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+		rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 		rmatind[i] = x1index;
 		rmatval[i] = 1.0;
 		i++;
@@ -1342,15 +1360,15 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		Node *right = (Node *) getTailOfListP(((Operator *) cond)->args);
 
 		if (index == 0)
-			xindex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
+			xindex = getObjectIndex(CONCAT_STRINGS("x_", gprom_itoa(upNum)));
 		else
 			xindex = getObjectIndex(
-					CONCAT_STRINGS("x_", itoa(upNum), "_", itoa(index)));
+					CONCAT_STRINGS("x_", gprom_itoa(upNum), "_", gprom_itoa(index)));
 		if (isA(left, AttributeReference)) {
 			attr = ((AttributeReference *) left)->name;
-			v1index = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+			v1index = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 			v1index = lastIndex[v1index];
-			v1index = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(v1index)));
+			v1index = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(v1index)));
 			DEBUG_LOG("Processing x for update %d and attribute %s.\n", upNum,
 					colname[v1index]);
 		} else {
@@ -1376,7 +1394,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				//we have just one attribute
 				double cons = constrToDouble((Constant *) right);
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0 * less;
 				i++;
@@ -1388,7 +1406,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0 * less;
 				i++;
@@ -1405,12 +1423,12 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 			//if the condition likes c>b, c>=b,c<b or c<=b
 			else if (isA(right, AttributeReference)) {
 				attr = ((AttributeReference *) right)->name;
-				v2index = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				v2index = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				v2index = lastIndex[v2index];
 				v2index = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(v2index)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(v2index)));
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0 * less;
 				i++;
@@ -1425,7 +1443,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				;
 				rmatind[i] = v2index;
 				rmatval[i] = 1.0 * less;
@@ -1447,7 +1465,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				//we have just one attribute
 				double cons = constrToDouble((Constant *) right);
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_e_1", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_1", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1459,7 +1477,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_e_2", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_2", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1471,7 +1489,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_e_3", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_3", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1483,7 +1501,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_e_4", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_e_4", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1497,12 +1515,12 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 			//if the condition likes c>b
 			else if (isA(right, AttributeReference)) {
 				attr = ((AttributeReference *) right)->name;
-				v2index = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+				v2index = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 				v2index = lastIndex[v2index];
 				v2index = getObjectIndex(
-						CONCAT_STRINGS(attr, "_", itoa(v2index)));
+						CONCAT_STRINGS(attr, "_", gprom_itoa(v2index)));
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1517,7 +1535,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				rmatind[i] = v2index;
 				rmatval[i] = 1.0;
 				i++;
@@ -1532,7 +1550,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				rmatind[i] = v1index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1547,7 +1565,7 @@ int setX(int upNum, int index, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				j++;
 
 				rmatbeg[j] = i;
-				rowname[j] = CONCAT_STRINGS("x_", itoa(upNum));
+				rowname[j] = CONCAT_STRINGS("x_", gprom_itoa(upNum));
 				rmatind[i] = v2index;
 				rmatval[i] = -1.0;
 				i++;
@@ -1587,7 +1605,7 @@ int setXTrue(int upNum, CPXENVptr env, CPXLPptr lp) {
 		ERROR_LOG("temp_lp is NULL.\n");
 	}
 
-	int xindex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
+	int xindex = getObjectIndex(CONCAT_STRINGS("x_", gprom_itoa(upNum)));
 	int rmatbeg[1];
 	double rhs[1];
 	char sense[1];
@@ -1596,7 +1614,7 @@ int setXTrue(int upNum, CPXENVptr env, CPXLPptr lp) {
 	double rmatval[1];
 
 	rmatbeg[0] = 0;
-	rowname[0] = CONCAT_STRINGS("x_", itoa(upNum), "_true");
+	rowname[0] = CONCAT_STRINGS("x_", gprom_itoa(upNum), "_true");
 	rmatind[0] = xindex;
 	rmatval[0] = 1.0;
 	sense[0] = 'E';
@@ -1672,8 +1690,8 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 		left = getHeadOfListP((List *) s->expr);
 		selectAttName = ((AttributeReference *) left)->name;
 		uIndex = getObjectIndex(
-				CONCAT_STRINGS(selectAttName, "_", itoa(upNum)));
-		rowname[0] = CONCAT_STRINGS(selectAttName, itoa(upNum));
+				CONCAT_STRINGS(selectAttName, "_", gprom_itoa(upNum)));
+		rowname[0] = CONCAT_STRINGS(selectAttName, gprom_itoa(upNum));
 		rmatind[i] = uIndex;
 		rmatval[i] = 1.0;
 		i++;
@@ -1697,7 +1715,7 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 				if (isA(r, AttributeReference) && isA(l, Constant)) {
 					aIndex = getObjectIndex(
 							CONCAT_STRINGS(((AttributeReference * ) r)->name,
-									"_", itoa(upNum - 1)));
+									"_", gprom_itoa(upNum - 1)));
 					rmatind[i] = aIndex;
 					rmatval[i] = -1;
 					rhs[0] = constrToDouble((Constant *) l) * neg;
@@ -1705,7 +1723,7 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 				} else if (isA(l, AttributeReference) && isA(r, Constant)) {
 					aIndex = getObjectIndex(
 							CONCAT_STRINGS(((AttributeReference * ) l)->name,
-									"_", itoa(upNum - 1)));
+									"_", gprom_itoa(upNum - 1)));
 					rmatind[i] = aIndex;
 					rmatval[i] = -1;
 					rhs[0] = constrToDouble((Constant *) r) * neg;
@@ -1714,7 +1732,7 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 				if (isA(r, AttributeReference) && isA(l, Constant)) {
 					aIndex = getObjectIndex(
 							CONCAT_STRINGS(((AttributeReference * ) r)->name,
-									"_", itoa(upNum - 1)));
+									"_", gprom_itoa(upNum - 1)));
 					rmatind[i] = aIndex;
 					rmatval[i] = -constrToDouble((Constant *) l);
 					rhs[0] = 0;
@@ -1722,7 +1740,7 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 				} else if (isA(l, AttributeReference) && isA(r, Constant)) {
 					aIndex = getObjectIndex(
 							CONCAT_STRINGS(((AttributeReference * ) l)->name,
-									"_", itoa(upNum - 1)));
+									"_", gprom_itoa(upNum - 1)));
 					rmatind[i] = aIndex;
 					rmatval[i] = -constrToDouble((Constant *) r);
 					rhs[0] = 0;
@@ -1731,7 +1749,7 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 				if (isA(r, AttributeReference) && isA(l, Constant)) {
 					aIndex = getObjectIndex(
 							CONCAT_STRINGS(((AttributeReference * ) r)->name,
-									"_", itoa(upNum - 1)));
+									"_", gprom_itoa(upNum - 1)));
 					rmatind[i] = aIndex;
 					rmatval[i] = -(1 / constrToDouble((Constant *) l));
 					rhs[0] = 0;
@@ -1739,7 +1757,7 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 				} else if (isA(l, AttributeReference) && isA(r, Constant)) {
 					aIndex = getObjectIndex(
 							CONCAT_STRINGS(((AttributeReference * ) l)->name,
-									"_", itoa(upNum - 1)));
+									"_", gprom_itoa(upNum - 1)));
 					rmatind[i] = aIndex;
 					rmatval[i] = -(1 / constrToDouble((Constant *) r));
 					rhs[0] = 0;
@@ -1756,7 +1774,7 @@ static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 		}
 		//addToSet(newAttrSet, selectAttName);
 		//increase lastIndex for the modified attribute
-		aIndex = getObjectIndex(CONCAT_STRINGS(selectAttName, "_", itoa(0)));
+		aIndex = getObjectIndex(CONCAT_STRINGS(selectAttName, "_", gprom_itoa(0)));
 		lastIndex[aIndex] = upNum;
 	}
 	return status;
@@ -1791,16 +1809,16 @@ static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 		attr = popHeadOfListP(attrList);
 		addToSet(newAttrSet, attr);
 		DEBUG_LOG("setting %s for insert operation.\n", attr);
-		uIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(1)));
+		uIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(1)));
 		DEBUG_LOG("index %d for insert operation.\n", uIndex);
-		rowname[i] = CONCAT_STRINGS("ins", itoa(i));
+		rowname[i] = CONCAT_STRINGS("ins", gprom_itoa(i));
 		rmatind[i] = uIndex;
 		rmatval[i] = 1.0;
 		sense[i] = 'E';
 		rhs[i] = constrToDouble((Constant *) c);
 		i++;
 		//increase lastIndex for the modified attribute
-		aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(0)));
+		aIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", gprom_itoa(0)));
 		lastIndex[aIndex] = 1;
 
 	}
@@ -1813,6 +1831,7 @@ static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
+//TODO this creates AND runs the problem. This is the only implemented externally visible function. Would be better to structure this into several parts: compile expression to constraint, API for solving generated constraints, helper methods to manipule and output constraints. One option to consider is to introduce data structures in GProM to represent constraints, i.e., we compile: expr -> GProM LP datastructures -> cplex
 List *symbolicHistoryExe(List *exprs) {
 	List *depUps = NIL;
 	int status = 0;
@@ -2045,12 +2064,14 @@ List *symbolicHistoryExe(List *exprs) {
 
 // ********************************************************************************
 // dummy replacement if cplex is not available
-/*
- #else
 
- boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
- return TRUE;
- }
+// have dummy stub to keep compiler quiet if we do not have cplex
+#else
 
- #endif
- */
+boolean
+exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
+{
+	return TRUE;
+}
+
+#endif
