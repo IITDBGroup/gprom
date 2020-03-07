@@ -260,5 +260,16 @@ extern Node *changeListOpToAnOpNode(List *l1);
 /* find all nodes of a certain type */
 extern List *findAllNodes(Node *node, NodeTag type);
 
+// names for common SQL functions
+#define LEAST_FUNC_NAME backendifyIdentifier("least")
+#define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
+
+// names for common SQL aggregation functions
+#define MIN_FUNC_NAME backendifyIdentifier("min")
+#define MAX_FUNC_NAME backendifyIdentifier("max")
+#define SUM_FUNC_NAME backendifyIdentifier("sum")
+#define AVG_FUNC_NAME backendifyIdentifier("avg")
+#define COUNT_FUNC_NAME backendifyIdentifier("count")
+#define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 
 #endif /* EXPRESSION_H */

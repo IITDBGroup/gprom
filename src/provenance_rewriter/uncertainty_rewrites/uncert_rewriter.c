@@ -31,14 +31,7 @@ NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
         DEBUG_NODE_BEATIFY_LOG(mes,op); \
     } while(0)
 
-#define LEAST_FUNC_NAME backendifyIdentifier("least")
-#define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
 #define UNCERT_FUNC_NAME backendifyIdentifier("uncert")
-#define MAX_FUNC_NAME backendifyIdentifier("max")
-#define MIN_FUNC_NAME backendifyIdentifier("min")
-#define SUM_FUNC_NAME backendifyIdentifier("sum")
-#define COUNT_FUNC_NAME backendifyIdentifier("count")
-#define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 
 /* xtables attributes */
 #define MAX_PROB_ATTR_NAME "MAX_PROB"
