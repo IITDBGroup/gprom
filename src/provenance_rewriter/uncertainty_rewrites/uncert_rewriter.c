@@ -25,6 +25,12 @@ NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
 						UNCERTAIN_ATTR_RANGES
 	);
 
+#define LOG_RESULT(mes,op) \
+    do { \
+        INFO_OP_LOG(mes,op); \
+        DEBUG_NODE_BEATIFY_LOG(mes,op); \
+    } while(0)
+
 #define LEAST_FUNC_NAME backendifyIdentifier("least")
 #define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
 #define UNCERT_FUNC_NAME backendifyIdentifier("uncert")
@@ -60,6 +66,8 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp);
 static Node *RangeLBOp(Operator *expr, HashMap *hmp);
 static Node *RangeUBFun(FunctionCall *expr, HashMap *hmp);
 static Node *RangeLBFun(FunctionCall *expr, HashMap *hmp);
+static Node *rangeLBCase(CaseExpr * expr, HashMap *hmp);
+static Node *rangeUBCase(CaseExpr *expr, HashMap *hmp);
 static Node *getUBExpr(Node *expr, HashMap *hmp);
 static Node *getLBExpr(Node *expr, HashMap *hmp);
 extern char *getAttrTwoString(char *in);
@@ -125,11 +133,9 @@ rewriteUncert(QueryOperator * op)
 
 	if(HAS_STRING_PROP(op,PROP_XTABLE_GROUPID))
 	{
-		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
-		{
-			rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_ATTR_LEVEL);
-			return rewrittenOp;
-		}
+        ASSERT(HAS_STRING_PROP(op,PROP_XTABLE_PROB));
+		rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_ATTR_LEVEL);
+		return rewrittenOp;
 	}
 
 	switch(op->type)
@@ -193,11 +199,9 @@ rewriteUncertTuple(QueryOperator *op)
 
 	if(HAS_STRING_PROP(op,PROP_XTABLE_GROUPID))
 	{
-		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
-		{
-			rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_TUPLE_LEVEL);
-			return rewrittenOp;
-		}
+		ASSERT(HAS_STRING_PROP(op,PROP_XTABLE_PROB));
+		rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_TUPLE_LEVEL);
+		return rewrittenOp;
 	}
 
 	switch(op->type)
@@ -261,11 +265,9 @@ rewriteRange(QueryOperator * op)
 
 	if(HAS_STRING_PROP(op,PROP_XTABLE_GROUPID))
 	{
-		if(HAS_STRING_PROP(op,PROP_XTABLE_PROB))
-		{
-			rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_ATTR_RANGES);
-			return rewrittenOp;
-		}
+		ASSERT(HAS_STRING_PROP(op,PROP_XTABLE_PROB));
+		rewrittenOp = rewrite_UncertXTable(op, UNCERTAIN_ATTR_RANGES);
+		return rewrittenOp;
 	}
 
 	switch(op->type)
@@ -381,7 +383,7 @@ getUBExpr(Node *expr, HashMap *hmp)
 			return RangeUBOp((Operator *) expr, hmp);
 		}
 		case T_CaseExpr: {
-			return UncertIf((CaseExpr *) expr, hmp);
+			return rangeUBCase((CaseExpr *) expr, hmp);
 		}
 		case T_FunctionCall: {
 			return RangeUBFun((FunctionCall *) expr, hmp);
@@ -413,7 +415,7 @@ getLBExpr(Node *expr, HashMap *hmp)
 			return RangeLBOp((Operator *) expr, hmp);
 		}
 		case T_CaseExpr: {
-			return UncertIf((CaseExpr *) expr, hmp);
+			return rangeLBCase((CaseExpr *) expr, hmp);
 		}
 		case T_FunctionCall: {
 			return RangeLBFun((FunctionCall *) expr, hmp);
@@ -438,7 +440,7 @@ getUncertaintyExpr(Node *expr, HashMap *hmp)
 				((AttributeReference *)expr)->outerLevelsUp = 0;
 			}
 			Node * ret = getMap(hmp, expr);
-			((AttributeReference *)ret)->outerLevelsUp = 0;
+			((AttributeReference *)ret)->outerLevelsUp = 0; //TODO why?
 			return ret;
 		}
 		case T_Operator: {
@@ -709,6 +711,8 @@ rewrite_RangeTIP(QueryOperator *op)
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(((ProjectionOperator *)proj)->projExprs));
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(hmp));
 
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [TIP TABLE]", op);
+
 	return proj;
 }
 
@@ -934,7 +938,9 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 	rowNumberByIdWOp->parents = singleton(selecRowNumberIsOne);
 
 	/* Final Projection */
-	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selecRowNumberIsOne), selecRowNumberIsOne, NIL, getNormalAttrNames(selecRowNumberIsOne));
+	List *normalAttrNames = getNormalAttrNames(op);
+	List *normalProjExprs = getProjExprsForAttrNames(op, normalAttrNames);
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(normalProjExprs, selecRowNumberIsOne, NIL, normalAttrNames);
 	selecRowNumberIsOne->parents = singleton(proj);
 
 	/* either add uncertain attributes or add range bounds */
@@ -991,6 +997,9 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
+	LOG_RESULT(specializeTemplate("$1: Rewritten Operator tree [XTABLE]", singleton(UncertaintyTypeToString(typ))),
+			   proj);
+
 	return proj;
 }
 
@@ -1015,7 +1024,7 @@ rewriteUncertProvComp(QueryOperator *op, boolean attrLevel)
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, top);
-    DEBUG_NODE_BEATIFY_LOG("rewritten query root for uncertainty is:", top);
+    DEBUG_NODE_BEATIFY_LOG("rewritten query root for uncertainty is\n:", top);
 
     return top;
 }
@@ -1034,7 +1043,7 @@ rewriteRangeProvComp(QueryOperator *op)
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, top);
-    DEBUG_NODE_BEATIFY_LOG("rewritten query root for range is:", top);
+    DEBUG_NODE_BEATIFY_LOG("rewritten query root for range is:\n", top);
 
     return top;
 }
@@ -1473,6 +1482,87 @@ static Node *RangeLBOp(Operator *expr, HashMap *hmp){
 		return NULL;
 }
 
+static Node *
+rangeLBCase(CaseExpr *expr, HashMap *hmp)
+{
+	//TODO deal with expression cause
+    //  case with a single else clause
+	if (LIST_LENGTH(expr->whenClauses) == 0)
+	{
+		return getLBExpr(expr->elseRes, hmp);
+	}
+	//  case with a single else clause
+	if (LIST_LENGTH(expr->whenClauses) == 1 && expr->elseRes == NULL)
+	{
+		CaseWhen *when = getHeadOfListP(expr->whenClauses);
+		Node *lbCond = getLBExpr(when->then, hmp);
+		Node *lbThen = getLBExpr(when->then, hmp);
+
+		return (Node *) createCaseExpr(NULL,
+									   singleton(createCaseWhen(lbCond, lbThen)),
+									   NULL
+			);
+	}
+    // more than one when clause, process one when clause and recurse
+	CaseWhen *firstWhen = getHeadOfListP(expr->whenClauses);
+	List *newWhen = removeFromHead(copyObject(expr->whenClauses));
+	CaseExpr *reduced = createCaseExpr(NULL, newWhen, expr->elseRes);
+	Node *reducedLB = rangeLBCase(reduced, hmp);
+	Node *certTrue = getLBExpr(firstWhen->when, hmp);
+	Node *cretFalse = (Node *) createOpExpr(OPNAME_NOT, singleton(getLBExpr(firstWhen->when, hmp)));
+	Node *lbThen = getLBExpr(firstWhen->then, hmp);
+
+	return (Node *) createCaseExpr(NULL,
+						  LIST_MAKE(createCaseWhen(certTrue,lbThen),
+									createCaseWhen(cretFalse,reducedLB)
+							  ),
+						  (Node *) createFunctionCall(LEAST_FUNC_NAME,
+											 LIST_MAKE(copyObject(lbThen),copyObject(reducedLB))
+							  )
+		);
+}
+
+static Node *
+rangeUBCase(CaseExpr *expr, HashMap *hmp)
+{
+	//TODO deal with expression cause
+    //  case with a single else clause
+	if (LIST_LENGTH(expr->whenClauses) == 0)
+	{
+		return getUBExpr(expr->elseRes, hmp);
+	}
+	//  case with a single else clause
+	if (LIST_LENGTH(expr->whenClauses) == 1 && expr->elseRes == NULL)
+	{
+		CaseWhen *when = getHeadOfListP(expr->whenClauses);
+		Node *lbCond = getUBExpr(when->then, hmp);
+		Node *lbThen = getUBExpr(when->then, hmp);
+
+		return (Node *) createCaseExpr(NULL,
+									   singleton(createCaseWhen(lbCond, lbThen)),
+									   NULL
+			);
+	}
+    // more than one when clause, process one when clause and recurse
+	CaseWhen *firstWhen = getHeadOfListP(expr->whenClauses);
+	List *newWhen = removeFromHead(copyObject(expr->whenClauses));
+	CaseExpr *reduced = createCaseExpr(NULL, newWhen, expr->elseRes);
+	Node *reducedLB = rangeLBCase(reduced, hmp);
+	Node *certTrue = getUBExpr(firstWhen->when, hmp);
+	Node *cretFalse = (Node *) createOpExpr(OPNAME_NOT, singleton(getUBExpr(firstWhen->when, hmp)));
+	Node *lbThen = getUBExpr(firstWhen->then, hmp);
+
+	return (Node *) createCaseExpr(NULL,
+						  LIST_MAKE(createCaseWhen(certTrue,lbThen),
+									createCaseWhen(cretFalse,reducedLB)
+							  ),
+						  (Node *) createFunctionCall(LEAST_FUNC_NAME,
+											 LIST_MAKE(copyObject(lbThen),copyObject(reducedLB))
+							  )
+		);
+}
+
+
 static QueryOperator *
 rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 {
@@ -1523,6 +1613,8 @@ rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 
 		return proj;
 	}
+
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SET]", op);
 
 	return op;
 }
@@ -2044,6 +2136,8 @@ rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel)
 	addUncertAttrToSchema(hmp, projOp, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 	setStringProperty(projOp, "UNCERT_MAPPING", (Node *)hmp);
 
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [DUPLICATE REMOVAL]", op);
+
 	return projOp;
 }
 
@@ -2177,6 +2271,8 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 		setStringProperty(proj2, "UNCERT_MAPPING", (Node *)hmp3);
 		return proj2;
 	}
+
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [AGGREGATION]", op);
 	return op;
 }
 
@@ -2311,6 +2407,7 @@ rewrite_UncertJoin(QueryOperator *op, boolean attrLevel)
 	addUncertAttrToSchema(hmp2, proj, (Node *) createAttributeReference(UNCERTAIN_ROW_ATTR));
 
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp2);
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [JOIN]", op);
 
 	return proj;
 
@@ -2491,6 +2588,8 @@ rewrite_RangeJoin(QueryOperator *op){
 		((ProjectionOperator *)proj)->projExprs = projExprNew;
 	}
 
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [JOIN]", proj);
+
 	return proj;
 }
 
@@ -2619,9 +2718,12 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	//compress possibles
 	QueryOperator *complposProj = compressPosRow(lposProj, 4, getHeadOfListP(attpair));
 	QueryOperator *comprposProj = compressPosRow(rposProj, 4, getTailOfListP(attpair));
-	
+
 	INFO_OP_LOG("complpos:", complposProj);
 	INFO_OP_LOG("comprpos:", comprposProj);
+
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [JOIN OPTIMIZED]", op);
+
 
 	return complposProj;
 
@@ -2836,6 +2938,8 @@ rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
 	}
     setStringProperty(proj, "UNCERT_MAPPING", (Node *) copyObject(hmp));
 
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SELECTION]", op);
+
 	return proj;
 }
 
@@ -2878,6 +2982,9 @@ rewrite_RangeSelection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(cond));
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs,pos_cond);
     setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
+
 	return proj;
 }
 
@@ -2921,6 +3028,8 @@ rewrite_UncertProjection(QueryOperator *op, boolean attrLevel)
     INFO_LOG("List: %s", nodeToString(((ProjectionOperator *)op)->projExprs));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn));
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [PROJECTION]", op);
     //INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     return op;
 }
@@ -2959,7 +3068,10 @@ rewrite_RangeProjection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS)));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE)));
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+
     INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
+
     return op;
 }
 
@@ -2997,6 +3109,8 @@ rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel)
 	}
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [TABLE ACCESS]", op);
+
 	return proj;
 }
 
