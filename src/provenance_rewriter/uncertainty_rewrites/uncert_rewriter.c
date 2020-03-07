@@ -1549,17 +1549,16 @@ rangeUBCase(CaseExpr *expr, HashMap *hmp)
 	CaseExpr *reduced = createCaseExpr(NULL, newWhen, expr->elseRes);
 	Node *reducedLB = rangeLBCase(reduced, hmp);
 	Node *certTrue = getUBExpr(firstWhen->when, hmp);
-	Node *cretFalse = (Node *) createOpExpr(OPNAME_NOT, singleton(getUBExpr(firstWhen->when, hmp)));
+	Node *certFalse = (Node *)createOpExpr(OPNAME_NOT, singleton(getUBExpr(firstWhen->when, hmp)));
 	Node *lbThen = getUBExpr(firstWhen->then, hmp);
 
-	return (Node *) createCaseExpr(NULL,
-						  LIST_MAKE(createCaseWhen(certTrue,lbThen),
-									createCaseWhen(cretFalse,reducedLB)
-							  ),
-						  (Node *) createFunctionCall(LEAST_FUNC_NAME,
-											 LIST_MAKE(copyObject(lbThen),copyObject(reducedLB))
-							  )
-		);
+	return (Node *)createCaseExpr(
+		NULL,
+		LIST_MAKE(createCaseWhen(certTrue, lbThen),
+				  createCaseWhen(certFalse, reducedLB)),
+		(Node *)createFunctionCall(
+			LEAST_FUNC_NAME,
+			LIST_MAKE(copyObject(lbThen), copyObject(reducedLB))));
 }
 
 

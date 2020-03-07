@@ -447,9 +447,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
     //Ziyu Liu
-	HashMap *checkResult; //TODO only call if we are computing prov sketches
-	checkResult = monotoneCheck(oModel);
-	FREE(checkResult); //TODO why free this?
+	//TODO only run check if
+	/* HashMap *checkResult; //TODO only call if we are computing prov sketches */
+	/* checkResult = monotoneCheck(oModel); */
+	// FREE(checkResult); //TODO why free this?
 	//Ziyu Liu
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
