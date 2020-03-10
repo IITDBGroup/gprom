@@ -127,7 +127,6 @@
                      "FROM pg_constraint c, pg_class t, pg_attribute a " \
                      "WHERE c.contype = 'p' AND c.conrelid = t.oid AND t.relname = $1::text AND a.attrelid = t.oid AND a.attnum = ANY(c.conkey);"
 
-
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
 //#define QUERY_ "SELECT"
@@ -977,6 +976,56 @@ HashMap *
 postgresGetMinAndMax(char* tableName, char* colName)
 {
 	HashMap *result_map = NEW_MAP(Constant, Node);
+
+    PGresult *res = NULL;
+    StringInfo statement;
+
+    statement = makeStringInfo();
+    appendStringInfo(statement,
+            "SELECT MIN(%s),MAX(%s) FROM %s;",colName,colName,tableName);
+
+    INFO_LOG("POSTGRES_GET_MINMAX");
+
+    res = execQuery(statement->data);
+
+    int numRes = PQntuples(res);
+
+    for(int i = 0; i < numRes; i++)
+    {
+        char *min = PQgetvalue(res,i,0);
+        // int oidInt = atoi(oid);
+        char *max = PQgetvalue(res,i,1);
+        Constant *cmin;
+        Constant *cmax;
+
+        List *dts = getAttributes(tableName);
+
+        FOREACH(AttributeDef,n,dts){
+            INFO_LOG(n->attrName);
+            if(strcmp(n->attrName,colName)==0){
+                if (n->dataType==DT_INT)
+                {
+                    cmin = createConstInt(atoi(min));
+                    cmax = createConstInt(atoi(max));
+                }
+                else if(n->dataType==DT_FLOAT){
+                    cmin = createConstFloat(atof(min));
+                    cmax = createConstFloat(atof(max));
+                }
+                else {
+                    cmin = createConstString(min);
+                    cmax = createConstString(max);
+                }
+                INFO_LOG("min = %s, max = %s", nodeToString(cmin), nodeToString(cmax));
+            }
+        }
+
+        MAP_ADD_STRING_KEY(result_map, "MIN", cmin);
+        MAP_ADD_STRING_KEY(result_map, "MAX", cmax);
+    }
+
+    PQclear(res);
+    execCommit();
 	return result_map;
 }
 
@@ -1336,12 +1385,6 @@ postgresGetViewDefinition(char *viewName)
 
 char *
 postgresBackendDatatypeToSQL (DataType dt)
-{
-	return NULL;
-}
-
-HashMap *
-postgresGetMinAndMax(char* tableName, char* colName)
 {
 	return NULL;
 }

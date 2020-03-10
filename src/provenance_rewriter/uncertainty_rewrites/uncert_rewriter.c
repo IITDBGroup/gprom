@@ -92,6 +92,9 @@ static QueryOperator *rewrite_RangeJoin(QueryOperator *op);
 static QueryOperator *rewrite_RangeJoinOptimized(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation(QueryOperator *op);
 
+static QueryOperator *spliceToBG(QueryOperator *op, List *attrnames);
+static QueryOperator *spliceToPOS(QueryOperator *op, List *attrnames, char *jattr);
+
 //Range query rewriting combiners
 static QueryOperator *combineRowByBG(QueryOperator *op);
 static QueryOperator *combineRowMinBg(QueryOperator *op);
@@ -670,6 +673,12 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 }
 
 static QueryOperator *compressPosRow(QueryOperator *op, int n, char *attr){
+	HashMap * mmpro = (HashMap *)getStringProperty(op, PROP_STORE_MIN_MAX);
+	// INFO_LOG("property: %s", nodeToString(mmpro));
+	Node *max = MAP_GET_STRING_ENTRY((HashMap *)MAP_GET_STRING_ENTRY(mmpro,attr)->value, "MAX")->value;
+	Node *min = MAP_GET_STRING_ENTRY((HashMap *)MAP_GET_STRING_ENTRY(mmpro,attr)->value, "MIN")->value;
+	INFO_LOG("max for %s is: %s", attr, nodeToString(max));
+	INFO_LOG("min for %s is: %s", attr, nodeToString(min));
 	return op;
 }
 
@@ -1303,7 +1312,7 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp){
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
 			//Upper bound of addition is the sum of upper bounds
 			Node *ret = (Node *)createOpExpr("+", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
+			// INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
 			return ret;
 		}
 		if(strcmp(expr->name,"-")==0) {
@@ -1314,20 +1323,24 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp){
 			return ret;
 		}
 		if(strcmp(expr->name,"=")==0) {
+			// INFO_LOG("rewrite = ");
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *c1 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			Node *c2 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-			Node *c3 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			Node *c4 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-			Node *c5 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			Node *c6 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node * c1 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node * c2 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			// Node *c1 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			// Node *c2 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			// Node *c3 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			// Node *c4 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			// Node *c5 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			// Node *c6 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 
-			Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
-			Node *c34 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c3),c4));
-			Node *c56 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c5),c6));
-			Node *c1234 = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c12),c34));
-			Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c1234),c56));
+			// Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
+			// Node *c34 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c3),c4));
+			// Node *c56 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c5),c6));
+			// Node *c1234 = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c12),c34));
+			// Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c1234),c56));
+			Node *ret = (Node *)createOpExpr("AND", LIST_MAKE(c1,c2));
 			return ret;
 		}
 		if(strcmp(expr->name,">")==0) {
@@ -2321,7 +2334,7 @@ rewrite_RangeJoin(QueryOperator *op){
 	ASSERT(OP_LCHILD(op));
 	ASSERT(OP_RCHILD(op));
 
-	if(((JoinOperator*)op)->joinType == JOIN_INNER && ((JoinOperator*)op)->cond){
+	if(((JoinOperator*)op)->cond){
 		return rewrite_RangeJoinOptimized(op);
 	}
 
@@ -2495,12 +2508,86 @@ rewrite_RangeJoin(QueryOperator *op){
 }
 
 static QueryOperator *
+spliceToBG(QueryOperator *op, List *attrnames){
+	Operator *bgSel = createOpExpr(">", LIST_MAKE(getAttrRefByName(op,ROW_BESTGUESS), createConstInt(0)));
+
+	QueryOperator *bg = (QueryOperator *)createSelectionOp((Node *)bgSel, op, NIL, getNormalAttrNames(op));
+	switchSubtrees(op, bg);
+	op->parents = singleton(bg);
+
+	//best guess projections
+	List *normalProjList = NIL;
+	List *rangeProjList = NIL;
+	Node *ctcase = NULL;
+	FOREACH(char, an, attrnames){
+		if(!ctcase){
+			ctcase = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(bg,getUBString(an)),getAttrRefByName(bg,getLBString(an))));
+		}
+		else {
+			Node *temp = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(bg,getUBString(an)),getAttrRefByName(bg,getLBString(an))));
+			ctcase = (Node *)createOpExpr("AND", LIST_MAKE(ctcase,temp));
+		}
+		normalProjList = appendToTailOfList(normalProjList,getAttrRefByName(bg,an));
+		rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg,an));
+		rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg,an));
+	}
+	CaseWhen * cwhen = createCaseWhen(ctcase, (Node *)getAttrRefByName(bg, ROW_CERTAIN));
+	Node *ctProj = (Node *)createCaseExpr(NULL, singleton(cwhen), (Node *)createConstInt(0));
+	rangeProjList = appendToTailOfList(rangeProjList,ctProj);
+	rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg, ROW_BESTGUESS));
+	rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg, ROW_BESTGUESS));
+
+	QueryOperator *bgProj = (QueryOperator *)createProjectionOp(concatTwoLists(normalProjList,rangeProjList), bg, NIL, getNormalAttrNames(bg));
+	switchSubtrees(bg,bgProj);
+	bg->parents = singleton(bgProj);
+
+	return bgProj;
+}
+
+static QueryOperator *
+spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
+	//possible projections
+	List *normalProjList = NIL;
+	List *rangeProjList = NIL;
+
+	FOREACH(char, an, attrnames){
+		normalProjList = appendToTailOfList(normalProjList,getAttrRefByName(op,an));
+		rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(op,getUBString(an)));
+		rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(op,getLBString(an)));
+	}
+
+	rangeProjList = appendToTailOfList(rangeProjList,(Node *)createConstInt(0));
+	rangeProjList = appendToTailOfList(rangeProjList,(Node *)createConstInt(0));
+	rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(op, ROW_BESTGUESS));
+
+	// INFO_LOG("list: %s", nodeToString(normalProjList));
+	// INFO_LOG("list: %s", nodeToString(rangeProjList));
+
+	QueryOperator *posProj = (QueryOperator *)createProjectionOp(concatTwoLists(normalProjList,rangeProjList), op, NIL, getNormalAttrNames(op));
+	switchSubtrees(op,posProj);
+	op->parents = singleton(posProj);
+
+	computeMinMaxProp(posProj);
+	// HashMap * mmpro = (HashMap *)getStringProperty(posProj, PROP_STORE_MIN_MAX);
+	// INFO_LOG("property: %s", nodeToString(mmpro));
+	// setStringProperty(posProj, PROP_STORE_MIN_MAX, (Node *) mmpro);
+
+	INFO_OP_LOG("posproj:", posProj);
+
+	//compress possibles
+	QueryOperator *compposProj = compressPosRow(posProj, 4, jattr);
+	
+	INFO_OP_LOG("comppos:", compposProj);
+
+	return compposProj;
+}
+
+static QueryOperator *
 rewrite_RangeJoinOptimized(QueryOperator *op){
 	ASSERT(OP_LCHILD(op));
 	ASSERT(OP_RCHILD(op));
 
 	INFO_LOG("REWRITE-RANGE - Join(optimized)");
-	INFO_LOG("Operator tree \n%s", nodeToString(op));
 
 	List *lattrnames = getNormalAttrNames(OP_LCHILD(op));
 	List *rattrnames = getNormalAttrNames(OP_RCHILD(op));
@@ -2513,263 +2600,200 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	QueryOperator *lop = OP_LCHILD(op);
 	QueryOperator *lopdup = copyObject(lop);
 	QueryOperator *rop = OP_RCHILD(op);
-	QueryOperator *ropdup = copyObject(lop);
+	QueryOperator *ropdup = copyObject(rop);
 
-	Operator *bgSel = createOpExpr(">", LIST_MAKE(getAttrRefByName(lop,ROW_BESTGUESS), createConstInt(0)));
+	QueryOperator *lbg = spliceToBG(lop,lattrnames);
+	QueryOperator *rbg = spliceToBG(rop,rattrnames);
 
-	QueryOperator *lbg = (QueryOperator *)createSelectionOp((Node *)bgSel, lop, NIL, getNormalAttrNames(lop));
-	switchSubtrees(lop, lbg);
-	lop->parents = singleton(lbg);
-
-	QueryOperator *rbg = (QueryOperator *)createSelectionOp((Node *)bgSel, rop, NIL, getNormalAttrNames(rop));
-	switchSubtrees(rop, rbg);
-	rop->parents = singleton(rbg);
-
-	//best guess projections
-	List *normalProjList = NIL;
-	List *rangeProjList = NIL;
-	Node *ctcase = NULL;
-	FOREACH(char, an, lattrnames){
-		if(!ctcase){
-			ctcase = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(lbg,getUBString(an)),getAttrRefByName(lbg,getLBString(an))));
-		}
-		else {
-			Node *temp = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(lbg,getUBString(an)),getAttrRefByName(lbg,getLBString(an))));
-			ctcase = (Node *)createOpExpr("AND", LIST_MAKE(ctcase,temp));
-		}
-		appendToTailOfList(normalProjList,getAttrRefByName(lbg,an));
-		appendToTailOfList(rangeProjList,getAttrRefByName(lbg,an));
-		appendToTailOfList(rangeProjList,getAttrRefByName(lbg,an));
-	}
-	CaseWhen * cwhen = createCaseWhen(ctcase, (Node *)getAttrRefByName(lbg, ROW_CERTAIN));
-	Node *ctProj = (Node *)createCaseExpr(NULL, singleton(cwhen), (Node *)createConstInt(0));
-	appendToTailOfList(rangeProjList,ctProj);
-	appendToTailOfList(rangeProjList,getAttrRefByName(lbg, ROW_BESTGUESS));
-	appendToTailOfList(rangeProjList,getAttrRefByName(lbg, ROW_BESTGUESS));
-
-	QueryOperator *lbgProj = (QueryOperator *)createProjectionOp(concatTwoLists(normalProjList,rangeProjList), lbg, NIL, getNormalAttrNames(lbg));
-	switchSubtrees(lbg,lbgProj);
-	lbg->parents = singleton(lbgProj);
-
-	normalProjList = NIL;
-	rangeProjList = NIL;
-	ctcase = NULL;
-	FOREACH(char, an, rattrnames){
-		if(!ctcase){
-			ctcase = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(rbg,getUBString(an)),getAttrRefByName(rbg,getLBString(an))));
-		}
-		else {
-			Node *temp = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(rbg,getUBString(an)),getAttrRefByName(rbg,getLBString(an))));
-			ctcase = (Node *)createOpExpr("AND", LIST_MAKE(ctcase,temp));
-		}
-		appendToTailOfList(normalProjList,getAttrRefByName(rbg,an));
-		appendToTailOfList(rangeProjList,getAttrRefByName(rbg,an));
-		appendToTailOfList(rangeProjList,getAttrRefByName(rbg,an));
-	}
-	cwhen = createCaseWhen(ctcase, (Node *)getAttrRefByName(rbg, ROW_CERTAIN));
-	ctProj = (Node *)createCaseExpr(NULL, singleton(cwhen), (Node *)createConstInt(0));
-	appendToTailOfList(rangeProjList,ctProj);
-	appendToTailOfList(rangeProjList,getAttrRefByName(rbg, ROW_BESTGUESS));
-	appendToTailOfList(rangeProjList,getAttrRefByName(rbg, ROW_BESTGUESS));
-
-	QueryOperator *rbgProj = (QueryOperator *)createProjectionOp(concatTwoLists(normalProjList,rangeProjList), rbg, NIL, getNormalAttrNames(rbg));
-	switchSubtrees(rbg,rbgProj);
-	rbg->parents = singleton(rbgProj);
-
-	INFO_OP_LOG("lbg:", lbgProj);
-	INFO_OP_LOG("rbg:", rbgProj);
-
-	//possible projections
-	normalProjList = NIL;
-	rangeProjList = NIL;
-	FOREACH(char, an, lattrnames){
-		appendToTailOfList(normalProjList,getAttrRefByName(lopdup,an));
-		appendToTailOfList(rangeProjList,getAttrRefByName(lopdup,getUBString(an)));
-		appendToTailOfList(rangeProjList,getAttrRefByName(lopdup,getLBString(an)));
-	}
-	appendToTailOfList(rangeProjList,(Node *)createConstInt(0));
-	appendToTailOfList(rangeProjList,(Node *)createConstInt(0));
-	appendToTailOfList(rangeProjList,getAttrRefByName(lopdup, ROW_BESTGUESS));
-
-	QueryOperator *lposProj = (QueryOperator *)createProjectionOp(concatTwoLists(normalProjList,rangeProjList), lopdup, NIL, getNormalAttrNames(lopdup));
-	switchSubtrees(lopdup,lposProj);
-	lopdup->parents = singleton(lposProj);
-
-	normalProjList = NIL;
-	rangeProjList = NIL;
-	FOREACH(char, an, rattrnames){
-		appendToTailOfList(normalProjList,getAttrRefByName(ropdup,an));
-		appendToTailOfList(rangeProjList,getAttrRefByName(ropdup,getUBString(an)));
-		appendToTailOfList(rangeProjList,getAttrRefByName(ropdup,getLBString(an)));
-	}
-	appendToTailOfList(rangeProjList,(Node *)createConstInt(0));
-	appendToTailOfList(rangeProjList,(Node *)createConstInt(0));
-	appendToTailOfList(rangeProjList,getAttrRefByName(ropdup, ROW_BESTGUESS));
-
-	QueryOperator *rposProj = (QueryOperator *)createProjectionOp(concatTwoLists(normalProjList,rangeProjList), ropdup, NIL, getNormalAttrNames(ropdup));
-	switchSubtrees(ropdup,rposProj);
-	ropdup->parents = singleton(rposProj);
-
-	INFO_OP_LOG("lpos:", lposProj);
-	INFO_OP_LOG("rpos:", rposProj);
+	// INFO_OP_LOG("lbg:", lbg);
+	// INFO_OP_LOG("rbg:", rbg);
 
 	List *attpair = getJoinAttrPair(((JoinOperator*)op)->cond);
-	INFO_LOG("join attr pair: %s", nodeToString(attpair));
+	INFO_LOG("join attr pair: %s", stringListToString(attpair));
 
-	//compress possibles
-	QueryOperator *complposProj = compressPosRow(lposProj, 4, getHeadOfListP(attpair));
-	QueryOperator *comprposProj = compressPosRow(rposProj, 4, getTailOfListP(attpair));
-	
-	INFO_OP_LOG("complpos:", complposProj);
-	INFO_OP_LOG("comprpos:", comprposProj);
+	QueryOperator *lpos = spliceToPOS(lopdup,lattrnames,getHeadOfListP(attpair));
+	QueryOperator *rpos = spliceToPOS(ropdup,rattrnames,getTailOfListP(attpair));
 
-	return complposProj;
+	INFO_OP_LOG("lpos:", lpos);
+	INFO_OP_LOG("rpos:", rpos);
 
+	//best guess join
+	List *latt = copyList(lattrnames);
+	List *ratt = copyList(rattrnames);
+	FOREACH(char, an, lattrnames){
+		latt = appendToTailOfList(latt, getUBString(an));
+		latt = appendToTailOfList(latt, getLBString(an));
+	}
+	FOREACH(char, an, rattrnames){
+		ratt = appendToTailOfList(ratt, getUBString(an));
+		ratt = appendToTailOfList(ratt, getLBString(an));
+	}
+	List *range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
+	List *range_row2 = LIST_MAKE(ROW_CERTAIN_TWO,ROW_BESTGUESS_TWO,ROW_POSSIBLE_TWO);
+	List *alist = CONCAT_LISTS(latt,range_row1,ratt,range_row2);
 
+	List *pjlist = copyList(alist);
+	// INFO_LOG("BG join attr List: %s", stringListToString(alist));
 
-	//joins
+	int offset = (lattrnames->length)*3+3;
+	Node *condExpr = (Node *)copyObject(((JoinOperator*)op)->cond);
+	Node *bgExpr = getOutputExprFromInput(copyObject(condExpr), offset);
 
-// 	int divider = getNormalAttrNames(OP_LCHILD(op))->length;
+	QueryOperator *bgjoin = (QueryOperator *)createJoinOp(JOIN_INNER, ((JoinOperator*)op)->cond, LIST_MAKE(lbg,rbg), NIL, alist);
+	lbg->parents = singleton(bgjoin);
+	rbg->parents = singleton(bgjoin);
+	// INFO_OP_LOG("bg join: ", bgjoin);
 
-// 	List * nan = getNormalAttrNames(op);
-// 	List * projattr = copyList(nan);
-// 	List *nan2 = sublist(nan, divider, nan->length-1);
-// 	List *nan1 = sublist(nan, 0, divider-1);
-// 	List *nan1r = NIL;
-// 	List *nan2r = NIL;
-// 	FOREACH(char, nm, nan1){
-// 		nan1r = appendToTailOfList(nan1r, getUBString(nm));
-// 		nan1r = appendToTailOfList(nan1r, getLBString(nm));
-// 	}
-// 	FOREACH(char, nm, nan2){
-// 		nan2r = appendToTailOfList(nan2r, getUBString(nm));
-// 		nan2r = appendToTailOfList(nan2r, getLBString(nm));
-// 	}
-// 	List *range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
-// 	List *range_row2 = LIST_MAKE(ROW_CERTAIN_TWO,ROW_BESTGUESS_TWO,ROW_POSSIBLE_TWO);
-// 	List *n1 = concatTwoLists(nan1, nan1r);
-// 	List *n2 = concatTwoLists(nan2, nan2r);
-// 	n1 = concatTwoLists(n1, range_row1);
-// 	n2 = concatTwoLists(n2, range_row2);
-// 	n1 = concatTwoLists(n1, n2);
-// 	// INFO_LOG("n1 ====== %s", stringListToString(n1));
+	//projection to rearrange attributes
+	List *natt = NIL;
+	ratt = NIL;
+	List *bgNprojList = NIL;
+	List *bgRprojList = NIL;
+	FOREACH(char, an, lattrnames){
+		natt = appendToTailOfList(natt, an);
+		ratt = appendToTailOfList(ratt, getUBString(an));
+		ratt = appendToTailOfList(ratt, getLBString(an));
+		bgNprojList = appendToTailOfList(bgNprojList, getAttrRefByName(bgjoin, an));
+		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getUBString(an)));
+		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getLBString(an)));
+	}
+	FOREACH(char, an, rattrnames){
+		natt = appendToTailOfList(natt, an);
+		ratt = appendToTailOfList(ratt, getUBString(an));
+		ratt = appendToTailOfList(ratt, getLBString(an));
+		bgNprojList = appendToTailOfList(bgNprojList, getAttrRefByName(bgjoin, an));
+		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getUBString(an)));
+		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getLBString(an)));
+	}
+	Node *opcet = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(bgjoin, ROW_CERTAIN),getAttrRefByName(bgjoin, ROW_CERTAIN_TWO)));
+	Node *opbg = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(bgjoin, ROW_BESTGUESS),getAttrRefByName(bgjoin, ROW_BESTGUESS_TWO)));
+	Node *oppos = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(bgjoin, ROW_POSSIBLE),getAttrRefByName(bgjoin, ROW_POSSIBLE_TWO)));
+	bgRprojList = appendToTailOfList(bgRprojList, opcet);
+	bgRprojList = appendToTailOfList(bgRprojList, opbg);
+	bgRprojList = appendToTailOfList(bgRprojList, oppos);
+	List *bgproj = CONCAT_LISTS(bgNprojList,bgRprojList);
+	range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
+	alist = CONCAT_LISTS(natt,ratt,range_row1);
+	// INFO_LOG("BG proj List: %s", stringListToString(alist));
 
-// 	List *dt1 = getDataTypes(OP_LCHILD(op)->schema);
-// 	List *dt2 = getDataTypes(OP_RCHILD(op)->schema);
-// 	List *jdt = concatTwoLists(dt1, dt2);
+	QueryOperator *bgProj = (QueryOperator *)createProjectionOp(bgproj,bgjoin,NIL,alist);
+	bgjoin->parents = singleton(bgProj);
 
-// 	op->schema = createSchemaFromLists(op->schema->name, n1, jdt);
+	// INFO_OP_LOG("bg proj: ", bgProj);
 
-// 	//add projection
+	//possible join
 
-// 	//projection list
+	QueryOperator *posjoin = (QueryOperator *)createJoinOp(JOIN_INNER, NULL, LIST_MAKE(lpos,rpos), NIL, pjlist);
+	lpos->parents = singleton(posjoin);
+	rpos->parents = singleton(posjoin);
 
-// 	int divider2 = divider*3+3;
+	//prepair hashmaps for expression bounds
+	HashMap * hmpin = NEW_MAP(Node, Node); //hashmap with intput of join
+	HashMap * hmpout = NEW_MAP(Node, Node); //hashmap with output of join
+	FOREACH(char, an, lattrnames){
+		Node *key = (Node *)getAttrRefByName(lop,an);
+		((AttributeReference *)key)->outerLevelsUp = 0;
+		Node *val = (Node *)LIST_MAKE(getAttrRefByName(lop,getUBString(an)),getAttrRefByName(lop,getLBString(an)));
+		ADD_TO_MAP(hmpin, createNodeKeyValue(key, val));
+	}
+	FOREACH(char, an, rattrnames){
+		AttributeReference *key = getAttrRefByName(rop,an);
+		key->outerLevelsUp = 0;
+		key->fromClauseItem = 1;
+		AttributeReference *ub = getAttrRefByName(rop,getUBString(an));
+		AttributeReference *lb = getAttrRefByName(rop,getLBString(an));
+		ub->fromClauseItem = 1;
+		lb->fromClauseItem = 1;
+		Node *val = (Node *)LIST_MAKE(ub,lb);
+		ADD_TO_MAP(hmpin, createNodeKeyValue((Node *)key, val));
+	}
+	// INFO_LOG("map_in: %s", nodeToString(hmpin));
 
-// 	List *attrExpr = getNormalAttrProjectionExprs(op);
+	FOREACH(char, an, lattrnames){
+		Node *key = (Node *)getAttrRefByName(posjoin,an);
+		((AttributeReference *)key)->outerLevelsUp = 0;
+		Node *val = (Node *)LIST_MAKE(getAttrRefByName(posjoin,getUBString(an)),getAttrRefByName(posjoin,getLBString(an)));
+		ADD_TO_MAP(hmpout, createNodeKeyValue(key, val));
+	}
+	FOREACH(char, an, rattrnames){
+		AttributeReference *key = getAttrRefByName(posjoin,an);
+		key->outerLevelsUp = 0;
+		AttributeReference *ub = getAttrRefByName(posjoin,getUBString(an));
+		AttributeReference *lb = getAttrRefByName(posjoin,getLBString(an));
+		Node *val = (Node *)LIST_MAKE(ub,lb);
+		ADD_TO_MAP(hmpout, createNodeKeyValue((Node *)key, val));
+	}
+	// INFO_LOG("map_out: %s", nodeToString(hmpout));
 
-// 	List *expr2 = sublist(attrExpr, divider2, attrExpr->length-1);
-// 	List *rExpr2 = sublist(expr2, expr2->length-3, expr2->length-1);
-// 	List *arExpr2 = sublist(expr2, ((expr2->length)-3)/3, expr2->length-4);
-// 	expr2 = sublist(expr2, 0, ((expr2->length)-3)/3-1);
+	// INFO_LOG("bg expr: %s", nodeToString(bgExpr));
+	Node *ubExpr = getUBExpr(copyObject(condExpr), hmpin);
+	((JoinOperator *)posjoin)->cond = ubExpr;
 
-// 	List *expr1 = sublist(attrExpr, 0, divider2-1);
-// 	List *rExpr1 = sublist(expr1, expr1->length-3, expr1->length-1);
-// 	List *arExpr1 = sublist(expr1, ((expr1->length)-3)/3, expr1->length-4);
-// 	expr1 = sublist(expr1, 0, ((expr1->length)-3)/3-1);
+	// INFO_OP_LOG("pos join: ", posjoin);
 
-// 	Node *CT = (Node *)createOpExpr("*", appendToTailOfList(singleton((Node *)popHeadOfListP(rExpr1)), (Node *)popHeadOfListP(rExpr2)));
-// 	Node *BG = (Node *)createOpExpr("*", appendToTailOfList(singleton((Node *)popHeadOfListP(rExpr1)), (Node *)popHeadOfListP(rExpr2)));
-// 	Node *PS = (Node *)createOpExpr("*", appendToTailOfList(singleton((Node *)popHeadOfListP(rExpr1)), (Node *)popHeadOfListP(rExpr2)));
+	// INFO_LOG("ub expr: %s", nodeToString(ubExpr));
 
-// 	List *projExprNew = concatTwoLists(concatTwoLists(expr1, expr2), concatTwoLists(arExpr1, arExpr2));
-// 	appendToTailOfList(projExprNew,CT);
-// 	appendToTailOfList(projExprNew,BG);
-// 	appendToTailOfList(projExprNew,PS);
+	Node *lbExpr = getLBExpr(copyObject(bgExpr),hmpout);
+	// INFO_LOG("lb expr: %s", nodeToString(lbExpr));
 
-// 	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExprNew, op, NIL, projattr);
-// 	switchSubtrees(op, proj);
-// 	op->parents = singleton(proj);
+	//projection to rearrange attributes
+	List *posNprojList = NIL;
+	List *posRprojList = NIL;
+	FOREACH(char, an, lattrnames){
+		posNprojList = appendToTailOfList(posNprojList, getAttrRefByName(posjoin, an));
+		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getUBString(an)));
+		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getLBString(an)));
+	}
+	FOREACH(char, an, rattrnames){
+		posNprojList = appendToTailOfList(posNprojList, getAttrRefByName(posjoin, an));
+		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getUBString(an)));
+		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getLBString(an)));
+	}
+	opcet = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
+	opbg = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
+	oppos = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
+	opcet = (Node *)createOpExpr("*", LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
+	opbg = (Node *)createOpExpr("*", LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
 
-// 	HashMap * hmp2 = NEW_MAP(Node, Node);
-// 	List *attrExpr2 = getNormalAttrProjectionExprs(proj);
-// 	FOREACH(Node, nd, attrExpr2){
-// 		addRangeAttrToSchema(hmp2, proj, nd);
-// 	}
-// 	addRangeRowToSchema(hmp2, proj);
-// 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp2);
+	posRprojList = appendToTailOfList(posRprojList, opcet);
+	posRprojList = appendToTailOfList(posRprojList, opbg);
+	posRprojList = appendToTailOfList(posRprojList, oppos);
+	List *posproj = CONCAT_LISTS(posNprojList,posRprojList);
 
-// //	INFO_LOG("CT: %s", nodeToString(CT));
-// //	INFO_LOG("BG: %s", nodeToString(BG));
-// //	INFO_LOG("PS: %s", nodeToString(PS));
+	QueryOperator *posProj = (QueryOperator *)createProjectionOp(posproj,posjoin,NIL,alist);
+	posjoin->parents = singleton(posProj);
 
-// 	//rewrite join condition
-// 	if(((JoinOperator*)op)->joinType == JOIN_INNER && ((JoinOperator*)op)->cond){
-
-// 		//hashmap for join condition rewriting into upper bound.
-// 		//notice that upper bound need to replace original join condition in join operator.
-// 		//And original join condition need to multiply with best guess in projection operator.
-// 		//Rewrite join condition into lower bound to multiply with certain in projection operator.
-
-// 		HashMap * hmpl = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
-// 		HashMap * hmpr = (HashMap *)getStringProperty(OP_RCHILD(op), "UNCERT_MAPPING");
-// 		HashMap * hmpl2 = copyObject(hmpl);
-// 		HashMap * hmpr2 = copyObject(hmpr);
-
-// 		FOREACH_HASH_KEY(Node, kv, hmpr){
-// //			INFO_LOG("hmpr: %s", nodeToString(kv));
-// 			Node *val = getMap(hmpr, kv);
-// 			((AttributeReference *)kv)->fromClauseItem = 1;
-// 			if(val->type==T_List){
-// 				((AttributeReference *)getHeadOfListP((List *)val))->fromClauseItem = 1;
-// 				((AttributeReference *)getTailOfListP((List *)val))->fromClauseItem = 1;
-// 				ADD_TO_MAP(hmpl, createNodeKeyValue((Node *)kv, (Node *)val));
-// 			}
-// 		}
-// 		INFO_LOG("hmpl: %s", nodeToString(hmpl));
-// 		FOREACH_HASH_KEY(Node, kv, hmpr2){
-// 		//	INFO_LOG("hmpr: %s", nodeToString(kv));
-// 			Node *val2 = getMap(hmpr2, kv);
-// 			((AttributeReference *)kv)->attrPosition += divider2;
-// 			if(val2->type==T_List){
-// 				((AttributeReference *)getHeadOfListP((List *)val2))->attrPosition += divider2;
-// 				((AttributeReference *)getTailOfListP((List *)val2))->attrPosition += divider2;
-// 				ADD_TO_MAP(hmpl2, createNodeKeyValue((Node *)kv, (Node *)val2));
-// 			}
-// 		}
-// //		INFO_LOG("hmpl2: %s", nodeToString(hmpl2));
-
-// 		Node *condExpr = (Node *)copyObject(((JoinOperator*)op)->cond);
-
-// //		INFO_LOG("input expr: %s", nodeToString(condExpr));
-// 		Node *bgExpr = getOutputExprFromInput(copyObject(condExpr), divider2);
-// //		INFO_LOG("bg expr: %s", nodeToString(bgExpr));
-// 		Node *ubExpr = getUBExpr(copyObject(condExpr), hmpl);
-// //		INFO_LOG("ub expr: %s", nodeToString(ubExpr));
-// 		Node *lbExpr = getLBExpr(copyObject(bgExpr),hmpl2);
-// //		INFO_LOG("lb expr: %s", nodeToString(lbExpr));
-
-// 		BG = (Node *)createOpExpr("*", appendToTailOfList(singleton(BG),(Node *)createCaseOperator(bgExpr)));
-// 		CT = (Node *)createOpExpr("*", appendToTailOfList(singleton(CT),(Node *)createCaseOperator(lbExpr)));
-
-// 		((JoinOperator*)op)->cond = ubExpr;
-
-// 		projExprNew = sublist(projExprNew, 0, projExprNew->length-4);
-// 		appendToTailOfList(projExprNew,CT);
-// 		appendToTailOfList(projExprNew,BG);
-// 		appendToTailOfList(projExprNew,PS);
-
-//   //		INFO_LOG("Projexpr with join: %s", nodeToString(projExprNew));
-
-// 		((ProjectionOperator *)proj)->projExprs = projExprNew;
-// 	}
+	INFO_OP_LOG("pos proj: ", posProj);
 
 	//union
 
-	// QueryOperator *unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bg, onepos), NIL, attrnames);
-	// switchSubtrees(bg, unionop);
-	// bg->parents = singleton(unionop);
-	// onepos->parents = singleton(unionop);
+	QueryOperator *unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgProj, posProj), NIL, alist);
+	switchSubtrees(op, unionop);
+	bgProj->parents = singleton(unionop);
+	posProj->parents = singleton(unionop);
+
+
+	HashMap *hmpunion = NEW_MAP(Node, Node);
+	FOREACH(char, an, lattrnames){
+		Node *key = (Node *)getAttrRefByName(unionop,an);
+		((AttributeReference *)key)->outerLevelsUp = 0;
+		Node *val = (Node *)LIST_MAKE(getAttrRefByName(unionop,getUBString(an)),getAttrRefByName(unionop,getLBString(an)));
+		ADD_TO_MAP(hmpunion, createNodeKeyValue(key, val));
+	}
+	FOREACH(char, an, rattrnames){
+		AttributeReference *key = getAttrRefByName(unionop,an);
+		key->outerLevelsUp = 0;
+		AttributeReference *ub = getAttrRefByName(unionop,getUBString(an));
+		AttributeReference *lb = getAttrRefByName(unionop,getLBString(an));
+		Node *val = (Node *)LIST_MAKE(ub,lb);
+		ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)key, val));
+	}
+	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_CERTAIN), (Node *)getAttrRefByName(unionop, ROW_CERTAIN)));
+	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(unionop, ROW_BESTGUESS)));
+	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getAttrRefByName(unionop, ROW_POSSIBLE)));
+	setStringProperty(unionop, "UNCERT_MAPPING", (Node *)hmpunion);
+
+	return unionop;
 }
 
 static List*
@@ -2940,7 +2964,7 @@ rewrite_RangeProjection(QueryOperator *op)
     HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
     List *attrExpr = getNormalAttrProjectionExprs(op);
 //    INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
-//    INFO_LOG("%s", nodeToString(hmpIn));
+   	INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
     List *uncertlist = NIL;
     int ict = 0;
     FOREACH(Node, nd, attrExpr){

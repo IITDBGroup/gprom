@@ -133,7 +133,7 @@ translateParseOracle (Node *q)
     //INFO_NODE_BEATIFY_LOG("translate QB model", q);
     List *attrsOffsetsList = NIL;
 
-    INFO_NODE_BEATIFY_LOG("translate QB model", q);
+    // INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q, &attrsOffsetsList);
 

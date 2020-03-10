@@ -37,10 +37,10 @@ computeMinMaxProp (QueryOperator *root){
 	if (root->inputs != NULL){
 		FOREACH(QueryOperator, op, root->inputs){
 			if (!HAS_STRING_PROP(op,PROP_STORE_MIN_MAX_DONE))
-			                computeMinMaxProp(op);
+			    computeMinMaxProp(op);
 		}
 	}
-	DEBUG_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s", NodeTagToString(root->type), root->schema->name);
+	INFO_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s", NodeTagToString(root->type), root->schema->name);
 	SET_BOOL_STRING_PROP(root, PROP_STORE_MIN_MAX_DONE);
 
 	if (root->type == T_TableAccessOperator){
@@ -51,9 +51,10 @@ computeMinMaxProp (QueryOperator *root){
 			MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName, (Node *)getMinAndMax(tableName,attrDef->attrName));
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *)MIN_MAX);
-		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
 	}
 	if (root->type == T_ProjectionOperator) {
+		INFO_OP_LOG("minmax_OP: ", root);
 		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
 		if ((HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX) != NULL) { //child has min and max
 			HashMap *childMinMax =(HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX);
@@ -78,7 +79,8 @@ computeMinMaxProp (QueryOperator *root){
 			}
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
-		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
+		// INFO_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 	}
 	if (root->type == T_SelectionOperator){
 		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
@@ -131,7 +133,8 @@ computeMinMaxProp (QueryOperator *root){
 			MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )new_min_max);
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
-		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
+		// INFO_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 	}
 	if (root->type == T_JoinOperator){
 		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
@@ -255,7 +258,8 @@ computeMinMaxProp (QueryOperator *root){
 
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
-		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
+		// INFO_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 
 	}
 	if (root->type == T_AggregationOperator){
@@ -323,7 +327,8 @@ computeMinMaxProp (QueryOperator *root){
 			MAP_ADD_STRING_KEY(MIN_MAX, root->schema->name, (Node * ) new_min_max);
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
-		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
+		// DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 
 	}
 	if (root->type == T_WindowOperator) {
@@ -403,7 +408,8 @@ computeMinMaxProp (QueryOperator *root){
 					(Node * ) new_min_max);
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
-		DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
+		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
+		// DEBUG_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 
 	}
 	if (root->type == T_SetOperator){
