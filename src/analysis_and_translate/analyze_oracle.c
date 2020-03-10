@@ -449,6 +449,7 @@ analyzeFromProvInfo (FromItem *f)
         	if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
         	{
 				char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+				setStringProvProperty(fp, PROV_PROP_TIP_ATTR, (Node *) createConstString(attrname));
         		int pos = listPosString(f->attrNames, attrname);
 				DEBUG_LOG("TIP attribute %s at position %u", attrname, pos);
 				f->attrNames = deepCopyStringList(f->attrNames);
@@ -469,10 +470,10 @@ analyzeFromProvInfo (FromItem *f)
 				DEBUG_LOG("RADB INPUT");
 				//need to contain at least one real attribute
 				ASSERT(f->attrNames->length >= 6);
-				//need to contain 3 row range annotation and 2 attribute range annotation per attribute
+				//need to contain 3 row range annotations and 2 attribute range annotation per attribute
 				ASSERT((f->attrNames->length-3)%3 == 0);
-				//number of real attributes
 
+				//number of real attributes
 				int numofrealattr = (f->attrNames->length-3)/3;
 
 				f->attrNames = deepCopyStringList(f->attrNames);
@@ -519,9 +520,11 @@ analyzeFromProvInfo (FromItem *f)
 			//Removing the probability attribute if specified through the XTABLE flag
 			if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))
 			{
+				// test unnecessary?
 				if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
 				{
 					char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)));
+					setStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID, (Node *) createConstString(attrname));
 					int pos = listPosString(f->attrNames, attrname);
 					DEBUG_LOG("XTABLE groupID attribute %s at position %u", attrname, pos);
 					f->attrNames = deepCopyStringList(f->attrNames);
@@ -529,7 +532,8 @@ analyzeFromProvInfo (FromItem *f)
 					f->attrNames = removeListElemAtPos(f->attrNames, pos);
 					f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
 
-					attrname = STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB));
+					attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB)));
+					setStringProvProperty(fp, PROV_PROP_XTABLE_PROB, (Node *) createConstString(attrname));
 					pos = listPosString(f->attrNames, attrname);
 					DEBUG_LOG("XTABLE probability attribute %s at position %u", attrname, pos);
 					f->attrNames = deepCopyStringList(f->attrNames);

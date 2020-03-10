@@ -312,6 +312,8 @@ extern List *aggOpGetAggAttrDefs(AggregationOperator *op);
 
 extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
+extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
+
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
 

@@ -1334,6 +1334,20 @@ winOpGetFunc (WindowOperator *op)
                     op->partitionBy, op->orderBy, op->frameDef)));
 }
 
+List *
+getProjExprsForAttrNames(QueryOperator *op, List *names)
+{
+	List *result = NIL;
+
+	FOREACH(char,name,names)
+	{
+		result = appendToTailOfList(result,
+									getAttrRefByName(op, name));
+	}
+
+	return result;
+}
+
 
 void
 treeify(QueryOperator *op)
