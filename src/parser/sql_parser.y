@@ -60,7 +60,9 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
+%token <stringVal> SEQUENCED TEMPORAL TIME
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE WHAT IF REPLACE
+%token <stringVal> TIP INCOMPLETE XTABLE RADB UADB
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -115,7 +117,7 @@ Node *bisonParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt queryStmt ddlStmt
+%type <node> stmt provStmt dmlStmt queryStmt ddlStmt reenactStmtWithOptions whatifStmt
 %type <node> createTableStmt alterTableStmt alterTableCommand
 %type <list> tableElemList optTableElemList
 %type <node> tableElement 
@@ -295,6 +297,7 @@ queryStmt:
 		'(' queryStmt ')'	{ RULELOG("queryStmt::bracketedQuery"); $$ = $2; }
 		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
 		| provStmt        { RULELOG("queryStmt::provStmt"); }
+		| whatifStmt      { RULELOG("queryStmt::whatifStmt"); }
 		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
     ;
 
@@ -333,7 +336,19 @@ transactionIdentifier:
         | ROLLBACK_TRANS        { RULELOG("transactionIdentifier::ROLLBACK"); $$ = strdup("TRANSACTION_ABORT"); }
     ;
 
-/* 
+/*
+ * Rule to parse a historical what-if query
+ */
+whatifStmt:
+          WHAT IF '(' stmtList ')' REPLACE intConst IN '(' stmtList ')'
+          {
+              RULELOG("whatifStmt::stmt");
+			  WhatIfStmt *w = createWhatIfStmt($4, $10, $7);
+			  $$ = (Node *) w;
+          }
+    ;
+
+/*
  * Rule to parse a query asking for provenance
  */
 provStmt: 

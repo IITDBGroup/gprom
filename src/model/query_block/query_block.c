@@ -56,6 +56,21 @@ createProvenanceStmt(Node *query)
     return result;
 }
 
+WhatIfStmt *
+createWhatIfStmt(List *modifiedHistory, List *history, int idx)
+{
+    WhatIfStmt *result = makeNode(WhatIfStmt);
+
+    // TODO: Replace queries at idxs with modified history.
+    result->provStmt = *createProvenanceStmt(NULL);
+    ((Node *)result)->type = T_WhatIfStmt;
+    result->modifiedHistory = modifiedHistory;
+    result->history = history;
+    result->idx = idx;
+
+    return result;
+}
+
 SelectItem *
 createSelectItem(char *alias, Node *expr)
 {
