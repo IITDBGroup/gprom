@@ -58,6 +58,7 @@ static void outSetQuery (StringInfo str, SetQuery *node);
 static void outProvenanceStmt (StringInfo str, ProvenanceStmt *node);
 static void outProvenanceTransactionInfo (StringInfo str,
         ProvenanceTransactionInfo *node);
+static void outWhatIfStmt (StringInfo str, WhatIfStmt *node);
 static void outInsert(StringInfo str, Insert *node);
 static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);
@@ -627,6 +628,16 @@ outProvenanceTransactionInfo (StringInfo str, ProvenanceTransactionInfo *node)
 }
 
 static void
+outWhatIfStmt (StringInfo str, WhatIfStmt *node)
+{
+    WRITE_NODE_TYPE(WHATIFSTMT);
+
+    WRITE_NODE_FIELD(modifiedHistory);
+    WRITE_NODE_FIELD(history);
+    WRITE_INT_FIELD(idx);
+}
+
+static void
 outOperator (StringInfo str, Operator *node)
 {
     WRITE_NODE_TYPE(OPERATOR);
@@ -1134,6 +1145,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_ProvenanceTransactionInfo:
                 outProvenanceTransactionInfo (str, (ProvenanceTransactionInfo *) obj);
+                break;
+            case T_WhatIfStmt:
+                outWhatIfStmt (str, (WhatIfStmt *) obj);
                 break;
             case T_DistinctClause:
                 outDistinctClause (str, (DistinctClause *) obj);

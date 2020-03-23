@@ -64,7 +64,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE WHAT IF REPLACE
 %token <stringVal> TIP INCOMPLETE XTABLE RADB UADB
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
@@ -122,7 +122,7 @@ Node *oracleParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt queryStmt ddlStmt reenactStmtWithOptions
+%type <node> stmt provStmt dmlStmt queryStmt ddlStmt reenactStmtWithOptions whatifStmt
 %type <node> createTableStmt alterTableStmt alterTableCommand
 %type <list> tableElemList optTableElemList attrElemList
 %type <node> tableElement attr
@@ -306,6 +306,7 @@ queryStmt:
 		'(' queryStmt ')'	{ RULELOG("queryStmt::bracketedQuery"); $$ = $2; }
 		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
 		| provStmt        { RULELOG("queryStmt::provStmt"); }
+		| whatifStmt      { RULELOG("queryStmt::whatifStmt"); }
 		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
     ;
 
@@ -342,6 +343,18 @@ transactionIdentifier:
         BEGIN_TRANS        { RULELOG("transactionIdentifier::BEGIN"); $$ = strdup("TRANSACTION_BEGIN"); }
         | COMMIT_TRANS        { RULELOG("transactionIdentifier::COMMIT"); $$ = strdup("TRANSACTION_COMMIT"); }
         | ROLLBACK_TRANS        { RULELOG("transactionIdentifier::ROLLBACK"); $$ = strdup("TRANSACTION_ABORT"); }
+    ;
+
+/*
+ * Rule to parse a historical what-if query
+ */
+whatifStmt:
+          WHAT IF '(' stmtList ')' REPLACE intConst IN '(' stmtList ')'
+          {
+              RULELOG("whatifStmt::stmt");
+			  WhatIfStmt *w = createWhatIfStmt($4, $10, $7);
+			  $$ = (Node *) w;
+          }
     ;
 
 /*

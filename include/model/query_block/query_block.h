@@ -15,7 +15,8 @@
 #define isQBQuery(node) (isA(node,QueryBlock) \
         || isA(node,SetQuery) \
         || isA(node, ProvenanceStmt) \
-        || isA(node, WithStmt))
+        || isA(node, WithStmt)) \
+        || isA(node, WhatIfStmt)
 #define isQBUpdate(node) (isA(node,Insert) \
         || isA(node,Update) \
         || isA(node,Delete))
@@ -89,6 +90,14 @@ typedef struct ProvenanceStmt
 //    int sampleSize;
 //    int topK;
 } ProvenanceStmt;
+
+typedef struct WhatIfStmt
+{
+    ProvenanceStmt provStmt;
+    List *modifiedHistory;
+    List *history;
+    int idx;
+} WhatIfStmt;
 
 typedef struct SelectItem
 {
@@ -301,6 +310,7 @@ extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
         Node *rChild);
 extern QueryBlock *createQueryBlock(void);
 extern ProvenanceStmt *createProvenanceStmt(Node *query);
+extern WhatIfStmt *createWhatIfStmt(List *modifiedHistory, List *history, int idx);
 extern SelectItem *createSelectItem(char *alias, Node *expr);
 extern FromItem *createFromItem (char *alias, List *attrNames);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
