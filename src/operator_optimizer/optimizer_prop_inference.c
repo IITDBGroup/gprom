@@ -48,7 +48,7 @@ computeMinMaxProp (QueryOperator *root){
 		char * tableName = rel->tableName;
 		HashMap * MIN_MAX = NEW_MAP(Constant, Node);
 		FOREACH(AttributeDef, attrDef, rel->op.schema->attrDefs){
-			MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName, (Node *)getMinAndMax(tableName,attrDef->attrName));
+				MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName, (Node *)getMinAndMax(tableName,attrDef->attrName));
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *)MIN_MAX);
 		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
@@ -60,22 +60,22 @@ computeMinMaxProp (QueryOperator *root){
 			HashMap *childMinMax =(HashMap *) getStringProperty((QueryOperator *) (getHeadOfList((List *) root->inputs)->data.ptr_value),PROP_STORE_MIN_MAX);
 			FOREACH(AttributeDef, attrDef, root->schema->attrDefs)
 			{
-				if (hasMapStringKey(childMinMax, attrDef->attrName)) {
-					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax,attrDef->attrName)));
-				} else {
-					if (((QueryOperator *) getHeadOfList((List *) root->inputs)->data.ptr_value)->type == T_AggregationOperator) {
-						MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax, "AGG")));
-						continue;
+					if (hasMapStringKey(childMinMax, attrDef->attrName)) {
+						MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax,attrDef->attrName)));
+					} else {
+						if (((QueryOperator *) getHeadOfList((List *) root->inputs)->data.ptr_value)->type == T_AggregationOperator) {
+							MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax, "AGG")));
+							continue;
+						}
+						if (((QueryOperator *) getHeadOfList((List *) root->inputs)->data.ptr_value)->type == T_WindowOperator) {
+							MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax, "WINDOW")));
+							continue;
+						}
+						HashMap *new_min_max = NEW_MAP(Constant, Node);
+						MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "-INFINTY");
+						MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "INFINTY");
+						MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )new_min_max);
 					}
-					if (((QueryOperator *) getHeadOfList((List *) root->inputs)->data.ptr_value)->type == T_WindowOperator) {
-						MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax, "WINDOW")));
-						continue;
-					}
-					HashMap *new_min_max = NEW_MAP(Constant, Node);
-					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "-INFINTY");
-					MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "INFINTY");
-					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )new_min_max);
-				}
 			}
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
@@ -90,47 +90,47 @@ computeMinMaxProp (QueryOperator *root){
 		HashMap *conResult = NEW_MAP(Constant, Node);
 		getConMap(operator, conResult);
 		FOREACH(AttributeDef, attrDef, ((SelectionOperator *) root)->op.schema->attrDefs) {
-			if (hasMapStringKey(childMinMax, attrDef->attrName)) {
-				if (hasMapStringKey(conResult, attrDef->attrName)) {
-					HashMap *conMinMax = (HashMap *) getMapString(conResult,attrDef->attrName);
-					HashMap *preMinMax =(HashMap *) getMapString(childMinMax,attrDef->attrName);
-					HashMap *curMinMax = copyObject(preMinMax);
-					Constant *preMin = (Constant *) MAP_GET_STRING_ENTRY(preMinMax, "MIN")->value; // previous col min
-					Constant *preMax = (Constant *) MAP_GET_STRING_ENTRY(preMinMax, "MAX")->value; // previous col max
-					if (hasMapStringKey(conMinMax, "MIN")) {
-						Constant *conMin = (Constant *) MAP_GET_STRING_ENTRY(conMinMax, "MIN")->value;
-						if (preMin->constType == DT_INT && conMin->constType == DT_INT){
-							if (*((int *)conMin->value) > *((int *)preMin->value)){
-								Constant *newMin = createConstInt (*((int *)conMin->value));
-								MAP_GET_STRING_ENTRY(curMinMax, "MIN")->value = (Node *)newMin;
-								if (*((int *)conMin->value) > *((int *)preMax->value)){
-									MAP_GET_STRING_ENTRY(curMinMax, "MAX")->value = (Node *)newMin; //NEW MIN > PRE MAX
+				if (hasMapStringKey(childMinMax, attrDef->attrName)) {
+					if (hasMapStringKey(conResult, attrDef->attrName)) {
+						HashMap *conMinMax = (HashMap *) getMapString(conResult,attrDef->attrName);
+						HashMap *preMinMax =(HashMap *) getMapString(childMinMax,attrDef->attrName);
+						HashMap *curMinMax = copyObject(preMinMax);
+						Constant *preMin = (Constant *) MAP_GET_STRING_ENTRY(preMinMax, "MIN")->value; // previous col min
+						Constant *preMax = (Constant *) MAP_GET_STRING_ENTRY(preMinMax, "MAX")->value; // previous col max
+						if (hasMapStringKey(conMinMax, "MIN")) {
+							Constant *conMin = (Constant *) MAP_GET_STRING_ENTRY(conMinMax, "MIN")->value;
+							if (preMin->constType == DT_INT && conMin->constType == DT_INT){
+								if (*((int *)conMin->value) > *((int *)preMin->value)){
+									Constant *newMin = createConstInt (*((int *)conMin->value));
+									MAP_GET_STRING_ENTRY(curMinMax, "MIN")->value = (Node *)newMin;
+									if (*((int *)conMin->value) > *((int *)preMax->value)){
+										MAP_GET_STRING_ENTRY(curMinMax, "MAX")->value = (Node *)newMin; //NEW MIN > PRE MAX
+									}
 								}
 							}
 						}
-					}
-					if (hasMapStringKey(conMinMax, "MAX")) {
-						Constant *conMax = (Constant *) MAP_GET_STRING_ENTRY(conMinMax, "MAX")->value;
-						if (preMax->constType == DT_INT && conMax->constType == DT_INT){
-							if (*((int *)conMax->value) < *((int *)preMax->value)){
-								Constant *newMax = createConstInt (*((int *)conMax->value));
-								MAP_GET_STRING_ENTRY(curMinMax, "MAX")->value = (Node *)newMax;
-								if (*((int *)conMax->value) < *((int *)preMin->value)){
-									MAP_GET_STRING_ENTRY(curMinMax, "MIN")->value = (Node *)newMax; //NEW MAX < PRE MIN
+						if (hasMapStringKey(conMinMax, "MAX")) {
+							Constant *conMax = (Constant *) MAP_GET_STRING_ENTRY(conMinMax, "MAX")->value;
+							if (preMax->constType == DT_INT && conMax->constType == DT_INT){
+								if (*((int *)conMax->value) < *((int *)preMax->value)){
+									Constant *newMax = createConstInt (*((int *)conMax->value));
+									MAP_GET_STRING_ENTRY(curMinMax, "MAX")->value = (Node *)newMax;
+									if (*((int *)conMax->value) < *((int *)preMin->value)){
+										MAP_GET_STRING_ENTRY(curMinMax, "MIN")->value = (Node *)newMax; //NEW MAX < PRE MIN
+									}
 								}
 							}
 						}
-					}
-					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,curMinMax);
+						MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,curMinMax);
+						continue;
+					} // selection
+					MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax,attrDef->attrName)));
 					continue;
-				} // selection
-				MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,copyObject((HashMap *)getMapString(childMinMax,attrDef->attrName)));
-				continue;
-			}
-			HashMap *new_min_max = NEW_MAP(Constant, Node);
-			MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "-INFINTY");
-			MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "INFINTY");
-			MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )new_min_max);
+				}
+				HashMap *new_min_max = NEW_MAP(Constant, Node);
+				MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MIN", "-INFINTY");
+				MAP_ADD_STRING_KEY_AND_VAL(new_min_max, "MAX", "INFINTY");
+				MAP_ADD_STRING_KEY(MIN_MAX, attrDef->attrName,(Node * )new_min_max);
 		}
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
 		INFO_LOG("MIN AND MAX are: %s", nodeToString(MIN_MAX));
@@ -417,6 +417,7 @@ computeMinMaxProp (QueryOperator *root){
 	}
 
 }
+
 boolean getConMap(Operator *root, HashMap *result) {
 	FOREACH(Node, ea, root->args)
 	{
