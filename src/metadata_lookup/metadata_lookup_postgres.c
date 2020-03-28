@@ -90,7 +90,7 @@
 
 #define NAME_IS_WIN_FUNC_11 "GPRoM_IsWinFunc"
 #define PARAMS_IS_WIN_FUNC_11 1
-#define QUERY_IS_WIN_FUNC_11 "SELECT bool_or(prokind = 'w') is_win FROM pg_proc " \
+#define QUERY_IS_WIN_FUNC_11 "SELECT (bool_or(prokind = 'w' OR prokind = 'a')) is_win FROM pg_proc " \
         "WHERE proname = $1::text;"
 
 #define NAME_IS_AGG_FUNC_11 "GPRoM_IsAggFunc"
@@ -100,7 +100,7 @@
 
 #define NAME_IS_WIN_FUNC "GPRoM_IsWinFunc"
 #define PARAMS_IS_WIN_FUNC 1
-#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswindow) is_win FROM pg_proc " \
+#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswindow OR proisagg) is_win FROM pg_proc " \
         "WHERE proname = $1::text;"
 
 #define NAME_IS_AGG_FUNC "GPRoM_IsAggFunc"
@@ -849,6 +849,7 @@ postgresIsWindowFunction(char *functionName)
     {
         addToSet(plugin->plugin.cache->winFuncNames, functionName);
         PQclear(res);
+		RELEASE_MEM_CONTEXT();
         return TRUE;
     }
     PQclear(res);

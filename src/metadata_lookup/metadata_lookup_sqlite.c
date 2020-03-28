@@ -241,11 +241,7 @@ sqliteGetAttributeNames (char *tableName)
 boolean
 sqliteIsAgg(char *functionName)
 {
-    char *f = strdup(functionName);
-//    int i = 0;
-
-    for(char *p = f; *p != '\0'; *(p) = tolower(*p), p++)
-        ;
+    char *f = strToLower(functionName);
 
     if (hasSetElem(plugin->plugin.cache->aggFuncNames, f))
         return TRUE;
@@ -256,7 +252,12 @@ sqliteIsAgg(char *functionName)
 boolean
 sqliteIsWindowFunction(char *functionName)
 {
-    return FALSE;//TODO
+    char *f = strToLower(functionName);
+
+    if (hasSetElem(plugin->plugin.cache->winFuncNames, f))
+        return TRUE;
+
+    return FALSE;
 }
 
 DataType
@@ -507,17 +508,36 @@ sqliteGetConnectionDescription (void)
     return CONCAT_STRINGS("SQLite:", getStringOption("connection.db"));
 }
 
-#define ADD_AGGR_FUNC(name) addToSet(plugin->plugin.cache->aggFuncNames, strdup(name));
+#define ADD_AGGR_FUNC(name) addToSet(plugin->plugin.cache->aggFuncNames, strdup(name))
+#define ADD_WIN_FUNC(name) addToSet(plugin->plugin.cache->winFuncNames, strdup(name))
+#define ADD_BOTH_FUNC(name) \
+	do { \
+		addToSet(plugin->plugin.cache->aggFuncNames, strdup(name)); \
+		addToSet(plugin->plugin.cache->winFuncNames, strdup(name)); \
+	} while (0)
+
 static void
 initCache(CatalogCache *c)
 {
-    ADD_AGGR_FUNC("avg");
-    ADD_AGGR_FUNC("count");
-    ADD_AGGR_FUNC("group_concat");
-    ADD_AGGR_FUNC("max");
-    ADD_AGGR_FUNC("min");
-    ADD_AGGR_FUNC("sum");
-    ADD_AGGR_FUNC("total");
+    ADD_BOTH_FUNC("avg");
+    ADD_BOTH_FUNC("count");
+    ADD_BOTH_FUNC("group_concat");
+    ADD_BOTH_FUNC("max");
+    ADD_BOTH_FUNC("min");
+    ADD_BOTH_FUNC("sum");
+    ADD_BOTH_FUNC("total");
+
+	ADD_WIN_FUNC("row_number");
+	ADD_WIN_FUNC("rank");
+	ADD_WIN_FUNC("dense_rank");
+	ADD_WIN_FUNC("percent_rank");
+	ADD_WIN_FUNC("cum_dist");
+	ADD_WIN_FUNC("ntile");
+	ADD_WIN_FUNC("lag");
+	ADD_WIN_FUNC("lead");
+	ADD_WIN_FUNC("first_value");
+	ADD_WIN_FUNC("last_value");
+	ADD_WIN_FUNC("nth_value");
 }
 
 
