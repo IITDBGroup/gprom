@@ -10,10 +10,10 @@ WORKDIR /home/ubuntu
 ########################################
 # Install monetdb
 ########################################
-RUN apt-get -y update && apt-get -y install apt-transport-https
-RUN echo "deb http://dev.monetdb.org/downloads/deb/ jessie monetdb" > /etc/apt/sources.list.d/monetdb.list \
-    && 	echo "deb-src http://dev.monetdb.org/downloads/deb/ jessie monetdb" >> /etc/apt/sources.list.d/monetdb.list \
-	&& wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
+RUN apt-get -y update && apt-get -y install apt-transport-https wget gpg-agent
+RUN echo "deb http://dev.monetdb.org/downloads/deb/ bionic monetdb" > /etc/apt/sources.list.d/monetdb.list \
+     && echo "deb-src http://dev.monetdb.org/downloads/deb/ bionic monetdb" >> /etc/apt/sources.list.d/monetdb.list \
+     && wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
 ########################################
 # Install packages needed for building
 ########################################
@@ -23,7 +23,8 @@ RUN apt-get -y update && apt-get install -y \
 	autoconf \
 	automake \
 	bison \
-	build-essential \
+    build-essential \
+    bzip2 \
 	curl \
 	eclipse \
 	eclipse-cdt \
@@ -38,13 +39,19 @@ RUN apt-get -y update && apt-get install -y \
 	gdb \
 	git \
 	graphviz \
-	openjdk-7-jdk \
-	libaio1 \
+    openjdk-8-jdk \
+    openjdk-8-jdk-headless \
+    openssl \
+    libaio1 \
+    libbz2-dev \
+    libcurl4-openssl-dev \
+    liblzma-dev \
 	libpq-dev \
-	libreadline6 \
-	libreadline6-dev \
+	libreadline7 \
+	libreadline-dev \
 	libsqlite3-dev \
-	libtool \
+    libtool \
+    libzip-dev \
 	locate \
 	make \
 	man-db \
@@ -55,13 +62,17 @@ RUN apt-get -y update && apt-get install -y \
 	unzip \
 	monetdb5-sql \
 	monetdb-client \
-	libmonetdb-client-dev \
-	&& rm -rf /var/lib/apt/lists/*
-ENV JAVA_HOME /usr/lib/jvm/java-7-openjdk-amd64
+    libmonetdb-client-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+########################################
+# Setup JAVA_HOME
+########################################
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 ########################################
 # Setup MonetDB
 ########################################
-RUN usermod -a -G monetdb $USER
+RUN usermod -a -G monetdb root
 ########################################
 # Add oracle OCI library files
 ########################################
@@ -94,21 +105,24 @@ RUN cd /home/ubuntu/ocilib/src \
 	&& make \
 	&& make install \
 	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
-	&& /sbin/ldconfig
+    && /sbin/ldconfig
+########################################
+# Create missing symlink for monetdb library
+########################################
+RUN ln -s /usr/lib/x86_64-linux-gnu/libstream.so.13 /usr/lib/x86_64-linux-gnu/libstream.so
 ########################################
 # Clone GProM github repository
 ########################################
+RUN echo "test" > /test.txt
 RUN git clone https://github.com/IITDBGroup/gprom.git /home/ubuntu/gprom
 ########################################
 # Build GProM
 ########################################
 RUN cd /home/ubuntu/gprom \
 	&& make -f Makefile.maintainer \
-	&& ./configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient \
+	&& LIBS='-lstream -llzma -lcurl -lbz2' ./configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient/ --with-mapi-lib=/usr/lib/x86_64-linux-gnu/ --with-libpq-headers=/usr/include/postgresql --with-mapi-headers=/usr/include/monetdb \
 	&& make \
-	&& make install \
-	&& make dist \
-	&& make distcheck
+	&& make install
 ########################################
 # Expose VNC port
 ########################################
@@ -119,4 +133,5 @@ EXPOSE 5900
 ########################################
 # copy ojdbc driver into gprom lib dir
 ########################################
-RUN cp /opt/oracle/instantclient/ojdbc7.jar /home/ubuntu/gprom/javalib/ojdbc7.jar
+RUN cp /opt/oracle/instantclient/ojdbc7.jar /home/ubuntu/gprom/build/javalib/ojdbc7.ja \
+    && cp /opt/oracle/instantclient/ojdbc7.jar /home/ubuntu/gprom/build/javatestlib/ojdbc7.ja

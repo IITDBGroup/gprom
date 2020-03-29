@@ -2023,10 +2023,25 @@ translateOrderBy(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 {
     OrderOperator *o;
     List *adaptedOrderExprs = copyObject(qb->orderByClause);
+	List *attrRefs;
 
     if (!qb->orderByClause)
+	{
         return input;
+	}
 
+	attrRefs = getAttrReferences((Node *) adaptedOrderExprs);
+	FOREACH(AttributeReference,a,attrRefs)
+	{
+		if(a->fromClauseItem == -1)
+		{
+			a->fromClauseItem = 0;
+		}
+		else
+		{
+			THROW(SEVERITY_RECOVERABLE,"currently only SELECT clause entries are support in ORDER BY. Explicitly add all ORDER BY attributes to the SELECT clause as a workaround until this has been fixed."); //TODO we can do this by adding the required attributes to the projection below and then adding another projection on top to return the right schema
+		}
+	}
     o = createOrderOp(adaptedOrderExprs, input, NIL);
     addParent(input, (QueryOperator *) o);
 
@@ -2132,7 +2147,7 @@ visitAggregFunctionCall(Node *n, List **aggregs)
         FunctionCall *fc = (FunctionCall *) n;
         if (fc->isAgg)
         {
-            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc));
+            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL));
             *aggregs = appendToTailOfList(*aggregs, fc);
 
             // do not recurse into aggregation function calls
@@ -2151,7 +2166,7 @@ visitFindWindowFuncs(Node *n, List **wfs)
 
     if (isA(n, WindowFunction))
     {
-        DEBUG_LOG("Found window function <%s>", exprToSQL(n));
+        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL));
         *wfs = appendToTailOfList(*wfs, n);
         return TRUE;
     }

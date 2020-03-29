@@ -1450,7 +1450,7 @@ printSingleECList(List *l)
 		    DEBUG_LOG("%s", (char *)n);
         }
 		if (c != NULL)
-		    DEBUG_LOG("%s", exprToSQL((Node *) c));
+		    DEBUG_LOG("%s", exprToSQL((Node *) c, NULL));
 		DEBUG_LOG("\n");
 	}
 }
@@ -1486,7 +1486,7 @@ printECProVisitor (QueryOperator *root, void *context)
             appendStringInfo(str,"%s%s", (char *)n, FOREACH_SET_HAS_NEXT(n) ? " " : "");
         }
         if (c != NULL)
-            appendStringInfo(str," %s", exprToSQL((Node *) c));
+            appendStringInfo(str," %s", exprToSQL((Node *) c, NULL));
         appendStringInfoString(str, "} ");
     }
     appendStringInfoString(str, "\n");
