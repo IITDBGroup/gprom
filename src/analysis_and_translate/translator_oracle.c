@@ -1396,7 +1396,7 @@ translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList)
                 AttributeReference *rRef = createFullAttrReference(strdup(rA), 1, rPos, 0, lDef->dataType);
 
                 commonAttrs = appendToTailOfList(commonAttrs, rA);
-                joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lRef,rRef)), joinCond);
+                joinCond = AND_EXPRS((Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(lRef,rRef)), joinCond);
             }
             else
                 uniqueRightAttrs = appendToTailOfList(uniqueRightAttrs, rA);
@@ -1458,7 +1458,7 @@ translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList)
             }
 
             // create equality condition and update global condition
-            attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+            attrCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
             curCond = AND_EXPRS(attrCond,curCond);
         }
 
@@ -1656,7 +1656,7 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         // create "nesting_eval_i = true" expression
         Constant *trueValue = createConstBool(TRUE);
         List *args = LIST_MAKE(attr, trueValue);
-        Operator *opExpr = createOpExpr("=", args);
+        Operator *opExpr = createOpExpr(OPNAME_EQ, args);
 
         // replace the nested subquery node with the auxiliary expression
         return (Node *) opExpr;

@@ -2033,7 +2033,7 @@ whereExpression:
                 if ($2 == NULL)
                 {
                     RULELOG("whereExpression::IN");
-                    $$ = (Node *) createQuantifiedComparison("ANY", $1, "=", $5);
+                    $$ = (Node *) createQuantifiedComparison("ANY", $1, OPNAME_EQ, $5);
                 }
                 else
                 {
@@ -2046,7 +2046,7 @@ whereExpression:
                 if ($2 == NULL)
                 {
                     RULELOG("whereExpression::IN");
-                    $$ = (Node *) createNestedSubquery("ANY", $1, "=", $5);
+                    $$ = (Node *) createNestedSubquery("ANY", $1, OPNAME_EQ, $5);
                 }
                 else
                 {

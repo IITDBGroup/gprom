@@ -437,13 +437,13 @@ replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **par
             if (context->inCond)
             {
                 if (isNull)
-                    *partentPointer = createOpExpr("=",
+                    *partentPointer = createOpExpr(OPNAME_EQ,
                         LIST_MAKE(createConstInt(1),createNullConst(DT_INT)));
                 else if (val)
-                    *partentPointer = createOpExpr("=",
+                    *partentPointer = createOpExpr(OPNAME_EQ,
                             LIST_MAKE(createConstInt(1),createConstInt(1)));
                 else
-                    *partentPointer = createOpExpr("=",
+                    *partentPointer = createOpExpr(OPNAME_EQ,
                             LIST_MAKE(createConstInt(1),createConstInt(0)));
             }
 

@@ -25,6 +25,12 @@ typedef struct Operator {
 #define OPNAME_NOT "NOT"
 #define OPNAME_not "not"
 #define OPNAME_CONCAT "CONCAT"
+#define OPNAME_EQ "="
+#define OPNAME_LT "<"
+#define OPNAME_LE "<="
+#define OPNAME_GT ">"
+#define OPNAME_GE ">="
+#define OPNAME_NEQ "<>"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -175,6 +181,11 @@ typedef struct QuantifiedComparison {
 	isA(_n,OrderExpr)  \
     )
 
+#define FUNC_LEFT_INPUT(_e) ((Node *) getNthOfListP(((FunctionCall *) _e)->args, 0))
+#define FUNC_RIGHT_INPUT(_e) ((Node *) getNthOfListP(((FunctionCall *) _e)->args, 1))
+#define OP_LEFT_INPUT(_e) ((Node *) getNthOfListP(((Operator *) _e)->args, 0))
+#define OP_RIGHT_INPUT(_e) ((Node *) getNthOfListP(((Operator *) _e)->args, 1))
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
@@ -214,6 +225,7 @@ extern Constant *createConstFloat (double value);
 extern Constant *createConstBoolFromString (char *v);
 extern Constant *createConstBool (boolean value);
 extern Constant *createNullConst (DataType dt);
+extern Constant *makeConst(DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
 #define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
 #define LONG_VALUE(_c) *((gprom_long_t *) ((Constant *) _c)->value)
@@ -221,12 +233,17 @@ extern Constant *createNullConst (DataType dt);
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
 #define CONST_TO_STRING(_c) (exprToSQL((Node *) _c))
+extern Constant *minConsts(Constant *l, Constant *r);
+extern Constant *maxConsts(Constant *l, Constant *r);
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
-extern boolean isConstExpr (Node *expr);
+extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
+
+/* expression node type accessors */
+extern char *getAttributeReferenceName(AttributeReference *a);
 
 /* backend specific */
 extern char *backendifyIdentifier(char *name);

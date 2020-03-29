@@ -228,6 +228,9 @@ extern List *concatLists (List *a, ...);
 extern List *sublist(List *l, int from, int to);
 extern List *genericSublist(List *l, boolean (*pred) (void *, void *), void *context);
 
+/* higher-order functions */
+extern List *mapList(List *, void * (*f) (void *));
+
 /* serialize to string */
 extern char *stringListToString (List *node);
 extern uint64_t hashStringList(uint64_t cur, List *node);

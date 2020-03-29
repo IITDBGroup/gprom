@@ -150,9 +150,9 @@ testAutoCasting (void)
     ASSERT_EQUALS_NODE(exp,result,"1.0 + 2 -> 1 + CAST(2 AS FLOAT)");
 
     // check cast for equality
-    o = createOpExpr("=", LIST_MAKE(createConstString("1"), createConstInt(2)));
+    o = createOpExpr(OPNAME_EQ, LIST_MAKE(createConstString("1"), createConstInt(2)));
     result = (Operator *) addCastsToExpr((Node *) o, FALSE);
-    exp = createOpExpr("=", LIST_MAKE(createConstString("1"), createCastExpr((Node *) createConstInt(2), DT_STRING)));
+    exp = createOpExpr(OPNAME_EQ, LIST_MAKE(createConstString("1"), createCastExpr((Node *) createConstInt(2), DT_STRING)));
 
     ASSERT_EQUALS_NODE(exp,result,"\"1\" = 2 -> \"1\" = CAST(2 AS STRING)");
 

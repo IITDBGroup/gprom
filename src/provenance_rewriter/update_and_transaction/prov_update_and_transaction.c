@@ -662,7 +662,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
             // adding SCN < update SCN condition
             scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
                     getNumAttrs(OP_LCHILD(q)), 0, DT_LONG);
-            newCond = (Node *) createOpExpr("<=",
+            newCond = (Node *) createOpExpr(OPNAME_LE,
                     LIST_MAKE((Node *) scnAttr,
                             copyObject(getNthOfListP(scns,i))));
             s->cond = OR_EXPRS(s->cond, newCond);
@@ -720,7 +720,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 						// adding SCN < update SCN condition
 						scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
 						        attrPos, 0, DT_LONG);
-						newCond = (Node *) createOpExpr("<=",
+						newCond = (Node *) createOpExpr(OPNAME_LE,
 								LIST_MAKE((Node *) scnAttr,
 								        copyObject(getNthOfListP(scns,i))));
 
@@ -743,7 +743,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 	                        scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
 	                                attrPos, 0, DT_LONG);
-	                        cond = (Node *) createOpExpr("<=",
+	                        cond = (Node *) createOpExpr(OPNAME_LE,
 	                                LIST_MAKE((Node *) scnAttr,
 	                                        copyObject(getNthOfListP(scns,i))));
 
@@ -1317,7 +1317,7 @@ adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos)
 
     result = AND_EXPRS (
             cond,
-            createOpExpr("<=", LIST_MAKE(createFullAttrReference(
+            createOpExpr(OPNAME_LE, LIST_MAKE(createFullAttrReference(
                     VERSIONS_STARTSCN_ATTR, 0, attrPos, INVALID_ATTR, scn->constType),
                     copyObject(scn)))
         );
@@ -1402,7 +1402,7 @@ filterUpdatedInFinalResult (ProvenanceComputation *op, QueryOperator *rewritten)
     {
         if (IS_STATEMENT_ANNOT_ATTR(a->attrName))
         {
-            condList = appendToTailOfList(condList, createOpExpr("=",
+            condList = appendToTailOfList(condList, createOpExpr(OPNAME_EQ,
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName), 0, i,
                                     INVALID_ATTR, a->dataType),
                             createConstBool(TRUE))

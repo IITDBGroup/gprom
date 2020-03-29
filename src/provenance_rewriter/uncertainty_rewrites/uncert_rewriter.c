@@ -627,7 +627,7 @@ static QueryOperator *combineRowMinBg(QueryOperator *op) {
 	switchSubtrees(op, aggrop);
 	op->parents = singleton(aggrop);
 
-	Operator *notnull = createOpExpr(">", LIST_MAKE(getAttrRefByName(aggrop,ROW_POSSIBLE), createConstInt(0)));
+	Operator *notnull = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(aggrop,ROW_POSSIBLE), createConstInt(0)));
 	QueryOperator *selpos = (QueryOperator *)createSelectionOp((Node *)notnull, aggrop, NIL, normname);
 	switchSubtrees(aggrop, selpos);
 	aggrop->parents = singleton(selpos);
@@ -641,8 +641,8 @@ static QueryOperator *combineRowMinBg(QueryOperator *op) {
 static QueryOperator *combinePosToOne(QueryOperator *op) {
 	HashMap * hmpIn = (HashMap *)getStringProperty(op, "UNCERT_MAPPING");
 	QueryOperator *opdup = copyObject(op);
-	Operator *bgSel = createOpExpr(">", LIST_MAKE(getAttrRefByName(op,ROW_BESTGUESS), createConstInt(0)));
-	Operator *posSel = createOpExpr("=", LIST_MAKE(getAttrRefByName(opdup,ROW_BESTGUESS), createConstInt(0)));
+	Operator *bgSel = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(op,ROW_BESTGUESS), createConstInt(0)));
+	Operator *posSel = createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(opdup,ROW_BESTGUESS), createConstInt(0)));
 	List *attrnames = getNormalAttrNames(op);
 
 	QueryOperator *bg = (QueryOperator *)createSelectionOp((Node *)bgSel, op, NIL, attrnames);
@@ -695,13 +695,13 @@ static QueryOperator *compressPosRow(QueryOperator *op, int n, char *attr){
 			FOREACH(Node, nd, range){
 				if(!last){
 					last = nd;
-					Node *whenexpr = (Node *)createOpExpr(">=", LIST_MAKE(tattr, nd));
+					Node *whenexpr = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE(tattr, nd));
 					cwhens = appendToTailOfList(cwhens, createCaseWhen(whenexpr, nd));
 				}
 				else{
-					Node *lbexpr = (Node *)createOpExpr("<", LIST_MAKE(tattr, last));
+					Node *lbexpr = (Node *)createOpExpr(OPNAME_LT, LIST_MAKE(tattr, last));
 					INFO_LOG("lbexpr: %s",nodeToString(lbexpr));
-					Node *ubexpr = (Node *)createOpExpr(">=", LIST_MAKE(tattr, nd));
+					Node *ubexpr = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE(tattr, nd));
 					INFO_LOG("ubexpr: %s",nodeToString(lbexpr));
 					Node *whenexpr = (Node *)andExprs(lbexpr, ubexpr);
 					cwhens = appendToTailOfList(cwhens, createCaseWhen(whenexpr, nd));
@@ -837,15 +837,15 @@ static Node *getMdedian(Node *ub, Node *lb){
 
 static Constant* getStringMedian(Constant *ub, Constant *lb){
 	ASSERT(ub->constType == DT_STRING);
-	char *ubs = STRING_VALUE(ub); 
-	char *lbs = STRING_VALUE(lb); 
+	char *ubs = STRING_VALUE(ub);
+	char *lbs = STRING_VALUE(lb);
 	int l1 = strlen(ubs);
 	int l2 = strlen(lbs);
 	int val1 = 0;
 	int val2 = 0;
 	char *res = (char *)MALLOC(MAX(l1,l2)*sizeof(char));
-	for (int i = 0; i < MAX(l1,l2); i++) 
-    { 
+	for (int i = 0; i < MAX(l1,l2); i++)
+    {
         if(i<l1){
         	val1 = (int)ubs[i];
         }
@@ -856,7 +856,7 @@ static Constant* getStringMedian(Constant *ub, Constant *lb){
         INFO_LOG("for position %d, it is %d(%c) + %d(%c) to median %d(%c).", i, val1,(char)val1, val2, (char)val2, (val1+val2)/2, (char)(val1+val2)/2);
         val1=0;
         val2=0;
-    } 
+    }
     INFO_LOG("median for %s and %s is: %s.", ubs,lbs,res);
 	return createConstString(res);
 }
@@ -871,9 +871,9 @@ rewrite_RangeTIP(QueryOperator *op)
 
 //	int pos = getAttrRefByName(op,TIPName)->attrPosition;
 
-	Operator *bgcond = createOpExpr(">=", LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.5)));
-	Operator *certcond = createOpExpr(">=", LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(1.0)));
-	Operator *poscond = createOpExpr(">", LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.0)));
+	Operator *bgcond = createOpExpr(OPNAME_GE, LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.5)));
+	Operator *certcond = createOpExpr(OPNAME_GE, LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(1.0)));
+	Operator *poscond = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.0)));
 
 	HashMap *hmp = NEW_MAP(Node, Node);
 
@@ -919,7 +919,7 @@ rewrite_UncertTIP(QueryOperator *op, UncertaintyType typ)
 
 	//Create operator expression
 	//Create full attribute reference -> datatype -> cast? -> opschema?
-	Operator *ltequal = createOpExpr("<=",LIST_MAKE(createConstFloat(0.5),getAttrRefByName(op,TIPName)));
+	Operator *ltequal = createOpExpr(OPNAME_LE,LIST_MAKE(createConstFloat(0.5),getAttrRefByName(op,TIPName)));
 
 	//create select op with the condition
 	QueryOperator *selec = (QueryOperator *)createSelectionOp((Node *)ltequal, op, NIL, getAttrNames(op->schema));
@@ -953,7 +953,7 @@ rewrite_UncertTIP(QueryOperator *op, UncertaintyType typ)
 	}
 
 	//Create operator expression when P==1
-	Node *TIPIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(op,TIPName)));
+	Node *TIPIsOne = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(createConstFloat(1),getAttrRefByName(op,TIPName)));
 
 	//Add U_R to the schema with data type int
 	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
@@ -1093,15 +1093,15 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 	// range semantics, only show most likely alternative, but return one alternative per x-tuple
 	if (typ == UNCERTAIN_ATTR_RANGES)
 	{
-		selec1Cond = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
+		selec1Cond = createOpExpr(OPNAME_EQ,LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
 	}
 	// UADB, only show rows that are best guess (maximal probability alternative unless not including an alternative has the highest probability)
 	else if (typ == UNCERTAIN_TUPLE_LEVEL || typ == UNCERTAIN_ATTR_LEVEL)
 	{
 		Operator *oneMinusSum = createOpExpr("-",LIST_MAKE(createConstInt(1),getAttrRefByName(prevWOp, sumProbName)));
-		Operator *firstParam = createOpExpr(">",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
+		Operator *firstParam = createOpExpr(OPNAME_GT,LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
 
-		Operator *secondParam = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
+		Operator *secondParam = createOpExpr(OPNAME_EQ,LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
 		selec1Cond = createOpExpr("AND", LIST_MAKE(firstParam,secondParam));
 	}
 
@@ -1120,7 +1120,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 	selecMaxProbRow->parents = singleton(rowNumberByIdWOp);
 
 	/* Selection - Select rows with row number equal to 1 */
-	Operator *countEqualsOne = createOpExpr("=",LIST_MAKE(createConstInt(1),getAttrRefByName(rowNumberByIdWOp, rowNumByIdName)));
+	Operator *countEqualsOne = createOpExpr(OPNAME_EQ,LIST_MAKE(createConstInt(1),getAttrRefByName(rowNumberByIdWOp, rowNumByIdName)));
 	QueryOperator *selecRowNumberIsOne = (QueryOperator *)createSelectionOp((Node *)countEqualsOne, rowNumberByIdWOp, NIL, getAttrNames(rowNumberByIdWOp->schema));
 	rowNumberByIdWOp->parents = singleton(selecRowNumberIsOne);
 
@@ -1149,7 +1149,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 			//Add U_nd->name to the schema, with data type int
 			addUncertAttrToSchema(hmp, proj, nd);
 			appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
-							   createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)))));
+							   createCaseOperator((Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,maxProbName)))));
 		}
 	}
 
@@ -1159,11 +1159,11 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 		addRangeRowToSchema(hmp, proj);
 
 		// certain = sum probability is 1.0 (there is only one alternative with probability of one
-		Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
+		Node *sumProbIsOne = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
 
 		// best guess (max probability of option is larger equals to 0.5
-		Node *maxProbLargerOneMinusSum = (Node *)createOpExpr("<=",LIST_MAKE(
+		Node *maxProbLargerOneMinusSum = (Node *)createOpExpr(OPNAME_LE,LIST_MAKE(
 															   createOpExpr("-", LIST_MAKE(createConstFloat(1), getAttrRefByName(selecRowNumberIsOne, sumProbName))),
 															   getAttrRefByName(selecRowNumberIsOne,maxProbName)));
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(maxProbLargerOneMinusSum));
@@ -1173,7 +1173,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 	}
 	else
 	{
-		Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
+		Node *sumProbIsOne = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(createConstFloat(1),getAttrRefByName(selecRowNumberIsOne,sumProbName)));
 		//Add U_R to the schema with data type int
 		addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
@@ -1376,7 +1376,7 @@ UncertIf(CaseExpr *expr, HashMap *hmp)
 	}
 	if(expr->expr){
 		FOREACH(Node,nd,expr->whenClauses) {
-			Node *exprtmp = (Node *)createOpExpr("=", appendToTailOfList(singleton(expr->expr),((CaseWhen *)nd)->when));
+			Node *exprtmp = (Node *)createOpExpr(OPNAME_EQ, appendToTailOfList(singleton(expr->expr),((CaseWhen *)nd)->when));
 			Node * uncertwhen = getUncertaintyExpr(exprtmp, hmp);
 			Node * uncertthen = getUncertaintyExpr(((CaseWhen *)nd)->then, hmp);
 			Node * evalwhen = createCaseOperator(exprtmp);
@@ -1432,9 +1432,9 @@ UncertOp(Operator *expr, HashMap *hmp)
 		Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 		Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
 		Node *c1 = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(getUncertaintyExpr(e1, hmp)),getUncertaintyExpr(e2, hmp)));
-		Node *c2 = (Node *)createOpExpr("=", appendToTailOfList(singleton(e1), (Node *)createConstInt(0)));
+		Node *c2 = (Node *)createOpExpr(OPNAME_EQ, appendToTailOfList(singleton(e1), (Node *)createConstInt(0)));
 		Node *ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c1), createCaseOperator(c2)));
-		Node *c3 = (Node *)createOpExpr("=", appendToTailOfList(singleton(e2), (Node *)createConstInt(0)));
+		Node *c3 = (Node *)createOpExpr(OPNAME_EQ, appendToTailOfList(singleton(e2), (Node *)createConstInt(0)));
 		ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(ret), createCaseOperator(c3)));
 		return ret;
 	}
@@ -1509,18 +1509,18 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp){
 			Node *ret = (Node *)createOpExpr("-", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
-		if(strcmp(expr->name,"=")==0) {
+		if(strcmp(expr->name,OPNAME_EQ)==0) {
 			// INFO_LOG("rewrite = ");
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node * c1 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			Node * c2 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-			// Node *c1 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			// Node *c2 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-			// Node *c3 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			// Node *c4 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-			// Node *c5 = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			// Node *c6 = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node * c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node * c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			// Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			// Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			// Node *c3 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			// Node *c4 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			// Node *c5 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			// Node *c6 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 
 			// Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
 			// Node *c34 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c3),c4));
@@ -1530,28 +1530,28 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp){
 			Node *ret = (Node *)createOpExpr("AND", LIST_MAKE(c1,c2));
 			return ret;
 		}
-		if(strcmp(expr->name,">")==0) {
+		if(strcmp(expr->name,OPNAME_GT)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr(">", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_GT, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
-		if(strcmp(expr->name,">=")==0) {
+		if(strcmp(expr->name,OPNAME_GE)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
-		if(strcmp(expr->name,"<")==0) {
+		if(strcmp(expr->name,OPNAME_LT)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("<", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_LT, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
 			return ret;
 		}
-		if(strcmp(expr->name,"<=")==0) {
+		if(strcmp(expr->name,OPNAME_LE)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
 			return ret;
 		}
 		if(strcmp(expr->name,"*")==0) {
@@ -1619,37 +1619,37 @@ static Node *RangeLBOp(Operator *expr, HashMap *hmp){
 			Node *ret = (Node *)createFunctionCall(LEAST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
 			return ret;
 		}
-		if(strcmp(expr->name,"=")==0) {
+		if(strcmp(expr->name,OPNAME_EQ)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *c1 = (Node *)createOpExpr("=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e1, hmp)));
-			Node *c2 = (Node *)createOpExpr("=", appendToTailOfList(singleton(getUBExpr(e2, hmp)),getLBExpr(e2, hmp)));
+			Node *c1 = (Node *)createOpExpr(OPNAME_EQ, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e1, hmp)));
+			Node *c2 = (Node *)createOpExpr(OPNAME_EQ, appendToTailOfList(singleton(getUBExpr(e2, hmp)),getLBExpr(e2, hmp)));
 			Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
 			Node *ret = (Node *)createOpExpr("AND", appendToTailOfList(singleton(expr),c12));
 			return ret;
 		}
-		if(strcmp(expr->name,">")==0) {
+		if(strcmp(expr->name,OPNAME_GT)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr(">", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_GT, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
 			return ret;
 		}
-		if(strcmp(expr->name,">=")==0) {
+		if(strcmp(expr->name,OPNAME_GE)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr(">=", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
 			return ret;
 		}
-		if(strcmp(expr->name,"<")==0) {
+		if(strcmp(expr->name,OPNAME_LT)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("<", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_LT, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
-		if(strcmp(expr->name,"<=")==0) {
+		if(strcmp(expr->name,OPNAME_LE)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("<=", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
 		else if(strcmp(strToUpper(expr->name),"OR")==0){
@@ -1883,9 +1883,9 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 		Node *cr = getMap(hmpIn, (Node *)createAttributeReference(ROW_CERTAIN));
 		Node *br = getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS));
 		Node *pr = getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE));
-		proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(">",LIST_MAKE(cr, createConstInt(0)))));
-		proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(">",LIST_MAKE(br, createConstInt(0)))));
-		proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(">",LIST_MAKE(pr, createConstInt(0)))));
+		proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(OPNAME_GT,LIST_MAKE(cr, createConstInt(0)))));
+		proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(OPNAME_GT,LIST_MAKE(br, createConstInt(0)))));
+		proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(OPNAME_GT,LIST_MAKE(pr, createConstInt(0)))));
 		pro_attrName = appendToTailOfList(pro_attrName,ROW_CERTAIN);
 		pro_attrName = appendToTailOfList(pro_attrName,ROW_BESTGUESS);
 		pro_attrName = appendToTailOfList(pro_attrName,ROW_POSSIBLE);
@@ -2006,9 +2006,9 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 		((AttributeReference *)aRef2_ub)->fromClauseItem = 1;
 		Node *aRef2_lb = (Node *)getAttrRefByName(childdup, getLBString(((AttributeReference *)n)->name));
 		((AttributeReference *)aRef2_lb)->fromClauseItem = 1;
-		Node *refExprCase1 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr("<=", LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(">=", LIST_MAKE(aRef1_ub,aRef2_lb))));
-		Node *refExprCase2 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr("<=", LIST_MAKE(aRef1_lb,aRef2_ub)), createOpExpr(">=", LIST_MAKE(aRef1_ub,aRef2_ub))));
-		Node *refExprCase3 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr(">=", LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr("<=", LIST_MAKE(aRef1_ub,aRef2_ub))));
+		Node *refExprCase1 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_ub,aRef2_lb))));
+		Node *refExprCase2 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_lb,aRef2_ub)), createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_ub,aRef2_ub))));
+		Node *refExprCase3 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_ub,aRef2_ub))));
 		Node *refExpr = (Node *)createOpExpr("OR", LIST_MAKE(refExprCase3, createOpExpr("OR", LIST_MAKE(refExprCase1,refExprCase2))));
 		if(joinExpr == NULL){
 			joinExpr = refExpr;
@@ -2044,11 +2044,11 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 		nameList = appendToTailOfList(nameList,fname_ub);
 		nameList = appendToTailOfList(nameList,fname_lb);
 
-		Node * cert_eq_1 = (Node *)createOpExpr("=", LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, fname_lb)));
-		Node * cert_eq_2 = (Node *)createOpExpr("=", LIST_MAKE(getAttrRefByName(join, getAttrTwoString(fname_ub)), getAttrRefByName(join, getAttrTwoString(fname_lb))));
-		Node * cert_eq_3 = (Node *)createOpExpr("=", LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, getAttrTwoString(fname_ub))));
+		Node * cert_eq_1 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, fname_lb)));
+		Node * cert_eq_2 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, getAttrTwoString(fname_ub)), getAttrRefByName(join, getAttrTwoString(fname_lb))));
+		Node * cert_eq_3 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, getAttrTwoString(fname_ub))));
 
-		Node * bg_eq = (Node *)createOpExpr("=", LIST_MAKE(getAttrRefByName(join, fname), getAttrRefByName(join, getAttrTwoString(fname))));
+		Node * bg_eq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname), getAttrRefByName(join, getAttrTwoString(fname))));
 
 		Node * cert_eq = (Node *)createOpExpr("AND", LIST_MAKE(cert_eq_3, createOpExpr("AND", LIST_MAKE(cert_eq_1, cert_eq_2))));
 		if(cert_case == NULL){
@@ -2785,7 +2785,7 @@ rewrite_RangeJoin(QueryOperator *op){
 
 static QueryOperator *
 spliceToBG(QueryOperator *op, List *attrnames){
-	Operator *bgSel = createOpExpr(">", LIST_MAKE(getAttrRefByName(op,ROW_BESTGUESS), createConstInt(0)));
+	Operator *bgSel = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(op,ROW_BESTGUESS), createConstInt(0)));
 
 	QueryOperator *bg = (QueryOperator *)createSelectionOp((Node *)bgSel, op, NIL, getNormalAttrNames(op));
 	switchSubtrees(op, bg);
@@ -2797,10 +2797,10 @@ spliceToBG(QueryOperator *op, List *attrnames){
 	Node *ctcase = NULL;
 	FOREACH(char, an, attrnames){
 		if(!ctcase){
-			ctcase = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(bg,getUBString(an)),getAttrRefByName(bg,getLBString(an))));
+			ctcase = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(getAttrRefByName(bg,getUBString(an)),getAttrRefByName(bg,getLBString(an))));
 		}
 		else {
-			Node *temp = (Node *)createOpExpr("=",LIST_MAKE(getAttrRefByName(bg,getUBString(an)),getAttrRefByName(bg,getLBString(an))));
+			Node *temp = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(getAttrRefByName(bg,getUBString(an)),getAttrRefByName(bg,getLBString(an))));
 			ctcase = (Node *)createOpExpr("AND", LIST_MAKE(ctcase,temp));
 		}
 		normalProjList = appendToTailOfList(normalProjList,getAttrRefByName(bg,an));
@@ -2843,7 +2843,9 @@ spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
 	switchSubtrees(op,posProj);
 	op->parents = singleton(posProj);
 
-	computeMinMaxProp(posProj);
+	// remove property (input may have been rewritten so it may be unsafe to reuse)
+	removeMinMaxProps(posProj);
+	computeMinMaxPropForSubset(posProj, NULL);
 
 	// HashMap * mmpro = (HashMap *)getStringProperty(posProj, PROP_STORE_MIN_MAX);
 	// INFO_LOG("property: %s", nodeToString(mmpro));
@@ -2853,7 +2855,7 @@ spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
 
 	//compress possibles
 	QueryOperator *compposProj = compressPosRow(posProj, 1, jattr);
-	
+
 	INFO_OP_LOG("comppos:", compposProj);
 
 	return compposProj;
@@ -2866,7 +2868,9 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 
 	INFO_LOG("REWRITE-RANGE - Join(optimized)");
 
-	computeMinMaxProp(op);
+	// remove property (input may have been rewritten so it may be unsafe to reuse)
+    removeMinMaxProps(op);
+	computeMinMaxPropForSubset(op, NULL);
 
 	List *lattrnames = getNormalAttrNames(OP_LCHILD(op));
 	List *rattrnames = getNormalAttrNames(OP_RCHILD(op));
@@ -3084,7 +3088,7 @@ getJoinAttrPair(Node *expr)
 {
 	Node *op = expr;
 	ASSERT(op->type==T_Operator);
-	ASSERT(((Operator *)expr)->name != "=");
+	ASSERT(((Operator *)expr)->name != OPNAME_EQ);
 	Node *ref1 = getHeadOfListP(((Operator *)op)->args);
 	Node *ref2 = getTailOfListP(((Operator *)op)->args);
 	ASSERT(ref1->type == T_AttributeReference);

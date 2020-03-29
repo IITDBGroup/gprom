@@ -81,15 +81,15 @@ newList(NodeTag type)
 }
 
 int
-getListLength(List *list) 
+getListLength(List *list)
 {
 	if (list == NIL)
 		return 0;
 	if (list->length != -1)
 		return list->length;
 
-	ListCell *node; 
-    
+	ListCell *node;
+
     node = list->head;
 	list->length = 0;
 
@@ -114,7 +114,7 @@ getHeadOfListInt (List *list)
 {
 	ASSERT(isIntList(list));
     ListCell *head;
-    
+
     head = getHeadOfList(list);
     return head ? head->data.int_value : -1;
 }
@@ -182,9 +182,9 @@ int
 getTailOfListInt(List *list)
 {
     ASSERT(isIntList(list));
-    
+
     ListCell *tail;
-    
+
     tail = getTailOfList(list);
     return tail ? tail->data.int_value : -1;
 }
@@ -208,15 +208,15 @@ getNthOfList(List *list, int n)
 	if (list == NIL)
 		return NULL;
 	ASSERT(getListLength(list) >= n);
-    
+
 	ListCell * node;
-    
+
     node = list->head;
 	while (node != NULL && n--)
 	{
 		node = node->next;
 	}
-    
+
     return node ? node : NULL;
 }
 
@@ -264,10 +264,10 @@ void
 newListTail(List *list)
 {
     ListCell *newTail;
-    
+
     newTail = (ListCell *) NEW(ListCell);
     newTail->next = NULL;
-    
+
     list->tail->next = newTail;
     list->tail = newTail;
     list->length++;
@@ -277,12 +277,12 @@ List *
 appendToTailOfList(List *list, void *value)
 {
     ASSERT(isPtrList(list));
-	
+
     if (list == NIL || list->length == 0)
 		list = newList(T_List);
 	else
         newListTail(list);
-    
+
     list->tail->data.ptr_value = value;
 
     ASSERT(checkList(list));
@@ -293,12 +293,12 @@ List *
 appendToTailOfListInt(List *list, int value)
 {
     ASSERT(isIntList(list));
-    
+
     if (list == NIL)
         list = newList(T_IntList);
     else
         newListTail(list);
-    
+
     list->tail->data.int_value = value;
     ASSERT(checkList(list));
     return list;
@@ -324,7 +324,7 @@ appendToHeadOfList(List *list, void *value)
         list = newList(T_List);
     else
         newListHead(list);
-    
+
     list->head->data.ptr_value = value;
     ASSERT(checkList(list));
     return list;
@@ -454,7 +454,7 @@ deepFreeList(List *list)
 {
     if (list == NIL)
         return;
-    
+
     for(ListCell *lc = list->head->next, *prev = list->head; lc != NULL;
             prev = lc, lc = lc->next)
     {
@@ -570,6 +570,16 @@ genericSublist(List *l, boolean (*pred) (void *, void *), void *context)
     }
 
     return result;
+}
+
+List *
+mapList(List *l, void * (*f) (void *))
+{
+	List *result = NIL;
+	FOREACH(void,el,l)
+		result = appendToTailOfList(result,f(el));
+
+	return result;
 }
 
 boolean
@@ -813,4 +823,3 @@ removeListElementsFromAnotherList(List *l1, List *l2)
 
     return result;
 }
-

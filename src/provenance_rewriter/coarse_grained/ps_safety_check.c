@@ -551,35 +551,35 @@ monotonicity1(SelectionOperator *selectOperator, Node *node, HashMap *table_map)
 	char *operator_name = ((Operator *) selectOperator->cond)->name;
 	if (!strcmp(function_name, "SUM")) {
 		if (checkAllIsPostive(table_map, colName)) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return TRUE;
 			}
 		} else if (checkAllIsNegative(table_map, colName)) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return FALSE;
 			}
 		} else {
@@ -587,70 +587,70 @@ monotonicity1(SelectionOperator *selectOperator, Node *node, HashMap *table_map)
 		}
 	}
 	if (!strcmp(function_name, "AVG")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return FALSE;
 		}
 	}
 	if (!strcmp(function_name, "COUNT")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return TRUE;
 		}
 	}
 	if (!strcmp(function_name, "MAX")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return TRUE;
 		}
 	}
 	if (!strcmp(function_name, "MIN")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return FALSE;
 		}
 	}
@@ -929,35 +929,35 @@ boolean checkPageSafety(HashMap *data, Set *hasOperator) {
 
 		if (!strcmp(function_name, "SUM")) {
 			if (checkAllIsPostive(table_map, colName)) {
-				if (!strcmp(operator_name, "<")) {
+				if (!strcmp(operator_name, OPNAME_LT)) {
 					return FALSE;
 				}
-				if (!strcmp(operator_name, "<=")) {
+				if (!strcmp(operator_name, OPNAME_LE)) {
 					return FALSE;
 				}
-				if (!strcmp(operator_name, "=")) {
+				if (!strcmp(operator_name, OPNAME_EQ)) {
 					return FALSE;
 				}
-				if (!strcmp(operator_name, ">")) {
+				if (!strcmp(operator_name, OPNAME_GT)) {
 					return TRUE;
 				}
-				if (!strcmp(operator_name, ">=")) {
+				if (!strcmp(operator_name, OPNAME_GE)) {
 					return TRUE;
 				}
 			} else if (checkAllIsNegative(table_map, colName)) {
-				if (!strcmp(operator_name, "<")) {
+				if (!strcmp(operator_name, OPNAME_LT)) {
 					return TRUE;
 				}
-				if (!strcmp(operator_name, "<=")) {
+				if (!strcmp(operator_name, OPNAME_LE)) {
 					return TRUE;
 				}
-				if (!strcmp(operator_name, "=")) {
+				if (!strcmp(operator_name, OPNAME_EQ)) {
 					return FALSE;
 				}
-				if (!strcmp(operator_name, ">")) {
+				if (!strcmp(operator_name, OPNAME_GT)) {
 					return FALSE;
 				}
-				if (!strcmp(operator_name, ">=")) {
+				if (!strcmp(operator_name, OPNAME_GE)) {
 					return FALSE;
 				}
 			} else {
@@ -965,70 +965,70 @@ boolean checkPageSafety(HashMap *data, Set *hasOperator) {
 			}
 		}
 		if (!strcmp(function_name, "AVG")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return FALSE;
 			}
 		}
 		if (!strcmp(function_name, "COUNT")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return TRUE;
 			}
 		}
 		if (!strcmp(function_name, "MAX")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return TRUE;
 			}
 		}
 		if (!strcmp(function_name, "MIN")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return FALSE;
 			}
 		}
@@ -1404,87 +1404,87 @@ boolean checkPageSafety_aggregation(HashMap *data) {
 	char *function_name = ((FunctionCall *) getHeadOfList(aggrs)->data.ptr_value)->functionname;
 	char *operator_name = ((Operator *) cond)->name;
 	if (!strcmp(function_name, "SUM")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return TRUE;
 		}
 	}
 	if (!strcmp(function_name, "AVG")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return FALSE;
 		}
 	}
 	if (!strcmp(function_name, "COUNT")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return TRUE;
 		}
 	}
 	if (!strcmp(function_name, "MAX")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return TRUE;
 		}
 	}
 	if (!strcmp(function_name, "MIN")) {
-		if (!strcmp(operator_name, "<")) {
+		if (!strcmp(operator_name, OPNAME_LT)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, "<=")) {
+		if (!strcmp(operator_name, OPNAME_LE)) {
 			return TRUE;
 		}
-		if (!strcmp(operator_name, "=")) {
+		if (!strcmp(operator_name, OPNAME_EQ)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">")) {
+		if (!strcmp(operator_name, OPNAME_GT)) {
 			return FALSE;
 		}
-		if (!strcmp(operator_name, ">=")) {
+		if (!strcmp(operator_name, OPNAME_GE)) {
 			return FALSE;
 		}
 	}
@@ -1525,87 +1525,87 @@ boolean checkPageSafety_windowOperator(HashMap *data)
 	char *function_name =((FunctionCall *) f)->functionname;
 	char *operator_name = ((Operator *) cond)->name;
 	if (!strcmp(function_name, "SUM")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return TRUE;
 			}
 		}
 		if (!strcmp(function_name, "AVG")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return FALSE;
 			}
 		}
 		if (!strcmp(function_name, "COUNT")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return TRUE;
 			}
 		}
 		if (!strcmp(function_name, "MAX")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return TRUE;
 			}
 		}
 		if (!strcmp(function_name, "MIN")) {
-			if (!strcmp(operator_name, "<")) {
+			if (!strcmp(operator_name, OPNAME_LT)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, "<=")) {
+			if (!strcmp(operator_name, OPNAME_LE)) {
 				return TRUE;
 			}
-			if (!strcmp(operator_name, "=")) {
+			if (!strcmp(operator_name, OPNAME_EQ)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">")) {
+			if (!strcmp(operator_name, OPNAME_GT)) {
 				return FALSE;
 			}
-			if (!strcmp(operator_name, ">=")) {
+			if (!strcmp(operator_name, OPNAME_GE)) {
 				return FALSE;
 			}
 		}

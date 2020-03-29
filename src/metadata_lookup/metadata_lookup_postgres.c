@@ -25,6 +25,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "model/set/hashmap.h"
 
 #if HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
@@ -197,6 +198,7 @@ typedef struct PostgresPlugin
 typedef struct PostgresMetaCache {
     HashMap *oidToDT;   // maps datatype OID to GProM datatypes
     Set *anyOids;
+	HashMap *tableMinMax;
 } PostgresMetaCache;
 
 #define GET_CACHE() ((PostgresMetaCache *) plugin->plugin.cache->cacheHook)
@@ -265,6 +267,7 @@ postgresInitMetadataLookupPlugin (void)
     psqlCache = NEW(PostgresMetaCache);
     psqlCache->oidToDT = NEW_MAP(Constant,Constant);
     psqlCache->anyOids = INTSET();
+	psqlCache->tableMinMax = NEW_MAP(Constant,HashMap);
     plugin->plugin.cache->cacheHook = (void *) psqlCache;
 
     plugin->initialized = TRUE;
@@ -976,16 +979,35 @@ postgresBackendDatatypeToSQL (DataType dt)
 HashMap *
 postgresGetMinAndMax(char* tableName, char* colName)
 {
-	HashMap *result_map = NEW_MAP(Constant, Node);
+	HashMap *result_map;
 
     PGresult *res = NULL;
     StringInfo statement;
+	HashMap *tableMap = (HashMap *) MAP_GET_STRING(GET_CACHE()->tableMinMax, tableName);
 
+	if(tableMap == NULL)
+	{
+		tableMap = NEW_MAP(Constant,HashMap);
+		MAP_ADD_STRING_KEY(GET_CACHE()->tableMinMax, tableName, tableMap);
+	}
+	// table cache exists, return attribute if we have it already
+	else
+	{
+		result_map = (HashMap *) MAP_GET_STRING(tableMap, colName);
+		if(result_map != NULL)
+		{
+		    DEBUG_LOG("POSTGRES_GET_MINMAX: REUSE (%s.%s)\n%s",
+					 tableName,
+					 colName,
+					 nodeToString(result_map));
+			return result_map;
+		}
+	}
+
+	result_map = NEW_MAP(Constant, Node);
     statement = makeStringInfo();
     appendStringInfo(statement,
             "SELECT MIN(%s),MAX(%s) FROM %s;",colName,colName,tableName);
-
-    INFO_LOG("POSTGRES_GET_MINMAX");
 
     res = execQuery(statement->data);
 
@@ -1001,23 +1023,27 @@ postgresGetMinAndMax(char* tableName, char* colName)
 
         List *dts = getAttributes(tableName);
 
-        FOREACH(AttributeDef,n,dts){
+        FOREACH(AttributeDef,n,dts)
+		{
             INFO_LOG(n->attrName);
-            if(strcmp(n->attrName,colName)==0){
+            if(strcmp(n->attrName,colName)==0)
+			{
                 if (n->dataType==DT_INT)
                 {
                     cmin = createConstInt(atoi(min));
                     cmax = createConstInt(atoi(max));
                 }
-                else if(n->dataType==DT_FLOAT){
+                else if(n->dataType==DT_FLOAT)
+				{
                     cmin = createConstFloat(atof(min));
                     cmax = createConstFloat(atof(max));
                 }
-                else {
+                else
+				{
                     cmin = createConstString(min);
                     cmax = createConstString(max);
                 }
-                INFO_LOG("min = %s, max = %s", nodeToString(cmin), nodeToString(cmax));
+                DEBUG_LOG("min = %s, max = %s", nodeToString(cmin), nodeToString(cmax));
             }
         }
 
@@ -1027,6 +1053,13 @@ postgresGetMinAndMax(char* tableName, char* colName)
 
     PQclear(res);
     execCommit();
+
+	MAP_ADD_STRING_KEY(tableMap, colName, result_map);
+    DEBUG_LOG("POSTGRES_GET_MINMAX: GOT (%s.%s)\n%s",
+			 tableName,
+			 colName,
+			 nodeToString(result_map));
+
 	return result_map;
 }
 

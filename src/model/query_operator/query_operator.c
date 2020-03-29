@@ -252,7 +252,7 @@ unionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
 
     FOREACH_LC(lc, listEqlOp)
     {
-        if(streq(((Operator *)LC_P_VAL(lc))->name,"="))
+        if(streq(((Operator *)LC_P_VAL(lc))->name,OPNAME_EQ))
         {
             ListCell *lc1 = getHeadOfList(((Operator *)LC_P_VAL(lc))->args);
             ListCell *lc2 = getTailOfList(((Operator *)LC_P_VAL(lc))->args);

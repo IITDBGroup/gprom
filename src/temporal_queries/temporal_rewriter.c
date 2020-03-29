@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * temporal_rewriter.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -308,19 +308,19 @@ tempRewrJoin (JoinOperator *op)
     rEnd->fromClauseItem = 1;
 
     cond = AND_EXPRS(
-                (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
-                (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
             );
 
       // that is more efficient then what we had before
 //    cond = OR_EXPRS(
 //            AND_EXPRS(
-//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rBegin))),
-//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rBegin))),
+//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
 //            ),
 //            AND_EXPRS(
-//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lBegin))),
-//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rEnd)))
+//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lBegin))),
+//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd)))
 //            )
 //    );
 
@@ -777,9 +777,9 @@ addSetCoalesce (QueryOperator *input)
     startDiff = (Node *) createOpExpr("-", LIST_MAKE(getAttrRefByName(t2, COUNT_START_ANAME), getAttrRefByName(t2, IS_S_NAME)));
     endDiff = (Node *) createOpExpr("-", LIST_MAKE(getAttrRefByName(t2, COUNT_END_ANAME), getAttrRefByName(t2, IS_E_NAME)));
     cond = OR_EXPRS(
-            (Node *) createOpExpr("=", LIST_MAKE(getAttrRefByName(t2, COUNT_START_ANAME),
+            (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(t2, COUNT_START_ANAME),
                               getAttrRefByName(t2, COUNT_END_ANAME))),
-            (Node *) createOpExpr("=", LIST_MAKE(startDiff, endDiff))
+            (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(startDiff, endDiff))
             );
     selCPs = (QueryOperator *) createSelectionOp(cond, t2, NIL, NIL);
     t2->parents = singleton(selCPs);
@@ -813,7 +813,7 @@ addSetCoalesce (QueryOperator *input)
      *  )
      */
     QueryOperator *finalSel;
-    cond = (Node *) createOpExpr("=", LIST_MAKE(getAttrRefByName(t3, COUNT_START_ANAME),
+    cond = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(t3, COUNT_START_ANAME),
             getAttrRefByName(t3, COUNT_END_ANAME)));
     finalSel = (QueryOperator *) createSelectionOp(cond, t3, NIL, NIL);
     t3->parents = singleton(finalSel);
@@ -1203,7 +1203,7 @@ addCoalesce (QueryOperator *input)
 	AttributeReference *t6CondRef1 = getAttrRefByName(t5Op, "NUMOPEN");
 	AttributeReference *t6CondRef2 = getAttrRefByName(TNTABOp, "N");
 	t6CondRef2->fromClauseItem = 1;
-	Operator *t6JoinCond = createOpExpr(">=", LIST_MAKE(t6CondRef1,t6CondRef2));
+	Operator *t6JoinCond = createOpExpr(OPNAME_GE, LIST_MAKE(t6CondRef1,t6CondRef2));
 
     List *t6JoinNames = deepCopyStringList(t5ProjNames);
     t6JoinNames = appendToTailOfList(t6JoinNames, "N");
@@ -1458,7 +1458,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     {
         AttributeReference *al = getAttrRefByName(joinCPOp, cl);
         AttributeReference *ar = getAttrRefByName(joinCPOp, cr);
-        Operator *oJoinCP = createOpExpr("=", LIST_MAKE(al,ar));
+        Operator *oJoinCP = createOpExpr(OPNAME_EQ, LIST_MAKE(al,ar));
         joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP);
     }
 
@@ -1467,8 +1467,8 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     AttributeReference *oJoinCPB = getAttrRefByName(joinCPOp, TBEGIN_NAME);
     AttributeReference *oJoinCPE = getAttrRefByName(joinCPOp, TEND_NAME);
 
-    Operator *oJoinCP1 = createOpExpr(">=", LIST_MAKE(oJoinCPT,oJoinCPB));
-    Operator *oJoinCP2 = createOpExpr("<", LIST_MAKE(copyObject(oJoinCPT),oJoinCPE));
+    Operator *oJoinCP1 = createOpExpr(OPNAME_GE, LIST_MAKE(oJoinCPT,oJoinCPB));
+    Operator *oJoinCP2 = createOpExpr(OPNAME_LT , LIST_MAKE(copyObject(oJoinCPT),oJoinCPE));
     joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP1);
     joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP2);
 
@@ -1971,8 +1971,8 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
 	AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, "NUMOPEN");
 	AttributeReference *topAttrN = getAttrRefByName(TNTABOp, "N");
 	topAttrN->fromClauseItem = 1;
-	Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
-	Operator *topCond2 = createOpExpr(">=", LIST_MAKE(topAttrNum,topAttrN));
+	Operator *topCond1 = createOpExpr(OPNAME_GT, LIST_MAKE(topAttrNum,copyObject(c0)));
+	Operator *topCond2 = createOpExpr(OPNAME_GE, LIST_MAKE(topAttrNum,topAttrN));
 	Node *topCond = andExprList(LIST_MAKE(topCond1, topCond2));
 
 
@@ -2509,7 +2509,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             sumRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
             countRef = getAttrRefByName(windowT4Op, openCname);
 
-            Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(countRef), copyObject(c0)));
+            Operator *whenOperator = createOpExpr(OPNAME_EQ, LIST_MAKE(copyObject(countRef), copyObject(c0)));
             CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createNullConst(sumRef->attrType));
             Node *elseT4 = (Node *) sumRef;
             CaseExpr *caseExprT4 = createCaseExpr(NULL, singleton(whenT4), elseT4);
@@ -2527,7 +2527,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             attrPos++;
             countRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
 
-            Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(countRef), copyObject(c0)));
+            Operator *whenOperator = createOpExpr(OPNAME_EQ, LIST_MAKE(copyObject(countRef), copyObject(c0)));
             CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createNullConst(DT_FLOAT)); // (Node *) createConstFloat(0.0));
             Operator *elseT4 = createOpExpr("/", LIST_MAKE(copyObject(sumRef), copyObject(countRef)));
             CaseExpr *caseExprT4 = createCaseExpr(NULL, singleton(whenT4), (Node *) elseT4);
@@ -2562,7 +2562,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     if (isGB)
     {
         // count should be larger than 0
-        Operator *nonZeroCount = createOpExpr(">", LIST_MAKE(getAttrRefByName(projT4Op, OPEN_INTER_COUNT_ATTR), copyObject(c0)));
+        Operator *nonZeroCount = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(projT4Op, OPEN_INTER_COUNT_ATTR), copyObject(c0)));
         selectionCond = AND_EXPRS((Node *) notnullOperator, (Node *) nonZeroCount);
     }
     else
@@ -3149,8 +3149,8 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, "NUMOPEN");
      AttributeReference *topAttrN = getAttrRefByName(TNTABOp, "N");
      topAttrN->fromClauseItem = 1;
-     Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
-     Operator *topCond2 = createOpExpr(">=", LIST_MAKE(topAttrNum,topAttrN));
+     Operator *topCond1 = createOpExpr(OPNAME_GT, LIST_MAKE(topAttrNum,copyObject(c0)));
+     Operator *topCond2 = createOpExpr(OPNAME_GE, LIST_MAKE(topAttrNum,topAttrN));
      Node *topCond = andExprList(LIST_MAKE(topCond1, topCond2));
 
 
@@ -3208,4 +3208,3 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 
     return (QueryOperator *) addProjOp;
 }
-

@@ -85,7 +85,7 @@ lateralRewriteQuery(QueryOperator *input)
 			AttributeReference *aggAttrRef = getAttrRefByName((QueryOperator *) agg, "AGGR_0");
 
 			//WHEN count(*) > 0 THEN 1
-			Operator *whenOperator = createOpExpr(">", LIST_MAKE(copyObject(aggAttrRef), copyObject(c0)));
+			Operator *whenOperator = createOpExpr(OPNAME_GT, LIST_MAKE(copyObject(aggAttrRef), copyObject(c0)));
 			CaseWhen *when = createCaseWhen((Node *) whenOperator, (Node *) copyObject(c1)); // (Node *) createConstFloat(0.0));
 			//ELSE 0
 			Constant *el =  copyObject(c0);
@@ -181,7 +181,7 @@ lateralRewriteQuery(QueryOperator *input)
 			//WHEN "nesting_eval_1" = 2 THEN NULL
 			AttributeReference *projUpAttrRef = getAttrRefByName((QueryOperator *) agg, attrName);
 			Constant *cNull = createNullConst(projUpAttrRef->attrType);
-			Operator *opr2 = createOpExpr("=", LIST_MAKE(copyObject(projUpAttrRef), copyObject(cHalf)));
+			Operator *opr2 = createOpExpr(OPNAME_EQ, LIST_MAKE(copyObject(projUpAttrRef), copyObject(cHalf)));
 			CaseWhen *projUpwhen2 = createCaseWhen((Node *) opr2, (Node *) copyObject(cNull));
 
 			//SELECT CASE WHEN "nesting_eval_1" IS NULL THEN 1  (handle ALL - NULL CASE)
@@ -307,7 +307,7 @@ getNestCondNode(Node *n, List **nestOpLists)
 	if(isA(n, Operator))
 	{
 		Operator *o = (Operator *) n;
-		if(streq(o->name, "="))
+		if(streq(o->name, OPNAME_EQ))
 		{
 			if(isA(getNthOfListP(o->args, 0), AttributeReference) && isA(getNthOfListP(o->args, 1), Constant))
 			{

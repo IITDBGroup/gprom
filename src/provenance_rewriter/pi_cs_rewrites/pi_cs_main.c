@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * pi_cs_main.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -848,7 +848,7 @@ rewritePI_CSAggregation (AggregationOperator *op)
 	}
 	// or for without group by
 	else
-	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+	    joinCond = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(1), createConstInt(1)));
 
     // create join operator
     List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
@@ -973,7 +973,7 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op)
 	}
 	// or for without group by
 	else
-	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+	    joinCond = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(1), createConstInt(1)));
 
 
 	if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
@@ -1153,7 +1153,7 @@ rewritePI_CSSet(SetOperator *op)
             AttributeDef *lDef, *rDef;
             lDef = getAttrDefByPos(lChild, i);
             rDef = getAttrDefByPos(rChild, i);
-            comparisons = appendToTailOfList(comparisons, createOpExpr("=",
+            comparisons = appendToTailOfList(comparisons, createOpExpr(OPNAME_EQ,
                     LIST_MAKE(createFullAttrReference (strdup(lDef->attrName),0,i,INVALID_ATTR, lDef->dataType),
                             createFullAttrReference (strdup(rDef->attrName),1,i,INVALID_ATTR, rDef->dataType))
                     ));
@@ -1918,13 +1918,13 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	{
     		Operator *leftOperator = NULL;
     		if(i == 0)
-    			leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    			leftOperator = createOpExpr(OPNAME_GE, LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		else
-    			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    			leftOperator = createOpExpr(OPNAME_GT, LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		tempCount = tempCount + intervalValue;
     		if(i == pValue - 1)  //used to handle the last one is unequal to the highValue (the right bound)
     			tempCount = highValue;
-    		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    		Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
     		int power = 0;
     		if(i<2)
@@ -1958,12 +1958,12 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	     for(int i=0; i<LIST_LENGTH(rangeList)-1; i++)
     	     {
     	    	 	 if(i == 0)
-    	    	 		 leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+    	    	 		 leftOperator = createOpExpr(OPNAME_GE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
     	    	 	 else
-    	    	 		 leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+    	    	 		 leftOperator = createOpExpr(OPNAME_GT, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
 
 
-    	    	 	 Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+    	    	 	 Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
     	    	 	 Node *tcond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
     	    	 	 subList = appendToTailOfList(subList, tcond);
     	     }
@@ -1999,18 +1999,18 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 //        		Operator *leftOperator = NULL;
 //
 //        		if(i == 0)
-//        			leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+//        			leftOperator = createOpExpr(OPNAME_GE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
 //        		else
-//        			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+//        			leftOperator = createOpExpr(OPNAME_GT, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
 //
 //        		if(j == 0)
 //        		{
-//            		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+//            		Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
 //            		cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
 //        		}
 //        		else
 //        		{
-//            		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+//            		Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
 //            		Node *tcond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
 //            		cond = AND_EXPRS(cond, tcond);
 //        		}
@@ -2371,11 +2371,11 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         {
         		Operator *leftOperator = NULL;
         	    if(i == 0)
-        	    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+        	    		leftOperator = createOpExpr(OPNAME_GE, LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
         	    else
-        	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+        	    		leftOperator = createOpExpr(OPNAME_GT, LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             tempCount = tempCount + intervalValue;
-            Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+            Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
             int power = 0;
             if(i<2)
@@ -2408,12 +2408,12 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         		for(int i=0; i<LIST_LENGTH(rangeList)-1; i++)
         		{
         			if(i == 0)
-        				leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+        				leftOperator = createOpExpr(OPNAME_GE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
         			else
-        				leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+        				leftOperator = createOpExpr(OPNAME_GT, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
 
 
-        			Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+        			Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
         			Node *tcond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
         			subList = appendToTailOfList(subList, tcond);
         		}
@@ -2450,18 +2450,18 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 //        			Operator *leftOperator = NULL;
 //
 //        			if(i == 0)
-//        				leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+//        				leftOperator = createOpExpr(OPNAME_GE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
 //        			else
-//        				leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+//        				leftOperator = createOpExpr(OPNAME_GT, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
 //
 //        			if(j == 0)
 //        			{
-//        				Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+//        				Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
 //        				cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
 //        			}
 //        			else
 //        			{
-//        				Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+//        				Operator *rightOperator = createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
 //        				Node *tcond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
 //        				cond = AND_EXPRS(cond, tcond);
 //        			}
@@ -2530,7 +2530,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     AttributeReference *condAttrRef = createAttrsRefByName((QueryOperator *) newpo, newAttrName);
 //    FOREACH(Constant, c, condRightValueList)
 //    {
-//        Operator *eqExpr = createOpExpr("=", LIST_MAKE(copyObject(condAttrRef),c));
+//        Operator *eqExpr = createOpExpr(OPNAME_EQ, LIST_MAKE(copyObject(condAttrRef),c));
 //        condList = appendToTailOfList(condList, eqExpr);
 //    }
 //
@@ -2541,7 +2541,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     	 	 return (QueryOperator *) newpo;
 
     //use in clause
-    QuantifiedComparison *qcExpr = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
+    QuantifiedComparison *qcExpr = createQuantifiedComparison ("ANY", (Node *) condAttrRef, OPNAME_EQ,
     												(List *) copyObject(condRightValueList));
 
     SelectionOperator *sel = createSelectionOp ((Node *) qcExpr, (QueryOperator *) newpo, NIL, getQueryOperatorAttrNames((QueryOperator *) newpo));

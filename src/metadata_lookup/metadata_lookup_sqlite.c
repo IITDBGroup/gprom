@@ -18,18 +18,22 @@
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_sqlite.h"
-#include "model/query_block/query_block.h"
-#include "model/query_operator/query_operator.h"
+#include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "model/expression/expression.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
+#include "model/set/hashmap.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include "utility/string_utils.h"
+#include <stdlib.h>
 
 // Mem context
 #define CONTEXT_NAME "SQLiteMemContext"
 
 // query templates
 #define QUERY_TABLE_COL_COUNT "PRAGMA table_info(%s)"
+#define QUERY_TABLE_ATTR_MIN_MAX "SELECT %s FROM %s"
 
 // Only define real plugin structure and methods if libsqlite3 is present
 #ifdef HAVE_SQLITE_BACKEND
@@ -382,8 +386,73 @@ sqliteBackendDatatypeToSQL (DataType dt)
 HashMap *
 sqliteGetMinAndMax(char* tableName, char* colName)
 {
-	HashMap *result_map = NEW_MAP(Constant, Node);
-	return result_map;
+	HashMap *result_map = NEW_MAP(Constant, HashMap);
+    sqlite3_stmt *rs;
+    StringInfo q;
+	StringInfo colMinMax;
+	List *attr = sqliteGetAttributes(tableName);
+	List *aNames = getAttrDefNames(attr);
+	List *aDTs = getAttrDataTypes(attr);
+    int rc;
+
+    q = makeStringInfo();
+	colMinMax = makeStringInfo();
+
+	// calculate min and max for each attribute
+	FOREACH(char,a,aNames)
+	{
+		appendStringInfo(colMinMax, "min(%s) AS min_%s, max(%s) AS max_%s", a, a, a, a);
+		appendStringInfo(colMinMax, "%s", FOREACH_HAS_MORE(a) ? ", " : "");
+	}
+
+    appendStringInfo(q, QUERY_TABLE_ATTR_MIN_MAX, colMinMax->data, tableName);
+    rs = runQuery(q->data);
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
+    {
+		int pos = 0;
+		FORBOTH_LC(ac, dtc, aNames, aDTs)
+		{
+			char *aname = LC_STRING_VAL(ac);
+			DataType dt = (DataType) LC_INT_VAL(dtc);
+			HashMap *minmax = NEW_MAP(Constant,Constant);
+			const unsigned char *minVal = sqlite3_column_text(rs,pos++);
+			const unsigned char *maxVal = sqlite3_column_text(rs,pos++);
+			Constant *min, *max;
+
+			switch(dt)
+			{
+			case DT_INT:
+				min = createConstInt(atoi((char *) minVal));
+				max = createConstInt(atoi((char *) maxVal));
+				break;
+			case DT_LONG:
+				min = createConstLong(atol((char *) minVal));
+				max = createConstLong(atol((char *) maxVal));
+				break;
+			case DT_FLOAT:
+				min = createConstFloat(atof((char *) minVal));
+				max = createConstFloat(atof((char *) maxVal));
+				break;
+			case DT_STRING:
+				min = createConstString((char *) minVal);
+				max = createConstString((char *) maxVal);
+				break;
+			default:
+				THROW(SEVERITY_RECOVERABLE, "received unkown DT from sqlite: %s", DataTypeToString(dt));
+				break;
+			}
+			MAP_ADD_STRING_KEY(minmax, MIN_KEY, min);
+			MAP_ADD_STRING_KEY(minmax, MAX_KEY, max);
+			MAP_ADD_STRING_KEY(result_map, aname, minmax);
+		}
+    }
+
+    HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting min and max values of attributes for table <%s>", tableName);
+
+	DEBUG_NODE_BEATIFY_LOG("min maxes", MAP_GET_STRING(result_map, colName));
+
+	return (HashMap *) MAP_GET_STRING(result_map, colName);
 }
 
 void

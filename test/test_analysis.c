@@ -18,7 +18,7 @@
 #include "rewriter.h"
 
 
-/* if OCI is not available then add dummy versions */
+/* if no backend is available then add dummy versions */
 #if HAVE_A_BACKEND
 
 int
@@ -54,9 +54,7 @@ main (int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
-
-
-/* if OCI or OCILIB are not avaible replace with dummy test */
+/* if no backend is available, then replace with dummy test */
 #else
 
 int main()
@@ -65,5 +63,3 @@ int main()
 }
 
 #endif
-
-

@@ -876,7 +876,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //			}
 
 //
-//			if(streq(condOp->name,"="))
+//			if(streq(condOp->name,OPNAME_EQ))
 //			{
 //				AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
 //				AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
@@ -1899,9 +1899,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 		FOREACH(Operator, op, pCond)
 		{
 			boolean flag = FALSE;
-			if(!streq(op->name, "="))
+			if(!streq(op->name, OPNAME_EQ))
 				newCondList = appendToTailOfList(newCondList, copyObject(op));
-			if(streq(op->name, "="))
+			if(streq(op->name, OPNAME_EQ))
 			{
 				boolean f1 = FALSE;
 				boolean f2 = FALSE;
@@ -1935,9 +1935,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 		FOREACH(Operator, op, rootCond)
 		{
 			boolean flag = FALSE;
-			if(!streq(op->name, "="))
+			if(!streq(op->name, OPNAME_EQ))
 				newCondList = appendToTailOfList(newCondList, copyObject(op));
-			if(streq(op->name, "="))
+			if(streq(op->name, OPNAME_EQ))
 			{
 				flag = compareTwoOperators(op, o);
 				if(flag == FALSE)
@@ -2200,7 +2200,7 @@ getMoveAroundOpList(QueryOperator *op)
 	    			AttributeDef *attr = (AttributeDef *)getMapString(nameToAttrDef, a);
     				aRef = createFullAttrReference(strdup(a), 0, 0, 0, attr->dataType);
 	    		}
-	            Operator *o = createOpExpr("=", LIST_MAKE(aRef, copyObject(c)));
+	            Operator *o = createOpExpr(OPNAME_EQ, LIST_MAKE(aRef, copyObject(c)));
 	            opList = appendToTailOfList(opList, copyObject(o));
 		    }
 	    }
@@ -2234,7 +2234,7 @@ getMoveAroundOpList(QueryOperator *op)
     	    			AttributeDef *attr = (AttributeDef *)getMapString(nameToAttrDef, e);
         				aRef2 = createFullAttrReference(strdup(e), 0, 0, 0, attr->dataType);
     	    		}
-    	            Operator *o = createOpExpr("=", LIST_MAKE(aRef1, aRef2));
+    	            Operator *o = createOpExpr(OPNAME_EQ, LIST_MAKE(aRef1, aRef2));
 
     	            //deal with case A = PROV_A
     	            if((!searchListString(provs, aRef1->name) && !searchListString(provs, aRef2->name) && !streq(aRef1->name, aRef2->name)) || (searchListString(provs, aRef1->name) && searchListString(provs, aRef2->name) && !streq(aRef1->name, aRef2->name)))
