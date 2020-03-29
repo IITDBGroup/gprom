@@ -368,7 +368,7 @@ orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *nestedSubqueries)
 static void
 quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o)
 {
-    exprToSQLString(str, (Node *) o->checkExpr);
+    exprToSQLString(str, (Node *) o->checkExpr, NULL);
 
     appendStringInfo(str, " %s", strdup(o->opName));
 
@@ -377,7 +377,7 @@ quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o)
     else if (o->qType == QUANTIFIED_EXPR_ALL)
         appendStringInfoString(str, " ALL ");
 
-    exprToSQLString(str, (Node *) o->exprList);
+    exprToSQLString(str, (Node *) o->exprList, NULL);
 }
 
 static void

@@ -75,6 +75,7 @@ static void serializeSampleClause(StringInfo from, SampleClauseOperator* s, int*
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac);
 
+static void serializeLimit(StringInfo str, LimitOperator *q);
 static void serializeOrder (OrderOperator *q, StringInfo order, FromAttrsContext *fac);
 static void serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac);
 static boolean updateAttributeNamesOracle(Node *node, FromAttrsContext *fac);
@@ -1141,7 +1142,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                 // Call updateAtrrNames on jsonColumn and then serialize
                 updateAttributeNamesOracle((Node*)jt->jsonColumn, fac);
 
-                appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn));
+                appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn, NULL));
                 appendStringInfoString(from, ",");
                 appendStringInfo(from, " '%s'", jt->documentcontext);
                 appendStringInfoString(from, " COLUMNS");

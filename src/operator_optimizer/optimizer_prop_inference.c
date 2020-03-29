@@ -597,8 +597,8 @@ minMaxToString(HashMap *h)
 			HashMap *minmax = (HashMap*) kv->value;
 			appendStringInfo(s,"%s: [ %s, %s ]",
 							 STRING_VALUE(kv->key),
-							 exprToSQL((Node *) GET_MIN_BOUND(minmax)),
-							 exprToSQL((Node *) GET_MAX_BOUND(minmax))
+							 exprToSQL((Node *) GET_MIN_BOUND(minmax), NULL),
+							 exprToSQL((Node *) GET_MAX_BOUND(minmax), NULL)
 				);
 
 		    if (FOREACH_HASH_HAS_MORE(kv))
