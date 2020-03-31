@@ -960,7 +960,7 @@ getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean
 		{
 			FOREACH(Node,arg,root->args)
 			{
-				getConMapInternal(expr, leftResult, rightResult, TRUE);
+				getConMapInternal(arg, leftResult, rightResult, TRUE);
 			}
 		}
 		// OR
