@@ -41,8 +41,13 @@ static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
-static void analyzeWhere (QueryBlock *qb, List *parentFroms);
+static void analyzeWhere(QueryBlock *qb, List *parentFroms);
+static void analyzeGroupByAgg(QueryBlock *qb, List *parentFroms);
 static void analyzeLimitAndOffset (QueryBlock *qb);
+static void analyzeOrderBy(QueryBlock *qb);
+
+// search for non-group and non-aggregate expressions
+static boolean searchNonGroupByRefs (Node *node, List *state);
 
 // adapt identifiers and quoted identifiers based on backend
 static void adaptIdentifiers (Node *stmt);
@@ -334,7 +339,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
     findAttrReferences((Node *) qb->havingClause, &attrRefs);
     findAttrReferences((Node *) qb->limitClause, &attrRefs);
-    findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+    //TODO orderby needs to be treated differently findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findAttrReferences((Node *) qb->selectClause, &attrRefs);
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
 
@@ -371,7 +376,15 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
     // analyze where clause if exists
     if (qb->whereClause != NULL)
+	{
         analyzeWhere(qb, parentFroms);
+	}
+
+	// if group by or aggregation, check that no non-group by attribute references exist
+	analyzeGroupByAgg(qb, parentFroms);
+
+	// check order by
+	analyzeOrderBy(qb);
 
 	// check limit and offset
 	analyzeLimitAndOffset(qb);
@@ -1069,6 +1082,123 @@ analyzeWhere (QueryBlock *qb, List *parentFroms)
 }
 
 static void
+analyzeGroupByAgg(QueryBlock *qb, List *parentFroms)
+{
+	boolean hasAgg = FALSE;
+	List *funcCalls = NIL;
+
+	// is there any aggregation in this query block?
+	hasAgg = qb->groupByClause != NIL || qb->havingClause != NULL;
+	findFunctionCall((Node *) qb->selectClause, &funcCalls);
+	FOREACH(FunctionCall,f,funcCalls)
+	{
+		if (f->isAgg)
+			hasAgg = TRUE;
+	}
+
+	if (hasAgg)
+	{
+		// if yes, then check SELECT clause for non-groupby and unaggregated attribute references
+		searchNonGroupByRefs((Node *) qb->selectClause, qb->groupByClause);
+		searchNonGroupByRefs((Node *) qb->havingClause, qb->groupByClause);
+	}
+}
+
+static boolean
+searchNonGroupByRefs (Node *node, List *state)
+{
+	if(node == NULL)
+        return TRUE;
+
+	// if agg call, do not traverse deeper
+    if(isA(node, FunctionCall))
+	{
+		FunctionCall *f = (FunctionCall *) node;
+		if (f->isAgg)
+		{
+			return TRUE;
+		}
+	}
+	// is node equal to one of the group-by expressions then do not traverse further
+	FOREACH(Node,g,state)
+	{
+		if(equal(g, node))
+			return TRUE;
+	}
+
+    if (isA(node, AttributeReference))
+    {
+        THROW(SEVERITY_RECOVERABLE,
+                "Queries with aggregation and group-by only allow for group-by expressions or aggregated attributed to appear in the SELECT and HAVING clause. Offender was:\n<%s>",
+                beatify(nodeToString(node)));
+    }
+
+    if(isQBQuery(node))
+        return TRUE;
+
+    return visit(node, searchNonGroupByRefs, state);
+}
+
+
+
+static void
+analyzeOrderBy(QueryBlock *qb)
+{
+	List *attrRefs = NIL;
+	List *nestedQs = NIL;
+	List *selectAttrNames = NIL;
+
+	// get attribute names from select clause
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+		selectAttrNames = appendToTailOfList(selectAttrNames, strdup(s->alias));
+	}
+
+	findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+	findNestedSubqueries((Node *) qb->orderByClause, &nestedQs);
+
+	// find attribute references in from or in select
+	    // adapt attribute references
+    FOREACH(AttributeReference,a,attrRefs)
+    {
+        // split name on each "."
+        boolean isFound = FALSE;
+        List *nameParts = splitAttrOnDot(a->name);
+		int pos;
+
+        DEBUG_LOG("attr split: %s", stringListToString(nameParts));
+
+        if (LIST_LENGTH(nameParts) == 1)
+        {
+
+            a->name = getNthOfListP(nameParts, 0);
+            isFound = findAttrRefInFrom(a, NIL); //TODO add support for correlated attributes here?
+        }
+        else if (LIST_LENGTH(nameParts) == 2)
+        {
+            isFound = findQualifiedAttrRefInFrom(nameParts, a, NIL);
+        }
+        else
+            FATAL_LOG(
+                    "right now attribute names should have at most two parts");
+
+		// exists in select clause? if yes, then use this
+		pos = listPosString(selectAttrNames, a->name);
+		if (pos != -1)
+		{
+			SelectItem *selectExpr = (SelectItem *) getNthOfListP(qb->selectClause, pos);
+			a->attrPosition = pos;
+			a->fromClauseItem = INVALID_ATTR; // use this to indicate that this is a SELECT clause attribute
+			a->attrType = typeOf(selectExpr->expr);
+			isFound = TRUE;
+		}
+
+        if (!isFound)
+            FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
+    }
+}
+
+static void
 analyzeLimitAndOffset (QueryBlock *qb)
 {
 	List *attrRefs = NIL;
@@ -1097,8 +1227,6 @@ analyzeLimitAndOffset (QueryBlock *qb)
 			  nodeToString(qb->limitClause),
 			  nodeToString(qb->offsetClause));
 	}
-
-	//TODO check that limit and offset are expressions without subqueries and attribute references
 }
 
 static void
@@ -1611,7 +1739,7 @@ getFromTreeLeafs (List *from)
 static char *
 generateAttrNameFromExpr(SelectItem *s)
 {
-    char *name = exprToSQL(s->expr);
+    char *name = exprToSQL(s->expr, NULL);
     char c;
     StringInfo str = makeStringInfo();
 

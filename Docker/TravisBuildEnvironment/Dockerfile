@@ -1,7 +1,7 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-FROM sergeymakinen/oracle-instant-client:12.2
+FROM iitdbgroup/oic:latest
 MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Create working directories
@@ -10,58 +10,82 @@ WORKDIR /gprom
 ########################################
 # Install monetdb repository
 ########################################
-RUN apt-get -y update && apt-get -y install apt-transport-https software-properties-common wget
-RUN echo "deb http://dev.monetdb.org/downloads/deb/ xenial monetdb" > /etc/apt/sources.list.d/monetdb.list \
-    && 	echo "deb-src http://dev.monetdb.org/downloads/deb/ xenial monetdb" >> /etc/apt/sources.list.d/monetdb.list \
-	&& wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
+# RUN apt-get -y update && apt-get -y --no-install-recommends install apt-transport-https software-properties-common wget
+# RUN echo "deb http://dev.monetdb.org/downloads/deb/ xenial monetdb" > /etc/apt/sources.list.d/monetdb.list \
+#     && echo "deb-src http://dev.monetdb.org/downloads/deb/ xenial monetdb" >> /etc/apt/sources.list.d/monetdb.list \
+#     && wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
 ########################################
 # Install Java 8
 ########################################
-RUN echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
-  add-apt-repository -y ppa:webupd8team/java && \
-  apt-get update && \
-  apt-get install -y oracle-java8-installer && \
-  rm -rf /var/lib/apt/lists/* && \
-  rm -rf /var/cache/oracle-jdk8-installer
-RUN apt install oracle-java8-set-default
+# RUN echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
+#   add-apt-repository -y ppa:webupd8team/java && \
+#   apt-get update && \
+#   apt-get install -y --no-install-recommends oracle-java8-installer && \
+#   rm -rf /var/lib/apt/lists/* && \
+#   rm -rf /var/cache/oracle-jdk8-installer
+# RUN apt install oracle-java8-set-default
+# Try default-jdk instead
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-8-jdk-headless openjdk-8-jdk
 ENV JAVA_VER 8
-ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 ########################################
 # Install packages needed for building
 ########################################
-RUN apt-get -y update && apt-get install -y \
+RUN apt-get -y update && apt-get --no-install-recommends install -y \
 	ant \
 	autoconf \
 	automake \
-	autotools-dev \
-	bison \
+    autotools-dev \
+    bison \
+    build-essential:native \
+    bzip2 \
 	curl \
 	dh-make \
-	flex \
+    fakeroot \
+    flex \
 	git \
-	graphviz \
-	libmonetdb-client-dev \
+    graphviz \
+    libbz2-dev \
+    libcurl4-openssl-dev \
+    liblzma-dev \
 	libpq-dev \
-	libreadline6 \
+    libreadline6 \
 	libreadline6-dev \
 	libsqlite3-dev \
-	libtool \
+    libtool \
+    libzip-dev \
 	make \
-	man-db \
-	monetdb5-sql \
-	monetdb-client \
+    man-db \
+    openssl \
+    pkg-config \
 	pandoc \
 	postgresql \
 	rman \
 	sshpass \
-	sqlite3 \
+    sqlite3 \
+    sudo \
 	unzip \
-	vim \
-	&& rm -rf /var/lib/apt/lists/*
+    vim \
+    zlib1g-dev \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+########################################
+# Install MonetDB
+########################################
+RUN mkdir -p /monetdb \
+    && cd /monetdb \
+    && wget https://www.monetdb.org/downloads/sources/Apr2019-SP1/MonetDB-11.33.11.tar.bz2 --no-check-certificate \
+    && bzip2 -d MonetDB-11.33.11.tar.bz2 \
+    && tar xf MonetDB-11.33.11.tar \
+    && cd MonetDB-11.33.11 \
+    && ./configure --prefix=/monetdb/install --enable-assert --enable-debug --with-libxml2=no \
+    && make -j 64 && make install \
+    && rm -fr /monetdb/MonetDB-11.33.11.tar /monetdb/MonetDB-11.33.11
 ########################################
 # Setup MonetDB
 ########################################
-RUN usermod -a -G monetdb root
+#RUN usermod -a -G monetdb root
 ########################################
 # Clone OCILIB
 ########################################

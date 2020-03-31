@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_expr.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -126,13 +126,13 @@ testExpressionToSQL()
 
     o = createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2)));
 
-    ASSERT_EQUALS_STRING("(1 + 2)", exprToSQL((Node *) o), "translate expression into SQL code (1 + 2)");
+    ASSERT_EQUALS_STRING("(1 + 2)", exprToSQL((Node *) o, NULL), "translate expression into SQL code (1 + 2)");
 
     o = createOpExpr("*", LIST_MAKE(o, createConstFloat(2.0)));
-    ASSERT_EQUALS_STRING("((1 + 2) * 2.000000)", exprToSQL((Node *) o), "translate expression into SQL code (1 + 2) * 2.0");
+    ASSERT_EQUALS_STRING("((1 + 2) * 2.000000)", exprToSQL((Node *) o, NULL), "translate expression into SQL code (1 + 2) * 2.0");
 
     o = createOpExpr("+", LIST_MAKE(createAttributeReference("a"), createConstInt(2)));
-    ASSERT_EQUALS_STRING("(a + 2)", exprToSQL((Node *) o), "translate expression into SQL code (a + 2)");
+    ASSERT_EQUALS_STRING("(a + 2)", exprToSQL((Node *) o, NULL), "translate expression into SQL code (a + 2)");
 
     return PASS;
 }

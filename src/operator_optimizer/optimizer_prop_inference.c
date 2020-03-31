@@ -597,8 +597,8 @@ minMaxToString(HashMap *h)
 			HashMap *minmax = (HashMap*) kv->value;
 			appendStringInfo(s,"%s: [ %s, %s ]",
 							 STRING_VALUE(kv->key),
-							 exprToSQL((Node *) GET_MIN_BOUND(minmax)),
-							 exprToSQL((Node *) GET_MAX_BOUND(minmax))
+							 exprToSQL((Node *) GET_MIN_BOUND(minmax), NULL),
+							 exprToSQL((Node *) GET_MAX_BOUND(minmax), NULL)
 				);
 
 		    if (FOREACH_HASH_HAS_MORE(kv))
@@ -960,7 +960,7 @@ getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean
 		{
 			FOREACH(Node,arg,root->args)
 			{
-				getConMapInternal(expr, leftResult, rightResult, TRUE);
+				getConMapInternal(arg, leftResult, rightResult, TRUE);
 			}
 		}
 		// OR
@@ -1450,7 +1450,7 @@ printSingleECList(List *l)
 		    DEBUG_LOG("%s", (char *)n);
         }
 		if (c != NULL)
-		    DEBUG_LOG("%s", exprToSQL((Node *) c));
+		    DEBUG_LOG("%s", exprToSQL((Node *) c, NULL));
 		DEBUG_LOG("\n");
 	}
 }
@@ -1486,7 +1486,7 @@ printECProVisitor (QueryOperator *root, void *context)
             appendStringInfo(str,"%s%s", (char *)n, FOREACH_SET_HAS_NEXT(n) ? " " : "");
         }
         if (c != NULL)
-            appendStringInfo(str," %s", exprToSQL((Node *) c));
+            appendStringInfo(str," %s", exprToSQL((Node *) c, NULL));
         appendStringInfoString(str, "} ");
     }
     appendStringInfoString(str, "\n");

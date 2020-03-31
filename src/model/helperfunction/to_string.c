@@ -1543,14 +1543,14 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         {
             DLDomain *d = (DLDomain *) n;
 
-            appendStringInfo(str, "(%s)", exprToSQL((Node *) d->name));
+            appendStringInfo(str, "(%s)", exprToSQL((Node *) d->name, NULL));
         }
         break;
         case T_DLComparison:
         {
             DLComparison *c = (DLComparison *) n;
 
-            appendStringInfo(str, "(%s)", exprToSQL((Node *) c->opExpr));
+            appendStringInfo(str, "(%s)", exprToSQL((Node *) c->opExpr, NULL));
         }
         break;
         case T_DLVar:
@@ -1615,7 +1615,7 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         default:
         {
             if (IS_EXPR(n))
-                appendStringInfo(str, "%s", exprToSQL(n));
+                appendStringInfo(str, "%s", exprToSQL(n, NULL));
             else
                 FATAL_LOG("should have never come here, datalog program should"
                         " not have nodes like this: %s",
@@ -1754,7 +1754,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfoString(str, " [");
             FOREACH(Node,expr,o->projExprs)
             {
-                appendStringInfo(str, "%s ", exprToSQL(expr));
+                appendStringInfo(str, "%s ", exprToSQL(expr, NULL));
             }
             appendStringInfoChar(str, ']');
         }
@@ -1762,7 +1762,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         case T_SelectionOperator:
             WRITE_NODE_TYPE(Selection);
             appendStringInfoString(str, " [");
-            appendStringInfoString(str, exprToSQL(((SelectionOperator *) op)->cond));
+            appendStringInfoString(str, exprToSQL(((SelectionOperator *) op)->cond, NULL));
             appendStringInfoChar(str, ']');
             break;
         case  T_JoinOperator:
@@ -1786,7 +1786,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
                     break;
             }
             appendStringInfoString(str, " [");
-            appendStringInfoString(str, exprToSQL(o->cond));
+            appendStringInfoString(str, exprToSQL(o->cond, NULL));
             appendStringInfoChar(str, ']');
         }
             break;
@@ -1795,9 +1795,9 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             AggregationOperator *o = (AggregationOperator *) op;
             WRITE_NODE_TYPE(Aggregation);
             appendStringInfoString(str, " [");
-            appendStringInfoString(str, exprToSQL((Node *) o->aggrs));
+            appendStringInfoString(str, exprToSQL((Node *) o->aggrs, NULL));
             appendStringInfoString(str, o->groupBy ? "] GROUP BY [" : "");
-            appendStringInfoString(str, exprToSQL((Node *) o->groupBy));
+            appendStringInfoString(str, exprToSQL((Node *) o->groupBy, NULL));
             appendStringInfoChar(str, ']');
         }
             break;
@@ -1813,7 +1813,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         case T_SampleClauseOperator:
         	WRITE_NODE_TYPE(SampleClause);
         	appendStringInfoString(str, " [");
-			appendStringInfoString(str, exprToSQL(((SampleClauseOperator *) op)->sampPerc));
+			appendStringInfoString(str, exprToSQL(((SampleClauseOperator *) op)->sampPerc, NULL));
 			appendStringInfoChar(str, ']');
 			break;
         case T_SetOperator:
@@ -1843,7 +1843,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
 
             WRITE_NODE_TYPE(ConstRelOperator);
             appendStringInfoString(str, " [");
-            appendStringInfoString(str, exprToSQL((Node *) o->values));
+            appendStringInfoString(str, exprToSQL((Node *) o->values, NULL));
             appendStringInfoChar(str, ']');
         }
         break;
@@ -1859,7 +1859,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
                     ))));
 
             WRITE_NODE_TYPE(NestingOperator);
-            appendStringInfo(str, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond) : "");
+            appendStringInfo(str, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond, NULL) : "");
         }
         break;
         case T_WindowOperator:
@@ -1867,16 +1867,16 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             WindowOperator *o = (WindowOperator *) op;
             WRITE_NODE_TYPE(WindowOperator);
 
-            appendStringInfo(str, "[%s] ", exprToSQL(o->f));
+            appendStringInfo(str, "[%s] ", exprToSQL(o->f, NULL));
 
             appendStringInfoString(str, "[");
             FOREACH(Node,part,o->partitionBy)
-                appendStringInfo(str, "%s ", exprToSQL(part));
+                appendStringInfo(str, "%s ", exprToSQL(part, NULL));
             appendStringInfoString(str, "] ");
 
             appendStringInfoString(str, "[");
             FOREACH(Node,part,o->orderBy)
-                appendStringInfo(str, "%s ", exprToSQL(part));
+                appendStringInfo(str, "%s ", exprToSQL(part, NULL));
             appendStringInfoString(str, "] ");
 
             //exprToSQL((Node *) o->frameDef);
@@ -1886,7 +1886,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         {
             OrderOperator *o = (OrderOperator *) op;
             WRITE_NODE_TYPE(OrderOperator);
-            appendStringInfo(str, "%s", exprToSQL((Node *) o->orderExprs));
+            appendStringInfo(str, "%s", exprToSQL((Node *) o->orderExprs, NULL));
         }
         break;
 	    case T_LimitOperator:
@@ -1894,8 +1894,8 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
 			LimitOperator *o = (LimitOperator *) op;
 			WRITE_NODE_TYPE(LimitOperator);
 			appendStringInfoChar(str, '[');
-			appendStringInfo(str, " limit: %s ", exprToSQL(o->limitExpr));
-			appendStringInfo(str, " offset: %s ", exprToSQL(o->offsetExpr));
+			appendStringInfo(str, " limit: %s ", exprToSQL(o->limitExpr, NULL));
+			appendStringInfo(str, " offset: %s ", exprToSQL(o->offsetExpr, NULL));
 			appendStringInfoChar(str, ']');
 		}
 		break;

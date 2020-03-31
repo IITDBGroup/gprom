@@ -180,6 +180,7 @@ static DataType postgresTypenameToDT (char *typName);
         do { \
             PQfinish(plugin->conn); \
             PQclear(res); \
+			STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
             FATAL_LOG(__VA_ARGS__); \
         } while(0)
 
@@ -202,6 +203,10 @@ typedef struct PostgresMetaCache {
 } PostgresMetaCache;
 
 #define GET_CACHE() ((PostgresMetaCache *) plugin->plugin.cache->cacheHook)
+
+// names of timers used here
+#define METADATA_LOOKUP_TIMER "module - metadata lookup"
+#define METADATA_LOOKUP_QUERY_TIMER "modeul - metadata lookup - running queries"
 
 // global vars
 static PostgresPlugin *plugin = NULL;
@@ -260,6 +265,8 @@ postgresInitMetadataLookupPlugin (void)
     NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();
 
+	START_TIMER(METADATA_LOOKUP_TIMER);
+
     // create cache
     plugin->plugin.cache = createCache();
 
@@ -272,6 +279,8 @@ postgresInitMetadataLookupPlugin (void)
 
     plugin->initialized = TRUE;
 
+
+	STOP_TIMER(METADATA_LOOKUP_TIMER);
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
@@ -294,6 +303,8 @@ postgresDatabaseConnectionOpen (void)
 //    OptionConnection *op = getOptions()->optionConnection;
 
     ACQUIRE_MEM_CONTEXT(memContext);
+
+	START_TIMER(METADATA_LOOKUP_TIMER);
 
     /* create connection string */
     appendStringInfo(connStr, " host=%s", getStringOption("connection.host"));
@@ -326,6 +337,7 @@ postgresDatabaseConnectionOpen (void)
     // initialize cache
     fillOidToDTMap(GET_CACHE()->oidToDT, GET_CACHE()->anyOids);
 
+	STOP_TIMER(METADATA_LOOKUP_TIMER);
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
@@ -935,9 +947,14 @@ postgresGetKeyInformation(char *tableName)
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
+	{
         addToSet(keySet, strdup(PQgetvalue(res,i,0)));
+	}
 
-    result = singleton(keySet);
+	if (PQntuples(res) > 0)
+	{
+		result = singleton(keySet);
+	}
 
     // cleanup
     PQclear(res);
@@ -1087,6 +1104,8 @@ execStmt (char *stmt)
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;;
 
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     res = PQexec(c, "BEGIN TRANSACTION;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
             CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
@@ -1100,6 +1119,8 @@ execStmt (char *stmt)
                 PQerrorMessage(c));
     PQclear(res);
 
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     execCommit();
 }
 
@@ -1109,6 +1130,8 @@ execQuery(char *query)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQexec(c, "BEGIN TRANSACTION;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
@@ -1127,6 +1150,8 @@ execQuery(char *query)
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
 
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     return res;
 }
 
@@ -1136,11 +1161,16 @@ execCommit(void)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     res = PQexec(c, "COMMIT;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
             CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
     PQclear(res);
+
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 }
 
 static PGresult *
@@ -1153,13 +1183,14 @@ execPrepared(char *qName, List *values)
     params = CALLOC(sizeof(char*),LIST_LENGTH(values));
 
     ASSERT(postgresIsInitialized());
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     i = 0;
     FOREACH(Constant,c,values)
         params[i++] = STRING_VALUE(c);
 
     DEBUG_LOG("run query %s with parameters <%s>",
-            qName, exprToSQL((Node *) values));
+			  qName, exprToSQL((Node *) values, NULL));
 
     res = PQexecPrepared(plugin->conn,
             qName,
@@ -1173,6 +1204,8 @@ execPrepared(char *qName, List *values)
         CLOSE_RES_CONN_AND_FATAL(res, "query %s failed:\n%s", qName,
                 PQresultErrorMessage(res));
 
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     return res;
 }
 
@@ -1182,6 +1215,8 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQprepare(c,
                     qName,
@@ -1194,6 +1229,8 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
     PQclear(res);
 
     DEBUG_LOG("prepared query: %s AS\n%s", qName, query);
+
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     return TRUE;
 }
