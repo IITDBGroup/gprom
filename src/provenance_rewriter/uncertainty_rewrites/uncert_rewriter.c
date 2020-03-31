@@ -2845,7 +2845,7 @@ spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
 
 	// remove property (input may have been rewritten so it may be unsafe to reuse)
 	removeMinMaxProps(posProj);
-	computeMinMaxPropForSubset(posProj, NULL);
+	computeMinMaxPropForSubset(posProj, MAKE_STR_SET(jattr));
 
 	// HashMap * mmpro = (HashMap *)getStringProperty(posProj, PROP_STORE_MIN_MAX);
 	// INFO_LOG("property: %s", nodeToString(mmpro));
@@ -2867,10 +2867,6 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	ASSERT(OP_RCHILD(op));
 
 	INFO_LOG("REWRITE-RANGE - Join(optimized)");
-
-	// remove property (input may have been rewritten so it may be unsafe to reuse)
-    removeMinMaxProps(op);
-	computeMinMaxPropForSubset(op, NULL);
 
 	List *lattrnames = getNormalAttrNames(OP_LCHILD(op));
 	List *rattrnames = getNormalAttrNames(OP_RCHILD(op));
