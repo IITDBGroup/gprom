@@ -33,7 +33,6 @@ static boolean removePropsVisitor(QueryOperator *op, void *context);
 static boolean removeOnePropVisitor(QueryOperator *op, void *context);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
 static boolean printECProVisitor(QueryOperator *root, void *context);
-static Set *getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left);
 static HashMap *computeExprMinMax(Node *expr, HashMap *attrMinMax);
 static Constant *getDataTypeMin (DataType dt);
 static Constant *getDataTypeMax (DataType dt);
@@ -87,9 +86,13 @@ computeMinMaxPropForSubset(QueryOperator *root, Set *attrs)
  *
  * @return     Set*
  */
-static Set *
+Set *
 getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 {
+	if(HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		return (Set *) GET_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS);
+	}
 	switch(op->type)
 	{
 		// add all selection condition attributes
@@ -100,6 +103,7 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 		Set *newNames  = makeStrSetFromList(mapList(
 												getAttrReferences(s->cond),
 												(void *(*)(void *)) getAttributeReferenceName));
+		//TODO figure out which attributes really needed
 		return unionSets(attrs, newNames);
 	}
     case T_ProjectionOperator:
@@ -187,7 +191,7 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 			return attrs;
 		}
 		else {
-			makeStrSetFromList(getAttrNames(OP_RCHILD(op)->schema));
+			return makeStrSetFromList(getAttrNames(OP_RCHILD(op)->schema));
 		}
 	}
     case T_WindowOperator:
@@ -200,6 +204,8 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 													  (void *(*)(void *)) getAttributeReferenceName)));
 			//TODO probably should also add frame, partition by, and order by since they can influence min / max
 		}
+
+		return attrs;
 	}
     case T_NestingOperator:
 	default:
@@ -915,7 +921,7 @@ getOrCreateAttrMinMax(HashMap *minmaxes, char *a)
 	return (HashMap *) MAP_GET_STRING(minmaxes, a);
 }
 
-static void
+static void //TODO pass needed attributes
 getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean inConjunctiveContext)
 {
 	// determine based on expression type

@@ -22,6 +22,7 @@ extern void computeKeyProp (QueryOperator *root);
 
 extern void computeMinMaxPropForSubset(QueryOperator *root, Set *attrs);
 extern void computeMinMaxProp(QueryOperator *root);
+extern Set *getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left);
 extern void computeChildOperatorProp(QueryOperator *root);
 extern void getConMap(Node *expr, HashMap *leftResult, HashMap *rightResult);
 
