@@ -234,8 +234,8 @@ extern Constant *makeConst(DataType dt);
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
 #define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL))
-extern Constant *minConsts(Constant *l, Constant *r);
-extern Constant *maxConsts(Constant *l, Constant *r);
+extern Constant *minConsts(Constant *l, Constant *r, boolean nullIsMin);
+extern Constant *maxConsts(Constant *l, Constant *r, boolean nullIsMax);
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);

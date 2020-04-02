@@ -71,6 +71,7 @@ typedef struct MetadataLookupPlugin
     boolean (*checkPostive) (char *tableName, char *colName);
     Constant * (*trasnferRawData) (char *data, char *dataType);
     HashMap * (*getMinAndMax) (char *tableName, char *colName);
+//TODO	Constant *(*getMinAndMaxForDT) (DataType t);
     int (*getRowNum) (char *tableName);
 
     List * (*getAttributes) (char *tableName);

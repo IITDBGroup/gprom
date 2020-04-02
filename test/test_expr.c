@@ -150,18 +150,18 @@ testMinMaxForConstants (void)
 	n = createNullConst(DT_INT);
 	expect = createConstInt(1);
 
-	ASSERT_EQUALS_INT(INT_VALUE(minConsts(l, r)), INT_VALUE(expect), "min(1,3) = 1");
+	ASSERT_EQUALS_INT(INT_VALUE(minConsts(l, r, TRUE)), INT_VALUE(expect), "min(1,3) = 1");
 
 	expect = createConstInt(3);
-	ASSERT_EQUALS_INT(INT_VALUE(maxConsts(l, r)), INT_VALUE(expect), "max(1,3) = 3");
+	ASSERT_EQUALS_INT(INT_VALUE(maxConsts(l, r,TRUE)), INT_VALUE(expect), "max(1,3) = 3");
 
 	expect = createNullConst(DT_INT);
-	ASSERT_EQUALS_NODE(minConsts(l, n), expect, "min(1,NULL) = NULL");
-	ASSERT_EQUALS_NODE(maxConsts(l, n), expect, "max(1,NULL) = NULL");
-	ASSERT_EQUALS_NODE(minConsts(n, r), expect, "min(NULL,3) = NULL");
-	ASSERT_EQUALS_NODE(maxConsts(n, r), expect, "max(NULL,3) = NULL");
-	ASSERT_EQUALS_NODE(minConsts(n, n), expect, "min(NULL,NULL) = NULL");
-	ASSERT_EQUALS_NODE(maxConsts(n, n), expect, "max(NULL,NULL) = NULL");
+	ASSERT_EQUALS_NODE(minConsts(l, n, TRUE), expect, "min(1,NULL) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(l, n, TRUE), expect, "max(1,NULL) = NULL");
+	ASSERT_EQUALS_NODE(minConsts(n, r, TRUE), expect, "min(NULL,3) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(n, r, TRUE), expect, "max(NULL,3) = NULL");
+	ASSERT_EQUALS_NODE(minConsts(n, n, TRUE), expect, "min(NULL,NULL) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(n, n, TRUE), expect, "max(NULL,NULL) = NULL");
 
 	return PASS;
 }

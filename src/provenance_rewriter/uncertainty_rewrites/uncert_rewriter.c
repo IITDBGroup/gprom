@@ -96,7 +96,7 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op);
 static QueryOperator *spliceToBG(QueryOperator *op, List *attrnames);
 static QueryOperator *spliceToPOS(QueryOperator *op, List *attrnames, char *jattr);
 static List *splitRanges(List *ranges);
-static Node *getMdedian(Node *ub, Node *lb);
+static Node *getMedian(Node *ub, Node *lb);
 static Constant* getStringMedian(Constant *ub, Constant *lb);
 
 //Range query rewriting combiners
@@ -670,7 +670,9 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 	return unionop;
 }
 
-static QueryOperator *compressPosRow(QueryOperator *op, int n, char *attr){
+static QueryOperator *
+compressPosRow(QueryOperator *op, int n, char *attr)
+{
 	List *attrnames = getNormalAttrNames(op);
 	HashMap * mmpro = (HashMap *)getStringProperty(op, PROP_STORE_MIN_MAX);
 	// INFO_LOG("property: %s", nodeToString(mmpro));
@@ -803,40 +805,102 @@ static List *splitRanges(List *ranges){
 			nb = appendToTailOfList(nb,nd);
 		}
 		else {
-			nb = appendToTailOfList(nb,getMdedian(last, nd));
-			last = nd;
+                  nb = appendToTailOfList(nb, getMedian(last, nd));
+                  last = nd;
 		}
 	}
 	nb = appendToTailOfList(nb,last);
 	return nb;
 }
 
-static Node *getMdedian(Node *ub, Node *lb){
-	ASSERT(ub->type == T_Constant);
-	if(((Constant *)ub)->constType==DT_INT){
-		int median = (INT_VALUE(ub)+INT_VALUE(lb))/2;
-		if(INT_VALUE(ub)-INT_VALUE(lb)==1){
+#define STRING_MEDIAN_VALUE "zzzzz"
+
+static Node *
+getMedian(Node *ub, Node *lb)
+{
+	ASSERT(isA(ub,Constant) && isA(lb, Constant));
+	Constant *u = (Constant *) ub;
+	Constant *l = (Constant *) lb;
+
+	if(l->isNull && u->isNull)
+	{
+		switch(l->type)
+		{
+		case DT_INT:
+			return (Node *) createConstInt(0);
+		case DT_FLOAT:
+			return (Node *) createConstFloat(0);
+		case DT_LONG:
+			return (Node *) createConstLong(0);
+		case DT_STRING:
+			return (Node *) createConstString(strdup(STRING_MEDIAN_VALUE));
+		case DT_VARCHAR2:
+			return (Node *) createConstString(strdup(STRING_MEDIAN_VALUE));
+		default:
+			return NULL;
+		}
+	}
+	else if(l->isNull || u->isNull)
+	{
+		Constant *nonNull = l->isNull ? u : l;
+
+		switch(nonNull->type)
+		{
+		case DT_INT:
+			return (Node *) createConstInt(INT_VALUE(nonNull) / 2);
+		case DT_LONG:
+			return (Node *) createConstInt(LONG_VALUE(nonNull) / 2);
+		case DT_FLOAT:
+			return (Node *) createConstFloat(FLOAT_VALUE(nonNull) / 2.0);
+		case DT_STRING:
+		case DT_VARCHAR2:
+		{
+			return (Node *) getStringMedian(nonNull, createConstString(strdup(STRING_MEDIAN_VALUE)));
+		}
+		default:
+			return NULL;
+		}
+	}
+
+	switch(u->constType)
+	{
+	case DT_INT:
+	{
+		int median = (INT_VALUE(ub) + INT_VALUE(lb)) / 2;
+		if (INT_VALUE(ub) - INT_VALUE(lb) == 1)
+		{
 			median = INT_VALUE(ub);
 		}
-		INFO_LOG("Median of %f and %f is: %f", INT_VALUE(ub),INT_VALUE(lb), median);
+		INFO_LOG("Median of %f and %f is: %f", INT_VALUE(ub), INT_VALUE(lb),
+				 median);
 		return (Node *)createConstInt(median);
 	}
-	if(((Constant *)ub)->constType==DT_FLOAT){
-		double median = (FLOAT_VALUE(ub)+FLOAT_VALUE(lb))/2.0;
-		INFO_LOG("Median of %f and %f is: %f", FLOAT_VALUE(ub),FLOAT_VALUE(lb), median);
+	case DT_FLOAT:
+	{
+		double median = (FLOAT_VALUE(ub) + FLOAT_VALUE(lb)) / 2.0;
+		INFO_LOG("Median of %f and %f is: %f", FLOAT_VALUE(ub), FLOAT_VALUE(lb),
+				 median);
 		return (Node *)createConstFloat(median);
 	}
-	if(((Constant *)ub)->constType==DT_STRING){
-		return (Node *)getStringMedian((Constant *)ub, (Constant *)lb);
+	case DT_LONG:
+	{
+		gprom_long_t median = (LONG_VALUE(ub) + LONG_VALUE(lb)) / 2.0;
+		INFO_LOG("Median of %f and %f is: %f", LONG_VALUE(ub), LONG_VALUE(lb),
+				 median);
+		return (Node *)createConstLong(median);
 	}
-	if(((Constant *)ub)->constType==DT_VARCHAR2){
+	case DT_STRING:
+	case DT_VARCHAR2:
 		return (Node *)getStringMedian((Constant *)ub, (Constant *)lb);
+	default:
+		return ub;
 	}
-	return ub;
 }
 
-static Constant* getStringMedian(Constant *ub, Constant *lb){
-	ASSERT(ub->constType == DT_STRING);
+static Constant*
+getStringMedian(Constant *ub, Constant *lb)
+{
+	ASSERT(ub->constType == DT_STRING || ub->constType == DT_VARCHAR2);
 	char *ubs = STRING_VALUE(ub);
 	char *lbs = STRING_VALUE(lb);
 	int l1 = strlen(ubs);
@@ -858,7 +922,19 @@ static Constant* getStringMedian(Constant *ub, Constant *lb){
         val2=0;
     }
     INFO_LOG("median for %s and %s is: %s.", ubs,lbs,res);
-	return createConstString(res);
+
+	if(ub->constType == DT_STRING)
+	{
+		return createConstString(res);
+	}
+	else
+	{
+		Constant *result = makeConst(DT_VARCHAR2);
+
+		result->value = res;
+
+		return result;
+	}
 }
 
 

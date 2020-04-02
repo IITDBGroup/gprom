@@ -404,7 +404,7 @@ computeMinMaxProp (QueryOperator *root)
 					char *aggFun = f->functionname;
 					char *ina = inaRef->name;
 					Constant *colMin = copyObject(GET_MIN_FOR_ATTR(childMinMax, ina));
-					Constant *colMax = copyObject(GET_MIN_FOR_ATTR(childMinMax, ina));
+					Constant *colMax = copyObject(GET_MAX_FOR_ATTR(childMinMax, ina));
 					DataType resultDT = typeOf((Node *) f);
 					DataType inDT = inaRef->attrType;
 					boolean numeric = resultDT == DT_INT || resultDT == DT_FLOAT || resultDT == DT_LONG;
@@ -453,12 +453,9 @@ computeMinMaxProp (QueryOperator *root)
 					}
 
 					// max and min
-					if (streq(aggFun, MIN_FUNC_NAME))
+					if (streq(aggFun, MIN_FUNC_NAME) || streq(aggFun, MAX_FUNC_NAME))
 					{
-						SET_MAX_FOR_ATTR(MIN_MAX, a, colMin);
-					}
-					if (streq(aggFun, MAX_FUNC_NAME))
-					{
+						SET_MIN_FOR_ATTR(MIN_MAX, a, colMin);
 						SET_MAX_FOR_ATTR(MIN_MAX, a, colMax);
 					}
 				}
@@ -575,8 +572,8 @@ computeMinMaxProp (QueryOperator *root)
 					Constant *rightMin = GET_MIN_FOR_ATTR(rightMinMax, ra);
 					Constant *rightMax = GET_MAX_FOR_ATTR(rightMinMax, ra);
 					SET_MIN_MAX(minmax,
-								minConsts(leftMin, rightMin),
-								maxConsts(leftMax, rightMax));
+								maxConsts(leftMin, rightMin, FALSE),
+								minConsts(leftMax, rightMax, FALSE));
 					SET_MIN_MAX_FOR_ATTR(MIN_MAX, la, minmax);
 				}
 			}
@@ -594,8 +591,8 @@ computeMinMaxProp (QueryOperator *root)
 					Constant *rightMin = GET_MIN_FOR_ATTR(rightMinMax, ra);
 					Constant *rightMax = GET_MAX_FOR_ATTR(rightMinMax, ra);
 					SET_MIN_MAX(minmax,
-								maxConsts(leftMin, rightMin),
-								minConsts(leftMax, rightMax));
+								minConsts(leftMin, rightMin, TRUE),
+								maxConsts(leftMax, rightMax, TRUE));
 					SET_MIN_MAX_FOR_ATTR(MIN_MAX, la, minmax);
 				}
 			}
@@ -918,10 +915,10 @@ mergeIntervalOr(HashMap *result, HashMap *left, HashMap* right)
 
 		min = GET_MIN_FOR_ATTR(left, a);
 		max = GET_MAX_FOR_ATTR(left, a);
-		min = minConsts(min,GET_MIN_FOR_ATTR(right, a));
-		max = maxConsts(max,GET_MAX_FOR_ATTR(right, a));
-		min = maxConsts(min,GET_MIN_FOR_ATTR(result, a));
-		max = minConsts(max,GET_MAX_FOR_ATTR(result, a));
+		min = minConsts(min,GET_MIN_FOR_ATTR(right, a),TRUE);
+		max = maxConsts(max,GET_MAX_FOR_ATTR(right, a),TRUE);
+		min = maxConsts(min,GET_MIN_FOR_ATTR(result, a),FALSE);
+		max = minConsts(max,GET_MAX_FOR_ATTR(result, a),FALSE);
 		SET_MIN_FOR_ATTR(result, a, min);
 		SET_MAX_FOR_ATTR(result, a, max);
 	}
@@ -1091,11 +1088,13 @@ getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean
 					char *rAttr = ((AttributeReference *) r)->name;
 					Constant *newMin = maxConsts(
 						GET_MIN_FOR_ATTR(leftAmap, lAttr),
-						GET_MIN_FOR_ATTR(rightAmap, rAttr)
+						GET_MIN_FOR_ATTR(rightAmap, rAttr),
+						FALSE
 						);
 					Constant *newMax = minConsts(
 						GET_MAX_FOR_ATTR(leftAmap, lAttr),
-						GET_MAX_FOR_ATTR(rightAmap, rAttr)
+						GET_MAX_FOR_ATTR(rightAmap, rAttr),
+						FALSE
 						);
 					SET_MIN_FOR_ATTR(leftAmap, lAttr, newMin);
 					SET_MAX_FOR_ATTR(leftAmap, lAttr, newMax);
@@ -1124,19 +1123,23 @@ getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean
 
 					Constant *newLessMin = minConsts(
 						GET_MIN_FOR_ATTR(lAmap, lAttr),
-						GET_MIN_FOR_ATTR(gAmap, gAttr)
+						GET_MIN_FOR_ATTR(gAmap, gAttr),
+					    TRUE
 						);
 					Constant *newLessMax = minConsts(
 						GET_MAX_FOR_ATTR(lAmap, lAttr),
-						GET_MAX_FOR_ATTR(gAmap, gAttr)
+						GET_MAX_FOR_ATTR(gAmap, gAttr),
+					    TRUE
 						);
 					Constant *newGreaterMin = maxConsts(
 						GET_MIN_FOR_ATTR(lAmap, lAttr),
-						GET_MIN_FOR_ATTR(gAmap, gAttr)
+						GET_MIN_FOR_ATTR(gAmap, gAttr),
+						FALSE
 						);
 					Constant *newGreaterMax = maxConsts(
 						GET_MAX_FOR_ATTR(lAmap, lAttr),
-						GET_MAX_FOR_ATTR(gAmap, gAttr)
+						GET_MAX_FOR_ATTR(gAmap, gAttr),
+						FALSE
 						);
 
 					SET_MIN_FOR_ATTR(lAmap, lAttr, newLessMin);
@@ -1156,21 +1159,25 @@ getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean
 					{
 						newMin = minConsts(
 							GET_MIN_FOR_ATTR(aamap, attrName),
-							cExpr
+							cExpr,
+							TRUE
 							);
 						newMax = minConsts(
 							GET_MAX_FOR_ATTR(aamap, attrName),
-							cExpr
+							cExpr,
+							TRUE
 							);
 					}
 					else {
 						newMin = maxConsts(
 							GET_MIN_FOR_ATTR(aamap, attrName),
-							cExpr
+							cExpr,
+							TRUE
 							);
 						newMax = maxConsts(
 							GET_MAX_FOR_ATTR(aamap, attrName),
-							cExpr
+							cExpr,
+							TRUE
 							);
 					}
 
