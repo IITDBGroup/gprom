@@ -33,11 +33,11 @@ static boolean removePropsVisitor(QueryOperator *op, void *context);
 static boolean removeOnePropVisitor(QueryOperator *op, void *context);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
 static boolean printECProVisitor(QueryOperator *root, void *context);
-static Set *getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left);
 static HashMap *computeExprMinMax(Node *expr, HashMap *attrMinMax);
 static Constant *getDataTypeMin (DataType dt);
 static Constant *getDataTypeMax (DataType dt);
 static char *minMaxToString(HashMap *h);
+static Set *relatedConditionAttributesForMinMax(Node *expr, Set *attrs);
 static void getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean inConjunctiveContext);
 static void mergeIntervalOr(HashMap *result, HashMap *left, HashMap* right);
 static HashMap *getOrCreateAttrMinMax(HashMap *minmaxes, char *a);
@@ -87,20 +87,27 @@ computeMinMaxPropForSubset(QueryOperator *root, Set *attrs)
  *
  * @return     Set*
  */
-static Set *
+Set *
 getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 {
+	// take attributes from property (required to be a superset of what attrs is derived from
+	if(HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		return (Set *) GET_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS);
+	}
 	switch(op->type)
 	{
-		// add all selection condition attributes
-		//TODO with much more effort
+	// add all selection condition attributes
+	//TODO with much more effort
     case T_SelectionOperator:
 	{
 		SelectionOperator *s = (SelectionOperator *) op;
-		Set *newNames  = makeStrSetFromList(mapList(
-												getAttrReferences(s->cond),
-												(void *(*)(void *)) getAttributeReferenceName));
-		return unionSets(attrs, newNames);
+		return relatedConditionAttributesForMinMax(s->cond, copyObject(attrs));
+		/* Set *newNames  = makeStrSetFromList(mapList( */
+		/* 										getAttrReferences(s->cond), */
+		/* 										(void *(*)(void *)) getAttributeReferenceName)); */
+		//TODO figure out which attributes really needed
+		/* return unionSets(attrs, newNames); */
 	}
     case T_ProjectionOperator:
 	{
@@ -186,8 +193,21 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 		{
 			return attrs;
 		}
-		else {
-			makeStrSetFromList(getAttrNames(OP_RCHILD(op)->schema));
+		else
+		{
+			List *leftAttrs = (List *) getAttrNames(OP_LCHILD(op)->schema);
+			List *rightAttrs = (List *) getAttrNames(OP_RCHILD(op)->schema);
+			Set *result = STRSET();
+
+			FORBOTH(char,la,ra,leftAttrs,rightAttrs)
+			{
+				if (hasSetElem(attrs, la))
+				{
+					addToSet(result, ra);
+				}
+			}
+
+			return result;
 		}
 	}
     case T_WindowOperator:
@@ -200,6 +220,8 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 													  (void *(*)(void *)) getAttributeReferenceName)));
 			//TODO probably should also add frame, partition by, and order by since they can influence min / max
 		}
+
+		return attrs;
 	}
     case T_NestingOperator:
 	default:
@@ -545,15 +567,18 @@ computeMinMaxProp (QueryOperator *root)
 		{
 			FORBOTH(char, la, ra, leftAttrs, rightAttrs)
 			{
-				HashMap *minmax = copyObject(MAP_GET_STRING(leftMinMax, la));
-				Constant *leftMin = GET_MIN_FOR_ATTR(leftMinMax, ra);
-				Constant *leftMax = GET_MAX_FOR_ATTR(leftMinMax, ra);
-				Constant *rightMin = GET_MIN_FOR_ATTR(rightMinMax, ra);
-				Constant *rightMax = GET_MAX_FOR_ATTR(rightMinMax, ra);
-				SET_MIN_MAX(minmax,
-							minConsts(leftMin, rightMin),
-							maxConsts(leftMax, rightMax));
-				SET_MIN_MAX_FOR_ATTR(MIN_MAX, la, minmax);
+				if(hasSetElem(reqAttrs,la))
+				{
+					HashMap *minmax = copyObject(MAP_GET_STRING(leftMinMax, la));
+					Constant *leftMin = GET_MIN_FOR_ATTR(leftMinMax, la);
+					Constant *leftMax = GET_MAX_FOR_ATTR(leftMinMax, la);
+					Constant *rightMin = GET_MIN_FOR_ATTR(rightMinMax, ra);
+					Constant *rightMax = GET_MAX_FOR_ATTR(rightMinMax, ra);
+					SET_MIN_MAX(minmax,
+								minConsts(leftMin, rightMin),
+								maxConsts(leftMax, rightMax));
+					SET_MIN_MAX_FOR_ATTR(MIN_MAX, la, minmax);
+				}
 			}
 		}
 		break;
@@ -561,15 +586,18 @@ computeMinMaxProp (QueryOperator *root)
 		{
 			FORBOTH(char, la, ra, leftAttrs, rightAttrs)
 			{
-				HashMap *minmax = copyObject(MAP_GET_STRING(leftMinMax, la));
-				Constant *leftMin = GET_MIN_FOR_ATTR(leftMinMax, ra);
-				Constant *leftMax = GET_MAX_FOR_ATTR(leftMinMax, ra);
-				Constant *rightMin = GET_MIN_FOR_ATTR(rightMinMax, ra);
-				Constant *rightMax = GET_MAX_FOR_ATTR(rightMinMax, ra);
-				SET_MIN_MAX(minmax,
-							maxConsts(leftMin, rightMin),
-							minConsts(leftMax, rightMax));
-				SET_MIN_MAX_FOR_ATTR(MIN_MAX, la, minmax);
+				if(hasSetElem(reqAttrs,la))
+				{
+					HashMap *minmax = copyObject(MAP_GET_STRING(leftMinMax, la));
+					Constant *leftMin = GET_MIN_FOR_ATTR(leftMinMax, la);
+					Constant *leftMax = GET_MAX_FOR_ATTR(leftMinMax, la);
+					Constant *rightMin = GET_MIN_FOR_ATTR(rightMinMax, ra);
+					Constant *rightMax = GET_MAX_FOR_ATTR(rightMinMax, ra);
+					SET_MIN_MAX(minmax,
+								maxConsts(leftMin, rightMin),
+								minConsts(leftMax, rightMax));
+					SET_MIN_MAX_FOR_ATTR(MIN_MAX, la, minmax);
+				}
 			}
 		}
 		break;
@@ -915,7 +943,69 @@ getOrCreateAttrMinMax(HashMap *minmaxes, char *a)
 	return (HashMap *) MAP_GET_STRING(minmaxes, a);
 }
 
-static void
+static Set *
+relatedConditionAttributesForMinMax(Node *expr, Set *attrs)
+{
+	Set *result = NULL;
+
+	// iterate until fix point is reached
+	do
+	{
+		result = copyObject(attrs);
+
+		switch(expr->type)
+		{
+		case T_Operator:
+		{
+			Operator *root = (Operator *) expr;
+			char *opName = root->name;
+			Node *l = OP_LEFT_INPUT(expr);
+			Node *r = OP_RIGHT_INPUT(expr);
+			// only calculate bounds for attributes we are supposed to track
+			boolean leftAttr = isA(l,AttributeReference);
+			boolean rightAttr = isA(r,AttributeReference);
+
+			// AND
+			if (streq(opName,OPNAME_AND))
+			{
+				FOREACH(Node,arg,root->args)
+				{
+					relatedConditionAttributesForMinMax(arg,attrs);
+				}
+			}
+			// OR
+			else if (streq(opName,OPNAME_OR))
+			{
+				relatedConditionAttributesForMinMax(OP_LEFT_INPUT(expr), attrs);
+				relatedConditionAttributesForMinMax(OP_RIGHT_INPUT(expr), attrs);
+			}
+			else if (leftAttr && rightAttr &&
+					 (streq(opName,OPNAME_LE)
+					  || streq(opName,OPNAME_LT)
+					  || streq(opName,OPNAME_GE)
+					  || streq(opName,OPNAME_GT)))
+			{
+				char *lAttr = ((AttributeReference *) l)->name;
+				char *rAttr = ((AttributeReference *) r)->name;
+
+				if(hasSetElem(attrs, lAttr) || hasSetElem(attrs,rAttr))
+				{
+					addToSet(attrs, lAttr);
+					addToSet(attrs, rAttr);
+				}
+			}
+
+		}
+		break;
+		default:
+			break;
+		}
+	} while (!equal(result, attrs));
+
+	return result;
+}
+
+static void //TODO pass needed attributes
 getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean inConjunctiveContext)
 {
 	// determine based on expression type
@@ -2568,7 +2658,8 @@ AddAttrOfSelectCondToSet(Set *set, Operator *op)
    return set;
 }
 
-void initializeIColProp(QueryOperator *root)
+void
+initializeIColProp(QueryOperator *root)
 {
 	Set *icols;
 	List *icolsList = NIL;

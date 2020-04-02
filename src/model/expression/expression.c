@@ -529,7 +529,14 @@ makeConst(DataType dt)
 Constant *
 minConsts(Constant *l, Constant *r)
 {
-	Constant *result = makeConst(l->constType);
+	Constant *result;
+
+	if(l->isNull || r->isNull)
+	{
+		return createNullConst(l->constType);
+	}
+
+	result = makeConst(l->constType);
 
 	switch(result->constType)
 	{
@@ -562,7 +569,14 @@ minConsts(Constant *l, Constant *r)
 Constant *
 maxConsts(Constant *l, Constant *r)
 {
-	Constant *result = makeConst(l->constType);
+	Constant *result;
+
+	if(l->isNull || r->isNull)
+	{
+		return createNullConst(l->constType);
+	}
+
+	result = makeConst(l->constType);
 
 	switch(result->constType)
 	{
