@@ -23,6 +23,7 @@ static rc testConstant (void);
 static rc testOperator (void);
 static rc testExpressionToSQL (void);
 static rc testAutoCasting (void);
+static rc testMinMaxForConstants (void);
 
 /* check expression model */
 rc
@@ -34,6 +35,8 @@ testExpr (void)
     RUN_TEST(testOperator(), "test operator nodes");
     RUN_TEST(testExpressionToSQL(), "test code that translates an expression tree into SQL code");
     RUN_TEST(testAutoCasting(), "test code that introduces casts for function and operator arguments where necessary");
+    RUN_TEST(testMinMaxForConstants(), "test code that computes min and max of constants");
+
     return PASS;
 }
 
@@ -135,6 +138,32 @@ testExpressionToSQL()
     ASSERT_EQUALS_STRING("(a + 2)", exprToSQL((Node *) o, NULL), "translate expression into SQL code (a + 2)");
 
     return PASS;
+}
+
+static rc
+testMinMaxForConstants (void)
+{
+	Constant *l, *r, *expect, *n;
+
+	l = createConstInt(1);
+	r = createConstInt(3);
+	n = createNullConst(DT_INT);
+	expect = createConstInt(1);
+
+	ASSERT_EQUALS_INT(INT_VALUE(minConsts(l, r)), INT_VALUE(expect), "min(1,3) = 1");
+
+	expect = createConstInt(3);
+	ASSERT_EQUALS_INT(INT_VALUE(maxConsts(l, r)), INT_VALUE(expect), "max(1,3) = 3");
+
+	expect = createNullConst(DT_INT);
+	ASSERT_EQUALS_NODE(minConsts(l, n), expect, "min(1,NULL) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(l, n), expect, "max(1,NULL) = NULL");
+	ASSERT_EQUALS_NODE(minConsts(n, r), expect, "min(NULL,3) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(n, r), expect, "max(NULL,3) = NULL");
+	ASSERT_EQUALS_NODE(minConsts(n, n), expect, "min(NULL,NULL) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(n, n), expect, "max(NULL,NULL) = NULL");
+
+	return PASS;
 }
 
 static rc
