@@ -119,6 +119,7 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 			AttributeDef *ad = (AttributeDef *) a;
 			if(hasSetElem(attrs, ad->attrName))
 			{
+				INFO_LOG("%s -> %s", ad->attrName, nodeToString(makeStrSetFromList(mapList(getAttrReferences(e),(void *(*)(void *)) getAttributeReferenceName))));
 				newNames = unionSets(newNames,
 										  makeStrSetFromList(
 											  mapList(getAttrReferences(e),
@@ -265,7 +266,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 	}
 
-	INFO_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s", NodeTagToString(root->type), root->schema->name);
+	INFO_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s on Attrs %s", NodeTagToString(root->type), root->schema->name, nodeToString(reqAttrs));
 	SET_BOOL_STRING_PROP(root, PROP_STORE_MIN_MAX_DONE);
 
 	// Table Access

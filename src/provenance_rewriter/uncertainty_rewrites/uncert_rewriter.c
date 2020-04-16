@@ -248,6 +248,7 @@ rewriteUncertTuple(QueryOperator *op)
 QueryOperator *
 rewriteRange(QueryOperator * op)
 {
+	// FATAL_LOG("RANGE_REWRITE");
 	QueryOperator *rewrittenOp;
 	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
 	{
@@ -2820,6 +2821,24 @@ spliceToBG(QueryOperator *op, List *attrnames){
 	return bgProj;
 }
 
+static void dupicateMinMaxNameProp(QueryOperator *from, QueryOperator *to){
+	if (HAS_STRING_PROP(from, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		Set *dep = (Set *)getStringProperty(from, PROP_STORE_MIN_MAX_ATTRS);
+		// INFO_LOG("Pushed name prop to rewritten op: %s", nodeToString(dep));
+		setStringProperty(to, PROP_STORE_MIN_MAX_ATTRS, (Node *)dep);
+	}
+}
+
+static void dupicateMinMaxResProp(QueryOperator *from, QueryOperator *to){
+	if (HAS_STRING_PROP(from, PROP_STORE_MIN_MAX))
+	{
+		HashMap *dep = (HashMap *)getStringProperty(from, PROP_STORE_MIN_MAX);
+		// INFO_LOG("Pushed minmax prop to rewritten op: %s", nodeToString(dep));
+		setStringProperty(to, PROP_STORE_MIN_MAX, (Node *) dep);
+	}
+}
+
 static QueryOperator *
 spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
 	//possible projections
@@ -2844,8 +2863,16 @@ spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
 	op->parents = singleton(posProj);
 
 	// remove property (input may have been rewritten so it may be unsafe to reuse)
-	removeMinMaxProps(posProj);
-	computeMinMaxPropForSubset(posProj, MAKE_STR_SET(jattr));
+	// removeMinMaxProps(posProj);
+
+	Set* attrset = MAKE_STR_SET(jattr);
+
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		attrset = unionSets(attrset, (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS));
+	}
+	// INFO_LOG("computeminmax on attrset: %s", attrset);
+	computeMinMaxPropForSubset(posProj, attrset);
 
 	// HashMap * mmpro = (HashMap *)getStringProperty(posProj, PROP_STORE_MIN_MAX);
 	// INFO_LOG("property: %s", nodeToString(mmpro));
@@ -2857,6 +2884,8 @@ spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
 	QueryOperator *compposProj = compressPosRow(posProj, 1, jattr);
 
 	INFO_OP_LOG("compressed possible:", compposProj);
+
+	dupicateMinMaxResProp(posProj, compposProj);
 
 	return compposProj;
 }
@@ -2894,6 +2923,31 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 
 	List *alist = CONCAT_LISTS(deepCopyStringList(nan1),deepCopyStringList(nan2),deepCopyStringList(nan1r),deepCopyStringList(nan2r),deepCopyStringList(range_row1));
 
+	//push needed attributes to childs
+
+	List *attpair = getJoinAttrPair(((JoinOperator*)op)->cond);
+
+	Set *ldep = MAKE_STR_SET(getHeadOfListP(attpair));
+	Set *rdep = MAKE_STR_SET(getTailOfListP(attpair));
+	Set *jminmax = unionSets(ldep,rdep);
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		ldep = unionSets(ldep, (Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS));
+		rdep = unionSets(rdep, (Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS));
+		jminmax = unionSets(jminmax, (Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS));
+	}
+	// INFO_LOG("MINMAX for l_child: %s", nodeToString(ldep));
+	// INFO_LOG("MINMAX for r_child: %s", nodeToString(rdep));
+	// ldep = getInputSchemaDependencies(OP_LCHILD(op), ldep, TRUE);
+	// rdep = getInputSchemaDependencies(OP_RCHILD(op), rdep, FALSE);
+	INFO_LOG("[Join] Pushing minmax prop attr to lchild: %s", nodeToString(ldep));
+	INFO_LOG("[Join] Pushing minmax prop attr to rchild: %s", nodeToString(rdep));
+	setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)ldep);
+	setStringProperty(OP_RCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)rdep);
+
+	//get minmax prop before rewriting
+	// computeMinMaxPropForSubset(op, jminmax);
+
 	// rewrite child first
 	rewriteRange(OP_LCHILD(op));
 	rewriteRange(OP_RCHILD(op));
@@ -2912,10 +2966,11 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	INFO_OP_LOG("lbg:", lbg);
 	INFO_OP_LOG("rbg:", rbg);
 
-	List *attpair = getJoinAttrPair(((JoinOperator*)op)->cond);
-
 	QueryOperator *lpos = spliceToPOS(lopdup,lattrnames,getHeadOfListP(attpair));
 	QueryOperator *rpos = spliceToPOS(ropdup,rattrnames,getTailOfListP(attpair));
+
+	printECPro(lpos);
+	printECPro(rpos);
 
 	// INFO_OP_LOG("lpos:", lpos);
 	// INFO_OP_LOG("rpos:", rpos);
@@ -3085,8 +3140,8 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(unionop, ROW_BESTGUESS)));
 	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getAttrRefByName(unionop, ROW_POSSIBLE)));
 
-	INFO_LOG("joinNames: %s", stringListToString(joinNames));
-	INFO_LOG("unionNames: %s", stringListToString(alist));
+	// INFO_LOG("joinNames: %s", stringListToString(joinNames));
+	// INFO_LOG("unionNames: %s", stringListToString(alist));
 
 	// QueryOperator* ret = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(unionop),unionop,NIL,alist);
 	// switchSubtrees(unionop, ret);
@@ -3101,7 +3156,7 @@ getJoinAttrPair(Node *expr)
 {
 	Node *op = expr;
 	ASSERT(op->type==T_Operator);
-	ASSERT(((Operator *)expr)->name != OPNAME_EQ);
+	ASSERT(strcmp(((Operator *)expr)->name,OPNAME_EQ)==0);
 	Node *ref1 = getHeadOfListP(((Operator *)op)->args);
 	Node *ref2 = getTailOfListP(((Operator *)op)->args);
 	ASSERT(ref1->type == T_AttributeReference);
@@ -3171,6 +3226,14 @@ rewrite_RangeSelection(QueryOperator *op)
 
 	ASSERT(OP_LCHILD(op));
 
+	// push down min max attr property if there are any
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		INFO_LOG("[Selection] Pushing minmax prop attr to child: %s", nodeToString(dependency));
+		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)dependency);
+	}
+
 	// rewrite child first
     rewriteRange(OP_LCHILD(op));
 
@@ -3205,6 +3268,8 @@ rewrite_RangeSelection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(cond));
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs,pos_cond);
     setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+    dupicateMinMaxNameProp(op, proj);
 
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
 
@@ -3262,6 +3327,18 @@ rewrite_RangeProjection(QueryOperator *op)
 {
     ASSERT(OP_LCHILD(op));
 
+    // push down min max attr property if there are any
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
+		INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
+		INFO_LOG("[Projection] Pushing minmax prop attr %s to child: %s", nodeToString(dependency), nodeToString(newd));
+		setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+	}
+
     //rewrite child first
     rewriteRange(OP_LCHILD(op));
 
@@ -3293,7 +3370,7 @@ rewrite_RangeProjection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE)));
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
 
-    INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
+    // INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
 
     return op;
@@ -3367,6 +3444,8 @@ rewrite_RangeTableAccess(QueryOperator *op)
 		List *nexpr = getNormalAttrProjectionExprs(op);
 		//INFO_LOG("nexpr %s", nodeToString(nexpr));
 		((ProjectionOperator *)proj)->projExprs = concatTwoLists(nexpr, pexpr);
+
+		dupicateMinMaxNameProp(op, proj);
 	}
 
 	return proj;
