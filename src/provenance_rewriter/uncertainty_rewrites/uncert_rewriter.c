@@ -706,7 +706,7 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 					INFO_LOG("lbexpr: %s",nodeToString(lbexpr));
 					Node *ubexpr = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE(tattr, nd));
 					INFO_LOG("ubexpr: %s",nodeToString(lbexpr));
-					Node *whenexpr = (Node *)andExprs(lbexpr, ubexpr);
+					Node *whenexpr = (Node *)AND_EXPRS(lbexpr, ubexpr);
 					cwhens = appendToTailOfList(cwhens, createCaseWhen(whenexpr, nd));
 					last = nd;
 				}
@@ -2988,7 +2988,7 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	}
 	List *range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
 	List *range_row2 = LIST_MAKE(ROW_CERTAIN_TWO,ROW_BESTGUESS_TWO,ROW_POSSIBLE_TWO);
-	
+
 	List *lattrnamesRename = deepCopyStringList(nan1);
 	List *rattrnamesRename = deepCopyStringList(nan2);
 
