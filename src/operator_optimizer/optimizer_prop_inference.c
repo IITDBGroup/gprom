@@ -91,53 +91,58 @@ Set *
 getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 {
 	QueryOperator *child = left ? OP_LCHILD(op) : OP_RCHILD(op);
+	Set *newAttrs;
 
 	// take attributes from property (required to be a superset of what attrs is derived from
 	if(HAS_STRING_PROP(child, PROP_STORE_MIN_MAX_ATTRS))
 	{
-		return (Set *) GET_STRING_PROP(child, PROP_STORE_MIN_MAX_ATTRS);
+		newAttrs = (Set *) GET_STRING_PROP(child, PROP_STORE_MIN_MAX_ATTRS);
 	}
+	else
+	{
+		newAttrs = STRSET();
+	}
+
 	switch(op->type)
 	{
 	// add all selection condition attributes that could result in a restriction of the requested attributes
     case T_SelectionOperator:
 	{
 		SelectionOperator *s = (SelectionOperator *) op;
-		return relatedConditionAttributesForMinMax(s->cond, copyObject(attrs));
+		return unionSets(newAttrs,
+						 relatedConditionAttributesForMinMax(s->cond, copyObject(attrs)));
 	}
     case T_ProjectionOperator:
 	{
 		ProjectionOperator *p = (ProjectionOperator *) op;
-		Set *newNames = STRSET();
 
 		FORBOTH(Node,a,e,op->schema->attrDefs,p->projExprs)
 		{
 			AttributeDef *ad = (AttributeDef *) a;
 			if(hasSetElem(attrs, ad->attrName))
 			{
-				newNames = unionSets(newNames,
+				newAttrs = unionSets(newAttrs,
 										  makeStrSetFromList(
 											  mapList(getAttrReferences(e),
 													  (void *(*)(void *)) getAttributeReferenceName)));
 			}
 		}
 
-		return newNames;
+		return newAttrs;
 	}
     case T_JoinOperator:
 	{
 		JoinOperator *j = (JoinOperator *) op;
 		List *aRefs = getAttrReferences(j->cond);
-		Set *newNames  = STRSET();
 		int rightOffset = getNumAttrs(OP_LCHILD(j));
-		QueryOperator *child = left ? OP_LCHILD(op) : OP_RCHILD(op);
+		/* QueryOperator *child = left ? OP_LCHILD(op) : OP_RCHILD(op); */
 
 		// attributes needed to evaluate join condition bounds
 		FOREACH(AttributeReference,a,aRefs)
 		{
 			if((left && a->fromClauseItem == 0) || (!left && a->fromClauseItem == 1))
 			{
-				addToSet(newNames, strdup(a->name));
+				addToSet(newAttrs, strdup(a->name));
 			}
 		}
 
@@ -148,16 +153,15 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 			if ((left && pos < rightOffset) || (!left && pos >= rightOffset))
 			{
 				char *n = getAttrNameByPos(child, pos - (left ? 0 : rightOffset));
-				addToSet(newNames, strdup(n));
+				addToSet(newAttrs, strdup(n));
 			}
 		}
 
-		return newNames;
+		return newAttrs;
 	}
     case T_AggregationOperator:
 	{
 		AggregationOperator *a = (AggregationOperator *) op;
-		Set *newNames = STRSET();
 		List *aggAndGB = concatTwoLists(copyObject(a->aggrs),
 										copyObject(a->groupBy));
 		FORBOTH(Node,agg,attr,aggAndGB,op->schema->attrDefs)
@@ -165,14 +169,14 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 			AttributeDef *ad = (AttributeDef *) attr;
 			if(hasSetElem(attrs, ad->attrName))
 			{
-				newNames = unionSets(newNames,
+				newAttrs = unionSets(newAttrs,
 										  makeStrSetFromList(
 											  mapList(getAttrReferences(agg),
 													  (void *(*)(void *)) getAttributeReferenceName)));
 			}
 		}
 
-		return newNames;
+		return newAttrs;
 	}
     case T_ProvenanceComputation:
     case T_DuplicateRemoval:
@@ -182,7 +186,7 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
     case T_TableAccessOperator:
     case T_ConstRelOperator:
     case T_OrderOperator: //TODO ordering may affect min max indirectly
-		return attrs;
+		return unionSets(newAttrs, attrs);
     case T_SetOperator:
 	{
 		if (left)
@@ -193,31 +197,31 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 		{
 			List *leftAttrs = (List *) getAttrNames(OP_LCHILD(op)->schema);
 			List *rightAttrs = (List *) getAttrNames(OP_RCHILD(op)->schema);
-			Set *result = STRSET();
 
 			FORBOTH(char,la,ra,leftAttrs,rightAttrs)
 			{
 				if (hasSetElem(attrs, la))
 				{
-					addToSet(result, ra);
+					addToSet(newAttrs, ra);
 				}
 			}
 
-			return result;
+			return newAttrs;
 		}
 	}
     case T_WindowOperator:
 	{
 		WindowOperator *w = (WindowOperator *) op;
-		if (hasSetElem(attrs, w->attrName))
+		newAttrs = unionSets(newAttrs, attrs);
+		if (hasSetElem(newAttrs, w->attrName))
 		{
-			attrs = unionSets(attrs, makeStrSetFromList(
+			 newAttrs = unionSets(newAttrs, makeStrSetFromList(
 											  mapList(getAttrReferences(w->f),
 													  (void *(*)(void *)) getAttributeReferenceName)));
 			//TODO probably should also add frame, partition by, and order by since they can influence min / max
 		}
 
-		return attrs;
+		return newAttrs;
 	}
     case T_NestingOperator:
 	default:
