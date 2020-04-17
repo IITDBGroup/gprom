@@ -493,6 +493,17 @@ stringListToConstList(List *list)
 }
 
 List *
+constStringListToStringList(List *list)
+{
+	List *result = NIL;
+
+	FOREACH(Constant,el,list)
+		result = appendToTailOfList(result, STRING_VALUE(el));
+
+	return result;
+}
+
+List *
 concatTwoLists(List *lista, List*listb)
 {
     if (lista == listb)
