@@ -2688,9 +2688,6 @@ rewrite_RangeJoin(QueryOperator *op){
 		return rewrite_RangeJoinOptimized(op);
 	}
 
-	INFO_LOG("REWRITE-RANGE - Join");
-	INFO_LOG("Operator tree \n%s", nodeToString(op));
-
 	int divider = getNormalAttrNames(OP_LCHILD(op))->length;
 
 	List * nan = getNormalAttrNames(op);
@@ -2719,6 +2716,9 @@ rewrite_RangeJoin(QueryOperator *op){
 	// rewrite child first
 	rewriteRange(OP_LCHILD(op));
 	rewriteRange(OP_RCHILD(op));
+
+	INFO_LOG("REWRITE-RANGE - Join");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
 
 	List *dt1 = getDataTypes(OP_LCHILD(op)->schema);
@@ -2932,7 +2932,7 @@ spliceToPOS(QueryOperator *op, List *attrnames, char *jattr){
 	//compress possibles
 	QueryOperator *compposProj = compressPosRow(posProj, 1, jattr);
 
-	INFO_OP_LOG("comppos:", compposProj);
+	INFO_OP_LOG("compressed possible:", compposProj);
 
 	return compposProj;
 }
@@ -2942,14 +2942,39 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	ASSERT(OP_LCHILD(op));
 	ASSERT(OP_RCHILD(op));
 
-	INFO_LOG("REWRITE-RANGE - Join(optimized)");
+	//get output names for join
+	int divider = getNormalAttrNames(OP_LCHILD(op))->length;
+	List * nan = getNormalAttrNames(op);
+	List *nan2 = sublist(nan, divider, nan->length-1);
+	List *nan1 = sublist(nan, 0, divider-1);
+	List *nan1r = NIL;
+	List *nan2r = NIL;
+	FOREACH(char, nm, nan1){
+		nan1r = appendToTailOfList(nan1r, getUBString(nm));
+		nan1r = appendToTailOfList(nan1r, getLBString(nm));
+	}
+	FOREACH(char, nm, nan2){
+		nan2r = appendToTailOfList(nan2r, getUBString(nm));
+		nan2r = appendToTailOfList(nan2r, getLBString(nm));
+	}
+	List *range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
+	List *range_row2 = LIST_MAKE(ROW_CERTAIN_TWO,ROW_BESTGUESS_TWO,ROW_POSSIBLE_TWO);
+	
+	List *lattrnamesRename = deepCopyStringList(nan1);
+	List *rattrnamesRename = deepCopyStringList(nan2);
 
 	List *lattrnames = getNormalAttrNames(OP_LCHILD(op));
 	List *rattrnames = getNormalAttrNames(OP_RCHILD(op));
 
+	List *joinNames = CONCAT_LISTS(deepCopyStringList(nan1),deepCopyStringList(nan1r),deepCopyStringList(range_row1),deepCopyStringList(nan2),deepCopyStringList(nan2r),deepCopyStringList(range_row2));
+
+	List *alist = CONCAT_LISTS(deepCopyStringList(nan1),deepCopyStringList(nan2),deepCopyStringList(nan1r),deepCopyStringList(nan2r),deepCopyStringList(range_row1));
+
 	// rewrite child first
 	rewriteRange(OP_LCHILD(op));
 	rewriteRange(OP_RCHILD(op));
+
+	INFO_LOG("REWRITE-RANGE - Join(optimized)");
 
 	//divide into bg and possible parts
 	QueryOperator *lop = OP_LCHILD(op);
@@ -2960,62 +2985,53 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	QueryOperator *lbg = spliceToBG(lop,lattrnames);
 	QueryOperator *rbg = spliceToBG(rop,rattrnames);
 
-	// INFO_OP_LOG("lbg:", lbg);
-	// INFO_OP_LOG("rbg:", rbg);
+	INFO_OP_LOG("lbg:", lbg);
+	INFO_OP_LOG("rbg:", rbg);
 
 	List *attpair = getJoinAttrPair(((JoinOperator*)op)->cond);
-	INFO_LOG("join attr pair: %s", stringListToString(attpair));
 
 	QueryOperator *lpos = spliceToPOS(lopdup,lattrnames,getHeadOfListP(attpair));
 	QueryOperator *rpos = spliceToPOS(ropdup,rattrnames,getTailOfListP(attpair));
 
-	INFO_OP_LOG("lpos:", lpos);
-	INFO_OP_LOG("rpos:", rpos);
+	// INFO_OP_LOG("lpos:", lpos);
+	// INFO_OP_LOG("rpos:", rpos);
 
 	//best guess join
-	List *latt = copyList(lattrnames);
-	List *ratt = copyList(rattrnames);
-	FOREACH(char, an, lattrnames){
-		latt = appendToTailOfList(latt, getUBString(an));
-		latt = appendToTailOfList(latt, getLBString(an));
-	}
-	FOREACH(char, an, rattrnames){
-		ratt = appendToTailOfList(ratt, getUBString(an));
-		ratt = appendToTailOfList(ratt, getLBString(an));
-	}
-	List *range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
-	List *range_row2 = LIST_MAKE(ROW_CERTAIN_TWO,ROW_BESTGUESS_TWO,ROW_POSSIBLE_TWO);
-	List *alist = CONCAT_LISTS(latt,range_row1,ratt,range_row2);
+	// List *latt = copyList(lattrnames);
+	// List *ratt = copyList(rattrnames);
+	// FOREACH(char, an, lattrnames){
+	// 	latt = appendToTailOfList(latt, getUBString(an));
+	// 	latt = appendToTailOfList(latt, getLBString(an));
+	// }
+	// FOREACH(char, an, rattrnames){
+	// 	ratt = appendToTailOfList(ratt, getUBString(an));
+	// 	ratt = appendToTailOfList(ratt, getLBString(an));
+	// }
+	// List *range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
+	// List *range_row2 = LIST_MAKE(ROW_CERTAIN_TWO,ROW_BESTGUESS_TWO,ROW_POSSIBLE_TWO);
+	// List *alist = CONCAT_LISTS(latt,range_row1,ratt,range_row2);
 
-	List *pjlist = copyList(alist);
+	// List *pjlist = copyList(alist);
 	// INFO_LOG("BG join attr List: %s", stringListToString(alist));
 
 	int offset = (lattrnames->length)*3+3;
 	Node *condExpr = (Node *)copyObject(((JoinOperator*)op)->cond);
 	Node *bgExpr = getOutputExprFromInput(copyObject(condExpr), offset);
 
-	QueryOperator *bgjoin = (QueryOperator *)createJoinOp(JOIN_INNER, ((JoinOperator*)op)->cond, LIST_MAKE(lbg,rbg), NIL, alist);
+	QueryOperator *bgjoin = (QueryOperator *)createJoinOp(JOIN_INNER, ((JoinOperator*)op)->cond, LIST_MAKE(lbg,rbg), NIL, joinNames);
 	lbg->parents = singleton(bgjoin);
 	rbg->parents = singleton(bgjoin);
-	// INFO_OP_LOG("bg join: ", bgjoin);
+	INFO_OP_LOG("bg join: ", bgjoin);
 
 	//projection to rearrange attributes
-	List *natt = NIL;
-	ratt = NIL;
 	List *bgNprojList = NIL;
 	List *bgRprojList = NIL;
-	FOREACH(char, an, lattrnames){
-		natt = appendToTailOfList(natt, an);
-		ratt = appendToTailOfList(ratt, getUBString(an));
-		ratt = appendToTailOfList(ratt, getLBString(an));
+	FOREACH(char, an, lattrnamesRename){
 		bgNprojList = appendToTailOfList(bgNprojList, getAttrRefByName(bgjoin, an));
 		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getUBString(an)));
 		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getLBString(an)));
 	}
-	FOREACH(char, an, rattrnames){
-		natt = appendToTailOfList(natt, an);
-		ratt = appendToTailOfList(ratt, getUBString(an));
-		ratt = appendToTailOfList(ratt, getLBString(an));
+	FOREACH(char, an, rattrnamesRename){
 		bgNprojList = appendToTailOfList(bgNprojList, getAttrRefByName(bgjoin, an));
 		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getUBString(an)));
 		bgRprojList = appendToTailOfList(bgRprojList, getAttrRefByName(bgjoin, getLBString(an)));
@@ -3027,18 +3043,16 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	bgRprojList = appendToTailOfList(bgRprojList, opbg);
 	bgRprojList = appendToTailOfList(bgRprojList, oppos);
 	List *bgproj = CONCAT_LISTS(bgNprojList,bgRprojList);
-	range_row1 = LIST_MAKE(ROW_CERTAIN,ROW_BESTGUESS,ROW_POSSIBLE);
-	alist = CONCAT_LISTS(natt,ratt,range_row1);
-	// INFO_LOG("BG proj List: %s", stringListToString(alist));
+ 	INFO_LOG("BG proj List: %s", stringListToString(alist));
 
 	QueryOperator *bgProj = (QueryOperator *)createProjectionOp(bgproj,bgjoin,NIL,alist);
 	bgjoin->parents = singleton(bgProj);
 
-	// INFO_OP_LOG("bg proj: ", bgProj);
+	INFO_OP_LOG("bg proj: ", bgProj);
 
 	//possible join
 
-	QueryOperator *posjoin = (QueryOperator *)createJoinOp(JOIN_INNER, NULL, LIST_MAKE(lpos,rpos), NIL, pjlist);
+	QueryOperator *posjoin = (QueryOperator *)createJoinOp(JOIN_INNER, NULL, LIST_MAKE(lpos,rpos), NIL, joinNames);
 	lpos->parents = singleton(posjoin);
 	rpos->parents = singleton(posjoin);
 
@@ -3064,13 +3078,13 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	}
 	// INFO_LOG("map_in: %s", nodeToString(hmpin));
 
-	FOREACH(char, an, lattrnames){
+	FOREACH(char, an, lattrnamesRename){
 		Node *key = (Node *)getAttrRefByName(posjoin,an);
 		((AttributeReference *)key)->outerLevelsUp = 0;
 		Node *val = (Node *)LIST_MAKE(getAttrRefByName(posjoin,getUBString(an)),getAttrRefByName(posjoin,getLBString(an)));
 		ADD_TO_MAP(hmpout, createNodeKeyValue(key, val));
 	}
-	FOREACH(char, an, rattrnames){
+	FOREACH(char, an, rattrnamesRename){
 		AttributeReference *key = getAttrRefByName(posjoin,an);
 		key->outerLevelsUp = 0;
 		AttributeReference *ub = getAttrRefByName(posjoin,getUBString(an));
@@ -3084,22 +3098,22 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	Node *ubExpr = getUBExpr(copyObject(condExpr), hmpin);
 	((JoinOperator *)posjoin)->cond = ubExpr;
 
-	// INFO_OP_LOG("pos join: ", posjoin);
+	INFO_OP_LOG("pos join: ", posjoin);
 
 	// INFO_LOG("ub expr: %s", nodeToString(ubExpr));
 
 	Node *lbExpr = getLBExpr(copyObject(bgExpr),hmpout);
-	// INFO_LOG("lb expr: %s", nodeToString(lbExpr));
+	INFO_LOG("lb expr: %s", nodeToString(lbExpr));
 
 	//projection to rearrange attributes
 	List *posNprojList = NIL;
 	List *posRprojList = NIL;
-	FOREACH(char, an, lattrnames){
+	FOREACH(char, an, lattrnamesRename){
 		posNprojList = appendToTailOfList(posNprojList, getAttrRefByName(posjoin, an));
 		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getUBString(an)));
 		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getLBString(an)));
 	}
-	FOREACH(char, an, rattrnames){
+	FOREACH(char, an, rattrnamesRename){
 		posNprojList = appendToTailOfList(posNprojList, getAttrRefByName(posjoin, an));
 		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getUBString(an)));
 		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getLBString(an)));
@@ -3129,13 +3143,13 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 
 
 	HashMap *hmpunion = NEW_MAP(Node, Node);
-	FOREACH(char, an, lattrnames){
+	FOREACH(char, an, lattrnamesRename){
 		Node *key = (Node *)getAttrRefByName(unionop,an);
 		((AttributeReference *)key)->outerLevelsUp = 0;
 		Node *val = (Node *)LIST_MAKE(getAttrRefByName(unionop,getUBString(an)),getAttrRefByName(unionop,getLBString(an)));
 		ADD_TO_MAP(hmpunion, createNodeKeyValue(key, val));
 	}
-	FOREACH(char, an, rattrnames){
+	FOREACH(char, an, rattrnamesRename){
 		AttributeReference *key = getAttrRefByName(unionop,an);
 		key->outerLevelsUp = 0;
 		AttributeReference *ub = getAttrRefByName(unionop,getUBString(an));
@@ -3146,11 +3160,14 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_CERTAIN), (Node *)getAttrRefByName(unionop, ROW_CERTAIN)));
 	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(unionop, ROW_BESTGUESS)));
 	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getAttrRefByName(unionop, ROW_POSSIBLE)));
-	setStringProperty(unionop, "UNCERT_MAPPING", (Node *)hmpunion);
 
-	HashMap *mmpro = (HashMap *)getStringProperty(op, PROP_STORE_MIN_MAX);
-	setStringProperty(unionop, PROP_STORE_MIN_MAX, (Node *) mmpro);
-	SET_BOOL_STRING_PROP(unionop, PROP_STORE_MIN_MAX_DONE);
+	INFO_LOG("joinNames: %s", stringListToString(joinNames));
+	INFO_LOG("unionNames: %s", stringListToString(alist));
+
+	// QueryOperator* ret = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(unionop),unionop,NIL,alist);
+	// switchSubtrees(unionop, ret);
+	// unionop->parents = singleton(ret);
+	setStringProperty(unionop, "UNCERT_MAPPING", (Node *)hmpunion);
 
 	return unionop;
 }
@@ -3230,10 +3247,11 @@ rewrite_RangeSelection(QueryOperator *op)
 
 	ASSERT(OP_LCHILD(op));
 
-	INFO_LOG("REWRITE-RANGE - Selection");
-    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 	// rewrite child first
     rewriteRange(OP_LCHILD(op));
+
+    INFO_LOG("REWRITE-RANGE - Selection");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
     HashMap * hmp = NEW_MAP(Node, Node);
     //get child hashmap
@@ -3320,17 +3338,18 @@ rewrite_RangeProjection(QueryOperator *op)
 {
     ASSERT(OP_LCHILD(op));
 
-    INFO_LOG("REWRITE-RANGE - Projection");
-    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
     //rewrite child first
     rewriteRange(OP_LCHILD(op));
+
+    INFO_LOG("REWRITE-RANGE - Projection");
+    INFO_OP_LOG("Operator tree ", op);
 
     HashMap * hmp = NEW_MAP(Node, Node);
     //get child hashmap
     HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
     List *attrExpr = getNormalAttrProjectionExprs(op);
-//    INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
-   	INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
+   INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
+   	// INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
     List *uncertlist = NIL;
     int ict = 0;
     FOREACH(Node, nd, attrExpr){
