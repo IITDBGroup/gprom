@@ -254,12 +254,15 @@ outStringList (StringInfo str, List *node)
 {
     appendStringInfo(str, "(");
 
-    FOREACH(char,s,node)
-    {
-        appendStringInfo(str, "\"%s\"", s);
-        if (s_his_cell->next)
-            appendStringInfoString(str, " ");
-    }
+	if(node != NIL)
+	{
+		FOREACH(char,s,node)
+		{
+			appendStringInfo(str, "\"%s\"", s);
+			if (s_his_cell->next)
+				appendStringInfoString(str, " ");
+		}
+	}
 
     appendStringInfoString(str, ")");
 }

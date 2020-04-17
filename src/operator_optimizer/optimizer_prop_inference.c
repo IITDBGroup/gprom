@@ -53,7 +53,7 @@ static HashMap *getOrCreateAttrMinMax(HashMap *minmaxes, char *a);
 #define SET_MIN_MAX_FOR_ATTR(_map,_a,_value) (MAP_ADD_STRING_KEY((_map),strdup(_a),(_value)))
 #define GET_MIN_BOUND(_map) ((Constant *) MAP_GET_STRING(_map,MIN_KEY))
 #define GET_MAX_BOUND(_map) ((Constant *) MAP_GET_STRING(_map,MAX_KEY))
-#define COPY_ATTR_MIN_MAX(_inmap,_outmap,_ina,_outa) SET_MIN_MAX_FOR_ATTR(_inmap, strdup(_outa), copyObject(GET_MIN_MAX_FOR_ATTR(_outmap, _ina)))
+#define COPY_ATTR_MIN_MAX(_inmap,_outmap,_ina,_outa) SET_MIN_MAX_FOR_ATTR(_outmap, strdup(_outa), copyObject(GET_MIN_MAX_FOR_ATTR(_inmap, _ina)))
 #define SET_MIN_MAX(_hm,_min,_max)				\
 	do {										\
 		MAP_ADD_STRING_KEY(_hm, strdup(MIN_KEY), _min);	\
@@ -90,24 +90,20 @@ computeMinMaxPropForSubset(QueryOperator *root, Set *attrs)
 Set *
 getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 {
+	QueryOperator *child = left ? OP_LCHILD(op) : OP_RCHILD(op);
+
 	// take attributes from property (required to be a superset of what attrs is derived from
-	if(HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	if(HAS_STRING_PROP(child, PROP_STORE_MIN_MAX_ATTRS))
 	{
-		return (Set *) GET_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS);
+		return (Set *) GET_STRING_PROP(child, PROP_STORE_MIN_MAX_ATTRS);
 	}
 	switch(op->type)
 	{
-	// add all selection condition attributes
-	//TODO with much more effort
+	// add all selection condition attributes that could result in a restriction of the requested attributes
     case T_SelectionOperator:
 	{
 		SelectionOperator *s = (SelectionOperator *) op;
 		return relatedConditionAttributesForMinMax(s->cond, copyObject(attrs));
-		/* Set *newNames  = makeStrSetFromList(mapList( */
-		/* 										getAttrReferences(s->cond), */
-		/* 										(void *(*)(void *)) getAttributeReferenceName)); */
-		//TODO figure out which attributes really needed
-		/* return unionSets(attrs, newNames); */
 	}
     case T_ProjectionOperator:
 	{
@@ -229,6 +225,20 @@ getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left)
 	}
 }
 
+#define CHECK_REQUIRED_ATTRS(_minmax,_attrs) \
+	do {																\
+		FOREACH_SET(char,_a,_attrs)										\
+		{																\
+			if(!MAP_HAS_STRING_KEY(_minmax,_a))							\
+			{															\
+				THROW(SEVERITY_RECOVERABLE, "min max for required attribute not found"); \
+			}															\
+			HashMap *_attrMinMax = (HashMap *) MAP_GET_STRING(_minmax,_a); \
+			ASSERT(MAP_HAS_STRING_KEY(_attrMinMax,MIN_KEY));				\
+			ASSERT(MAP_HAS_STRING_KEY(_attrMinMax,MAX_KEY));				\
+		};																\
+	} while(0)
+
 void
 computeMinMaxProp (QueryOperator *root)
 {
@@ -283,6 +293,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		CHECK_REQUIRED_ATTRS(MIN_MAX, reqAttrs);
 		INFO_LOG("MIN AND MAX [TABLE ACCESS] are: \n%s", minMaxToString(MIN_MAX));
 	}
 	// Projection Operator
@@ -311,6 +322,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		CHECK_REQUIRED_ATTRS(MIN_MAX, reqAttrs);
 		INFO_LOG("MIN AND MAX [PROJECTION] are: \n%s", minMaxToString(MIN_MAX));
 		// INFO_NODE_BEATIFY_LOG("MIN AND MAX are:", MIN_MAX);
 	}
@@ -324,6 +336,7 @@ computeMinMaxProp (QueryOperator *root)
 		getConMap(s->cond, MIN_MAX, NULL);
 
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		CHECK_REQUIRED_ATTRS(MIN_MAX, reqAttrs);
 		INFO_LOG("MIN AND MAX [SELECTION] are: \n%s", minMaxToString(MIN_MAX));
 	}
 	// Join Operator
@@ -375,6 +388,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		CHECK_REQUIRED_ATTRS(MIN_MAX, reqAttrs);
 		INFO_LOG("MIN AND MAX [JOIN] are: \n%s", minMaxToString(MIN_MAX));
 	}
 	// Aggregation operator
@@ -469,6 +483,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		CHECK_REQUIRED_ATTRS(MIN_MAX, reqAttrs);
 		INFO_LOG("MIN AND MAX [AGGREGATION] are: \n%s", minMaxToString(MIN_MAX));
 	}
 	else if (root->type == T_WindowOperator)
@@ -542,6 +557,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		CHECK_REQUIRED_ATTRS(MIN_MAX, reqAttrs);
 		INFO_LOG("MIN AND MAX [WINDOW] are: \n%s", minMaxToString(MIN_MAX));
 	}
 	else if (root->type == T_SetOperator)
@@ -601,6 +617,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 
 		setStringProperty(root, PROP_STORE_MIN_MAX, (Node *) MIN_MAX);
+		CHECK_REQUIRED_ATTRS(MIN_MAX, reqAttrs);
 		INFO_LOG("MIN AND MAX [SET] are: \n%s", minMaxToString(MIN_MAX));
 	}
 	else
@@ -634,9 +651,9 @@ minMaxToString(HashMap *h)
 	}
 	else
 	{
-			appendStringInfo(s,"%s: [ %s, %s ]",
-							 GET_MIN_BOUND(h),
-							 GET_MAX_BOUND(h)
+			appendStringInfo(s,"[ %s, %s ]",
+							 exprToSQL((Node *) GET_MIN_BOUND(h), NULL),
+							 exprToSQL((Node *) GET_MAX_BOUND(h), NULL)
 				);
 	}
 
@@ -681,7 +698,7 @@ computeExprMinMax(Node *expr, HashMap *attrMinMax)
 		{
 			AttributeReference *a = (AttributeReference *) expr;
 
-            return (HashMap *) getMapString(attrMinMax, a->name);
+            return (HashMap *) copyObject(getMapString(attrMinMax, a->name));
 		}
         case T_FunctionCall:
 		{
@@ -874,6 +891,12 @@ computeExprMinMax(Node *expr, HashMap *attrMinMax)
             break;
 
 	}
+
+	ASSERT(MAP_HAS_STRING_KEY(result, MIN_KEY) && MAP_HAS_STRING_KEY(result, MAX_KEY));
+
+	DEBUG_LOG("min max for expression [%s] is %s",
+			  exprToSQL(expr, NULL),
+			  minMaxToString(result));
 
 	return result;
 }

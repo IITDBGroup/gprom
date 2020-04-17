@@ -509,7 +509,8 @@ analyzeFromProvInfo (FromItem *f)
 				f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
 				f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
 
-				setStringProvProperty(fp, PROV_PROP_RADB_LIST, (Node *)provattr);
+				setStringProvProperty(fp, PROV_PROP_RADB_LIST,
+									  (Node *) stringListToConstList(provattr));
 			}
 			if (getStringProvProperty(fp, PROV_PROP_UADB))
 			{
@@ -528,7 +529,8 @@ analyzeFromProvInfo (FromItem *f)
 				f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
 				f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
 
-				setStringProvProperty(fp, PROV_PROP_UADB_LIST, (Node *)provattr);
+				setStringProvProperty(fp, PROV_PROP_UADB_LIST,
+									  (Node *) stringListToConstList(provattr));
 			}
 			//Removing the probability attribute if specified through the XTABLE flag
 			if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))

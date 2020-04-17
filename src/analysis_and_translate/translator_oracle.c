@@ -1252,13 +1252,13 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 		{
 			setStringProperty(op, PROP_HAS_RANGE, (Node *) createConstBool(1));
 			hasProv = TRUE;
-			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_RADB_LIST);
+			from->userProvAttrs = constStringListToStringList((List *) getStringProvProperty(from, PROV_PROP_RADB_LIST));
 		}
 		if (getStringProvProperty(from, PROV_PROP_UADB_LIST))
 		{
 			setStringProperty(op, PROP_HAS_UNCERT, (Node *) createConstBool(1));
 			hasProv = TRUE;
-			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_UADB_LIST);
+			from->userProvAttrs = constStringListToStringList((List *) getStringProvProperty(from, PROV_PROP_UADB_LIST));
 		}
 
 		/* table selected as INCOMPLETE */
@@ -1272,15 +1272,17 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 		{
 			if (getStringProvProperty(from, PROV_PROP_XTABLE_PROB))
 			{
-				setStringProperty(op, PROP_XTABLE_GROUPID, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))));
-				setStringProperty(op, PROP_XTABLE_PROB, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB))));
+				setStringProperty(op, PROP_XTABLE_GROUPID,
+								  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))));
+				setStringProperty(op, PROP_XTABLE_PROB,
+								  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB))));
 				hasProv = TRUE;
-				from->userProvAttrs = LIST_MAKE(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID)), STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB)));
+				from->userProvAttrs = LIST_MAKE(
+					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID)),
+					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB)));
 			}
 		}
     }
-
-
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
