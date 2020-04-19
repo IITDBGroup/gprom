@@ -3007,9 +3007,19 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	Set *rdep = MAKE_STR_SET(getTailOfListP(attpair));
 	Set *jminmax = unionSets(copyObject(ldep),copyObject(rdep));
 	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
-	{
-		ldep = unionSets(ldep, copyObject((Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS)));
-		rdep = unionSets(rdep, copyObject((Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS)));
+	{	
+		Set *pminmax = (Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		Set *lcattr = makeStrSetFromList(getNormalAttrNames(OP_LCHILD(op)));
+		Set *rcattr = makeStrSetFromList(getNormalAttrNames(OP_RCHILD(op)));
+		FOREACH_SET(char, c, pminmax){
+			if(hasSetElem(lcattr,c)){
+				addToSet(ldep, c);
+			}
+			if(hasSetElem(rcattr,c)){
+				addToSet(rdep, c);
+			}
+		}
+		// rdep = unionSets(rdep, copyObject((Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS)));
 		jminmax = unionSets(jminmax, copyObject((Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS)));
 	}
 	// INFO_LOG("MINMAX for l_child: %s", nodeToString(ldep));
@@ -3407,11 +3417,11 @@ rewrite_RangeProjection(QueryOperator *op)
 	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
 	{
 		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
-		removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		// removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
 		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
 		INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
 		INFO_LOG("[Projection] Pushing minmax prop attr %s to child: %s", nodeToString(dependency), nodeToString(newd));
-		setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
 		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
 	}
 
