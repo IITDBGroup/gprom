@@ -284,10 +284,16 @@ rewriteRange(QueryOperator * op)
 			break;
 		case T_SelectionOperator:
 			rewrittenOp = rewrite_RangeSelection(op);
+			// if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
+			// 	SET_STRING_PROP(rewrittenOp, PROP_STORE_POSSIBLE_TREE, (Node *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE));
+			// }
 			INFO_OP_LOG("Range Rewrite Selection:", rewrittenOp);
 			break;
 		case T_ProjectionOperator:
 			rewrittenOp = rewrite_RangeProjection(op);
+			// if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
+			// 	SET_STRING_PROP(rewrittenOp, PROP_STORE_POSSIBLE_TREE, (Node *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE));
+			// }
 			INFO_OP_LOG("Range Rewrite Projection:", rewrittenOp);
 			break;
 		case T_JoinOperator:
@@ -1300,6 +1306,23 @@ rewriteRangeProvComp(QueryOperator *op)
     QueryOperator *top = getHeadOfListP(op->inputs);
 
     top = rewriteRange(top);
+
+  //   union if pos are spliced from bg
+    if (HAS_STRING_PROP(top, PROP_STORE_POSSIBLE_TREE)){
+    	INFO_LOG("[PROV] MERGING BG AND POS: ");
+    	QueryOperator *bgop = top;
+    	QueryOperator *posop = (QueryOperator *)GET_STRING_PROP(bgop, PROP_STORE_POSSIBLE_TREE);
+    	INFO_OP_LOG("[PROV] bgop: ",bgop);
+    	INFO_OP_LOG("[PROV] posop: ",posop);
+    	// top = bgop;
+    	QueryOperator *unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgop, posop), NIL, getNormalAttrNames(bgop));
+		bgop->parents = singleton(unionop);
+		posop->parents = singleton(unionop);
+		// top = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(bgop), bgop, NIL, getNormalAttrNames(bgop));
+		// bgop->parents = singleton(top);
+		// unionop->parents = singleton(top);
+		top = unionop;
+    }
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
@@ -3046,16 +3069,29 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	QueryOperator *rop = OP_RCHILD(op);
 	QueryOperator *ropdup = copyObject(rop);
 
-	QueryOperator *lbg = spliceToBG(lop,lattrnames);
-	QueryOperator *rbg = spliceToBG(rop,rattrnames);
+	QueryOperator *lbg = NULL;
+	QueryOperator *rbg = NULL;
+	QueryOperator *lpos = NULL;
+	QueryOperator *rpos = NULL;
+
+	if(HAS_STRING_PROP(lop, PROP_STORE_POSSIBLE_TREE)){
+		lbg = lop;
+		lpos = (QueryOperator *)GET_STRING_PROP(lop, PROP_STORE_POSSIBLE_TREE);
+	} else {
+		lbg = spliceToBG(lop,lattrnames);
+		lpos = spliceToPOS(lopdup,lattrnames,getHeadOfListP(attpair));
+	}
+	if(HAS_STRING_PROP(rop, PROP_STORE_POSSIBLE_TREE)){
+		rbg = rop;
+		rpos = (QueryOperator *)GET_STRING_PROP(rop, PROP_STORE_POSSIBLE_TREE);
+	} else {
+		rbg = spliceToBG(rop,rattrnames);
+		rpos = spliceToPOS(ropdup,rattrnames,getTailOfListP(attpair));
+	}
 
 	INFO_OP_LOG("lbg:", lbg);
-	INFO_OP_LOG("rbg:", rbg);
-
-	QueryOperator *lpos = spliceToPOS(lopdup,lattrnames,getHeadOfListP(attpair));
-	QueryOperator *rpos = spliceToPOS(ropdup,rattrnames,getTailOfListP(attpair));
-
 	printECPro(lpos);
+	INFO_OP_LOG("rbg:", rbg);
 	printECPro(rpos);
 
 	// INFO_OP_LOG("lpos:", lpos);
@@ -3199,32 +3235,25 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 
 	INFO_OP_LOG("pos proj: ", posProj);
 
-	//union
-
-	QueryOperator *unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgProj, posProj), NIL, alist);
-	switchSubtrees(op, unionop);
-	bgProj->parents = singleton(unionop);
-	posProj->parents = singleton(unionop);
-
-
-	HashMap *hmpunion = NEW_MAP(Node, Node);
+	//save pos to bg
+	HashMap *hmpret = NEW_MAP(Node, Node);
 	FOREACH(char, an, lattrnamesRename){
-		Node *key = (Node *)getAttrRefByName(unionop,an);
+		Node *key = (Node *)getAttrRefByName(bgProj,an);
 		((AttributeReference *)key)->outerLevelsUp = 0;
-		Node *val = (Node *)LIST_MAKE(getAttrRefByName(unionop,getUBString(an)),getAttrRefByName(unionop,getLBString(an)));
-		ADD_TO_MAP(hmpunion, createNodeKeyValue(key, val));
+		Node *val = (Node *)LIST_MAKE(getAttrRefByName(bgProj,getUBString(an)),getAttrRefByName(bgProj,getLBString(an)));
+		ADD_TO_MAP(hmpret, createNodeKeyValue(key, val));
 	}
 	FOREACH(char, an, rattrnamesRename){
-		AttributeReference *key = getAttrRefByName(unionop,an);
+		AttributeReference *key = getAttrRefByName(bgProj,an);
 		key->outerLevelsUp = 0;
-		AttributeReference *ub = getAttrRefByName(unionop,getUBString(an));
-		AttributeReference *lb = getAttrRefByName(unionop,getLBString(an));
+		AttributeReference *ub = getAttrRefByName(bgProj,getUBString(an));
+		AttributeReference *lb = getAttrRefByName(bgProj,getLBString(an));
 		Node *val = (Node *)LIST_MAKE(ub,lb);
-		ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)key, val));
+		ADD_TO_MAP(hmpret, createNodeKeyValue((Node *)key, val));
 	}
-	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_CERTAIN), (Node *)getAttrRefByName(unionop, ROW_CERTAIN)));
-	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(unionop, ROW_BESTGUESS)));
-	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getAttrRefByName(unionop, ROW_POSSIBLE)));
+	ADD_TO_MAP(hmpret, createNodeKeyValue((Node *)createAttributeReference(ROW_CERTAIN), (Node *)getAttrRefByName(bgProj, ROW_CERTAIN)));
+	ADD_TO_MAP(hmpret, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(bgProj, ROW_BESTGUESS)));
+	ADD_TO_MAP(hmpret, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getAttrRefByName(bgProj, ROW_POSSIBLE)));
 
 	// INFO_LOG("joinNames: %s", stringListToString(joinNames));
 	// INFO_LOG("unionNames: %s", stringListToString(alist));
@@ -3232,9 +3261,51 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	// QueryOperator* ret = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(unionop),unionop,NIL,alist);
 	// switchSubtrees(unionop, ret);
 	// unionop->parents = singleton(ret);
-	setStringProperty(unionop, "UNCERT_MAPPING", (Node *)hmpunion);
+	setStringProperty(bgProj, "UNCERT_MAPPING", (Node *)hmpret);
+	setStringProperty(posProj, "UNCERT_MAPPING", (Node *)hmpret);
 
-	return unionop;
+	setStringProperty(bgProj, PROP_STORE_POSSIBLE_TREE, (Node *)posProj);
+
+	switchSubtrees(op, bgProj);
+
+	return bgProj;
+
+	//union
+
+	// QueryOperator *unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgProj, posProj), NIL, alist);
+	// switchSubtrees(op, unionop);
+	// bgProj->parents = singleton(unionop);
+	// posProj->parents = singleton(unionop);
+
+
+	// HashMap *hmpunion = NEW_MAP(Node, Node);
+	// FOREACH(char, an, lattrnamesRename){
+	// 	Node *key = (Node *)getAttrRefByName(unionop,an);
+	// 	((AttributeReference *)key)->outerLevelsUp = 0;
+	// 	Node *val = (Node *)LIST_MAKE(getAttrRefByName(unionop,getUBString(an)),getAttrRefByName(unionop,getLBString(an)));
+	// 	ADD_TO_MAP(hmpunion, createNodeKeyValue(key, val));
+	// }
+	// FOREACH(char, an, rattrnamesRename){
+	// 	AttributeReference *key = getAttrRefByName(unionop,an);
+	// 	key->outerLevelsUp = 0;
+	// 	AttributeReference *ub = getAttrRefByName(unionop,getUBString(an));
+	// 	AttributeReference *lb = getAttrRefByName(unionop,getLBString(an));
+	// 	Node *val = (Node *)LIST_MAKE(ub,lb);
+	// 	ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)key, val));
+	// }
+	// ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_CERTAIN), (Node *)getAttrRefByName(unionop, ROW_CERTAIN)));
+	// ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(unionop, ROW_BESTGUESS)));
+	// ADD_TO_MAP(hmpunion, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getAttrRefByName(unionop, ROW_POSSIBLE)));
+
+	// // INFO_LOG("joinNames: %s", stringListToString(joinNames));
+	// // INFO_LOG("unionNames: %s", stringListToString(alist));
+
+	// // QueryOperator* ret = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(unionop),unionop,NIL,alist);
+	// // switchSubtrees(unionop, ret);
+	// // unionop->parents = singleton(ret);
+	// setStringProperty(unionop, "UNCERT_MAPPING", (Node *)hmpunion);
+
+	// return unionop;
 }
 
 static List*
@@ -3322,6 +3393,10 @@ rewrite_RangeSelection(QueryOperator *op)
 
 	// rewrite child first
     rewriteRange(OP_LCHILD(op));
+    QueryOperator *pos = NULL;
+    if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
+    	pos = (QueryOperator *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE);
+    }
 
     INFO_LOG("REWRITE-RANGE - Selection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
@@ -3331,7 +3406,7 @@ rewrite_RangeSelection(QueryOperator *op)
     //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
     List *attrExpr = getNormalAttrProjectionExprs(op);
     FOREACH(Node, nd, attrExpr){
-        	addRangeAttrToSchema(hmp, op, nd);
+        addRangeAttrToSchema(hmp, op, nd);
     }
     addRangeRowToSchema(hmp, op);
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
@@ -3356,6 +3431,18 @@ rewrite_RangeSelection(QueryOperator *op)
     setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
     duplicateMinMaxNameProp(op, proj);
+
+    if(pos){
+    	QueryOperator *cpop = copyObject(op);
+    	cpop->inputs = singleton(pos);
+    	pos->parents = singleton(cpop);
+    	QueryOperator *cpproj = copyObject(proj);
+    	cpproj->inputs = singleton(cpop);
+    	cpop->parents = singleton(cpproj);
+    	cpproj->parents = NIL;
+    	SET_STRING_PROP(proj, PROP_STORE_POSSIBLE_TREE, (Node *)cpproj);
+    	INFO_OP_LOG("[Selection] REWRITTEN POS BRACH: ", cpproj);
+    }
 
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
 
@@ -3427,6 +3514,10 @@ rewrite_RangeProjection(QueryOperator *op)
 
     //rewrite child first
     rewriteRange(OP_LCHILD(op));
+    QueryOperator *pos = NULL;
+    if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
+    	pos = (QueryOperator *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE);
+    }
 
     INFO_LOG("REWRITE-RANGE - Projection");
     INFO_OP_LOG("Operator tree ", op);
@@ -3435,7 +3526,7 @@ rewrite_RangeProjection(QueryOperator *op)
     //get child hashmap
     HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
     List *attrExpr = getNormalAttrProjectionExprs(op);
-   INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
+   	INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
    	// INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
     List *uncertlist = NIL;
     int ict = 0;
@@ -3457,6 +3548,16 @@ rewrite_RangeProjection(QueryOperator *op)
     setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
 
     // INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
+    if(pos){
+    	QueryOperator *cpop = copyObject(op);
+    	cpop->inputs = singleton(pos);
+    	pos->parents = singleton(cpop);
+    	cpop->parents = NIL;
+    	SET_STRING_PROP(op, PROP_STORE_POSSIBLE_TREE, (Node *)cpop);
+    	INFO_OP_LOG("[PROJECTION] REWRITTEN POS BRACH: ", cpop);
+    }
+
+
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
 
     return op;
