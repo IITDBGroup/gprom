@@ -1763,7 +1763,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     List *coaParaValueList = NIL;
     List *attrRangeList = NIL;
-    // int rangeLen = 0;
+    int rangeLen = 0;
     char *ptype = "";
     List *pattrs = NIL;
     Constant* hvalue = NULL;
