@@ -1798,6 +1798,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     }
 
     DEBUG_LOG("list length is %d", coaParaValueList->length);
+    DEBUG_LOG("range length is %d", rangeLen);
     //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
     FOREACH(KeyValue, kv, coaParaValueList)
     {
