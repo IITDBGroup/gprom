@@ -524,6 +524,7 @@ makeConst(DataType dt)
 		return result;
 	}
 	}
+    return NULL;
 }
 
 Constant *
