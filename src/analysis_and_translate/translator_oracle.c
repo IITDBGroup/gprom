@@ -1715,21 +1715,20 @@ visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 {
     if (n == NULL)
         return TRUE;
+    if (isA(n, AttributeReference))
+    {
+    	//int count = 0;
+    	AttributeReference *attrRef = (AttributeReference *) n;
 
-    	if (isA(n, AttributeReference))
+    	if(attrRef->outerLevelsUp != -1)
     	{
-    		//int count = 0;
-    		AttributeReference *attrRef = (AttributeReference *) n;
-
-    		if(attrRef->outerLevelsUp != -1)
+    		List *state = (List *)getNthOfListP(offsetsList, attrRef->outerLevelsUp);
+    		if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
     		{
-    			List *state = (List *)getNthOfListP(offsetsList, attrRef->outerLevelsUp);
-    			if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
-    			{
-    				attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
-    				attrRef->fromClauseItem = 0;
-    			}
+    			attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
+    			attrRef->fromClauseItem = 0;
     		}
+    	}
 //    		FOREACH(List, state, offsetsList)
 //    	    	{
 //    			if(attrRef->outerLevelsUp == count)
@@ -1743,7 +1742,7 @@ visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 //    			}
 //    			count ++;
 //    	    	}
-    	}
+    }
 
     return visit(n, visitAttrRefToSetNewAttrPosList, offsetsList);
 }
