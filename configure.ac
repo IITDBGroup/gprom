@@ -644,10 +644,49 @@ AS_CASE(["$enable_cplex"],
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
 AS_CASE(["$enable_oracle"],
-  [yes], [AC_ORACLE_ALL_CHECKS],
+#####<<<<<<< HEAD
+#####  [yes], [AC_ORACLE_ALL_CHECKS],
+#####  [no], [],
+#####  [AC_ORACLE_ALL_CHECKS]
+#####)
+#####=======
+  [yes], [
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_OCI_LOCATION
+  AC_OCIH_LOCATION
+  AC_OCI_LIB_LOCATION
+  AC_OCILIB_LOCATION
+# check for the libraries
+  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
+    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
+    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  ],
   [no], [],
-  [AC_ORACLE_ALL_CHECKS]
-)
+  [
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_OCI_LOCATION
+  AC_OCIH_LOCATION
+  AC_OCI_LIB_LOCATION
+  AC_OCILIB_LOCATION
+# check for the libraries
+  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
+    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
+    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  ]
+])
+
 ################################################################################
 # Readline
 AC_CHECK_LIB([readline],[readline],[],[
@@ -666,30 +705,88 @@ AS_IF([test "x$enable_readline" == "xno"], [
 ################################################################################
 # Postgres C client library (libpq)
 AS_CASE(["$enable_postgres"],
-  [yes], [AC_POSTGRES_ALL_CHECKS],
-  # Deactivated
+#####<<<<<<< HEAD
+#####  [yes], [AC_POSTGRES_ALL_CHECKS],
+#####  # Deactivated
+#####  [no], [],
+#####  # Default (active)
+#####  [AC_POSTGRES_ALL_CHECKS]
+#####=======
+  [yes], [
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_LIBPQ_LOCATION
+  AC_CHECK_HEADERS([libpq-fe.h])
+# check for the libpq library
+  AC_CHECK_LIB([pq],[PQconndefaults],[],[
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
+  ])
+  ],
   [no], [],
-  # Default (active)
-  [AC_POSTGRES_ALL_CHECKS]
+  [
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_LIBPQ_LOCATION
+  AC_CHECK_HEADERS([libpq-fe.h])
+# check for the libpq library
+  AC_CHECK_LIB([pq],[PQconndefaults],[],[
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
+  ])
+  ]
+
 )
 ################################################################################
 # SQlite library (libsqlite3)
 # check for the sqlite3 library
 AS_CASE(["$enable_sqlite"],
-	[yes], [AC_SQLITE_ALL_CHECKS],
-    # Deactivated
-    [no], [],
-    # Default (active)
-	[AC_SQLITE_ALL_CHECKS]
+#####<<<<<<< HEAD
+#####	[yes], [AC_SQLITE_ALL_CHECKS],
+#####    # Deactivated
+#####    [no], [],
+#####    # Default (active)
+#####	[AC_SQLITE_ALL_CHECKS]
+#####=======
+	[yes], [
+	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+	])
+	],
+	[no], [],
+	[
+	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+	])
+	]
+
 )
 ################################################################################
 # MonetDB C client library (mapi)
 AS_CASE(["$enable_monetdb"],
-  [yes], [AC_MONETDB_ALL_CHECKS],
-# Deactivated
+#####<<<<<<< HEAD
+#####  [yes], [AC_MONETDB_ALL_CHECKS],
+##### # Deactivated
+#####  [no], [],
+##### # Default (active)
+#####  [AC_MONETDB_ALL_CHECKS]
+#####=======
+  [yes], [
+# user has provided us with a non-standard location for MonetDB Mapi library
+  AC_MAPI_LOCATION
+  AC_CHECK_HEADERS([monetdb/mapi.h])
+# check for the mapi library
+  AC_CHECK_LIB([mapi],[mapi_unquote],[],[
+    AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
+  ])
+  ],
   [no], [],
-# Default (active)
-  [AC_MONETDB_ALL_CHECKS]
+  [
+# user has not provided us with a non-standard location for MonetDB Mapi library
+  AC_MAPI_LOCATION
+  AC_CHECK_HEADERS([monetdb/mapi.h])
+# check for the libpq library
+  AC_CHECK_LIB([mapi],[mapi_unquote],[],[
+    AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
+  ])
+  ]
+
 )
 ################################################################################
 # enable/disable features
@@ -728,6 +825,7 @@ AC_CONFIG_FILES([
 	src/model/expression/Makefile
 	src/model/helperfunction/Makefile
 	src/model/list/Makefile
+	src/model/bitset/Makefile
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
@@ -736,6 +834,7 @@ AC_CONFIG_FILES([
     src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
+	src/provenance_rewriter/coarse_grained/Makefile
 	src/provenance_rewriter/game_provenance/Makefile
 	src/provenance_rewriter/semiring_combiner/Makefile
 	src/provenance_rewriter/uncertainty_rewrites/Makefile
@@ -744,6 +843,8 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/provenance_rewriter/summarization_rewrites/Makefile
 	src/provenance_rewriter/xml_rewrites/Makefile
+	src/provenance_rewriter/lateral_rewrites/Makefile
+	src/provenance_rewriter/unnest_rewrites/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile

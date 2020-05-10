@@ -31,6 +31,29 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         Set *haveSeen);
 
 
+QueryOperator *
+findNestingOperator (QueryOperator *op, int levelsUp)
+{
+    QueryOperator *result = op;
+
+    FOREACH(QueryOperator, p, result->parents)
+    {
+            if(isA(p, NestingOperator))
+            {
+                levelsUp --;
+                if(levelsUp == 0)
+                    return p;
+                else
+                    return findNestingOperator(p, levelsUp);
+            }
+            else
+                return findNestingOperator(p, levelsUp);
+    }
+
+    return result;
+}
+
+
 Schema *
 createSchema(char *name, List *attrDefs)
 {
@@ -510,6 +533,7 @@ inferOpResultDTs (QueryOperator *op)
                     nType = DT_BOOL;
                 }
                 case NESTQ_SCALAR:
+                case NESTQ_LATERAL:
                 {
                     nType = DT_STRING; //TODO
                 }
@@ -1190,7 +1214,7 @@ getAttrRefByName(QueryOperator *op, char *attr)
 
     AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
             getAttrPos(op, attr),
-            INVALID_ATTR,
+            0,
             d->dataType);
 
     return res;
@@ -1281,6 +1305,26 @@ aggOpGetAggAttrNames(AggregationOperator *op)
 
     return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }
+
+List *
+aggOpGetGroupByAttrDefs(AggregationOperator *op)
+{
+    List *result = (List *) copyObject(((QueryOperator *) op)->schema->attrDefs);
+
+    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
+}
+
+List *
+aggOpGetAggAttrDefs(AggregationOperator *op)
+{
+	List *result = (List *) copyObject(((QueryOperator *) op)->schema->attrDefs);
+
+    if (LIST_LENGTH(op->aggrs) == 0)
+        return NIL;
+
+    return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
+}
+
 
 WindowFunction *
 winOpGetFunc (WindowOperator *op)

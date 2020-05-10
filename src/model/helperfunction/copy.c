@@ -16,11 +16,13 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
 #include "model/rpq/rpq_model.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 /* data structures for copying operator nodes */
 typedef struct OperatorMap
@@ -56,6 +58,7 @@ static List *deepCopyList(List *from, OperatorMap **opMap);
 static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
+static BitSet *deepCopyBitSet(BitSet *from, OperatorMap **opMap);
 
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
@@ -72,6 +75,7 @@ static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
 static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
+static QuantifiedComparison *copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap);
 static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
 
 /*schema helper functions*/
@@ -134,6 +138,10 @@ static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
 /* copy regex elements */
 static Regex *copyRegex(Regex *from, OperatorMap **opMap);
 static RPQQuery *copyRPQQuery(RPQQuery *from, OperatorMap **opMap);
+
+/* copy structure for provenance sketch */
+static psInfo *copyPSInfo(psInfo *from, OperatorMap **opMap);
+static psAttrInfo *copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -249,6 +257,14 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     }
 
     return new;
+}
+
+static BitSet *
+deepCopyBitSet(BitSet *from, OperatorMap **opMap)
+{
+	BitSet *new = copyBitSet(from);
+
+	return new;
 }
 
 static DLAtom *
@@ -507,6 +523,19 @@ copyOrderExpr(OrderExpr *from, OperatorMap **opMap)
     return new;
 }
 
+static QuantifiedComparison *
+copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap)
+{
+    COPY_INIT(QuantifiedComparison);
+
+    COPY_NODE_FIELD(checkExpr);
+    COPY_NODE_FIELD(exprList);
+    COPY_SCALAR_FIELD(qType);
+    COPY_STRING_FIELD(opName);
+
+    return new;
+}
+
 static CastExpr *
 copyCastExpr(CastExpr *from, OperatorMap **opMap)
 {
@@ -514,6 +543,8 @@ copyCastExpr(CastExpr *from, OperatorMap **opMap)
 
     COPY_SCALAR_FIELD(resultDT);
     COPY_NODE_FIELD(expr);
+    COPY_STRING_FIELD(otherDT);
+    COPY_SCALAR_FIELD(num);
 
     return new;
 }
@@ -534,6 +565,31 @@ copySchema(Schema *from, OperatorMap **opMap)
     COPY_INIT(Schema);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(attrDefs);
+
+    return new;
+}
+
+static psInfo *
+copyPSInfo(psInfo *from, OperatorMap **opMap)
+{
+    COPY_INIT(psInfo);
+
+    COPY_STRING_FIELD(psType);
+    COPY_NODE_FIELD(tablePSAttrInfos);
+
+    return new;
+}
+
+
+static psAttrInfo *
+copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap)
+{
+    COPY_INIT(psAttrInfo);
+
+    COPY_STRING_FIELD(attrName);
+    COPY_NODE_FIELD(rangeList);
+    COPY_NODE_FIELD(BitVector);
+    COPY_NODE_FIELD(psIndexList);
 
     return new;
 }
@@ -1086,6 +1142,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_Vector:
             retval = deepCopyVector(from, opMap);
             break;
+        case T_BitSet:
+            retval = deepCopyBitSet(from, opMap);
+            break;
 
         /* expression model */
         case T_AttributeReference:
@@ -1136,6 +1195,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderExpr:
             retval = copyOrderExpr(from, opMap);
             break;
+        case T_QuantifiedComparison:
+        	    retval = copyQuantifiedComparison(from, opMap);
+        	    break;
         case T_CastExpr:
             retval = copyCastExpr(from, opMap);
             break;
@@ -1280,6 +1342,14 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_RPQQuery:
             retval = copyRPQQuery(from, opMap);
+            break;
+
+        /* provenance sketch */
+        case T_psInfo:
+            retval = copyPSInfo(from, opMap);
+            break;
+        case T_psAttrInfo:
+            retval = copyPSAttrInfo(from, opMap);
             break;
         default:
             retval = NULL;

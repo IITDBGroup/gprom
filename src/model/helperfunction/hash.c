@@ -19,8 +19,10 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/list/list.h"
 #include "log/logger.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 // hash constants
 #define FNV_OFFSET ((uint64_t) 14695981039346656037U)
@@ -49,6 +51,7 @@ static uint64_t hashSet (uint64_t cur, Set *node);
 static uint64_t hashHashMap (uint64_t cur, HashMap *node);
 static uint64_t hashVector (uint64_t cur, Vector *node);
 static uint64_t hashKeyValue (uint64_t cur, KeyValue *node);
+static uint64_t hashBitSet (uint64_t cur, BitSet *node);
 
 // hash for expression nodes
 static uint64_t hashConstant (uint64_t cur, Constant *node);
@@ -67,6 +70,7 @@ static uint64_t hashFunctionCall (uint64_t cur, FunctionCall *node);
 static uint64_t hashOperator (uint64_t cur, Operator *node);
 static uint64_t hashRowNumExpr (uint64_t cur, RowNumExpr *node);
 static uint64_t hashOrderExpr (uint64_t cur, OrderExpr *node);
+static uint64_t hashQuantifiedComparison (uint64_t cur, QuantifiedComparison *node);
 static uint64_t hashCastExpr (uint64_t cur, CastExpr *node);
 static uint64_t hashSetQuery (uint64_t cur, SetQuery *node);
 static uint64_t hashProvenanceStmt (uint64_t cur, ProvenanceStmt *node);
@@ -111,6 +115,10 @@ static uint64_t hashDLVar (uint64_t cur, DLVar *node);
 static uint64_t hashDLRule (uint64_t cur, DLRule *node);
 static uint64_t hashDLProgram (uint64_t cur, DLProgram *node);
 static uint64_t hashDLComparison (uint64_t cur, DLComparison *node);
+
+// hash structure for provenance sketch
+static uint64_t hashPSInfo (uint64_t cur, psInfo *node);
+static uint64_t hashPSAttrInfo (uint64_t cur, psAttrInfo *node);
 
 // hash function entry point
 static uint64_t hashValueInternal(uint64_t h, void *a);
@@ -258,6 +266,17 @@ hashVector (uint64_t cur, Vector *node)
     }
 
     HASH_RETURN();
+}
+
+static uint64_t
+hashBitSet (uint64_t cur, BitSet *node)
+{
+	for(int i = 0; i < node->numWords; i++)
+	{
+		hashLong(cur, node->value[i]);
+	}
+
+	HASH_RETURN();
 }
 
 /* expression node hash functions */
@@ -431,12 +450,26 @@ hashOrderExpr (uint64_t cur, OrderExpr *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashQuantifiedComparison (uint64_t cur, QuantifiedComparison *node)
+{
+    HASH_NODE(checkExpr);
+    HASH_NODE(exprList);
+    HASH_INT(qType);
+    HASH_STRING(opName);
+
+    HASH_RETURN();
+}
+
 
 static uint64_t
 hashCastExpr (uint64_t cur, CastExpr *node)
 {
     HASH_INT(resultDT);
     HASH_NODE(expr);
+
+    HASH_STRING(otherDT);
+    HASH_INT(num);
 
     HASH_RETURN();
 }
@@ -889,6 +922,26 @@ hashDLComparison (uint64_t cur, DLComparison *node)
 }
 
 
+static uint64_t
+hashPSInfo (uint64_t cur, psInfo *node)
+{
+	HASH_STRING(psType);
+	HASH_NODE(tablePSAttrInfos);
+
+	HASH_RETURN();
+}
+
+
+static uint64_t
+hashPSAttrInfo (uint64_t cur, psAttrInfo *node)
+{
+	HASH_STRING(attrName);
+	HASH_NODE(rangeList);
+	HASH_NODE(BitVector);
+	HASH_NODE(psIndexList);
+
+	HASH_RETURN();
+}
 
 
 /* generic hash function */
@@ -917,6 +970,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashHashMap(h, (HashMap *) n);
         case T_Vector:
             return hashVector(h, (Vector *) n);
+	    case T_BitSet:
+      		return hashBitSet(h, (BitSet *)n );
         case T_KeyValue:
             return hashKeyValue(h, (KeyValue *) n);
         case T_Constant:
@@ -947,6 +1002,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashRowNumExpr(h, (RowNumExpr *) n);
         case T_OrderExpr:
             return hashOrderExpr(h, (OrderExpr *) n);
+        case T_QuantifiedComparison:
+            return hashQuantifiedComparison(h, (QuantifiedComparison *) n);
         case T_CastExpr:
             return hashCastExpr(h, (CastExpr *) n);
             /* query block nodes */
@@ -1026,6 +1083,12 @@ hashValueInternal(uint64_t h, void *a)
             return hashDLProgram(h, (DLProgram *) n);
         case T_DLComparison:
             return hashDLComparison(h, (DLComparison *) n);
+
+        /* provenance sketch */
+	    case T_psInfo:
+      		return hashPSInfo(h, (psInfo *)n );
+	    case T_psAttrInfo:
+      		return hashPSAttrInfo(h, (psAttrInfo *)n );
         default:
             FATAL_LOG("unknown node type");
             break;

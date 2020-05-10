@@ -657,7 +657,11 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		    ASSERT(isA(q,SelectionOperator));
 
 		    // add SCN attribute to schema and turn NOT(C) into NOT(C) OR SCN > X to selection condition
-            DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond, NULL)); //TODO deal with nested subqueries
+//<<<<<<< HEAD
+//            DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond, NULL)); //TODO deal with nested subqueries
+//=======
+            DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond, NULL));
+
 
             // adding SCN < update SCN condition
             scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
@@ -715,7 +719,11 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 						Node *when = whenC->when;
 						Node *newCond;
 
-						DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp, NULL)); //TODO support nested subqueries
+//<<<<<<< HEAD
+//						DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp, NULL)); //TODO support nested subqueries
+//=======
+						DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp, NULL));
+
 
 						// adding SCN < update SCN condition
 						scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
@@ -726,7 +734,11 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 						newWhen = ((when == NULL) || equal(when,createConstBool(TRUE))) ?  newCond : AND_EXPRS(when, newCond);
 						whenC->when = newWhen;
-						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp, NULL)); //TODO support nested subqueries
+//<<<<<<< HEAD
+//						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp, NULL)); //TODO support nested subqueries
+//=======
+						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp, NULL));
+
 				    }
 					// check if is part of the set clause for an update without WHERE clause
 					else if (j < LIST_LENGTH(upd->schema))

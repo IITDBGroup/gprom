@@ -13,7 +13,7 @@
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
-
+#include "configuration/option.h"
 #include "log/logger.h"
 
 #include "sql_serializer/sql_serializer_common.h"
@@ -34,14 +34,14 @@ static SerializeClausesAPI *api = NULL;
 static void createAPI (void);
 static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
-        int* curFromItem, int* attrOffset, List** fromAttrs, SerializeClausesAPI *api);
+        int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
 static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize, SerializeClausesAPI *api);
-static void serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
-        int* curFromItem, SerializeClausesAPI *api);
+        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
+static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
+        int* curFromItem,  SerializeClausesAPI *api);
 static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
-        List** fromAttrs, int* attrOffset, SerializeClausesAPI *api);
-static List *serializeSetOperator(QueryOperator *q, StringInfo str, SerializeClausesAPI *api);
+		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api);
+static List *serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api);
 
 char *
 serializeOperatorModelPostgres(Node *q)
@@ -53,7 +53,10 @@ serializeOperatorModelPostgres(Node *q)
     createAPI();
 
     // quote idents for postgres
-    genQuoteAttributeNames(q);
+
+    if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+		genQuoteAttributeNames(q);
+
     DEBUG_OP_LOG("after attr quoting", q);
 
     // add casts to null constants to make postgres aware of their types
@@ -123,8 +126,11 @@ serializeQueryPostgres(QueryOperator *q)
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
 
+    // initialize FromAttrsContext structure
+  	struct FromAttrsContext *fac = initializeFromAttrsContext();
+
     // call main entry point for translation
-    api->serializeQueryOperator (q, str, NULL, api);
+    api->serializeQueryOperator (q, str, NULL, fac, api);
 
     /*
      *  prepend the temporary view definition to create something like
@@ -219,13 +225,16 @@ createAPI (void)
 
 static void
 serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
-        int* curFromItem, int* attrOffset, List** fromAttrs, SerializeClausesAPI *api)
+        int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     int rOffset;
     appendStringInfoString(from, "(");
     //left child
     api->serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset,
-            fromAttrs, api);
+            fac, api);
+
+    fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+
     // join
     switch (j->joinType)
     {
@@ -248,12 +257,12 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
     // right child
     rOffset = *curFromItem;
     api->serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset,
-            fromAttrs, api);
+            fac, api);
     // join condition
     if (j->cond)
         appendStringInfo(from, " ON (%s)",
                 exprToSQLWithNamingScheme(copyObject(j->cond), rOffset,
-                        *fromAttrs));
+                        fac));
     appendStringInfoString(from, ")");
 }
 
@@ -262,7 +271,7 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
  */
 static List *
 serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize, SerializeClausesAPI *api)
+        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api)
 {
     int pos = 0;
     List *firstProjs = NIL;
@@ -290,7 +299,11 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         FOREACH(Node,n,m->secondProj->projExprs)
         {
-            updateAttributeNames(n, fromAttrs);
+//<<<<<<< HEAD
+//            updateAttributeNames(n, fromAttrs);
+//=======
+            updateAttributeNames(n, fac);
+
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
@@ -306,7 +319,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         // aggregation
         FOREACH(Node,expr,agg->aggrs)
         {
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
@@ -324,7 +337,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             else
                 appendStringInfoString (groupBy, ", ");
 
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
@@ -357,14 +370,14 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
                                 (WindowOperator *) curOp), NULL));
 
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fromAttrs, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fromAttrs, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fac, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fac, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
 
             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
                     (WindowOperator *) curOp), NULL));
@@ -419,7 +432,11 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 updateAggsAndGroupByAttrs(a, state);
             // is projection in query without aggregation
             else
-                updateAttributeNames(a, fromAttrs);
+//<<<<<<< HEAD
+//                updateAttributeNames(a, fromAttrs);
+//=======
+                updateAttributeNames(a, fac);
+
             appendStringInfo(select, "%s%s", exprToSQL(a, NULL), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
@@ -476,10 +493,16 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         // attribute aliases are determined by the fromRoot operator's schema
         resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
         // construct list of from clause attribute names with from clause item aliases
-        FOREACH(List, attrs, fromAttrs)
+//        FOREACH(List, attrs, fromAttrs)
+//        {
+//            FOREACH(char,name,attrs)
+//                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name));
+//            fromItem++;
+//        }
+        FOREACH(List, attrs, fac->fromAttrs)
         {
             FOREACH(char,name,attrs)
-                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name));
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList) - 1), ".", name));
             fromItem++;
         }
 
@@ -501,12 +524,14 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 }
 
 static void
-serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
+serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem, SerializeClausesAPI *api)
 {
     int pos = 0;
     List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
-    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     appendStringInfoString(from, "(SELECT ");
     FOREACH(char,attrName,attrNames)
     {
@@ -517,12 +542,16 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
         appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL), attrName);
 
     }
-    appendStringInfo(from, ") F%u", (*curFromItem)++);
+
+    appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
 }
 
+//static void
+//serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+//        List** fromAttrs, int* attrOffset, SerializeClausesAPI *api)
 static void
 serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
-        List** fromAttrs, int* attrOffset, SerializeClausesAPI *api)
+		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api)
 {
     char* asOf = NULL;
 
@@ -578,7 +607,9 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
                     (*curFromItem)++);
         }
-        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+        //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+        fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     }
     else
     {
@@ -606,7 +637,12 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         }
 
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
-        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+        //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+        fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+        DEBUG_LOG("table access append fac->fromAttrsList");
+        //append fromAttrs into fromAttrsList, e.g., fromAttrs: ((A,B)), fromAttrsList: ( ((A,B)) )
+        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+        printFromAttrsContext(fac);
 
         //for temporal database coalesce
         if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
@@ -614,7 +650,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             QueryOperator *inp = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(t,PROP_TEMP_TNTAB));
             StringInfo tabName = makeStringInfo();
             QueryOperator *inpParent = (QueryOperator *) getHeadOfListP(inp->parents);
-            api->createTempView(inp, tabName,inpParent, api);
+            api->createTempView(inp, tabName,inpParent, fac, api);
             appendStringInfo(from, "generate_series(1,(SELECT MAX(NUMOPEN) FROM (%s) F0)) F%u(n)",
                     tabName->data, (*curFromItem)++);
 //            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0))) F%u)",
@@ -622,9 +658,21 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         }
         else
         {
-            appendStringInfo(from, "%s%s AS F%u",
-                    quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
-                    (*curFromItem)++);
+//            appendStringInfo(from, "%s%s AS F%u",
+//                    quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
+//                    (*curFromItem)++);
+        	if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+        	{
+    			appendStringInfo(from, "%s%s F%u_%u",
+    					quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
+    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+        	}
+        	else
+        	{
+    			appendStringInfo(from, "%s%s F%u_%u",
+    					t->tableName, asOf ? asOf : "",
+    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+        	}
         }
 
 
@@ -635,13 +683,13 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
  * Serialize a set operation UNION/EXCEPT/INTERSECT
  */
 static List *
-serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api)
+serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
 
     // output left child
-    resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
+    resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, fac, api);
 
     // output set operation
     switch(setOp->setOpType)
@@ -658,7 +706,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
     }
 
     // output right child
-    api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
+    api->serializeQueryOperator(OP_RCHILD(q), str, q, fac, api);
 
     return resultAttrs;
 }

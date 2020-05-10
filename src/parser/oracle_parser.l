@@ -232,6 +232,17 @@ strconcat		"||"
 (?i:URANGE)			TOK(URANGE)
 (?i:RADB)			TOK(RADB)
 (?i:UADB)			TOK(UADB)
+(?i:VTABLE) 		TOK(VTABLE)
+(?i:CAPTURE)		TOK(CAPTURE)
+(?i:COARSE)			TOK(COARSE)
+(?i:GRAINED)		TOK(GRAINED)
+(?i:FRAGMENT)		TOK(FRAGMENT)
+(?i:PAGE)		TOK(PAGE)
+(?i:RANGESA)		TOK(RANGESA)
+(?i:RANGESB)		TOK(RANGESB)
+(?i:HASH)		TOK(HASH)
+(?i:CAPTUREUSE)		TOK(CAPTUREUSE)
+
 
 	/* booleans */
 {bool}			TOK(boolConst)
@@ -261,7 +272,7 @@ strconcat		"||"
 
 
 	/* numbers */
-{integer}	TOKSAVE(intConst,intVal,atoi)
+{integer}	TOKSAVE(intConst,intVal,atoll)
 {float}		TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */

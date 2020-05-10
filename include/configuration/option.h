@@ -103,6 +103,22 @@ NEW_ENUM_WITH_TO_STRING(
 #define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
 #define TEMPORAL_AGG_WITH_NORM "temporal_combine_agg_and_norm"
 
+/* lateral rewrite for nesting operator */
+#define OPTION_LATERAL_REWRITE "lateral_rewrite"
+#define OPTION_UNNEST_REWRITE "unnest_rewrite"
+#define OPTION_AGG_REDUCTION_MODEL_REWRITE "agg_reduction_model_rewrite"
+
+/* use provenance scratch */
+#define OPTION_MAX_NUMBER_PARTITIONS_FOR_USE "number_max_paritions_for_use"
+#define OPTION_BIT_VECTOR_SIZE "bit_vector_size"
+#define OPTION_PS_BINARY_SEARCH "ps_bianry_search"
+#define OPTION_PS_SETTINGS "ps_settings"
+#define OPTION_PS_SET_BITS "set_bits"
+#define OPTION_PS_USE_BRIN_OP "us_brin_op"
+#define OPTION_PS_ANALYZE "ps_analyze"
+#define OPTION_PS_USE_NEST "ps_use_nest"
+#define OPTION_PS_POST_TO_ORACLE "ps_post_to_oracle"
+
 // backend types
 NEW_ENUM_WITH_TO_STRING(
     BackendType,
@@ -180,6 +196,11 @@ extern boolean cost_based_close_option_removedp_by_set;
 extern boolean temporal_use_coalesce;
 extern boolean temporal_use_normalization;
 extern boolean temporal_use_normalization_window;
+
+// lateral rewrite for nesting operator
+extern boolean opt_lateral_rewrite;
+extern boolean opt_unnest_rewrite;
+extern boolean opt_agg_reduction_model_rewrite;
 
 // optimization options for group by
 extern boolean opt_optimization_push_down_group_by_operator_through_join;

@@ -16,12 +16,14 @@
 #include "model/set/set.h"
 #include "model/set/vector.h"
 #include "model/set/hashmap.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
 #include "model/rpq/rpq_model.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -33,6 +35,7 @@ static void outStringList (StringInfo str, List *node);
 static void outSet(StringInfo str, Set *node);
 static void outVector(StringInfo str, Vector *node);
 static void outHashMap(StringInfo str, HashMap *node);
+static void outBitSet(StringInfo str, BitSet *node);
 
 // expression types
 static void outConstant (StringInfo str, Constant *node);
@@ -62,6 +65,7 @@ static void outInsert(StringInfo str, Insert *node);
 static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
+static void outQuantifiedComparison (StringInfo str, QuantifiedComparison *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
 static void outCreateTable(StringInfo str, CreateTable *node);
@@ -118,6 +122,9 @@ static void operatorToOverviewInternal(StringInfo str, QueryOperator *op,
         int indent, HashMap *map, boolean printChildren);
 static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
+// for provenance sketch
+static void outPSInfo(StringInfo str, psInfo *node);
+static void outPSAttrInfo(StringInfo str, psAttrInfo *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -361,6 +368,17 @@ outHashMap(StringInfo str, HashMap *node)
     }
 
     appendStringInfo(str, "}");
+}
+
+static void
+outBitSet(StringInfo str, BitSet *node)
+{
+	appendStringInfoChar(str, '[');
+
+	appendStringInfoString(str, bitSetToString(node));
+
+	appendStringInfoChar(str, ']');
+	appendStringInfo(str, " (len:%d)", node->length);
 }
 
 // datalog model
@@ -732,6 +750,9 @@ outCastExpr (StringInfo str, CastExpr *node)
 
     WRITE_ENUM_FIELD(resultDT,DataType);
     WRITE_NODE_FIELD(expr);
+    WRITE_STRING_FIELD(otherDT);
+    WRITE_INT_FIELD(num);
+
 }
 
 static void
@@ -819,6 +840,18 @@ outNestedSubquery (StringInfo str, NestedSubquery *node)
     WRITE_NODE_FIELD(expr);
     WRITE_STRING_FIELD(comparisonOp);
     WRITE_NODE_FIELD(query);
+}
+
+static void
+outQuantifiedComparison (StringInfo str, QuantifiedComparison *node)
+{
+    WRITE_NODE_TYPE(QUANTIFIEDCOMPARISON);
+
+    WRITE_ENUM_FIELD(qType, QuantifiedExprType);
+    WRITE_NODE_FIELD(checkExpr);
+    WRITE_STRING_FIELD(opName);
+    WRITE_NODE_FIELD(exprList);
+
 }
 
 static void
@@ -1055,6 +1088,28 @@ outRPQQuery(StringInfo str, RPQQuery *node)
     WRITE_STRING_FIELD(resultRel);
 }
 
+
+static void
+outPSInfo(StringInfo str, psInfo *node)
+{
+    WRITE_NODE_TYPE(PSINFO);
+
+    WRITE_STRING_FIELD(psType);
+    WRITE_NODE_FIELD(tablePSAttrInfos);
+}
+
+
+static void
+outPSAttrInfo(StringInfo str, psAttrInfo *node)
+{
+    WRITE_NODE_TYPE(PSATTRINFO);
+
+    WRITE_STRING_FIELD(attrName);
+    WRITE_NODE_FIELD(rangeList);
+    WRITE_NODE_FIELD(BitVector);
+    WRITE_NODE_FIELD(psIndexList);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1080,6 +1135,9 @@ outNode(StringInfo str, void *obj)
             case T_HashMap:
                 outHashMap(str, (HashMap *) obj);
                 break;
+		    case T_BitSet:
+				outBitSet(str, (BitSet *) obj);
+			    break;
 
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);
@@ -1153,6 +1211,9 @@ outNode(StringInfo str, void *obj)
             case T_NestedSubquery:
                 outNestedSubquery(str, (NestedSubquery*) obj);
                 break;
+            case T_QuantifiedComparison:
+            		outQuantifiedComparison(str, (QuantifiedComparison *) obj);
+            		break;
             case T_AttributeReference:
                 outAttributeReference(str, (AttributeReference *) obj);
                 break;
@@ -1274,6 +1335,15 @@ outNode(StringInfo str, void *obj)
             case T_RPQQuery:
                 outRPQQuery(str, (RPQQuery *) obj);
                 break;
+
+            /* provenance sketch  */
+		    case T_psInfo:
+				outPSInfo(str, (psInfo *) obj);
+			    break;
+		    case T_psAttrInfo:
+				outPSAttrInfo(str, (psAttrInfo *) obj);
+			    break;
+
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
@@ -1821,9 +1891,10 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             const char *nestingType = (o->nestingType == NESTQ_EXISTS) ? "EXISTS" :
                     ((o->nestingType == NESTQ_ANY) ? "ANY" :
                     ((o->nestingType == NESTQ_ALL) ? "ALL" :
+                    ((o->nestingType == NESTQ_LATERAL) ? "LATERAL" :
                     ((o->nestingType == NESTQ_UNIQUE) ? "UNIQUE" :
                     ((o->nestingType == NESTQ_SCALAR) ? "SCALAR" : "")
-                    )));
+                    ))));
 
             WRITE_NODE_TYPE(NestingOperator);
             appendStringInfo(str, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond, NULL) : "");

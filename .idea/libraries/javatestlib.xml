@@ -1,0 +1,40 @@
+<component name="libraryTable">
+  <library name="javatestlib">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/net.java.dev.jna.jna-platform.jna-platform-4.2.2.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.eclipse.persistence.javax.persistence.javax.persistence-2.1.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.fusesource.jansi.jansi.jansi-1.14.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/net.java.dev.jna.jna.jna-4.2.2.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/javax.activation.activation.activation-1.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/com.conversantmedia.disruptor.disruptor-1.2.10-jdk7.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.hamcrest.hamcrest-core.hamcrest-core-1.3.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.logging.log4j.log4j-core.log4j-core-2.8.2.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/junit.junit.junit-4.12.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/mysql.mysql-connector-java.mysql-connector-java-6.0.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.ant.ant.ant-1.9.7.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.kafka.kafka-clients.kafka-clients-0.10.1.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.jctools.jctools-core.jctools-core-1.2.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.xerial.sqlite-jdbc.sqlite-jdbc-3.15.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/com.lmax.disruptor.disruptor-3.3.6.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.commons.commons-csv.commons-csv-1.4.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.commons.commons-compress.commons-compress-1.13.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.slf4j.slf4j-simple.slf4j-simple-1.7.21.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.antlr.stringtemplate.stringtemplate-4.0.2.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/postgresql.postgresql.postgresql-9.1-901-1.jdbc4.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/net.jpountz.lz4.lz4.lz4-1.3.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.ant.ant-launcher.ant-launcher-1.9.7.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.antlr.antlr-runtime.antlr-runtime-3.3.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/com.beust.jcommander.jcommander-1.48.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.hsqldb.hsqldb.hsqldb-2.3.4.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.ant.ant-junit.ant-junit-1.9.7.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.jboss.spec.javax.jms.jboss-jms-api_1.1_spec.jboss-jms-api_1.1_spec-1.0.1.Final.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.slf4j.slf4j-api.slf4j-api-1.7.24.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.apache.logging.log4j.log4j-api.log4j-api-2.8.2.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/com.sun.mail.javax.mail.javax.mail-1.5.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.zeromq.jeromq.jeromq-0.3.6.jar!/" />
+      <root url="jar://$PROJECT_DIR$/build/javatestlib/org.osgi.org.osgi.core.org.osgi.core-4.3.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

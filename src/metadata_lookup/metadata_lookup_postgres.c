@@ -127,6 +127,9 @@
                      "FROM pg_constraint c, pg_class t, pg_attribute a " \
                      "WHERE c.contype = 'p' AND c.conrelid = t.oid AND t.relname = $1::text AND a.attrelid = t.oid AND a.attnum = ANY(c.conkey);"
 
+#define NAME_GET_HIST "GPRoM_GetHist"
+#define PARAMS_GET_HIST 2
+#define QUERY_GET_HIST "SELECT histogram_bounds FROM pg_stats WHERE tablename = $1::text AND attname = $2::text;"
 
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
@@ -229,6 +232,8 @@ assemblePostgresMetadataLookupPlugin (void)
     p->catalogViewExists = postgresCatalogViewExists;
     p->getAttributes = postgresGetAttributes;
     p->getAttributeNames = postgresGetAttributeNames;
+    p->getHistogram = postgresGetHist;
+    p->getProvenanceSketch = postgresGetPS;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
     p->getFuncReturnType = postgresGetFuncReturnType;
@@ -453,6 +458,7 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_FUNC_DEFS);
     PREP_QUERY(GET_OP_DEFS);
     PREP_QUERY(GET_PK);
+    PREP_QUERY(GET_HIST);
 
     // catalog pg_proc has changed in 11
     if (plugin->serverMajorVersion >= 11)
@@ -819,6 +825,103 @@ postgresGetAttributeNames (char *tableName)
     return attrs;
 }
 
+
+HashMap *
+postgresGetPS (char *sql, List *attrNames)
+{
+    //List *attrs = NIL;
+    PGresult *res = NULL;
+    HashMap *hm = NEW_MAP(Constant,Constant);
+    //ASSERT(postgresCatalogTableExists(tableName));
+
+    //if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName))
+    //    return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrs,tableName);
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+	res = execQuery(sql);
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++) {
+    		for(int j = 0; j < LIST_LENGTH(attrNames); j++) {
+    			//attrs = appendToTailOfList(attrs, strdup(PQgetvalue(res,i,j)));
+    			char *attrName = getNthOfListP(attrNames, j);
+    			MAP_ADD_STRING_KEY(hm, attrName, createConstString(strdup(PQgetvalue(res,i,j))));
+    		}
+    }
+
+    execStmt("commit;");
+    // clear result
+    PQclear(res);
+
+    DEBUG_NODE_LOG("Captured Provenance Sketch :", (Node *) hm);
+    //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+
+    return hm;
+}
+
+List *
+postgresGetHist (char *tableName, char *attrName, int numPartitions)
+{
+    List *attrs = NIL;
+    PGresult *res = NULL;
+    PGresult *resMinMax = NULL;
+    ASSERT(postgresCatalogTableExists(tableName));
+
+    //if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName))
+    //    return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrs,tableName);
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    if(getBoolOption(OPTION_PS_ANALYZE))
+    {
+    		StringInfo setStatics = makeStringInfo();
+    		appendStringInfo(setStatics,"ALTER TABLE %s ALTER COLUMN %s SET STATISTICS %d; Analyze %s;",
+    				tableName, attrName, (numPartitions > 10000)? 10000:numPartitions, tableName);
+
+    		execStmt(setStatics->data);
+    }
+    res = execPrepared(NAME_GET_HIST, LIST_MAKE(createConstString(tableName),createConstString(attrName)));
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++)
+        attrs = appendToTailOfList(attrs, strdup(PQgetvalue(res,i,0)));
+
+    // clear result
+    PQclear(res);
+    //MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName, attrs);
+
+    DEBUG_LOG("table %s attributes %s with hist <%s>", tableName, attrName, stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+	StringInfo minMax = makeStringInfo();
+	appendStringInfo(minMax,"SELECT MIN(%s), MAX(%s) FROM %s;",
+			attrName, attrName, tableName);
+	resMinMax = execQuery(minMax->data);
+
+	//have to commit, otherwise, if you run another query, will get warning: there is already a transaction in progress
+	execStmt("commit;");
+    // loop through results
+    for(int i = 0; i < PQntuples(resMinMax); i++) {
+        attrs = appendToTailOfList(attrs, strdup(PQgetvalue(resMinMax,i,0)));
+        attrs = appendToTailOfList(attrs, strdup(PQgetvalue(resMinMax,i,1)));
+    }
+    // clear result
+    PQclear(resMinMax);
+
+    DEBUG_LOG("SELECT MinMax on %s attributes on %s table <%s>", attrName, tableName, stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+
+    return attrs;
+}
+
 boolean
 postgresIsAgg(char *functionName)
 {
@@ -1101,7 +1204,11 @@ execPrepared(char *qName, List *values)
         params[i++] = STRING_VALUE(c);
 
     DEBUG_LOG("run query %s with parameters <%s>",
-			  qName, exprToSQL((Node *) values, NULL));
+//<<<<<<< HEAD
+//			  qName, exprToSQL((Node *) values, NULL));
+//=======
+            qName, exprToSQL((Node *) values, NULL));
+
 
     res = PQexecPrepared(plugin->conn,
             qName,

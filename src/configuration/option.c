@@ -169,6 +169,22 @@ boolean temporal_use_normalization = TRUE;
 boolean temporal_use_normalization_window = FALSE;
 boolean temporal_agg_combine_with_norm = TRUE;
 
+// lateral rewrite for nesting operator
+boolean opt_lateral_rewrite = FALSE;
+boolean opt_unnest_rewrite = FALSE;
+boolean opt_agg_reduction_model_rewrite = FALSE;
+
+// use provenance scratch
+int max_number_paritions_for_uses = 0;
+int bit_vector_size = 32;
+boolean ps_binary_search = FALSE;
+boolean ps_settings = FALSE;
+boolean ps_set_bits = FALSE;
+boolean ps_use_brin_op = FALSE;
+boolean ps_analyze = TRUE;
+boolean ps_use_nest = FALSE;
+boolean ps_post_to_oracle = FALSE;
+
 // struct that encapsulates option state
 struct option_state {
     HashMap *optionPos; // optionname -> position of option in list
@@ -567,6 +583,21 @@ OptionInfo opts[] =
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 TRUE),
+		aRewriteOption(OPTION_LATERAL_REWRITE,
+				"-lateral_rewrite",
+				"Activate lateral rewrite",
+				opt_lateral_rewrite,
+				FALSE),
+		aRewriteOption(OPTION_UNNEST_REWRITE,
+						"-unnest_rewrite",
+						"Activate unnest rewrite",
+						opt_unnest_rewrite,
+						FALSE),
+		aRewriteOption(OPTION_AGG_REDUCTION_MODEL_REWRITE,
+				"-agg_reduction_model_rewrite",
+				"Activate aggregation reduction model rewrite",
+				opt_agg_reduction_model_rewrite,
+				FALSE),
         // Optimization Options
         {
                 OPTION_OPTIMIZE_OPERATOR_MODEL,
@@ -624,6 +655,78 @@ OptionInfo opts[] =
                  wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
                  defOptionInt(1)
          },
+         {
+        		 OPTION_MAX_NUMBER_PARTITIONS_FOR_USE,
+                 "-cmax_number_paritions_for_uses",
+                 "max number of partitions can be used in any clause",
+                 OPTION_INT,
+                 wrapOptionInt(&max_number_paritions_for_uses),
+                 defOptionInt(0)
+         },
+		 {
+				 OPTION_BIT_VECTOR_SIZE,
+				 "-ps_bit_vector_size",
+				 "bit vector length used in bit or",
+				 OPTION_INT,
+				 wrapOptionInt(&bit_vector_size),
+				 defOptionInt(32)
+		 },
+		 {
+				 OPTION_PS_BINARY_SEARCH,
+				 "-ps_binary_search",
+				 "Activate binary search instead of case when",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_binary_search),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_SETTINGS,
+				 "-ps_settings",
+				 "Activate settings about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_settings),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_SET_BITS,
+				 "-ps_set_bits",
+				 "Activate set_bits about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_set_bits),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_ANALYZE,
+				 "-ps_analyze",
+				 "Activate ps_analyze about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_analyze),
+				 defOptionBool(TRUE)
+		 },
+		 {
+				 OPTION_PS_USE_NEST,
+				 "-ps_use_nest",
+				 "Activate ps_use_nest about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_use_nest),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_POST_TO_ORACLE,
+				 "-ps_post_to_oracle",
+				 "Activate using postgres generate oracle sql",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_post_to_oracle),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_USE_BRIN_OP,
+				 "-ps_use_brin_op",
+				 "Activate use_brin_op about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_use_brin_op),
+				 defOptionBool(FALSE)
+		 },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",
