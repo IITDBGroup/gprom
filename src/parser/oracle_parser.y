@@ -142,6 +142,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec
+%type <list> intConstList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -306,7 +307,7 @@ queryStmt:
 		'(' queryStmt ')'	{ RULELOG("queryStmt::bracketedQuery"); $$ = $2; }
 		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
 		| provStmt        { RULELOG("queryStmt::provStmt"); }
-		| whatifStmt      { RULELOG("queryStmt::whatifStmt"); }
+        | whatifStmt      { RULELOG("queryStmt::whatifStmt"); }
 		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
     ;
 
@@ -344,6 +345,14 @@ transactionIdentifier:
         | COMMIT_TRANS        { RULELOG("transactionIdentifier::COMMIT"); $$ = strdup("TRANSACTION_COMMIT"); }
         | ROLLBACK_TRANS        { RULELOG("transactionIdentifier::ROLLBACK"); $$ = strdup("TRANSACTION_ABORT"); }
     ;
+
+whatifStmt:
+        WHAT IF '(' stmtList ')' REPLACE '(' intConstList ')' IN '(' stmtList ')'
+        {
+            RULELOG("whatifStmt::stmt");
+            WhatIfStmt *w = createWhatIfStmt($12, $4, $8);
+            $$ = (Node *)w;
+        }
 
 /*
  * Rule to parse a historical what-if query
@@ -695,6 +704,11 @@ provOption:
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER),
             									(Node *) $3);
 		}
+	;
+
+intConstList:
+		intConst { $$ = singleton((Node *) createConstInt($1)); }
+		| intConstList ',' intConst { $$ = appendToTailOfList($1, (Node *) createConstInt($3)); }
 	;
 
 semiringCombinerSpec:

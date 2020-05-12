@@ -86,6 +86,7 @@ static boolean equalNestedSubquery (NestedSubquery *a, NestedSubquery *b, HashMa
 static boolean equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemContext *c);
 static boolean equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
         ProvenanceTransactionInfo *b, HashMap *seenOps, MemContext *c);
+static boolean equalWhatIfStmt(WhatIfStmt *a, WhatIfStmt *b, HashMap *seenOps, MemContext *c);
 static boolean equalWithStmt(WithStmt *a, WithStmt *b, HashMap *seenOps, MemContext *c);
 static boolean equalSelectItem(SelectItem *a, SelectItem *b, HashMap *seenOps, MemContext *c);
 static boolean equalFromItem(FromItem *a, FromItem *b, HashMap *seenOps, MemContext *c);
@@ -1000,6 +1001,15 @@ equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
 }
 
 static boolean
+equalWhatIfStmt(WhatIfStmt *a, WhatIfStmt *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_NODE_FIELD(history);
+    COMPARE_NODE_FIELD(modifiedHistory);
+
+    return equalProvenanceStmt(&a->provStmt, &b->provStmt, seenOps, c) && TRUE;
+}
+
+static boolean
 equalWithStmt(WithStmt *a, WithStmt *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(withViews);
@@ -1236,6 +1246,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_ProvenanceTransactionInfo:
             retval = equalProvenanceTransactionInfo(a,b, seenOps, c);
+            break;
+        case T_WhatIfStmt:
+            retval = equalWhatIfStmt(a,b, seenOps, c);
             break;
         case T_WithStmt:
             retval = equalWithStmt(a,b, seenOps, c);

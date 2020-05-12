@@ -155,17 +155,27 @@ createProvenanceStmt(Node *query)
     return result;
 }
 
+// modifiedHistory is a list of modified updates, and indices specifies which updates in history are replaced by the updates in modifiedHistory.
 WhatIfStmt *
-createWhatIfStmt(List *modifiedHistory, List *history, int idx)
+createWhatIfStmt(List *history, List *modifiedHistory, List *indices)
 {
     WhatIfStmt *result = makeNode(WhatIfStmt);
 
-    // TODO: Replace queries at idxs with modified history.
     result->provStmt = *createProvenanceStmt(NULL);
     ((Node *)result)->type = T_WhatIfStmt;
-    result->modifiedHistory = modifiedHistory;
     result->history = history;
-    result->idx = idx;
+    result->modifiedHistory = copyObject(history);
+
+    // Replace updates in result->modifiedHistory with updates from modifiedHistory, with respect to indices passed in.
+    ASSERT(getListLength(modifiedHistory) <= getListLength(indices));
+
+    int u = 0;
+    FOREACH(Node, replaceWith, modifiedHistory)
+    {
+        int toReplaceIdx = INT_VALUE(getNthOfListP(indices, u++)) - 1; // 1-idx
+        Node *toReplace = getNthOfListP(result->modifiedHistory, toReplaceIdx);
+        replaceNode(result->modifiedHistory, toReplace, replaceWith);
+    }
 
     return result;
 }

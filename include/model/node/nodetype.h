@@ -34,6 +34,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_RowNumExpr,
     T_OrderExpr,
     T_CastExpr,
+    T_Constraint,
 
     /* query block model nodes */
     T_SetQuery,
