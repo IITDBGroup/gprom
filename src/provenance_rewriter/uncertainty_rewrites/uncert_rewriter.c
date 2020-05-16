@@ -3219,11 +3219,21 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getUBString(an)));
 		posRprojList = appendToTailOfList(posRprojList, getAttrRefByName(posjoin, getLBString(an)));
 	}
-	opcet = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
-	opbg = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
-	oppos = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
-	opcet = (Node *)createOpExpr("*", LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
-	opbg = (Node *)createOpExpr("*", LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
+	// opcet = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
+	// opbg = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
+	// oppos = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
+	// opcet = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
+	// opbg = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
+	opcet = (Node *)createOpExpr("+", LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
+	opbg = (Node *)createOpExpr("+", LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
+	oppos = (Node *)createOpExpr("+", LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
+	opcet = (Node *)createOpExpr("+", LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
+	opbg = (Node *)createOpExpr("+", LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
+	// opcet = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
+	// opbg = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
+	// oppos = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
+	// opcet = (Node *)createOpExpr("*", LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
+	// opbg = (Node *)createOpExpr("*", LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
 
 	posRprojList = appendToTailOfList(posRprojList, opcet);
 	posRprojList = appendToTailOfList(posRprojList, opbg);
