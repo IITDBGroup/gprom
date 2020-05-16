@@ -143,9 +143,10 @@ int cost_based_num_heuristic_opt_iterations = 1;
 boolean opt_optimization_push_selections = FALSE;
 boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
-boolean opt_materialize_unsafe_proj = FALSE;
-boolean opt_remove_redundant_projections = TRUE;
-boolean opt_remove_redundant_duplicate_operator = TRUE;
+boolean opt_optimization_materialize_unsafe_proj = FALSE;
+boolean opt_optimization_merge_unsafe_proj = FALSE;
+boolean opt_optimization_remove_redundant_projections = TRUE;
+boolean opt_optimization_remove_redundant_duplicate_operator = TRUE;
 boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
 boolean opt_optimization_selection_move_around = FALSE;
@@ -663,19 +664,27 @@ OptionInfo opts[] =
                 "Optimization: add materialization hint for projections that "
                 "if merged with adjacent projection would cause expontential "
                 "expression size blowup",
-                opt_materialize_unsafe_proj,
+				opt_optimization_materialize_unsafe_proj,
                 TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_MERGE_UNSAFE_PROJECTIONS,
+                "-Omerge_unsafe_proj",
+                "Optimization: merge projections even "
+                "if this may cause an expontential blowup in "
+                "expression size",
+				opt_optimization_merge_unsafe_proj,
+                FALSE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS,
                 "-Oremove_redundant_projections",
                 "Optimization: try to remove redundant projections",
-                opt_remove_redundant_projections,
+                opt_optimization_remove_redundant_projections,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
                 "-Oremove_redundant_duplicate_removals",
                 "Optimization: try to remove redundant duplicate removal operators",
-                opt_remove_redundant_duplicate_operator,
+                opt_optimization_remove_redundant_duplicate_operator,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
