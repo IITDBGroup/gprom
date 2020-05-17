@@ -34,6 +34,12 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_INPUT_QUERY_FILE "input.queryFile"
 #define OPTION_INPUTDB "inputdb"
 
+/* logging */
+#define OPTION_LOG_ACTIVE "log.active"
+#define OPTION_LOG_LEVEL "log.level"
+#define OPTION_LOG_OPERATOR_COLORIZED "log.operator_colorized"
+#define OPTION_LOG_OPERATOR_VERBOSE "log.operator_verbose"
+
 /* plugin options */
 #define OPTION_BACKEND "backend"
 #define OPTION_FRONTEND "frontend"
@@ -138,6 +144,8 @@ extern int connection_port;
 // logging options
 extern int logLevel;
 extern boolean logActive;
+extern boolean opt_log_operator_colorize;
+extern boolean opt_log_operator_verbose;
 
 // input options
 extern char *sql;

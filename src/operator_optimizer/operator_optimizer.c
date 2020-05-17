@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * operator_optimizer.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -1465,14 +1465,14 @@ pullingUpProvenanceProjections(QueryOperator *root)
                     FORBOTH_LC(lc1, lc2, l_prov_attr, l2)
                     {
                         FORBOTH_LC(lc3 ,lc4, l_normal_attr, l4)
-                                {
+						{
                             if(streq(lc1->data.ptr_value, lc3->data.ptr_value))
                             {
                                 duplicateattrs = appendToTailOfList(duplicateattrs,lc2->data.ptr_value);
                                 normalAttrNames = appendToTailOfList(normalAttrNames, lc4->data.ptr_value);
                                 break;
                             }
-                                }
+						}
                     }
 
                     //Delete the duplicateattrs from the provenance projection

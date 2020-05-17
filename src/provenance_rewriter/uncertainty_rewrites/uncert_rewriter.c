@@ -45,6 +45,8 @@ NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
 #define ATTR_UNCERT_PFX backendifyIdentifier("U_")
 #define SELFJOIN_AFFIX backendifyIdentifier("1")//differentiate attr names when selfjoin
 
+#define UNCERT_MAPPING_PROP "UNCERT_MAPPING"
+
 /* function declarations */
 static Node *UncertOp(Operator *expr, HashMap *hmp);
 static Node *UncertIf(CaseExpr *expr, HashMap *hmp);
@@ -98,6 +100,9 @@ static QueryOperator *spliceToPOS(QueryOperator *op, List *attrnames, char *jatt
 static List *splitRanges(List *ranges);
 static Node *getMedian(Node *ub, Node *lb);
 static Constant* getStringMedian(Constant *ub, Constant *lb);
+
+// mark uncertainty attributes as provenance attributes
+static void markUncertAttrsAsProv(QueryOperator *op);
 
 //Range query rewriting combiners
 static QueryOperator *combineRowByBG(QueryOperator *op);
@@ -495,7 +500,7 @@ getLBString(char *in)
 //Combine row annotations group by best guess on REWRITTEN operator.
 static QueryOperator *combineRowByBG(QueryOperator *op){
 	HashMap * hmp = NEW_MAP(Node, Node);
-	HashMap * hmpIn = (HashMap *)getStringProperty(op, "UNCERT_MAPPING");
+	HashMap * hmpIn = (HashMap *)getStringProperty(op, UNCERT_MAPPING_PROP);
 
 	List *attrExpr = getNormalAttrProjectionExprs(op);
 	List *oldattrname = getNormalAttrNames(op);
@@ -577,14 +582,14 @@ static QueryOperator *combineRowByBG(QueryOperator *op){
 		addRangeAttrToSchema(hmp, projop, nd);
 	}
 	addRangeRowToSchema(hmp, projop);
-	setStringProperty(projop, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(projop, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	return projop;
 }
 
 static QueryOperator *combineRowMinBg(QueryOperator *op) {
 
-	HashMap * hmpIn = (HashMap *)getStringProperty(op, "UNCERT_MAPPING");
+	HashMap * hmpIn = (HashMap *)getStringProperty(op, UNCERT_MAPPING_PROP);
 
 	List *attrExpr = getNormalAttrProjectionExprs(op);
 //	List *oldattrname = getNormalAttrNames(op);
@@ -639,14 +644,14 @@ static QueryOperator *combineRowMinBg(QueryOperator *op) {
 	switchSubtrees(aggrop, selpos);
 	aggrop->parents = singleton(selpos);
 
-	setStringProperty(selpos, "UNCERT_MAPPING", (Node *)hmpIn);
+	setStringProperty(selpos, UNCERT_MAPPING_PROP, (Node *)hmpIn);
 
 //	INFO_OP_LOG("aggr min bg:", selpos);
 	return selpos;
 }
 
 static QueryOperator *combinePosToOne(QueryOperator *op) {
-	HashMap * hmpIn = (HashMap *)getStringProperty(op, "UNCERT_MAPPING");
+	HashMap * hmpIn = (HashMap *)getStringProperty(op, UNCERT_MAPPING_PROP);
 	QueryOperator *opdup = copyObject(op);
 	Operator *bgSel = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(op,ROW_BESTGUESS), createConstInt(0)));
 	Operator *posSel = createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(opdup,ROW_BESTGUESS), createConstInt(0)));
@@ -655,12 +660,12 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 	QueryOperator *bg = (QueryOperator *)createSelectionOp((Node *)bgSel, op, NIL, attrnames);
 	switchSubtrees(op, bg);
 	op->parents = singleton(bg);
-	setStringProperty(bg, "UNCERT_MAPPING", (Node *)hmpIn);
+	setStringProperty(bg, UNCERT_MAPPING_PROP, (Node *)hmpIn);
 
 	QueryOperator *pos = (QueryOperator *)createSelectionOp((Node *)posSel, opdup, NIL, attrnames);
 	switchSubtrees(opdup, pos);
 	opdup->parents = singleton(pos);
-	setStringProperty(pos, "UNCERT_MAPPING", (Node *)hmpIn);
+	setStringProperty(pos, UNCERT_MAPPING_PROP, (Node *)hmpIn);
 
 	INFO_OP_LOG("bg:", bg);
 	INFO_OP_LOG("pos:", pos);
@@ -672,7 +677,7 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 	bg->parents = singleton(unionop);
 	onepos->parents = singleton(unionop);
 
-	setStringProperty(unionop, "UNCERT_MAPPING", (Node *)hmpIn);
+	setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *)hmpIn);
 
 	return unionop;
 }
@@ -976,7 +981,7 @@ rewrite_RangeTIP(QueryOperator *op)
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)certcond));
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)bgcond));
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)poscond));
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(((ProjectionOperator *)proj)->projExprs));
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(hmp));
@@ -1044,7 +1049,7 @@ rewrite_UncertTIP(QueryOperator *op, UncertaintyType typ)
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(TIPIsOne));
 
 	//Update string property
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query root for TIP uncertainty is:", proj);
 
@@ -1085,7 +1090,7 @@ rewrite_UncertIncompleteTable(QueryOperator *op)
 	//Set the values of U_R to 1
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
 
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query root for INCOMPLETE uncertainty is:", proj);
 
@@ -1265,7 +1270,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 	switchSubtrees(op, proj);
 	op->parents = singleton(maxProbWOp);
 
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	LOG_RESULT(specializeTemplate("$1: Rewritten Operator tree [XTABLE]", singleton(UncertaintyTypeToString(typ))),
 			   proj);
@@ -1885,7 +1890,7 @@ rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 		}
 	}
 	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	//TODO intersection is not handled correctly
 
@@ -1899,7 +1904,7 @@ rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 		QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, op, NIL, getNormalAttrNames(op));
 		switchSubtrees(op, proj);
 		op->parents = singleton(proj);
-		setStringProperty(proj, "UNCERT_MAPPING", (Node *) copyObject(hmp));
+		setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *) copyObject(hmp));
 
 		return proj;
 	}
@@ -1916,7 +1921,8 @@ extern char *getAttrTwoString(char *in){
 	return backendifyIdentifier(str->data);
 }
 
-static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
+static QueryOperator *
+rewrite_RangeAggregation(QueryOperator *op){
 	//TODO
 	ASSERT(OP_LCHILD(op));
 
@@ -1938,7 +1944,7 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 
 	INFO_LOG("REWRITE-RANGE - Aggregation");
 	HashMap * hmp = NEW_MAP(Node, Node);
-	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
 
 	//rewrite non-groupby case
 	if(((AggregationOperator *)op)->groupBy == NIL){
@@ -2037,7 +2043,7 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 		((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME, singleton(bg)));
 		((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME, singleton(ps)));
 
-		setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+		setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 //		INFO_LOG("%s", nodeToString(hmp));
 
 		return op;
@@ -2357,11 +2363,45 @@ static QueryOperator *rewrite_RangeAggregation(QueryOperator *op){
 
 	addRangeRowToSchema(hmp, finalproj);
 
-	setStringProperty(finalproj, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(finalproj, UNCERT_MAPPING_PROP, (Node *)hmp);
+	markUncertAttrsAsProv(finalproj);
 
 	switchSubtrees(op, finalproj);
 
 	return finalproj;
+}
+
+static void
+markUncertAttrsAsProv(QueryOperator *op)
+{
+	HashMap *hmp = (HashMap *)getStringProperty(op, UNCERT_MAPPING_PROP);
+	Set *uncertAttrs = STRSET();
+	int pos = 0;
+
+	FOREACH_HASH(Node,n,hmp)
+	{
+		if(isA(n,List))
+		{
+			List *l = (List *) n;
+			AttributeReference *la = (AttributeReference *) (getHeadOfListP(l));
+			AttributeReference *ra = (AttributeReference *) getNthOfListP(l, 1);
+			addToSet(uncertAttrs, la->name);
+			addToSet(uncertAttrs, ra->name);
+		}
+	}
+
+	FOREACH(AttributeDef,a,op->schema->attrDefs)
+	{
+		if(streq(a->attrName,ROW_CERTAIN) ||
+		   streq(a->attrName,ROW_BESTGUESS) ||
+		   streq(a->attrName,ROW_POSSIBLE) ||
+		   hasSetElem(uncertAttrs, a->attrName)
+			)
+		{
+			appendToTailOfListInt(op->provAttrs, pos);
+		}
+		pos++;
+	}
 }
 
 
@@ -2388,7 +2428,7 @@ rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel)
 	}
 
 	HashMap * hmp = NEW_MAP(Node, Node);
-	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
 
 	//create Aggregation
 	Node *rUExpr = getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn);
@@ -2424,7 +2464,7 @@ rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel)
 		addUncertAttrToSchema(hmp, projOp, nd);
 	}
 	addUncertAttrToSchema(hmp, projOp, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	setStringProperty(projOp, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(projOp, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [DUPLICATE REMOVAL]", op);
 
@@ -2469,7 +2509,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 		((ProjectionOperator *) proj)->projExprs = appendToTailOfList(((ProjectionOperator *) proj)->projExprs,
 			createConstInt(0));
 		addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-		setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+		setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 		return proj;
 	}
@@ -2477,7 +2517,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 
 	HashMap* hmp = NEW_MAP(Node, Node);
 	HashMap* hmpProj = NEW_MAP(Node, Node);
-	HashMap* hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+	HashMap* hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
 
 	// create projection before aggregation (for now we mark all aggregation results as uncertain)
 
@@ -2505,7 +2545,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 	uncertExpr = appendToTailOfList(uncertExpr, rU);
 
 	concatTwoLists(((ProjectionOperator *)proj)->projExprs, uncertExpr);
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmpProj);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmpProj);
 
 	//add uncertainty to Aggregation
 
@@ -2537,7 +2577,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 	rU = getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn);
 	attrUaggr = appendToTailOfList(attrUaggr, createFunctionCall(MAX_FUNC_NAME, singleton(rU)));
 	concatTwoLists(((AggregationOperator *)op)->aggrs, attrUaggr);
-	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	//create project to reorder the attributes when groupby.
 	if(((AggregationOperator *)op)->groupBy){
@@ -2558,7 +2598,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 			addUncertAttrToSchema(hmp3, proj2, nd);
 		}
 		addUncertAttrToSchema(hmp3, proj2, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-		setStringProperty(proj2, "UNCERT_MAPPING", (Node *)hmp3);
+		setStringProperty(proj2, UNCERT_MAPPING_PROP, (Node *)hmp3);
 		return proj2;
 	}
 
@@ -2622,12 +2662,12 @@ rewrite_UncertJoin(QueryOperator *op, boolean attrLevel)
 
 
 		// store mappings and switch trees
-		setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+		setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 		return proj;
 	}
 
-	hmp =(HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+	hmp =(HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
 	List *dt1 = getDataTypes(OP_LCHILD(op)->schema);
 	List *n1 = getAttrNames(OP_LCHILD(op)->schema);
 	List *dt2 = getDataTypes(OP_RCHILD(op)->schema);
@@ -2652,7 +2692,7 @@ rewrite_UncertJoin(QueryOperator *op, boolean attrLevel)
 		ADD_TO_MAP(hmp, createNodeKeyValue(keynd, nd));
 	}
 	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference("R2"));
-	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	//INFO_LOG("Join HashMap: \n%s", nodeToString(hmp));
 
@@ -2696,7 +2736,7 @@ rewrite_UncertJoin(QueryOperator *op, boolean attrLevel)
 	}
 	addUncertAttrToSchema(hmp2, proj, (Node *) createAttributeReference(UNCERTAIN_ROW_ATTR));
 
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp2);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp2);
 	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [JOIN]", op);
 
 	return proj;
@@ -2788,7 +2828,7 @@ rewrite_RangeJoin(QueryOperator *op){
 //		ADD_TO_MAP(hmp, createNodeKeyValue(nd, valnd2));
 //	}
 
-//	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+//	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	//INFO_LOG("Join HashMap: \n%s", nodeToString(hmp));
 
@@ -2811,7 +2851,8 @@ rewrite_RangeJoin(QueryOperator *op){
 		addRangeAttrToSchema(hmp2, proj, nd);
 	}
 	addRangeRowToSchema(hmp2, proj);
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp2);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp2);
+	markUncertAttrsAsProv(proj);
 
 //	INFO_LOG("CT: %s", nodeToString(CT));
 //	INFO_LOG("BG: %s", nodeToString(BG));
@@ -2825,8 +2866,8 @@ rewrite_RangeJoin(QueryOperator *op){
 		//And original join condition need to multiply with best guess in projection operator.
 		//Rewrite join condition into lower bound to multiply with certain in projection operator.
 
-		HashMap * hmpl = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
-		HashMap * hmpr = (HashMap *)getStringProperty(OP_RCHILD(op), "UNCERT_MAPPING");
+		HashMap * hmpl = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+		HashMap * hmpr = (HashMap *)getStringProperty(OP_RCHILD(op), UNCERT_MAPPING_PROP);
 		HashMap * hmpl2 = copyObject(hmpl);
 		HashMap * hmpr2 = copyObject(hmpr);
 
@@ -3030,7 +3071,7 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	Set *rdep = MAKE_STR_SET(getTailOfListP(attpair));
 	Set *jminmax = unionSets(copyObject(ldep),copyObject(rdep));
 	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
-	{	
+	{
 		Set *pminmax = (Set *) getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
 		Set *lcattr = makeStrSetFromList(getNormalAttrNames(OP_LCHILD(op)));
 		Set *rcattr = makeStrSetFromList(getNormalAttrNames(OP_RCHILD(op)));
@@ -3271,8 +3312,10 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	// QueryOperator* ret = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(unionop),unionop,NIL,alist);
 	// switchSubtrees(unionop, ret);
 	// unionop->parents = singleton(ret);
-	setStringProperty(bgProj, "UNCERT_MAPPING", (Node *)hmpret);
-	setStringProperty(posProj, "UNCERT_MAPPING", (Node *)hmpret);
+	setStringProperty(bgProj, UNCERT_MAPPING_PROP, (Node *)hmpret);
+	setStringProperty(posProj, UNCERT_MAPPING_PROP, (Node *)hmpret);
+	markUncertAttrsAsProv(bgProj);
+	markUncertAttrsAsProv(posProj);
 
 	setStringProperty(bgProj, PROP_STORE_POSSIBLE_TREE, (Node *)posProj);
 
@@ -3313,7 +3356,7 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	// // QueryOperator* ret = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(unionop),unionop,NIL,alist);
 	// // switchSubtrees(unionop, ret);
 	// // unionop->parents = singleton(ret);
-	// setStringProperty(unionop, "UNCERT_MAPPING", (Node *)hmpunion);
+	// setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *)hmpunion);
 
 	// return unionop;
 }
@@ -3353,7 +3396,7 @@ rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
     HashMap *hmp = NEW_MAP(Node, Node);
 
     //get child hashmap
-    //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+    //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
 	if(attrLevel)
 	{
 		List *attrExpr = getNormalAttrProjectionExprs(op);
@@ -3362,7 +3405,7 @@ rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
 		}
 	}
 	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
     //create projection to calculate row uncertainty
     QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getNormalAttrNames(op));
@@ -3380,7 +3423,7 @@ rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
 	{
 		//TODO check that is ok
 	}
-    setStringProperty(proj, "UNCERT_MAPPING", (Node *) copyObject(hmp));
+    setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *) copyObject(hmp));
 
 	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SELECTION]", op);
 
@@ -3413,13 +3456,13 @@ rewrite_RangeSelection(QueryOperator *op)
 
     HashMap * hmp = NEW_MAP(Node, Node);
     //get child hashmap
-    //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+    //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
     List *attrExpr = getNormalAttrProjectionExprs(op);
     FOREACH(Node, nd, attrExpr){
         addRangeAttrToSchema(hmp, op, nd);
     }
     addRangeRowToSchema(hmp, op);
-    setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+    setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
     //modify selection condition to possible
     Node *cond = ((SelectionOperator *)op)->cond;
     Node *ubCond = getUBExpr(((SelectionOperator *)op)->cond, hmp);
@@ -3438,7 +3481,7 @@ rewrite_RangeSelection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(lbCond));
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(cond));
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs,pos_cond);
-    setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+    setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
     duplicateMinMaxNameProp(op, proj);
 
@@ -3454,6 +3497,7 @@ rewrite_RangeSelection(QueryOperator *op)
     	INFO_OP_LOG("[Selection] REWRITTEN POS BRACH: ", cpproj);
     }
 
+	markUncertAttrsAsProv(proj);
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
 
 	return proj;
@@ -3478,7 +3522,7 @@ rewrite_UncertProjection(QueryOperator *op, boolean attrLevel)
 
     HashMap * hmp = NEW_MAP(Node, Node);
     //get child hashmap
-    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
     //INFO_LOG("HashMap: %s", nodeToString((Node *)hmpIn));
 	if (attrLevel)
 	{
@@ -3498,7 +3542,7 @@ rewrite_UncertProjection(QueryOperator *op, boolean attrLevel)
     addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
     INFO_LOG("List: %s", nodeToString(((ProjectionOperator *)op)->projExprs));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn));
-    setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+    setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [PROJECTION]", op);
     //INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
@@ -3534,7 +3578,7 @@ rewrite_RangeProjection(QueryOperator *op)
 
     HashMap * hmp = NEW_MAP(Node, Node);
     //get child hashmap
-    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
     List *attrExpr = getNormalAttrProjectionExprs(op);
    	INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
    	// INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
@@ -3555,7 +3599,7 @@ rewrite_RangeProjection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_CERTAIN)));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS)));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE)));
-    setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+    setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
     // INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     if(pos){
@@ -3605,7 +3649,7 @@ rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel)
 	} else {
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
 	}
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [TABLE ACCESS]", op);
 
@@ -3622,7 +3666,8 @@ rewrite_RangeTableAccess(QueryOperator *op)
 	switchSubtrees(op, proj);
 	op->parents = singleton(proj);
 	List *attrExpr = getNormalAttrProjectionExprs(op);
-	FOREACH(Node, nd, attrExpr){
+	FOREACH(Node, nd, attrExpr)
+	{
 		addRangeAttrToSchema(hmp, proj, nd);
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
@@ -3631,7 +3676,8 @@ rewrite_RangeTableAccess(QueryOperator *op)
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
-	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
+	markUncertAttrsAsProv(proj);
 //	INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
 
 	if(HAS_STRING_PROP(op,PROP_HAS_RANGE)){

@@ -92,6 +92,8 @@ boolean oracle_use_service_name = FALSE;
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
+boolean opt_log_operator_colorize = TRUE;
+boolean opt_log_operator_verbose = FALSE;
 
 // input options
 char *sql = NULL;
@@ -337,7 +339,7 @@ OptionInfo opts[] =
         },
         // logging options
         {
-                "log.level",
+                OPTION_LOG_LEVEL,
                 "-loglevel",
                 "Log level determining log output: TRACE=5, DEBUG=4, INFO=3, WARN=2, ERROR=1, FATAL=0",
                 OPTION_INT,
@@ -345,12 +347,28 @@ OptionInfo opts[] =
                 defOptionInt(1)
         },
         {
-                "log.active",
+                OPTION_LOG_ACTIVE,
                 "-log",
                 "Activate/Deactivate logging",
                 OPTION_BOOL,
                 wrapOptionBool(&logActive),
                 defOptionBool(TRUE)
+        },
+		{
+                OPTION_LOG_OPERATOR_COLORIZED,
+                "-Loperator_colorize",
+                "Colorize relational algebra operator overviews",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_log_operator_colorize),
+                defOptionBool(TRUE)
+        },
+		{
+                OPTION_LOG_OPERATOR_VERBOSE,
+                "-Loperator_verbose",
+                "Relational algebra operator overviews are verbose",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_log_operator_verbose),
+                defOptionBool(FALSE)
         },
         // input options
         {
