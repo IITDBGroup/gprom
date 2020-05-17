@@ -75,6 +75,10 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         {
             return NIL;
         }
+        case PROV_TYPE_UPDATEPS:
+        {
+        	return NIL;
+        }
     }
     return NIL; //keep compiler quiet
 }

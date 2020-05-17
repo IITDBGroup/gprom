@@ -64,7 +64,12 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE
+
+//update ps key work
+%token <stringVal> UPDATEPS
+//end
+
+%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE 
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> TIP INCOMPLETE VTABLE
 %token <stringVal> FROM
@@ -424,6 +429,29 @@ provStmt:
             p->options = concatTwoLists($4, $9);
             $$ = (Node *) p;
         }
+	//update ps 
+	    | UPDATEPS '(' stmt ')' PROVENANCE optionalProvWith OF '(' stmt ')' optionalTranslate
+	    {
+	    	/*
+	    	 * para: 
+	    	 *		stmt: update statement
+	    	 *		stmt: query statements
+	    	 */
+		    RULELOG("provStmt::update ps");
+		    
+            Node * upstmt = $3;
+            Node * stmt = $9;
+            List* l = LIST_MAKE(upstmt, stmt);
+            ProvenanceStmt * p = createProvenanceStmt((Node *)l);
+            p->options = concatTwoLists($6, $11);
+            p->inputType = PROV_INPUT_UPDATEPS;
+            p->provType = PROV_TYPE_UPDATEPS;
+             
+            
+            $$ = (Node*) p;
+
+	    }
+	//end
         | USE PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
         {
             RULELOG("provStmt::stmt");

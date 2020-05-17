@@ -113,6 +113,7 @@ typedef struct Node{
 } Node;
 
 NEW_ENUM_WITH_TO_STRING(ProvenanceType,
+	PROV_TYPE_UPDATEPS, /*new type of provType for updateps*/
     PROV_PI_CS,
     PROV_TRANSFORMATION,
     PROV_XML,
@@ -131,7 +132,9 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_REENACT_WITH_TIMES,
     PROV_INPUT_TRANSACTION,
     PROV_INPUT_TEMPORAL_QUERY,
-    PROV_INPUT_UNCERTAIN_QUERY
+    PROV_INPUT_UNCERTAIN_QUERY,
+	//updateps input type
+	PROV_INPUT_UPDATEPS
 );
 
 /* stringinfo provides the string data type*/

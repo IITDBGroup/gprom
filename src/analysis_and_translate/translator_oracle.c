@@ -583,6 +583,21 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
 
     switch (prov->inputType)
     {
+    	case PROV_INPUT_UPDATEPS:
+    	{
+    		int index = 1;
+    		FOREACH(Node,n,(List *) prov->query)
+    		{
+    		  // translate and add update as child to provenance computation
+    		  DEBUG_LOG("XXXXXXX  %d", index);
+    		  child = translateQueryOracleInternal(n, attrsOffsetsList);
+    		  DEBUG_LOG("ffffffff  %d", index);
+    		  addChildOperator((QueryOperator *) result, child);
+    		  DEBUG_LOG("GGGGGGGGG  %d", index++);
+
+    		}
+    	}
+    	break;
         case PROV_INPUT_TRANSACTION:
         {
             //XID ?
