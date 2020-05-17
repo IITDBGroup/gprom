@@ -3601,6 +3601,7 @@ rewrite_RangeProjection(QueryOperator *op)
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS)));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE)));
     setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
+	markUncertAttrsAsProv(op);
 
     // INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     if(pos){
