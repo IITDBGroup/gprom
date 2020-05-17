@@ -2357,7 +2357,8 @@ rewrite_RangeAggregation(QueryOperator *op){
 
 	List *projlist = getNormalAttrProjectionExprs(finalproj);
 
-	FOREACH(Node, n, projlist){
+	FOREACH(Node, n, projlist)
+	{
 		addRangeAttrToSchema(hmp, finalproj, n);
 	}
 
@@ -2374,7 +2375,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 static void
 markUncertAttrsAsProv(QueryOperator *op)
 {
-	HashMap *hmp = (HashMap *)getStringProperty(op, UNCERT_MAPPING_PROP);
+	HashMap *hmp = (HashMap *) getStringProperty(op, UNCERT_MAPPING_PROP);
 	Set *uncertAttrs = STRSET();
 	int pos = 0;
 
