@@ -1348,6 +1348,13 @@ getProjExprsForAttrNames(QueryOperator *op, List *names)
 	return result;
 }
 
+List *
+getProjExprsForAllAttrs(QueryOperator *op)
+{
+	List *attrNames = getQueryOperatorAttrNames(op);
+	return getProjExprsForAttrNames(op, attrNames);
+}
+
 
 void
 treeify(QueryOperator *op)
