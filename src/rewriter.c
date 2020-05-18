@@ -453,6 +453,12 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
     rewrittenTree = provRewriteQBModel(oModel);
 
+	// deal with provenance sketch returned when maintaining a sketch under updates
+	if(isA(oModel, Constant))
+	{
+		return STRING_VALUE(oModel);
+	}
+
 	if (IS_QB(rewrittenTree))
 	{
 	    DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);

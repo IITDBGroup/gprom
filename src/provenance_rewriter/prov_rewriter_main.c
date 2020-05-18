@@ -2,10 +2,10 @@
  *
  * prov_rewriter_main.c
  *		Main entry point to the provenance rewriter.
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -58,7 +58,17 @@ provRewriteQBModel(Node *qbModel) {
 		DEBUG_LOG("%d\n", LIST_LENGTH(((List*)qbModel)));
 		return (Node*) provRewriteQueryList((List*) qbModel);
 	} else if (IS_OP(qbModel))
+	{
+		if(isA(qbModel,ProvenanceComptutation))
+		{
+			ProvenanceComputation *pc = (ProvenanceComputation *) qbModel;
+			if(pc->inputType == PROV_INPUT_UPDATEPS)
+			{
+				return NULL; //TODO call your function to maintain provenance sketch
+			}
+		}
 		return (Node*) provRewriteQuery((QueryOperator*) qbModel);
+	}
 	else if (IS_DL_NODE(qbModel)) {
 		createRelToRuleMap(qbModel);
 		return (Node*) rewriteForGP(qbModel);
@@ -341,4 +351,3 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 
 	return result;
 }
-
