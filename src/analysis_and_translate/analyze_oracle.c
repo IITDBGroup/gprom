@@ -1060,6 +1060,7 @@ static void analyzeInsert(Insert *f) {
 
 		FOREACH(char,name,f->attrList)
 		{
+			//TODO backendify identifier
 			MAP_ADD_STRING_KEY(attrPos, name, createConstInt(i++));
 
 			// if attribute is not an attribute of table then fail
