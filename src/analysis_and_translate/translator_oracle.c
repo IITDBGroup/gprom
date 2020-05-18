@@ -1680,7 +1680,9 @@ static boolean
 visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 {
     if (n == NULL)
+    {
         return TRUE;
+    }
 
     	if (isA(n, AttributeReference))
     	{

@@ -1945,8 +1945,12 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
             boolean onlyConst = TRUE;
 
             FOREACH(Node,n,copiedOrig->args)
-            	if(isA(n,DLVar))
-            		onlyConst = FALSE;
+            {
+            		if(isA(n,DLVar))
+            		{
+            			onlyConst = FALSE;
+            		}
+            }
 
 	        // Collecting all the original variables for later use
 	        int argPos = -1;

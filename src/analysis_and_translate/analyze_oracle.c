@@ -370,7 +370,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
     // analyze where clause if exists
     if (qb->whereClause != NULL)
+    {
         analyzeWhere(qb, parentFroms);
+    }
 
 	// check limit and offset
 	analyzeLimitAndOffset(qb);
