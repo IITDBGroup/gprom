@@ -40,7 +40,7 @@
 //static void orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *nestedSubqueries);
 //=======
 static void exprToSQLString(StringInfo str, Node *expr, HashMap *map);
-static void exprToLatexString(StringInfo str,  Node *expr);
+static void exprToLatexString(StringInfo str,  Node *expr, HashMap *map);
 static void attributeReferenceToSQL (StringInfo str, AttributeReference *node, HashMap *map);
 static void constantToSQL (StringInfo str, Constant *node);
 static void functionCallToSQL (StringInfo str, FunctionCall *node, HashMap *map);
@@ -49,12 +49,13 @@ static void caseToSQL(StringInfo str, CaseExpr *expr, HashMap *map);
 static void winFuncToSQL(StringInfo str, WindowFunction *expr, HashMap *map);
 static void winBoundToSQL (StringInfo str, WindowBound *b, HashMap *map);
 static void orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *map);
+
 static void quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o, HashMap *map);
 
 static void dataTypeToSQL (StringInfo str, DataType dt);
 
-static void functionCallToLatex (StringInfo str, FunctionCall *node, HashMap *nestedSubqueries);
-static void operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries);
+static void functionCallToLatex (StringInfo str, FunctionCall *node, HashMap *map);
+static void operatorToLatex (StringInfo str, Operator *node, HashMap *map);
 static void constantToLatex (StringInfo str, Constant *node);
 static void attributeReferenceToLatex (StringInfo str, AttributeReference *node);
 
@@ -92,7 +93,9 @@ attributeReferenceToSQL (StringInfo str, AttributeReference *node, HashMap *map)
 			appendStringInfoString(str, node->name);
 	}
 	else
+	{
 		appendStringInfoString(str, node->name);
+	}
 }
 
 static void
@@ -534,7 +537,6 @@ static void
 //castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries)
 //=======
 castExprToSQL(StringInfo str, CastExpr *c, HashMap *map)
-
 {
     switch(getBackend())
     {
@@ -545,9 +547,9 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *map)
 //            exprToSQLString(str, c->expr, nestedSubqueries);
 //=======
             exprToSQLString(str, c->expr, map);
-
             appendStringInfoString(str, ")::");
-            if(streq(c->otherDT, "bit"))
+
+            if(c->otherDT != NULL && streq(c->otherDT, "bit"))
             		appendStringInfo(str, "%s(%d)", c->otherDT, c->num);
             else
             		dataTypeToSQL(str, c->resultDT);
@@ -579,7 +581,6 @@ static void
 //exprToSQLString(StringInfo str, Node *expr, HashMap *nestedSubqueries)
 //=======
 exprToSQLString(StringInfo str, Node *expr, HashMap *map)
-
 {
     if (expr == NULL)
         return;
@@ -591,7 +592,6 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *map)
 //            attributeReferenceToSQL(str, (AttributeReference *) expr, nestedSubqueries);
 //=======
             attributeReferenceToSQL(str, (AttributeReference *) expr, map);
-
             break;
         case T_DLVar:
             appendStringInfo(str, "%s", ((DLVar *) expr)->name);
@@ -610,7 +610,6 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *map)
             break;
         case T_Operator:
             operatorToSQL(str, (Operator *) expr, map);
-
             break;
         case T_List:
         {
@@ -644,7 +643,6 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *map)
         break;
         case T_IsNullExpr:
             appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr, map));
-
         break;
         case T_RowNumExpr:
             appendStringInfoString(str, "ROWNUM");
@@ -657,7 +655,6 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *map)
         break;
         case T_QuantifiedComparison:
         		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr, map);
-
         break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr, map);
@@ -667,7 +664,6 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *map)
 //            castExprToSQL(str, (CastExpr *) expr, nestedSubqueries);
 //=======
             castExprToSQL(str, (CastExpr *) expr, map);
-
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
@@ -690,8 +686,8 @@ exprToSQL (Node *expr, HashMap *map)
 //<<<<<<< HEAD
 //    exprToSQLString(str, expr, nestedSubqueries);
 //=======
-    exprToSQLString(str, expr, map);
 
+    exprToSQLString(str, expr, map);
 
     result = str->data;
     FREE(str);
@@ -700,7 +696,7 @@ exprToSQL (Node *expr, HashMap *map)
 }
 
 static void
-exprToLatexString(StringInfo str,  Node *expr, HashMap *nestedSubqueries)
+exprToLatexString(StringInfo str,  Node *expr, HashMap *map)
 {
     if (expr == NULL)
         return;
@@ -717,10 +713,10 @@ exprToLatexString(StringInfo str,  Node *expr, HashMap *nestedSubqueries)
             constantToLatex(str, (Constant *) expr);
             break;
         case T_FunctionCall:
-            functionCallToLatex(str, (FunctionCall *) expr, nestedSubqueries);
+            functionCallToLatex(str, (FunctionCall *) expr, map);
             break;
         case T_Operator:
-            operatorToLatex(str, (Operator *) expr, nestedSubqueries);
+            operatorToLatex(str, (Operator *) expr, map);
             break;
         case T_List:
         {
@@ -728,7 +724,7 @@ exprToLatexString(StringInfo str,  Node *expr, HashMap *nestedSubqueries)
             FOREACH(Node,arg,(List *) expr)
             {
                 appendStringInfoString(str, ((i++ == 0) ? "(" : ", "));
-                exprToLatexString(str, arg, nestedSubqueries);
+                exprToLatexString(str, arg, map);
             }
             appendStringInfoString(str,")");
         }
@@ -743,7 +739,7 @@ exprToLatexString(StringInfo str,  Node *expr, HashMap *nestedSubqueries)
             caseToSQL(str, (CaseExpr *) expr, NULL);
         break;
         case T_WindowFunction:
-            winFuncToSQL(str, (WindowFunction *) expr, NULL);
+            winFuncToSQL(str, (WindowFunction *) expr, NULL) ;
 
         break;
         case T_IsNullExpr:
@@ -768,7 +764,7 @@ exprToLatexString(StringInfo str,  Node *expr, HashMap *nestedSubqueries)
         case T_CastExpr:
         {
             CastExpr *c = (CastExpr *) expr;
-            exprToLatexString(str, c->expr, nestedSubqueries);
+            exprToLatexString(str, c->expr, map);
             //TODO should we show it or not?
         }
         break;
@@ -796,7 +792,7 @@ exprToLatex (Node *expr)
 
 
 static void
-functionCallToLatex (StringInfo str, FunctionCall *node, HashMap *nestedSubqueries)
+functionCallToLatex (StringInfo str, FunctionCall *node, HashMap *map)
 {
 
     //int flag = 0;
@@ -814,14 +810,14 @@ functionCallToLatex (StringInfo str, FunctionCall *node, HashMap *nestedSubqueri
     FOREACH(Node,arg,node->args)
     {
         appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
-        exprToLatexString(str, arg, nestedSubqueries);
+        exprToLatexString(str, arg, map);
     }
 
     appendStringInfoString(str,")");
 }
 
 static void
-operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries)
+operatorToLatex (StringInfo str, Operator *node, HashMap *map)
 {
     // handle special operators
     if (streq(node->name,"BETWEEN"))
@@ -840,7 +836,7 @@ operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries)
         else
             appendStringInfo(str, "%s ", node->name);
         appendStringInfoString(str, "(");
-        exprToLatexString(str,getNthOfListP(node->args,0), nestedSubqueries);
+        exprToLatexString(str,getNthOfListP(node->args,0), map);
         appendStringInfoString(str, ")");
     }
     else
@@ -849,7 +845,7 @@ operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries)
 
         FOREACH(Node,arg,node->args)
         {
-            exprToLatexString(str,arg, nestedSubqueries);
+            exprToLatexString(str,arg, map);
             if(arg_his_cell != node->args->tail)
             {
                 if (streq(node->name,"AND"))

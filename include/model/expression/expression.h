@@ -244,11 +244,11 @@ extern DataType lcaType (DataType l, DataType r);
 extern DataType SQLdataTypeToDataType (char *dt);
 
 /* create an SQL expression from an expression tree */
-<<<<<<< HEAD
-extern char *exprToSQL (Node *expr, HashMap *nestedSubqueries);
-=======
+//<<<<<<< HEAD
+//extern char *exprToSQL (Node *expr, HashMap *nestedSubqueries);
+//=======
 extern char *exprToSQL (Node *expr, HashMap *map);
->>>>>>> nesting
+//>>>>>>> nesting
 
 /* create an Latex expression from an expression tree */
 extern char *exprToLatex (Node *expr);

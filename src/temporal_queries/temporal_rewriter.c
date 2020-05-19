@@ -2628,7 +2628,6 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     top->parents = LIST_MAKE(proj1T2, proj2T2);
 
     LOG_RESULT("Rewritten aggregation+normalization", finalOp);
-
 	return (QueryOperator *) finalOp;
 }
 

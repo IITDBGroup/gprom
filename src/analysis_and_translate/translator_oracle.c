@@ -763,8 +763,8 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
 //<<<<<<< HEAD
-//     	case PROV_INPUT_RANGE_QUERY:
-//	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
+     	case PROV_INPUT_RANGE_QUERY:
+	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
 //		{
 //            child = translateQueryOracle(prov->query);
 //=======
