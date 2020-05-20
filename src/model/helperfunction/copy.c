@@ -106,6 +106,7 @@ static QueryBlock *copyQueryBlock(QueryBlock *from, OperatorMap **opMap);
 static Constant *copyConstant(Constant *from, OperatorMap **opMap);
 static NestedSubquery *copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap);
 static ProvenanceStmt *copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap);
+// static WhatIfStmt *copyWhatIfStmt(WhatIfStmt *from, OperatorMap **opMap);
 static ProvenanceTransactionInfo *copyProvenanceTransactionInfo (
         ProvenanceTransactionInfo *from, OperatorMap **opMap);
 static SelectItem *copySelectItem(SelectItem  *from, OperatorMap **opMap);
@@ -923,6 +924,19 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
 
     return new;
 }
+
+/*
+static WhatIfStmt *
+copyWhatIfStmt(WhatIfStmt *from, OperatorMap **opMap)
+{
+    COPY_INIT(WhatIfStmt);
+    COPY_NODE_FIELD(&provStmt);
+    COPY_NODE_FIELD(history);
+    COPY_NODE_FIELD(modifiedHistory);
+
+    return new;
+}
+*/
 
 static ProvenanceTransactionInfo *
 copyProvenanceTransactionInfo (ProvenanceTransactionInfo *from,

@@ -632,9 +632,18 @@ outWhatIfStmt (StringInfo str, WhatIfStmt *node)
 {
     WRITE_NODE_TYPE(WHATIFSTMT);
 
-    WRITE_NODE_FIELD(modifiedHistory);
     WRITE_NODE_FIELD(history);
-    WRITE_INT_FIELD(idx);
+    WRITE_NODE_FIELD(modifiedHistory);
+}
+
+static void
+outConstraint (StringInfo str, Constraint *node)
+{
+    WRITE_NODE_TYPE(CONSTRAINT);
+
+    WRITE_NODE_FIELD(terms);
+    WRITE_ENUM_FIELD(sense, ConstraintSense);
+    WRITE_INT_FIELD(rhs);
 }
 
 static void
@@ -1148,6 +1157,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_WhatIfStmt:
                 outWhatIfStmt (str, (WhatIfStmt *) obj);
+                break;
+            case T_Constraint:
+                outConstraint (str, (Constraint *) obj);
                 break;
             case T_DistinctClause:
                 outDistinctClause (str, (DistinctClause *) obj);

@@ -449,6 +449,252 @@ createNullConst (DataType dt)
     return result;
 }
 
+ConstraintTranslationCtx *
+newConstraintTranslationCtx ()
+{
+    ConstraintTranslationCtx *ctx = MALLOC(sizeof(ConstraintTranslationCtx));
+    ctx->current_expr = 0;
+    ctx->variableMap = newHashMap(T_Constant, T_Constant, NULL, NULL);
+    ctx->variables = newList(T_SQLParameter);
+    ctx->constraints = newList(T_Constraint);
+
+    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX));
+
+    return ctx;
+}
+
+// Taking SQL constraints from SelectItems and turning them into MILP constraints as described by the paper.
+List *
+exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
+{
+    if(isA(expr, Operator))
+    {
+        Operator *operator = (Operator *)expr;
+        if(strcmp(operator->name, "<") == 0)
+        {
+            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            appendToTailOfList(ctx->variables, resultant);
+
+            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, leftVar);
+            exprToConstraints(getHeadOfListP(operator->args), ctx);
+
+            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, rightVar);
+            exprToConstraints(getTailOfListP(operator->args), ctx);
+
+            // Make constraints for this expression
+            Constraint *c1 = makeNode(Constraint);
+            c1->sense = CONSTRAINT_GE;
+            c1->rhs = 0;
+            c1->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
+                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
+            );
+
+            Constraint *c2 = makeNode(Constraint);
+            c2->sense = CONSTRAINT_G;
+            c2->rhs = 0;
+            c2->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
+                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)createConstInt(1)),
+                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
+            );
+
+            appendToTailOfList(ctx->constraints, c1);
+            appendToTailOfList(ctx->constraints, c2);
+        }
+        else if(strcmp(operator->name, "<=") == 0)
+        {
+            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            appendToTailOfList(ctx->variables, resultant);
+
+            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, leftVar);
+            exprToConstraints(getHeadOfListP(operator->args), ctx);
+
+            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, rightVar);
+            exprToConstraints(getTailOfListP(operator->args), ctx);
+
+            // Make constraints for this expression
+            Constraint *c1 = makeNode(Constraint);
+            c1->sense = CONSTRAINT_G;
+            c1->rhs = 0;
+            c1->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
+                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
+            );
+
+            Constraint *c2 = makeNode(Constraint);
+            c2->sense = CONSTRAINT_GE;
+            c2->rhs = 0;
+            c2->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
+                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)createConstInt(1)),
+                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
+            );
+
+            appendToTailOfList(ctx->constraints, c1);
+            appendToTailOfList(ctx->constraints, c2);
+        }
+        else if(strcmp(operator->name, "AND") == 0)
+        {
+            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            appendToTailOfList(ctx->variables, resultant);
+
+            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, leftVar);
+            exprToConstraints(getHeadOfListP(operator->args), ctx);
+
+            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, rightVar);
+            exprToConstraints(getTailOfListP(operator->args), ctx);
+
+            // Make constraints for this expression
+            Constraint *c1 = makeNode(Constraint);
+            c1->sense = CONSTRAINT_LE;
+            c1->rhs = 0;
+            c1->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+                createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)createConstInt(1))
+            );
+
+            Constraint *c2 = makeNode(Constraint);
+            c2->sense = CONSTRAINT_GE;
+            c2->rhs = 0;
+            c2->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+                createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant)
+            );
+
+            appendToTailOfList(ctx->constraints, c1);
+            appendToTailOfList(ctx->constraints, c2);
+        }
+        else if(strcmp(operator->name, "OR") == 0)
+        {
+            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            appendToTailOfList(ctx->variables, resultant);
+
+            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, leftVar);
+            exprToConstraints(getHeadOfListP(operator->args), ctx);
+
+            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, rightVar);
+            exprToConstraints(getTailOfListP(operator->args), ctx);
+
+            // Make constraints for this expression
+            Constraint *c1 = makeNode(Constraint);
+            c1->sense = CONSTRAINT_LE;
+            c1->rhs = 0;
+            c1->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+                createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant)
+            );
+
+            Constraint *c2 = makeNode(Constraint);
+            c2->sense = CONSTRAINT_GE;
+            c2->rhs = 0;
+            c2->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
+            );
+
+            appendToTailOfList(ctx->constraints, c1);
+            appendToTailOfList(ctx->constraints, c2);
+        }
+        else if(strcmp(operator->name, "NOT") == 0)
+        {
+            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            appendToTailOfList(ctx->variables, resultant);
+
+            SQLParameter *notExpr = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
+            appendToTailOfList(ctx->variables, notExpr);
+            exprToConstraints(getHeadOfListP(operator->args), ctx);
+
+            Constraint *c = makeNode(Constraint);
+            c->sense = CONSTRAINT_E;
+            c->rhs = 1;
+            c->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant);
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)notExpr);
+            );
+
+            appendToTailOfList(ctx->constraints, c);
+        }
+    }
+    else if(isA(expr, Constant))
+    {
+        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+        appendToTailOfList(ctx->variables, resultant);
+        Constraint *constraint = makeNode(Constraint);
+        constraint->sense = CONSTRAINT_E;
+        constraint->rhs = INT_VALUE(expr);
+        constraint->terms = LIST_MAKE(createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant));
+
+        appendToTailOfList(ctx->constraints, constraint);
+    }
+    else if(isA(expr, SQLParameter))
+    {
+        SQLParameter *variable = (SQLParameter *)expr;
+        SQLParameter *constraintVariable = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+        appendToTailOfList(ctx->variables, constraintVariable);
+        MAP_ADD_STRING_KEY(ctx->variableMap, variable->name, createConstString(constraintVariable->name));
+    }
+    return ctx->constraints;
+}
+
+LPProblem *
+newLPProblem(ConstraintTranslationCtx* ctx)
+{
+    LPProblem *problem = MALLOC(sizeof(LPProblem));
+
+    // columns
+    problem->ccnt = getListLength(ctx->variables);
+    problem->colname = MALLOC(sizeof(char*) * problem->ccnt);
+    for(int i = 0; i < problem->ccnt; i++) {
+        problem->colname[i] = ((SQLParameter*)getNthOfListP(ctx->variables, i))->name;
+    }
+
+    // rows
+    problem->rcnt = getListLength(ctx->constraints);
+    problem->rhs = MALLOC(sizeof(double) * problem->rcnt);
+    problem->sense = MALLOC(sizeof(char) * problem->rcnt);
+    for(int i = 0; i < problem->rcnt; i++) {
+        Constraint *c = (Constraint*)getNthOfListP(ctx->constraints, i);
+        problem->rhs[i] = c->rhs;
+        problem->sense[i] = c->sense;
+    }
+
+    problem->rmatbeg = MALLOC(sizeof(int) * problem->rcnt);
+    int terms = 0;
+    FOREACH(Constraint, c, ctx->constraints) {
+        terms += getListLength(c->terms);
+    }
+    problem->nzcnt = terms;
+    problem->rmatind = MALLOC(sizeof(int) * terms);
+    problem->rmatval = MALLOC(sizeof(double) * terms);
+    int current = 0, i = 0;
+    FOREACH(Constraint, c, ctx->constraints) {
+        problem->rmatbeg[current] = i;
+        FOREACH(KeyValue, kv, c->terms) {
+            problem->rmatval[i] = INT_VALUE(kv->key);
+            problem->rmatind[i] = genericListPos(ctx->variables, equal, kv->value);
+        }
+        current++;
+    }
+    return problem;
+}
 
 DataType
 typeOf (Node *expr)

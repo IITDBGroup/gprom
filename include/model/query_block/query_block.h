@@ -96,7 +96,6 @@ typedef struct WhatIfStmt
     ProvenanceStmt provStmt;
     List *modifiedHistory;
     List *history;
-    int idx;
 } WhatIfStmt;
 
 typedef struct SelectItem
@@ -310,7 +309,7 @@ extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
         Node *rChild);
 extern QueryBlock *createQueryBlock(void);
 extern ProvenanceStmt *createProvenanceStmt(Node *query);
-extern WhatIfStmt *createWhatIfStmt(List *modifiedHistory, List *history, int idx);
+extern WhatIfStmt *createWhatIfStmt(List *history, List *modifiedHistory, List *indices);
 extern SelectItem *createSelectItem(char *alias, Node *expr);
 extern FromItem *createFromItem (char *alias, List *attrNames);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
