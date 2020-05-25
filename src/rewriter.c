@@ -453,11 +453,24 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
     rewrittenTree = provRewriteQBModel(oModel);
 
-	// deal with provenance sketch returned when maintaining a sketch under updates
+	/*
+	 * deal with provenance sketch returned when maintaining a sketch under updates
+	 *
+	 * return the updated ps if check the return rewritten tree is a "Constant"
+     */
+
+
+// should we use oModel or rewrittenTree? sincce rewrittenTree is the returnd from provRewriteQBModel
 	if(isA(oModel, Constant))
 	{
+		DEBUG_NODE_BEATIFY_LOG("WHAT IS THE CURRENT OMODEL", oModel);
 		return STRING_VALUE(oModel);
 	}
+
+//    if(isA(getHeadOfListP((List*)rewrittenTree), Constant)){
+//    	DEBUG_NODE_BEATIFY_LOG("WHAT IS THE CURRENT OMODEL", oModel);
+//    	return STRING_VALUE(rewrittenTree);
+//    }
 
 	if (IS_QB(rewrittenTree))
 	{

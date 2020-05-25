@@ -1171,7 +1171,7 @@ static void analyzeDelete(Delete *f) {
 	int attrPos = 0;
 
 	findAttrReferences((Node*) f->cond, &attrRefs);
-	adaptAttributeRefs(attrRefs, NIL);
+	//adaptAttributeRefs(attrRefs, NIL);
 
 	FOREACH(AttributeReference,a,attrRefs)
 	{
@@ -1227,7 +1227,7 @@ static void analyzeUpdate(Update *f) {
 	findAttrReferences((Node*) f->cond, &attrRefs);
 	findAttrReferences((Node*) f->selectClause, &attrRefs);
 
-	adaptAttributeRefs(attrRefs, NIL);
+	//adaptAttributeRefs(attrRefs, NIL);
 
 	// adapt attributes
 	FOREACH(AttributeReference,a,attrRefs)

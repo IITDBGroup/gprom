@@ -27,6 +27,7 @@
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
+#include "provenance_rewriter/update_ps/update_ps_main.h"
 
 #include "temporal_queries/temporal_rewriter.h"
 
@@ -57,19 +58,23 @@ provRewriteQBModel(Node *qbModel) {
 		DEBUG_LOG("THE LENGTH OF THE QBMODEL");
 		DEBUG_LOG("%d\n", LIST_LENGTH(((List*)qbModel)));
 		return (Node*) provRewriteQueryList((List*) qbModel);
-	} else if (IS_OP(qbModel))
-	{
-		if(isA(qbModel,ProvenanceComptutation))
-		{
-			ProvenanceComputation *pc = (ProvenanceComputation *) qbModel;
-			if(pc->inputType == PROV_INPUT_UPDATEPS)
-			{
-				return NULL; //TODO call your function to maintain provenance sketch
-			}
-		}
+	} else if (IS_OP(qbModel)) {
+//		DEBUG_LOG("QBMODEL");
+//		if(isA(qbModel, ProvenanceComputation))
+//		{
+//			DEBUG_LOG("qbMode is a ProvenanceComputation\n");
+//			ProvenanceComputation *pc = (ProvenanceComputation *) qbModel;
+//			if(pc->inputType == PROV_INPUT_UPDATEPS)
+//			{
+//				DEBUG_LOG("update qbModel\n");
+////				return NULL; //TODO call your function to maintain provenance sketch
+////				return (Node*) update_ps(qbModel);
+//				Constant * result = createConstString("STOP HERE");
+//				return (Node*) (result);
+//			}
+//		}
 		return (Node*) provRewriteQuery((QueryOperator*) qbModel);
-	}
-	else if (IS_DL_NODE(qbModel)) {
+	} else if (IS_DL_NODE(qbModel)) {
 		createRelToRuleMap(qbModel);
 		return (Node*) rewriteForGP(qbModel);
 	}
@@ -105,8 +110,22 @@ provRewriteQuery(QueryOperator *input) {
 static QueryOperator*
 findProvenanceComputations(QueryOperator *op, Set *haveSeen) {
 	// is provenance computation? then rewrite
-	if (isA(op, ProvenanceComputation))
+
+	if (isA(op, ProvenanceComputation)) {
+
+		//if it is a update, then return the updated ps
+
+		DEBUG_LOG("qbMode is a ProvenanceComputation\n");
+		ProvenanceComputation *pc = (ProvenanceComputation*) op;
+		if (pc->inputType == PROV_INPUT_UPDATEPS) {
+			DEBUG_LOG("update qbModel\n");
+
+			Constant * result = createConstString(update_ps(pc));
+			return (QueryOperator*) (result);
+		}
+
 		return rewriteProvenanceComputation((ProvenanceComputation*) op);
+	}
 
 	// else search for children with provenance
 	FOREACH(QueryOperator,c,op->inputs)
@@ -216,7 +235,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 
 	case CAP_USE_PROV_COARSE_GRAINED:
 		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
-				PROP_PC_COARSE_GRAINED);
+		PROP_PC_COARSE_GRAINED);
 		psPara = createPSInfo(coarsePara);
 		DEBUG_LOG("coarse grained fragment parameters: %s",
 				nodeToString((Node* ) psPara));
@@ -264,7 +283,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 
 	case PROV_COARSE_GRAINED:
 		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
-				PROP_PC_COARSE_GRAINED);
+		PROP_PC_COARSE_GRAINED);
 		psPara = createPSInfo(coarsePara);
 		DEBUG_LOG("coarse grained fragment parameters: %s",
 				nodeToString((Node* ) psPara));
@@ -283,7 +302,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 			op = originalOp;
 
 		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
-				PROP_PC_COARSE_GRAINED);
+		PROP_PC_COARSE_GRAINED);
 		psPara = createPSInfo(coarsePara);
 		DEBUG_LOG("use coarse grained fragment parameters: %s",
 				nodeToString((Node* ) psPara));
@@ -300,7 +319,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 			op = originalOp;
 
 		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
-				PROP_PC_COARSE_GRAINED);
+		PROP_PC_COARSE_GRAINED);
 		psPara = createPSInfo(coarsePara);
 		DEBUG_LOG("use coarse grained fragment parameters: %s",
 				nodeToString((Node* ) psPara));
