@@ -154,5 +154,6 @@ extern rc testHash(void);
 //extern rc testLibGProM(void);
 extern rc testRPQ(void);
 extern rc testAutocast(void);
+extern rc testCplexExpr(void);
 
 #endif

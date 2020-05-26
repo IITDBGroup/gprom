@@ -54,6 +54,7 @@ static TestNameToFunc testFuncs [] = {
         { "datalog_model", testDatalogModel },
         { "rpq", testRPQ },
         { "autocast", testAutocast },
+        { "testCplexExpr", testCplexExpr },
         { NULL, NULL }
 };
 
@@ -85,6 +86,7 @@ testSuites(void)
 //    RUN_TEST(testLibGProM(), "Test gprom dynamic link library"); make this work
     RUN_TEST(testRPQ(), "Test regular path query features");
     RUN_TEST(testAutocast(), "Test automatic casting");
+    RUN_TEST(testCplexExpr(), "Test MILP/CPLEX compilation");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

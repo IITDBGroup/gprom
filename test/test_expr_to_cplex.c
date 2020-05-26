@@ -10,6 +10,17 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "test_main.h"
+#include "common.h"
+
+rc
+testTesting()
+{
+    return PASS;
+}
+
+#ifdef DISABLED
+
 #include "common.h"
 #include "exception/exception.h"
 #include "log/termcolor.h"
@@ -229,9 +240,11 @@ static Node *getCond(Node *node) {
 	return NULL;
 }
 
+
 /*
  * Function that handles exceptions
  */
+
 static ExceptionHandler handleCLIException(const char *message,
 										   const char *file, int line, ExceptionSeverity s) {
 	if (streq(file, "sql_parser.l")) {
@@ -242,3 +255,5 @@ static ExceptionHandler handleCLIException(const char *message,
 // throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
 	return EXCEPTION_DIE;
 }
+
+#endif

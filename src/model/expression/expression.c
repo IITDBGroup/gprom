@@ -454,17 +454,116 @@ newConstraintTranslationCtx ()
 {
     ConstraintTranslationCtx *ctx = MALLOC(sizeof(ConstraintTranslationCtx));
     ctx->current_expr = 0;
-    ctx->variableMap = newHashMap(T_Constant, T_Constant, NULL, NULL);
-    ctx->variables = newList(T_SQLParameter);
-    ctx->constraints = newList(T_Constraint);
+    ctx->variableMap = NEW_MAP(Constant, Constant);
+    ctx->variables = newList(T_List);
+    ctx->constraints = newList(T_List);
 
-    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX));
+    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX-1));
+    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-INT_MAX+1)); //TODO: There is definitely a better way to be doing this.
 
     return ctx;
 }
 
-// Taking SQL constraints from SelectItems and turning them into MILP constraints as described by the paper.
+// Something to note:
+// MILP variables will be reused for SQLParameters if they are present in the variableMap
+SQLParameter *
+introduceMILPVariable (Node *expr, ConstraintTranslationCtx *ctx, boolean isBoolean)
+{
+    SQLParameter *variable = NULL;
+
+    if(isA(expr, SQLParameter))
+    {
+        SQLParameter *parameter = (SQLParameter *)expr;
+        if(MAP_HAS_STRING_KEY(ctx->variableMap, parameter->name))
+        {
+            // TODO: Should probably respect isBoolean
+            // TODO: Look into not allocating another SQLParameter perhaps?
+            variable = createSQLParameter(STRING_VALUE((Constant *)MAP_GET_STRING_ENTRY(ctx->variableMap, parameter->name)));
+        }
+        else
+        {
+             variable = createSQLParameter(CONCAT_STRINGS(isBoolean ? "b" : "v", gprom_itoa(++(ctx->current_expr))));
+             MAP_ADD_STRING_KEY(ctx->variableMap, parameter->name, createConstString(variable->name));
+             appendToTailOfList(ctx->variables, variable);
+        }
+    }
+    else
+    {
+        variable = createSQLParameter(CONCAT_STRINGS(isBoolean ? "b" : "v", gprom_itoa(++(ctx->current_expr))));
+        appendToTailOfList(ctx->variables, variable);
+    }
+
+    return variable;
+}
+
+boolean
+renameParameters (Node *node, char *search, char *replace)
+{
+    boolean replaced = FALSE; 
+    if(isA(node, Operator))
+    {
+        FOREACH(Node, arg, ((Operator *)node)->args)
+        {
+            if(isA(arg, SQLParameter))
+            {
+                SQLParameter *asParam = (SQLParameter *)arg;
+                if(strcmp(asParam->name, search) == 0)
+                {
+                    asParam->name = replace;
+                    replaced = TRUE;
+                }
+            }
+            else if(isA(arg, AttributeReference)) {
+                AttributeReference *asAttr = (AttributeReference *)asAttr;
+                if(strcmp(asAttr->name, search) == 0)
+                {
+                    asAttr->name = replace;
+                    replaced = TRUE;
+                }
+            }
+            else if(isA(arg, Operator)) {
+                replaced = replaced || renameParameters(arg, search, replace);
+            }
+        }
+    }
+    return replaced;
+}
+
 List *
+historyToCaseExprsFreshVars (List *history) {
+    List *caseExprs = NIL;
+    HashMap *current = NEW_MAP(Constant, Constant);
+    // TODO: Deep copy history list? copyobject
+    // Change variables and construct CASE exprs
+    FOREACH(Update, u, history)
+    {
+        // TODO: handle multiple sets?
+        Operator *set = (Operator *)getHeadOfListP(u->selectClause);
+        AttributeReference *setAttr = (AttributeReference *)getHeadOfListP(set->args);
+        Node *setExpr = (Node *)getTailOfListP(set->args); // redundant cast?
+        if(!MAP_HAS_STRING_KEY(current, setAttr->name)) {
+            // first update rename will look like foo1 = foo0 + 3 where foo0 > 2
+            MAP_ADD_STRING_KEY(current, setAttr->name, createConstInt(0));
+        } else {
+            MAP_ADD_STRING_KEY(current, setAttr->name, createConstInt(INT_VALUE(MAP_GET_STRING(current, setAttr->name)) + 1));
+        }
+        FOREACH(Constant, p, getKeys(current))
+        {
+            // foo = foo + 3 where foo > 2
+            // transforms into e.g. foo4 = foo3 + 3 where foo3 > 2
+            char *pStr = STRING_VALUE(p);
+            renameParameters((Node *)setAttr, pStr, CONCAT_STRINGS(pStr, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, pStr)) + 1)));
+            renameParameters(setExpr, pStr, CONCAT_STRINGS(pStr, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, pStr)))));
+            renameParameters(u->cond, pStr, CONCAT_STRINGS(pStr, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, pStr)))));
+        }
+
+        caseExprs = appendToTailOfList(caseExprs, createCaseExpr(u->cond, singleton(setExpr), (Node *)createSQLParameter(setAttr->name)));
+    }
+    return caseExprs;
+}
+
+// Taking SQL constraints from SelectItems and turning them into MILP constraints as described by the paper.
+ConstraintTranslationCtx *
 exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 {
     if(isA(expr, Operator))
@@ -475,12 +574,10 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             appendToTailOfList(ctx->variables, resultant);
 
-            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, leftVar);
+            SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);
 
-            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, rightVar);
+            SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
             exprToConstraints(getTailOfListP(operator->args), ctx);
 
             // Make constraints for this expression
@@ -495,11 +592,10 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
             Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_G;
-            c2->rhs = 0;
+            c2->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
             c2->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
-                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)createConstInt(1)),
                 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
             );
 
@@ -511,12 +607,10 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             appendToTailOfList(ctx->variables, resultant);
 
-            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, leftVar);
+            SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);
 
-            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, rightVar);
+            SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
             exprToConstraints(getTailOfListP(operator->args), ctx);
 
             // Make constraints for this expression
@@ -531,12 +625,12 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
             Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_GE;
-            c2->rhs = 0;
+            c2->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M")); // TODO: rhs should likely be a pointer to a Constant so M can change
             c2->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
                 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)createConstInt(1)),
-                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
+                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)resultant)
             );
 
             appendToTailOfList(ctx->constraints, c1);
@@ -547,23 +641,20 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             appendToTailOfList(ctx->variables, resultant);
 
-            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, leftVar);
+            SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, TRUE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);
 
-            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, rightVar);
+            SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, TRUE);
             exprToConstraints(getTailOfListP(operator->args), ctx);
 
             // Make constraints for this expression
             Constraint *c1 = makeNode(Constraint);
             c1->sense = CONSTRAINT_LE;
-            c1->rhs = 0;
+            c1->rhs = 1;
             c1->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
-                createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant),
-                createNodeKeyValue((Node*)createConstInt(-1), (Node*)createConstInt(1))
+                createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant)
             );
 
             Constraint *c2 = makeNode(Constraint);
@@ -583,12 +674,10 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             appendToTailOfList(ctx->variables, resultant);
 
-            SQLParameter *leftVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, leftVar);
+            SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, TRUE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);
 
-            SQLParameter *rightVar = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, rightVar);
+            SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, TRUE);
             exprToConstraints(getTailOfListP(operator->args), ctx);
 
             // Make constraints for this expression
@@ -618,25 +707,158 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             appendToTailOfList(ctx->variables, resultant);
 
-            SQLParameter *notExpr = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(++(ctx->current_expr))));
-            appendToTailOfList(ctx->variables, notExpr);
+            SQLParameter *notExpr = introduceMILPVariable(getHeadOfListP(operator->args), ctx, TRUE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);
 
             Constraint *c = makeNode(Constraint);
             c->sense = CONSTRAINT_E;
             c->rhs = 1;
             c->terms = LIST_MAKE(
-                createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant);
-                createNodeKeyValue((Node*)createConstInt(1), (Node*)notExpr);
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant),
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)notExpr)
+            );
+
+            appendToTailOfList(ctx->constraints, c);
+        }
+        else if(strcmp(operator->name, "+") == 0)
+        {
+            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+            appendToTailOfList(ctx->variables, resultant);
+
+            SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
+            exprToConstraints(getHeadOfListP(operator->args), ctx);
+
+            SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
+            exprToConstraints(getTailOfListP(operator->args), ctx);
+
+            // Make constraints for this expression
+            Constraint *c = makeNode(Constraint);
+            c->sense = CONSTRAINT_E;
+            c->rhs = 0;
+            c->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
             );
 
             appendToTailOfList(ctx->constraints, c);
         }
     }
+    else if(isA(expr, CaseExpr)) 
+    {
+        CaseExpr *caseExpr = (CaseExpr *)expr;
+        CaseWhen *caseWhen = (CaseWhen *)getHeadOfListP(caseExpr->whenClauses); // redundant cast?
+
+        // TODO: Fold multiple CaseWhens into chain of if/else, only handles first when
+        // TODO: only handles CASE caseWhenList optionalCaseElse END
+
+        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(++(ctx->current_expr))));
+        appendToTailOfList(ctx->variables, resultant);
+
+        SQLParameter *b = introduceMILPVariable(caseWhen->when, ctx, TRUE);
+        exprToConstraints(caseWhen->when, ctx);
+
+        SQLParameter *v1 = introduceMILPVariable(caseWhen->then, ctx, FALSE);
+        exprToConstraints(caseWhen->then, ctx);
+
+        SQLParameter *v2 = introduceMILPVariable(caseExpr->elseRes, ctx, FALSE);
+        exprToConstraints(caseExpr->elseRes, ctx);
+
+        SQLParameter *vIf = introduceMILPVariable(NULL, ctx, FALSE);
+        SQLParameter *vElse = introduceMILPVariable(NULL, ctx, FALSE);
+
+        Constraint *c1 = makeNode(Constraint);
+        c1->sense = CONSTRAINT_E;
+        c1->rhs = 0;
+        c1->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
+        );
+
+        Constraint *c2 = makeNode(Constraint);
+        c2->sense = CONSTRAINT_LE;
+        c2->rhs = 0;
+        c2->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1)
+        );
+
+        Constraint *c3 = makeNode(Constraint);
+        c3->sense = CONSTRAINT_GE;
+        c3->rhs = 0;
+        c3->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)createConstInt(1)),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+        );
+
+        Constraint *c4 = makeNode(Constraint);
+        c4->sense = CONSTRAINT_LE;
+        c4->rhs = 0;
+        c4->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+        );
+
+        Constraint *c5 = makeNode(Constraint);
+        c5->sense = CONSTRAINT_GE;
+        c5->rhs = 0;
+        c5->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+        );
+
+        Constraint *c6 = makeNode(Constraint);
+        c6->sense = CONSTRAINT_LE;
+        c6->rhs = 0;
+        c6->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2)
+        );
+
+        Constraint *c7 = makeNode(Constraint);
+        c7->sense = CONSTRAINT_LE;
+        c7->rhs = 0;
+        c7->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)createConstInt(1)),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+        );
+
+        Constraint *c8 = makeNode(Constraint);
+        c8->sense = CONSTRAINT_GE;
+        c8->rhs = 0;
+        c8->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+        );
+
+        Constraint *c9 = makeNode(Constraint);
+        c9->sense = CONSTRAINT_GE;
+        c9->rhs = 0;
+        c9->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)createConstInt(1)),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+        );
+
+        // TODO Macro?
+        appendToTailOfList(ctx->constraints, c1);
+        appendToTailOfList(ctx->constraints, c2);
+        appendToTailOfList(ctx->constraints, c3);
+        appendToTailOfList(ctx->constraints, c4);
+        appendToTailOfList(ctx->constraints, c5);
+        appendToTailOfList(ctx->constraints, c6);
+        appendToTailOfList(ctx->constraints, c7);
+        appendToTailOfList(ctx->constraints, c8);
+        appendToTailOfList(ctx->constraints, c9);
+    }
     else if(isA(expr, Constant))
     {
         SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
-        appendToTailOfList(ctx->variables, resultant);
         Constraint *constraint = makeNode(Constraint);
         constraint->sense = CONSTRAINT_E;
         constraint->rhs = INT_VALUE(expr);
@@ -644,18 +866,11 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
         appendToTailOfList(ctx->constraints, constraint);
     }
-    else if(isA(expr, SQLParameter))
-    {
-        SQLParameter *variable = (SQLParameter *)expr;
-        SQLParameter *constraintVariable = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
-        appendToTailOfList(ctx->variables, constraintVariable);
-        MAP_ADD_STRING_KEY(ctx->variableMap, variable->name, createConstString(constraintVariable->name));
-    }
-    return ctx->constraints;
+    return ctx;
 }
 
 LPProblem *
-newLPProblem(ConstraintTranslationCtx* ctx)
+newLPProblem (ConstraintTranslationCtx* ctx)
 {
     LPProblem *problem = MALLOC(sizeof(LPProblem));
 

@@ -59,6 +59,7 @@ static void outProvenanceStmt (StringInfo str, ProvenanceStmt *node);
 static void outProvenanceTransactionInfo (StringInfo str,
         ProvenanceTransactionInfo *node);
 static void outWhatIfStmt (StringInfo str, WhatIfStmt *node);
+static void outConstraint (StringInfo str, Constraint *node);
 static void outInsert(StringInfo str, Insert *node);
 static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);

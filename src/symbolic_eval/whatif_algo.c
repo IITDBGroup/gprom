@@ -15,6 +15,7 @@
 //#ifdef HAVE_LIBCPLEX
 //#include <ilcplex/cplex.h>
 //#endif
+/*
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -153,3 +154,4 @@ List *SymbolicExeAlgo(List *updates) {
 	DEBUG_LOG("sending %d updates for reenactment.\n", getListLength(updates));
 	return updates;
 }
+*/
