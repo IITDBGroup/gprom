@@ -1,0 +1,22 @@
+#+TITLE: notes for Felix
+
+* Code Pointers for Felix - <2020-05-19 Tue>                                            :IIT:
+Added: [2020-05-19 Tue 18:44]
+** code pointers
+- [[file:~/Documents/workspace/GProM/src/analysis_and_translate/translator_oracle.c::case PROV_INPUT_REENACT_WITH_TIMES:]]
+[[- file:~/Documents/workspace/GProM/src/analysis_and_translate/translator_oracle.c::translateQueryOracle (Node *node)]]
+- [[file:~/Documents/workspace/GProM/src/analysis_and_translate/analyze_oracle.c::static void analyzeUpdate(Update *f) {]]
+- [[file:~/Documents/workspace/GProM/src/analysis_and_translate/analyze_oracle.c::void analyzeQueryBlockStmt(Node *stmt, List *parentFroms) {]]
+- [[file:~/Documents/workspace/GProM/src/analysis_and_translate/analyze_oracle.c::analyzeOracleModel(Node *stmt) {]]
+- [[file:~/Documents/workspace/GProM/src/rewriter.c::processInput(char *input)]]
+- [[file:~/Documents/workspace/GProM/src/rewriter.c::rewriteQueryInternal (char *input, boolean rethrowExceptions)]]
+- [[file:~/Documents/workspace/GProM/src/provenance_rewriter/prov_rewriter_main.c::rewriteProvenanceComputation(ProvenanceComputation *op) {]]
+- [[file:~/Documents/workspace/GProM/src/rewriter.c::generatePlan(Node *oModel, boolean applyOptimizations)]]
+
+** your provenance rewriter
+- generate the program
+- run constraint solver
+- remove updates that are not needed
+- call the reenactment -> query
+- construct the diff query calling the reenactment
+- return that
