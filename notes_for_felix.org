@@ -53,5 +53,34 @@ Added: [2020-05-19 Tue 18:44]
 **** TODO Boris: find old experiments
 *** TODO Run it
 * Suggested Reading
+** Incomplete Databases
+- Kennedy, O., & Glavic, B. (2019). Analyzing Uncertain Tabular Data. In
+  \. Boss\'{e}, & G. Rogova (Eds.), Information Quality in Information Fusion
+  and Decision Making (pp. 291–320). : Springer.
+- Imieli\'nski, Tomasz, & Lipski Jr, W. (1984). Incomplete information in
+  relational databases. Journal of the ACM (JACM), 31(4), 761–791.
 
+** Provenance and Reenactment
+- Green, T. J., Karvounarakis, G., & Tannen, V. (2007). Provenance Semirings. In
+  , PODS '07: Proceedings of the 26th Symposium on Principles of Database
+  Systems (pp. 31–40). : .
+- Green, T. J., & Tannen, V. (2017). The semiring framework for database
+  provenance. In , Proceedings of the 36th ACM SIGMOD-SIGACT-SIGAI Symposium on
+  Principles of Database Systems (pp. 93–99). : .
+- Cheney, J., Chiticariu, L., & Tan, W. (2009). Provenance in databases: why,
+  how, and where. Foundations and Trends in Databases, 1(4), 379–474.
+- Arab, B., Gawlick, D., Krishnaswamy, V., Radhakrishnan, V., & Glavic,
+  B. (2016). Reenactment for read-committed snapshot isolation (long version).
+- Arab, B., Gawlick, D., Krishnaswamy, V., Radhakrishnan, V., & Glavic,
+  B. (2014). Reenacting transactions to compute their provenance.
+- Arab, B., Gawlick, D., Krishnaswamy, V., Radhakrishnan, V., & Glavic,
+  B. (2016). Formal foundations of reenactment and transaction provenance.
+
+** Program Slicing
+- Weiser, M. (1981). Program slicing. Proceedings of the 5th international
+  conference on Software engineering, (), 439–449.
+- Xu, B., Qian, J., Zhang, X., Wu, Z., & Chen, L. (2005). A brief survey of
+  program slicing. ACM SIGSOFT Software Engineering Notes, 30(2), 1–36.
+- Korel, B., & Laski, J. (1988). Dynamic program slicing. Information Processing
+  Letters, 29(3), 155–163.
 * Braindump
