@@ -20,3 +20,38 @@ Added: [2020-05-19 Tue 18:44]
 - call the reenactment -> query
 - construct the diff query calling the reenactment
 - return that
+* Plan for the Summer
+** TODO Implementation - First fully workable prototype [0/5]
+*** TODO debugging and smaller fixes
+*** TODO add support for deletes and inserts
+- condition whether tuple is deleted
+*** TODO integration with the full pipeline
+- analyzer + translator
+- calling your code
+- running the query (pass to serializer)
+*** TODO generating dependency check conditions for updates from MILP program simulating the updates
+- merge per update constraints
+- create condition on top
+- filter updates based on cplex result
+*** TODO take filtered updates and construct delta query
+- take $Reenact(H)$ and $Reenact(H')$ and calculate $diff(Q(Reenact(H)),Q'(Reenact(H'))$
+** TODO Paper [0/2]
+*** TODO Proofs
+- [ ] updates over VC tables behaves as updates over the incomplete databases encoded by the VC table
+- [ ] constraint compilation is correct (?)
+- [ ] program slicing is correct (main one)
+- [ ] data slicing is correct
+*** TODO write-up
+- [ ] repolish introduction + abstract + conclusions
+- [ ] check for new related work and polish related work
+- [ ] explanations and structure
+- [ ] technical section gaps
+** TODO Implementation - Optimizations [0/1]
+*** TODO See what need
+** TODO Experiments [0/2]
+*** TODO Determine what to do
+**** TODO Boris: find old experiments
+*** TODO Run it
+* Suggested Reading
+
+* Braindump
