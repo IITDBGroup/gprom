@@ -14,5 +14,6 @@
 #include "model/query_operator/query_operator.h"
 
 extern QueryOperator *rewritePI_CS (ProvenanceComputation *op);
+extern QueryOperator *updateRewritePI_CS (QueryOperator * op);
 
 #endif /* PI_CS_MAIN_H_ */

@@ -127,6 +127,10 @@ rewritePI_CS (ProvenanceComputation  *op)
     return rewRoot;
 }
 
+
+QueryOperator *updateRewritePI_CS (QueryOperator* op){
+	return rewritePI_CSOperator(op);
+}
 static QueryOperator *
 rewritePI_CSOperator (QueryOperator *op)
 {

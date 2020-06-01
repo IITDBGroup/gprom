@@ -57,6 +57,22 @@ provRewriteQBModel(Node *qbModel) {
 	if (isA(qbModel, List)) {
 		DEBUG_LOG("THE LENGTH OF THE QBMODEL");
 		DEBUG_LOG("%d\n", LIST_LENGTH(((List*)qbModel)));
+
+		//check here to update ps.
+		if(isA(getHeadOfListP((List*)qbModel), ProvenanceComputation)) {
+			ProvenanceComputation* pc = (ProvenanceComputation*) getHeadOfListP((List*) qbModel);
+			if(pc->inputType == PROV_INPUT_UPDATEPS){
+				DEBUG_LOG("START UPDATEPS\n");
+
+				char * ps = update_ps(pc);
+
+				Constant* result = createConstString(ps);
+
+				DEBUG_LOG("return the updated ps\n");
+				return (Node*) result;
+			}
+		}
+
 		return (Node*) provRewriteQueryList((List*) qbModel);
 	} else if (IS_OP(qbModel)) {
 //		DEBUG_LOG("QBMODEL");
@@ -115,14 +131,15 @@ findProvenanceComputations(QueryOperator *op, Set *haveSeen) {
 
 		//if it is a update, then return the updated ps
 
-		DEBUG_LOG("qbMode is a ProvenanceComputation\n");
-		ProvenanceComputation *pc = (ProvenanceComputation*) op;
-		if (pc->inputType == PROV_INPUT_UPDATEPS) {
-			DEBUG_LOG("update qbModel\n");
-
-			Constant * result = createConstString(update_ps(pc));
-			return (QueryOperator*) (result);
-		}
+//		DEBUG_LOG("qbMode is a ProvenanceComputation\n");
+//		ProvenanceComputation *pc = (ProvenanceComputation*) op;
+//		if (pc->inputType == PROV_INPUT_UPDATEPS) {
+//			DEBUG_LOG("update qbModel\n");
+//
+//			Constant * result =  createConstString(update_ps(pc));
+//			//One: set inputs
+//			return (QueryOperator*) (result);
+//		}
 
 		return rewriteProvenanceComputation((ProvenanceComputation*) op);
 	}
@@ -328,17 +345,17 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 		//mark the number of table - used in provenance scratch
 		markNumOfTableAccess((QueryOperator*) op);
 
-//        	    //CODE ADDED
+
 		QueryOperator *op1 = (QueryOperator*) op;
 		QueryOperator *rChild = OP_RCHILD(op1);
 		op1->inputs = singleton(rChild);
 		//END ADDED
 
 		//op->inputs(update, query)
-		INFO_OP_LOG("\nMMMMMMMMMtreeified operator model:\n", op);
-		DEBUG_NODE_BEATIFY_LOG(
-				"\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQtreeified operator model:\n",
-				op);
+//		INFO_OP_LOG("\nMMMMMMMMMtreeified operator model:\n", op);
+//		DEBUG_NODE_BEATIFY_LOG(
+//				"\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQtreeified operator model:\n",
+//				op);
 		//
 		result = rewritePI_CS(op);
 		removeParent(result, (QueryOperator*) op);
