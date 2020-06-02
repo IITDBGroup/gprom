@@ -661,12 +661,13 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 	QueryOperator *bg = (QueryOperator *)createSelectionOp((Node *)bgSel, op, NIL, attrnames);
 	switchSubtrees(op, bg);
 	op->parents = singleton(bg);
-	setStringProperty(bg, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	setStringProperty(bg, UNCERT_MAPPING_PROP, (Node *) copyObject(hmpIn));
+	markUncertAttrsAsProv(bg);
 
 	QueryOperator *pos = (QueryOperator *)createSelectionOp((Node *)posSel, opdup, NIL, attrnames);
 	switchSubtrees(opdup, pos);
 	opdup->parents = singleton(pos);
-	setStringProperty(pos, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	setStringProperty(pos, UNCERT_MAPPING_PROP, (Node *) copyObject(hmpIn));
 
 	INFO_OP_LOG("bg:", bg);
 	INFO_OP_LOG("pos:", pos);
@@ -678,7 +679,8 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 	bg->parents = singleton(unionop);
 	onepos->parents = singleton(unionop);
 
-	setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *) copyObject(hmpIn));
+	markUncertAttrsAsProv(unionop);
 
 	return unionop;
 }
@@ -1333,6 +1335,8 @@ rewriteRangeProvComp(QueryOperator *op)
     	QueryOperator *unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgop, posop), NIL, getQueryOperatorAttrNames(bgop));
 		bgop->parents = singleton(unionop);
 		posop->parents = singleton(unionop);
+	    setStringProperty(unionop, UNCERT_MAPPING_PROP, copyObject(GET_STRING_PROP(bgop,UNCERT_MAPPING_PROP)));
+		markUncertAttrsAsProv(unionop);
 		// top = (QueryOperator *)createProjectionOp(getProjExprsForAllAttrs(bgop), bgop, NIL, getQueryOperatorAttrNames(bgop));
 		// bgop->parents = singleton(top);
 		// unionop->parents = singleton(top);
