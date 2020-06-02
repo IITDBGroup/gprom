@@ -283,7 +283,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     if (stmt->inputType == PROV_INPUT_RANGE_QUERY)
     {
     	List *qAttrDef =  getQBAttrDefs(stmt->query);
-    	INFO_LOG("=======================", stringListToString(*attrNames));
+    	INFO_LOG("=======================%s", stringListToString(*attrNames));
     	// add attribute range attributes
     	FOREACH(Node,n,qAttrDef)
     	{

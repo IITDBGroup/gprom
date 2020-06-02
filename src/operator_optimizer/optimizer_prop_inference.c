@@ -279,7 +279,7 @@ computeMinMaxProp (QueryOperator *root)
 		}
 	}
 
-	INFO_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s", NodeTagToString(root->type), root->schema->name);
+	INFO_LOG("BEGIN COMPUTE MIN AND MAX OF %s operator %s on %s", NodeTagToString(root->type), root->schema->name, nodeToString(reqAttrs));
 	SET_BOOL_STRING_PROP(root, PROP_STORE_MIN_MAX_DONE);
 
 	// Table Access

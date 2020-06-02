@@ -114,6 +114,10 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_LATERAL_REWRITE "lateral_rewrite"
 #define OPTION_AGG_REDUCTION_MODEL_REWRITE "agg_reduction_model_rewrite"
 
+/* Uncertainty rewriter options */
+#define RANGE_OPTIMIZE_JOIN "range_optimize_join"
+#define RANGE_OPTIMIZE_AGG "range_optimize_agg"
+
 // backend types
 NEW_ENUM_WITH_TO_STRING(
     BackendType,
@@ -198,6 +202,10 @@ extern boolean temporal_use_normalization_window;
 // lateral rewrite for nesting operator
 extern boolean opt_lateral_rewrite;
 extern boolean opt_agg_reduction_model_rewrite;
+
+// Uncertainty rewriter options
+extern boolean range_optimize_join;
+extern boolean range_optimize_agg;
 
 // optimization options for group by
 extern boolean opt_optimization_push_down_group_by_operator_through_join;

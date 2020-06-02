@@ -176,6 +176,10 @@ boolean temporal_agg_combine_with_norm = TRUE;
 boolean opt_lateral_rewrite = FALSE;
 boolean opt_agg_reduction_model_rewrite = FALSE;
 
+// Uncertainty rewriter options
+boolean range_optimize_join = TRUE;
+boolean range_optimize_agg = TRUE;
+
 // struct that encapsulates option state
 struct option_state {
     HashMap *optionPos; // optionname -> position of option in list
@@ -237,6 +241,16 @@ static char *defGetString(OptionDefault *def, OptionType type);
         }
 
 #define anTemporaldbOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
+
+#define anUncertaintyOption(_name,_opt,_desc,_var,_def) \
         { \
             _name, \
             _opt, \
@@ -818,6 +832,19 @@ OptionInfo opts[] =
                 "Model Check: check that nodes in a query operator graph are not sharing "
                 "datastructures incorrectly.",
                 opt_operator_model_data_structure_consistency,
+                TRUE
+        ),
+        // Unercainty options
+        anUncertaintyOption(RANGE_OPTIMIZE_JOIN,
+                "-range_optimize_join",
+                "Range rewriter: Optimized join rewriting.",
+                range_optimize_join,
+                TRUE
+        ),
+        anUncertaintyOption(RANGE_OPTIMIZE_AGG,
+                "-range_optimize_agg",
+                "Range rewriter: Optimized aggregation rewriting.",
+                range_optimize_agg,
                 TRUE
         ),
         // stopper to indicate end of array
