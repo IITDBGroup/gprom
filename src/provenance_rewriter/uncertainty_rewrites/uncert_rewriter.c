@@ -88,6 +88,7 @@ static void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aR
 
 //Range query rewriting
 static QueryOperator *rewriteRangeProvComp(QueryOperator *op);
+static QueryOperator *rewriteRangeLimit(QueryOperator *op);
 static QueryOperator *rewrite_RangeTableAccess(QueryOperator *op);
 static QueryOperator *rewrite_RangeProjection(QueryOperator *op);
 static QueryOperator *rewrite_RangeSelection(QueryOperator *op);
@@ -281,6 +282,9 @@ rewriteRange(QueryOperator * op)
 	    case T_ProvenanceComputation:
 	        rewrittenOp = rewriteRangeProvComp(op);
 	        break;
+	    case T_LimitOperator:
+	    	rewrittenOp = rewriteRangeLimit(op);
+	    	break;
 		case T_TableAccessOperator:
 			rewrittenOp = rewrite_RangeTableAccess(op);
 			if(0){
@@ -1354,6 +1358,35 @@ rewriteRangeProvComp(QueryOperator *op)
     return top;
 }
 
+static QueryOperator *rewriteRangeLimit(QueryOperator *op){
+	ASSERT(OP_LCHILD(op));
+
+    // push down min max attr property if there are any
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		INFO_LOG("[Limit] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(dependency));
+		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)copyObject(dependency));
+	}
+
+	//rewrite child first
+	QueryOperator *child = rewriteRange(OP_LCHILD(op));
+
+	List *attrExpr = getNormalAttrProjectionExprs(child);
+
+	HashMap * hmp = NEW_MAP(Node, Node);
+
+	FOREACH(Node, nd, attrExpr){
+        addRangeAttrToSchema(hmp, op, nd);
+    }
+    addRangeRowToSchema(hmp, op);
+    setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
+	markUncertAttrsAsProv(op);
+
+	return op;
+}
+
 
 static List *
 putMidListToEnd(List *in, int p1, int p2)
@@ -2361,7 +2394,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 			Node *bgCase = (Node *)createCaseExpr(NULL, 
 				singleton((Node *)createCaseWhen(
 					bgAndExpr
-					,(Node *)getAttrRefByName(join, ROW_BESTGUESS)
+					,(Node *)createConstInt(1)/*(Node *)getAttrRefByName(join, ROW_BESTGUESS)*/
 				)),
 				(Node *)createConstInt(0)
 			);
@@ -2471,7 +2504,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 		pos++;
 	}
 	new_aggr_List = appendToTailOfList(new_aggr_List, (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, ROW_CERTAIN))));
-	new_aggr_List = appendToTailOfList(new_aggr_List, (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, ROW_BESTGUESS))));
+	new_aggr_List = appendToTailOfList(new_aggr_List, (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, ROW_BESTGUESS))));
 	new_aggr_List = appendToTailOfList(new_aggr_List, (Node *)createFunctionCall(SUM_FUNC_NAME, singleton(getAttrRefByName(proj, ROW_POSSIBLE))));
 	namelist_aggr = appendToTailOfList(namelist_aggr, ROW_CERTAIN);
 	namelist_aggr = appendToTailOfList(namelist_aggr, ROW_BESTGUESS);
