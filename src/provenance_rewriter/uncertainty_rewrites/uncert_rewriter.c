@@ -95,9 +95,10 @@ static QueryOperator *rewrite_RangeSelection(QueryOperator *op);
 static QueryOperator *rewrite_RangeJoin(QueryOperator *op);
 static QueryOperator *rewrite_RangeJoinOptimized(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation(QueryOperator *op);
-// static QueryOperator *rewrite_RangeAggregationOptimizedWithGroupby(QueryOperator *op);
+static QueryOperator *rewrite_RangeAggregation2(QueryOperator *op);
 
 static QueryOperator *spliceToBG(QueryOperator *op);
+static QueryOperator *spliceToBGAggr(QueryOperator *op);
 static QueryOperator *spliceToPOS(QueryOperator *op, char *jattr);
 static List *splitRanges(List *ranges);
 static Node *getMedian(Node *ub, Node *lb);
@@ -311,7 +312,12 @@ rewriteRange(QueryOperator * op)
 			INFO_OP_LOG("Range Rewrite Join:", rewrittenOp);
 			break;
 		case T_AggregationOperator:
-			rewrittenOp = rewrite_RangeAggregation(op);
+			if(getBoolOption(RANGE_OPTIMIZE_AGG)){
+				rewrittenOp = rewrite_RangeAggregation2(op);
+			}
+			else {
+				rewrittenOp = rewrite_RangeAggregation(op);
+			}
 			INFO_OP_LOG("Range Rewrite Aggregation:", rewrittenOp);
 			break;
 		case T_DuplicateRemoval:
@@ -2272,35 +2278,55 @@ rewrite_RangeAggregation(QueryOperator *op){
 			joinExpr = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExpr));
 		}
 	}
+	INFO_LOG(nodeToString(joinExpr));
+
+	//best guess matching
+	Node *joinExprBg = NULL;
+	FOREACH(Node, n, aggr_groupby_list){
+		Node *aRef1 = (Node *)getAttrRefByName(preaggr, ((AttributeReference *)n)->name);
+		Node *aRef2 = (Node *)getAttrRefByName(childdup, ((AttributeReference *)n)->name);
+		((AttributeReference *)aRef2)->fromClauseItem = 1;
+		Node *refExpr = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(aRef1,aRef2));
+		if(joinExprBg == NULL){
+			joinExprBg = refExpr;
+		}
+		else {
+			joinExprBg = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExprBg));
+		}
+	}
+	INFO_LOG(nodeToString(joinExprBg));
+
+
 	//if optimization 
 	//TODO
+	QueryOperator *bgVer = NULL;
 	if(HAS_STRING_PROP(childdup, PROP_STORE_POSSIBLE_TREE)){
-		QueryOperator *bgchild = (QueryOperator *)copyObject(childdup);
+		bgVer = (QueryOperator *)copyObject(childdup);
 		QueryOperator *poschild = (QueryOperator *)GET_STRING_PROP((QueryOperator *)copyObject(childdup), PROP_STORE_POSSIBLE_TREE);
-		QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
-		switchSubtrees(bgchild, uop);
-		poschild->parents = singleton(uop);
-		bgchild->parents = singleton(uop);
-		setStringProperty(uop, UNCERT_MAPPING_PROP,
-					  copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
-		childdup = uop;
-		markUncertAttrsAsProv(uop);
+		// QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
+		// switchSubtrees(bgchild, uop);
+		// poschild->parents = singleton(uop);
+		// bgchild->parents = singleton(uop);
+		// setStringProperty(uop, UNCERT_MAPPING_PROP,
+					  // copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
+		childdup = poschild;
+		// markUncertAttrsAsProv(uop);
 	}
 	else if(getBoolOption(RANGE_OPTIMIZE_AGG)){
-		QueryOperator *bgchild = spliceToBG((QueryOperator *)copyObject(childdup));
+		bgVer = spliceToBGAggr((QueryOperator *)copyObject(childdup));
 		QueryOperator *poschild = spliceToPOS((QueryOperator *)copyObject(childdup), ((AttributeReference *)getHeadOfListP(aggr_groupby_list))->name);
-		QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
-		switchSubtrees(bgchild, uop);
-		poschild->parents = singleton(uop);
-		bgchild->parents = singleton(uop);
-		setStringProperty(uop, UNCERT_MAPPING_PROP,
-					  copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
-		childdup = uop;
-		markUncertAttrsAsProv(uop);
-		INFO_OP_LOG("[Aggregation OPTIMIZED] SPLICED AGGREGATION CHILD: ", uop);
+		// QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
+		// switchSubtrees(bgchild, uop);
+		// poschild->parents = singleton(uop);
+		// bgchild->parents = singleton(uop);
+		// setStringProperty(poschild, UNCERT_MAPPING_PROP,
+					  // copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
+		childdup = poschild;
+		// markUncertAttrsAsProv(poschild);
+		INFO_OP_LOG("[Aggregation OPTIMIZED] SPLICED AGGREGATION CHILD: ", childdup);
 	}
 
-	QueryOperator *join = (QueryOperator *)createJoinOp(JOIN_INNER, joinExpr,LIST_MAKE(preaggr, childdup), NIL, attrJoin);
+	QueryOperator *join = (QueryOperator *)createJoinOp(JOIN_INNER, joinExpr ,LIST_MAKE(preaggr, childdup), NIL, attrJoin);
 	switchSubtrees(preaggr, join);
 	childdup->parents = singleton(join);
 	preaggr->parents = singleton(join);
@@ -2310,10 +2336,33 @@ rewrite_RangeAggregation(QueryOperator *op){
 		attrname_normal = appendToTailOfList(attrname_normal, getAttrTwoString(an));
 	}
 
-	INFO_LOG(stringListToString(attrname_normal));
+	// INFO_LOG(stringListToString(attrname_normal));
 
 	create_Mapping_rewritten(join, attrname_normal, TRUE);
 	markUncertAttrsAsProv(join);
+
+	if(bgVer != NULL){
+		QueryOperator *preaggr2 = (QueryOperator *)copyObject(preaggr);
+		QueryOperator *join2 = (QueryOperator *)createJoinOp(JOIN_INNER, joinExprBg ,LIST_MAKE(preaggr2, bgVer), NIL, attrJoin);
+		// switchSubtrees(preaggr, join2);
+		bgVer->parents = singleton(join2);
+		preaggr2->parents = singleton(join2);
+
+		create_Mapping_rewritten(join2, attrname_normal, TRUE);
+		markUncertAttrsAsProv(join2);
+
+		QueryOperator *posj = join;
+
+		QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(join2, posj), NIL, attrJoin);
+		switchSubtrees(join, uop);
+		join2->parents = singleton(uop);
+		posj->parents = singleton(uop);
+
+		create_Mapping_rewritten(uop, attrname_normal, TRUE);
+		markUncertAttrsAsProv(uop);
+
+		join = uop;
+	}
 
 	INFO_OP_LOG("Range Aggregation with groupby - cross join:", join);
 
@@ -2617,7 +2666,704 @@ rewrite_RangeAggregation(QueryOperator *op){
 // 	return op;
 // }
 
+// Try the 2nd version of optimized aggregation rewriting.
+// Do two phase aggregations instead of self join best guess to test out the difference.
+static QueryOperator *
+rewrite_RangeAggregation2(QueryOperator *op){
+	//TODO
+	ASSERT(OP_LCHILD(op));
 
+	//push minmax to child
+	if(getBoolOption(RANGE_OPTIMIZE_AGG) && ((AggregationOperator *)op)->groupBy){
+		Set *newdep = MAKE_STR_SET(((AttributeReference *)getHeadOfListP(((AggregationOperator *)op)->groupBy))->name);
+		if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+		{
+			Set *dependency = copyObject((Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS));
+			newdep = unionSets(newdep, dependency);
+		}
+		INFO_LOG("[Aggregation] Pushing minmax prop attr to child: %s", nodeToString(newdep));
+		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newdep);
+	}
+
+	//record original schema info
+	List *proj_projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
+	List *pro_attrName = getNormalAttrNames(OP_LCHILD(op));
+	List *p_attrName = getNormalAttrNames(OP_LCHILD(op));
+//	List *agg_attrName = getQueryOperatorAttrNames(OP_LCHILD(op));
+	List *agg_projExpr = getNormalAttrProjectionExprs(op);
+
+	List *aggr_groupby_list = copyObject(((AggregationOperator *)op)->groupBy);
+	List *aggr_out_names = getQueryOperatorAttrNames(op);
+
+	// rewrite child first
+	QueryOperator *childop = rewriteRange(OP_LCHILD(op));
+
+	if(0){
+			childop = combineRowByBG(childop);
+	}
+
+	INFO_LOG("REWRITE-RANGE - Aggregation");
+	HashMap * hmp = NEW_MAP(Node, Node);
+	// HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+
+	//rewrite non-groupby case
+	if(((AggregationOperator *)op)->groupBy == NIL){
+		INFO_LOG("RANGE_Aggregation - No groupby");
+
+		int ptr = 0;
+
+		// List *proj_ExprList = NIL;
+		// List *proj_NameList = NIL;
+
+		List *aggrl = copyList(((AggregationOperator *)op)->aggrs);
+
+		//add projection
+		FOREACH(Node, nd, aggrl){
+			Node * funattr = getHeadOfListP(((FunctionCall *)nd)->args);
+			ptr = ((AttributeReference *)funattr)->attrPosition;
+			char *aName = getNthOfListP(pro_attrName, ptr);
+			Node * funattrub = (Node *)getAttrRefByName(childop, getUBString(aName));
+			Node * funattrlb = (Node *)getAttrRefByName(childop, getLBString(aName));
+			if(strcmp(((FunctionCall *)nd)->functionname, COUNT_FUNC_NAME)==0)
+			{
+				getNthOfList(proj_projExpr,ptr)->data.ptr_value = getAttrRefByName(childop, ROW_BESTGUESS);
+				proj_projExpr = appendToTailOfList(proj_projExpr, getAttrRefByName(childop, ROW_POSSIBLE));
+				proj_projExpr = appendToTailOfList(proj_projExpr, getAttrRefByName(childop, ROW_CERTAIN));
+				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
+				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
+			}
+			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
+//				INFO_LOG("%s", nodeToString(funattr));
+				Node *bgMult = (Node *)createOpExpr("*", LIST_MAKE(funattr,getAttrRefByName(childop, ROW_BESTGUESS)));
+				Node *ubCase = (Node *)createCaseExpr(NULL, 
+					singleton((Node *)createCaseWhen(
+						(Node *)createOpExpr(OPNAME_GT, LIST_MAKE(funattrub,createConstInt(0)))
+						,(Node *)getAttrRefByName(childop, ROW_POSSIBLE)
+					)),
+					(Node *)getAttrRefByName(childop, ROW_CERTAIN)
+				);
+				Node *lbCase = (Node *)createCaseExpr(NULL, 
+					singleton((Node *)createCaseWhen(
+						(Node *)createOpExpr(OPNAME_GT, 
+							LIST_MAKE(funattrlb,createConstInt(0)))
+						,(Node *)getAttrRefByName(childop, ROW_CERTAIN)
+					)),
+					(Node *)getAttrRefByName(childop, ROW_POSSIBLE)
+				);
+				Node *ubMult = (Node *)createOpExpr("*", LIST_MAKE(funattrub,ubCase));
+				Node *lbMult = (Node *)createOpExpr("*", LIST_MAKE(funattrlb,lbCase));
+				getNthOfList(proj_projExpr,ptr)->data.ptr_value = bgMult;
+				proj_projExpr = appendToTailOfList(proj_projExpr, ubMult);
+				proj_projExpr = appendToTailOfList(proj_projExpr, lbMult);
+				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
+				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
+			}
+			//TODO upper bound can be optimized if there are certain tuples exist
+			if(strcmp(((FunctionCall *)nd)->functionname, MIN_FUNC_NAME)==0){
+//				INFO_LOG("%s", nodeToString(funattr));
+				proj_projExpr = appendToTailOfList(proj_projExpr, funattrub);
+				proj_projExpr = appendToTailOfList(proj_projExpr, funattrlb);
+				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
+				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
+			}
+			//TODO lower bound can be optimized if there are certain tuples exist
+			if(strcmp(((FunctionCall *)nd)->functionname, MAX_FUNC_NAME)==0){
+//				INFO_LOG("%s", nodeToString(funattr));
+				proj_projExpr = appendToTailOfList(proj_projExpr, funattrub);
+				proj_projExpr = appendToTailOfList(proj_projExpr, funattrlb);
+				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
+				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
+			}
+			ptr++;
+		}
+		// Node *cr = getMap(hmpIn, (Node *)createAttributeReference(ROW_CERTAIN));
+		// Node *br = getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS));
+		// Node *pr = getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE));
+		// proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(OPNAME_GT,LIST_MAKE(cr, createConstInt(1)))));
+		// proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(OPNAME_GT,LIST_MAKE(br, createConstInt(1)))));
+		// proj_projExpr = appendToTailOfList(proj_projExpr, createCaseOperator((Node *)createOpExpr(OPNAME_GT,LIST_MAKE(pr, createConstInt(1)))));
+		// pro_attrName = appendToTailOfList(pro_attrName,ROW_CERTAIN);
+		// pro_attrName = appendToTailOfList(pro_attrName,ROW_BESTGUESS);
+		// pro_attrName = appendToTailOfList(pro_attrName,ROW_POSSIBLE);
+		QueryOperator *proj = (QueryOperator *)createProjectionOp(proj_projExpr, childop, NIL, pro_attrName);
+		switchSubtrees(childop, proj);
+		childop->parents = singleton(proj);
+		op->inputs = singleton(proj);
+		// store UNCERT_MAPPING and mark uncertain attributes
+		create_Mapping_rewritten(proj, p_attrName, FALSE);
+		markUncertAttrsAsProv(proj);
+
+		INFO_OP_LOG("Range Aggregation no groupby - add projection:", proj);
+
+		//rewrite aggregation
+
+		/* int pos = 0; */
+		int aggpos = 0;
+
+		FOREACH(Node, nd, aggrl){
+			Node * funattr = getHeadOfListP(((FunctionCall *)nd)->args);
+			INFO_LOG("%s", nodeToString(funattr));
+			char * aName = ((AttributeReference *)funattr)->name;
+			Node * aref = (Node *)getAttrRefByName(proj, aName);
+			Node * arefub = (Node *)getAttrRefByName(proj, getUBString(aName));
+			Node * areflb = (Node *)getAttrRefByName(proj, getLBString(aName));
+			/* pos = ((AttributeReference *)funattr)->attrPosition; */
+			if(strcmp(((FunctionCall *)nd)->functionname, COUNT_FUNC_NAME)==0){
+				getNthOfList(((AggregationOperator *)op)->aggrs,aggpos)->data.ptr_value = createFunctionCall(SUM_FUNC_NAME,singleton(aref));
+				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(SUM_FUNC_NAME,singleton(arefub)));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(SUM_FUNC_NAME,singleton(areflb)));
+			}
+			if(strcmp(((FunctionCall *)nd)->functionname, MIN_FUNC_NAME)==0){
+				// Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
+				// Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));
+				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME,singleton(arefub)));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MIN_FUNC_NAME,singleton(areflb)));
+			}
+			if(strcmp(((FunctionCall *)nd)->functionname, MAX_FUNC_NAME)==0){
+				// Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
+				// Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));
+				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME,singleton(arefub)));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MIN_FUNC_NAME,singleton(areflb)));
+			}
+			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
+				// Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));
+				// Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
+				Node *lbAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(areflb));
+				Node *ubAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(arefub));
+				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, lbAgg);
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, ubAgg);
+			}
+			aggpos++;
+		}
+		// addRangeRowToSchema(hmp, op);
+		// Node* ct = (Node *)getAttrRefByName(proj,ROW_CERTAIN);
+		// Node* bg = (Node *)getAttrRefByName(proj,ROW_BESTGUESS);
+		// Node* ps = (Node *)getAttrRefByName(proj,ROW_POSSIBLE);
+		// ((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME, singleton(ct)));
+		// ((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME, singleton(bg)));
+		// ((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME, singleton(ps)));
+
+		setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
+		markUncertAttrsAsProv(op);
+//		INFO_LOG("%s", nodeToString(hmp));
+		INFO_OP_LOG("Range Aggregation no groupby - rewrite aggregation:", op);
+
+
+		//Add Projection for row annotations
+		QueryOperator *fproj = createProjOnAllAttrs(op);
+		HashMap *fprojhmp = (HashMap *)copyObject(hmp);
+		((ProjectionOperator *)fproj)->projExprs = appendToTailOfList(((ProjectionOperator *)fproj)->projExprs, createConstInt(1));
+		((ProjectionOperator *)fproj)->projExprs = appendToTailOfList(((ProjectionOperator *)fproj)->projExprs, createConstInt(1));
+		((ProjectionOperator *)fproj)->projExprs = appendToTailOfList(((ProjectionOperator *)fproj)->projExprs, createConstInt(1));
+		addRangeRowToSchema(fprojhmp, fproj);
+		fproj->inputs = singleton(op);
+		switchSubtrees(op, fproj);
+		op->parents = singleton(fproj);
+		create_Mapping_rewritten(fproj, getNormalAttrNames(op), TRUE);
+		setStringProperty(fproj, UNCERT_MAPPING_PROP, (Node *)fprojhmp);
+		INFO_OP_LOG("Range Aggregation no groupby - final projection:", fproj);
+		return fproj;
+	}
+
+	//rewrite groupby case
+
+	INFO_LOG("RANGE_Aggregation - With groupby");
+
+	//two branches for "selfjoin"
+
+	QueryOperator *child = OP_LCHILD(op);
+	QueryOperator *childdup = copyObject(child);
+
+	//pre-aggregate group by attributes, bg aggregation results and 
+
+	List *aggrlist = NIL;
+	List *gattrn = NIL;
+	List *rattrn = NIL;
+
+	List *agg_f_bg = ((AggregationOperator *)op)->aggrs;
+
+	//pre projection for correct bag results
+	//Assumes input order: aggregation, groupby attributes
+	QueryOperator *preproj = (QueryOperator *)createProjectionOp(getProjExprsForAllAttrs(child), child, NIL, getQueryOperatorAttrNames(child));
+	switchSubtrees(child, preproj);
+	child->parents = singleton(preproj);
+
+	setStringProperty(preproj, UNCERT_MAPPING_PROP,
+					  copyObject(getStringProperty(child, UNCERT_MAPPING_PROP)));
+	markUncertAttrsAsProv(preproj);
+
+	List *preproj_projExtr = ((ProjectionOperator *)preproj)->projExprs;
+	FOREACH(Node, n, agg_f_bg){
+		if(strcmp(((FunctionCall *)n)->functionname, COUNT_FUNC_NAME)==0){
+			Node * funattr = getHeadOfListP(((FunctionCall *)n)->args);
+			int ptr = ((AttributeReference *)funattr)->attrPosition;
+			getNthOfList(preproj_projExtr,ptr)->data.ptr_value = (Node *)getAttrRefByName(child, ROW_BESTGUESS);
+		}
+		else if(strcmp(((FunctionCall *)n)->functionname, SUM_FUNC_NAME)==0){
+			Node * funattr = getHeadOfListP(((FunctionCall *)n)->args);
+			Node * multOp = (Node *)createOpExpr("*", LIST_MAKE(funattr, getAttrRefByName(child, ROW_BESTGUESS)));
+			int ptr = ((AttributeReference *)funattr)->attrPosition;
+			getNthOfList(preproj_projExtr,ptr)->data.ptr_value = multOp;
+		}
+	}
+	//certain annotation conditions
+	Node * cert_case = NULL;
+
+	FOREACH(Node, n, aggr_groupby_list){
+		char *fname = ((AttributeReference *)n)->name;
+		char *fname_ub = getUBString(fname);
+		char *fname_lb = getLBString(fname);
+
+		Node * cert_eq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(child, fname_ub), getAttrRefByName(child, fname_lb)));
+
+		if(cert_case == NULL){
+			cert_case = cert_eq;
+		} else {
+			cert_case = (Node *)createOpExpr("AND", LIST_MAKE(cert_case, cert_eq));
+		}
+	}
+	Node *certainCond = (Node *)createOpExpr("*", LIST_MAKE(createCaseOperator(cert_case), getAttrRefByName(child, ROW_CERTAIN)));
+	int ptr = getAttrRefByName(child, ROW_CERTAIN)->attrPosition;
+	getNthOfList(preproj_projExtr,ptr)->data.ptr_value = certainCond;
+
+	child = preproj;
+
+	FOREACH(Node, n, aggr_groupby_list){
+		gattrn = appendToTailOfList(gattrn, ((AttributeReference *)n)->name);
+		Node *aRef_ub = (Node *)getAttrRefByName(child, getUBString(((AttributeReference *)n)->name));
+		Node *aRef_lb = (Node *)getAttrRefByName(child, getLBString(((AttributeReference *)n)->name));
+		Node *ubaggr = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(aRef_ub));
+		Node *lbaggr = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(aRef_lb));
+		aggrlist = appendToTailOfList(aggrlist, ubaggr);
+		aggrlist = appendToTailOfList(aggrlist, lbaggr);
+		rattrn = appendToTailOfList(rattrn, ((AttributeReference *)aRef_ub)->name);
+		rattrn = appendToTailOfList(rattrn, ((AttributeReference *)aRef_lb)->name);
+	}
+	FOREACH(Node, n, agg_f_bg){
+		aggrlist = appendToTailOfList(aggrlist, n);
+		if(strcmp(((FunctionCall *)n)->functionname, COUNT_FUNC_NAME)==0){
+			((FunctionCall *)n)->functionname = SUM_FUNC_NAME;
+		}
+		Node * funattr = getHeadOfListP(((FunctionCall *)n)->args);
+		char * fname = ((AttributeReference *)funattr)->name;
+		rattrn = appendToTailOfList(rattrn, fname);
+	}
+	Node *ctAggr = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(child, ROW_CERTAIN)));
+	Node *bgAggr = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(child, ROW_BESTGUESS)));
+	aggrlist = appendToTailOfList(aggrlist, ctAggr);
+	aggrlist = appendToTailOfList(aggrlist, bgAggr);
+	rattrn = appendToTailOfList(rattrn, ROW_CERTAIN);
+	rattrn = appendToTailOfList(rattrn, ROW_BESTGUESS);
+
+	List *attrnames = concatTwoLists(rattrn, gattrn);
+
+	QueryOperator *preaggr = (QueryOperator *)createAggregationOp(aggrlist, aggr_groupby_list, child, NIL, attrnames);
+	switchSubtrees(child, preaggr);
+	child->parents = singleton(preaggr);
+	// create_Mapping_rewritten(preaggr, aggr_groupby_list, FALSE);
+
+	INFO_OP_LOG("Range Aggregation with groupby - left pre-aggregation:", preaggr);
+
+	//do the join
+
+	List *attrn1 = getQueryOperatorAttrNames(preaggr);
+	List *attrn2_1 = NIL;
+	List *attrn2_2 = NIL;
+
+//	List *expr1 = getProjExprsForAllAttrs(child);
+//	List *expr2 = getProjExprsForAllAttrs(childdup);
+
+	//right attrs from join rename
+	FOREACH(char, n, getNormalAttrNames(childdup)){
+		attrn2_1 = appendToTailOfList(attrn2_1, getAttrTwoString(n));
+		attrn2_2 = appendToTailOfList(attrn2_2, getUBString(getAttrTwoString(n)));
+		attrn2_2 = appendToTailOfList(attrn2_2, getLBString(getAttrTwoString(n)));
+	}
+	attrn2_2 = appendToTailOfList(attrn2_2, ROW_CERTAIN_TWO);
+	attrn2_2 = appendToTailOfList(attrn2_2, ROW_BESTGUESS_TWO);
+	attrn2_2 = appendToTailOfList(attrn2_2, ROW_POSSIBLE_TWO);
+	// List *attrn2dup = deepCopyStringList(attrn2);
+	List *attrJoin = CONCAT_LISTS(attrn1,attrn2_1,attrn2_2);
+
+	Node *joinExpr = NULL;
+
+	//matching for join on all group by attributes
+	FOREACH(Node, n, aggr_groupby_list){
+//		Node *aRef1 = (Node *)getAttrRefByName(child, ((AttributeReference *)n)->name);
+		Node *aRef1_ub = (Node *)getAttrRefByName(preaggr, getUBString(((AttributeReference *)n)->name));
+		Node *aRef1_lb = (Node *)getAttrRefByName(preaggr, getLBString(((AttributeReference *)n)->name));
+//		Node *aRef2 = (Node *)getAttrRefByName(childdup, ((AttributeReference *)n)->name);
+//		((AttributeReference *)aRef2)->fromClauseItem =1;
+		Node *aRef2_ub = (Node *)getAttrRefByName(childdup, getUBString(((AttributeReference *)n)->name));
+		((AttributeReference *)aRef2_ub)->fromClauseItem = 1;
+		Node *aRef2_lb = (Node *)getAttrRefByName(childdup, getLBString(((AttributeReference *)n)->name));
+		((AttributeReference *)aRef2_lb)->fromClauseItem = 1;
+		Node *refExprCase1 = (Node *)createOpExpr(OPNAME_GE ,LIST_MAKE(aRef1_ub,aRef2_lb));
+		Node *refExprCase2 = (Node *)createOpExpr(OPNAME_GE ,LIST_MAKE(aRef2_ub,aRef1_lb));
+		// Node *refExprCase3 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_ub,aRef2_ub))));
+		Node *refExpr = (Node *)createOpExpr("AND", LIST_MAKE(refExprCase1,refExprCase2));
+		if(joinExpr == NULL){
+			joinExpr = refExpr;
+		}
+		else {
+			joinExpr = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExpr));
+		}
+	}
+	INFO_LOG(nodeToString(joinExpr));
+
+	// //best guess matching
+	// Node *joinExprBg = NULL;
+	// FOREACH(Node, n, aggr_groupby_list){
+	// 	Node *aRef1 = (Node *)getAttrRefByName(preaggr, ((AttributeReference *)n)->name);
+	// 	Node *aRef2 = (Node *)getAttrRefByName(childdup, ((AttributeReference *)n)->name);
+	// 	((AttributeReference *)aRef2)->fromClauseItem = 1;
+	// 	Node *refExpr = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(aRef1,aRef2));
+	// 	if(joinExprBg == NULL){
+	// 		joinExprBg = refExpr;
+	// 	}
+	// 	else {
+	// 		joinExprBg = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExprBg));
+	// 	}
+	// }
+	// INFO_LOG(nodeToString(joinExprBg));
+
+
+	//if optimization 
+	//TODO
+	QueryOperator *bgVer = NULL;
+	if(HAS_STRING_PROP(childdup, PROP_STORE_POSSIBLE_TREE)){
+		bgVer = (QueryOperator *)copyObject(childdup);
+		QueryOperator *poschild = (QueryOperator *)GET_STRING_PROP((QueryOperator *)copyObject(childdup), PROP_STORE_POSSIBLE_TREE);
+		// QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
+		// switchSubtrees(bgchild, uop);
+		// poschild->parents = singleton(uop);
+		// bgchild->parents = singleton(uop);
+		// setStringProperty(uop, UNCERT_MAPPING_PROP,
+					  // copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
+		childdup = poschild;
+		// markUncertAttrsAsProv(uop);
+	}
+	else if(getBoolOption(RANGE_OPTIMIZE_AGG)){
+		// bgVer = spliceToBGAggr((QueryOperator *)copyObject(childdup));
+		QueryOperator *poschild = spliceToPOS((QueryOperator *)copyObject(childdup), ((AttributeReference *)getHeadOfListP(aggr_groupby_list))->name);
+		// QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
+		// switchSubtrees(bgchild, uop);
+		// poschild->parents = singleton(uop);
+		// bgchild->parents = singleton(uop);
+		// setStringProperty(poschild, UNCERT_MAPPING_PROP,
+					  // copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
+		childdup = poschild;
+		// markUncertAttrsAsProv(poschild);
+		INFO_OP_LOG("[Aggregation OPTIMIZED] SPLICED AGGREGATION CHILD: ", childdup);
+	}
+
+	INFO_LOG("Cross Join attributes: %s", stringListToString(attrJoin));
+
+	QueryOperator *join = (QueryOperator *)createJoinOp(JOIN_INNER, joinExpr ,LIST_MAKE(preaggr, childdup), NIL, attrJoin);
+	switchSubtrees(preaggr, join);
+	childdup->parents = singleton(join);
+	preaggr->parents = singleton(join);
+
+	// List *attrname_normal = NIL;
+	// FOREACH(char, an, getNormalAttrNames(childdup)){
+		// attrname_normal = appendToTailOfList(attrname_normal, getAttrTwoString(an));
+	// }
+
+	// INFO_LOG(stringListToString(attrname_normal));
+
+	// create_Mapping_rewritten(join, attrname_normal, FALSE);
+	// markUncertAttrsAsProv(join);
+
+	INFO_OP_LOG("Range Aggregation with groupby - cross join:", join);
+
+	//pre_projection
+	List *projList = NIL;
+	List *nameList = NIL;
+
+	//a,ub_a,lb_a,b,ub_b,lb_b,...
+	// Node *cert_case = NULL;
+	// Node *bg_case = NULL;
+
+	FOREACH(Node, n, aggr_groupby_list){
+		char *fname = ((AttributeReference *)n)->name;
+		char *fname_ub = getUBString(fname);
+		char *fname_lb = getLBString(fname);
+		projList = appendToTailOfList(projList, getAttrRefByName(join, fname));
+		projList = appendToTailOfList(projList, getAttrRefByName(join, fname_ub));
+		projList = appendToTailOfList(projList, getAttrRefByName(join, fname_lb));
+		nameList = appendToTailOfList(nameList,fname);
+		nameList = appendToTailOfList(nameList,fname_ub);
+		nameList = appendToTailOfList(nameList,fname_lb);
+
+		// Node * cert_eq_1 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, fname_lb)));
+		// Node * cert_eq_2 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, getAttrTwoString(fname_ub)), getAttrRefByName(join, getAttrTwoString(fname_lb))));
+		// Node * cert_eq_3 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, getAttrTwoString(fname_ub))));
+
+		// Node * bg_eq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname), getAttrRefByName(join, getAttrTwoString(fname))));
+
+		// Node * cert_eq = (Node *)createOpExpr("AND", LIST_MAKE(cert_eq_3, createOpExpr("AND", LIST_MAKE(cert_eq_1, cert_eq_2))));
+		// if(cert_case == NULL){
+		// 	cert_case = cert_eq;
+		// } else {
+		// 	cert_case = (Node *)createOpExpr("AND", LIST_MAKE(cert_case, cert_eq));
+		// }
+		// if(bg_case == NULL){
+		// 	bg_case = bg_eq;
+		// } else {
+		// 	bg_case = (Node *)createOpExpr("AND", LIST_MAKE(bg_case, bg_eq));
+		// }
+	}
+
+	List *aggrl = copyList(((AggregationOperator *)op)->aggrs);
+
+	//projection on aggregation attributes
+	//urange(select a,count(b) from r is radb group by a);
+
+	FOREACH(Node, n, aggrl){
+		Node * funattr = getHeadOfListP(((FunctionCall *)n)->args);
+		char * fnameo = ((AttributeReference *)funattr)->name;
+		char * fname = getAttrTwoString(((AttributeReference *)funattr)->name);
+		char * fname_ub = getUBString(fname);
+		char * fname_lb = getLBString(fname);
+		INFO_LOG("%s, %s, %s, %s",fnameo, fname, fname_ub, fname_lb);
+		if(strcmp(((FunctionCall *)n)->functionname, COUNT_FUNC_NAME)==0){
+			projList = appendToTailOfList(projList, getAttrRefByName(join, fnameo));
+			projList = appendToTailOfList(projList, getAttrRefByName(join, ROW_POSSIBLE_TWO));
+			projList = appendToTailOfList(projList, getAttrRefByName(join, ROW_CERTAIN_TWO));
+			nameList = appendToTailOfList(nameList,fname);
+			nameList = appendToTailOfList(nameList,fname_ub);
+			nameList = appendToTailOfList(nameList,fname_lb);
+		}
+		if(strcmp(((FunctionCall *)n)->functionname, MIN_FUNC_NAME)==0 || strcmp(((FunctionCall *)n)->functionname, MAX_FUNC_NAME)==0){
+			projList = appendToTailOfList(projList, getAttrRefByName(join, fnameo));
+			projList = appendToTailOfList(projList, getAttrRefByName(join, fname_ub));
+			projList = appendToTailOfList(projList, getAttrRefByName(join, fname_lb));
+			nameList = appendToTailOfList(nameList,fname);
+			nameList = appendToTailOfList(nameList,fname_ub);
+			nameList = appendToTailOfList(nameList,fname_lb);
+		}
+		if(strcmp(((FunctionCall *)n)->functionname, SUM_FUNC_NAME)==0){
+			Node *ubCase = (Node *)createCaseExpr(NULL, 
+				singleton((Node *)createCaseWhen(
+					(Node *)createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(join, fname_ub),createConstInt(0)))
+					,(Node *)getAttrRefByName(join, ROW_POSSIBLE_TWO)
+				)),
+				(Node *)createConstInt(0)
+			);
+			Node *lbCase = (Node *)createCaseExpr(NULL, 
+				singleton((Node *)createCaseWhen(
+					(Node *)createOpExpr(OPNAME_GT, 
+						LIST_MAKE(getAttrRefByName(join, fname_lb),createConstInt(0)))
+						,(Node *)createConstInt(0)
+					)),
+				(Node *)getAttrRefByName(join, ROW_POSSIBLE_TWO)
+			);
+			Node *bgMult = (Node *)getAttrRefByName(join, fnameo);
+			Node *ubMult = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(join, fname_ub),ubCase));
+			Node *lbMult = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(join, fname_lb),lbCase));
+			projList = appendToTailOfList(projList, bgMult);
+			projList = appendToTailOfList(projList, ubMult);
+			projList = appendToTailOfList(projList, lbMult);
+			nameList = appendToTailOfList(nameList,fname);
+			nameList = appendToTailOfList(nameList,fname_ub);
+			nameList = appendToTailOfList(nameList,fname_lb);
+		}
+	}
+	//TODO optimize annotations
+
+	Node *cetExpr = (Node *)createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(join, ROW_CERTAIN), createConstInt(0)));
+	Node *bgExpr = (Node *)createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(join, ROW_BESTGUESS), createConstInt(0)));
+	projList = appendToTailOfList(projList, createCaseOperator(cetExpr));
+	projList = appendToTailOfList(projList, createCaseOperator(bgExpr));
+	projList = appendToTailOfList(projList, getAttrRefByName(join, ROW_POSSIBLE_TWO));
+	nameList = appendToTailOfList(nameList, ROW_CERTAIN);
+	nameList = appendToTailOfList(nameList, ROW_BESTGUESS);
+	nameList = appendToTailOfList(nameList, ROW_POSSIBLE);
+
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(projList, join, NIL, nameList);
+	switchSubtrees(join, proj);
+	join->parents = singleton(proj);
+
+	INFO_OP_LOG("Range Aggregation with groupby - projection:", proj);
+
+	//	new aggregation groupby list
+	// List *new_aggr_groupby_names = getQueryOperatorAttrNames(preaggr);
+	List *new_groupby_list = NIL;
+	List *new_aggr_List = NIL;
+	List *namelist_gb = NIL;
+	List *namelist_aggr = NIL;
+
+	int pos = 0;
+
+	FOREACH(Node, n, aggrl){
+		Node * funattr = getHeadOfListP(((FunctionCall *)n)->args);
+		char * origname = ((AttributeReference *)funattr)->name;
+		char * fname = getAttrTwoString(origname);
+		char * fname_ub = getUBString(fname);
+		char * fname_lb = getLBString(fname);
+		if(strcmp(((FunctionCall *)n)->functionname, COUNT_FUNC_NAME)==0){
+			Node *bgfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);
+			Node *ubfunc = (Node *)createFunctionCall(SUM_FUNC_NAME, singleton(getAttrRefByName(proj, fname_ub)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, ubfunc);
+			Node *lbfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname_lb)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, lbfunc);
+			char *outname = (char *)getNthOfListP(aggr_out_names, pos);
+			namelist_aggr = appendToTailOfList(namelist_aggr, outname);
+			namelist_aggr = appendToTailOfList(namelist_aggr, getUBString(outname));
+			namelist_aggr = appendToTailOfList(namelist_aggr, getLBString(outname));
+		}
+		if(strcmp(((FunctionCall *)n)->functionname, SUM_FUNC_NAME)==0){
+			Node *bgfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);
+			Node *ubfunc = (Node *)createFunctionCall(SUM_FUNC_NAME, singleton(getAttrRefByName(proj, fname_ub)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, ubfunc);
+			Node *lbfunc = (Node *)createFunctionCall(SUM_FUNC_NAME, singleton(getAttrRefByName(proj, fname_lb)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, lbfunc);
+			char *outname = (char *)getNthOfListP(aggr_out_names, pos);
+			namelist_aggr = appendToTailOfList(namelist_aggr, outname);
+			namelist_aggr = appendToTailOfList(namelist_aggr, getUBString(outname));
+			namelist_aggr = appendToTailOfList(namelist_aggr, getLBString(outname));
+		}
+		if(strcmp(((FunctionCall *)n)->functionname, MIN_FUNC_NAME)==0){
+			Node *bgfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);
+			Node *ubfunc = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, fname_ub)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, ubfunc);
+			Node *lbfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname_lb)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, lbfunc);
+			char *outname = (char *)getNthOfListP(aggr_out_names, pos);
+			namelist_aggr = appendToTailOfList(namelist_aggr, outname);
+			namelist_aggr = appendToTailOfList(namelist_aggr, getUBString(outname));
+			namelist_aggr = appendToTailOfList(namelist_aggr, getLBString(outname));
+		}
+		if(strcmp(((FunctionCall *)n)->functionname, MAX_FUNC_NAME)==0){
+			Node *bgfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);
+			Node *ubfunc = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, fname_ub)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, ubfunc);
+			Node *lbfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname_lb)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, lbfunc);
+			char *outname = (char *)getNthOfListP(aggr_out_names, pos);
+			namelist_aggr = appendToTailOfList(namelist_aggr, outname);
+			namelist_aggr = appendToTailOfList(namelist_aggr, getUBString(outname));
+			namelist_aggr = appendToTailOfList(namelist_aggr, getLBString(outname));
+		}
+		pos++;
+	}
+	new_aggr_List = appendToTailOfList(new_aggr_List, (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, ROW_CERTAIN))));
+	new_aggr_List = appendToTailOfList(new_aggr_List, (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, ROW_BESTGUESS))));
+	new_aggr_List = appendToTailOfList(new_aggr_List, (Node *)createFunctionCall(SUM_FUNC_NAME, singleton(getAttrRefByName(proj, ROW_POSSIBLE))));
+	namelist_aggr = appendToTailOfList(namelist_aggr, ROW_CERTAIN);
+	namelist_aggr = appendToTailOfList(namelist_aggr, ROW_BESTGUESS);
+	namelist_aggr = appendToTailOfList(namelist_aggr, ROW_POSSIBLE);
+
+	FOREACH(Node, n, aggr_groupby_list){
+		new_groupby_list = appendToTailOfList(new_groupby_list, getAttrRefByName(proj, ((AttributeReference *)n)->name));
+		new_groupby_list = appendToTailOfList(new_groupby_list, getAttrRefByName(proj, getUBString(((AttributeReference *)n)->name)));
+		new_groupby_list = appendToTailOfList(new_groupby_list, getAttrRefByName(proj, getLBString(((AttributeReference *)n)->name)));
+		char *outname = (char *)getNthOfListP(aggr_out_names, pos);
+		namelist_gb = appendToTailOfList(namelist_gb, outname);
+		namelist_gb = appendToTailOfList(namelist_gb, getUBString(outname));
+		namelist_gb = appendToTailOfList(namelist_gb, getLBString(outname));
+		pos++;
+	}
+
+	namelist_aggr = concatTwoLists(namelist_aggr, namelist_gb);
+
+	QueryOperator *aggrop = (QueryOperator *)createAggregationOp(new_aggr_List, new_groupby_list, proj, NIL, namelist_aggr);
+	switchSubtrees(proj, aggrop);
+	proj->parents = singleton(aggrop);
+
+	//fix datatypes
+	pos = 0;
+	FOREACH(Node, n, aggrl){
+		DataType dt = typeOf(n);
+		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
+		pos++;
+		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
+		pos++;
+		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
+		pos++;
+	}
+	FOREACH(Node, n, aggr_groupby_list){
+		DataType dt = ((AttributeReference *)n)->attrType;
+		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
+		pos++;
+		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
+		pos++;
+		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
+		pos++;
+	}
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+
+	INFO_OP_LOG("Range Aggregation with groupby - rewrite aggregation:", aggrop);
+
+	//Rearrange attribute position
+//	INFO_LOG("%s", stringListToString(aggr_out_names));
+
+	pos = 0;
+	List *proj_bg = NIL;
+	List *proj_bd = NIL;
+	List *name_bg = NIL;
+
+	FOREACH(Node, n, aggrl){
+		INFO_LOG("Aggregation attr: %s", nodeToString(n));
+		char *attrname = (char *)getNthOfListP(aggr_out_names, pos);
+		char *ubname = getUBString(attrname);
+		char *lbname = getLBString(attrname);
+		proj_bg = appendToTailOfList(proj_bg, getAttrRefByName(aggrop, attrname));
+		proj_bd = appendToTailOfList(proj_bd, getAttrRefByName(aggrop, ubname));
+		proj_bd = appendToTailOfList(proj_bd, getAttrRefByName(aggrop, lbname));
+		name_bg = appendToTailOfList(name_bg, attrname);
+		pos++;
+	}
+	FOREACH(Node, n, aggr_groupby_list){
+		INFO_LOG("groupby attr: %s", nodeToString(n));
+		char *attrname = (char *)getNthOfListP(aggr_out_names, pos);
+		char *ubname = getUBString(attrname);
+		char *lbname = getLBString(attrname);
+		proj_bg = appendToTailOfList(proj_bg, getAttrRefByName(aggrop, attrname));
+		proj_bd = appendToTailOfList(proj_bd, getAttrRefByName(aggrop, ubname));
+		proj_bd = appendToTailOfList(proj_bd, getAttrRefByName(aggrop, lbname));
+		name_bg = appendToTailOfList(name_bg, attrname);
+		pos++;
+	}
+	proj_bd = appendToTailOfList(proj_bd, getAttrRefByName(aggrop, ROW_CERTAIN));
+	proj_bd = appendToTailOfList(proj_bd, getAttrRefByName(aggrop, ROW_BESTGUESS));
+	proj_bd = appendToTailOfList(proj_bd, getAttrRefByName(aggrop, ROW_POSSIBLE));
+
+	List *proj_list = concatTwoLists(proj_bg, proj_bd);
+
+	QueryOperator *finalproj = (QueryOperator *)createProjectionOp(proj_list, aggrop, NIL, name_bg);
+	switchSubtrees(aggrop, finalproj);
+	aggrop->parents = singleton(finalproj);
+
+	List *projlist = getProjExprsForAllAttrs(finalproj);
+
+	FOREACH(Node, n, projlist)
+	{
+		addRangeAttrToSchema(hmp, finalproj, n);
+	}
+
+	addRangeRowToSchema(hmp, finalproj);
+
+	setStringProperty(finalproj, UNCERT_MAPPING_PROP, (Node *)hmp);
+	markUncertAttrsAsProv(finalproj);
+
+	switchSubtrees(op, finalproj);
+
+	return finalproj;
+}
 
 static void
 markUncertAttrsAsProv(QueryOperator *op)
@@ -3227,6 +3973,42 @@ spliceToBG(QueryOperator *op){
 	return bgProj;
 }
 
+static QueryOperator *
+spliceToBGAggr(QueryOperator *op){
+	List *attrnames = getNormalAttrNames(op);
+	// INFO_LOG("GETNAMES: %s, INPUTNAMES: %s", stringListToString(getNormalAttrNames(op)), stringListToString(attrnames));
+	Operator *bgSel = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(op,ROW_BESTGUESS), createConstInt(0)));
+
+	QueryOperator *bg = (QueryOperator *)createSelectionOp((Node *)bgSel, op, NIL, getQueryOperatorAttrNames(op));
+	switchSubtrees(op, bg);
+	op->parents = singleton(bg);
+	setStringProperty(bg, UNCERT_MAPPING_PROP,
+					  copyObject(getStringProperty(op, UNCERT_MAPPING_PROP)));
+	markUncertAttrsAsProv(bg);
+
+	//best guess projections
+	List *normalProjList = NIL;
+	List *rangeProjList = NIL;
+	// Node *ctcase = NULL;
+	FOREACH(char, an, attrnames){
+		normalProjList = appendToTailOfList(normalProjList,getAttrRefByName(bg,an));
+		rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg,getUBString(an)));
+		rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg,getLBString(an)));
+	}
+	rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg, ROW_CERTAIN));
+	rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg, ROW_BESTGUESS));
+	rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg, ROW_BESTGUESS));
+
+	QueryOperator *bgProj = (QueryOperator *)createProjectionOp(concatTwoLists(normalProjList,rangeProjList), bg, NIL, getQueryOperatorAttrNames(bg));
+	switchSubtrees(bg,bgProj);
+	bg->parents = singleton(bgProj);
+	setStringProperty(bgProj, UNCERT_MAPPING_PROP,
+					  copyObject(getStringProperty(bg, UNCERT_MAPPING_PROP)));
+	markUncertAttrsAsProv(bgProj);
+
+	return bgProj;
+}
+
 static void duplicateMinMaxNameProp(QueryOperator *from, QueryOperator *to){
 	if (HAS_STRING_PROP(from, PROP_STORE_MIN_MAX_ATTRS))
 	{
@@ -3291,7 +4073,8 @@ spliceToPOS(QueryOperator *op, char *jattr){
 	INFO_OP_LOG("posproj:", posProj);
 
 	//compress possibles
-	QueryOperator *compposProj = compressPosRow(posProj, 1, jattr);
+	int iter = getIntOption(RANGE_COMPRESSION_RATE);
+	QueryOperator *compposProj = compressPosRow(posProj, iter, jattr);
 
 	INFO_OP_LOG("compressed possible:", compposProj);
 

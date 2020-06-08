@@ -117,6 +117,7 @@ NEW_ENUM_WITH_TO_STRING(
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"
+#define RANGE_COMPRESSION_RATE "range_compression_rate"
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(
@@ -206,6 +207,7 @@ extern boolean opt_agg_reduction_model_rewrite;
 // Uncertainty rewriter options
 extern boolean range_optimize_join;
 extern boolean range_optimize_agg;
+extern boolean range_compression_rate;
 
 // optimization options for group by
 extern boolean opt_optimization_push_down_group_by_operator_through_join;

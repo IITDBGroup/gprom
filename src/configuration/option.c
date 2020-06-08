@@ -179,6 +179,7 @@ boolean opt_agg_reduction_model_rewrite = FALSE;
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
 boolean range_optimize_agg = TRUE;
+int range_compression_rate = 1;
 
 // struct that encapsulates option state
 struct option_state {
@@ -847,6 +848,14 @@ OptionInfo opts[] =
                 range_optimize_agg,
                 TRUE
         ),
+        {
+                 RANGE_COMPRESSION_RATE,
+                 "-range_compression_rate",
+                 "Range rewriter: Set rate of compression for possible, number indicates iterations where 1=split by half and 2=split by quarter...",
+                 OPTION_INT,
+                 wrapOptionInt(&range_compression_rate),
+                 defOptionInt(1)
+         },
         // stopper to indicate end of array
         {
                 STOPPER_STRING,
