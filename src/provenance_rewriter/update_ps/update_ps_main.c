@@ -53,6 +53,8 @@
 /*
  * Function Declaration
  */
+
+//DELETE
 static char* update_ps_delete(QueryOperator *query, QueryOperator *updateQuery,
 		psInfo *PSInfo, int ruleNum);
 static char* update_ps_delete_drop(QueryOperator *query,
@@ -62,11 +64,19 @@ static char* update_ps_delete_approximate(QueryOperator *query,
 static char* update_ps_delete_accurate(QueryOperator *query,
 		QueryOperator *updateQuery, psInfo *PSInfo);
 
+//INSERT
 static char* update_ps_insert(QueryOperator *query, QueryOperator *updateQuery,
 		psInfo *PSInfo, int ruleNum);
 static char* update_ps_insert_approximate(QueryOperator *query,
 		QueryOperator *updateQuery, psInfo *PSInfo);
 
+//UPDATE
+static char* update_ps_update(QueryOperator *query, QueryOperator *updateQuery,
+		psInfo *PSInfo, int ruleNum);
+static char* update_ps_del_ins_1(QueryOperator *query,
+		QueryOperator *updateQuery, psInfo *PSInfo);
+
+//OTHER AUXILIARY METHODS
 static char* getUpdatedTable(QueryOperator *op);
 static psAttrInfo* getUpdatedTablePSAttrInfo(psInfo *PSInfo, char *tableName);
 static List* getAllTables(psInfo *PSInfo);
@@ -76,7 +86,7 @@ static void reversePSInfo(psInfo *PSInfo, char *updatedTable);
 static QueryOperator* rewriteTableAccessOperator(TableAccessOperator *op,
 		psInfo *PSInfo);
 static boolean getTableAccessOps(Node *op, List **l);
-static BitSet* bitOrResults(HashMap *old, HashMap *new, StringInfo* result);
+static BitSet* bitOrResults(HashMap *old, HashMap *new, StringInfo *result);
 
 /*
  * Function Implementation
@@ -107,8 +117,6 @@ update_ps(ProvenanceComputation *qbModel) {
 	QueryOperator *lChild = (QueryOperator*) OP_LCHILD(op1);
 	op1->inputs = singleton(rChild);
 
-//	QueryOperator *query = rewritePI_CS(op);
-//	removeParent(rChild, (QueryOperator*) op);
 	removeParent(lChild, (QueryOperator*) op);
 
 	DEBUG_NODE_BEATIFY_LOG(
@@ -120,11 +128,14 @@ update_ps(ProvenanceComputation *qbModel) {
 	DEBUG_NODE_BEATIFY_LOG(
 			"\n#######################\n \t Update query:\n#######################\n",
 			lChild);
+	INFO_OP_LOG(
+			"\n#######################\n \t Update query:\n#######################\n",
+			lChild);
 
-	char *result;
+	char *result = NULL;
 
 //	result = update_ps_delete(rChild, lChild, psPara, DELETE_RULE_1);
-	result = update_ps_delete(rChild, lChild, psPara, DELETE_RULE_2);
+//	result = update_ps_delete(rChild, lChild, psPara, DELETE_RULE_2);
 //	result = update_ps_delete(rChild, lChild, psPara, DELETE_RULE_3);
 
 	markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
@@ -133,19 +144,25 @@ update_ps(ProvenanceComputation *qbModel) {
 	markNumOfTableAccess((QueryOperator*) op);
 	bottomUpPropagateLevelAggregation((QueryOperator*) op, psPara);
 
-	DEBUG_LOG("START HERE");
 	QueryOperator *newQuery = rewritePI_CS(op);
-	INFO_OP_LOG("NEW QUERY: ", newQuery);
-	DEBUG_LOG("FINISH 1");
 	newQuery = addTopAggForCoarse(newQuery);
-	INFO_OP_LOG("NEW QUERY IS: ", newQuery);
-	DEBUG_LOG("FINISH 2");
-	DEBUG_LOG("xxxxxxxxxxxxxxxx%s", result);
-	result = update_ps_insert(newQuery, lChild, psPara, INSERT_RULE_1);
+//	result = update_ps_insert(newQuery, lChild, psPara, INSERT_RULE_1);
+	int operation = 3;
+
+	if (operation == 1) {
+		result = update_ps_delete(newQuery, lChild, psPara, DELETE_RULE_3);
+	} else if (operation == 2) {
+		result = update_ps_insert(newQuery, lChild, psPara, INSERT_RULE_1);
+	} else if (operation == 3) {
+		result = update_ps_update(newQuery, lChild, psPara, UPDATE_RULE_1);
+	}
 
 	return result;
 }
 
+/*
+ * DELETE OPERATION UPDATING
+ */
 static char*
 update_ps_delete(QueryOperator *query, QueryOperator *updateQuery,
 		psInfo *PSInfo, int ruleNum) {
@@ -250,9 +267,110 @@ update_ps_delete_approximate(QueryOperator *query, QueryOperator *updateQuery,
 static char*
 update_ps_delete_accurate(QueryOperator *query, QueryOperator *updateQuery,
 		psInfo *PSInfo) {
+	/*
+	 *	Capture PS of ((PS_r - Delta_r) join PS_s)
+	 */
 
-	return NULL;
+	/*
+	 * TODO: (optimization) check if the updated table is related to the sql, for example: updated r but the query run on s and t;
+	 *
+	 */
+
+	//GET ALL THE TABLE ACCESS OPERATOR TO REWRITE
+	List *taList = NIL;
+	getTableAccessOps((Node*) query, &taList);
+
+	char *updatedTable = getUpdatedTable(updateQuery);
+	for (int i = 0; i < LIST_LENGTH(taList); i++) {
+		TableAccessOperator *taOp = (TableAccessOperator*) getNthOfListP(taList,
+				i);
+
+		List *parent = ((QueryOperator*) taOp)->parents;
+		QueryOperator *rewriteOp = rewriteTableAccessOperator(taOp, PSInfo);
+		((QueryOperator*) getHeadOfListP(parent))->inputs = replaceNode(
+				((QueryOperator*) getHeadOfListP(parent))->inputs, taOp,
+				rewriteOp);
+
+		if (streq(taOp->tableName, updatedTable)) {
+			// in this contidional case: construct PS_r - Delta_r;
+			Node *notCond = copyObject(
+					((SelectionOperator*) updateQuery)->cond);
+			List *conds = LIST_MAKE(notCond,
+					((SelectionOperator* )rewriteOp)->cond);
+			((SelectionOperator*) rewriteOp)->cond = andExprList(conds);
+			DEBUG_NODE_BEATIFY_LOG("WHAT IS THE SEL CO:",
+					((SelectionOperator* ) rewriteOp)->cond);
+
+		}
+	}
+
+	//GET CAPTURE SQL
+	char *capSql = serializeOperatorModel((Node*) query);
+
+	//CAPTURE NEW PS
+	List *attrNames = getAttrNames(query->schema);
+	HashMap *psMap = getPS(capSql, attrNames);
+	DEBUG_NODE_BEATIFY_LOG("WHAT IS THE NWE PS", psMap);
+
+	//GET RESULT AND RETURN
+	StringInfo result = makeStringInfo();
+	List *keys = getKeys(PSInfo->tablePSAttrInfos);
+	for (int i = 0; i < LIST_LENGTH(keys); i++) {
+		char *tableName = (char*) ((Constant*) getNthOfListP(keys, i))->value;
+		List *psAttrInfos = (List*) getMapString(PSInfo->tablePSAttrInfos,
+				tableName);
+
+		for (int j = 0; j < LIST_LENGTH(psAttrInfos); j++) {
+			psAttrInfo *info = (psAttrInfo*) getNthOfListP(psAttrInfos, j);
+			char *attrName = info->attrName;
+			StringInfo str = makeStringInfo();
+			appendStringInfo(str, "\"%s_%s_%s", "prov", tableName, attrName);
+
+			List *keys2 = getKeys(psMap);
+			for (int k = 0; k < LIST_LENGTH(keys2); k++) {
+				char *ss = ((Constant*) getNthOfListP(keys2, k))->value;
+				if (strncmp(str->data, ss, strlen(str->data)) == 0) {
+					Constant *newPSValue = (Constant*) getMapString(psMap, ss);
+					int bitSetLength = info->BitVector->length;
+					BitSet *bitSet = newBitSet(bitSetLength);
+					int bitSetIntValue = *((int*) newPSValue->value);
+
+					int index = info->BitVector->length - 1;
+
+					//set bit for each position;
+					while (bitSetIntValue > 0) {
+						if (bitSetIntValue % 2 == 1) {
+							setBit(bitSet, index, 1);
+						}
+						index--;
+						bitSetIntValue /= 2;
+					}
+					char *bits = bitSetToString(bitSet);
+
+					//reverse the bits;
+					for (index = 0; index < bitSetLength / 2; index++) {
+						bits[index] ^= bits[bitSetLength - index - 1];
+						bits[bitSetLength - index - 1] ^= bits[index];
+						bits[index] ^= bits[bitSetLength - index - 1];
+					}
+
+					bitSet = stringToBitset(bits);
+
+					appendStringInfo(result, "%s",
+							createResultComponent(tableName, attrName,
+									bitSetToString(bitSet)));
+
+				}
+			}
+		}
+	}
+
+	return result->data;
 }
+
+/*
+ * INSERT OPRATION UPDATING
+ */
 
 static char*
 update_ps_insert(QueryOperator *query, QueryOperator *updateQuery,
@@ -275,7 +393,6 @@ update_ps_insert_approximate(QueryOperator *query, QueryOperator *updateQuery,
 	char *updatedTable = getUpdatedTable(updateQuery);
 
 	ProjectionOperator *proOpDummy = createDummyProjTree(updateQuery);
-
 
 	psInfo *reservedPS = (psInfo*) copyObject(PSInfo);
 
@@ -314,18 +431,129 @@ update_ps_insert_approximate(QueryOperator *query, QueryOperator *updateQuery,
 	DEBUG_LOG("PS Attr Names : %s", stringListToString(attrNames));
 	HashMap *psMap = getPS(capSql, attrNames);
 
-
 	StringInfo result = makeStringInfo();
 	appendStringInfo(result, "%s", "{");
 	bitOrResults(reservedPS->tablePSAttrInfos, psMap, &result);
 	appendStringInfo(result, "%s", "}");
 
-
 	return result->data;
 }
 
+/*
+ * UPDATE OPERATION UPDATING
+ */
+
+static char*
+update_ps_update(QueryOperator *query, QueryOperator *updateQuery,
+		psInfo *PSInfo, int ruleNum) {
+	char *result = NULL;
+	switch (ruleNum) {
+	case UPDATE_RULE_1:
+		result = update_ps_del_ins_1(query, updateQuery, PSInfo);
+		break;
+
+	case UPDATE_RULE_2:
+		break;
+	case UPDATE_RULE_3:
+		break;
+	case UPDATE_RULE_4:
+		break;
+	}
+	return result;
+}
+
+static char*
+update_ps_del_ins_1(QueryOperator *query, QueryOperator *updateQuery,
+		psInfo *PSInfo) {
+	/*
+	 * DELETE: APPROXIMATE
+	 * INSERT: APPROXIMATE
+	 */
+
+	// CHECK IF THE UPDATED TABLE IS RELATED TO TABLES IN THE QUERIES
+	char *updatedTable = getUpdatedTable(updateQuery);
+	List *allParticipatedTables = NIL;
+	getTableAccessOps((Node*) query, &allParticipatedTables);
+	boolean isFind = FALSE;
+	FOREACH(TableAccessOperator, op, allParticipatedTables)
+	{
+		if (streq(op->tableName, updatedTable)) {
+			isFind = TRUE;
+			break;
+		}
+	}
+	if (!isFind) {
+		return NULL;
+	}
+
+	//DELETE: KEEP THE PS
+	//INSERT:
+
+	List *projExprs = ((ProjectionOperator*) updateQuery)->projExprs;
+	List *conds = NIL;
+	for (int i = 0; i < LIST_LENGTH(projExprs); i++) {
+		Node *curr = (Node*) getNthOfListP(projExprs, i);
+		if (isA(curr, CaseExpr)) {
+			List *whenClause = ((CaseExpr*) curr)->whenClauses;
+			for (int j = 0; j < LIST_LENGTH(whenClause); j++) {
+				Node *node = getNthOfListP(whenClause, j);
+				if (isA(node, CaseWhen)) {
+					DEBUG_LOG("make condds");
+					Operator *op = createOpExpr("=",
+							LIST_MAKE(copyObject(((CaseExpr* )curr)->elseRes),
+									copyObject(((CaseWhen* ) node)->then)));
+					conds = appendToTailOfList(conds, op);
+				}
+			}
+		}
+	}
+
+	//TODO HERE CAN OPTIMIZE, CHECK IF THE NEW INSERT TUPLES BELONGS TO PS_r BASED ON PS ATTRIBUTE, IF YES, DELTA_r JOIN X(PS_S) ELSE DELTA_r JOIN S.
+
+	psInfo *reservedPS = (psInfo*) copyObject(PSInfo);
+	reversePSInfo(PSInfo, updatedTable);
+
+	for (int i = 0; i < LIST_LENGTH(allParticipatedTables); i++) {
+
+		TableAccessOperator *taOp = (TableAccessOperator*) getNthOfListP(
+				allParticipatedTables, i);
+		if (streq(updatedTable, taOp->tableName)) {
+			List *parent = ((QueryOperator*) taOp)->parents;
+			Node *selAndConds = andExprList(conds);
+			SelectionOperator *selOp = createSelectionOp(selAndConds,
+					(QueryOperator*) taOp, parent,
+					getAttrNames(taOp->op.schema));
+//			createSelectionOp(Node *cond, QueryOperator *input, List *parents,List *attrNames)
+			((QueryOperator*) getHeadOfListP(parent))->inputs = replaceNode(
+					((QueryOperator*) getHeadOfListP(parent))->inputs, taOp,
+					selOp);
+		}
+
+	}
+
+	char *capSql = serializeOperatorModel((Node*) query);
+
+	DEBUG_LOG("%s", capSql);
+	List *attrNames = getAttrNames(query->schema);
+	DEBUG_LOG("PS Attr Names : %s", stringListToString(attrNames));
+	HashMap *psMap = getPS(capSql, attrNames);
+
+	DEBUG_NODE_BEATIFY_LOG("WHAT IS NEW PS", psMap);
+	StringInfo result = makeStringInfo();
+	appendStringInfo(result, "%s", "{");
+	bitOrResults(reservedPS->tablePSAttrInfos, psMap, &result);
+	appendStringInfo(result, "%s", "}");
+
+	return result->data;
+
+	return sql;
+}
+
+/*
+ * OTHER METHODS
+ */
 static BitSet*
-bitOrResults(HashMap *old, HashMap *new, StringInfo* result) {
+bitOrResults(HashMap *old, HashMap *new, StringInfo *result) {
 
 	List *keys = getKeys(old);
 
@@ -341,38 +569,39 @@ bitOrResults(HashMap *old, HashMap *new, StringInfo* result) {
 			appendStringInfo(str, "\"%s_%s_%s", "prov", tableName, attrName);
 
 			List *keys2 = getKeys(new);
-			for(int k = 0; k < LIST_LENGTH(keys2); k++) {
-				char* ss = ((Constant*) getNthOfListP(keys2, k))->value;
-				if(strncmp(str->data, ss, strlen(str->data)) == 0) {
-					Constant* newPSValue = (Constant*) getMapString(new, ss);
+			for (int k = 0; k < LIST_LENGTH(keys2); k++) {
+				char *ss = ((Constant*) getNthOfListP(keys2, k))->value;
+				if (strncmp(str->data, ss, strlen(str->data)) == 0) {
+					Constant *newPSValue = (Constant*) getMapString(new, ss);
 					int bitSetLength = info->BitVector->length;
-					BitSet* bitSet = newBitSet(bitSetLength);
-					int bitSetIntValue = *((int*)newPSValue->value);
+					BitSet *bitSet = newBitSet(bitSetLength);
+					int bitSetIntValue = *((int*) newPSValue->value);
 
 					int index = info->BitVector->length - 1;
 
 					//set bit for each position;
-					while(bitSetIntValue > 0) {
-						if(bitSetIntValue % 2 == 1) {
+					while (bitSetIntValue > 0) {
+						if (bitSetIntValue % 2 == 1) {
 							setBit(bitSet, index, 1);
 						}
 						index--;
 						bitSetIntValue /= 2;
 					}
-					char* bits = bitSetToString(bitSet);
+					char *bits = bitSetToString(bitSet);
 
 					//reverse the bits;
-					for(index = 0; index < bitSetLength / 2; index++) {
+					for (index = 0; index < bitSetLength / 2; index++) {
 						bits[index] ^= bits[bitSetLength - index - 1];
 						bits[bitSetLength - index - 1] ^= bits[index];
 						bits[index] ^= bits[bitSetLength - index - 1];
 					}
 
-
 					bitSet = stringToBitset(bits);
 
 					info->BitVector = bitOr(info->BitVector, bitSet);
-					appendStringInfo(*result, "%s", createResultComponent(tableName, attrName, bitSetToString(info->BitVector)));
+					appendStringInfo(*result, "%s",
+							createResultComponent(tableName, attrName,
+									bitSetToString(info->BitVector)));
 
 				}
 			}
@@ -470,8 +699,8 @@ static void reversePSInfo(psInfo *PSInfo, char *updatedTable) {
 				psAttrInfo *info = (psAttrInfo*) getNthOfListP(psAttrInfoList,
 						j);
 
-				DEBUG_NODE_BEATIFY_LOG("what is in the ranger",
-						getNthOfListP(info->rangeList, 0));
+//				DEBUG_NODE_BEATIFY_LOG("what is in the ranger",
+//						getNthOfListP(info->rangeList, 0));
 
 				char *bitset = bitSetToString(info->BitVector);
 				for (int index = 0; index < strlen(bitset); index++) {
@@ -492,8 +721,8 @@ static boolean getTableAccessOps(Node *op, List **l) {
 		return TRUE;
 
 	if (isA(op, TableAccessOperator)) {
-		DEBUG_LOG("TABLEACCESSOPERATOR: %s",
-				((TableAccessOperator* )op)->tableName);
+//		DEBUG_LOG("TABLEACCESSOPERATOR: %s",
+//				((TableAccessOperator* )op)->tableName);
 		*l = appendToTailOfList(*l, op);
 	}
 
