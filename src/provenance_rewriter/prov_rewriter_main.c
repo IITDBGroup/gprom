@@ -55,40 +55,25 @@ static QueryOperator* rewriteProvenanceComputation(ProvenanceComputation *op);
 Node*
 provRewriteQBModel(Node *qbModel) {
 	if (isA(qbModel, List)) {
-		DEBUG_LOG("THE LENGTH OF THE QBMODEL");
-		DEBUG_LOG("%d\n", LIST_LENGTH(((List*)qbModel)));
 
 		//check here to update ps.
 		if(isA(getHeadOfListP((List*)qbModel), ProvenanceComputation)) {
 			ProvenanceComputation* pc = (ProvenanceComputation*) getHeadOfListP((List*) qbModel);
 			if(pc->inputType == PROV_INPUT_UPDATEPS){
 				DEBUG_LOG("START UPDATEPS\n");
-
 				char * ps = update_ps(pc);
-
+				//TODO add time consumption
+				START_TIMER("UPDATEPS");
 				Constant* result = createConstString(ps);
+				STOP_TIMER("UPDATEPS");
 
-				DEBUG_LOG("return the updated ps\n");
 				return (Node*) result;
 			}
 		}
 
 		return (Node*) provRewriteQueryList((List*) qbModel);
 	} else if (IS_OP(qbModel)) {
-//		DEBUG_LOG("QBMODEL");
-//		if(isA(qbModel, ProvenanceComputation))
-//		{
-//			DEBUG_LOG("qbMode is a ProvenanceComputation\n");
-//			ProvenanceComputation *pc = (ProvenanceComputation *) qbModel;
-//			if(pc->inputType == PROV_INPUT_UPDATEPS)
-//			{
-//				DEBUG_LOG("update qbModel\n");
-////				return NULL; //TODO call your function to maintain provenance sketch
-////				return (Node*) update_ps(qbModel);
-//				Constant * result = createConstString("STOP HERE");
-//				return (Node*) (result);
-//			}
-//		}
+
 		return (Node*) provRewriteQuery((QueryOperator*) qbModel);
 	} else if (IS_DL_NODE(qbModel)) {
 		createRelToRuleMap(qbModel);

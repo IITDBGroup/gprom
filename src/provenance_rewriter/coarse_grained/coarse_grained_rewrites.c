@@ -47,7 +47,7 @@ addTopAggForCoarse (QueryOperator *op)
         FunctionCall *f = NULL;
         if(getBackend() == BACKEND_ORACLE)
         {
-        		f = createFunctionCall ("dbgroup.BITORAGG", singleton(a));
+        		f = createFunctionCall ("SYS.BITORAGG", singleton(a));
         		projExpr = appendToTailOfList(projExpr, f);
         }
         else if(getBackend() == BACKEND_POSTGRES)
