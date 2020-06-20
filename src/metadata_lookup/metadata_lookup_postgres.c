@@ -66,6 +66,7 @@
 #define QUERY_TABLE_GET_ATTRS "SELECT attname, atttypid " \
 		"FROM pg_class c, pg_attribute a " \
 		"WHERE c.oid = a.attrelid " \
+	    "AND a.atttypid != 0 " \
 		"AND relkind = 'r' " \
 		"AND relname = $1::text " \
 		"AND attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');"
