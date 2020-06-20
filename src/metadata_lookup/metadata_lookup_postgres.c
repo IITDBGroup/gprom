@@ -528,7 +528,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     }
 
     ACQUIRE_MEM_CONTEXT(memContext);
-
+    START_TIMER("module - metadata lookup");
     //TODO cache function information
     res = execPrepared(NAME_GET_FUNC_DEFS,
             LIST_MAKE(createConstString(fName),
@@ -566,7 +566,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     PQclear(res);
 
     RELEASE_MEM_CONTEXT();
-
+    STOP_TIMER("module - metadata lookup");
     return resType;
 }
 
@@ -641,7 +641,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 
     *opExists = FALSE;
     ACQUIRE_MEM_CONTEXT(memContext);
-
+    START_TIMER("module - metadata lookup");
     //TODO cache operator information
     res = execPrepared(NAME_GET_OP_DEFS,
             LIST_MAKE(createConstString(oName)));
@@ -665,7 +665,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 
     PQclear(res);
     RELEASE_MEM_CONTEXT();
-
+    STOP_TIMER("module - metadata lookup");
     return resType;
 }
 
@@ -707,13 +707,17 @@ boolean
 postgresCatalogTableExists (char * tableName)
 {
     PGresult *res = NULL;
+    START_TIMER("module - metadata lookup");
 
-    if (hasSetElem(plugin->plugin.cache->tableNames,tableName))
+    if (hasSetElem(plugin->plugin.cache->tableNames,tableName)){
+   	STOP_TIMER("module - metadata lookup");
         return TRUE;
+    }
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_TABLE_EXISTS, singleton(createConstString(tableName)));
+    STOP_TIMER("module - metadata lookup");
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
         addToSet(plugin->plugin.cache->tableNames, tableName);
@@ -731,13 +735,16 @@ boolean
 postgresCatalogViewExists (char * viewName)
 {
     PGresult *res = NULL;
-
-    if (hasSetElem(plugin->plugin.cache->viewNames,viewName))
+    START_TIMER("module - metadata lookup");
+    
+    if (hasSetElem(plugin->plugin.cache->viewNames,viewName)){
+        STOP_TIMER("module - metadata lookup");
         return TRUE;
-
+    }
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_VIEW_EXISTS, singleton(createConstString(viewName)));
+    STOP_TIMER("module - metadata lookup");
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
         addToSet(plugin->plugin.cache->viewNames, viewName);
@@ -757,10 +764,11 @@ postgresGetAttributes (char *tableName)
     PGresult *res = NULL;
     List *attrs = NIL;
     ASSERT(postgresCatalogTableExists(tableName));
-
-    if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrDefs, tableName))
+    START_TIMER("module - metadata lookup");
+    if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrDefs, tableName)){
+        STOP_TIMER("module - metadata lookup");
         return (List *) (MAP_GET_STRING(plugin->plugin.cache->tableAttrDefs,tableName));
-
+    }
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_TABLE_GET_ATTRS, singleton(createConstString(tableName)));
@@ -782,7 +790,7 @@ postgresGetAttributes (char *tableName)
     DEBUG_LOG("table %s", tableName);
     DEBUG_NODE_BEATIFY_LOG("attributes are", attrs);
     RELEASE_MEM_CONTEXT();
-
+    STOP_TIMER("module - metadata lookup");
     return attrs;
 }
 
@@ -792,10 +800,11 @@ postgresGetAttributeNames (char *tableName)
     List *attrs = NIL;
     PGresult *res = NULL;
     ASSERT(postgresCatalogTableExists(tableName));
-
-    if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName))
+    START_TIMER("module - metadata lookup");
+    if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName)){
+        STOP_TIMER("module - metadata lookup");
         return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrs,tableName);
-
+    }
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_TABLE_GET_ATTRS, singleton(createConstString(tableName)));
@@ -810,7 +819,7 @@ postgresGetAttributeNames (char *tableName)
 
     DEBUG_LOG("table %s attributes are <%s>", tableName, stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
-
+    STOP_TIMER("module - metadata lookup");
     return attrs;
 }
 
@@ -828,7 +837,8 @@ postgresGetPS (char *sql, List *attrNames)
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
-
+    START_TIMER("module - metadata lookup");
+    START_TIMER("Postgres - execute get ps");
 	res = execQuery(sql);
 
     // loop through results
@@ -840,6 +850,7 @@ postgresGetPS (char *sql, List *attrNames)
     		}
     }
 
+    STOP_TIMER("Postgres - execute get ps");
     execStmt("commit;");
     // clear result
     PQclear(res);
@@ -847,7 +858,7 @@ postgresGetPS (char *sql, List *attrNames)
     DEBUG_NODE_LOG("Captured Provenance Sketch :", (Node *) hm);
     //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
-
+    STOP_TIMER("module - metadata lookup");
     return hm;
 }
 
@@ -864,21 +875,25 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
-
+    START_TIMER("module - metadata lookup");
     if(getBoolOption(OPTION_PS_ANALYZE))
     {
+                START_TIMER("Postgres - execute ps analyze");
     		StringInfo setStatics = makeStringInfo();
     		appendStringInfo(setStatics,"ALTER TABLE %s ALTER COLUMN %s SET STATISTICS %d; Analyze %s;",
     				tableName, attrName, (numPartitions > 10000)? 10000:numPartitions, tableName);
-
+               
     		execStmt(setStatics->data);
+                STOP_TIMER("Postgres - execute ps analyze");
     }
+    START_TIMER("Postgres - execute get hist");
     res = execPrepared(NAME_GET_HIST, LIST_MAKE(createConstString(tableName),createConstString(attrName)));
-
+    
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
         attrs = appendToTailOfList(attrs, strdup(PQgetvalue(res,i,0)));
 
+    STOP_TIMER("Postgres - execute get hist");
     // clear result
     PQclear(res);
     //MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName, attrs);
@@ -890,11 +905,12 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
 
+        START_TIMER("Postgres - execute get minmax");
 	StringInfo minMax = makeStringInfo();
 	appendStringInfo(minMax,"SELECT MIN(%s), MAX(%s) FROM %s;",
 			attrName, attrName, tableName);
 	resMinMax = execQuery(minMax->data);
-
+        STOP_TIMER("Postgres - execute get minmax");
 	//have to commit, otherwise, if you run another query, will get warning: there is already a transaction in progress
 	execStmt("commit;");
     // loop through results
@@ -907,7 +923,7 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
 
     DEBUG_LOG("SELECT MinMax on %s attributes on %s table <%s>", attrName, tableName, stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
-
+    STOP_TIMER("module - metadata lookup");
     return attrs;
 }
 
@@ -975,9 +991,11 @@ postgresGetViewDefinition(char *viewName)
     PGresult *res = NULL;
 
     ASSERT(postgresCatalogViewExists(viewName));
-    if (MAP_HAS_STRING_KEY(plugin->plugin.cache->viewDefs, viewName))
+    START_TIMER("module - metadata lookup"); 
+    if (MAP_HAS_STRING_KEY(plugin->plugin.cache->viewDefs, viewName)){
+         STOP_TIMER("module - metadata lookup");
          return STRING_VALUE(MAP_GET_STRING(plugin->plugin.cache->viewDefs,viewName));
-
+    }
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_GET_VIEW_DEF, singleton(createConstString(viewName)));
@@ -987,11 +1005,12 @@ postgresGetViewDefinition(char *viewName)
         MAP_ADD_STRING_KEY(plugin->plugin.cache->viewDefs, viewName,
                 def);
         PQclear(res);
+        STOP_TIMER("module - metadata lookup");
         return STRING_VALUE(def);
     }
     PQclear(res);
     RELEASE_MEM_CONTEXT();
-
+    STOP_TIMER("module - metadata lookup");
     return NULL;
 }
 
@@ -1008,8 +1027,8 @@ postgresGetCostEstimation(char *query)
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
+    START_TIMER("module - metadata lookup");
     res = execPrepared(NAME_QUERY_GET_COST, singleton(createConstString(query)));
-
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
     {
@@ -1017,6 +1036,7 @@ postgresGetCostEstimation(char *query)
     }
     RELEASE_MEM_CONTEXT();
 
+    STOP_TIMER("module - metadata lookup");
     return cost;
 }
 
@@ -1030,7 +1050,7 @@ postgresGetKeyInformation(char *tableName)
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     keySet = STRSET();
-
+    START_TIMER("module - metadata lookup");
     res = execPrepared(NAME_GET_PK, singleton(createConstString(tableName)));
 
     // loop through results
@@ -1042,6 +1062,7 @@ postgresGetKeyInformation(char *tableName)
     // cleanup
     PQclear(res);
 
+    STOP_TIMER("module - metadata lookup");
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List,result);
 }
 
@@ -1101,19 +1122,25 @@ execStmt (char *stmt)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;;
-
+    START_TIMER("Postgres - execute stmt");
     res = PQexec(c, "BEGIN TRANSACTION;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        if (PQresultStatus(res) != PGRES_COMMAND_OK){
+            STOP_TIMER("Postgres - execute stmt");
             CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
                     PQerrorMessage(c));
+        }
     PQclear(res);
 
     DEBUG_LOG("execute statement %s", stmt);
     res = PQexec(c, stmt);
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        STOP_TIMER("Postgres - execute stmt");
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
+    }
     PQclear(res);
+
+    STOP_TIMER("Postgres - execute stmt");
 
     execCommit();
 }
@@ -1124,24 +1151,39 @@ execQuery(char *query)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
-
+    START_TIMER("Postgres - execute query");
+    START_TIMER("Postgres - execute query - BEGIN TRANSACTION");
     res = PQexec(c, "BEGIN TRANSACTION;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        if (PQresultStatus(res) != PGRES_COMMAND_OK){
+            STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
+            STOP_TIMER("Postgres - execute query");
             CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
+        }
     PQclear(res);
+    STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
 
+    START_TIMER("Postgres - execute query - DECLARE CURSOR");
     DEBUG_LOG("create cursor for %s", query);
     res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
+        STOP_TIMER("Postgres - execute query");
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
+    }
     PQclear(res);
+    STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
 
+    START_TIMER("Postgres - execute query - FETCH ALL");
     res = PQexec(c, "FETCH ALL in myportal");
-    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    if (PQresultStatus(res) != PGRES_TUPLES_OK){
+        STOP_TIMER("Postgres - execute query - FETCH ALL");
+        STOP_TIMER("Postgres - execute query");
         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
-
+    }
+    STOP_TIMER("Postgres - execute query - FETCH ALL");
+    STOP_TIMER("Postgres - execute query");
     return res;
 }
 
@@ -1151,10 +1193,14 @@ execCommit(void)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+    START_TIMER("Postgres - execute commit");
     res = PQexec(c, "COMMIT;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        if (PQresultStatus(res) != PGRES_COMMAND_OK){
+            STOP_TIMER("Postgres - execute commit");
             CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
+        }
+    STOP_TIMER("Postgres - execute commit");
     PQclear(res);
 }
 
@@ -1167,6 +1213,7 @@ execPrepared(char *qName, List *values)
     PGresult *res = NULL;
     params = CALLOC(sizeof(char*),LIST_LENGTH(values));
 
+    START_TIMER("Postgres - execute prepare");
     ASSERT(postgresIsInitialized());
 
     i = 0;
@@ -1184,10 +1231,12 @@ execPrepared(char *qName, List *values)
             NULL,
             0);
 
-    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    if (PQresultStatus(res) != PGRES_TUPLES_OK){
+        STOP_TIMER("Postgres - execute prepare");
         CLOSE_RES_CONN_AND_FATAL(res, "query %s failed:\n%s", qName,
                 PQresultErrorMessage(res));
-
+    }
+    STOP_TIMER("Postgres - execute prepare");
     return res;
 }
 
@@ -1197,19 +1246,21 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
-
+    START_TIMER("Postgres - execute prepare query");
     res = PQprepare(c,
                     qName,
                     query,
                     parameters,
                     types);
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        STOP_TIMER("Postgres - execute prepare query");
         CLOSE_RES_CONN_AND_FATAL(res, "prepare query %s failed: %s",
                 qName, PQresultErrorMessage(res));
+    }
     PQclear(res);
 
     DEBUG_LOG("prepared query: %s AS\n%s", qName, query);
-
+    STOP_TIMER("Postgres - execute prepare query");
     return TRUE;
 }
 
@@ -1269,6 +1320,8 @@ postgresTypenameToDT (char *typName)
 Relation *
 postgresExecuteQuery(char *query)
 {
+    START_TIMER("module - metadata lookup");
+    START_TIMER("Postgres - execute ExecuteQuery");
     Relation *r = makeNode(Relation);
     PGresult *rs = execQuery(query);
     int numRes = PQntuples(rs);
@@ -1305,7 +1358,8 @@ postgresExecuteQuery(char *query)
     }
     PQclear(rs);
     execCommit();
-
+    STOP_TIMER("Postgres - execute ExecuteQuery");
+    STOP_TIMER("module - metadata lookup"); 
     return r;
 }
 
@@ -1316,33 +1370,48 @@ postgresExecuteQueryIgnoreResult (char *query)
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
     boolean done = FALSE;
-
+    START_TIMER("module - metadata lookup");
+    START_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
+    START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
     // start transaction
     res = PQexec(c, CONCAT_STRINGS("BEGIN TRANSACTION;"));
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        if (PQresultStatus(res) != PGRES_COMMAND_OK){
+            STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
             CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
+        }
     PQclear(res);
+    STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
 
     // create a cursor
     DEBUG_LOG("create cursor for %s", query);
+    START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Declare Cursor");
     res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Declare Cursor");
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
+    }
     PQclear(res);
-
+    STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Declare Cursor");
+    
+    START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH");
     while(!done)
     {
         res = PQexec(c, "FETCH 1000 FROM myportal");
-        if (PQresultStatus(res) != PGRES_TUPLES_OK)
+        if (PQresultStatus(res) != PGRES_TUPLES_OK){
+            STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH");
             CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
-
+        }
         int numRes = PQntuples(res);
         if (numRes == 0)
             done = TRUE;
     }
+    STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH");
+
     execCommit();
+    STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
+    STOP_TIMER("module - metadata lookup");
 }
 
 // NO libpq present. Provide dummy methods to keep compiler quiet
