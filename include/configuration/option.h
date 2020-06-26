@@ -119,6 +119,9 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PS_USE_NEST "ps_use_nest"
 #define OPTION_PS_POST_TO_ORACLE "ps_post_to_oracle"
 
+/* update provenance sketch option*/
+#define OPTION_UPDATE_PS_OPTION "update_ps_option"
+
 // backend types
 NEW_ENUM_WITH_TO_STRING(
     BackendType,

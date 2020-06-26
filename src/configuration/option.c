@@ -185,6 +185,9 @@ boolean ps_analyze = TRUE;
 boolean ps_use_nest = FALSE;
 boolean ps_post_to_oracle = FALSE;
 
+// update ps option to decide acccurate or approximate updating
+int update_ps_option = 0;
+
 // struct that encapsulates option state
 struct option_state {
     HashMap *optionPos; // optionname -> position of option in list
@@ -670,6 +673,14 @@ OptionInfo opts[] =
 				 OPTION_INT,
 				 wrapOptionInt(&bit_vector_size),
 				 defOptionInt(32)
+		 },
+		 {
+				 OPTION_UPDATE_PS_OPTION,
+				 "-update_ps_option",
+				 "update ps choice to use accurate or approximate approach",
+				 OPTION_INT,
+				 wrapOptionInt(&update_ps_option),
+				 defOptionInt(0)
 		 },
 		 {
 				 OPTION_PS_BINARY_SEARCH,
