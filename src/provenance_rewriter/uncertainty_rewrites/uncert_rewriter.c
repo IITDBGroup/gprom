@@ -2437,7 +2437,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 
 	create_Mapping_rewritten(join, attrname_normal, TRUE);
 	markUncertAttrsAsProv(join);
-
+	
 	if(bgVer != NULL){
 		QueryOperator *preaggr2 = (QueryOperator *)copyObject(preaggr);
 		QueryOperator *join2 = (QueryOperator *)createJoinOp(JOIN_INNER, joinExprBg ,LIST_MAKE(preaggr2, bgVer), NIL, attrJoin);
@@ -3151,10 +3151,9 @@ rewrite_RangeAggregation2(QueryOperator *op){
 
 	//if optimization 
 	//TODO
-	QueryOperator *bgVer = NULL;
-	bgVer = NULL;
+	// QueryOperator *bgVer = NULL;
 	if(HAS_STRING_PROP(childdup, PROP_STORE_POSSIBLE_TREE)){
-		bgVer = (QueryOperator *)copyObject(childdup);
+		// bgVer = (QueryOperator *)copyObject(childdup);
 		QueryOperator *poschild = (QueryOperator *)GET_STRING_PROP((QueryOperator *)copyObject(childdup), PROP_STORE_POSSIBLE_TREE);
 		childdup = poschild;
 		// markUncertAttrsAsProv(uop);
