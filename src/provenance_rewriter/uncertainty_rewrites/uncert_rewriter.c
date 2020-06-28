@@ -65,6 +65,8 @@ static Node *rangeLBCase(CaseExpr * expr, HashMap *hmp);
 static Node *rangeUBCase(CaseExpr *expr, HashMap *hmp);
 static Node *getUBExpr(Node *expr, HashMap *hmp);
 static Node *getLBExpr(Node *expr, HashMap *hmp);
+// static Node *getUBExprByName(Node *expr, HashMap *hmp, QueryOperator *op);
+// static Node *getLBExprByName(Node *expr, HashMap *hmp, QueryOperator *op);
 extern char *getAttrTwoString(char *in);
 //extern char *getAttrOneString(char *in);
 
@@ -448,6 +450,68 @@ getLBExpr(Node *expr, HashMap *hmp)
 	}
 	return NULL;
 }
+
+// Node *
+// getUBExprByName(Node *expr, HashMap *hmp, QueryOperator *op)
+// {
+// 	switch(expr->type){
+// 		case T_Constant: {
+// 			return expr;
+// 		}
+// 		case T_AttributeReference: {
+// //			INFO_LOG("AttrExprUB - %s", nodeToString(hmp));
+// //			INFO_LOG("AttrExprUB - %s", nodeToString(expr));
+// 			char *refname = ((AttributeReference *)expr)->name;
+// 			Node * ret = (Node *)getAttrRefByName(op, getUBString(refname));
+// 			((AttributeReference *)ret)->outerLevelsUp = 0;
+// //			INFO_LOG("AttrExprUB - %s", ((AttributeReference *)ret)->name);
+// 			return ret;
+// 		}
+// 		case T_Operator: {
+// 			return RangeUBOp((Operator *) expr, hmp);
+// 		}
+// 		case T_CaseExpr: {
+// 			return rangeUBCase((CaseExpr *) expr, hmp);
+// 		}
+// 		case T_FunctionCall: {
+// 			return RangeUBFun((FunctionCall *) expr, hmp);
+// 		}
+// 		default: {
+// 			FATAL_LOG("unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
+// 		}
+// 	}
+// 	return NULL;
+// }
+
+// Node *
+// getLBExprByName(Node *expr, HashMap *hmp, QueryOperator *op)
+// {
+// 	switch(expr->type){
+// 		case T_Constant: {
+// 			return expr;
+// 		}
+// 		case T_AttributeReference: {
+// 			char *refname = ((AttributeReference *)expr)->name;
+// 			Node * ret = (Node *)getAttrRefByName(op, getLBString(refname));
+// 			((AttributeReference *)ret)->outerLevelsUp = 0;
+// //			INFO_LOG("AttrExprLB - %s - %s", ((AttributeReference *)expr)->name, ((AttributeReference *)ret)->name);
+// 			return ret;
+// 		}
+// 		case T_Operator: {
+// 			return RangeLBOp((Operator *) expr, hmp);
+// 		}
+// 		case T_CaseExpr: {
+// 			return rangeLBCase((CaseExpr *) expr, hmp);
+// 		}
+// 		case T_FunctionCall: {
+// 			return RangeLBFun((FunctionCall *) expr, hmp);
+// 		}
+// 		default: {
+// 			FATAL_LOG("unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
+// 		}
+// 	}
+// 	return NULL;
+// }
 
 Node *
 getUncertaintyExpr(Node *expr, HashMap *hmp)
@@ -855,6 +919,7 @@ getMedian(Node *ub, Node *lb)
 	ASSERT(isA(ub,Constant) && isA(lb, Constant));
 	Constant *u = (Constant *) ub;
 	Constant *l = (Constant *) lb;
+	ASSERT(u->constType == l->constType);
 
 	if(l->isNull && u->isNull)
 	{
@@ -931,6 +996,15 @@ getMedian(Node *ub, Node *lb)
 	}
 }
 
+static char getCharMedian(char l, char r){
+	char *e = strchr(ALPHABET, l);
+	int indexl = (int)(e - ALPHABET);
+	e = strchr(ALPHABET, r);
+	int indexr = (int)(e - ALPHABET);
+	int pos = (int)(indexl+indexr)/2;
+	return ALPHABET[pos];
+}
+
 static Constant*
 getStringMedian(Constant *ub, Constant *lb)
 {
@@ -939,26 +1013,29 @@ getStringMedian(Constant *ub, Constant *lb)
 	char *lbs = STRING_VALUE(lb);
 	int l1 = strlen(ubs);
 	int l2 = strlen(lbs);
-	int val1 = 0;
-	int val2 = 0;
-	char *res = (char *)MALLOC(MAX(l1,l2)*sizeof(char));
-	for (int i = 0; i < MAX(l1,l2); i++)
+	INFO_LOG("%d", MAX(l1,l2));
+	char val1 = 0;
+	char val2 = 0;
+	char *res = (char *)MALLOC((MAX(l1,l2)+1)*sizeof(char));
+	int i = 0;
+	for (i = 0; i < MAX(l1,l2); i++)
     {
         if(i<l1){
-        	val1 = (int)ubs[i];
+        	val1 = (char)ubs[i];
         }
         if(i<l2){
-        	val2 = (int)lbs[i];
+        	val2 = (char)lbs[i];
         }
-        res[i] = (char)(val1+val2)/2;
-        INFO_LOG("for position %d, it is %d(%c) + %d(%c) to median %d(%c).", i, val1,(char)val1, val2, (char)val2, (val1+val2)/2, (char)(val1+val2)/2);
+        res[i] = getCharMedian(val1,val2);
+        INFO_LOG("for position %d, it is %c + %c to median %c.", i, val1, val2,res[i]);
         val1=0;
         val2=0;
     }
-    INFO_LOG("median for %s and %s is: %s.", ubs,lbs,res);
+    res[i+1] = '\0';
 
 	if(ub->constType == DT_STRING)
 	{
+		INFO_LOG("median for %s and %s is: %s.", ubs,lbs,nodeToString(createConstString(res)));
 		return createConstString(res);
 	}
 	else
@@ -1980,11 +2057,12 @@ Add the hashmap property given list of normal attribute names and assume range a
 static void create_Mapping_rewritten(QueryOperator* op, List *attrs, boolean row){
 	HashMap * hmp = NEW_MAP(Node, Node);
 	FOREACH(char, an, attrs){
-		INFO_LOG(an);
+		INFO_LOG("adding %s", an);
 		Node * aref = (Node *)getAttrRefByName(op, an);
 		Node * arefub = (Node *)getAttrRefByName(op, getUBString(an));
 		Node * areflb = (Node *)getAttrRefByName(op, getLBString(an));
 		ADD_TO_MAP(hmp, createNodeKeyValue((Node *)aref, (Node *)LIST_MAKE(arefub, areflb)));
+		INFO_LOG("added %s", an);
 	}
 	if(row){
 		ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(op, ROW_BESTGUESS)));
@@ -2116,6 +2194,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 		switchSubtrees(childop, proj);
 		childop->parents = singleton(proj);
 		op->inputs = singleton(proj);
+
 		// store UNCERT_MAPPING and mark uncertain attributes
 		create_Mapping_rewritten(proj, p_attrName, FALSE);
 		markUncertAttrsAsProv(proj);
@@ -2228,6 +2307,24 @@ rewrite_RangeAggregation(QueryOperator *op){
 	QueryOperator *preaggr = (QueryOperator *)createAggregationOp(aggrlist, aggr_groupby_list, child, NIL, attrnames);
 	switchSubtrees(child, preaggr);
 	child->parents = singleton(preaggr);
+
+	//fix datatypes
+	FOREACH(Node, n, aggr_groupby_list){
+		char *aname = ((AttributeReference *)n)->name;
+		int apos = getAttrPos(preaggr, aname);
+		int ubpos = getAttrPos(preaggr, getUBString(aname));
+		int lbpos = getAttrPos(preaggr, getLBString(aname));
+		List *ad = preaggr->schema->attrDefs;
+		DataType dt = ((AttributeDef *)(getNthOfList(ad,apos)->data.ptr_value))->dataType;
+		INFO_LOG("dt for %s is %d", aname, dt);
+		DataType dt2 = ((AttributeDef *)(getNthOfList(ad,ubpos)->data.ptr_value))->dataType;
+		INFO_LOG("dt for %s is %d", getUBString(aname), dt2);
+		DataType dt3 = ((AttributeDef *)(getNthOfList(ad,lbpos)->data.ptr_value))->dataType;
+		INFO_LOG("dt for %s is %d", getLBString(aname), dt3);
+		((AttributeDef *)(getNthOfList(preaggr->schema->attrDefs,ubpos)->data.ptr_value))->dataType = dt;
+		((AttributeDef *)(getNthOfList(preaggr->schema->attrDefs,lbpos)->data.ptr_value))->dataType = dt;
+	}
+
 	// create_Mapping_rewritten(preaggr, aggr_groupby_list, FALSE);
 
 	INFO_OP_LOG("Range Aggregation with groupby - left pre-aggregation:", preaggr);
@@ -2688,7 +2785,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	//record original schema info
 	List *proj_projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
 	List *pro_attrName = getNormalAttrNames(OP_LCHILD(op));
-	List *p_attrName = getNormalAttrNames(OP_LCHILD(op));
+	// List *p_attrName = getNormalAttrNames(OP_LCHILD(op));
 //	List *agg_attrName = getQueryOperatorAttrNames(OP_LCHILD(op));
 	List *agg_projExpr = getNormalAttrProjectionExprs(op);
 
@@ -2733,7 +2830,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
 			}
 			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
-//				INFO_LOG("%s", nodeToString(funattr));
+				INFO_LOG("%s", nodeToString(funattr));
 				Node *bgMult = (Node *)createOpExpr("*", LIST_MAKE(funattr,getAttrRefByName(childop, ROW_BESTGUESS)));
 				Node *ubCase = (Node *)createCaseExpr(NULL, 
 					singleton((Node *)createCaseWhen(
@@ -2789,9 +2886,12 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		switchSubtrees(childop, proj);
 		childop->parents = singleton(proj);
 		op->inputs = singleton(proj);
+
+		// INFO_OP_LOG("Range Aggregation no groupby - add projection[pre]:", proj);
+
 		// store UNCERT_MAPPING and mark uncertain attributes
-		create_Mapping_rewritten(proj, p_attrName, FALSE);
-		markUncertAttrsAsProv(proj);
+		// create_Mapping_rewritten(proj, p_attrName, FALSE);
+		// markUncertAttrsAsProv(proj);
 
 		INFO_OP_LOG("Range Aggregation no groupby - add projection:", proj);
 
@@ -2966,6 +3066,23 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	child->parents = singleton(preaggr);
 	// create_Mapping_rewritten(preaggr, aggr_groupby_list, FALSE);
 
+	// //fix datatypes
+	// FOREACH(Node, n, aggr_groupby_list){
+	// 	char *aname = ((AttributeReference *)n)->name;
+	// 	int apos = getAttrPos(preaggr, aname);
+	// 	int ubpos = getAttrPos(preaggr, getUBString(aname));
+	// 	int lbpos = getAttrPos(preaggr, getLBString(aname));
+	// 	List *ad = preaggr->schema->attrDefs;
+	// 	DataType dt = ((AttributeDef *)(getNthOfList(ad,apos)->data.ptr_value))->dataType;
+	// 	INFO_LOG("dt for %s is %d", aname, dt);
+	// 	DataType dt2 = ((AttributeDef *)(getNthOfList(ad,ubpos)->data.ptr_value))->dataType;
+	// 	INFO_LOG("dt for %s is %d", getUBString(aname), dt2);
+	// 	DataType dt3 = ((AttributeDef *)(getNthOfList(ad,lbpos)->data.ptr_value))->dataType;
+	// 	INFO_LOG("dt for %s is %d", getLBString(aname), dt3);
+	// 	((AttributeDef *)(getNthOfList(preaggr->schema->attrDefs,ubpos)->data.ptr_value))->dataType = dt;
+	// 	((AttributeDef *)(getNthOfList(preaggr->schema->attrDefs,lbpos)->data.ptr_value))->dataType = dt;
+	// }
+
 	INFO_OP_LOG("Range Aggregation with groupby - left pre-aggregation:", preaggr);
 
 	//do the join
@@ -3038,27 +3155,13 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	if(HAS_STRING_PROP(childdup, PROP_STORE_POSSIBLE_TREE)){
 		bgVer = (QueryOperator *)copyObject(childdup);
 		QueryOperator *poschild = (QueryOperator *)GET_STRING_PROP((QueryOperator *)copyObject(childdup), PROP_STORE_POSSIBLE_TREE);
-		// QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
-		// switchSubtrees(bgchild, uop);
-		// poschild->parents = singleton(uop);
-		// bgchild->parents = singleton(uop);
-		// setStringProperty(uop, UNCERT_MAPPING_PROP,
-					  // copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
 		childdup = poschild;
 		// markUncertAttrsAsProv(uop);
 	}
 	else if(getBoolOption(RANGE_OPTIMIZE_AGG)){
 		// bgVer = spliceToBGAggr((QueryOperator *)copyObject(childdup));
 		QueryOperator *poschild = spliceToPOS((QueryOperator *)copyObject(childdup), ((AttributeReference *)getHeadOfListP(aggr_groupby_list))->name);
-		// QueryOperator *uop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgchild, poschild), NIL, getQueryOperatorAttrNames(bgchild));
-		// switchSubtrees(bgchild, uop);
-		// poschild->parents = singleton(uop);
-		// bgchild->parents = singleton(uop);
-		// setStringProperty(poschild, UNCERT_MAPPING_PROP,
-					  // copyObject(getStringProperty(childdup, UNCERT_MAPPING_PROP)));
 		childdup = poschild;
-		// markUncertAttrsAsProv(poschild);
-		INFO_OP_LOG("[Aggregation OPTIMIZED] SPLICED AGGREGATION CHILD: ", childdup);
 	}
 
 	INFO_LOG("Cross Join attributes: %s", stringListToString(attrJoin));
@@ -3098,24 +3201,6 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		nameList = appendToTailOfList(nameList,fname);
 		nameList = appendToTailOfList(nameList,fname_ub);
 		nameList = appendToTailOfList(nameList,fname_lb);
-
-		// Node * cert_eq_1 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, fname_lb)));
-		// Node * cert_eq_2 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, getAttrTwoString(fname_ub)), getAttrRefByName(join, getAttrTwoString(fname_lb))));
-		// Node * cert_eq_3 = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname_ub), getAttrRefByName(join, getAttrTwoString(fname_ub))));
-
-		// Node * bg_eq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname), getAttrRefByName(join, getAttrTwoString(fname))));
-
-		// Node * cert_eq = (Node *)createOpExpr("AND", LIST_MAKE(cert_eq_3, createOpExpr("AND", LIST_MAKE(cert_eq_1, cert_eq_2))));
-		// if(cert_case == NULL){
-		// 	cert_case = cert_eq;
-		// } else {
-		// 	cert_case = (Node *)createOpExpr("AND", LIST_MAKE(cert_case, cert_eq));
-		// }
-		// if(bg_case == NULL){
-		// 	bg_case = bg_eq;
-		// } else {
-		// 	bg_case = (Node *)createOpExpr("AND", LIST_MAKE(bg_case, bg_eq));
-		// }
 	}
 
 	List *aggrl = copyList(((AggregationOperator *)op)->aggrs);
@@ -3273,6 +3358,10 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		pos++;
 	}
 
+	// INFO_LOG("BGLIST: %s", nodeToString(new_groupby_list));
+
+	// ASSERT(1==0);
+
 	namelist_aggr = concatTwoLists(namelist_aggr, namelist_gb);
 
 	QueryOperator *aggrop = (QueryOperator *)createAggregationOp(new_aggr_List, new_groupby_list, proj, NIL, namelist_aggr);
@@ -3290,8 +3379,15 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 	}
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
 	FOREACH(Node, n, aggr_groupby_list){
 		DataType dt = ((AttributeReference *)n)->attrType;
+		INFO_LOG("dt for %s is %d", ((AttributeReference *)n)->name, dt);
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
@@ -3299,12 +3395,10 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 	}
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
+
+	// ASSERT(1==0);
+
+	INFO_LOG("FIXED DataTypes: %s", nodeToString(getDataTypes(aggrop->schema)));
 
 	INFO_OP_LOG("Range Aggregation with groupby - rewrite aggregation:", aggrop);
 
@@ -3372,7 +3466,7 @@ markUncertAttrsAsProv(QueryOperator *op)
 	Set *uncertAttrs = STRSET();
 	int pos = 0;
 
-	DEBUG_LOG("MARK ATTRIBUTES AS UNCERTAIN FOR: \n%s",
+	INFO_LOG("MARK ATTRIBUTES AS UNCERTAIN FOR: \n%s",
 			  singleOperatorToOverview(op));
 
 	FOREACH_HASH(Node,n,hmp)
@@ -3387,12 +3481,12 @@ markUncertAttrsAsProv(QueryOperator *op)
 		}
 	}
 
-	DEBUG_LOG("Uncertainty Attributes: %s",
+	INFO_LOG("Uncertainty Attributes: %s",
 			  nodeToString(uncertAttrs));
 
 	FOREACH(AttributeDef,a,op->schema->attrDefs)
 	{
-		DEBUG_LOG("check attribute %s", a->attrName);
+		INFO_LOG("check attribute %s", a->attrName);
 		if(streq(a->attrName,ROW_CERTAIN) ||
 		   streq(a->attrName,ROW_BESTGUESS) ||
 		   streq(a->attrName,ROW_POSSIBLE) ||
@@ -4633,14 +4727,19 @@ rewrite_RangeProjection(QueryOperator *op)
     HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
     List *attrExpr = getProjExprsForAllAttrs(op);
    	INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
-   	// INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
+   	INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
     List *uncertlist = NIL;
     int ict = 0;
     FOREACH(Node, nd, attrExpr){
         addRangeAttrToSchema(hmp, op, nd);
         Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,ict);
+        INFO_LOG("Proj: %s", nodeToString(projexpr));
+        // Node *ubExpr = getUBExprByName(projexpr, hmpIn, OP_LCHILD(op));
         Node *ubExpr = getUBExpr(projexpr, hmpIn);
+        INFO_LOG("Ub: %s", nodeToString(ubExpr));
+        // Node *lbExpr = getLBExprByName(projexpr, hmpIn, OP_LCHILD(op));
         Node *lbExpr = getLBExpr(projexpr, hmpIn);
+        INFO_LOG("Lb: %s", nodeToString(lbExpr));
         ict ++;
         uncertlist = appendToTailOfList(uncertlist, ubExpr);
         uncertlist = appendToTailOfList(uncertlist, lbExpr);
