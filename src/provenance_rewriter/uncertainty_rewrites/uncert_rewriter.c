@@ -3152,6 +3152,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	//if optimization 
 	//TODO
 	QueryOperator *bgVer = NULL;
+	bgVer = NULL;
 	if(HAS_STRING_PROP(childdup, PROP_STORE_POSSIBLE_TREE)){
 		bgVer = (QueryOperator *)copyObject(childdup);
 		QueryOperator *poschild = (QueryOperator *)GET_STRING_PROP((QueryOperator *)copyObject(childdup), PROP_STORE_POSSIBLE_TREE);
