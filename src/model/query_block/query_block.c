@@ -172,10 +172,13 @@ createWhatIfStmt(List *history, List *modifiedHistory, List *indices)
     int u = 0;
     FOREACH(Node, replaceWith, modifiedHistory)
     {
-        int toReplaceIdx = INT_VALUE(getNthOfListP(indices, u++)) - 1; // 1-idx
+        int toReplaceIdx = INT_VALUE(getNthOfListP(indices, u++)) - 1; // 1-idx (1-based indexing)
         Node *toReplace = getNthOfListP(result->modifiedHistory, toReplaceIdx);
-        replaceNode(result->modifiedHistory, toReplace, replaceWith);
+        result->modifiedHistory = replaceNode(result->modifiedHistory, toReplace, replaceWith);
     }
+
+    INFO_LOG("Original history is %s", beatify(nodeToString(result->history)));
+    INFO_LOG("Modified history is %s", beatify(nodeToString(result->modifiedHistory)));
 
     return result;
 }

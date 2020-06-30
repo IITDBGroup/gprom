@@ -32,7 +32,6 @@
 #include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
 
-/*
 static int totalObjects = 0;
 static int totalAttr = 0;
 static Set *attrSet = NULL;
@@ -40,7 +39,6 @@ static double default_lb = 0.0;
 //static double default_ub = CPX_INFBOUND;
 static double default_ub = 1000000000000;
 static int default_num_cols = 100;
-*/
 
 // added guard here to only reference cplex data structure if we are linking with cplex
 #ifdef HAVE_LIBCPLEX

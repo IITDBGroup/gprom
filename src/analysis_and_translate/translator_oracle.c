@@ -12,6 +12,7 @@
 
 #include "analysis_and_translate/translator.h"
 #include "common.h"
+#include "configuration/option.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "analysis_and_translate/translator_oracle.h"
@@ -31,6 +32,10 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
 
+#ifdef HAVE_LIBCPLEX
+#include <ilcplex/cplex.h>
+#endif
+
 // data types
 typedef struct ReplaceGroupByState {
     List *expressions;
@@ -49,6 +54,7 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 static QueryOperator *translateSetQuery(SetQuery *sq);
 static QueryOperator *translateQueryBlock(QueryBlock *qb);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
+static QueryOperator *translateWhatIfStmt(WhatIfStmt *whatif);
 static void markTableAccessForRowidProv (QueryOperator *o);
 static void getAffectedTableAndOperationType (Node *stmt,
         ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
@@ -150,6 +156,8 @@ translateQueryOracle (Node *node)
             return translateSetQuery((SetQuery *) node);
         case T_ProvenanceStmt:
             return translateProvenanceStmt((ProvenanceStmt *) node);
+        case T_WhatIfStmt:
+            return translateWhatIfStmt((WhatIfStmt *) node);
         case T_Insert:
         case T_Update:
         case T_Delete:
@@ -872,6 +880,89 @@ translateProvenanceStmt(ProvenanceStmt *prov)
         }
     }
     return (QueryOperator *) result;
+}
+
+static QueryOperator *
+translateWhatIfStmt (WhatIfStmt *whatif)
+{
+    List *reenactHistory = NIL;
+    if(getBoolOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING))
+    {
+        INFO_LOG("Program slicing optimization...");
+        #ifdef HAVE_LIBCPLEX
+        INFO_LOG("Constructing CPLEX problem...");
+        // Just want to see if CPLEX runs at this point.
+        List *historyCopy = copyObject(whatif->history);
+        List *caseExprs = historyToCaseExprsFreshVars(historyCopy);
+        ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
+        FOREACH(Node, e, caseExprs)
+        {
+            exprToConstraints(e, ctx);
+        }
+        LPProblem *lp = newLPProblem(ctx);
+
+        INFO_LOG("LP RCNT/Constraints %d/%d, LP CCNT/Variables: %d/%d, Non-zero %d", lp->rcnt, getListLength(ctx->constraints), lp->ccnt, getListLength(ctx->variables), lp->nzcnt);
+        
+        // cplex...
+        int cplexStatus = 0;
+        CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
+
+        if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
+
+        CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
+
+        cplexStatus = CPXnewcols (cplexEnv, cplexLp, lp->ccnt, lp->obj, NULL, NULL, NULL, lp->colname); // TODO: lb and ub
+        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXnewcols"); else INFO_LOG("CPXnewcols succeeded.");
+        cplexStatus = CPXaddrows (cplexEnv, cplexLp, lp->ccnt, lp->rcnt, lp->nzcnt, lp->rhs, lp->sense, lp->rmatbeg,
+                        lp->rmatind, lp->rmatval, lp->colname, NULL);
+        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXaddrows"); else INFO_LOG("CPXaddrows succeded.");
+
+        cplexStatus = CPXlpopt (cplexEnv, cplexLp);
+        if(cplexStatus)
+            INFO_LOG("Unable to optimize LP.");
+        else
+            INFO_LOG("Successfully optimized LP.");
+
+        cplexStatus = CPXfreeprob (cplexEnv, &cplexLp);
+        cplexStatus = CPXcloseCPLEX (&cplexEnv);
+        if(cplexStatus) ERROR_LOG("Problem closing CPLEX environment.");
+        #endif
+
+        // TODO: actually remove independent updates
+        FOREACH(Node, q, whatif->history)
+        {
+            reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
+        }
+    } 
+    else
+    {
+        FOREACH(Node, q, whatif->history)
+        {
+            reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
+        }
+    }
+
+    ProvenanceStmt *reenactHistoryStmt = createProvenanceStmt((Node *)reenactHistory);
+    reenactHistoryStmt->inputType = PROV_INPUT_REENACT;
+    reenactHistoryStmt->provType = PROV_NONE;
+
+    List *reenactModifiedHistory = NIL;
+    FOREACH(Node, q, whatif->modifiedHistory)
+    {
+        reenactModifiedHistory = appendToTailOfList(reenactModifiedHistory, createNodeKeyValue(q, NULL));
+    }
+    ProvenanceStmt *reenactModifiedHistoryStmt = createProvenanceStmt((Node *)reenactModifiedHistory);
+    reenactModifiedHistoryStmt->inputType = PROV_INPUT_REENACT;
+    reenactModifiedHistoryStmt->provType = PROV_NONE;
+
+    QueryOperator *reenactHistoryOp = OP_LCHILD(translateProvenanceStmt(reenactHistoryStmt)); // OP_LCHILD after rewrite
+    QueryOperator *reenactModifiedHistoryOp = OP_LCHILD(translateProvenanceStmt(reenactModifiedHistoryStmt)); // ^
+
+    QueryOperator *d1 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactHistoryOp, reenactModifiedHistoryOp), NIL, NIL);
+    QueryOperator *d2 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactModifiedHistoryOp, reenactHistoryOp), NIL, NIL);
+    QueryOperator *result = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(d1, d2), NIL, NIL);
+
+    return (QueryOperator *)result;
 }
 
 static void

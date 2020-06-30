@@ -1006,7 +1006,7 @@ equalWhatIfStmt(WhatIfStmt *a, WhatIfStmt *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(history);
     COMPARE_NODE_FIELD(modifiedHistory);
 
-    return equalProvenanceStmt(&a->provStmt, &b->provStmt, seenOps, c) && TRUE;
+    return TRUE;
 }
 
 static boolean

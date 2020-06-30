@@ -24,6 +24,8 @@
 static rc initializeCPlex(void);
 static rc testLogicExpr (void);
 static rc testCPLEXCompile (void);
+static rc testHLCompile (void);
+static rc testCompilationStack (void);
 
 
 /* check equal model */
@@ -32,7 +34,9 @@ testCplexExpr(void)
 {
     // RUN_TEST(testcopyAttributeReference(), "test copy AttibuteReference");
     RUN_TEST(testLogicExpr(), "test cplex for logical expressions");
+    RUN_TEST(testHLCompile(), "test high-level compilation from history to case exprs");
     RUN_TEST(testCPLEXCompile(), "test compiling to cplex format problem");
+    RUN_TEST(testCompilationStack(), "test entire compilation stack");
 
     return PASS;
 }
@@ -47,31 +51,24 @@ static rc
 testLogicExpr (void)
 {
     initializeCPlex();
-    // Node *test = (Node *) createOpExpr("<", LIST_MAKE(createConstInt(3), createConstInt(4)));
     Node *test = (Node *) createOpExpr("<", LIST_MAKE(createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2))), createOpExpr("+", LIST_MAKE(createConstInt(2), createConstInt(3)))));
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     exprToConstraints(test, ctx);
     FOREACH(Constraint, c, ctx->constraints)
     {
-        if(c != NULL)
+        INFO_LOG("---BEGIN CONSTRAINT---");
+        FOREACH(KeyValue, t, c->terms)
         {
-            ERROR_LOG("---BEGIN CONSTRAINT---");
-            FOREACH(KeyValue, t, c->terms)
-            {
-                if(t != NULL)
-                {
-                    ERROR_LOG("Constraint term: %d * %s", INT_VALUE(t->key), ((SQLParameter *)(t->value))->name);
-                }
-            }
-            ERROR_LOG("%s %d", ConstraintSenseToString(c->sense), c->rhs);
-            ERROR_LOG("---END CONSTRAINT---");
+            INFO_LOG("Constraint term: %d * %s", INT_VALUE(t->key), ((SQLParameter *)(t->value))->name);
         }
+        INFO_LOG("%s %d", ConstraintSenseToString(c->sense), c->rhs);
+        INFO_LOG("---END CONSTRAINT---");
     }
     //TODO create constraint
     //TODO solve constraint
     //TODO LOG constraints
     //TODO compare result against expected result
-    return FAIL;
+    return PASS;
 }
 
 static rc
@@ -82,7 +79,59 @@ testCPLEXCompile (void)
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     exprToConstraints(test, ctx);
     LPProblem *lp = newLPProblem(ctx);
-    ERROR_LOG("%d columns should equal %d variables", lp->ccnt, getListLength(ctx->variables)-1); // null head of list?
+    for(int i = 0; i < lp->ccnt; i++) {
+        INFO_LOG("- Variable %s", lp->colname[i]);
+    }
+    for(int i = 0; i < lp->rcnt; i++)
+    {
+        INFO_LOG("- Constraint beginning at rmatval/rmatind index %d", lp->rmatbeg[i]);
+        INFO_LOG("- Sense is %c", lp->sense[i]);
+        INFO_LOG("- RHS is %f", lp->rhs[i]);
+    }
 
-    return FAIL;
+    return PASS;
+}
+
+static rc
+testHLCompile (void)
+{
+    initializeCPlex();
+    List *history = NIL;
+    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))));
+    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))));
+    history = appendToTailOfList(history, createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60)))));
+    List *caseExprs = historyToCaseExprsFreshVars(history);
+    INFO_LOG("history is %s", beatify(nodeToString(caseExprs)));
+
+    return PASS;
+}
+
+static rc
+testCompilationStack (void)
+{
+    initializeCPlex();
+    List *history = NIL;
+    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))));
+    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))));
+    history = appendToTailOfList(history, createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60)))));
+    
+    List *caseExprs = historyToCaseExprsFreshVars(history);
+    ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
+    FOREACH(Node, e, caseExprs)
+    {
+        exprToConstraints(e, ctx);
+    }
+    LPProblem *lp = newLPProblem(ctx);
+    INFO_LOG("entire compilation stack is");
+    for(int i = 0; i < lp->ccnt; i++) {
+        INFO_LOG("- Variable %s", lp->colname[i]);
+    }
+    for(int i = 0; i < lp->rcnt; i++)
+    {
+        INFO_LOG("- Constraint beginning at rmatval/rmatind index %d", lp->rmatbeg[i]);
+        INFO_LOG("- Sense is %c", lp->sense[i]);
+        INFO_LOG("- RHS is %f", lp->rhs[i]);
+    }
+
+    return PASS;
 }

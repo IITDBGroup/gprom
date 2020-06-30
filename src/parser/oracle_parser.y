@@ -355,18 +355,6 @@ whatifStmt:
         }
 
 /*
- * Rule to parse a historical what-if query
- */
-whatifStmt:
-          WHAT IF '(' stmtList ')' REPLACE intConst IN '(' stmtList ')'
-          {
-              RULELOG("whatifStmt::stmt");
-			  WhatIfStmt *w = createWhatIfStmt($4, $10, $7);
-			  $$ = (Node *) w;
-          }
-    ;
-
-/*
  * Rule to parse a query asking for provenance
  */
 provStmt:

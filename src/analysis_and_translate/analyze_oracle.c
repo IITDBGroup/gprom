@@ -36,6 +36,7 @@ static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static boolean reenactOptionHasTimes (List *opts);
+static void analyzeWhatIfStmt (WhatIfStmt *stmt, List *parentFroms);
 static void analyzeWithStmt (WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
@@ -162,6 +163,10 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
         case T_ProvenanceStmt:
             analyzeProvenanceStmt((ProvenanceStmt *) stmt, parentFroms);
             DEBUG_LOG("analyzed Provenance Stmt");
+            break;
+        case T_WhatIfStmt:
+            analyzeWhatIfStmt((WhatIfStmt *) stmt, parentFroms);
+            DEBUG_LOG("analyzed WhatIf Stmt");
             break;
         case T_List:
             analyzeStmtList ((List *) stmt, parentFroms);
@@ -1971,6 +1976,16 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
     }
 
 	analyzeProvenanceOptions(q);
+}
+
+static void
+analyzeWhatIfStmt(WhatIfStmt *stmt, List *parentFroms)
+{
+    INFO_LOG("Analyzing WhatIfStmt");
+    FOREACH(Node, query, CONCAT_LISTS(stmt->history, stmt->modifiedHistory)) 
+    {
+        analyzeQueryBlockStmt(query, NIL);
+    }
 }
 
 static boolean

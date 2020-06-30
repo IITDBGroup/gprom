@@ -170,6 +170,7 @@ typedef struct {
     // cols
     int ccnt;
     char **colname;
+    double *obj;
     // rows
     int rcnt;
     int nzcnt;
@@ -259,8 +260,17 @@ extern DataType SQLdataTypeToDataType (char *dt);
 /* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr, HashMap *nestedSubqueries);
 
+/* create constraint translation ctx */
+extern ConstraintTranslationCtx *newConstraintTranslationCtx (void);
+
+/* turn history into case statements with fresh variables */
+extern List *historyToCaseExprsFreshVars (List *history);
+
 /* create MILP constraints from an expression tree */
-extern List *exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx);
+extern ConstraintTranslationCtx *exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx);
+
+/* create CPLEX format problem from Constraints  */
+extern LPProblem *newLPProblem (ConstraintTranslationCtx *ctx);
 
 /* create an Latex expression from an expression tree */
 extern char *exprToLatex (Node *expr);

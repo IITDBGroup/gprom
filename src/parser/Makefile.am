@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 # overwrite Werror for warning created by yacc/lex
 AM_CFLAGS = @GPROM_CFLAGS_OPT@
-AM_BISON_FLAGS = -Werror -Wno-error=deprecated
+AM_BISON_FLAGS = -Werror -Wno-yacc -Wno-error=deprecated
 
 AM_YFLAGS = -d
 

@@ -156,6 +156,9 @@ boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
 // optimization options for group by operator
 boolean opt_optimization_push_down_aggregation_through_join = FALSE;
 
+// optimization options for whatif
+boolean opt_optimization_whatif_program_slicing = FALSE;
+
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
 boolean opt_operator_model_parent_child_links = FALSE;
@@ -704,6 +707,12 @@ OptionInfo opts[] =
 				"-Opush_down_aggregation_through_join",
 				"Optimization: try to push down aggregation through join",
 				opt_optimization_push_down_aggregation_through_join,
+				TRUE
+		),
+        anOptimizationOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING,
+				"-Owhatif_program_slicing",
+				"Optimization: run program slicing to optimize whatif query execution",
+				opt_optimization_whatif_program_slicing,
 				TRUE
 		),
         // temporal database options for coalesce and normalization
