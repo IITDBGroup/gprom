@@ -772,7 +772,7 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 	List *range = LIST_MAKE(max,min);
 	while(n>0){
 		range = splitRanges(range);
-		INFO_LOG("range for %s is: %s", attr, nodeToString(range));
+		// INFO_LOG("range for %s is: %s", attr, nodeToString(range));
 		n--;
 	}
 	List *projl = NIL;
@@ -892,22 +892,24 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 
 //given a list of bounds, divide each bounds into two
 static List *splitRanges(List *ranges){
+	INFO_LOG("input ranges %s", nodeToString(ranges));
 	if(ranges->length<=1){
 		return ranges;
 	}
 	List *nb = NIL;
-	Node *last = NULL;
+	Node *first = NULL;
 	FOREACH(Node, nd, ranges){
-		if(!last){
-			last = nd;
-			nb = appendToTailOfList(nb,nd);
+		if(!first){
+			first = nd;
+			nb = appendToTailOfList(nb,first);
 		}
 		else {
-                  nb = appendToTailOfList(nb, getMedian(last, nd));
-                  last = nd;
+                  nb = appendToTailOfList(nb, getMedian(first, nd));
+                  nb = appendToTailOfList(nb, nd);
+                  first = nd;
 		}
 	}
-	nb = appendToTailOfList(nb,last);
+	INFO_LOG("output ranges %s", nodeToString(nb));
 	return nb;
 }
 
@@ -970,22 +972,19 @@ getMedian(Node *ub, Node *lb)
 		{
 			median = INT_VALUE(ub);
 		}
-		INFO_LOG("Median of %f and %f is: %f", INT_VALUE(ub), INT_VALUE(lb),
-				 median);
+		// INFO_LOG("Median of %f and %f is: %f", INT_VALUE(ub), INT_VALUE(lb),median);
 		return (Node *)createConstInt(median);
 	}
 	case DT_FLOAT:
 	{
 		double median = (FLOAT_VALUE(ub) + FLOAT_VALUE(lb)) / 2.0;
-		INFO_LOG("Median of %f and %f is: %f", FLOAT_VALUE(ub), FLOAT_VALUE(lb),
-				 median);
+		// INFO_LOG("Median of %f and %f is: %f", FLOAT_VALUE(ub), FLOAT_VALUE(lb),median);
 		return (Node *)createConstFloat(median);
 	}
 	case DT_LONG:
 	{
 		gprom_long_t median = (LONG_VALUE(ub) + LONG_VALUE(lb)) / 2.0;
-		INFO_LOG("Median of %f and %f is: %f", LONG_VALUE(ub), LONG_VALUE(lb),
-				 median);
+		// INFO_LOG("Median of %f and %f is: %f", LONG_VALUE(ub), LONG_VALUE(lb),median);
 		return (Node *)createConstLong(median);
 	}
 	case DT_STRING:
@@ -2437,7 +2436,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 
 	create_Mapping_rewritten(join, attrname_normal, TRUE);
 	markUncertAttrsAsProv(join);
-	
+
 	if(bgVer != NULL){
 		QueryOperator *preaggr2 = (QueryOperator *)copyObject(preaggr);
 		QueryOperator *join2 = (QueryOperator *)createJoinOp(JOIN_INNER, joinExprBg ,LIST_MAKE(preaggr2, bgVer), NIL, attrJoin);
