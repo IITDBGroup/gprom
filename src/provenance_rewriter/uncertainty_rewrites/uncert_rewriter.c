@@ -2236,11 +2236,11 @@ rewrite_RangeAggregation(QueryOperator *op){
 			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
 				// Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));
 				// Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
-				Node *lbAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(areflb));
 				Node *ubAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(arefub));
+				Node *lbAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(areflb));
 				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
-				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, lbAgg);
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, ubAgg);
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, lbAgg);
 			}
 			aggpos++;
 		}
@@ -2933,8 +2933,8 @@ rewrite_RangeAggregation2(QueryOperator *op){
 				Node *lbAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(areflb));
 				Node *ubAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(arefub));
 				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
-				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, lbAgg);
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, ubAgg);
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, lbAgg);
 			}
 			aggpos++;
 		}
@@ -4409,11 +4409,11 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	// oppos = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
 	// opcet = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
 	// opbg = (Node *)createFunctionCall(LEAST_FUNC_NAME, LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
-	opcet = (Node *)createOpExpr("+", LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
-	opbg = (Node *)createOpExpr("+", LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
-	oppos = (Node *)createOpExpr("+", LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
-	opcet = (Node *)createOpExpr("+", LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
-	opbg = (Node *)createOpExpr("+", LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
+	opcet = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
+	opbg = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
+	oppos = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
+	opcet = (Node *)createOpExpr("*", LIST_MAKE(opcet,(Node *)createCaseOperator(lbExpr)));
+	opbg = (Node *)createOpExpr("*", LIST_MAKE(opbg,(Node *)createCaseOperator(bgExpr)));
 	// opcet = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_CERTAIN),getAttrRefByName(posjoin, ROW_CERTAIN_TWO)));
 	// opbg = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_BESTGUESS),getAttrRefByName(posjoin, ROW_BESTGUESS_TWO)));
 	// oppos = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(posjoin, ROW_POSSIBLE),getAttrRefByName(posjoin, ROW_POSSIBLE_TWO)));
