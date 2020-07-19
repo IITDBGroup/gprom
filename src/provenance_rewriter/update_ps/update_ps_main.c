@@ -90,6 +90,8 @@ static QueryOperator* rewriteTableAccessOperator(TableAccessOperator *op,
 static boolean getTableAccessOps(Node *op, List **l);
 static BitSet* bitOrResults(HashMap *old, HashMap *new, StringInfo *result);
 void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result);
+void skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
+		QueryOperator *updateQuery);
 
 /*
  * Function Implementation
@@ -135,7 +137,6 @@ update_ps(ProvenanceComputation *qbModel) {
 			"\n#######################\n \t Update query:\n#######################\n",
 			lChild);
 
-
 	markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
 
 	//mark the number of table - used in provenance scratch
@@ -146,13 +147,11 @@ update_ps(ProvenanceComputation *qbModel) {
 	newQuery = addTopAggForCoarse(newQuery);
 //	result = update_ps_insert(newQuery, lChild, psPara, INSERT_RULE_1);
 
-
-
 	int operation = 0;
-	if(isA(lChild, SelectionOperator)){
+	if (isA(lChild, SelectionOperator)) {
 		DEBUG_LOG("IT IS A DELETE");
 		operation = 1;
-	} else if(isA(lChild, SetOperator)) {
+	} else if (isA(lChild, SetOperator)) {
 		DEBUG_LOG("IT IS A INSERT");
 		operation = 2;
 	} else {
@@ -162,15 +161,15 @@ update_ps(ProvenanceComputation *qbModel) {
 	char *result = NULL;
 
 	if (operation == 1) {
-		if(update_ps_options == 1) {
+		if (update_ps_options == 1) {
 			result = update_ps_delete(newQuery, lChild, psPara, DELETE_RULE_2);
-		} else if(update_ps_options == 2) {
+		} else if (update_ps_options == 2) {
 			result = update_ps_delete(newQuery, lChild, psPara, DELETE_RULE_3);
 		}
 	} else if (operation == 2) {
-		if(update_ps_options == 1) {
+		if (update_ps_options == 1) {
 			result = update_ps_insert(newQuery, lChild, psPara, INSERT_RULE_1);
-		} else if(update_ps_options == 2) {
+		} else if (update_ps_options == 2) {
 			result = update_ps_insert(newQuery, lChild, psPara, INSERT_RULE_2);
 		}
 	} else if (operation == 3) {
@@ -326,15 +325,15 @@ update_ps_delete_accurate(QueryOperator *query, QueryOperator *updateQuery,
 
 	//GET CAPTURE SQL
 //	DEB
-
+	DEBUG_LOG("BEGIN SERIALIZE");
 	char *capSql = serializeOperatorModel((Node*) query);
 
-
+	DEBUG_LOG("END SERIALIZE");
 	//CAPTURE NEW PS
 	List *attrNames = getAttrNames(query->schema);
+	DEBUG_LOG("BEGIN CAP");
 	HashMap *psMap = getPS(capSql, attrNames);
 	DEBUG_NODE_BEATIFY_LOG("WHAT IS THE NWE PS", psMap);
-
 
 	//TODO posgtres
 
@@ -367,8 +366,10 @@ update_ps_delete_accurate(QueryOperator *query, QueryOperator *updateQuery,
 				if (strncmp(str->data, ss, strlen(str->data)) == 0) {
 
 					Constant *newPSValue = (Constant*) getMapString(psMap, ss);
-					if(getBackend() == BACKEND_POSTGRES) {
-						appendStringInfo(result, "%s", createResultComponent(tableName, attrName, (char*)newPSValue->value));
+					if (getBackend() == BACKEND_POSTGRES) {
+						appendStringInfo(result, "%s",
+								createResultComponent(tableName, attrName,
+										(char*) newPSValue->value));
 						continue;
 					}
 					int bitSetLength = info->BitVector->length;
@@ -431,7 +432,6 @@ update_ps_insert_accurate(QueryOperator *query, QueryOperator *updateQuery,
 		psInfo *PSInfo) {
 	//delta tuple join whole table;
 
-
 	char *updatedTable = getUpdatedTable(updateQuery);
 	ProjectionOperator *proOpDummy = createDummyProjTree(updateQuery);
 
@@ -453,9 +453,8 @@ update_ps_insert_accurate(QueryOperator *query, QueryOperator *updateQuery,
 		}
 	}
 
-
 	INFO_OP_LOG("new construct query", query);
-	DEBUG_LOG("BEGIN CAPSQL");
+	DEBUG_LOG("BEGIN CAP");
 	char *capSql = serializeOperatorModel((Node*) query);
 	DEBUG_LOG("WHAT IS THE CALSQL %s", capSql);
 
@@ -465,7 +464,7 @@ update_ps_insert_accurate(QueryOperator *query, QueryOperator *updateQuery,
 
 	DEBUG_NODE_BEATIFY_LOG("WHAT IS THE NEW PS:", psMap);
 	// TODO Here we can optimize by check the result of psMap, if all the ps is 0, which means that there are no new fragment to be added.
-	if(getBackend() == BACKEND_POSTGRES) {
+	if (getBackend() == BACKEND_POSTGRES) {
 		StringInfo results = makeStringInfo();
 		appendStringInfo(results, "%s", "{");
 //		bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result)
@@ -539,8 +538,19 @@ update_ps_insert_approximate(QueryOperator *query, QueryOperator *updateQuery,
 
 	psInfo *reservedPS = (psInfo*) copyObject(PSInfo);
 
-	reversePSInfo(PSInfo, updatedTable);
+	/*
+	 * Here replace reversePSInfo(PSInfo, updateTable);
+	 */
+//	reversePSInfo(PSInfo, updatedTable);
 
+	skipFragsBasedOnPS(updatedTable, PSInfo, updateQuery);
+	List* infos = (List*)getMapString(PSInfo->tablePSAttrInfos, "ss");
+	psAttrInfo* info = (psAttrInfo*)getHeadOfListP(infos);
+	DEBUG_LOG("%s", bitSetToString(info->BitVector));
+//	int returns = 1;
+//	if (returns == 1) {
+//		return "RETURN";
+//	}
 	List *taList = NIL;
 	getTableAccessOps((Node*) query, &taList);
 
@@ -566,19 +576,21 @@ update_ps_insert_approximate(QueryOperator *query, QueryOperator *updateQuery,
 			proOpDummy->op.parents = singleton(parent);
 		}
 	}
-
+	DEBUG_LOG("BEGIN SERIALIZE");
 	char *capSql = serializeOperatorModel((Node*) query);
 
 	//RUN
 	List *attrNames = getAttrNames(query->schema);
 	DEBUG_LOG("PS Attr Names : %s", stringListToString(attrNames));
-	HashMap *psMap = getPS(capSql, attrNames);
 
+	DEBUG_LOG("BEGIN CAP");
+	HashMap *psMap = getPS(capSql, attrNames);
+	DEBUG_LOG("END CAP");
 	// TODO Here we can optimize by check the result of psMap, if all the ps is 0, which means that there are no new fragment to be added.
 
 	StringInfo result = makeStringInfo();
 	appendStringInfo(result, "%s", "{");
-	if(getBackend() == BACKEND_POSTGRES) {
+	if (getBackend() == BACKEND_POSTGRES) {
 		bitOrResultsPostgres(reservedPS->tablePSAttrInfos, psMap, &result);
 		appendStringInfo(result, "%s", "}");
 		return result->data;
@@ -701,11 +713,85 @@ update_ps_del_ins_1(QueryOperator *query, QueryOperator *updateQuery,
 /*
  * OTHER METHODS
  */
+
+void skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
+		QueryOperator *updateQuery) {
+	int bitVectorSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
+	DEBUG_LOG(" the bit vector size: %d", bitVectorSize);
+//	List joinAttrList;
+
+	ConstRelOperator* cro;
+	FOREACH(QueryOperator, o, updateQuery->inputs)
+	{
+		if (isA(o, ConstRelOperator)) {
+			cro = (ConstRelOperator*) o;
+
+			break;
+		}
+	}
+
+	int joinAttrValue;
+	int everyFragSize = 10000000 / bitVectorSize;
+	int minMaxSteps;
+
+	psAttrInfo *info;
+	char* bitList;
+	if (streq(updatedTable, "RR") || streq(updatedTable, "rr")) {
+		joinAttrValue = *((int*)((Constant*)getNthOfListP(cro->values, LIST_LENGTH(cro->values) - 1))->value);
+		minMaxSteps = everyFragSize / 100;
+		List* infos = (List*)getMapString(PSInfo->tablePSAttrInfos, "ss");
+		info = (psAttrInfo*)getHeadOfListP(infos);
+		bitList = bitSetToString(info->BitVector);
+	} else {
+		joinAttrValue = *((int*)((Constant*)getNthOfListP(cro->values, LIST_LENGTH(cro->values) - 2))->value);
+		minMaxSteps = everyFragSize / 1000;
+		List* infos = (List*)getMapString(PSInfo->tablePSAttrInfos, "rr");
+		info = (psAttrInfo*)getHeadOfListP(infos);
+		bitList = bitSetToString(info->BitVector);
+	}
+//
+//	DEBUG_LOG("WHAT IS THE JOIN VALUE: %d", joinAttrValue);
+//	DEBUG_LOG("everyFragSize %d", everyFragSize);
+//	DEBUG_LOG("minMaxSteps %d", minMaxSteps);
+	DEBUG_LOG("bitsetstring %s, %d", bitList, strlen(bitList));
+	List* joinAttrList = NIL;
+	// rr g: 100000; ss t: every 100 in a group;
+
+	for (int i = 1; i <= bitVectorSize; i++) {
+		//min
+		Constant* min = createConstInt((i - 1) * minMaxSteps + 1);
+		Constant* max = createConstInt(i * minMaxSteps);
+		joinAttrList = appendToTailOfList(joinAttrList, min);
+		joinAttrList = appendToTailOfList(joinAttrList, max);
+	}
+
+	//compare the value to skip
+
+	for(int i = 0; i < bitVectorSize; i++) {
+		if(bitList[i] == '1') {
+			setBit(info->BitVector, i, 0);
+		} else {
+			int min = *((int*) ((Constant*)getNthOfListP(joinAttrList, 2 * i))->value);
+			int max = *((int*) ((Constant*)getNthOfListP(joinAttrList, 2 * i + 1))->value);
+
+			if(joinAttrValue >= min && joinAttrValue <= max) {
+				setBit(info->BitVector, i, 1);
+			}
+		}
+	}
+
+	DEBUG_LOG("%s", bitSetToString(info->BitVector));
+
+
+
+
+
+
+
+}
+
 static BitSet*
 bitOrResults(HashMap *old, HashMap *new, StringInfo *result) {
-	DEBUG_NODE_BEATIFY_LOG("previous hashMap", old);
-	DEBUG_NODE_BEATIFY_LOG("new hashMap", new);
-
 
 	List *keys = getKeys(old);
 
@@ -727,13 +813,16 @@ bitOrResults(HashMap *old, HashMap *new, StringInfo *result) {
 					Constant *newPSValue = (Constant*) getMapString(new, ss);
 					int bitSetLength = info->BitVector->length;
 					BitSet *bitSet = newBitSet(bitSetLength);
-					DEBUG_NODE_BEATIFY_LOG("what is the generated bit set:", bitSet);
-					unsigned long bitSetIntValue = *((unsigned long*) newPSValue->value);
-					DEBUG_LOG("what is the unsigned value: %ld\n", bitSetIntValue);
+					DEBUG_NODE_BEATIFY_LOG("what is the generated bit set:",
+							bitSet);
+					unsigned long bitSetIntValue =
+							*((unsigned long*) newPSValue->value);
+					DEBUG_LOG("what is the unsigned value: %ld\n",
+							bitSetIntValue);
 
 					int index = 0;
-					while(bitSetIntValue > 0) {
-						if(bitSetIntValue % 2 == 1) {
+					while (bitSetIntValue > 0) {
+						if (bitSetIntValue % 2 == 1) {
 							setBit(bitSet, index, 1);
 						} else {
 							setBit(bitSet, index, 0);
@@ -742,7 +831,7 @@ bitOrResults(HashMap *old, HashMap *new, StringInfo *result) {
 						bitSetIntValue /= 2;
 
 					}
-					while(index < bitSetLength) {
+					while (index < bitSetLength) {
 						setBit(bitSet, index++, 0);
 					}
 
@@ -823,31 +912,41 @@ createDummyProjTree(QueryOperator *updateQuery) {
 		}
 	}
 
-	ProjectionOperator* projOp = NULL;
-	if(getBackend() == BACKEND_ORACLE) {
-		TableAccessOperator *taOp = createTableAccessOp("DUAL", NULL, "DUAL", NIL,
-			singleton("DUMMY"), singletonInt(DT_STRING));
-		projOp = createProjectionOp(attrValues,
-			(QueryOperator*) taOp, NIL, attrNames);
+	ProjectionOperator *projOp = NULL;
+	if (getBackend() == BACKEND_ORACLE) {
+		TableAccessOperator *taOp = createTableAccessOp("DUAL", NULL, "DUAL",
+				NIL, singleton("DUMMY"), singletonInt(DT_STRING));
+		projOp = createProjectionOp(attrValues, (QueryOperator*) taOp, NIL,
+				attrNames);
 		projOp->op.schema->attrDefs = attrDefs;
 	}
 
-	if(getBackend() == BACKEND_POSTGRES) {
-		char * tableName = ((TableAccessOperator*) getNthOfListP(updateQuery->inputs, 0))->tableName;
+	if (getBackend() == BACKEND_POSTGRES) {
+		char *tableName = ((TableAccessOperator*) getNthOfListP(
+				updateQuery->inputs, 0))->tableName;
 
-		List* dataTypes = getDataTypes(((TableAccessOperator*) getNthOfListP(updateQuery->inputs, 0))->op.schema);
-		List* attNames = getAttrNames(((TableAccessOperator*) getNthOfListP(updateQuery->inputs, 0))->op.schema);
-		TableAccessOperator *taOp = createTableAccessOp(tableName, NULL, tableName, NIL, attNames, dataTypes);
+		List *dataTypes =
+				getDataTypes(
+						((TableAccessOperator*) getNthOfListP(
+								updateQuery->inputs, 0))->op.schema);
+		List *attNames =
+				getAttrNames(
+						((TableAccessOperator*) getNthOfListP(
+								updateQuery->inputs, 0))->op.schema);
+		TableAccessOperator *taOp = createTableAccessOp(tableName, NULL,
+				tableName, NIL, attNames, dataTypes);
 
 //		SelectionOperator* selOp = createSelectionOp();
-		projOp = createProjectionOp(attrValues, (QueryOperator*) taOp, NIL, attrNames);
+		projOp = createProjectionOp(attrValues, (QueryOperator*) taOp, NIL,
+				attrNames);
 		projOp->op.schema->attrDefs = attrDefs;
 
-		Constant * limitExpr = createConstInt(1);
+		Constant *limitExpr = createConstInt(1);
 
-		LimitOperator* limitOp = createLimitOp((Node*)limitExpr, NULL, (QueryOperator*)projOp, NIL);
+		LimitOperator *limitOp = createLimitOp((Node*) limitExpr, NULL,
+				(QueryOperator*) projOp, NIL);
 		projOp->op.parents = singleton(limitOp);
-		return (ProjectionOperator*)limitOp;
+		return (ProjectionOperator*) limitOp;
 //		projOp->op.schema->attrDefs = attrDefs;
 //		((TableAccessOperator*)getNthOfListP(projOp->op.inputs, 0))->op.parents = NIL;
 //		projOp->op.inputs = NIL;
@@ -913,21 +1012,78 @@ rewriteTableAccessOperator(TableAccessOperator *op, psInfo *PSInfo) {
 
 		AttributeReference *psAttrRef = createAttrsRefByName(
 				(QueryOperator*) op, info->attrName);
+
+		boolean findCond = FALSE;
+		int start = -1;
+		int end = -1;
+		int index = 0;
 		for (int j = 0; j < strlen(bitSet); j++) {
 			if (bitSet[j] == '1') {
-				Operator *lOp = createOpExpr(">=",
-						LIST_MAKE(copyObject(psAttrRef),
-								copyObject(getNthOfListP(rangeList, j))));
-				Operator *rOp = createOpExpr("<",
-						LIST_MAKE(copyObject(psAttrRef),
-								copyObject(getNthOfListP(rangeList, j + 1))));
-				Node *andExp = andExprList(LIST_MAKE(lOp, rOp));
-				selAndList = appendToTailOfList(selAndList, andExp);
+				index++;
+				if (findCond == FALSE) {
+					findCond = TRUE;
+					start = j;
+					end = j;
+					continue;
+				}
+				if (bitSet[j - 1] == '1') {
+					end = j;
+
+				} else {
+
+					Operator *lOp = createOpExpr(">=",
+							LIST_MAKE(copyObject(psAttrRef),
+									copyObject(
+											getNthOfListP(rangeList, start))));
+					Operator *rOp = createOpExpr("<",
+							LIST_MAKE(copyObject(psAttrRef),
+									copyObject(
+											getNthOfListP(rangeList,
+													end + 1))));
+					Node *andExp = andExprList(LIST_MAKE(lOp, rOp));
+					selAndList = appendToTailOfList(selAndList, andExp);
+
+					start = j;
+					end = j;
+				}
+
+			}
+
+			if (j == strlen(bitSet) - 1) {
+				DEBUG_LOG("BEGIN and END %d, %d", start, end);
+				if (findCond) {
+					Operator *lOp = createOpExpr(">=",
+							LIST_MAKE(copyObject(psAttrRef),
+									copyObject(
+											getNthOfListP(rangeList, start))));
+					Operator *rOp = createOpExpr("<",
+							LIST_MAKE(copyObject(psAttrRef),
+									copyObject(
+											getNthOfListP(rangeList,
+													end + 1))));
+					Node *andExp = andExprList(LIST_MAKE(lOp, rOp));
+					selAndList = appendToTailOfList(selAndList, andExp);
+
+				}
 			}
 		}
-
+		DEBUG_LOG("the number of ranges %d", index);
 	}
-	Node *selOrExp = orExprList(selAndList);
+
+	//TODO check the adn list is 1 or longer
+	DEBUG_LOG("selAndList: %d", LIST_LENGTH(selAndList));
+	Node *selOrExp = NULL;
+	if (LIST_LENGTH(selAndList) == 0) {
+		Operator *op = createOpExpr(">=",
+				LIST_MAKE(createConstInt(1), createConstInt(2)));
+		selOrExp = (Node*) op;
+	} else if (LIST_LENGTH(selAndList) == 1) {
+//		selOrExp = (Node*) getHeadOfList(selAndList);
+		selOrExp = (Node*) getNthOfListP(selAndList, 0);
+	} else {
+		selOrExp = orExprList(selAndList);
+	}
+//	Node *selOrExp = orExprList(selAndList);
 	SelectionOperator *selOp = createSelectionOp((Node*) selOrExp,
 			(QueryOperator*) op, op->op.parents,
 			getQueryOperatorAttrNames((QueryOperator*) op));
@@ -936,7 +1092,7 @@ rewriteTableAccessOperator(TableAccessOperator *op, psInfo *PSInfo) {
 	return (QueryOperator*) selOp;
 }
 
-void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result){
+void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result) {
 	DEBUG_NODE_BEATIFY_LOG("previous hashMap", old);
 	DEBUG_NODE_BEATIFY_LOG("new hashMap", new);
 	List *keys = getKeys(old);
@@ -956,12 +1112,15 @@ void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result){
 			for (int k = 0; k < LIST_LENGTH(keys2); k++) {
 				char *ss = ((Constant*) getNthOfListP(keys2, k))->value;
 				if (strncmp(str->data, ss, strlen(str->data)) == 0) {
-					BitSet* oldVector = info->BitVector;
+					BitSet *oldVector = info->BitVector;
 					DEBUG_LOG("begin");
-					BitSet* newVector = (BitSet*)stringToBitset((char*) ((Constant*)getMapString(new, ss))->value);
+					BitSet *newVector = (BitSet*) stringToBitset(
+							(char*) ((Constant*) getMapString(new, ss))->value);
 					oldVector = bitOr(oldVector, newVector);
 
-					appendStringInfo(*result, "%s", createResultComponent(tableName, attrName, bitSetToString(oldVector)));
+					appendStringInfo(*result, "%s",
+							createResultComponent(tableName, attrName,
+									bitSetToString(oldVector)));
 				}
 			}
 		}
