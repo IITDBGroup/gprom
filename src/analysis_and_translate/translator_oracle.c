@@ -22,6 +22,7 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/expression/expression.h"
+#include "model/expression/expr_to_constraint.h"
 #include "model/list/list.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/operator_property.h"
@@ -892,44 +893,84 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         #ifdef HAVE_LIBCPLEX
         INFO_LOG("Constructing CPLEX problem...");
         // Just want to see if CPLEX runs at this point.
-        List *historyCopy = copyObject(whatif->history);
+        List *historyCopy = copyObject(whatif->modifiedHistory);
         List *caseExprs = historyToCaseExprsFreshVars(historyCopy);
         ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
         FOREACH(Node, e, caseExprs)
         {
             exprToConstraints(e, ctx);
         }
+
         LPProblem *lp = newLPProblem(ctx);
 
-        INFO_LOG("LP RCNT/Constraints %d/%d, LP CCNT/Variables: %d/%d, Non-zero %d", lp->rcnt, getListLength(ctx->constraints), lp->ccnt, getListLength(ctx->variables), lp->nzcnt);
-        
-        // cplex...
+        INFO_LOG("%s", beatify(nodeToString(ctx->variableMap)));
+        Node *previousOrigin = NULL;
+        FOREACH(Constraint, c, ctx->constraints)
+        {
+            if(c->originalExpr != previousOrigin)
+            {
+                INFO_LOG("========================");
+                INFO_LOG("%s", nodeToString(c->originalExpr));
+                INFO_LOG("------------------------");
+            }
+            INFO_LOG(cstringConstraint(c, FALSE));
+            previousOrigin = c->originalExpr;
+        }
+        INFO_LOG(cstringLPProblem(lp, TRUE));
+
         int cplexStatus = 0;
         CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
-
         if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
+        cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
+        cplexStatus ^= CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
+        if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
 
         CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
+        cplexStatus = CPXchgobjsen(cplexEnv, cplexLp, CPX_MAX);
 
-        cplexStatus = CPXnewcols (cplexEnv, cplexLp, lp->ccnt, lp->obj, NULL, NULL, NULL, lp->colname); // TODO: lb and ub
+        cplexStatus = CPXnewcols(cplexEnv, cplexLp, lp->ccnt, lp->obj, lp->lb, lp->ub, lp->types, lp->colname); // TODO: lb and ub
         if(cplexStatus) ERROR_LOG("CPLEX failure - CPXnewcols"); else INFO_LOG("CPXnewcols succeeded.");
-        cplexStatus = CPXaddrows (cplexEnv, cplexLp, lp->ccnt, lp->rcnt, lp->nzcnt, lp->rhs, lp->sense, lp->rmatbeg,
-                        lp->rmatind, lp->rmatval, lp->colname, NULL);
+
+        cplexStatus = CPXaddrows(cplexEnv, cplexLp, 0, lp->rcnt, lp->nzcnt, lp->rhs, lp->sense, lp->rmatbeg,
+                        lp->rmatind, lp->rmatval, NULL, NULL);
         if(cplexStatus) ERROR_LOG("CPLEX failure - CPXaddrows"); else INFO_LOG("CPXaddrows succeded.");
 
-        cplexStatus = CPXlpopt (cplexEnv, cplexLp);
-        if(cplexStatus)
-            INFO_LOG("Unable to optimize LP.");
-        else
-            INFO_LOG("Successfully optimized LP.");
+        INFO_LOG("CPXgetnumnz %d", CPXgetnumnz(cplexEnv, cplexLp));
 
-        cplexStatus = CPXfreeprob (cplexEnv, &cplexLp);
-        cplexStatus = CPXcloseCPLEX (&cplexEnv);
+        cplexStatus = CPXmipopt(cplexEnv, cplexLp);
+        if(cplexStatus) {
+            INFO_LOG("Error evaluating LP.");
+        }
+        else
+        {
+            INFO_LOG("Evaluated LP.");
+        }
+
+        double x[lp->ccnt];
+        switch(CPXgetstat(cplexEnv, cplexLp)) {
+            case 101:
+                INFO_LOG("Optimal solution found");
+                CPXgetx(cplexEnv, cplexLp, x, 0, lp->ccnt-1);
+                for(int i = 0; i < lp->ccnt; i++) INFO_LOG("Col. %s opt. val. is %f", lp->colname[i], x[i]);
+                break;
+            case 103:
+                INFO_LOG("Integer infeasible.");
+                break;
+            case 110:
+            case 114:
+                INFO_LOG("No solution exists.");
+                break;
+            default:
+                INFO_LOG("Something else... value %d", CPXgetstat(cplexEnv, cplexLp));
+        }
+
+        cplexStatus = CPXfreeprob(cplexEnv, &cplexLp);
+        cplexStatus = CPXcloseCPLEX(&cplexEnv);
         if(cplexStatus) ERROR_LOG("Problem closing CPLEX environment.");
         #endif
 
         // TODO: actually remove independent updates
-        FOREACH(Node, q, whatif->history)
+        FOREACH(Node, q, whatif->modifiedHistory)
         {
             reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
         }

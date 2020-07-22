@@ -1982,7 +1982,11 @@ static void
 analyzeWhatIfStmt(WhatIfStmt *stmt, List *parentFroms)
 {
     INFO_LOG("Analyzing WhatIfStmt");
-    FOREACH(Node, query, CONCAT_LISTS(stmt->history, stmt->modifiedHistory)) 
+    FOREACH(Node, query, stmt->history) 
+    {
+        analyzeQueryBlockStmt(query, NIL);
+    }
+    FOREACH(Node, query, stmt->modifiedHistory)
     {
         analyzeQueryBlockStmt(query, NIL);
     }

@@ -1,3 +1,4 @@
+
 /*************************************
  *         to_string.c
  *    Author: Hao Guo
@@ -17,6 +18,7 @@
 #include "model/set/vector.h"
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
+#include "model/expression/expr_to_constraint.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"

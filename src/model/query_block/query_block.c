@@ -180,6 +180,8 @@ createWhatIfStmt(List *history, List *modifiedHistory, List *indices)
     INFO_LOG("Original history is %s", beatify(nodeToString(result->history)));
     INFO_LOG("Modified history is %s", beatify(nodeToString(result->modifiedHistory)));
 
+    INFO_LOG("List length %d", LIST_LENGTH(result->history));
+
     return result;
 }
 
