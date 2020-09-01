@@ -87,6 +87,23 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# z3 libz3 library location
+AC_DEFUN([AC_LIBZ3_LOCATION],
+[AC_ARG_WITH(libz3, [  --with-libz3], , )
+AC_MSG_CHECKING([for user provided libz3 location])
+if test "x$with_libz3" != x; then
+	if test -d "$with_libz3"; then
+		LDFLAGS="$LDFLAGS -L$with_libz3"
+    	CPPFLAGS="$CPPFLAGS -I$with_libz3/../include"
+    	AC_MSG_RESULT([yes, $with_libz3])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no libz3 library found in location $with_libz3])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 # Postgres libpq library location
 AC_DEFUN([AC_LIBPQ_LOCATION],
 [AC_ARG_WITH(libpq, [  --with-libpq], , )
@@ -590,6 +607,29 @@ AS_CASE(["$enable_postgres"],
   ]
 )
 ################################################################################
+# Z3 library (libz3)
+AS_CASE(["$enable_z3"],
+  [yes], [
+# check if user has provided us with a non-standard location for libz3 library
+  AC_LIBZ3_LOCATION
+  AC_CHECK_HEADERS([z3.h])
+# check for the libz3 library
+  AC_CHECK_LIB([z3],[Z3_get_version],[],[
+    AC_MSG_ERROR([missing libz3 library - if you want to compile without z3 support use --disable-z3])
+  ])
+  ],
+  [no], [],
+  [
+# check if user has provided us with a non-standard location for libz3 library
+  AC_LIBZ3_LOCATION
+  AC_CHECK_HEADERS([z3.h])
+# check for the libz3 library
+  AC_CHECK_LIB([z3],[Z3_get_version],[],[
+    AC_MSG_ERROR([missing libz3 library - if you want to compile without z3 support use --disable-z3])
+  ])
+  ]
+)
+################################################################################
 # SQlite library (libsqlite3)
 # check for the sqlite3 library
 AS_CASE(["$enable_sqlite"],
@@ -695,6 +735,7 @@ AC_CONFIG_FILES([
 	javatest/Makefile
 ])
 AC_OUTPUT
+
 
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
