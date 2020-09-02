@@ -14,6 +14,7 @@
 
 #include "log/logger.h"
 
+#include "model/expression/expression.h"
 #include "uthash.h"
 
 #include "mem_manager/mem_mgr.h"
@@ -26,7 +27,7 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 /* consts */
-#define PROV_ATTR_PREFIX "PROV_"
+#define PROV_ATTR_PREFIX backendifyIdentifier("PROV_")
 
 /* data types */
 typedef struct ProvSchemaInfo
