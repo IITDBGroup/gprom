@@ -19,6 +19,7 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/list/list.h"
 #include "log/logger.h"
 
@@ -48,6 +49,7 @@ static inline uint64_t hashList(uint64_t cur, List *node);
 static uint64_t hashSet (uint64_t cur, Set *node);
 static uint64_t hashHashMap (uint64_t cur, HashMap *node);
 static uint64_t hashVector (uint64_t cur, Vector *node);
+static uint64_t hashBitSet (uint64_t cur, BitSet *node);
 static uint64_t hashKeyValue (uint64_t cur, KeyValue *node);
 
 // hash for expression nodes
@@ -67,6 +69,7 @@ static uint64_t hashFunctionCall (uint64_t cur, FunctionCall *node);
 static uint64_t hashOperator (uint64_t cur, Operator *node);
 static uint64_t hashRowNumExpr (uint64_t cur, RowNumExpr *node);
 static uint64_t hashOrderExpr (uint64_t cur, OrderExpr *node);
+static uint64_t hashQuantifiedComparison (uint64_t cur, QuantifiedComparison *node);
 static uint64_t hashCastExpr (uint64_t cur, CastExpr *node);
 static uint64_t hashSetQuery (uint64_t cur, SetQuery *node);
 static uint64_t hashProvenanceStmt (uint64_t cur, ProvenanceStmt *node);
@@ -260,6 +263,17 @@ hashVector (uint64_t cur, Vector *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashBitSet (uint64_t cur, BitSet *node)
+{
+	for(int i = 0; i < node->numWords; i++)
+	{
+		hashLong(cur, node->value[i]);
+	}
+
+	HASH_RETURN();
+}
+
 /* expression node hash functions */
 static uint64_t
 hashConstant (uint64_t cur, Constant *node)
@@ -427,6 +441,17 @@ hashOrderExpr (uint64_t cur, OrderExpr *node)
     HASH_NODE(expr);
     HASH_INT(order);
     HASH_INT(nullOrder);
+
+    HASH_RETURN();
+}
+
+static uint64_t
+hashQuantifiedComparison (uint64_t cur, QuantifiedComparison *node)
+{
+    HASH_NODE(checkExpr);
+    HASH_NODE(exprList);
+    HASH_INT(qType);
+    HASH_STRING(opName);
 
     HASH_RETURN();
 }
@@ -917,6 +942,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashHashMap(h, (HashMap *) n);
         case T_Vector:
             return hashVector(h, (Vector *) n);
+	    case T_BitSet:
+      		return hashBitSet(h, (BitSet *)n );
         case T_KeyValue:
             return hashKeyValue(h, (KeyValue *) n);
         case T_Constant:
@@ -947,6 +974,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashRowNumExpr(h, (RowNumExpr *) n);
         case T_OrderExpr:
             return hashOrderExpr(h, (OrderExpr *) n);
+        case T_QuantifiedComparison:
+            return hashQuantifiedComparison(h, (QuantifiedComparison *) n);
         case T_CastExpr:
             return hashCastExpr(h, (CastExpr *) n);
             /* query block nodes */

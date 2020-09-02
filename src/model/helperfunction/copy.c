@@ -16,6 +16,7 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
@@ -56,6 +57,7 @@ static List *deepCopyList(List *from, OperatorMap **opMap);
 static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
+static BitSet *deepCopyBitSet(BitSet *from, OperatorMap **opMap);
 
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
@@ -72,6 +74,7 @@ static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
 static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
+static QuantifiedComparison *copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap);
 static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
 
 /*schema helper functions*/
@@ -216,12 +219,14 @@ deepCopySet(Set *from, OperatorMap **opMap)
 static HashMap *
 deepCopyHashMap(HashMap *from, OperatorMap **opMap)
 {
-    HashMap *new = newHashMap(from->keyType, from->valueType, NULL, NULL);
+    HashMap *newH = newHashMap(from->keyType, from->valueType, NULL, NULL);
 
     FOREACH_HASH_ENTRY(n,from)
-        ADD_TO_MAP(new,copyObject(n));
+	{
+        ADD_TO_MAP(newH,copyObject(n));
+	}
 
-    return new;
+    return newH;
 }
 
 static Vector *
@@ -249,6 +254,14 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     }
 
     return new;
+}
+
+static BitSet *
+deepCopyBitSet(BitSet *from, OperatorMap **opMap)
+{
+	BitSet *new = copyBitSet(from);
+
+	return new;
 }
 
 static DLAtom *
@@ -503,6 +516,19 @@ copyOrderExpr(OrderExpr *from, OperatorMap **opMap)
     COPY_NODE_FIELD(expr);
     COPY_SCALAR_FIELD(order);
     COPY_SCALAR_FIELD(nullOrder);
+
+    return new;
+}
+
+static QuantifiedComparison *
+copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap)
+{
+    COPY_INIT(QuantifiedComparison);
+
+    COPY_NODE_FIELD(checkExpr);
+    COPY_NODE_FIELD(exprList);
+    COPY_SCALAR_FIELD(qType);
+    COPY_STRING_FIELD(opName);
 
     return new;
 }
@@ -1086,6 +1112,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_Vector:
             retval = deepCopyVector(from, opMap);
             break;
+        case T_BitSet:
+            retval = deepCopyBitSet(from, opMap);
+            break;
 
         /* expression model */
         case T_AttributeReference:
@@ -1136,6 +1165,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderExpr:
             retval = copyOrderExpr(from, opMap);
             break;
+        case T_QuantifiedComparison:
+        	    retval = copyQuantifiedComparison(from, opMap);
+        	    break;
         case T_CastExpr:
             retval = copyCastExpr(from, opMap);
             break;

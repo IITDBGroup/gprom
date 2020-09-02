@@ -454,3 +454,47 @@ createCache(void)
 
     return result;
 }
+
+/*
+boolean
+isPostive(char *tableName, char *colName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->checkPostive(tableName, colName);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+*/
+
+Constant*
+transferRawData(char *data, char *dataType){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	Constant* result = activePlugin->trasnferRawData(data, dataType);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+HashMap *
+getMinAndMax(char *tableName, char *colName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    HashMap * result = activePlugin->getMinAndMax(tableName, colName);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+int
+getRowNum(char* tableName)
+{
+	 ASSERT(activePlugin && activePlugin->isInitialized());
+	    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	    int result = activePlugin->getRowNum(tableName);
+	    RELEASE_MEM_CONTEXT();
+	    return result;
+
+}
+
+

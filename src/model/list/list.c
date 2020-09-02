@@ -493,6 +493,17 @@ stringListToConstList(List *list)
 }
 
 List *
+constStringListToStringList(List *list)
+{
+	List *result = NIL;
+
+	FOREACH(Constant,el,list)
+		result = appendToTailOfList(result, STRING_VALUE(el));
+
+	return result;
+}
+
+List *
 concatTwoLists(List *lista, List*listb)
 {
     if (lista == listb)
@@ -576,6 +587,16 @@ genericSublist(List *l, boolean (*pred) (void *, void *), void *context)
     }
 
     return result;
+}
+
+List *
+mapList(List *l, void * (*f) (void *))
+{
+	List *result = NIL;
+	FOREACH(void,el,l)
+		result = appendToTailOfList(result,f(el));
+
+	return result;
 }
 
 boolean

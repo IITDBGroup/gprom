@@ -203,6 +203,59 @@ createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder)
     return result;
 }
 
+QuantifiedComparison *
+createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList)
+{
+	QuantifiedComparison *result = makeNode(QuantifiedComparison);
+
+    result->checkExpr = checkExpr;
+    result->exprList = exprList;
+    result->opName = strdup(opName);
+
+    if (!strcmp(nType, "ANY"))
+        result->qType = QUANTIFIED_EXPR_ANY;
+    if (!strcmp(nType, "ALL"))
+        result->qType = QUANTIFIED_EXPR_ALL;
+
+    return result;
+}
+
+Node *
+concatExprs (Node *expr, ...)
+{
+    Node *result = NULL;
+    Node *curArg = NULL;
+    List *argList = singleton(expr);
+
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args,Node*)))
+        argList = appendToTailOfList(argList, copyObject(curArg));
+
+    va_end(args);
+
+    if (LIST_LENGTH(argList) == 1)
+        return expr;
+
+    result = (Node *) createFunctionCall(OPNAME_CONCAT, argList);
+
+    return result;
+}
+
+Node *
+concatExprList (List *exprs)
+{
+    Node *result = popHeadOfListP(exprs);
+
+    FOREACH(Node,e,exprs)
+        result = CONCAT_EXPRS(result,e);
+
+    return result;
+}
+
+
 Node *
 andExprs (Node *expr, ...)
 {
@@ -331,7 +384,7 @@ createIsNotDistinctExpr (Node *lArg, Node *rArg)
     {
         case SQLSERIALIZER_PLUGIN_ORACLE:
         {
-            eq = (Node *) createOpExpr("=", LIST_MAKE(
+            eq = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(
                     createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
                     createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
         }
@@ -346,7 +399,7 @@ createIsNotDistinctExpr (Node *lArg, Node *rArg)
         {
             Node *nullTest, *eqTest;
 
-            eqTest = (Node *) createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+            eqTest = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(copyObject(lArg), copyObject(rArg)));
             nullTest = (Node *) createOpExpr(OPNAME_AND, LIST_MAKE(
                     createIsNullExpr(copyObject(lArg)),
                     createIsNullExpr(copyObject(rArg))));
@@ -449,6 +502,123 @@ createNullConst (DataType dt)
     return result;
 }
 
+Constant *
+makeConst(DataType dt)
+{
+	switch(dt)
+	{
+	case DT_INT:
+		return createConstInt(0);
+	case DT_FLOAT:
+		return createConstFloat(0.0);
+	case DT_BOOL:
+		return createConstBool(TRUE);
+	case DT_LONG:
+		return createConstLong(0L);
+	case DT_STRING:
+		return createConstString("");
+	case DT_VARCHAR2:
+	{
+		Constant *result = createConstString("");
+	    result->constType = DT_VARCHAR2;
+		return result;
+	}
+	}
+    return NULL;
+}
+
+Constant *
+minConsts(Constant *l, Constant *r, boolean nullIsMin)
+{
+	Constant *result;
+
+
+	if(l->isNull || r->isNull)
+	{
+		if (nullIsMin)
+		{
+			return createNullConst(l->constType);
+		}
+		if(l->isNull)
+			return copyObject(r);
+		return copyObject(l);
+	}
+
+	result = makeConst(l->constType);
+
+	switch(result->constType)
+	{
+	case DT_INT:
+	{
+		INT_VALUE(result) = INT_VALUE(l) < INT_VALUE(r) ? INT_VALUE(l) : INT_VALUE(r);
+	}
+	case DT_FLOAT:
+	{
+		FLOAT_VALUE(result) = FLOAT_VALUE(l) < FLOAT_VALUE(r) ? FLOAT_VALUE(l) : FLOAT_VALUE(r);
+	}
+	case DT_STRING:
+	case DT_VARCHAR2:
+	{
+	    result->value = strcmp(STRING_VALUE(l),STRING_VALUE(r)) < 0 ? STRING_VALUE(l) : STRING_VALUE(r);
+	}
+	case DT_BOOL:
+	{
+		BOOL_VALUE(result) = BOOL_VALUE(l) < BOOL_VALUE(r) ? BOOL_VALUE(l) : BOOL_VALUE(r);
+	}
+	case DT_LONG:
+	{
+		LONG_VALUE(result) = LONG_VALUE(l) < LONG_VALUE(r) ? LONG_VALUE(l) : LONG_VALUE(r);
+	}
+	}
+
+	return result;
+}
+
+Constant *
+maxConsts(Constant *l, Constant *r, boolean nullIsMax)
+{
+	Constant *result;
+
+	if(l->isNull || r->isNull)
+	{
+		if (nullIsMax)
+		{
+			return createNullConst(l->constType);
+		}
+		if(l->isNull)
+			return copyObject(r);
+		return copyObject(l);
+	}
+
+	result = makeConst(l->constType);
+
+	switch(result->constType)
+	{
+	case DT_INT:
+	{
+		INT_VALUE(result) = INT_VALUE(l) >= INT_VALUE(r) ? INT_VALUE(l) : INT_VALUE(r);
+	}
+	case DT_FLOAT:
+	{
+		FLOAT_VALUE(result) = FLOAT_VALUE(l) >= FLOAT_VALUE(r) ? FLOAT_VALUE(l) : FLOAT_VALUE(r);
+	}
+	case DT_STRING:
+	case DT_VARCHAR2:
+	{
+	    result->value = strcmp(STRING_VALUE(l),STRING_VALUE(r)) >= 0 ? STRING_VALUE(l) : STRING_VALUE(r);
+	}
+	case DT_BOOL:
+	{
+		BOOL_VALUE(result) = BOOL_VALUE(l) >= BOOL_VALUE(r) ? BOOL_VALUE(l) : BOOL_VALUE(r);
+	}
+	case DT_LONG:
+	{
+		LONG_VALUE(result) = LONG_VALUE(l) >= LONG_VALUE(r) ? LONG_VALUE(l) : LONG_VALUE(r);
+	}
+	}
+
+	return result;
+}
 
 DataType
 typeOf (Node *expr)
@@ -492,6 +662,8 @@ typeOf (Node *expr)
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:
             return DT_INT;//TODO should use something else?
+        case T_QuantifiedComparison:
+            return DT_BOOL;
         case T_DLVar:
             return ((DLVar *) expr)->dt;
         case T_CastExpr:
@@ -510,8 +682,10 @@ typeOf (Node *expr)
                     return DT_BOOL;
                 }
                 case NESTQ_SCALAR:
+                case NESTQ_LATERAL:
                 {
-                    return DT_STRING; //TODO
+                    //return DT_LONG; //TODO
+                		return q->nestingAttrDatatype;
                 }
                 break;
             }
@@ -603,6 +777,11 @@ isConstExpr (Node *expr)
             OrderExpr *o = (OrderExpr *) expr;
             return isConstExpr(o->expr);
         }
+        case T_QuantifiedComparison:
+        {
+        		QuantifiedComparison *o = (QuantifiedComparison *) expr;
+            return isConstExpr(o->checkExpr);
+        }
         case T_DLVar:
             return FALSE;
         case T_CastExpr:
@@ -623,9 +802,9 @@ isCondition(Node *expr)
     if (isA(expr,Operator))
     {
         Operator *o = (Operator *) expr;
-        if (streq(o->name, "=")
-                || streq(o->name, "<")
-                || streq(o->name, ">")
+        if (streq(o->name, OPNAME_EQ)
+                || streq(o->name, OPNAME_LT)
+                || streq(o->name, OPNAME_GT)
                 || streq(o->name, "!=")
             ) //TODO what else
             return TRUE;
@@ -634,6 +813,12 @@ isCondition(Node *expr)
         return TRUE;
 
     return FALSE;
+}
+
+char *
+getAttributeReferenceName(AttributeReference *a)
+{
+    return a->name;
 }
 
 char *
@@ -724,6 +909,7 @@ addCastsMutator (Node *node, boolean errorOnFailure)
         case T_IsNullExpr:
         case T_RowNumExpr:
         case T_SQLParameter:
+        case T_QuantifiedComparison:
         case T_OrderExpr:
         {
             return node;
@@ -1030,14 +1216,14 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             return DT_STRING;
     }
     // comparison operators
-    if (streq(opName,"<")
-            || streq(opName,">")
-            || streq(opName,"<=")
-            || streq(opName,">=")
+    if (streq(opName,OPNAME_LT)
+            || streq(opName,OPNAME_GT)
+            || streq(opName,OPNAME_LE)
+            || streq(opName,OPNAME_GE)
             || streq(opName,"=>")
             || streq(opName,"<>")
             || streq(opName,"^=")
-            || streq(opName,"=")
+            || streq(opName,OPNAME_EQ)
             || streq(opName,"!=")
                 )
     {
@@ -1088,6 +1274,7 @@ typeOfFunc (FunctionCall *f)
     result = getFuncReturnType(f->functionname, argDTs, &fExists);
     if (!fExists)
         DEBUG_NODE_BEATIFY_LOG("Function does not exist: ", f);
+
     return result;
 }
 

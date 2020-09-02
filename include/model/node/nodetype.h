@@ -14,7 +14,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_Set,
     T_HashMap,
     T_Vector,
-
+	T_BitSet,
     /* options */
     T_KeyValue,
 
@@ -34,6 +34,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_RowNumExpr,
     T_OrderExpr,
     T_CastExpr,
+	T_QuantifiedComparison,
 
     /* query block model nodes */
     T_SetQuery,
@@ -110,6 +111,8 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION,
     PROV_XML,
+	PROV_COARSE_GRAINED,
+	USE_PROV_COARSE_GRAINED,
     PROV_NONE /* for reenactment of bag semantics only */
 );
 

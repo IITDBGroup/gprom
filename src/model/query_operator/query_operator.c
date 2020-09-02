@@ -31,6 +31,29 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         Set *haveSeen);
 
 
+QueryOperator *
+findNestingOperator (QueryOperator *op, int levelsUp)
+{
+    QueryOperator *result = op;
+
+    FOREACH(QueryOperator, p, result->parents)
+    {
+            if(isA(p, NestingOperator))
+            {
+                levelsUp --;
+                if(levelsUp == 0)
+                    return p;
+                else
+                    return findNestingOperator(p, levelsUp);
+            }
+            else
+                return findNestingOperator(p, levelsUp);
+    }
+
+    return result;
+}
+
+
 Schema *
 createSchema(char *name, List *attrDefs)
 {
@@ -229,7 +252,7 @@ unionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
 
     FOREACH_LC(lc, listEqlOp)
     {
-        if(streq(((Operator *)LC_P_VAL(lc))->name,"="))
+        if(streq(((Operator *)LC_P_VAL(lc))->name,OPNAME_EQ))
         {
             ListCell *lc1 = getHeadOfList(((Operator *)LC_P_VAL(lc))->args);
             ListCell *lc2 = getTailOfList(((Operator *)LC_P_VAL(lc))->args);
@@ -510,6 +533,7 @@ inferOpResultDTs (QueryOperator *op)
                     nType = DT_BOOL;
                 }
                 case NESTQ_SCALAR:
+                case NESTQ_LATERAL:
                 {
                     nType = DT_STRING; //TODO
                 }
@@ -1282,12 +1306,53 @@ aggOpGetAggAttrNames(AggregationOperator *op)
     return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }
 
+List *
+aggOpGetGroupByAttrDefs(AggregationOperator *op)
+{
+    List *result = (List *) copyObject(((QueryOperator *) op)->schema->attrDefs);
+
+    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
+}
+
+List *
+aggOpGetAggAttrDefs(AggregationOperator *op)
+{
+	List *result = (List *) copyObject(((QueryOperator *) op)->schema->attrDefs);
+
+    if (LIST_LENGTH(op->aggrs) == 0)
+        return NIL;
+
+    return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
+}
+
+
 WindowFunction *
 winOpGetFunc (WindowOperator *op)
 {
     return createWindowFunction(copyObject(op->f),
             (WindowDef *) copyObject(createWindowDef(
                     op->partitionBy, op->orderBy, op->frameDef)));
+}
+
+List *
+getProjExprsForAttrNames(QueryOperator *op, List *names)
+{
+	List *result = NIL;
+
+	FOREACH(char,name,names)
+	{
+		result = appendToTailOfList(result,
+									getAttrRefByName(op, name));
+	}
+
+	return result;
+}
+
+List *
+getProjExprsForAllAttrs(QueryOperator *op)
+{
+	List *attrNames = getQueryOperatorAttrNames(op);
+	return getProjExprsForAttrNames(op, attrNames);
 }
 
 

@@ -182,6 +182,17 @@ createProjOnAttrsByName(QueryOperator *op, List *attrNames, List *newAttrNames)
     return p;
 }
 
+AttributeReference *
+createAttrsRefByName(QueryOperator *op, char *attrNames)
+{
+	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
+	int pos = getAttrPos(op, ad->attrName);
+	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
+
+	return ar;
+}
+
+
 //AttributeReference *
 //createAttrsRefByName(QueryOperator *op, char *attrNames)
 //{

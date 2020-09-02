@@ -23,6 +23,7 @@ static rc testConstant (void);
 static rc testOperator (void);
 static rc testExpressionToSQL (void);
 static rc testAutoCasting (void);
+static rc testMinMaxForConstants (void);
 
 /* check expression model */
 rc
@@ -34,6 +35,8 @@ testExpr (void)
     RUN_TEST(testOperator(), "test operator nodes");
     RUN_TEST(testExpressionToSQL(), "test code that translates an expression tree into SQL code");
     RUN_TEST(testAutoCasting(), "test code that introduces casts for function and operator arguments where necessary");
+    RUN_TEST(testMinMaxForConstants(), "test code that computes min and max of constants");
+
     return PASS;
 }
 
@@ -138,6 +141,32 @@ testExpressionToSQL()
 }
 
 static rc
+testMinMaxForConstants (void)
+{
+	Constant *l, *r, *expect, *n;
+
+	l = createConstInt(1);
+	r = createConstInt(3);
+	n = createNullConst(DT_INT);
+	expect = createConstInt(1);
+
+	ASSERT_EQUALS_INT(INT_VALUE(minConsts(l, r, TRUE)), INT_VALUE(expect), "min(1,3) = 1");
+
+	expect = createConstInt(3);
+	ASSERT_EQUALS_INT(INT_VALUE(maxConsts(l, r,TRUE)), INT_VALUE(expect), "max(1,3) = 3");
+
+	expect = createNullConst(DT_INT);
+	ASSERT_EQUALS_NODE(minConsts(l, n, TRUE), expect, "min(1,NULL) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(l, n, TRUE), expect, "max(1,NULL) = NULL");
+	ASSERT_EQUALS_NODE(minConsts(n, r, TRUE), expect, "min(NULL,3) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(n, r, TRUE), expect, "max(NULL,3) = NULL");
+	ASSERT_EQUALS_NODE(minConsts(n, n, TRUE), expect, "min(NULL,NULL) = NULL");
+	ASSERT_EQUALS_NODE(maxConsts(n, n, TRUE), expect, "max(NULL,NULL) = NULL");
+
+	return PASS;
+}
+
+static rc
 testAutoCasting (void)
 {
     Operator *o, *result, *exp;
@@ -150,9 +179,9 @@ testAutoCasting (void)
     ASSERT_EQUALS_NODE(exp,result,"1.0 + 2 -> 1 + CAST(2 AS FLOAT)");
 
     // check cast for equality
-    o = createOpExpr("=", LIST_MAKE(createConstString("1"), createConstInt(2)));
+    o = createOpExpr(OPNAME_EQ, LIST_MAKE(createConstString("1"), createConstInt(2)));
     result = (Operator *) addCastsToExpr((Node *) o, FALSE);
-    exp = createOpExpr("=", LIST_MAKE(createConstString("1"), createCastExpr((Node *) createConstInt(2), DT_STRING)));
+    exp = createOpExpr(OPNAME_EQ, LIST_MAKE(createConstString("1"), createCastExpr((Node *) createConstInt(2), DT_STRING)));
 
     ASSERT_EQUALS_NODE(exp,result,"\"1\" = 2 -> \"1\" = CAST(2 AS STRING)");
 
