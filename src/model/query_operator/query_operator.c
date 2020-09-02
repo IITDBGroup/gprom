@@ -252,7 +252,7 @@ unionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
 
     FOREACH_LC(lc, listEqlOp)
     {
-        if(streq(((Operator *)LC_P_VAL(lc))->name,"="))
+        if(streq(((Operator *)LC_P_VAL(lc))->name,OPNAME_EQ))
         {
             ListCell *lc1 = getHeadOfList(((Operator *)LC_P_VAL(lc))->args);
             ListCell *lc2 = getTailOfList(((Operator *)LC_P_VAL(lc))->args);
@@ -1332,6 +1332,27 @@ winOpGetFunc (WindowOperator *op)
     return createWindowFunction(copyObject(op->f),
             (WindowDef *) copyObject(createWindowDef(
                     op->partitionBy, op->orderBy, op->frameDef)));
+}
+
+List *
+getProjExprsForAttrNames(QueryOperator *op, List *names)
+{
+	List *result = NIL;
+
+	FOREACH(char,name,names)
+	{
+		result = appendToTailOfList(result,
+									getAttrRefByName(op, name));
+	}
+
+	return result;
+}
+
+List *
+getProjExprsForAllAttrs(QueryOperator *op)
+{
+	List *attrNames = getQueryOperatorAttrNames(op);
+	return getProjExprsForAttrNames(op, attrNames);
 }
 
 

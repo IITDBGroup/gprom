@@ -50,6 +50,7 @@ static inline uint64_t hashList(uint64_t cur, List *node);
 static uint64_t hashSet (uint64_t cur, Set *node);
 static uint64_t hashHashMap (uint64_t cur, HashMap *node);
 static uint64_t hashVector (uint64_t cur, Vector *node);
+static uint64_t hashBitSet (uint64_t cur, BitSet *node);
 static uint64_t hashKeyValue (uint64_t cur, KeyValue *node);
 static uint64_t hashBitSet (uint64_t cur, BitSet *node);
 

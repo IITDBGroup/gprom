@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer_sqlite.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -31,6 +31,7 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
+static boolean replaceFunctionsWithEquivalent(Node *node, void *context);
 static boolean replaceBoolWithInt (Node *node, void *context);
 static void createAPI (void);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
@@ -76,6 +77,7 @@ serializeQuerySQLite(QueryOperator *q)
     StringInfo str;
     StringInfo viewDef;
     char *result;
+
     createAPI();
 
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
@@ -94,6 +96,10 @@ serializeQuerySQLite(QueryOperator *q)
 
     // initialize FromAttrsContext structure
   	struct FromAttrsContext *fac = initializeFromAttrsContext();
+
+	// replace functions not supported by SQLite with equivalent alternatives
+	replaceFunctionsWithEquivalent((Node *) q, NULL);
+
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, fac, api);
@@ -124,8 +130,6 @@ serializeQuerySQLite(QueryOperator *q)
     // copy result to callers memory context and clean up
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
-
-
 
 char *
 quoteIdentifierSQLite (char *ident)
@@ -172,6 +176,24 @@ quoteIdentifierSQLite (char *ident)
         ident = CONCAT_STRINGS("\"",ident,"\"");
 
     return ident;
+}
+
+static boolean
+replaceFunctionsWithEquivalent(Node *node, void *context)
+{
+	if (node == NULL)
+		return TRUE;
+
+	if (isA(node, FunctionCall))
+	{
+		FunctionCall *f = (FunctionCall *) node;
+		if (streq(f->functionname, LEAST_FUNC_NAME))
+			f->functionname = strdup(MIN_FUNC_NAME);
+		if (streq(f->functionname, GREATEST_FUNC_NAME))
+			f->functionname = strdup(GREATEST_FUNC_NAME);
+	}
+
+	return visit(node, replaceFunctionsWithEquivalent, context);
 }
 
 static boolean
@@ -314,7 +336,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL));
+            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL)); //TODO
         }
         DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
 
@@ -358,7 +380,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             Node *expr = wOp->f;
 
             DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
-                                (WindowOperator *) curOp), NULL));
+																	(WindowOperator *) curOp), NULL));
 
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
@@ -370,10 +392,10 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
 
             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp), NULL));
+																  (WindowOperator *) curOp), NULL));
 
             DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp), NULL));
+																   (WindowOperator *) curOp), NULL));
 
             curOp = OP_LCHILD(curOp);
         }
@@ -606,7 +628,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                     asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf, NULL));
                 else
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(",
-                            exprToSQL(t->asOf, NULL), ")");
+										  exprToSQL(t->asOf, NULL), ")");
             }
             else
             {
@@ -614,7 +636,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                 Node* begin = (Node*) getNthOfListP(scns, 0);
                 Node* end = (Node*) getNthOfListP(scns, 1);
                 asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ",
-                        exprToSQL(begin, NULL), " AND ", exprToSQL(end, NULL));
+									  exprToSQL(begin, NULL), " AND ", exprToSQL(end, NULL));
             }
         }
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);

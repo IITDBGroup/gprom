@@ -224,12 +224,14 @@ deepCopySet(Set *from, OperatorMap **opMap)
 static HashMap *
 deepCopyHashMap(HashMap *from, OperatorMap **opMap)
 {
-    HashMap *new = newHashMap(from->keyType, from->valueType, NULL, NULL);
+    HashMap *newH = newHashMap(from->keyType, from->valueType, NULL, NULL);
 
     FOREACH_HASH_ENTRY(n,from)
-        ADD_TO_MAP(new,copyObject(n));
+	{
+        ADD_TO_MAP(newH,copyObject(n));
+	}
 
-    return new;
+    return newH;
 }
 
 static Vector *

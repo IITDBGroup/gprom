@@ -28,6 +28,7 @@
 #include "model/query_operator/operator_property.h"
 #include "temporal_queries/temporal_rewriter.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -40,8 +41,13 @@ static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
-static void analyzeWhere (QueryBlock *qb, List *parentFroms);
+static void analyzeWhere(QueryBlock *qb, List *parentFroms);
+static void analyzeGroupByAgg(QueryBlock *qb, List *parentFroms);
 static void analyzeLimitAndOffset (QueryBlock *qb);
+static void analyzeOrderBy(QueryBlock *qb);
+
+// search for non-group and non-aggregate expressions
+static boolean searchNonGroupByRefs (Node *node, List *state);
 
 // adapt identifiers and quoted identifiers based on backend
 static void adaptIdentifiers (Node *stmt);
@@ -333,7 +339,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
     findAttrReferences((Node *) qb->havingClause, &attrRefs);
     findAttrReferences((Node *) qb->limitClause, &attrRefs);
-    findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+    //TODO orderby needs to be treated differently findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findAttrReferences((Node *) qb->selectClause, &attrRefs);
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
 
@@ -370,9 +376,15 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
     // analyze where clause if exists
     if (qb->whereClause != NULL)
-    {
+	{
         analyzeWhere(qb, parentFroms);
-    }
+	}
+
+	// if group by or aggregation, check that no non-group by attribute references exist
+	analyzeGroupByAgg(qb, parentFroms);
+
+	// check order by
+	analyzeOrderBy(qb);
 
 	// check limit and offset
 	analyzeLimitAndOffset(qb);
@@ -449,8 +461,10 @@ analyzeFromProvInfo (FromItem *f)
         	//Remove the probability attribute if specified through the TIP flag
         	if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
         	{
-        		int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
-				DEBUG_LOG("TIP attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)), pos);
+				char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+				setStringProvProperty(fp, PROV_PROP_TIP_ATTR, (Node *) createConstString(attrname));
+        		int pos = listPosString(f->attrNames, attrname);
+				DEBUG_LOG("TIP attribute %s at position %u", attrname, pos);
 				f->attrNames = deepCopyStringList(f->attrNames);
 				f->dataTypes 	= copyObject(f->dataTypes);
 				f->attrNames = removeListElemAtPos(f->attrNames, pos);
@@ -463,15 +477,85 @@ analyzeFromProvInfo (FromItem *f)
 				DEBUG_LOG("INCOMPLETE TABLE");
 			}
 
-			//Removing the probability attribute if specified through the VTABLE flag
-			if (getStringProvProperty(fp, PROV_PROP_V_TABLE))
+			//Assuming a schema format of [a,ub_a,lb_a,b,ub_b,lb_b,...,cet_r,bg_r,pos_r]
+			if (getStringProvProperty(fp, PROV_PROP_RADB))
 			{
-				int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)));
-				DEBUG_LOG("VTABLE attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)), pos);
+				DEBUG_LOG("RADB INPUT");
+				//need to contain at least one real attribute
+				ASSERT(f->attrNames->length >= 6);
+				//need to contain 3 row range annotations and 2 attribute range annotation per attribute
+				ASSERT((f->attrNames->length-3)%3 == 0);
+
+				//number of real attributes
+				int numofrealattr = (f->attrNames->length-3)/3;
+
 				f->attrNames = deepCopyStringList(f->attrNames);
-				f->dataTypes 	= copyObject(f->dataTypes);
-				f->attrNames = removeListElemAtPos(f->attrNames, pos);
-				f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+				f->dataTypes = copyObject(f->dataTypes);
+
+				//Check Attr names
+				for(int i=0; i<numofrealattr; i++){
+					char *val = (char *)getNthOfListP(f->attrNames, i);
+					char *ub = (char *)getNthOfListP(f->attrNames, numofrealattr+2*i);
+					char *lb = (char *)getNthOfListP(f->attrNames, numofrealattr+2*i+1);
+					ASSERT(strcmp(getUBString(val), ub)==0);
+					ASSERT(strcmp(getLBString(val), lb)==0);
+				}
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-3), ROW_CERTAIN)==0);
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-2), ROW_BESTGUESS)==0);
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-1), ROW_POSSIBLE)==0);
+
+				List *provattr = sublist(f->attrNames, numofrealattr, f->attrNames->length-1);
+
+				f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
+				f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
+
+				setStringProvProperty(fp, PROV_PROP_RADB_LIST,
+									  (Node *) stringListToConstList(provattr));
+			}
+			if (getStringProvProperty(fp, PROV_PROP_UADB))
+			{
+				DEBUG_LOG("UADB INPUT");
+
+				f->attrNames = deepCopyStringList(f->attrNames);
+				f->dataTypes = copyObject(f->dataTypes);
+
+				int numofrealattr = f->attrNames->length-1;
+
+				//need to contain u_r at end
+				ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-1), getUncertString(UNCERTAIN_ROW_ATTR))==0);
+
+				List *provattr = sublist(f->attrNames, numofrealattr, f->attrNames->length-1);
+
+				f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
+				f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
+
+				setStringProvProperty(fp, PROV_PROP_UADB_LIST,
+									  (Node *) stringListToConstList(provattr));
+			}
+			//Removing the probability attribute if specified through the XTABLE flag
+			if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))
+			{
+				// test unnecessary?
+				if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
+				{
+					char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)));
+					setStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID, (Node *) createConstString(attrname));
+					int pos = listPosString(f->attrNames, attrname);
+					DEBUG_LOG("XTABLE groupID attribute %s at position %u", attrname, pos);
+					f->attrNames = deepCopyStringList(f->attrNames);
+					f->dataTypes 	= copyObject(f->dataTypes);
+					f->attrNames = removeListElemAtPos(f->attrNames, pos);
+					f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+
+					attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB)));
+					setStringProvProperty(fp, PROV_PROP_XTABLE_PROB, (Node *) createConstString(attrname));
+					pos = listPosString(f->attrNames, attrname);
+					DEBUG_LOG("XTABLE probability attribute %s at position %u", attrname, pos);
+					f->attrNames = deepCopyStringList(f->attrNames);
+					f->dataTypes 	= copyObject(f->dataTypes);
+					f->attrNames = removeListElemAtPos(f->attrNames, pos);
+					f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+				}
 			}
 		}
 
@@ -920,6 +1004,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     {
         case T_FromTableRef:
         {
+			FromTableRef *lt = (FromTableRef *) left;
+			lt->tableId = backendifyIdentifier(lt->tableId);
         	analyzeFromTableRef((FromTableRef *)left);
             analyzeFromProvInfo(left);
         }
@@ -941,6 +1027,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 	{
 		case T_FromTableRef:
 		{
+			FromTableRef *rt = (FromTableRef *) right;
+			rt->tableId = backendifyIdentifier(rt->tableId);
             analyzeFromTableRef((FromTableRef *)right);
 		    analyzeFromProvInfo(right);
 		}
@@ -996,6 +1084,123 @@ analyzeWhere (QueryBlock *qb, List *parentFroms)
 }
 
 static void
+analyzeGroupByAgg(QueryBlock *qb, List *parentFroms)
+{
+	boolean hasAgg = FALSE;
+	List *funcCalls = NIL;
+
+	// is there any aggregation in this query block?
+	hasAgg = qb->groupByClause != NIL || qb->havingClause != NULL;
+	findFunctionCall((Node *) qb->selectClause, &funcCalls);
+	FOREACH(FunctionCall,f,funcCalls)
+	{
+		if (f->isAgg)
+			hasAgg = TRUE;
+	}
+
+	if (hasAgg)
+	{
+		// if yes, then check SELECT clause for non-groupby and unaggregated attribute references
+		searchNonGroupByRefs((Node *) qb->selectClause, qb->groupByClause);
+		searchNonGroupByRefs((Node *) qb->havingClause, qb->groupByClause);
+	}
+}
+
+static boolean
+searchNonGroupByRefs (Node *node, List *state)
+{
+	if(node == NULL)
+        return TRUE;
+
+	// if agg call, do not traverse deeper
+    if(isA(node, FunctionCall))
+	{
+		FunctionCall *f = (FunctionCall *) node;
+		if (f->isAgg)
+		{
+			return TRUE;
+		}
+	}
+	// is node equal to one of the group-by expressions then do not traverse further
+	FOREACH(Node,g,state)
+	{
+		if(equal(g, node))
+			return TRUE;
+	}
+
+    if (isA(node, AttributeReference))
+    {
+        THROW(SEVERITY_RECOVERABLE,
+                "Queries with aggregation and group-by only allow for group-by expressions or aggregated attributed to appear in the SELECT and HAVING clause. Offender was:\n<%s>",
+                beatify(nodeToString(node)));
+    }
+
+    if(isQBQuery(node))
+        return TRUE;
+
+    return visit(node, searchNonGroupByRefs, state);
+}
+
+
+
+static void
+analyzeOrderBy(QueryBlock *qb)
+{
+	List *attrRefs = NIL;
+	List *nestedQs = NIL;
+	List *selectAttrNames = NIL;
+
+	// get attribute names from select clause
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+		selectAttrNames = appendToTailOfList(selectAttrNames, strdup(s->alias));
+	}
+
+	findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+	findNestedSubqueries((Node *) qb->orderByClause, &nestedQs);
+
+	// find attribute references in from or in select
+	    // adapt attribute references
+    FOREACH(AttributeReference,a,attrRefs)
+    {
+        // split name on each "."
+        boolean isFound = FALSE;
+        List *nameParts = splitAttrOnDot(a->name);
+		int pos;
+
+        DEBUG_LOG("attr split: %s", stringListToString(nameParts));
+
+        if (LIST_LENGTH(nameParts) == 1)
+        {
+
+            a->name = getNthOfListP(nameParts, 0);
+            isFound = findAttrRefInFrom(a, NIL); //TODO add support for correlated attributes here?
+        }
+        else if (LIST_LENGTH(nameParts) == 2)
+        {
+            isFound = findQualifiedAttrRefInFrom(nameParts, a, NIL);
+        }
+        else
+            FATAL_LOG(
+                    "right now attribute names should have at most two parts");
+
+		// exists in select clause? if yes, then use this
+		pos = listPosString(selectAttrNames, a->name);
+		if (pos != -1)
+		{
+			SelectItem *selectExpr = (SelectItem *) getNthOfListP(qb->selectClause, pos);
+			a->attrPosition = pos;
+			a->fromClauseItem = INVALID_ATTR; // use this to indicate that this is a SELECT clause attribute
+			a->attrType = typeOf(selectExpr->expr);
+			isFound = TRUE;
+		}
+
+        if (!isFound)
+            FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
+    }
+}
+
+static void
 analyzeLimitAndOffset (QueryBlock *qb)
 {
 	List *attrRefs = NIL;
@@ -1024,8 +1229,6 @@ analyzeLimitAndOffset (QueryBlock *qb)
 			  nodeToString(qb->limitClause),
 			  nodeToString(qb->offsetClause));
 	}
-
-	//TODO check that limit and offset are expressions without subqueries and attribute references
 }
 
 static void
@@ -1724,6 +1927,42 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
                     q->dts = concatTwoLists(q->dts,provDts);
                     break;
             }
+        }
+        break;
+        case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
+        {
+        	List *provAttrNames = NIL;
+        	List *provDts = NIL;
+
+        	analyzeQueryBlockStmt(q->query, parentFroms);
+
+        	q->selectClause = getQBAttrNames(q->query);
+        	q->dts = getQBAttrDTs(q->query);
+        	correctFromTableVisitor(q->query, NULL);
+        	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+        	q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+        	q->dts = concatTwoLists(q->dts,provDts);
+        	//INFO_NODE_BEATIFY_LOG("RANGE:", q);
+        }
+		break;
+        case PROV_INPUT_RANGE_QUERY:
+        {
+        	List *provAttrNames = NIL;
+        	List *provDts = NIL;
+
+        	analyzeQueryBlockStmt(q->query, parentFroms);
+
+        	q->selectClause = getQBAttrNames(q->query);
+        	q->dts = getQBAttrDTs(q->query);
+        	// if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
+        	// semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+        	correctFromTableVisitor(q->query, NULL);
+        	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+        	q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+        	q->dts = concatTwoLists(q->dts,provDts);
+        	//INFO_NODE_BEATIFY_LOG("RANGE:", q);
         }
         break;
         case PROV_INPUT_TEMPORAL_QUERY:

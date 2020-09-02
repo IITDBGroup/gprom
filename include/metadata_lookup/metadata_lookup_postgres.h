@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_postgres.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -46,6 +46,7 @@ extern int postgresGetCostEstimation(char *query);
 extern List *postgresGetKeyInformation(char *tableName);
 extern DataType postgresBackendSQLTypeToDT (char *sqlType);
 extern char * postgresBackendDatatypeToSQL (DataType dt);
+extern HashMap *postgresGetMinAndMax(char* tableName, char* colName);
 
 extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

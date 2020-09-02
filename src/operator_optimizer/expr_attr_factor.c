@@ -4,10 +4,10 @@
  *
  *			- Factor out attribute references in expression to simplify expressions and
  *			open up new opportunities for projection merging.
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */

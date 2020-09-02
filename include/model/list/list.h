@@ -195,6 +195,7 @@ extern void freeList(List *list);
 extern void deepFreeList(List *list);
 extern void deepFreeStringList(List *list);
 extern List *stringListToConstList(List *list);
+extern List *constStringListToStringList(List *list);
 
 /* compare lists */
 extern boolean equalStringList (List *a, List *b);
@@ -227,6 +228,9 @@ extern List *concatLists (List *a, ...);
 #define CONCAT_LISTS(...) concatLists(__VA_ARGS__, NULL)
 extern List *sublist(List *l, int from, int to);
 extern List *genericSublist(List *l, boolean (*pred) (void *, void *), void *context);
+
+/* higher-order functions */
+extern List *mapList(List *, void * (*f) (void *));
 
 /* serialize to string */
 extern char *stringListToString (List *node);

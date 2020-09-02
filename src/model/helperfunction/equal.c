@@ -1180,7 +1180,6 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
 	    case T_BitSet:
 			retval = equalBitset(a, b, seenOps, c);
 			break;
-
         case T_FunctionCall:
             retval = equalFunctionCall(a,b, seenOps, c);
             break;
