@@ -91,6 +91,7 @@
 #define PROP_PC_SEMIRING_COMBINER "SEMIRING_COMBINER"       // use combiner in provenance computation
 #define PROP_PC_SC_AGGR_OPT "SEMIRING_COMBINER_AGGR_OPT" //use aggregation optimization in semiring combiner
 #define PROP_PC_COARSE_GRAINED "COARSE_GRAINED"             // used in data skipping
+#define PROP_PC_COARSE_GRAINED_BIND "COARSE_GRAINED_BIND"             // used in data skipping for reuse
 #define USE_PROP_PC_COARSE_GRAINED "USE_COARSE_GRAINED"             // used in data skipping
 
 /* table access properties */

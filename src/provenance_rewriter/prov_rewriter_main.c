@@ -247,7 +247,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         		break;
 
         case PROV_COARSE_GRAINED:
-        		testp();
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		psPara = createPSInfo(coarsePara);
         		DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
@@ -264,6 +263,36 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         case USE_PROV_COARSE_GRAINED:
     			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
     				op = originalOp;
+
+        		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
+        		psPara = createPSInfo(coarsePara);
+        		DEBUG_LOG("use coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
+        		markUseTableAccessAndAggregation((QueryOperator *) op, (Node *) psPara);
+
+        	    //mark the number of table - used in provenance scratch
+        	    markNumOfTableAccess((QueryOperator *) op);
+
+            result = rewritePI_CS(op);
+            removeParent(result, (QueryOperator *) op);
+        	break;
+        case USE_PROV_COARSE_GRAINED_BIND:
+       		testp();
+    			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
+    				op = originalOp;
+
+    			List *binds = (List *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED_BIND);
+    			List *b1 = (List *) getHeadOfListP(binds);
+    			List *b2 = (List *) getTailOfListP(binds);
+    			DEBUG_LOG("bind values 1:");
+    			FOREACH(Constant, c, b1)
+    			{
+    				DEBUG_LOG("%d",INT_VALUE(c));
+    			}
+    			DEBUG_LOG("bind values 2:");
+    			FOREACH(Constant, c, b2)
+    			{
+    				DEBUG_LOG("%d",INT_VALUE(c));
+    			}
 
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		psPara = createPSInfo(coarsePara);

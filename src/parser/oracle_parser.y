@@ -64,7 +64,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE
+%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> TIP INCOMPLETE VTABLE
 %token <stringVal> FROM
@@ -428,9 +428,21 @@ provStmt:
         {
             RULELOG("provStmt::stmt");
             Node *stmt = $7;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = USE_PROV_COARSE_GRAINED;
+		    p->asOf = (Node *) $3;
+            // p->options = $4;
+            p->options = concatTwoLists($4, $9);
+            $$ = (Node *) p;
+        }
+        | CANUSE PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
+        {
+            RULELOG("provStmt::stmt");
+            Node *stmt = $7;
+	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = USE_PROV_COARSE_GRAINED_BIND;
 		    p->asOf = (Node *) $3;
             // p->options = $4;
             p->options = concatTwoLists($4, $9);
@@ -628,7 +640,7 @@ optionalProvWith:
 	;
 
 provOptionList:
-		provOption	{ RULELOG("provOptionList::option"); $$ = singleton($1); }
+		provOption	{ RULELOG("provOptionList::option"); $$ = singleton($1);}
 		| provOptionList provOption
 		{
 			RULELOG("provOptionList::list");
@@ -652,6 +664,13 @@ provOption:
 			RULELOG("provOption::COARSE");
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED),
             									(Node *) $3);
+		}
+		| WITH BIND '(' intConstList ')' FOR '(' intConstList ')'
+		{
+			RULELOG("provOption::COARSE BIND");
+			List *l = LIST_MAKE($4,$8);
+            $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED_BIND),
+            									(Node *) l);
 		}
 		/*
 		| USE COARSE GRAINED coarseGrainedSpec
