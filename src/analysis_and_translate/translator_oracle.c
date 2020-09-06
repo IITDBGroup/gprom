@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "analysis_and_translate/translator.h"
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -23,6 +24,7 @@
 #include "model/list/list.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
 #include "parser/parser.h"
@@ -128,13 +130,14 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
+    //INFO_NODE_BEATIFY_LOG("translate QB model", q);
     List *attrsOffsetsList = NIL;
 
-    INFO_NODE_BEATIFY_LOG("translate QB model", q);
+    // INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q, &attrsOffsetsList);
 
-    DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
+    //DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
     INFO_OP_LOG("result of translation overview is", result);
     ASSERT(equal(result, copyObject(result)));
 
@@ -756,11 +759,13 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
         }
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
+     	case PROV_INPUT_RANGE_QUERY:
+	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
         {
             child = translateQueryOracleInternal(prov->query, attrsOffsetsList);
             addChildOperator((QueryOperator *) result, child);
         }
-        break;
+		break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
@@ -1231,22 +1236,53 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 
-    /* user TIP attribute selected */
-	if (getStringProvProperty(from, PROV_PROP_TIP_ATTR) != NULL)
-	{
-		setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
-		hasProv = TRUE;
-		from->userProvAttrs = singleton(strdup(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
-	}
-
-    /* table selected as incomplete */
+    /* table has a provProperty*/
     if (from->provProperties)
-	{
+    {
+    	/* user TIP attribute selected */
+		if (getStringProvProperty(from, PROV_PROP_TIP_ATTR))
+		{
+			setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
+			hasProv = TRUE;
+			//removed strdup
+			from->userProvAttrs = singleton(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR)));
+		}
+
+		if (getStringProvProperty(from, PROV_PROP_RADB_LIST))
+		{
+			setStringProperty(op, PROP_HAS_RANGE, (Node *) createConstBool(1));
+			hasProv = TRUE;
+			from->userProvAttrs = constStringListToStringList((List *) getStringProvProperty(from, PROV_PROP_RADB_LIST));
+		}
+		if (getStringProvProperty(from, PROV_PROP_UADB_LIST))
+		{
+			setStringProperty(op, PROP_HAS_UNCERT, (Node *) createConstBool(1));
+			hasProv = TRUE;
+			from->userProvAttrs = constStringListToStringList((List *) getStringProvProperty(from, PROV_PROP_UADB_LIST));
+		}
+
+		/* table selected as INCOMPLETE */
 		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))
 		{
-			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
+			setStringProperty(op, PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
 		}
-	}
+
+		/* table selected as XTABLE*/
+		if (getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))
+		{
+			if (getStringProvProperty(from, PROV_PROP_XTABLE_PROB))
+			{
+				setStringProperty(op, PROP_XTABLE_GROUPID,
+								  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))));
+				setStringProperty(op, PROP_XTABLE_PROB,
+								  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB))));
+				hasProv = TRUE;
+				from->userProvAttrs = LIST_MAKE(
+					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID)),
+					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB)));
+			}
+		}
+    }
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
@@ -1362,7 +1398,7 @@ translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList)
                 AttributeReference *rRef = createFullAttrReference(strdup(rA), 1, rPos, 0, lDef->dataType);
 
                 commonAttrs = appendToTailOfList(commonAttrs, rA);
-                joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lRef,rRef)), joinCond);
+                joinCond = AND_EXPRS((Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(lRef,rRef)), joinCond);
             }
             else
                 uniqueRightAttrs = appendToTailOfList(uniqueRightAttrs, rA);
@@ -1424,7 +1460,7 @@ translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList)
             }
 
             // create equality condition and update global condition
-            attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+            attrCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
             curCond = AND_EXPRS(attrCond,curCond);
         }
 
@@ -1682,22 +1718,21 @@ visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
     if (n == NULL)
     {
         return TRUE;
-    }
+	}
+    if (isA(n, AttributeReference))
+    {
+    	//int count = 0;
+    	AttributeReference *attrRef = (AttributeReference *) n;
 
-    	if (isA(n, AttributeReference))
+    	if(attrRef->outerLevelsUp != -1)
     	{
-    		//int count = 0;
-    		AttributeReference *attrRef = (AttributeReference *) n;
-
-    		if(attrRef->outerLevelsUp != -1)
+    		List *state = (List *)getNthOfListP(offsetsList, attrRef->outerLevelsUp);
+    		if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
     		{
-    			List *state = (List *)getNthOfListP(offsetsList, attrRef->outerLevelsUp);
-    			if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
-    			{
-    				attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
-    				attrRef->fromClauseItem = 0;
-    			}
+    			attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
+    			attrRef->fromClauseItem = 0;
     		}
+    	}
 //    		FOREACH(List, state, offsetsList)
 //    	    	{
 //    			if(attrRef->outerLevelsUp == count)
@@ -1711,7 +1746,7 @@ visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 //    			}
 //    			count ++;
 //    	    	}
-    	}
+    }
 
     return visit(n, visitAttrRefToSetNewAttrPosList, offsetsList);
 }
@@ -1993,10 +2028,25 @@ translateOrderBy(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 {
     OrderOperator *o;
     List *adaptedOrderExprs = copyObject(qb->orderByClause);
+	List *attrRefs;
 
     if (!qb->orderByClause)
+	{
         return input;
+	}
 
+	attrRefs = getAttrReferences((Node *) adaptedOrderExprs);
+	FOREACH(AttributeReference,a,attrRefs)
+	{
+		if(a->fromClauseItem == -1)
+		{
+			a->fromClauseItem = 0;
+		}
+		else
+		{
+			THROW(SEVERITY_RECOVERABLE,"currently only SELECT clause entries are support in ORDER BY. Explicitly add all ORDER BY attributes to the SELECT clause as a workaround until this has been fixed."); //TODO we can do this by adding the required attributes to the projection below and then adding another projection on top to return the right schema
+		}
+	}
     o = createOrderOp(adaptedOrderExprs, input, NIL);
     addParent(input, (QueryOperator *) o);
 

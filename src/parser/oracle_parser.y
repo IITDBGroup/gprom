@@ -65,8 +65,9 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
-%token <stringVal> TIP INCOMPLETE VTABLE
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE
+%token <stringVal> TIP INCOMPLETE XTABLE RADB UADB
+
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -136,7 +137,7 @@ Node *oracleParseResult = NULL;
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalOffset optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
-%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromVTable
+%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable optionalFromRADB optionalFromUADB
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem
@@ -463,6 +464,25 @@ provStmt:
 			RULELOG("provStmt::uncertain");
 			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
 			p->inputType = PROV_INPUT_UNCERTAIN_QUERY;
+			p->provType = PROV_NONE;
+			p->asOf = NULL;
+			p->options = NIL;
+			$$ = (Node *) p;
+		}
+		| TUPLE UNCERTAIN '(' stmt ')'
+		{
+			RULELOG("provStmt::uncertain");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $4);
+			p->inputType = PROV_INPUT_UNCERTAIN_TUPLE_QUERY;
+			p->provType = PROV_NONE;
+			p->options = NULL;
+			$$ = (Node *) p;
+		}
+		| URANGE '(' stmt ')'
+		{
+			RULELOG("provStmt::range");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
+			p->inputType = PROV_INPUT_RANGE_QUERY;
 			p->provType = PROV_NONE;
 			p->asOf = NULL;
 			p->options = NIL;
@@ -848,39 +868,39 @@ strConstList:
 attrRangeList:
          '(' delimIdentifier intConstList optionalCoarseGrainedPara ')'
          {
-            	List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);				
-            	if($4 != NULL)								
+            	List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);
+            	if($4 != NULL)
             		l = appendToTailOfList(l, (Node *) $4);
-            									
+
             $$ = singleton(l);
          }
          |
          '(' delimIdentifier strConstList optionalCoarseGrainedPara ')'
          {
-            List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);				
-            if($4 != NULL)								
+            List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);
+            if($4 != NULL)
             		l = appendToTailOfList(l, (Node *) $4);
-            									
+
             $$ = singleton(l);
          }
          | attrRangeList '(' delimIdentifier intConstList optionalCoarseGrainedPara ')'
          {
-            	List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);				
-            	if($5 != NULL)								
+            	List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);
+            	if($5 != NULL)
             		l = appendToTailOfList(l, (Node *) $5);
             $$ = appendToTailOfList($1, l);
          }
          | attrRangeList '(' delimIdentifier strConstList optionalCoarseGrainedPara ')'
          {
-            	List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);				
-            	if($5 != NULL)								
+            	List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);
+            	if($5 != NULL)
             		l = appendToTailOfList(l, (Node *) $5);
             $$ = appendToTailOfList($1, l);
          }
 	;
 
 rangeBList:
-       identifier attrRangeList 
+       identifier attrRangeList
        {
             RULELOG("rangeList::identifierList::intConstList");
             KeyValue *k = createNodeKeyValue((Node *) createConstString($1),
@@ -888,7 +908,7 @@ rangeBList:
             $$ = singleton(k);
        }
        |
-       rangeBList ',' identifier attrRangeList  
+       rangeBList ',' identifier attrRangeList
        {
             RULELOG("rangeList::rangeList::rangeList ");
             KeyValue *k = createNodeKeyValue((Node *) createConstString($3),
@@ -1929,22 +1949,44 @@ optionalFromIncompleteTable:
 			$$ = (Node *) p;
 		}
 ;
-
-optionalFromVTable:
-		IS VTABLE '(' identifier ')'
+optionalFromRADB:
+		IS RADB
 		{
-			RULELOG("optionalFromVTable");
+			RULELOG("optionalFromRADB");
 			FromProvInfo *p = makeNode(FromProvInfo);
-			setStringProvProperty(p, PROV_PROP_V_TABLE, (Node *) createConstString($4));
+			setStringProvProperty(p, PROV_PROP_RADB, (Node *) createConstBool(1));
+			$$ = (Node *) p;
+		}
+;
+optionalFromUADB:
+		IS UADB
+		{
+			RULELOG("optionalFromUADB");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_UADB, (Node *) createConstBool(1));
+			$$ = (Node *) p;
+		}
+;
+optionalFromXTable:
+		IS XTABLE '(' identifier  ',' identifier ')'
+		{
+			RULELOG("optionalFromXTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_XTABLE_GROUPID, (Node *) createConstString($4));
+			setStringProvProperty(p, PROV_PROP_XTABLE_PROB, (Node *) createConstString($6));
 			$$ = (Node *) p;
 		}
 ;
 
+
+
 optionalFromProv:
 		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
 		| optionalFromTIP {  $$ = $1; }
+		| optionalFromRADB {  $$ = $1; }
+		| optionalFromUADB {  $$ = $1; }
 		| optionalFromIncompleteTable { $$ = $1; }
-		| optionalFromVTable { $$ = $1; }
+		| optionalFromXTable { $$ = $1; }
 		| BASERELATION
 			{
 				RULELOG("optionalFromProv::BASERELATION");
@@ -2076,7 +2118,7 @@ whereExpression:
                 if ($2 == NULL)
                 {
                     RULELOG("whereExpression::IN");
-                    $$ = (Node *) createQuantifiedComparison("ANY", $1, "=", $5);
+                    $$ = (Node *) createQuantifiedComparison("ANY", $1, OPNAME_EQ, $5);
                 }
                 else
                 {
@@ -2089,7 +2131,7 @@ whereExpression:
                 if ($2 == NULL)
                 {
                     RULELOG("whereExpression::IN");
-                    $$ = (Node *) createNestedSubquery("ANY", $1, "=", $5);
+                    $$ = (Node *) createNestedSubquery("ANY", $1, OPNAME_EQ, $5);
                 }
                 else
                 {

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer_postgres.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -703,4 +703,3 @@ serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, S
 
     return resultAttrs;
 }
-

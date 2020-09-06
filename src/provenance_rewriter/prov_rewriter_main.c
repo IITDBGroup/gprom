@@ -2,10 +2,10 @@
  *
  * prov_rewriter_main.c
  *		Main entry point to the provenance rewriter.
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -152,6 +152,14 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (op->inputType == PROV_INPUT_UNCERTAIN_QUERY)
     {
         return rewriteUncert((QueryOperator *) op);
+    }
+	if (op->inputType == PROV_INPUT_UNCERTAIN_TUPLE_QUERY)
+	{
+		return rewriteUncertTuple((QueryOperator *) op);
+	}
+    if (op->inputType == PROV_INPUT_RANGE_QUERY)
+    {
+    	return rewriteRange((QueryOperator *) op);
     }
 
     // turn operator graph into a tree since provenance rewrites currently expect a tree
@@ -340,5 +348,3 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     return result;
 }
-
-

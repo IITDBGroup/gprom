@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_sqlite.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -18,18 +18,22 @@
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_sqlite.h"
-#include "model/query_block/query_block.h"
-#include "model/query_operator/query_operator.h"
+#include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "model/expression/expression.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
+#include "model/set/hashmap.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include "utility/string_utils.h"
+#include <stdlib.h>
 
 // Mem context
 #define CONTEXT_NAME "SQLiteMemContext"
 
 // query templates
 #define QUERY_TABLE_COL_COUNT "PRAGMA table_info(%s)"
+#define QUERY_TABLE_ATTR_MIN_MAX "SELECT %s FROM %s"
 
 // Only define real plugin structure and methods if libsqlite3 is present
 #ifdef HAVE_SQLITE_BACKEND
@@ -97,7 +101,7 @@ assembleSqliteMetadataLookupPlugin (void)
     p->connectionDescription = sqliteGetConnectionDescription;
     p->sqlTypeToDT = sqliteBackendSQLTypeToDT;
     p->dataTypeToSQL = sqliteBackendDatatypeToSQL;
-
+	p->getMinAndMax = sqliteGetMinAndMax;
     return p;
 }
 
@@ -217,9 +221,9 @@ sqliteGetAttributes (char *tableName)
         const unsigned char *colName = sqlite3_column_text(rs,1);
         const unsigned char *dt = sqlite3_column_text(rs,2);
         DataType ourDT = stringToDT((char *) dt);
-                ;
+
         AttributeDef *a = createAttributeDef(
-                         strdup((char *) colName),
+			strToUpper(strdup((char *) colName)),
                          ourDT
                          );
         result = appendToTailOfList(result, a);
@@ -241,11 +245,7 @@ sqliteGetAttributeNames (char *tableName)
 boolean
 sqliteIsAgg(char *functionName)
 {
-    char *f = strdup(functionName);
-//    int i = 0;
-
-    for(char *p = f; *p != '\0'; *(p) = tolower(*p), p++)
-        ;
+    char *f = strToLower(functionName);
 
     if (hasSetElem(plugin->plugin.cache->aggFuncNames, f))
         return TRUE;
@@ -256,7 +256,12 @@ sqliteIsAgg(char *functionName)
 boolean
 sqliteIsWindowFunction(char *functionName)
 {
-    return FALSE;//TODO
+    char *f = strToLower(functionName);
+
+    if (hasSetElem(plugin->plugin.cache->winFuncNames, f))
+        return TRUE;
+
+    return FALSE;
 }
 
 DataType
@@ -378,6 +383,78 @@ sqliteBackendDatatypeToSQL (DataType dt)
     return "TEXT";
 }
 
+HashMap *
+sqliteGetMinAndMax(char* tableName, char* colName)
+{
+	HashMap *result_map = NEW_MAP(Constant, HashMap);
+    sqlite3_stmt *rs;
+    StringInfo q;
+	StringInfo colMinMax;
+	List *attr = sqliteGetAttributes(tableName);
+	List *aNames = getAttrDefNames(attr);
+	List *aDTs = getAttrDataTypes(attr);
+    int rc;
+
+    q = makeStringInfo();
+	colMinMax = makeStringInfo();
+
+	// calculate min and max for each attribute
+	FOREACH(char,a,aNames)
+	{
+		appendStringInfo(colMinMax, "min(%s) AS min_%s, max(%s) AS max_%s", a, a, a, a);
+		appendStringInfo(colMinMax, "%s", FOREACH_HAS_MORE(a) ? ", " : "");
+	}
+
+    appendStringInfo(q, QUERY_TABLE_ATTR_MIN_MAX, colMinMax->data, tableName);
+    rs = runQuery(q->data);
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
+    {
+		int pos = 0;
+		FORBOTH_LC(ac, dtc, aNames, aDTs)
+		{
+			char *aname = LC_STRING_VAL(ac);
+			DataType dt = (DataType) LC_INT_VAL(dtc);
+			HashMap *minmax = NEW_MAP(Constant,Constant);
+			const unsigned char *minVal = sqlite3_column_text(rs,pos++);
+			const unsigned char *maxVal = sqlite3_column_text(rs,pos++);
+			Constant *min, *max;
+
+			switch(dt)
+			{
+			case DT_INT:
+				min = createConstInt(atoi((char *) minVal));
+				max = createConstInt(atoi((char *) maxVal));
+				break;
+			case DT_LONG:
+				min = createConstLong(atol((char *) minVal));
+				max = createConstLong(atol((char *) maxVal));
+				break;
+			case DT_FLOAT:
+				min = createConstFloat(atof((char *) minVal));
+				max = createConstFloat(atof((char *) maxVal));
+				break;
+			case DT_STRING:
+				min = createConstString((char *) minVal);
+				max = createConstString((char *) maxVal);
+				break;
+			default:
+				THROW(SEVERITY_RECOVERABLE, "received unkown DT from sqlite: %s", DataTypeToString(dt));
+				break;
+			}
+			MAP_ADD_STRING_KEY(minmax, MIN_KEY, min);
+			MAP_ADD_STRING_KEY(minmax, MAX_KEY, max);
+			MAP_ADD_STRING_KEY(result_map, aname, minmax);
+		}
+    }
+
+    HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting min and max values of attributes for table <%s>", tableName);
+
+	DEBUG_NODE_BEATIFY_LOG("min maxes", MAP_GET_STRING(result_map, colName));
+
+	return (HashMap *) MAP_GET_STRING(result_map, colName);
+}
+
 void
 sqliteGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -482,11 +559,14 @@ static DataType
 stringToDT (char *dataType)
 {
    DEBUG_LOG("data type %s", dataType);
+   char *lowerDT = strToLower(dataType);
 
-   if (streq(dataType, "NUMERIC") || streq(dataType, "REAL"))//TODO
+   if (isSubstr(lowerDT, "int"))
+	   return DT_INT;
+   if (isSubstr(lowerDT, "char") || isSubstr(lowerDT, "clob") || isSubstr(lowerDT, "text"))
+	   return DT_STRING;
+   if (isSubstr(lowerDT, "real") || isSubstr(lowerDT, "floa") || isSubstr(lowerDT, "doub"))
        return DT_FLOAT;
-   if (streq(dataType, "int"))
-       return DT_INT;
 
    return DT_STRING;
 }
@@ -497,17 +577,36 @@ sqliteGetConnectionDescription (void)
     return CONCAT_STRINGS("SQLite:", getStringOption("connection.db"));
 }
 
-#define ADD_AGGR_FUNC(name) addToSet(plugin->plugin.cache->aggFuncNames, strdup(name));
+#define ADD_AGGR_FUNC(name) addToSet(plugin->plugin.cache->aggFuncNames, strdup(name))
+#define ADD_WIN_FUNC(name) addToSet(plugin->plugin.cache->winFuncNames, strdup(name))
+#define ADD_BOTH_FUNC(name) \
+	do { \
+		addToSet(plugin->plugin.cache->aggFuncNames, strdup(name)); \
+		addToSet(plugin->plugin.cache->winFuncNames, strdup(name)); \
+	} while (0)
+
 static void
 initCache(CatalogCache *c)
 {
-    ADD_AGGR_FUNC("avg");
-    ADD_AGGR_FUNC("count");
-    ADD_AGGR_FUNC("group_concat");
-    ADD_AGGR_FUNC("max");
-    ADD_AGGR_FUNC("min");
-    ADD_AGGR_FUNC("sum");
-    ADD_AGGR_FUNC("total");
+    ADD_BOTH_FUNC("avg");
+    ADD_BOTH_FUNC("count");
+    ADD_BOTH_FUNC("group_concat");
+    ADD_BOTH_FUNC("max");
+    ADD_BOTH_FUNC("min");
+    ADD_BOTH_FUNC("sum");
+    ADD_BOTH_FUNC("total");
+
+	ADD_WIN_FUNC("row_number");
+	ADD_WIN_FUNC("rank");
+	ADD_WIN_FUNC("dense_rank");
+	ADD_WIN_FUNC("percent_rank");
+	ADD_WIN_FUNC("cum_dist");
+	ADD_WIN_FUNC("ntile");
+	ADD_WIN_FUNC("lag");
+	ADD_WIN_FUNC("lead");
+	ADD_WIN_FUNC("first_value");
+	ADD_WIN_FUNC("last_value");
+	ADD_WIN_FUNC("nth_value");
 }
 
 
@@ -597,6 +696,24 @@ sqliteGetViewDefinition(char *viewName)
     return NULL;
 }
 
+DataType
+sqliteBackendSQLTypeToDT (char *sqlType)
+{
+	return DT_INT;
+}
+
+char *
+sqliteBackendDatatypeToSQL (DataType dt)
+{
+	return NULL;
+}
+
+HashMap *
+sqliteGetMinAndMax(char* tableName, char* colName)
+{
+	return NULL;
+}
+
 void
 sqliteGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -628,5 +745,3 @@ sqliteExecuteQuery(char *query)
 }
 
 #endif
-
-

@@ -990,7 +990,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
     }
     // or for without group by
     else
-        joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+        joinCond = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(1), createConstInt(1)));
 
     // create join operator
     List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
@@ -1305,7 +1305,7 @@ replaceAttrWithCaseForProvDupRemoval (FunctionCall *f, Node *provDupAttrRef)
         Node *arg = LC_P_VAL(lc);
         LC_P_VAL(lc) = createCaseExpr(
                 NULL,
-                singleton(createCaseWhen((Node *) createOpExpr("=",
+                singleton(createCaseWhen((Node *) createOpExpr(OPNAME_EQ,
                         LIST_MAKE(createConstInt(1), copyObject(provDupAttrRef))),
                         arg)),
                 (Node *) createNullConst(DT_INT)

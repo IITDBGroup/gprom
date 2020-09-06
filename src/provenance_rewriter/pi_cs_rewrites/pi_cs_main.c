@@ -886,7 +886,7 @@ rewritePI_CSAggregation (AggregationOperator *op)
 	}
 	// or for without group by
 	else
-	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+	    joinCond = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(1), createConstInt(1)));
 
     // create join operator
     List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
@@ -1011,7 +1011,7 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op)
 	}
 	// or for without group by
 	else
-	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+	    joinCond = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(1), createConstInt(1)));
 
 
 	if(streq(fc->functionname, "MAX") || streq(fc->functionname, "MIN"))
@@ -1191,7 +1191,7 @@ rewritePI_CSSet(SetOperator *op)
             AttributeDef *lDef, *rDef;
             lDef = getAttrDefByPos(lChild, i);
             rDef = getAttrDefByPos(rChild, i);
-            comparisons = appendToTailOfList(comparisons, createOpExpr("=",
+            comparisons = appendToTailOfList(comparisons, createOpExpr(OPNAME_EQ,
                     LIST_MAKE(createFullAttrReference (strdup(lDef->attrName),0,i,INVALID_ATTR, lDef->dataType),
                             createFullAttrReference (strdup(rDef->attrName),1,i,INVALID_ATTR, rDef->dataType))
                     ));
@@ -2362,5 +2362,3 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 //		return (QueryOperator *) rOp;
 
 }
-
-
