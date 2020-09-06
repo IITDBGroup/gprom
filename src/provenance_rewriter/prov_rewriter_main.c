@@ -281,15 +281,21 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     				op = originalOp;
 
     			List *binds = (List *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED_BIND);
-    			List *b1 = (List *) getHeadOfListP(binds);
-    			List *b2 = (List *) getTailOfListP(binds);
-    			DEBUG_LOG("bind values 1:");
+    			List *b1 = (List *) getNthOfListP(binds,0);
+    			List *b2 = (List *) getNthOfListP(binds,1);
+    			List *b3 = (List *) getNthOfListP(binds,2);
+    			DEBUG_LOG("bind parameters 1:");
     			FOREACH(Constant, c, b1)
     			{
-    				DEBUG_LOG("%d",INT_VALUE(c));
+    				DEBUG_LOG("%s",STRING_VALUE(c));
     			}
     			DEBUG_LOG("bind values 2:");
     			FOREACH(Constant, c, b2)
+    			{
+    				DEBUG_LOG("%d",INT_VALUE(c));
+    			}
+    			DEBUG_LOG("bind values 3:");
+    			FOREACH(Constant, c, b3)
     			{
     				DEBUG_LOG("%d",INT_VALUE(c));
     			}

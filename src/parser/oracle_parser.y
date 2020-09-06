@@ -665,10 +665,10 @@ provOption:
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED),
             									(Node *) $3);
 		}
-		| WITH BIND '(' intConstList ')' FOR '(' intConstList ')'
+		| BIND '(' strConstList ')' WITH '(' intConstList ')' FOR '(' intConstList ')'
 		{
 			RULELOG("provOption::COARSE BIND");
-			List *l = LIST_MAKE($4,$8);
+			List *l = LIST_MAKE($3,$7,$11);
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED_BIND),
             									(Node *) l);
 		}
