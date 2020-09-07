@@ -24,9 +24,14 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
-#include "z3.h"
 #include "stdlib.h"
+//#include "z3.h"
+#if HAVE_Z3
+#include "z3.h"
+#endif
 
+
+#if	HAVE_Z3
 void display_version()
 {
     unsigned major, minor, build, revision;
@@ -290,3 +295,16 @@ testp()
     Z3_ast c = exprtoz3((Node *) opr3, ctx);
     DEBUG_LOG("expr to z3 result: %s", Z3_ast_to_string(ctx, c));
 }
+
+
+
+// NO libz3 present. Provide dummy methods to keep compiler quiet
+#else
+void
+testp()
+{
+
+}
+
+
+#endif

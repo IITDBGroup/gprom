@@ -13,7 +13,10 @@
 
 #include "model/query_operator/query_operator.h"
 #include "model/bitset/bitset.h"
-#include "z3.h"
+
+//#if HAVE_Z3
+//#include "z3.h"
+//#endif
 
 extern void testp();
 //extern void exprtoz3(Operator *opr,Z3_context ctx);
