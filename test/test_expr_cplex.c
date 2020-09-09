@@ -34,11 +34,11 @@ rc
 testCplexExpr(void)
 {
     // RUN_TEST(testcopyAttributeReference(), "test copy AttibuteReference");
-    RUN_TEST(testLogicExpr(), "test cplex for logical expressions");
     RUN_TEST(testHLCompile(), "test high-level compilation from history to case exprs");
     RUN_TEST(testCPLEXCompile(), "test compiling to cplex format problem");
     RUN_TEST(testCompilationStack(), "test entire compilation stack");
     RUN_TEST(testCPLEXOpt(), "test simple cplex optimization");
+    RUN_TEST(testLogicExpr(), "test cplex for logical expressions");
 
     return PASS;
 }
@@ -46,7 +46,7 @@ testCplexExpr(void)
 static rc
 testLogicExpr (void)
 {
-    Node *test = (Node *) createOpExpr("<", LIST_MAKE(createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2))), createOpExpr("+", LIST_MAKE(createConstInt(2), createConstInt(3)))));
+    Node *test = (Node *) createOpExpr("AND", LIST_MAKE(createOpExpr("<", LIST_MAKE(createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2))), createOpExpr("+", LIST_MAKE(createConstInt(2), createConstInt(3))))), createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)))));
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     exprToConstraints(test, ctx);
     FOREACH(Constraint, c, ctx->constraints)
@@ -69,7 +69,7 @@ testLogicExpr (void)
 static rc
 testCPLEXCompile (void)
 {
-    Node *test = (Node *) createOpExpr("<", LIST_MAKE(createConstInt(3), createConstInt(4)));
+    Node *test = (Node *) createOpExpr("AND", LIST_MAKE(createOpExpr("<", LIST_MAKE(createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2))), createOpExpr("+", LIST_MAKE(createConstInt(2), createConstInt(3))))), createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)))));
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     exprToConstraints(test, ctx);
     LPProblem *lp = newLPProblem(ctx);
@@ -89,11 +89,13 @@ testCPLEXCompile (void)
 static rc
 testHLCompile (void)
 {
+    RenamingCtx* renamingCtx = newRenamingCtx();
+
     List *history = NIL;
     history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))));
     history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))));
     history = appendToTailOfList(history, createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60)))));
-    List *caseExprs = historyToCaseExprsFreshVars(history);
+    List *caseExprs = historyToCaseExprsFreshVars(history, renamingCtx);
     INFO_LOG("history is %s", beatify(nodeToString(caseExprs)));
 
     return PASS;
@@ -102,12 +104,13 @@ testHLCompile (void)
 static rc
 testCompilationStack (void)
 {
+    RenamingCtx* renamingCtx = newRenamingCtx();
     List *history = NIL;
     history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))));
     history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))));
     history = appendToTailOfList(history, createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60)))));
     
-    List *caseExprs = historyToCaseExprsFreshVars(history);
+    List *caseExprs = historyToCaseExprsFreshVars(history, renamingCtx);
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     FOREACH(Node, e, caseExprs)
     {
@@ -133,7 +136,7 @@ testCPLEXOpt (void)
 {
     // test < 6 AND test >= 10
     // Node *test = (Node *) createOpExpr("AND", LIST_MAKE(createOpExpr("<", LIST_MAKE(createSQLParameter("test"), createConstInt(6))), createOpExpr("NOT", singleton(createOpExpr("<", LIST_MAKE(createSQLParameter("test"), createConstInt(10)))))));
-    Node *test = (Node *) createCaseExpr(NULL, singleton(createCaseWhen((Node *)createOpExpr("<", LIST_MAKE(createConstInt(2), createConstInt(3))), (Node *)createConstInt(1))), (Node *)createConstInt(-1));
+    Node *test = (Node *) createCaseExpr(NULL, singleton(createCaseWhen((Node *)createOpExpr("<", LIST_MAKE(createConstInt(2), createConstInt(3))), (Node *)createConstInt(10))), (Node *)createConstInt(100));
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     exprToConstraints(test, ctx);
     LPProblem *lp = newLPProblem(ctx);
@@ -192,7 +195,7 @@ testCPLEXOpt (void)
         case 103:
             INFO_LOG("Integer infeasible.");
             break;
-        case 110:
+        case 110:        
         case 114:
             INFO_LOG("No solution exists.");
             break;

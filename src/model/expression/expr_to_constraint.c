@@ -9,7 +9,20 @@
 #include "model/query_block/query_block.h"
 #include "configuration/option.h"
 
+#ifdef HAVE_LIBCPLEX
+#include <ilcplex/cplex.h>
+#endif
+
 #define GPROM_INFBOUND 1e20
+
+RenamingCtx *
+newRenamingCtx ()
+{
+    RenamingCtx *ctx = MALLOC(sizeof(RenamingCtx));
+    ctx->map = NEW_MAP(Constant, Constant);
+
+    return ctx;
+}
 
 ConstraintTranslationCtx *
 newConstraintTranslationCtx ()
@@ -19,9 +32,10 @@ newConstraintTranslationCtx ()
     ctx->variableMap = NEW_MAP(Constant, Constant);
     ctx->variables = NIL;
     ctx->constraints = NIL;
+    ctx->caseConds = NIL;
 
-    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(2000));
-    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-2000)); //TODO: There is definitely a better way to be doing this.
+    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(1000));
+    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-1000)); //TODO: There is definitely a better way to be doing this.
 
     return ctx;
 }
@@ -83,19 +97,18 @@ introduceMILPVariable (Node *expr, ConstraintTranslationCtx *ctx, boolean isBool
 
 // Extension of operator_optimizer.c:1403
 static boolean
-renameParameters (Node *node, HashMap *nameMap)
+renameParameters (Node *node, RenamingCtx *ctx)
 {
+    HashMap *nameMap = ctx->map;
     if (node == NULL)
         return FALSE;
 
     if(isA(node,AttributeReference))
     {
         AttributeReference *a = (AttributeReference *) node;
-        ERROR_LOG("1st Wanting to rename ATTRREF %s", a->name);
 
         if (MAP_HAS_STRING_KEY(nameMap, a->name))
         {
-            ERROR_LOG("Wanting to rename ATTRREF %s", a->name);
             a->name = CONCAT_STRINGS(a->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(nameMap, a->name))));
             return TRUE;
         }
@@ -110,15 +123,16 @@ renameParameters (Node *node, HashMap *nameMap)
         }
     }
     else
-        return visit(node, renameParameters, nameMap);
+        return visit(node, renameParameters, ctx);
 
     return FALSE;
 }
 
 List *
-historyToCaseExprsFreshVars (List *history) {
+historyToCaseExprsFreshVars (List *history, RenamingCtx *ctx) {
+    HashMap *current = ctx->map;
     List *caseExprs = NIL;
-    HashMap *current = NEW_MAP(Constant, Constant);
+    // HashMap *current = NEW_MAP(Constant, Constant);
     // TODO: Deep copy history list? copyobject
     // Change variables and construct CASE exprs
     FOREACH(Update, u, history)
@@ -135,17 +149,18 @@ historyToCaseExprsFreshVars (List *history) {
 
         char *rhsSetAttr = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name))));
 
-        visit((Node*)setExpr, renameParameters, current);
-        visit(u->cond, renameParameters, current);
+        visit((Node*)setExpr, renameParameters, ctx);
+        visit(u->cond, renameParameters, ctx);
         MAP_ADD_STRING_KEY(current, setAttr->name, createConstInt(INT_VALUE(MAP_GET_STRING(current, setAttr->name)) + 1));
         setAttr->name = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name)))); // visit break on AttributeReference
 
         // foo1 = case when foo0 > 3 then foo0 + 3 else 4
-        caseExprs = appendToTailOfList(caseExprs, createOpExpr("=", LIST_MAKE(createSQLParameter(setAttr->name), 
+        caseExprs = appendToTailOfList(caseExprs, createOpExpr(":=", LIST_MAKE(createSQLParameter(setAttr->name), 
             createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)getTailOfListP(set->args))), (Node *)createSQLParameter(rhsSetAttr))
         )));
         INFO_LOG(beatify(nodeToString(caseExprs)));
     }
+    INFO_LOG(beatify(nodeToString(ctx->map)));
     return caseExprs;
 }
 
@@ -192,6 +207,11 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
         }
+        else if(strcmp(operator->name, ">") == 0)
+        {
+            Operator *as = createOpExpr("NOT", LIST_MAKE(createOpExpr("<=", operator->args)));
+            exprToConstraints((Node*)as, ctx);
+        }
         else if(strcmp(operator->name, "<=") == 0)
         {
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
@@ -227,6 +247,11 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+        }
+        else if(strcmp(operator->name, ">=") == 0)
+        {
+            Operator *as = createOpExpr("NOT", LIST_MAKE(createOpExpr("<", operator->args)));
+            exprToConstraints((Node*)as, ctx);
         }
         else if(strcmp(operator->name, "AND") == 0)
         {
@@ -402,6 +427,26 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             ctx->constraints = appendToTailOfList(ctx->constraints, c3);
             ctx->constraints = appendToTailOfList(ctx->constraints, c4);
         }
+        else if(strcmp(operator->name, ":=") == 0)
+        {
+            SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
+            exprToConstraints(getHeadOfListP(operator->args), ctx);
+
+            SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
+            exprToConstraints(getTailOfListP(operator->args), ctx);
+
+            // Make constraints for this expression
+            Constraint *c = makeNode(Constraint);
+            c->sense = CONSTRAINT_E;
+            c->rhs = 0;
+            c->originalExpr = (Node *)operator;
+            c->terms = LIST_MAKE(
+                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+                createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar)
+            );
+
+            ctx->constraints = appendToTailOfList(ctx->constraints, c);
+        }
     }
     else if(isA(expr, CaseExpr)) 
     {
@@ -417,6 +462,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
         SQLParameter *b = introduceMILPVariable(caseWhen->when, ctx, TRUE);
         exprToConstraints(caseWhen->when, ctx);
+        ctx->caseConds = appendToTailOfList(ctx->caseConds, b);
 
         SQLParameter *v1 = introduceMILPVariable(caseWhen->then, ctx, FALSE);
         exprToConstraints(caseWhen->then, ctx);
@@ -568,7 +614,7 @@ newLPProblem (ConstraintTranslationCtx* ctx)
             default:
                 problem->lb[i] = -GPROM_INFBOUND;
                 problem->ub[i] = GPROM_INFBOUND;
-                problem->types[i] = 'C'; // Experimental
+                problem->types[i] = 'C';
         }
     }
     problem->obj[0] = 1.0; // Experimental
@@ -671,6 +717,62 @@ char *cstringLPProblem(LPProblem *lp, boolean details) {
     }
 
     return str->data;
+}
+
+int executeLPProblem(LPProblem *lp)
+{
+        int cplexStatus = 0;
+        CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
+        if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
+        cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
+        cplexStatus ^= CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
+        if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
+
+        CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
+        cplexStatus = CPXchgobjsen(cplexEnv, cplexLp, CPX_MAX);
+
+        cplexStatus = CPXnewcols(cplexEnv, cplexLp, lp->ccnt, lp->obj, lp->lb, lp->ub, lp->types, lp->colname); // TODO: lb and ub
+        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXnewcols"); else INFO_LOG("CPXnewcols succeeded.");
+
+        cplexStatus = CPXaddrows(cplexEnv, cplexLp, 0, lp->rcnt, lp->nzcnt, lp->rhs, lp->sense, lp->rmatbeg,
+                        lp->rmatind, lp->rmatval, NULL, NULL);
+        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXaddrows"); else INFO_LOG("CPXaddrows succeded.");
+
+        INFO_LOG("CPXgetnumnz %d", CPXgetnumnz(cplexEnv, cplexLp));
+
+        cplexStatus = CPXmipopt(cplexEnv, cplexLp);
+        if(cplexStatus) {
+            INFO_LOG("Error evaluating LP.");
+        }
+        else
+        {
+            INFO_LOG("Evaluated LP.");
+        }
+
+        int result = CPXgetstat(cplexEnv, cplexLp);
+        /* double x[lp->ccnt];
+        switch(CPXgetstat(cplexEnv, cplexLp)) {
+            case 101:
+                INFO_LOG("Optimal solution found");
+                CPXgetx(cplexEnv, cplexLp, x, 0, lp->ccnt-1);
+                for(int i = 0; i < lp->ccnt; i++) INFO_LOG("Col. %s opt. val. is %f", lp->colname[i], x[i]);
+                break;
+            case 103:
+                INFO_LOG("Integer infeasible.");
+                break;
+            case 110:
+            case 114:
+                INFO_LOG("No solution exists.");
+                break;
+            default:
+                INFO_LOG("Something else... value %d", CPXgetstat(cplexEnv, cplexLp));
+        } */
+
+        cplexStatus = CPXfreeprob(cplexEnv, &cplexLp);
+        cplexStatus = CPXcloseCPLEX(&cplexEnv);
+        if(cplexStatus) ERROR_LOG("Problem closing CPLEX environment.");
+
+        return result;
 }
 
 char *cstringConstraint(Constraint *constraint, boolean origin) {

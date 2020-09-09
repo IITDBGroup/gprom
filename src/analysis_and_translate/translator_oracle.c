@@ -886,112 +886,125 @@ translateProvenanceStmt(ProvenanceStmt *prov)
 static QueryOperator *
 translateWhatIfStmt (WhatIfStmt *whatif)
 {
-    List *reenactHistory = NIL;
+    List *independentUpdates = NIL;
+    #ifdef HAVE_LIBCPLEX
     if(getBoolOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING))
     {
-        INFO_LOG("Program slicing optimization...");
-        #ifdef HAVE_LIBCPLEX
-        INFO_LOG("Constructing CPLEX problem...");
-        // Just want to see if CPLEX runs at this point.
-        List *historyCopy = copyObject(whatif->modifiedHistory);
-        List *caseExprs = historyToCaseExprsFreshVars(historyCopy);
-        ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
-        FOREACH(Node, e, caseExprs)
+        INFO_LOG("Program slicing optimization with CPLEX...");
+        INFO_LOG("%s", beatify(nodeToString(whatif->indices)));
+        /* Find dependent updates */
+        FOREACH(Constant, modifiedIndex, whatif->indices)
         {
-            exprToConstraints(e, ctx);
-        }
-
-        LPProblem *lp = newLPProblem(ctx);
-
-        INFO_LOG("%s", beatify(nodeToString(ctx->variableMap)));
-        Node *previousOrigin = NULL;
-        FOREACH(Constraint, c, ctx->constraints)
-        {
-            if(c->originalExpr != previousOrigin)
+            INFO_LOG("Looking at original/modified update...");
+            int u0 = INT_VALUE(modifiedIndex) - 1;
+            for(int u = u0 + 1; u < getListLength(whatif->history); u++) 
             {
-                INFO_LOG("========================");
-                INFO_LOG("%s", nodeToString(c->originalExpr));
-                INFO_LOG("------------------------");
+                INFO_LOG("Comparing to update #%d", u);
+                RenamingCtx *renamingCtx = newRenamingCtx();
+
+                List *original = copyObject(whatif->history);
+                original = sublist(original, u0, u);
+                List *originalCaseExprs = historyToCaseExprsFreshVars(original, renamingCtx);
+                ConstraintTranslationCtx *originalCtx = newConstraintTranslationCtx();
+                FOREACH(Node, e, originalCaseExprs)
+                {
+                    exprToConstraints(e, originalCtx);
+                }
+                if(getListLength(originalCtx->caseConds) > 1)
+                {
+                    SQLParameter *i = (SQLParameter *)getHeadOfListP(originalCtx->caseConds);
+                    SQLParameter *j = (SQLParameter *)getTailOfListP(originalCtx->caseConds);
+                    Constraint *c = makeNode(Constraint);
+                    c->sense = CONSTRAINT_E;
+                    c->rhs = 2;
+                    c->terms = LIST_MAKE(
+                        createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
+                        createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
+                    );
+                    originalCtx->constraints = appendToTailOfList(originalCtx->constraints, c);
+                }
+                else
+                {
+                    ERROR_LOG("Something is wrong, not at least 2 case exprs for update dependency determination.");
+                }
+                LPProblem *originalLp = newLPProblem(originalCtx);
+
+                INFO_LOG("***MODIFIED***\n");
+                renamingCtx = newRenamingCtx();
+                List *modified = copyObject(whatif->modifiedHistory);
+                modified = sublist(modified, u0, u);
+                List *modifiedCaseExprs = historyToCaseExprsFreshVars(modified, renamingCtx);
+                ConstraintTranslationCtx *modifiedCtx = newConstraintTranslationCtx();
+                FOREACH(Node, e, modifiedCaseExprs)
+                {
+                    exprToConstraints(e, modifiedCtx);
+                }
+                if(getListLength(modifiedCtx->caseConds) > 1)
+                {
+                    INFO_LOG(beatify(nodeToString(modifiedCtx->caseConds)));
+                    SQLParameter *i = (SQLParameter *)getHeadOfListP(modifiedCtx->caseConds);
+                    SQLParameter *j = (SQLParameter *)getTailOfListP(modifiedCtx->caseConds);
+                    Constraint *c = makeNode(Constraint);
+                    c->sense = CONSTRAINT_E;
+                    c->rhs = 2;
+                    c->terms = LIST_MAKE(
+                        createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
+                        createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
+                    );
+                    modifiedCtx->constraints = appendToTailOfList(modifiedCtx->constraints, c);
+                }
+                else
+                {
+                    ERROR_LOG("Something is wrong, not at least 2 case exprs for update dependency determination.");
+                }
+                LPProblem *modifiedLp = newLPProblem(modifiedCtx);
+                FOREACH(Constraint, c, modifiedCtx->constraints)
+                {
+                    INFO_LOG("%s", cstringConstraint(c, TRUE));
+                }
+                INFO_LOG("Modified is %s", beatify(cstringLPProblem(modifiedLp, TRUE)));
+
+                // A = 2; A = 3;
+                // A = 1; A = 3;
+                // A1 = 2 ELSE A0; A2 = 3 ELSE A1;
+                // A3 = 1 ELSE A0; A4 = 3 ELSE A3; 
+                int originalResult = executeLPProblem(originalLp);
+                int modifiedResult = executeLPProblem(modifiedLp);
+
+                INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
+                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u))) // 101 is CPLEX MIP optimal solution found
+                {
+                    INFO_LOG("Independent update detected...");
+                    independentUpdates = appendToTailOfList(independentUpdates, getNthOfListP(whatif->history, u));
+                } 
             }
-            INFO_LOG(cstringConstraint(c, FALSE));
-            previousOrigin = c->originalExpr;
         }
-        INFO_LOG(cstringLPProblem(lp, TRUE));
+    }
+    #endif
 
-        int cplexStatus = 0;
-        CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
-        if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
-        cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
-        cplexStatus ^= CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
-        if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
-
-        CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
-        cplexStatus = CPXchgobjsen(cplexEnv, cplexLp, CPX_MAX);
-
-        cplexStatus = CPXnewcols(cplexEnv, cplexLp, lp->ccnt, lp->obj, lp->lb, lp->ub, lp->types, lp->colname); // TODO: lb and ub
-        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXnewcols"); else INFO_LOG("CPXnewcols succeeded.");
-
-        cplexStatus = CPXaddrows(cplexEnv, cplexLp, 0, lp->rcnt, lp->nzcnt, lp->rhs, lp->sense, lp->rmatbeg,
-                        lp->rmatind, lp->rmatval, NULL, NULL);
-        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXaddrows"); else INFO_LOG("CPXaddrows succeded.");
-
-        INFO_LOG("CPXgetnumnz %d", CPXgetnumnz(cplexEnv, cplexLp));
-
-        cplexStatus = CPXmipopt(cplexEnv, cplexLp);
-        if(cplexStatus) {
-            INFO_LOG("Error evaluating LP.");
-        }
-        else
-        {
-            INFO_LOG("Evaluated LP.");
-        }
-
-        double x[lp->ccnt];
-        switch(CPXgetstat(cplexEnv, cplexLp)) {
-            case 101:
-                INFO_LOG("Optimal solution found");
-                CPXgetx(cplexEnv, cplexLp, x, 0, lp->ccnt-1);
-                for(int i = 0; i < lp->ccnt; i++) INFO_LOG("Col. %s opt. val. is %f", lp->colname[i], x[i]);
-                break;
-            case 103:
-                INFO_LOG("Integer infeasible.");
-                break;
-            case 110:
-            case 114:
-                INFO_LOG("No solution exists.");
-                break;
-            default:
-                INFO_LOG("Something else... value %d", CPXgetstat(cplexEnv, cplexLp));
-        }
-
-        cplexStatus = CPXfreeprob(cplexEnv, &cplexLp);
-        cplexStatus = CPXcloseCPLEX(&cplexEnv);
-        if(cplexStatus) ERROR_LOG("Problem closing CPLEX environment.");
-        #endif
-
-        // TODO: actually remove independent updates
-        FOREACH(Node, q, whatif->modifiedHistory)
-        {
-            reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
-        }
-    } 
-    else
+    // Prune independent updates
+    List *historyNoIndepUpdates = copyObject(whatif->history);
+    historyNoIndepUpdates = removeListElementsFromAnotherList(independentUpdates, historyNoIndepUpdates);
+    INFO_LOG(beatify(nodeToString(independentUpdates)));
+    List *reenactHistory = NIL;
+    FOREACH(Node, q, historyNoIndepUpdates)
     {
-        FOREACH(Node, q, whatif->history)
-        {
-            reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
-        }
+        reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
+    }
+    INFO_LOG(beatify(nodeToString(reenactHistory)));
+
+    List *modifiedHistoryNoIndepUpdates = copyObject(whatif->modifiedHistory);
+    modifiedHistoryNoIndepUpdates = removeListElementsFromAnotherList(independentUpdates, modifiedHistoryNoIndepUpdates);
+    List *reenactModifiedHistory = NIL;
+    FOREACH(Node, q, modifiedHistoryNoIndepUpdates)
+    {
+        reenactModifiedHistory = appendToTailOfList(reenactModifiedHistory, createNodeKeyValue(q, NULL));
     }
 
     ProvenanceStmt *reenactHistoryStmt = createProvenanceStmt((Node *)reenactHistory);
     reenactHistoryStmt->inputType = PROV_INPUT_REENACT;
     reenactHistoryStmt->provType = PROV_NONE;
 
-    List *reenactModifiedHistory = NIL;
-    FOREACH(Node, q, whatif->modifiedHistory)
-    {
-        reenactModifiedHistory = appendToTailOfList(reenactModifiedHistory, createNodeKeyValue(q, NULL));
-    }
     ProvenanceStmt *reenactModifiedHistoryStmt = createProvenanceStmt((Node *)reenactModifiedHistory);
     reenactModifiedHistoryStmt->inputType = PROV_INPUT_REENACT;
     reenactModifiedHistoryStmt->provType = PROV_NONE;

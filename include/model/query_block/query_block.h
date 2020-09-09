@@ -96,6 +96,7 @@ typedef struct WhatIfStmt
     ProvenanceStmt provStmt;
     List *modifiedHistory;
     List *history;
+    List *indices;
 } WhatIfStmt;
 
 typedef struct SelectItem

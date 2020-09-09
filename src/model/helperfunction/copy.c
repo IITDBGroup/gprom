@@ -932,6 +932,7 @@ copyWhatIfStmt(WhatIfStmt *from, OperatorMap **opMap)
     COPY_INIT(WhatIfStmt);
     COPY_NODE_FIELD(history);
     COPY_NODE_FIELD(modifiedHistory);
+    COPY_NODE_FIELD(indices);
 
     return new;
 }

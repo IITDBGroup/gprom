@@ -177,6 +177,10 @@ createWhatIfStmt(List *history, List *modifiedHistory, List *indices)
         result->modifiedHistory = replaceNode(result->modifiedHistory, toReplace, replaceWith);
     }
 
+    result->indices = copyObject(indices);
+    INFO_LOG("indices are %s", beatify(nodeToString(result->indices)));
+
+
     INFO_LOG("Original history is %s", beatify(nodeToString(result->history)));
     INFO_LOG("Modified history is %s", beatify(nodeToString(result->modifiedHistory)));
 
