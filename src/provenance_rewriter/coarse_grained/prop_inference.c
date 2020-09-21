@@ -271,6 +271,102 @@ exprtoz3(Node *n,Z3_context ctx)
 /* consts */
 #define RIGHT_ATTR_PREFIX backendifyIdentifier("R")
 
+
+
+/*
+ * bottom-up propagation of expression
+ */
+void
+computeEXPRPropBottomUp (QueryOperator *root)
+{
+    SET_BOOL_STRING_PROP(root, PROP_STORE_SET_EXPR_DONE_BU);
+
+    if(root->inputs != NULL)
+	{
+		FOREACH(QueryOperator, op, root->inputs)
+		    if (!HAS_STRING_PROP(op, PROP_STORE_SET_EXPR_DONE_BU))
+		    	computeEXPRPropBottomUp(op);
+	}
+
+	if(root != NULL)
+	{
+		if(isA(root, TableAccessOperator))
+		{
+			List *expr = NIL;
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EXPR, (Node *) expr);
+		}
+		else if(isA(root,ProjectionOperator))
+		{
+			Node *nChild = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EXPR);
+			List *expr = (List *) copyObject(nChild);
+
+			ProjectionOperator *proj = (ProjectionOperator *) root;
+			List *attrDefs = root->schema->attrDefs;
+			int cnt = 0;
+			FOREACH(Node, n, proj->projExprs)
+			{
+				if(isA(n, Operator))
+				{
+					AttributeDef *attrDef = (AttributeDef *) getNthOfListP(attrDefs, cnt);
+					AttributeReference *attr = createFullAttrReference(attrDef->attrName, 0, cnt, 0, attrDef->dataType);
+					Operator *new = createOpExpr("=", LIST_MAKE(attr,copyObject(n)));
+					expr = appendToTailOfList(expr, new);
+				}
+				cnt ++;
+			}
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EXPR, (Node *) expr);
+		}
+		else if(isA(root, JoinOperator))
+		{
+			Node *lChild = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EXPR);
+			List *lexpr = (List *) copyObject(lChild);
+			Node *rChild = getStringProperty(OP_RCHILD(root), PROP_STORE_SET_EXPR);
+			List *rexpr = (List *) copyObject(rChild);
+
+			List *cond = NIL;
+			JoinOperator *join = (JoinOperator *) root;
+			if(join->joinType == JOIN_INNER)
+			{
+				cond = appendToTailOfList(cond, copyObject(join->cond));
+			}
+
+			List *expr = NIL;
+			if(cond == NIL)
+			{
+				expr = CONCAT_LISTS(lexpr, rexpr);
+			}
+			else
+			{
+				expr = CONCAT_LISTS(cond, lexpr, rexpr);
+			}
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EXPR, (Node *) expr);
+		}
+		else
+		{
+			QueryOperator *childOp = OP_LCHILD(root);
+			Node *nChild = getStringProperty(childOp, PROP_STORE_SET_EXPR);
+			List *expr = (List *) copyObject(nChild);
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EXPR, (Node *) expr);
+		}
+	}
+}
+
+static boolean
+printEXPRProVisitor (QueryOperator *op, void *context)
+{
+    List *expr = (List*) getStringProperty(op, PROP_STORE_SET_EXPR);
+    DEBUG_LOG("op(%s) - size:%d - expr:%s\n ",op->schema->name, LIST_LENGTH(expr), nodeToString(expr));
+    return TRUE;
+}
+
+static void
+printEXPRPro(QueryOperator *root)
+{
+    START_TIMER("PropertyInference - EXPR - print");
+    visitQOGraph(root, TRAVERSAL_PRE, printEXPRProVisitor, NULL);
+    STOP_TIMER("PropertyInference - EXPR - print");
+}
+
 /*
  * bottom-up propagation of predicates
  */
@@ -496,6 +592,20 @@ replaceParaWithValuesAndRenameAttr(Node *node, HashMap *map)
 }
 
 static boolean
+renameAttrInOperator(Node *node, char *state)
+{
+    if (node == NULL)
+        return FALSE;
+
+    if(isA(node, AttributeReference))
+    {
+    		AttributeReference *attr = (AttributeReference *) node;
+    		attr->name = getRightAttrName(attr->name);
+    }
+    return visit(node, renameAttrInOperator, state);
+}
+
+static boolean
 extractOperators(Node *node, List **state)
 {
     if (node == NULL)
@@ -563,6 +673,10 @@ checkCountAndSumPositive(FunctionCall *fc, QueryOperator *agChild, HashMap* map)
 	}
 	else if(streq(fc->functionname, "sum") || streq(fc->functionname, "max"))
 	{
+		Node *exprNode  =  getStringProperty(agChild, PROP_STORE_SET_EXPR);
+		List *expr = (List *) copyObject(exprNode);
+		//Node *andexpr = andExprList(expr);
+
 		Node *predNode  =  getStringProperty(agChild, PROP_STORE_SET_PRED);
 		replaceParaWithValues(predNode, map);
 		List *pred = (List *) copyObject(predNode);
@@ -576,12 +690,12 @@ checkCountAndSumPositive(FunctionCall *fc, QueryOperator *agChild, HashMap* map)
 			AttributeReference *attr = (AttributeReference *) copyObject(n);
 			//char *name = attr->name;
 			Operator *oper = createOpExpr("<",LIST_MAKE(attr,createConstInt(0)));
-			Node *andPred = andExprList(concatTwoLists(copyObject(pred), singleton(copyObject(oper))));
+			Node *andPred = andExprList(CONCAT_LISTS(copyObject(pred), copyObject(expr), singleton(copyObject(oper))));
 			DEBUG_NODE_BEATIFY_LOG("andPred: ", andPred);
 
 			Z3_context ctx = mk_context();
 			Z3_ast c = exprtoz3((Node *) andPred, ctx);
-			DEBUG_LOG("pred and not a > 0 to z3 result: %s", Z3_ast_to_string(ctx, c));
+			DEBUG_LOG("pred and expr and not a > 0 to z3 result: %s", Z3_ast_to_string(ctx, c));
 		    Z3_solver s;
 		    s = mk_solver(ctx);
 		    Z3_solver_assert(ctx, s, c);
@@ -604,6 +718,9 @@ checkSumNegative(FunctionCall *fc, QueryOperator *agChild, HashMap* map)
 
 	if(streq(fc->functionname, "sum") || streq(fc->functionname, "min"))
 	{
+		Node *exprNode  =  getStringProperty(agChild, PROP_STORE_SET_EXPR);
+		List *expr = (List *) copyObject(exprNode);
+
 		Node *predNode  =  getStringProperty(agChild, PROP_STORE_SET_PRED);
 		replaceParaWithValues(predNode, map);
 		List *pred = (List *) copyObject(predNode);
@@ -613,11 +730,11 @@ checkSumNegative(FunctionCall *fc, QueryOperator *agChild, HashMap* map)
 			AttributeReference *attr = (AttributeReference *) copyObject(n);
 			//char *name = attr->name;
 			Operator *oper = createOpExpr(">=",LIST_MAKE(attr,createConstInt(0)));
-			Node *andPred = andExprList(concatTwoLists(copyObject(pred), singleton(copyObject(oper))));
+			Node *andPred = andExprList(CONCAT_LISTS(copyObject(pred), copyObject(expr), singleton(copyObject(oper))));
 
 			Z3_context ctx = mk_context();
 			Z3_ast c = exprtoz3((Node *) andPred, ctx);
-			DEBUG_LOG("pred and not a < 0 to z3 result: %s", Z3_ast_to_string(ctx, c));
+			DEBUG_LOG("pred and expr and not a < 0 to z3 result: %s", Z3_ast_to_string(ctx, c));
 		    Z3_solver s;
 		    s = mk_solver(ctx);
 		    Z3_solver_assert(ctx, s, c);
@@ -731,6 +848,10 @@ computeCMAPPropBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 			Node *cmapNode = getStringProperty(childOp, PROP_STORE_SET_CMAP);
 			List *cmap = (List *) copyObject(cmapNode);
 
+			Node *exprNode = getStringProperty(childOp, PROP_STORE_SET_EXPR);
+			List *expr = (List *) copyObject(exprNode);
+			Node *andExpr = andExprList(expr);
+
 			AggregationOperator *agOp = (AggregationOperator *) root;
 			QueryOperator *agChild = OP_LCHILD(root);
 			List *gbcmap = NIL;
@@ -773,16 +894,18 @@ computeCMAPPropBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 				}
 			}
 			Set *gbset = makeStrSetFromList(gbnames);
+			Node *lexpr = copyObject(andExpr);
+			Node *rexpr = copyObject(andExpr);
+			renameAttrInOperator(rexpr,"a");
 
-
-			Node *r1 = andExprList(concatTwoLists(copyObject(cmap), copyObject(gbcmap)));
+			Node *r1 = andExprList(CONCAT_LISTS(copyObject(cmap),singleton(copyObject(lexpr)), singleton(copyObject(rexpr)),copyObject(gbcmap)));
 			//DEBUG_LOG("cmap + gbcmap %s", nodeToString(r1));
-			//DEBUG_LOG("cmap %s", nodeToString(andExprList(cmap)));
+			//DEBUG_LOG("cmap %s %s", nodeToString(lexpr), nodeToString(rexpr));
 
 			Z3_context ctx = mk_context();
 
 			Z3_ast cc = exprtoz3((Node *) r1, ctx);
-			DEBUG_LOG("cmap + gbcmap to z3 result: %s", Z3_ast_to_string(ctx, cc));
+			DEBUG_LOG("cmap + gbcmap + expr + expr' to z3 result: %s", Z3_ast_to_string(ctx, cc));
 		    Z3_solver s;
 		    s = mk_solver(ctx);
 		    Z3_solver_assert(ctx, s, cc);
@@ -834,8 +957,8 @@ computeCMAPPropBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 		    boolean f3 = FALSE;
 		    if(f2 == FALSE)
 		    {
-		    	 	 Node *n1 = copyObject(andPred);
-		    	 	 Node *n2 = copyObject(andPred);
+		    	 	Node *n1 = copyObject(andPred);
+		    	 	Node *n2 = copyObject(andPred);
 		    	 	DEBUG_NODE_BEATIFY_LOG("lopers0: ", (n1));
 		    	 	DEBUG_NODE_BEATIFY_LOG("ropers0: ", (n2));
 
@@ -859,13 +982,17 @@ computeCMAPPropBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 
 		     	Operator *notLopers = createOpExpr("NOT", singleton(andExprList(lopers)));
 		     	DEBUG_NODE_BEATIFY_LOG("not",notLopers);
-		     	Node *r2 = andExprList(CONCAT_LISTS(copyObject(cmap), copyObject(ropers), singleton(copyObject(notLopers))));
+		     	Node *r2 = andExprList(CONCAT_LISTS(copyObject(cmap),
+		     			singleton(copyObject(lexpr)),
+						singleton(copyObject(rexpr)),
+						copyObject(ropers),
+						singleton(copyObject(notLopers))));
 
 
 				Z3_context ctx2 = mk_context();
 
 				Z3_ast c2 = exprtoz3((Node *) r2, ctx2);
-				DEBUG_LOG("cmap and pred' and not pred to z3 result: %s", Z3_ast_to_string(ctx2, c2));
+				DEBUG_LOG("cmap and expr and expr and pred' and not pred to z3 result: %s", Z3_ast_to_string(ctx2, c2));
 			    Z3_solver s2;
 			    s2 = mk_solver(ctx2);
 			    Z3_solver_assert(ctx2, s2, c2);
@@ -973,6 +1100,8 @@ bottomUpInference(QueryOperator *root, HashMap *lmap, HashMap *rmap)
 	DEBUG_NODE_BEATIFY_LOG("tree:", root);
 	//DEBUG_LOG("current algebra tree: %s", nodeToString((Node *) root));
 
+	computeEXPRPropBottomUp(root);
+	printEXPRPro(root);
 	computePREDPropBottomUp(root);
 	printPREDPro(root);
 	computeCMAPPropBottomUp(root, lmap, rmap);
