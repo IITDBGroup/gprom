@@ -18,6 +18,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/coarse_grained/z3_solver.h"
+#include "provenance_rewriter/coarse_grained/prop_inference.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
@@ -110,6 +111,17 @@ findProvenanceComputations (QueryOperator *op, Set *haveSeen)
     }
 
     return op;
+}
+
+static HashMap *
+bindsToHashMap(List *names, List *values)
+{
+	HashMap *map = NEW_MAP(Constant,Constant);
+	FORBOTH(Constant, n, v, names, values)
+	{
+		MAP_ADD_STRING_KEY(map, STRING_VALUE(n), v);
+	}
+	return map;
 }
 
 static QueryOperator *
@@ -307,6 +319,10 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     			{
     				DEBUG_LOG("%d",INT_VALUE(c));
     			}
+    			HashMap *lmap = bindsToHashMap(b1, b2);
+    			HashMap *rmap = bindsToHashMap(b1, b3);
+
+    			bottomUpInference(OP_LCHILD(op), lmap, rmap);
 
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		psPara = createPSInfo(coarsePara);
@@ -348,3 +364,5 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     return result;
 }
+
+

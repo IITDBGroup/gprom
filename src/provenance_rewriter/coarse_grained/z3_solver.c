@@ -173,7 +173,7 @@ void check(Z3_context ctx, Z3_solver s, Z3_lbool expected_result)
 }
 
 
-static Z3_ast
+Z3_ast
 exprtoz3(Node *n,Z3_context ctx)
 {
 	char *name;
@@ -203,11 +203,11 @@ exprtoz3(Node *n,Z3_context ctx)
 		if(LIST_LENGTH(argLists) > 1)
 			args[1] = exprtoz3(getTailOfListP(argLists),ctx);
 
-		if(streq(name, "and"))
+		if(streq(name, "AND"))
 		{
 			c = Z3_mk_and(ctx, 2, args);
 		}
-		else if(streq(name, "or"))
+		else if(streq(name, "OR"))
 		{
 			c = Z3_mk_or(ctx, 2, args);
 		}
@@ -226,6 +226,11 @@ exprtoz3(Node *n,Z3_context ctx)
 		else if(streq(name, "/"))
 		{
 			c = Z3_mk_div(ctx, args[0], args[1]);
+		}
+		else if(streq(name, "<>"))
+		{
+			c = Z3_mk_eq(ctx, args[0], args[1]);
+			c = Z3_mk_not(ctx, c);
 		}
 		else if(streq(name, "="))
 		{
