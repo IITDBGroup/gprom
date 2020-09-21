@@ -931,20 +931,54 @@ computeCMAPPropBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 				}
 				else
 				{
+					DEBUG_LOG("checkNonGBPredEqual return equal ...");
 					popHeadOfListP(nonGBnames);
-					Set *nonGBnamesSet = makeStrSetFromList(nonGBnames);
-					FOREACH(Operator, oper, cmap)
+					List *eqOpers = NIL;
+					FOREACH(char, a, nonGBnames)
 					{
-						char *name = STRING_VALUE(getHeadOfListP(oper->args));
-						if(hasSetElem(nonGBnamesSet, name))
-						{
-							if(!streq(oper->name,"="))
-							{
-								f2 = FALSE;
-								break;
-							}
-						}
+						AttributeReference *lattr = createAttributeReference(a);
+						AttributeReference *rattr = createAttributeReference(getRightAttrName(a));
+						Operator *eqOper = createOpExpr("=", LIST_MAKE(lattr,rattr));
+						eqOpers = appendToTailOfList(eqOpers, eqOper);
 					}
+					Node *andEqOpers = andExprList(eqOpers);
+					Node *notAndEqOpers = createNotOperator(andEqOpers);
+
+					Node *r22 = andExprList(CONCAT_LISTS(copyObject(cmap),
+							singleton(copyObject(lexpr)),
+							singleton(copyObject(rexpr)),
+							singleton(copyObject(notAndEqOpers))));
+
+					Z3_context ctx1 = mk_context();
+
+					Z3_ast cc1 = exprtoz3((Node *) r22, ctx1);
+					DEBUG_LOG("cmap + expr + expr' + not non-gb cmap to z3 result: %s", Z3_ast_to_string(ctx1, cc1));
+				    Z3_solver s1;
+				    s1 = mk_solver(ctx1);
+				    Z3_solver_assert(ctx1, s1, cc1);
+				    if(Z3_solver_check(ctx, s) == Z3_L_FALSE)
+				    {
+				    		f2 = TRUE;
+				    }
+				    else
+				    {
+				    		f2 = FALSE;
+				    }
+
+
+//					Set *nonGBnamesSet = makeStrSetFromList(nonGBnames);
+//					FOREACH(Operator, oper, cmap)
+//					{
+//						char *name = STRING_VALUE(getHeadOfListP(oper->args));
+//						if(hasSetElem(nonGBnamesSet, name))
+//						{
+//							if(!streq(oper->name,"="))
+//							{
+//								f2 = FALSE;
+//								break;
+//							}
+//						}
+//					}
 				}
 		    }
 		    else
