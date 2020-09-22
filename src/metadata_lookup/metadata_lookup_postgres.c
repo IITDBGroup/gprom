@@ -253,6 +253,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->sqlTypeToDT = postgresBackendSQLTypeToDT;
     p->dataTypeToSQL = postgresBackendDatatypeToSQL;
 	p->getMinAndMax = postgresGetMinAndMax;
+	p->getAllMinAndMax = postgresGetAllMinAndMax;
 
     return p;
 }
@@ -1117,6 +1118,110 @@ postgresBackendDatatypeToSQL (DataType dt)
 
     // keep compiler quiet
     return "text";
+}
+
+
+List *
+postgresGetAllMinAndMax(TableAccessOperator* table)
+{
+	List *minmaxList = NIL;  //one min hashmap, one max hashmap
+	HashMap *min_map = NEW_MAP(Constant, Constant);
+	HashMap *max_map = NEW_MAP(Constant, Constant);
+
+    PGresult *res = NULL;
+    StringInfo statement;
+//	HashMap *tableMap = (HashMap *) MAP_GET_STRING(GET_CACHE()->tableMinMax, tableName);
+//
+//	if(tableMap == NULL)
+//	{
+//		tableMap = NEW_MAP(Constant,HashMap);
+//		MAP_ADD_STRING_KEY(GET_CACHE()->tableMinMax, tableName, tableMap);
+//	}
+	// table cache exists, return attribute if we have it already
+//	else
+//	{
+//		result_map = (HashMap *) MAP_GET_STRING(tableMap, colName);
+//		if(result_map != NULL)
+//		{
+//		    DEBUG_LOG("POSTGRES_GET_MINMAX: REUSE (%s.%s)\n%s",
+//					 tableName,
+//					 colName,
+//					 nodeToString(result_map));
+//			return result_map;
+//		}
+//	}
+
+//	result_map = NEW_MAP(Constant, Node);
+    char *tableName = table->tableName;
+    List *attrDefs = ((QueryOperator *) table)->schema->attrDefs;
+    List *attrNames = getAttrDefNames(attrDefs);
+    statement = makeStringInfo();
+
+	appendStringInfo(statement, "SELECT ");
+    FOREACH(char, c, attrNames)
+    {
+    		appendStringInfo(statement,
+            "MIN(%s),MAX(%s),",c,c);
+    }
+    removeTailingStringInfo(statement, 1);
+    appendStringInfo(statement,
+            " FROM %s;",tableName);
+
+    res = execQuery(statement->data);
+
+    int numRes = PQntuples(res);
+
+    for(int i = 0; i < numRes; i++)
+    {
+    		int cnt = 0;
+    		FOREACH(AttributeDef, def, attrDefs)
+		{
+    			//char *name = def->attrName;
+    			char *min = PQgetvalue(res,i,cnt);
+    			char *max = PQgetvalue(res,i,cnt+1);
+
+    	        Constant *cmin;
+    	        Constant *cmax;
+    			if (def->dataType==DT_INT)
+    			{
+    				cmin = createConstInt(atoi(min));
+    				cmax = createConstInt(atoi(max));
+    			}
+    			else if(def->dataType==DT_LONG)
+    			{
+    				cmin = createConstLong(atol(min));
+    				cmax = createConstLong(atol(max));
+    			}
+    			else if(def->dataType==DT_FLOAT)
+    			{
+    				cmin = createConstFloat(atof(min));
+    				cmax = createConstFloat(atof(max));
+    			}
+    			else
+    			{
+    				cmin = createConstString(min);
+    				cmax = createConstString(max);
+    			}
+
+    	        MAP_ADD_STRING_KEY(min_map, def->attrName, cmin);
+    	        MAP_ADD_STRING_KEY(max_map, def->attrName, cmax);
+    	        DEBUG_LOG("cnt = %d, attr = %s, min = %s, max = %s", cnt, def->attrName,nodeToString(cmin), nodeToString(cmax));
+
+    			cnt = cnt + 2;
+		}
+    }
+
+    PQclear(res);
+    execCommit();
+
+//	MAP_ADD_STRING_KEY(tableMap, colName, result_map);
+//    DEBUG_LOG("POSTGRES_GET_MINMAX: GOT (%s.%s)\n%s",
+//			 tableName,
+//			 colName,
+//			 nodeToString(result_map));
+
+    minmaxList = LIST_MAKE(min_map,max_map);
+	return minmaxList;
 }
 
 HashMap *

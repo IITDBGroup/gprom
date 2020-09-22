@@ -508,6 +508,17 @@ getMinAndMax(char *tableName, char *colName)
     return result;
 }
 
+List *
+getAllMinAndMax(TableAccessOperator *table)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    List * result = activePlugin->getAllMinAndMax(table);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+
 int
 getRowNum(char* tableName)
 {

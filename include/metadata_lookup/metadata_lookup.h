@@ -23,6 +23,7 @@
 #include "model/set/set.h"
 #include "model/relation/relation.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 
 
@@ -71,6 +72,7 @@ typedef struct MetadataLookupPlugin
     boolean (*checkPostive) (char *tableName, char *colName);
     Constant * (*trasnferRawData) (char *data, char *dataType);
     HashMap * (*getMinAndMax) (char *tableName, char *colName);
+    List * (*getAllMinAndMax) (TableAccessOperator *table);
 //TODO	Constant *(*getMinAndMaxForDT) (DataType t);
     int (*getRowNum) (char *tableName);
 
@@ -162,6 +164,7 @@ extern CatalogCache *createCache(void);
 //extern boolean isPostive(char *tableName, char *colName);
 extern Constant *transferRawData(char *data, char *dataType);
 extern HashMap *getMinAndMax(char *tableName, char *colName);
+extern List *getAllMinAndMax(TableAccessOperator *table);
 extern int getRowNum(char* tableName);
 
 #endif /* METADATA_LOOKUP_H_ */

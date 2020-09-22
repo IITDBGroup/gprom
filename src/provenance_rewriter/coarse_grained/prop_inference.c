@@ -387,6 +387,25 @@ computePREDPropBottomUp (QueryOperator *root)
 		if(isA(root, TableAccessOperator))
 		{
 			List *pred = NIL;
+
+//			List *minmax = getAllMinAndMax((TableAccessOperator *) root);
+//			HashMap *min_map = getHeadOfListP(minmax);
+//			HashMap *max_map = getTailOfListP(minmax);
+//			DEBUG_LOG("min: %s, max: %s", nodeToString(min_map), nodeToString(max_map));
+//
+//		    List *attrDefs = root->schema->attrDefs;
+//		    FOREACH(AttributeDef, def, attrDefs)
+//		    {
+//		    		AttributeReference *attr = createAttributeReference(def->attrName);
+//		    		Constant *cmin = (Constant *) MAP_GET_STRING(min_map,def->attrName);
+//		    		Constant *cmax = (Constant *) MAP_GET_STRING(max_map,def->attrName);
+//
+//	    			Operator *min_oper = createOpExpr(">=", LIST_MAKE(copyObject(attr), copyObject(cmin)));
+//	    			Operator *max_oper = createOpExpr("<=", LIST_MAKE(copyObject(attr), copyObject(cmax)));
+//	    			pred = appendToTailOfList(pred, min_oper);
+//	    			pred = appendToTailOfList(pred, max_oper);
+//		    }
+
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_PRED, (Node *) pred);
 		}
 		else if(isA(root,SelectionOperator))
