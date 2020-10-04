@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_metadata_postgres.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -41,7 +41,7 @@ static rc testDatabaseConnectionClose(void);
 rc
 testMetadataLookupPostgres(void)
 {
-    if (strpeq(getStringOption("backend"),"postgres"))
+    if (strpleq(getStringOption("backend"),"postgres"))
     {
         RUN_TEST(setupMetadataLookup(),"setup tables");
         RUN_TEST(testCatalogTableExists(), "test catalog table exists");
@@ -296,4 +296,3 @@ testRunTransactionAndGetXid()
 }
 
 #endif
-
