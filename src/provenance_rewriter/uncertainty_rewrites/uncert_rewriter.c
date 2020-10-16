@@ -2683,6 +2683,12 @@ rewrite_RangeAggregation(QueryOperator *op){
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 	}
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
 	FOREACH(Node, n, aggr_groupby_list){
 		DataType dt = ((AttributeReference *)n)->attrType;
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
@@ -2692,12 +2698,6 @@ rewrite_RangeAggregation(QueryOperator *op){
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 	}
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
 
 	INFO_OP_LOG("Range Aggregation with groupby - rewrite aggregation:", aggrop);
 
@@ -4166,8 +4166,8 @@ spliceToPOS(QueryOperator *op, char *jattr){
 	INFO_OP_LOG("posproj:", posProj);
 
 	//compress possibles
-	int iter = getIntOption(RANGE_COMPRESSION_RATE);
-	QueryOperator *compposProj = compressPosRow(posProj, iter, jattr);
+	// int iter = getIntOption(RANGE_COMPRESSION_RATE);
+	QueryOperator *compposProj = compressPosRow(posProj, getIntOption(RANGE_COMPRESSION_RATE), jattr);
 
 	INFO_OP_LOG("compressed possible:", compposProj);
 
@@ -4428,6 +4428,9 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	QueryOperator *posProj = (QueryOperator *)createProjectionOp(posproj,posjoin,NIL,alist);
 	posjoin->parents = singleton(posProj);
 
+	//compress projoin result
+	QueryOperator *compposJoin = compressPosRow(posProj, getIntOption(RANGE_COMPRESSION_RATE), getHeadOfListP(attpair));
+
 	//save pos to bg
 	HashMap *hmpret = NEW_MAP(Node, Node);
 	FOREACH(char, an, lattrnamesRename){
@@ -4456,13 +4459,15 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	// unionop->parents = singleton(ret);
 	setStringProperty(bgProj, UNCERT_MAPPING_PROP, (Node *)hmpret);
 	setStringProperty(posProj, UNCERT_MAPPING_PROP, (Node *)hmpret);
+	setStringProperty(compposJoin, UNCERT_MAPPING_PROP, (Node *)hmpret);
 	markUncertAttrsAsProv(bgProj);
 	markUncertAttrsAsProv(posProj);
+	markUncertAttrsAsProv(compposJoin);
 
 	INFO_OP_LOG("bg proj: ", bgProj);
-	INFO_OP_LOG("pos proj: ", posProj);
+	INFO_OP_LOG("pos proj: ", compposJoin);
 
-	setStringProperty(bgProj, PROP_STORE_POSSIBLE_TREE, (Node *)posProj);
+	setStringProperty(bgProj, PROP_STORE_POSSIBLE_TREE, (Node *)compposJoin);
 
 	switchSubtrees(op, bgProj);
 
