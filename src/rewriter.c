@@ -175,7 +175,7 @@ setupPluginsFromOptions(void)
 
     // setup metadata lookup - individual option overrides backend option
     pluginName = getStringOption("plugin.metadata");
-    if (strpeq(pluginName,"external"))
+    if (strpleq(pluginName,"external"))
     {
         //printf("\nPLUGIN******************************************\n\n");
     }
@@ -223,7 +223,7 @@ setupPlugin(const char *pluginType)
     if (streq(pluginType,OPTION_PLUGIN_METADATA))
     {
         pluginName = getStringOption(OPTION_PLUGIN_METADATA);
-        if (strpeq(pluginName,"external"))
+        if (strpleq(pluginName,"external"))
         {
             printf("\nPLUGIN******************************************\n\n");
         }
