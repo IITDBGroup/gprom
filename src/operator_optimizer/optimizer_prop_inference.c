@@ -1539,6 +1539,7 @@ removeContainedKeys(List *keys)
 void
 computeECProp (QueryOperator *root)
 {
+	LogLevel l = LOG_ERROR;
     START_TIMER("PropertyInference - EC");
     INFO_LOG("\n************************************************************\n"
             "    PORPERTY INFERENCE STEP: ECs\n"
@@ -1558,6 +1559,8 @@ computeECProp (QueryOperator *root)
 	STOP_TIMER("PropertyInference - EC - top-down");
 	printECPro(root);
 	STOP_TIMER("PropertyInference - EC");
+
+	printECProVisitor(root, &l);
 }
 
 void
@@ -1591,7 +1594,7 @@ static boolean
 printECProVisitor (QueryOperator *root, void *context)
 {
     StringInfo str = makeStringInfo ();
-
+	LogLevel l = (context==NULL)? LOG_DEBUG : *((LogLevel *)context);
     appendStringInfoString(str, NodeTagToString(root->type));
     appendStringInfo(str, " (%p)", root);
 
@@ -1614,7 +1617,7 @@ printECProVisitor (QueryOperator *root, void *context)
         appendStringInfoString(str, "} ");
     }
     appendStringInfoString(str, "\n");
-    DEBUG_LOG("EC %s", str->data);
+	log_(l, __FILE__, __LINE__, "EC %s", str->data);
     return TRUE;
 }
 
