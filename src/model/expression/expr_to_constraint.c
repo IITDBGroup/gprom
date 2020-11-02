@@ -158,9 +158,7 @@ historyToCaseExprsFreshVars (List *history, RenamingCtx *ctx) {
         caseExprs = appendToTailOfList(caseExprs, createOpExpr(":=", LIST_MAKE(createSQLParameter(setAttr->name), 
             createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)getTailOfListP(set->args))), (Node *)createSQLParameter(rhsSetAttr))
         )));
-        INFO_LOG(beatify(nodeToString(caseExprs)));
     }
-    INFO_LOG(beatify(nodeToString(ctx->map)));
     return caseExprs;
 }
 

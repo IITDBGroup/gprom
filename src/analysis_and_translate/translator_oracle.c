@@ -890,6 +890,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     #ifdef HAVE_LIBCPLEX
     if(getBoolOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING))
     {
+        START_TIMER("translator - program slicing optimization");
         INFO_LOG("Program slicing optimization with CPLEX...");
         INFO_LOG("%s", beatify(nodeToString(whatif->indices)));
         /* Find dependent updates */
@@ -897,6 +898,9 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         {
             INFO_LOG("Looking at original/modified update...");
             int u0 = INT_VALUE(modifiedIndex) - 1;
+            // M = u1' u2 u3 u4 u5 u6' u7 u8
+            // eliminate dependency checks between updates that have already been established as dependent
+            // merge dependency, do not delete modified updates under any circumstances
             for(int u = u0 + 1; u < getListLength(whatif->history); u++) 
             {
                 INFO_LOG("Comparing to update #%d", u);
@@ -972,13 +976,14 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                 int modifiedResult = executeLPProblem(modifiedLp);
 
                 INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u))) // 101 is CPLEX MIP optimal solution found
+                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u)) && !searchList(whatif->indices, u+1)) // 101 is CPLEX MIP optimal solution found
                 {
                     INFO_LOG("Independent update detected...");
                     independentUpdates = appendToTailOfList(independentUpdates, getNthOfListP(whatif->history, u));
                 } 
             }
         }
+        STOP_TIMER("translator - program slicing optimization");
     }
     #endif
 
