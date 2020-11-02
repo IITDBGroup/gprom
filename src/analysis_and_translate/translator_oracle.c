@@ -32,6 +32,7 @@
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/prov_rewriter.h"
 
 #ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
@@ -805,6 +806,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
             tInfo->updateTableNames = NIL;
             tInfo->scns = NIL;
 
+            DEBUG_LOG("+ re-enactment statements are: %s", beatify(nodeToString(prov->query)));
             FOREACH(KeyValue,stmtWithOpts,(List *) prov->query)
             {
                 char *tableName = NULL;
@@ -976,7 +978,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                 int modifiedResult = executeLPProblem(modifiedLp);
 
                 INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u)) && !searchList(whatif->indices, u+1)) // 101 is CPLEX MIP optimal solution found
+                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u)) && searchList(whatif->indices, createConstInt(u+1))) // 101 is CPLEX MIP optimal solution found
                 {
                     INFO_LOG("Independent update detected...");
                     independentUpdates = appendToTailOfList(independentUpdates, getNthOfListP(whatif->history, u));
@@ -996,7 +998,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     {
         reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
     }
-    INFO_LOG(beatify(nodeToString(reenactHistory)));
+    INFO_LOG("History to re-enact: %s", beatify(nodeToString(reenactHistory)));
 
     List *modifiedHistoryNoIndepUpdates = copyObject(whatif->modifiedHistory);
     modifiedHistoryNoIndepUpdates = removeListElementsFromAnotherList(independentUpdates, modifiedHistoryNoIndepUpdates);
@@ -1014,8 +1016,8 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     reenactModifiedHistoryStmt->inputType = PROV_INPUT_REENACT;
     reenactModifiedHistoryStmt->provType = PROV_NONE;
 
-    QueryOperator *reenactHistoryOp = OP_LCHILD(translateProvenanceStmt(reenactHistoryStmt)); // OP_LCHILD after rewrite
-    QueryOperator *reenactModifiedHistoryOp = OP_LCHILD(translateProvenanceStmt(reenactModifiedHistoryStmt)); // ^
+    QueryOperator *reenactHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactHistoryStmt));
+    QueryOperator *reenactModifiedHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactModifiedHistoryStmt));
 
     QueryOperator *d1 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactHistoryOp, reenactModifiedHistoryOp), NIL, NIL);
     QueryOperator *d2 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactModifiedHistoryOp, reenactHistoryOp), NIL, NIL);
