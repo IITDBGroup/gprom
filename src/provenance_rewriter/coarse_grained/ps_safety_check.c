@@ -1395,9 +1395,6 @@ testhistogrma(){
 	//result = computeSum("CRIMES#BEAT#ZIP_CODES#WARD#HIST", "BEAT", "WARD");
 	//result = computeSum("CRIMES#BEAT#ZIP_CODES#WARD#DISTRICT#HIST", "BEAT", "WARD");
 	result = computeSum("CRIMES#ZIP_CODES#BEAT#WARD#DISTRICT#HIST", "ZIP_CODES", "WARD");
-
-
-
 	result = computeSum("CRIMES#ZIP_CODES#BEAT#WARD#COMMUNITY_AREAS#HIST", "ZIP_CODES", "WARD");
 	//result = computeSum("CRIMES#BEAT#ZIP_CODES#WARD#COMMUNITY_AREAS#HIST", "BEAT", "WARD");
 	//result = computeSum("CRIMES#BEAT#WARD#HIST", "BEAT", "WARD");
