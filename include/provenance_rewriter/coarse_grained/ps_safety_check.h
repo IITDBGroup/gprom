@@ -68,4 +68,13 @@ boolean checkAllIsPostive(HashMap *table_map, char *colName);
 boolean checkAllIsNegative(HashMap *table_map, char *colName);
 boolean isPostive(char *tableName, char *colName);
 boolean isNegative(char *tableName, char *colName);
+
+
+
+void computeDistinct (QueryOperator *root);
+double computeSelectivity(Operator *cond);
+void *constantToValue(Constant *constant);
+void testhistogrma();
+//void joinHist(char *hist1, char *hist2);
+
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_PS_SAFETY_CHECK_H_ */

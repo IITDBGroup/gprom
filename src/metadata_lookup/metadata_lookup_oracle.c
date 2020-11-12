@@ -142,6 +142,12 @@ assembleOracleMetadataLookupPlugin(void) {
 	plugin->trasnferRawData = oracleTransferRawData;
 	plugin->getMinAndMax = oracleGetMinAndMax;
 	plugin->getRowNum = oracleGetRowNum;
+	plugin->getDistinct = oracleGetDistinct;
+	plugin->getHist = oracleGetHist;
+	plugin->get2DHist = oracleGet2DHist;
+	plugin->storeInterval = oracleStoreInterval;
+	plugin->join2Hist = oracleJoin2Hist;
+	plugin->computeSum = oracleComputeSumFromHist;
 	return plugin;
 }
 
@@ -591,7 +597,70 @@ oracleGetMinAndMax(char* tableName, char* colName) {
 
 	return result_map;
 }
+/*
+HashMap *
+oracleGetHistogram(char* tableName, char* colName) {
+	StringInfo statement1;
+	StringInfo statement2;
+	char *lowest;
+	char *highest;
 
+	HashMap *result_map = NEW_MAP(Constant, Node);
+	START_TIMER("module - metadata lookup");
+
+	statement1 = makeStringInfo();
+	appendStringInfo(statement1,
+			"BEGIN  DBMS_STATS.GATHER_TABLE_STATS ("
+			"ownname          => 'crimes',"
+			"tabname          => '%s',"
+  	        "method_opt       => 'FOR COLUMNS %s SIZE 100'"
+			"estimate_percent => 100 );"
+			"END",
+			tableName, colName);
+	statement2 = makeStringInfo();
+	appendStringInfo(statement2,
+			"SELECT ENDPOINT_NUMBER, ENDPOINT_VALUE"
+			"FROM USER_HISTOGRAMS"
+			"WHERE TABLE_NAME='%s'"
+			"AND COLUMN_NAME='%s';",
+			tableName, colName);
+
+	if ((conn = getConnection()) != NULL) {
+		OCI_Resultset *rs = executeStatement(statement1->data);
+		rs = executeStatement(statement2->data);
+
+		if (rs != NULL) {
+			if (OCI_FetchNext(rs)) {
+
+				lowest = strdup((char * )OCI_GetString(rs, 1));
+				highest = strdup((char * )OCI_GetString(rs, 2));
+
+				//result2 = strdup((char * )OCI_GetString(rs, 2));
+				//DEBUG_LOG("result is %s", result);
+				DEBUG_LOG("The lowest value is %s", lowest);
+				DEBUG_LOG("The highest value is %s", highest);
+				//DEBUG_LOG("The datatype is %s", dataType);
+				STOP_TIMER("module - metadata lookup");
+				MAP_ADD_STRING_KEY(result_map, "MIN", (Node *) transferRawData(lowest, "NUMBER"));
+				MAP_ADD_STRING_KEY(result_map, "MAX", (Node *) transferRawData(highest, "NUMBER"));
+				return result_map;
+			} else {
+				return NULL;
+			}
+		}
+	} else {
+		DEBUG_LOG("No connection");
+	}
+
+	FREE(statement1);
+	FREE(statement2);
+	STOP_TIMER("module - metadata lookup");
+
+
+	return result_map;
+
+}
+*/
 int
 oracleGetRowNum(char* tableName) {
 	StringInfo statement;
@@ -626,8 +695,696 @@ oracleGetRowNum(char* tableName) {
 
 	return 0;
 }
+int
+oracleGetDistinct(char* tableName, char* colName) {
+	StringInfo statement;
+	char *rowNum;
+	START_TIMER("module - metadata lookup");
+
+	statement = makeStringInfo();
+	appendStringInfo(statement,
+			"SELECT NUM_DISTINCT "
+					"FROM ALL_TAB_COLUMNS "
+					"WHERE OWNER = 'TPCH_1GB' AND TABLE_NAME = '%s' AND COLUMN_NAME = '%s'",
+			tableName, colName);
+
+	if ((conn = getConnection()) != NULL) {
+		OCI_Resultset *rs = executeStatement(statement->data);
+
+		if (rs != NULL) {
+			if (OCI_FetchNext(rs)) {
+				rowNum = strdup((char * )OCI_GetString(rs, 1));
+				STOP_TIMER("module - metadata lookup");
+				return atoi(rowNum);
+			} else {
+				return 0;
+			}
+		}
+	} else {
+		DEBUG_LOG("No connection");
+	}
+
+	FREE(statement);
+	STOP_TIMER("module - metadata lookup");
+
+	return 0;
+}
+/*List *
+oracleGet2DHist(char *tableName, char *attrName, char *attrName2, char* numPartitions) {
+	StringInfo statement;
+	char *defaultExpr="";
+	//char *rowNum;
+	START_TIMER("module - metadata lookup");
+	statement = makeStringInfo();
+
+	char * test = appendStatement(tableName,attrName,attrName2,numPartitions);
+	DEBUG_LOG("lzy is %s",test);
+	appendStringInfo(statement,
+			"select * from (select l_partkey,l_suppkey,pos,cnt,numTuples, flr, count(distinct l_partkey) OVER (partition by flr) as dist, minl, maxl,minlpartkey "
+			"from (select l_partkey, l_suppkey, pos, cnt, ROUND(cnt / 300000,0) as numTuples, FLOOR((pos-1)/(ROUND(cnt / 300000,0))) as flr, minl, maxl,minlpartkey "
+			"from ( select l_partkey,l_suppkey, row_number() OVER (ORDER BY l_partkey,l_suppkey) as pos ,count(*) OVER () AS cnt ,min(l_suppkey) over() as minl,max(l_suppkey) over() as maxl, min(l_partkey) over() as minlpartkey "
+			           "from lineitem ) \n"
+				")) where MOD(pos,(ROUND(cnt / 300000,0))) = 0",
+				tableName, attrName, attrName2, numPartitions);
+	appendStringInfo(statement,test);
+
+	if ((conn = getConnection()) != NULL) {
+			OCI_Resultset *rs = executeStatement(statement->data);
+
+			if (rs != NULL) {
+				  while(OCI_FetchNext(rs)){
+						defaultExpr = (char *) OCI_GetString(rs,2);
+						DEBUG_LOG("lzy111 is: %s",defaultExpr);
+				  }
+				}
+
+		} else {
+			DEBUG_LOG("No connection");
+		}
+
+		FREE(statement);
+		STOP_TIMER("module - metadata lookup");
 
 
+	return NULL;
+} */
+char *
+oracleGet2DHist(char *tableName, char *attrName, char *attrName2, char *numPartitions1, char *numPartitions2) {
+
+		//StringInfo setStatement = makeStringInfo();
+		//StringInfo statement = makeStringInfo();
+		//StringInfo intervalPoints = makeStringInfo();
+		StringInfo statement0 = makeStringInfo();
+		StringInfo statement1 = makeStringInfo();
+		//StringInfo statement2 = makeStringInfo();
+
+	    ACQUIRE_MEM_CONTEXT(context);
+	    START_TIMER("module - metadata lookup");
+
+	    DEBUG_LOG("Get histogram for %s.%s with number of ps %d", tableName, attrName, numPartitions1);
+	    List *lastInterval = getLastInterval(tableName,attrName,numPartitions1);
+	    char *sp = getHeadOfList(lastInterval)->data.ptr_value;
+	    char *ep = getTailOfList(lastInterval)->data.ptr_value;
+	   	DEBUG_LOG("lzy are %s,%s:", sp,ep);
+	   	char *st0 = CONCAT_STRINGS("DROP TABLE ", tableName,"#",attrName,"#",attrName2,"#HIST ");
+		char *st1 = CONCAT_STRINGS("CREATE TABLE ", tableName,"#",attrName,"#",attrName2,"#HIST AS (");
+	   	st1 = CONCAT_STRINGS(st1, "SELECT ",attrName,", ",attrName2,", POS,CNT,SP,EP,FLOOR(CNT / ",numPartitions2,") AS TUPLENUM, DIS_",attrName,", DIS_",attrName2," FROM (");
+	   	st1 = CONCAT_STRINGS(st1, "SELECT ",attrName,", ",attrName2,", row_number() OVER (PARTITION BY SP ORDER BY ",attrName,",",attrName2,") AS POS, COUNT(*) OVER (PARTITION BY SP) AS CNT, COUNT(distinct ",attrName,") OVER (PARTITION BY SP) AS DIS_",attrName,", COUNT(distinct ",attrName2,") OVER (PARTITION BY SP) AS DIS_",attrName2,", SP, EP FROM (");
+	   	st1 = CONCAT_STRINGS(st1, "SELECT * FROM ((SELECT ",attrName,", ",attrName2,", SP, EP FROM ",tableName," JOIN ",tableName,"_",attrName," ON (",attrName,">=SP AND EP>",attrName,")) UNION ALL (SELECT ",attrName,", ",attrName2,", ",sp," AS SP, ",ep," AS EP FROM ",tableName," WHERE ",attrName,"=",ep,")) ORDER BY ",attrName,", ",attrName2," )) ");
+	   	st1 = CONCAT_STRINGS(st1, "WHERE MOD(POS,(FLOOR(CNT / ",numPartitions2,"))) = 0) ");
+	   	DEBUG_LOG("lzy are %s:", st1);
+
+		appendStringInfo(statement0, st0);
+		appendStringInfo(statement1, st1);
+		if ((conn = getConnection()) != NULL) {
+				executeNonQueryStatement(statement0->data);
+				executeNonQueryStatement(statement1->data);
+				FREE(statement0);
+				FREE(statement1);
+
+			    }
+			    else
+			    {
+			        FATAL_LOG("Statement: %s failed.", statement0);
+			        FREE(statement0);
+			        FREE(statement1);
+			       // FREE(statement3);
+			    }
+			    STOP_TIMER("module - metadata lookup");
+	return CONCAT_STRINGS(tableName,"#",attrName,"#",attrName2,"#HIST");;
+}
+char *
+appendStatement(char *tableName, char *attrName, char *attrName2, char* numPartitions) {
+
+	//DEBUG_LOG("lzy is %s,%s,%s,%d",tableName,attrName,attrName2,numPartitions);
+	//st = concatStrings("select * from (select ", attrName, attrName2);
+	char *st = CONCAT_STRINGS("select ", attrName," ,", attrName2, ", pos, numTuples, dist_",attrName,", dist_",attrName2," ,min_",attrName2,", max_",attrName2,", min_",attrName," from (");
+	st = CONCAT_STRINGS(st,"select * from (select ", attrName," ,", attrName2, ", pos, cnt, numTuples, flr, count(distinct ", attrName, ") OVER (partition by flr) as dist_",attrName,", count(distinct ", attrName2, ") OVER (partition by flr) as dist_",attrName2,", min_",attrName2,", max_",attrName2,", min_",attrName," ");
+	st = CONCAT_STRINGS(st,"from (select ", attrName," ,", attrName2, ", pos, cnt, ROUND(cnt /", numPartitions, ",0) as numTuples, FLOOR((pos-1)/(ROUND(cnt /", numPartitions,",0))) as flr, min_",attrName2,", max_",attrName2,", min_",attrName," ");
+	st = CONCAT_STRINGS(st,"from (select ", attrName," ,", attrName2, ", row_number() OVER (ORDER BY ", attrName," ,", attrName2, ") as pos ,count(*) OVER () AS cnt ,min(",attrName2,") over() as min_",attrName2,", max(",attrName2,") over() as max_",attrName2,", min(",attrName,") over() as min_",attrName,", max(",attrName,") over() as max_",attrName," ");
+	st = CONCAT_STRINGS(st,"from ",tableName,") \n");
+	st = CONCAT_STRINGS(st,")) where MOD(pos,(ROUND(cnt / ",numPartitions,",0))) = 0)");
+	//st = CONCAT_STRINGS("select * from (select ", attrName);//, "," ,attrName,"");//, ",pos, cnt, numTuples, flr, count(distinct ", attrName); // ") OVER (partition by flr) as dist, minl, maxl,minlpartkey ");
+	//st = CONCAT_STRINGS(st, "from (select ", attrName, attrName2, ", pos, cnt, ROUND(cnt /", numPartitions, ",0) as numTuples, FLOOR((pos-1)/(ROUND(cnt / ", numPartitions,",0))) as flr, minl, maxl,minlpartkey ");
+	//CONCAT_STRINGS("select * from (select ", attrName, attrName2,"pos,cnt,numTuples, flr");
+	//DEBUG_LOG("lzy is %s",st);
+	return st;
+}
+
+List *
+oracleGetHist(char *tableName, char *attrName, char *numPartitions)
+{
+	List *l = NIL;
+	//StringInfo setStatement = makeStringInfo();
+	//StringInfo statement = makeStringInfo();
+	//StringInfo intervalPoints = makeStringInfo();
+	StringInfo statement0 = makeStringInfo();
+	StringInfo statement1 = makeStringInfo();
+	//StringInfo statement2 = makeStringInfo();
+
+    ACQUIRE_MEM_CONTEXT(context);
+    START_TIMER("module - metadata lookup");
+
+    DEBUG_LOG("Get histogram for %s.%s with number of ps %d", tableName, attrName, numPartitions);
+    List *lastInterval = getLastInterval(tableName,attrName,numPartitions);
+    char *sp = getHeadOfList(lastInterval)->data.ptr_value;
+    char *ep = getTailOfList(lastInterval)->data.ptr_value;
+   	DEBUG_LOG("lzy are %s,%s:", sp,ep);
+	char *st0 = CONCAT_STRINGS("DROP TABLE ", tableName,"_",attrName,"_beat_hist ");
+	char *st1 = CONCAT_STRINGS("CREATE TABLE ", tableName,"_",attrName,"_beat_hist AS (");
+   	st1 = CONCAT_STRINGS(st1, "SELECT ",attrName,", BEAT, POS,CNT,SP,EP,FLOOR(CNT / 20) AS TUPLENUM, DIS_",attrName," FROM (");
+   	st1 = CONCAT_STRINGS(st1, "SELECT ",attrName,", BEAT, row_number() OVER (PARTITION BY SP ORDER BY BEAT) AS POS, COUNT(*) OVER (PARTITION BY SP) AS CNT, COUNT(distinct ",attrName,") OVER (PARTITION BY SP) AS DIS_",attrName,",  SP, EP FROM (");
+   	st1 = CONCAT_STRINGS(st1, "SELECT * FROM ((SELECT ",attrName,", BEAT, SP, EP FROM ",tableName," JOIN ",tableName,"_",attrName," ON (",attrName,">=SP AND EP>",attrName,")) UNION ALL (SELECT ",attrName,", BEAT,",sp," AS SP, ",ep," AS EP FROM ",tableName," WHERE ",attrName,"=",ep,")) ORDER BY ",attrName,", BEAT )) ");
+   	st1 = CONCAT_STRINGS(st1, "WHERE MOD(POS,(FLOOR(CNT / 20))) = 0) ");
+   	DEBUG_LOG("lzy are %s:", st1);
+
+	appendStringInfo(statement0, st0);
+	appendStringInfo(statement1, st1);
+	if ((conn = getConnection()) != NULL) {
+			executeNonQueryStatement(statement0->data);
+			executeNonQueryStatement(statement1->data);
+			FREE(statement0);
+			FREE(statement1);
+				//executeStatement(statement2->data);
+		    	//executeStatement(setStatement->data);
+		    	//executeNonQueryStatement(setStatement->data);
+		    	//executeNonQueryStatement(statement1->data);
+		     //OCI_Resultset *rs = executeStatement(statement0->data);
+		        //DEBUG_NODE_BEATIFY_LOG("lzy are:", rs);
+			/*if (rs != NULL) {
+
+				 	DEBUG_LOG("lzy are successfully");
+
+
+
+				}
+
+				FREE(statement0);
+
+		       // FREE(statement3);
+		        STOP_TIMER("module - metadata lookup");
+		        RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);*/
+		    }
+		    else
+		    {
+		        FATAL_LOG("Statement: %s failed.", statement0);
+		        FREE(statement0);
+		        FREE(statement1);
+		       // FREE(statement3);
+		    }
+		    STOP_TIMER("module - metadata lookup");
+
+
+
+
+
+
+    /*appendStringInfo(setStatement, "BEGIN DBMS_STATS.GATHER_TABLE_STATS (  \n"
+                    "  ownname  => 'crimes' \n"
+                    ", tabname  => 'CRIMES' \n"
+                    ", method_opt  => 'FOR COLUMNS ZIP_CODES SIZE 30' \n"
+        			", estimate_percent => 100 \n"
+        			"); \n"
+        			"END;");
+    appendStringInfo(setStatement, "BEGIN DBMS_STATS.GATHER_TABLE_STATS (  \n"
+                "  ownname  => 'crimes' \n"
+                ", tabname  => '%s' \n"
+                ", method_opt  => 'FOR COLUMNS %s SIZE %d' \n"
+    			", estimate_percent => 100 \n"
+    			"); \n"
+    			"END;",
+    			tableName, attrName, numPartitions);
+    //appendStringInfo(setStatement,"EXECUTE DBMS_STATS.GATHER_TABLE_STATS ( ownname  => 'TPCH_1GB', tabname  => '%s', method_opt  => 'FOR COLUMNS %s SIZE %d', estimate_percent => 100);",tableName, attrName, numPartitions);
+
+      appendStringInfo(statement, "SELECT ENDPOINT_NUMBER, ENDPOINT_VALUE FROM USER_HISTOGRAMS WHERE TABLE_NAME='%s' AND COLUMN_NAME='%s'",
+    			tableName, attrName);
+
+    if ((conn = getConnection()) != NULL)
+    {
+    	//executeStatement(setStatement->data);
+    	executeNonQueryStatement(setStatement->data);
+        OCI_Resultset *rs = executeStatement(statement->data);
+        //DEBUG_NODE_BEATIFY_LOG("lzy are:", rs);
+        char *defaultExpr = NULL;
+        //Node *result = NULL;
+
+        // loop through
+        int cnt = 0;
+        char *min = "";
+        char *max = "";
+        appendStringInfo(intervalPoints, "{");
+        while(OCI_FetchNext(rs))
+        {
+            defaultExpr = (char *) OCI_GetString(rs,2);
+            if(cnt == 0)
+            		min = strdup(defaultExpr);
+            if(cnt == numPartitions)
+            		max = strdup(defaultExpr);
+            appendStringInfo(intervalPoints, defaultExpr);
+            appendStringInfo(intervalPoints, ",");
+
+            cnt ++;
+            DEBUG_LOG("histogram for %s.%s is <%s>",
+                    tableName, attrName, defaultExpr);
+        }
+        removeTailingStringInfo(intervalPoints,1);
+        appendStringInfo(intervalPoints, "}");
+       // DEBUG_LOG("Statement: %s executed successfully.", statement->data);
+        DEBUG_LOG("intervalPoints: %s .", intervalPoints->data);
+        l = appendToTailOfList(l, intervalPoints->data);
+        l = appendToTailOfList(l, min);
+        l = appendToTailOfList(l, max);
+
+        FREE(statement);
+
+        STOP_TIMER("module - metadata lookup");
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+    }
+    else
+    {
+        FATAL_LOG("Statement: %s failed.", statement);
+        FREE(statement);
+    }
+    STOP_TIMER("module - metadata lookup");
+    RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+    */
+    return l;
+}
+
+List*
+getLastInterval(char *tableName, char *attrName, char *numPartitions) {
+	List *l = NIL;
+	StringInfo statement = makeStringInfo();
+	appendStringInfo(statement, "SELECT * FROM %s#%s WHERE ENDPOINT_NUMBER = (%s-1) ", tableName, attrName, numPartitions);
+	if ((conn = getConnection()) != NULL)
+		    {
+		       OCI_Resultset *rs = executeStatement(statement->data);
+		        //DEBUG_NODE_BEATIFY_LOG("lzy are:", rs);
+			if (rs != NULL) {
+				while (OCI_FetchNext(rs)) {
+					char *sp = (char *) OCI_GetString(rs, 2);
+					char *ep = (char *) OCI_GetString(rs, 3);
+					//DEBUG_LOG("LZY is %s, %s", sp, ep);
+					l = appendToTailOfList(l, sp);
+					l = appendToTailOfList(l, ep);
+
+				}
+			}
+
+		        FREE(statement);
+		       // FREE(statement3);
+		        STOP_TIMER("module - metadata lookup");
+		        RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+		    }
+		    else
+		    {
+		        FATAL_LOG("Statement: %s failed.", statement);
+		        FREE(statement);
+		       // FREE(statement3);
+		    }
+		    STOP_TIMER("module - metadata lookup");
+		    RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+	return l;
+
+}
+void
+oracleStoreInterval(char *tableName, char *attrName, char *numPartitions) {
+	StringInfo setStatement = makeStringInfo();
+	StringInfo statement0 = makeStringInfo();
+	StringInfo statement1 = makeStringInfo();
+	//StringInfo statement2 = makeStringInfo();
+	//StringInfo statement3 = makeStringInfo();
+	//StringInfo intervalPoints = makeStringInfo();
+
+	ACQUIRE_MEM_CONTEXT(context);
+	START_TIMER("module - metadata lookup");
+
+	DEBUG_LOG("Get histogram for %s.%s with number of ps %s", tableName,
+			attrName, numPartitions);
+	appendStringInfo(setStatement, "BEGIN DBMS_STATS.GATHER_TABLE_STATS (  \n"
+			"  ownname  => 'crimes' \n"
+			", tabname  => '%s' \n"
+			", method_opt  => 'FOR COLUMNS %s SIZE %s' \n"
+			", estimate_percent => 100 \n"
+			"); \n"
+			"END;", tableName, attrName, numPartitions);
+	char *st0 = CONCAT_STRINGS("DROP TABLE ", tableName,"#",attrName," ");
+	char *st1 = CONCAT_STRINGS("CREATE TABLE ", tableName,"#",attrName," AS ( SELECT * FROM (SELECT ENDPOINT_NUMBER, ENDPOINT_VALUE AS SP, LEAD(ENDPOINT_VALUE,1) OVER (ORDER BY ENDPOINT_VALUE) AS EP FROM USER_HISTOGRAMS WHERE TABLE_NAME='",tableName,"' AND COLUMN_NAME='",attrName,"' ))");
+	//char *st2 = CONCAT_STRINGS("DELETE FROM ", tableName,"_",attrName," WHERE ENDPOINT_NUMBER = ",numPartitions," ");
+
+
+
+	appendStringInfo(statement0, st0);
+	appendStringInfo(statement1, st1);
+	//appendStringInfo(statement2, "DELETE FROM %s_%s WHERE ENDPOINT_NUMBER = %d ;",tableName, attrName, numPartitions);
+	//appendStringInfo(statement2, "SELECT * FROM %s_%s WHERE ENDPOINT_NUMBER = (%s-1) ", tableName, attrName, numPartitions);
+	//DEBUG_LOG("LZY is %s", statement2->data);
+	if ((conn = getConnection()) != NULL)
+	    {
+			executeNonQueryStatement(setStatement->data);
+			executeNonQueryStatement(statement0->data);
+			executeNonQueryStatement(statement1->data);
+			//executeStatement(statement2->data);
+	    	//executeStatement(setStatement->data);
+	    	//executeNonQueryStatement(setStatement->data);
+	    	//executeNonQueryStatement(statement1->data);
+	      // OCI_Resultset *rs = executeStatement(statement2->data);
+	        //DEBUG_NODE_BEATIFY_LOG("lzy are:", rs);
+		/*if (rs != NULL) {
+			while (OCI_FetchNext(rs)) {
+				char *sp = (char *) OCI_GetString(rs, 2);
+				char *ep = (char *) OCI_GetString(rs, 3);
+				DEBUG_LOG("LZY is %s, %s", sp, ep);
+				l = appendToTailOfList(l, sp);
+				l = appendToTailOfList(l, ep);
+
+			}
+		}*/
+
+
+			FREE(statement0);
+	        FREE(statement1);
+	       // FREE(statement2);
+	       // FREE(statement3);
+	        STOP_TIMER("module - metadata lookup");
+	    }
+	    else
+	    {
+	        FATAL_LOG("Statement: %s failed.", statement1);
+	        FREE(statement0);
+	        FREE(statement1);
+	       // FREE(statement2);
+	       // FREE(statement3);
+	    }
+	    STOP_TIMER("module - metadata lookup");
+
+}
+
+char*
+oracleJoin2Hist(char *hist1, char *hist2, char *tableName, char *attrName){
+	//List *l = NIL;
+
+	//HashMap *attributes = getAttributeFromHist(hist1,hist2);
+	//if(hasMapStringKey(attributes,"HIST1")){
+	List *res =  getAttributeFromHist(hist1,hist2);
+	//Set *res2 =  (Set *) getMapString(attributes,"HIST2");
+	Set *res1 = (Set *) getHeadOfList(res)->data.ptr_value;
+	Set *res2 = (Set *) getTailOfList(res)->data.ptr_value;
+
+	char *histname = CONCAT_STRINGS(tableName,"#",attrName,"#");
+	FOREACH_SET(Constant,n,res1) {
+		DEBUG_NODE_BEATIFY_LOG("res11111 are:", n);
+		histname = CONCAT_STRINGS(histname,n->value,"#");
+	}
+	FOREACH_SET(Constant,n,res2) {
+		//histname = CONCAT_STRINGS(histname,"_",n,"_");
+		DEBUG_NODE_BEATIFY_LOG("res222 are:", n);
+		histname = CONCAT_STRINGS(histname,n->value,"#");
+	}
+	histname = CONCAT_STRINGS(histname,"HIST");
+	DEBUG_LOG("lzy555 is %s", histname);
+	/*FOREACH_SET(char,n,res2) {
+		DEBUG_LOG("res2 is %s", n);
+	}
+	}*/
+
+
+	/*char *st0 = "DROP TABLE CRIMES_ZIP_CODES_";
+	FOREACH_SET(char, s, res1) {
+		st0 = CONCAT_STRINGS(st0,s);
+	}
+	st0 = CONCAT_STRINGS(st0,"_WARD_HIST");
+	DEBUG_LOG("st0 IS %s",st0);*/
+	StringInfo statement0 = makeStringInfo();
+	StringInfo statement1 = makeStringInfo();
+	char *st0 = CONCAT_STRINGS("DROP TABLE ",histname," ");
+	char *st1 = CONCAT_STRINGS("CREATE TABLE ",histname," AS (");
+	st1 = CONCAT_STRINGS(st1,"SELECT ",hist1,".",attrName,", ");
+	FOREACH_SET(Constant,n,res1) {
+		st1 = CONCAT_STRINGS(st1,hist1,".",n->value,",");
+	}
+	FOREACH_SET(Constant,n,res2) {
+		st1 = CONCAT_STRINGS(st1,hist2,".",n->value,",");
+	}
+	st1 = CONCAT_STRINGS(st1,hist1,".POS, ",hist1,".CNT, ",hist1,".SP, ",hist1,".EP, ",hist1,".DIS_",attrName,", ");
+	FOREACH_SET(Constant,n,res1) {
+		st1 = CONCAT_STRINGS(st1,hist1,".DIS_",n->value,",");
+	}
+	FOREACH_SET(Constant,n,res2) {
+		st1 = CONCAT_STRINGS(st1,hist2,".DIS_",n->value,", ");
+	}
+	st1 = CONCAT_STRINGS(st1,hist1,".TUPLENUM FROM ");
+	st1 = CONCAT_STRINGS(st1,hist1," JOIN ",hist2," ON (",hist1,".SP = ",hist2,".SP AND ",hist1,".POS = ",hist2,".POS))");
+
+
+   	DEBUG_LOG("lzy are %s:", st1);
+	appendStringInfo(statement0, st0);
+	appendStringInfo(statement1, st1);
+	if ((conn = getConnection()) != NULL) {
+			executeNonQueryStatement(statement0->data);
+			executeNonQueryStatement(statement1->data);
+			DEBUG_LOG("join successfully!");
+			FREE(statement0);
+			FREE(statement1);
+
+		    }
+		    else
+		    {
+		        FATAL_LOG("Statement: %s failed.", statement0);
+		        FREE(statement0);
+		        FREE(statement1);
+		       // FREE(statement3);
+		    }
+		    STOP_TIMER("module - metadata lookup");
+	return histname;
+}
+
+List*
+getAttributeFromHist(char *hist1, char *hist2){
+	char h1[100];
+	char h2[100];
+	strcpy(h1, hist1);
+	strcpy(h2, hist2);
+	List *res =  NIL;
+
+	Set *result1 = NODESET();
+	Set *result2 = NODESET();
+	char *d = "#";
+
+	char *p1 = strtok(h1, d);
+	while (p1 != NULL) {
+		//DEBUG_LOG("LZY IS %s", p1);
+		addToSet(result1, createConstString(p1));
+		p1 = strtok(NULL, d);
+	}
+	char *p2 = strtok(h2, d);
+	while (p2 != NULL) {
+		//DEBUG_LOG("LZY IS %s", p2);
+		addToSet(result2, createConstString(p2));
+		p2 = strtok(NULL, d);
+	}
+	//result1 = setDifference(result1,intersectSets (result1,result2));
+	//result2 = setDifference(result2,intersectSets (result1,result2));
+	FOREACH_SET(Constant,n,result1){
+		if(hasSetElem(result2, n)){
+			removeSetElem(result2,n);
+			removeSetElem(result1,n);
+		}
+	}
+	FOREACH_SET(Constant,n,result1) {
+				//	DEBUG_LOG("res1111 is %s", n);
+		//DEBUG_LOG("lzy3");
+		DEBUG_NODE_BEATIFY_LOG("res111 are:", n);
+		}
+	FOREACH_SET(Constant,n,result2) {
+		DEBUG_NODE_BEATIFY_LOG("res222 are:", n);
+					//DEBUG_LOG("res2222 IS %s", n);
+	}
+
+	res = appendToTailOfList(res, result1);
+	res = appendToTailOfList(res, result2);
+	//List *test = NIL;
+
+ /*
+	Set *res3 =  (Set *) getHeadOfList(res)->data.ptr_value;
+	Set *res4 =  (Set *) getTailOfList(res)->data.ptr_value;
+
+	FOREACH_SET(Constant,n,res3) {
+		DEBUG_NODE_BEATIFY_LOG("res111 are:", n);
+
+				}
+	FOREACH_SET(Constant,n,res4) {
+		DEBUG_NODE_BEATIFY_LOG("res111 are:", n);
+
+	}*/
+	return res;
+
+}
+
+List*
+oracleComputeSumFromHist(char *tableName, char *attrName, char *sumAttrName){
+
+	//select zip_codes, ward, LAG(ward,1) OVER (ORDER BY SP,pos) AS lag_ward, POS,CNT,SP,
+	//LAG(SP,1) OVER (ORDER BY SP,pos) as LAG_SP,EP,TUPLENUM,dis_zip_codes,DIS_WARD
+	//FROM CRIMES_ZIP_CODES_BEAT_WARD_DISTRICT_HIST
+	//List *res = NIL;
+
+	StringInfo statement0 = makeStringInfo();
+	StringInfo statement1 = makeStringInfo();
+	char *st0 = CONCAT_STRINGS("DROP TABLE SUM#", tableName, " ");
+	char *st1 = CONCAT_STRINGS("CREATE TABLE SUM#", tableName, " AS ( SELECT * FROM ( WITH VIEW1 AS(");
+	st1 = CONCAT_STRINGS(st1, "SELECT SUM(SUM_", sumAttrName,
+			") AS ESTIAMTE_SUM_", sumAttrName, ", SP, ",attrName," FROM(");
+	st1 = CONCAT_STRINGS(st1, "SELECT ", attrName, ", ", sumAttrName,
+			", CASE WHEN ",attrName,"= LAG_",attrName," THEN (", sumAttrName, "+LAG_", sumAttrName,
+			")*TUPLENUM/2 ELSE (", sumAttrName, "+1)*TUPLENUM/2 END AS SUM_",
+			sumAttrName, ", SP, TUPLENUM FROM (");
+	st1 =
+			CONCAT_STRINGS(st1, "SELECT ", attrName, ", CASE WHEN LAG_",attrName," IS NULL THEN 111 ELSE LAG_",attrName," END AS LAG_",attrName,", ", sumAttrName,
+					", CASE WHEN LAG_", sumAttrName,
+					" IS NULL THEN 1 ELSE LAG_", sumAttrName, " END AS LAG_",
+					sumAttrName,
+					", SP, CASE WHEN LAG_SP IS NULL THEN SP ELSE LAG_SP END AS LAG_SP, EP, TUPLENUM FROM (");
+	st1 = CONCAT_STRINGS(st1, "SELECT ", attrName, ", LAG(", attrName,",1) OVER (ORDER BY SP, POS) AS LAG_",attrName,", ",sumAttrName, ", LAG(",
+			sumAttrName, ",1) OVER (ORDER BY SP, POS) AS LAG_", sumAttrName,
+			", SP, LAG(SP,1) OVER (ORDER BY SP, POS) AS LAG_SP, EP, TUPLENUM ");
+	st1 = CONCAT_STRINGS(st1, "FROM ", tableName, ")))GROUP BY SP, ",attrName," ORDER BY SP, ",attrName,"), ");
+	st1 = CONCAT_STRINGS(st1,"VIEW2 AS (", computeNumOfGroupFromHist(tableName, attrName, sumAttrName),")");
+	st1 = CONCAT_STRINGS(st1,"SELECT ESTIAMTE_SUM_",sumAttrName,", ESTIAMTE_SUM_",sumAttrName,"/ESTIMATEDGROUP AS ESTIMATEDSUM, SP, ESTIMATEDGROUP FROM (");
+	st1 = CONCAT_STRINGS(st1,"SELECT ESTIAMTE_SUM_",sumAttrName,", ",attrName,", SP, AVGGROUPS/ESTIMATEDDIS AS ESTIMATEDGROUP FROM (");
+	st1 = CONCAT_STRINGS(st1,"SELECT ESTIAMTE_SUM_",sumAttrName,", ",attrName, ", SP, COUNT (DISTINCT ",attrName,") OVER (PARTITION BY SP) AS ESTIMATEDDIS, AVGGROUPS FROM (");
+	st1 = CONCAT_STRINGS(st1,"SELECT ESTIAMTE_SUM_",sumAttrName,",",attrName,", VIEW1.SP AS SP, AVGGROUPS FROM VIEW1 JOIN VIEW2 ON VIEW1.SP = VIEW2.SP) ORDER BY SP)))) ");
+	DEBUG_LOG("lzy are %s:", st1);
+	DEBUG_LOG("lzy are %s:", st1);
+	appendStringInfo(statement0, st0);
+	appendStringInfo(statement1, st1);
+	if ((conn = getConnection()) != NULL) {
+		executeNonQueryStatement(statement0->data);
+		executeNonQueryStatement(statement1->data);
+		DEBUG_LOG("compute successfully!");
+		FREE(statement0);
+		FREE(statement1);
+
+	} else {
+		FATAL_LOG("Statement: %s failed.", statement0);
+		FREE(statement0);
+		FREE(statement1);
+		// FREE(statement3);
+	}
+	STOP_TIMER("module - metadata lookup");
+	return NIL;
+}
+
+/*
+List*
+oracleComputeSumFromHist(char *tableName, char *attrName, char *sumAttrName){
+
+	//select zip_codes, ward, LAG(ward,1) OVER (ORDER BY SP,pos) AS lag_ward, POS,CNT,SP,
+	//LAG(SP,1) OVER (ORDER BY SP,pos) as LAG_SP,EP,TUPLENUM,dis_zip_codes,DIS_WARD
+	//FROM CRIMES_ZIP_CODES_BEAT_WARD_DISTRICT_HIST
+	//List *res = NIL;
+
+	StringInfo statement0 = makeStringInfo();
+	StringInfo statement1 = makeStringInfo();
+	char *st0 = CONCAT_STRINGS("DROP TABLE SUM#", tableName, " ");
+	char *st1 = CONCAT_STRINGS("CREATE TABLE SUM#", tableName, " AS ( SELECT * FROM ( WITH VIEW1 AS(");
+	st1 = CONCAT_STRINGS(st1, "SELECT SUM(SUM_", sumAttrName,
+			") AS ESTIAMTE_SUM_", sumAttrName, ", SP FROM(");
+	st1 = CONCAT_STRINGS(st1, "SELECT ", attrName, ", ", sumAttrName,
+			", CASE WHEN SP = LAG_SP THEN (", sumAttrName, "+LAG_", sumAttrName,
+			")*TUPLENUM/2 ELSE (", sumAttrName, "+1)*TUPLENUM/2 END AS SUM_",
+			sumAttrName, ", SP, TUPLENUM FROM (");
+	st1 =
+			CONCAT_STRINGS(st1, "SELECT ", attrName, ", ", sumAttrName,
+					", CASE WHEN LAG_", sumAttrName,
+					" IS NULL THEN 1 ELSE LAG_", sumAttrName, " END AS LAG_",
+					sumAttrName,
+					", SP, CASE WHEN LAG_SP IS NULL THEN SP ELSE LAG_SP END AS LAG_SP, EP, TUPLENUM FROM (");
+	st1 = CONCAT_STRINGS(st1, "SELECT ", attrName, ", ", sumAttrName, ", LAG(",
+			sumAttrName, ",1) OVER (ORDER BY SP, POS) AS LAG_", sumAttrName,
+			", SP, LAG(SP,1) OVER (ORDER BY SP, POS) AS LAG_SP, EP, TUPLENUM ");
+	st1 = CONCAT_STRINGS(st1, "FROM ", tableName, ")))GROUP BY SP), ");
+	st1 = CONCAT_STRINGS(st1,"VIEW2 AS (", computeNumOfGroupFromHist(tableName, attrName, sumAttrName),")");
+	st1 = CONCAT_STRINGS(st1,"SELECT ESTIAMTE_SUM_",sumAttrName,", ESTIAMTE_SUM_",sumAttrName,"/AVGGROUPS AS ESTIAMTEDSUM, SP, AVGGROUPS FROM (SELECT ESTIAMTE_SUM_",sumAttrName,", VIEW1.SP AS SP, AVGGROUPS FROM VIEW1 JOIN VIEW2 ON VIEW1.SP = VIEW2.SP) ORDER BY SP)) ");
+	DEBUG_LOG("lzy are %s:", st1);
+	DEBUG_LOG("lzy are %s:", st1);
+	appendStringInfo(statement0, st0);
+	appendStringInfo(statement1, st1);
+	if ((conn = getConnection()) != NULL) {
+		executeNonQueryStatement(statement0->data);
+		executeNonQueryStatement(statement1->data);
+		DEBUG_LOG("compute successfully!");
+		FREE(statement0);
+		FREE(statement1);
+
+	} else {
+		FATAL_LOG("Statement: %s failed.", statement0);
+		FREE(statement0);
+		FREE(statement1);
+		// FREE(statement3);
+	}
+	STOP_TIMER("module - metadata lookup");
+	return NIL;
+}
+*/
+char*
+computeNumOfGroupFromHist(char *tableName, char *attrName, char *sumAttrName){
+	char *st = "";
+	List *res = getAttributeFromHist(tableName,
+			CONCAT_STRINGS("CRIMES#", attrName, "#", sumAttrName, "#HIST"));
+	Set *attrset = (Set *) getHeadOfList(res)->data.ptr_value;
+	if (!EMPTY_SET(attrset)) {
+		addToSet(attrset, createConstString(attrName));
+		Set *check = NODESET();
+		FOREACH_SET(Constant,n,attrset)
+		{
+			addToSet(check, n);
+		}
+		st =
+				CONCAT_STRINGS(st,
+						"SELECT SP,(MAXGROUPS+MINGROUPS)/2 AS AVGGROUPS FROM ( SELECT DISTINCT SP, ");
+		char *st1 = "";
+		FOREACH_SET(Constant,n,attrset)
+		{
+			st = CONCAT_STRINGS(st, "DIS_", n->value, ", ");
+			if (FOREACH_SET_HAS_NEXT(n)) {
+				st1 = CONCAT_STRINGS(st1, "DIS_", n->value, "*");
+			} else {
+				st1 = CONCAT_STRINGS(st1, "DIS_", n->value, " AS MAXGROUPS, ");
+			}
+
+		}
+
+		st = CONCAT_STRINGS(st, st1, "CASE ");
+		FOREACH_SET(Constant,n,attrset)
+		{
+			st = CONCAT_STRINGS(st, "WHEN ");
+			char *t = "";
+			removeSetElem(check, n);
+			FOREACH_SET(Constant,m,check)
+			{
+				if (FOREACH_SET_HAS_NEXT(m)) {
+					t = CONCAT_STRINGS(t, "DIS_", n->value, ">= DIS_", m->value,
+							" AND ");
+				} else {
+					t = CONCAT_STRINGS(t, "DIS_", n->value, ">= DIS_", m->value,
+							" ");
+				}
+				DEBUG_LOG("lzy are %s", t);
+			}
+			st = CONCAT_STRINGS(st, t, "THEN DIS_", n->value, " ");
+			addToSet(check, n);
+		}
+		st = CONCAT_STRINGS(st, "END AS MINGROUPS FROM ", tableName,
+				") ORDER BY SP");
+		DEBUG_LOG("lzy are %s", st);
+	} else {
+		st = CONCAT_STRINGS(st, "SELECT DISTINCT SP, DIS_", attrName,
+				" AS AVGGROUPS FROM ", tableName, " ORDER BY SP");
+		DEBUG_LOG("lzy are %s", st);
+	}
+	return st;
+}
 List *
 oracleGetAttributeNames(char *tableName) {
 	List *attrNames = NIL;

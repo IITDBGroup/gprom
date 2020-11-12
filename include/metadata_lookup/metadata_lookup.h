@@ -71,7 +71,13 @@ typedef struct MetadataLookupPlugin
     boolean (*checkPostive) (char *tableName, char *colName);
     Constant * (*trasnferRawData) (char *data, char *dataType);
     HashMap * (*getMinAndMax) (char *tableName, char *colName);
+    List * (*getHist) (char *tableName, char *colName, char *numPartitions);
+    char * (*get2DHist) (char *tableName, char *colName, char *colName2, char *numPartitions1, char *numPartitions2);
+    void (*storeInterval) (char *tableName, char *attrName, char *numPartitions);
+    char * (*join2Hist) (char *hist1, char *hist2, char *tableName, char *attrName);
+    List * (*computeSum) (char *tableName, char *attrName, char *sumAttrName);
     int (*getRowNum) (char *tableName);
+    int (*getDistinct) (char *tableName, char *colName);
 
     List * (*getAttributes) (char *tableName);
     List * (*getAttributeNames) (char *tableName);
@@ -155,6 +161,12 @@ extern CatalogCache *createCache(void);
 //extern boolean isPostive(char *tableName, char *colName);
 extern Constant *transferRawData(char *data, char *dataType);
 extern HashMap *getMinAndMax(char *tableName, char *colName);
+extern HashMap *getHistogram(char *tableName, char *colName);
 extern int getRowNum(char* tableName);
-
+extern int getDistinct(char *tableName, char *colName);
+extern List *getHist(char *tableName, char *colName, char *numPartitions);
+extern char *get2DHist(char *tableName, char *colName, char *colName2, char *numPartitions, char *numPartitions2);
+extern void storeInterval(char *tableName, char *attrName, char *numPartitions);
+extern char *join2Hist(char *hist1, char *hist2, char *tableName, char *attrName);
+extern List *computeSum(char *tableName, char *attrName, char *sumAttrName);
 #endif /* METADATA_LOOKUP_H_ */

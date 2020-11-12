@@ -42,7 +42,7 @@ static rc
 setupParameterDB (void)
 {
 #if HAVE_ORACLE_BACKEND
-    if (strpeq(getStringOption("backend"),"oracle"))
+    if (strpleq(getStringOption("backend"),"oracle"))
     {
         OCI_Connection *c;
         OCI_Statement *st;
@@ -78,7 +78,7 @@ setupParameterDB (void)
         PQclear(res_); \
     } while(0)
 
-    if (strpeq(getStringOption("backend"),"postgres"))
+    if (strpleq(getStringOption("backend"),"postgres"))
     {
         PGconn *c;
 
@@ -119,7 +119,7 @@ testSetParameterValues (void)
 
 // only if a backend DB library is available
 #if HAVE_ORACLE_BACKEND
-    if (strpeq(getStringOption("backend"),"oracle"))
+    if (strpleq(getStringOption("backend"),"oracle"))
     {
         char *expSQL = "SELECT a FROM param_test1 WHERE a = '5';";
         char *inSQL = "SELECT a FROM param_test1 WHERE a = :param;";
@@ -141,7 +141,7 @@ testSetParameterValues (void)
 #endif
 
 #ifdef HAVE_POSTGRES_BACKEND
-    if (strpeq(getStringOption("backend"),"postgres"))
+    if (strpleq(getStringOption("backend"),"postgres"))
     {
         char *expSQL = "SELECT \"a\" FROM \"param_test1\" WHERE \"a\" = '5';";
         char *inSQL = "SELECT \"a\" FROM \"param_test1\" WHERE \"a\" = :param;";

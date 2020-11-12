@@ -168,13 +168,13 @@ chooseParserPluginFromString(char *type)
 static ParserPluginType
 getPluginTypeFromString (char *type)
 {
-    if (strpeq(type,"oracle"))
+    if (strpleq(type,"oracle"))
         return (PARSER_PLUGIN_ORACLE);
-    else if (strpeq(type,"postgres"))
+    else if (strpleq(type,"postgres"))
         return (PARSER_PLUGIN_POSTGRES);
-    else if (strpeq(type,"hive"))
+    else if (strpleq(type,"hive"))
         return (PARSER_PLUGIN_HIVE);
-    else if (strpeq(type,"dl"))
+    else if (strpleq(type,"dl"))
         return (PARSER_PLUGIN_DL);
     else
         FATAL_LOG("unkown parser plugin type: <%s>", type);

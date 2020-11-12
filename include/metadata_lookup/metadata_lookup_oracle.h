@@ -87,6 +87,16 @@ extern boolean oracleCheckPostive(char *tableName, char *colName);
 extern Constant *oracleTransferRawData(char *data, char *dataType);
 extern HashMap *oracleGetMinAndMax(char* tableName, char* colName);
 extern int oracleGetRowNum(char* tableName);
+extern int oracleGetDistinct(char* tableName, char* colName);
+extern List *oracleGetHist(char *tableName, char *attrName, char *numPartitions);
+extern char *oracleGet2DHist(char *tableName, char *attrName, char *attrName2, char *numPartitions1, char *numPartitions2);
+char *appendStatement(char *tableName, char *attrName, char *attrName2, char *numPartitions);
+extern void oracleStoreInterval(char *tableName, char *attrName, char *numPartitions);
+List* getAttributeFromHist(char *hist1, char *hist2);
+extern char *oracleJoin2Hist(char *hist1, char *hist2, char *tableName, char *attrName);
+extern List* oracleComputeSumFromHist(char *tableName, char *attrName, char *sumAttrName);
+char* computeNumOfGroupFromHist(char *tableName, char *attrName, char *sumAttrName);
+List* getLastInterval(char *tableName, char *attrName, char *numPartitions);
 
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);

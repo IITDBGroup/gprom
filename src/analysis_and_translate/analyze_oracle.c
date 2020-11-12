@@ -736,7 +736,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
     }
 
     // if it is a tableaccess then allow access to ROWID column
-    if(strpeq(attr->name,"ROWID") && fromItem->type == T_FromTableRef)
+    if(strpleq(attr->name,"ROWID") && fromItem->type == T_FromTableRef)
     {
         isFound = TRUE;
         foundAttr = LIST_LENGTH(fromItem->attrNames);

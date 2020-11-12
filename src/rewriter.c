@@ -175,7 +175,7 @@ setupPluginsFromOptions(void)
 
     // setup metadata lookup - individual option overrides backend option
     pluginName = getStringOption("plugin.metadata");
-    if (strpeq(pluginName,"external"))
+    if (strpleq(pluginName,"external"))
     {
         //printf("\nPLUGIN******************************************\n\n");
     }
@@ -223,7 +223,7 @@ setupPlugin(const char *pluginType)
     if (streq(pluginType,OPTION_PLUGIN_METADATA))
     {
         pluginName = getStringOption(OPTION_PLUGIN_METADATA);
-        if (strpeq(pluginName,"external"))
+        if (strpleq(pluginName,"external"))
         {
             printf("\nPLUGIN******************************************\n\n");
         }
@@ -447,9 +447,11 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
     //Ziyu Liu
-	HashMap *checkResult; //TODO only call if we are computing prov sketches
-	checkResult = monotoneCheck(oModel);
-	FREE(checkResult); //TODO why free this?
+	//HashMap *checkResult; //TODO only call if we are computing prov sketches
+	//checkResult = monotoneCheck(oModel);
+	//FREE(checkResult); //TODO why free this?
+	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) oModel)->data.ptr_value;
+	computeDistinct(root);
 	//Ziyu Liu
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))

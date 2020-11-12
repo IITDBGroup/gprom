@@ -498,3 +498,59 @@ getRowNum(char* tableName)
 }
 
 
+int
+getDistinct(char *tableName, char *colName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int result = activePlugin->getDistinct(tableName, colName);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+List *
+getHist(char *tableName, char *colName, char *numPartitions)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    List * result = activePlugin->getHist(tableName, colName, numPartitions);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+char *
+get2DHist(char *tableName, char *colName, char *colName2, char *numPartitions1, char *numPartitions2)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char * result = activePlugin->get2DHist(tableName, colName, colName2, numPartitions1, numPartitions2);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+void
+storeInterval(char *tableName, char *attrName, char *numPartitions)
+{
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	activePlugin->storeInterval(tableName, attrName, numPartitions);
+    RELEASE_MEM_CONTEXT();
+}
+char*
+join2Hist(char *hist1, char *hist2, char *tableName, char *attrName)
+{
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->join2Hist(hist1, hist2, tableName, attrName);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+List*
+computeSum(char *tableName, char *attrName, char *sumAttrName)
+{
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	List * result = activePlugin->computeSum(tableName, attrName, sumAttrName);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}

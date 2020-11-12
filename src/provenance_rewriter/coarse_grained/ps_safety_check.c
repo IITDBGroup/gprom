@@ -1239,6 +1239,258 @@ test(Node *qbModel){
 }
 
 
+void
+computeDistinct (QueryOperator *root){
+	testhistogrma();
+	/*if (root == NULL) {
+		return;
+	}
+
+	if (root->inputs != NULL){
+		FOREACH(QueryOperator, op, root->inputs){
+			if (!HAS_STRING_PROP(op,PROP_STORE_COST_DONE))
+				computeDistinct(op);
+		}
+	}
+
+	DEBUG_LOG("BEGIN COMPUTE COST OF %s operator %s", NodeTagToString(root->type), root->schema->name);
+	SET_BOOL_STRING_PROP(root, PROP_STORE_COST_DONE);
+	if (root->type == T_TableAccessOperator){
+			TableAccessOperator *rel = (TableAccessOperator *) root;
+			char * tableName = rel->tableName;
+			HashMap * Distinct = NEW_MAP(Constant, Node);
+			FOREACH(AttributeDef, attrDef, rel->op.schema->attrDefs){
+				HashMap *result_map = NEW_MAP(Constant, Node);
+				Constant * distinct = createConstInt(getDistinct(tableName,attrDef->attrName));
+				Constant * tuples = createConstInt(getRowNum(tableName));
+				MAP_ADD_STRING_KEY(result_map, "DISTINCT", (Node *) distinct);
+				MAP_ADD_STRING_KEY(result_map, "NUM OF TUPLES", (Node *) tuples);
+				MAP_ADD_STRING_KEY(Distinct, attrDef->attrName, (Node *)result_map);
+			}
+			setStringProperty(root, PROP_STORE_COST, (Node *)Distinct);
+			DEBUG_NODE_BEATIFY_LOG("COST are:", Distinct);
+		}
+	if (root->type == T_ProjectionOperator) {
+		QueryOperator * child = (QueryOperator *) getHeadOfList((List *) root->inputs)->data.ptr_value;
+		ProjectionOperator * pj = (ProjectionOperator *) root;
+		HashMap *childDistinct =(HashMap *) getStringProperty(child,PROP_STORE_COST);
+		HashMap *Distinct = NEW_MAP(Constant, Node);
+		FOREACH(AttributeDef, attrDef, pj->op.schema->attrDefs){
+			//HashMap *result_map = NEW_MAP(Constant, Node);
+			HashMap * result_map = (HashMap *) MAP_GET_STRING_ENTRY(childDistinct, attrDef->attrName)->value;
+			MAP_ADD_STRING_KEY(Distinct, attrDef->attrName, (Node *)result_map);
+			//DEBUG_LOG("attrDef is %s", attrDef->attrName);
+		}
+		//DEBUG_NODE_BEATIFY_LOG("child are:", childDistinct);
+		setStringProperty(root, PROP_STORE_COST, (Node *)Distinct);
+		DEBUG_NODE_BEATIFY_LOG("COST are:", Distinct);
+	}
+	if (root->type == T_SelectionOperator){
+		SelectionOperator * sel = (SelectionOperator *) root;
+		Operator * cond = (Operator * ) sel->cond;
+		double selectivity = computeSelectivity(cond);
+		DEBUG_LOG("selectivity IS %f",selectivity);
+		QueryOperator * child = (QueryOperator *) getHeadOfList((List *) root->inputs)->data.ptr_value;
+		HashMap *childDistinct =(HashMap *) getStringProperty(child,PROP_STORE_COST);
+		HashMap *Distinct = NEW_MAP(Constant, Node);
+		FOREACH_HASH_ENTRY(el,childDistinct){
+			//DEBUG_NODE_BEATIFY_LOG("el are:", el);
+			Node* key = el->key;
+			Node* value = el->value;
+
+			HashMap *result_map = NEW_MAP(Constant, Node);
+			Constant * childValue1 = (Constant *) MAP_GET_STRING_ENTRY((HashMap *)value,"DISTINCT")->value;
+			Constant * childValue2 = (Constant *) MAP_GET_STRING_ENTRY((HashMap *)value,"NUM OF TUPLES")->value;
+			//DEBUG_NODE_BEATIFY_LOG("childValue1 is:", childValue1);
+			//DEBUG_NODE_BEATIFY_LOG("childValue2 is:", childValue2);
+			double a = (double) (*((int *) childValue1->value)) * selectivity;
+			double b = (double) (*((int *) childValue2->value)) * selectivity;
+			Constant * newValue1 =createConstInt(ceil(a));
+			Constant * newValue2 =createConstInt(ceil(b));
+			MAP_ADD_STRING_KEY(result_map, "DISTINCT", (Node *)newValue1);
+			MAP_ADD_STRING_KEY(result_map, "NUM OF TUPLES", (Node *)newValue2);
+			addToMap(Distinct, key, (Node *)result_map);
+		}
+		setStringProperty(root, PROP_STORE_COST, (Node *)Distinct);
+		DEBUG_NODE_BEATIFY_LOG("COST are:", Distinct);
+	*/
+
+	}
+
+void
+testhistogrma(){
+	List *result = NIL;
+	/*char *t ="CRIMES_ZIP_CODES_BEAT_HIST";
+	char test1[] = {};
+	for(int i=0; i< strlen(t);i++){
+		test1[i]= t[i];
+	}
+	//DEBUG_LOG("LZY IS %s", test1);
+	char *test = "CRIMES_ZIP_CODES_BEAT_HIST";
+	char test1[100];
+	strcpy(test1, test);
+	char test2[] = "CRIMES_ZIP_CODES_BEAT_WARD_HIST";
+	DEBUG_LOG("LZY IS %s", test1);
+
+	Set *result1 = STRSET();
+	Set *result2 = STRSET();
+	char *d = "_";
+
+	char *p1 = strtok(test1, d);
+	while (p1 != NULL) {
+		//DEBUG_LOG("LZY IS %s", p1);
+		addToSet(result1, p1);
+		p1 = strtok(NULL, d);
+	}
+	char *p2 = strtok(test2, d);
+	while (p2 != NULL) {
+		//DEBUG_LOG("LZY IS %s", p2);
+		addToSet(result2, p2);
+		p2 = strtok(NULL, d);
+	}
+	FOREACH_SET(char,n,result1)
+	{
+		if (hasSetElem(result2, n)) {
+			removeSetElem(result1, n);
+			removeSetElem(result2, n);
+		}
+	}
+	FOREACH_SET(char,n,result1) {
+		DEBUG_LOG("LZY111 IS %s", n);
+	}
+	FOREACH_SET(char,n,result2) {
+		DEBUG_LOG("LZY222 IS %s", n);
+	}*/
+	//storeInterval("CRIMES","BEAT","50");
+	//result = get2DHist("CRIMES", "BEAT","ZIP_CODES","50","20");
+	//result = get2DHist("CRIMES", "BEAT","WARD","50","20");
+	//result = get2DHist("CRIMES", "BEAT","ZIP_CODES","50","20");
+	//result = get2DHist("CRIMES", "BEAT","WARD","50","20");
+	//result = get2DHist("CRIMES", "BEAT","DISTRICT","50","20");
+	/*char* t1 = get2DHist("CRIMES", "ZIP_CODES","WARD","50","20");
+	DEBUG_LOG("t1 IS %s", t1);
+	char* t2 = get2DHist("CRIMES", "ZIP_CODES","BEAT","50","20");
+	DEBUG_LOG("t2 IS %s", t2);
+	char* t3 = get2DHist("CRIMES", "ZIP_CODES","COMMUNITY_AREAS","50","20");
+	DEBUG_LOG("t3 IS %s", t3);*/
+	/*char* t1 = get2DHist("CRIMES", "BEAT","ZIP_CODES","50","20");
+	DEBUG_LOG("t1 IS %s", t1);
+	char* t2 = get2DHist("CRIMES", "BEAT","WARD","50","20");
+	DEBUG_LOG("t2 IS %s", t2);
+	char* t3 = get2DHist("CRIMES", "BEAT","COMMUNITY_AREAS","50","20");
+	DEBUG_LOG("t3 IS %s", t3);*/
+	//char *t4 = join2Hist("CRIMES#BEAT#ZIP_CODES#HIST","CRIMES#BEAT#WARD#HIST","CRIMES","BEAT");
+	//DEBUG_LOG("t3 IS %s", t4);
+	//char *t5 = join2Hist("CRIMES#BEAT#ZIP_CODES#WARD#HIST","CRIMES#BEAT#COMMUNITY_AREAS#HIST","CRIMES","BEAT");
+	//DEBUG_LOG("t3 IS %s", t5);
+	//result = join2Hist("CRIMES#BEAT#ZIP_CODES#HIST","CRIMES#BEAT#WARD#HIST","CRIMES","BEAT");
+	//result = join2Hist("CRIMES#BEAT#ZIP_CODES#WARD#HIST","CRIMES#BEAT#DISTRICT#HIST","CRIMES","BEAT");
+	/*char* h1 = join2Hist("CRIMES#ZIP_CODES#BEAT#HIST","CRIMES#ZIP_CODES#WARD#HIST","CRIMES","ZIP_CODES");
+	DEBUG_LOG("h1 IS %s", h1);
+	char* h2 = join2Hist("CRIMES#ZIP_CODES#BEAT#WARD#HIST","CRIMES#ZIP_CODES#COMMUNITY_AREAS#HIST","CRIMES","ZIP_CODES");
+	DEBUG_LOG("h2 IS %s", h2);*/
+	//result = computeSum("CRIMES_BEAT_ZIP_CODES_WARD_HIST", "BEAT", "WARD");
+	//result = computeSum("CRIMES_ZIP_CODES_BEAT_WARD_HIST", "ZIP_CODES", "WARD");
+	//result = computeSum("CRIMES_ZIP_CODES_WARD_HIST", "ZIP_CODES", "WARD");
+	//result = computeSum("CRIMES#BEAT#ZIP_CODES#WARD#HIST", "BEAT", "WARD");
+	//result = computeSum("CRIMES#BEAT#ZIP_CODES#WARD#DISTRICT#HIST", "BEAT", "WARD");
+	result = computeSum("CRIMES#ZIP_CODES#BEAT#WARD#DISTRICT#HIST", "ZIP_CODES", "WARD");
+	//result = computeSum("CRIMES#ZIP_CODES#BEAT#WARD#COMMUNITY_AREAS#HIST", "ZIP_CODES", "WARD");
+	//result = computeSum("CRIMES#BEAT#ZIP_CODES#WARD#COMMUNITY_AREAS#HIST", "BEAT", "WARD");
+	//result = computeSum("CRIMES#BEAT#WARD#HIST", "BEAT", "WARD");
+	//result = computeSum(join2Hist("CRIMES#ZIP_CODES#BEAT#WARD#HIST","CRIMES#ZIP_CODES#DISTRICT#HIST","CRIMES","ZIP_CODES"), "ZIP_CODES", "WARD");
+	//result = join2Hist("CRIMES_ZIP_CODES_BEAT_WARD_HIST","CRIMES_ZIP_CODES_WARD_HIST","CRIMES","ZIP_CODES");
+	//result = getHist("CRIMES", "ZIP_CODES", 50);
+	//result = storeInterval("CRIMES", "ZIP_CODES", 30);
+	//result = getHist("CUSTOMER", "C_CUSTKEY", 63);
+	//result = get2DHist("lineitem", "l_partkey", "l_orderkey", "300000");
+
+}
+
+/*
+	if (root->type == T_AggregationOperator) {
+		//AggregationOperator * agg = (AggregationOperator *) root;
+		QueryOperator * child = (QueryOperator *) getHeadOfList(
+				(List *) root->inputs)->data.ptr_value;
+		HashMap *childDistinct = (HashMap *) getStringProperty(child,
+				PROP_STORE_COST);
+		HashMap *Distinct = NEW_MAP(Constant, Node);
+		FOREACH_HASH_ENTRY(el,childDistinct)
+		{
+			//DEBUG_NODE_BEATIFY_LOG("el are:", el);
+			Node* key = el->key;
+			Node* value = el->value;
+
+			addToMap(Distinct, key, value);
+		}
+		setStringProperty(root, PROP_STORE_COST, (Node *) Distinct);
+		DEBUG_NODE_BEATIFY_LOG("COST are:", Distinct);
+	}
+	if (root->type == T_WindowOperator){
+
+
+	}
+	if (root->type == T_JoinOperator){
+
+
+	}
+
+*/
+
+
+double
+computeSelectivity(Operator *cond){
+	char *operator_name = cond->name;
+	DEBUG_LOG("operator_name IS %s",operator_name);
+	List *args = cond->args;
+	char *name = ((AttributeReference *) getHeadOfList((List *)args)->data.ptr_value)->name;
+	DEBUG_LOG("NAME IS %s",name);
+	HashMap *minmax = getMinAndMax("R", name);
+
+	Constant *max =(Constant *) MAP_GET_STRING_ENTRY(minmax, "MAX")->value;
+	Constant *min =(Constant *) MAP_GET_STRING_ENTRY(minmax, "MIN")->value;
+	//DEBUG_NODE_BEATIFY_LOG("min is:", min);
+	//DEBUG_NODE_BEATIFY_LOG("max is:", max);
+	Constant *constant = (Constant *) getTailOfList((List *)args)->data.ptr_value;
+	//DEBUG_NODE_BEATIFY_LOG("constant is:", constant);
+	int a = *((int *) max->value);
+	int b = *((int *) min->value);
+	int c = *((int *) constant->value);
+	if(!strcmp(operator_name, ">") || !strcmp(operator_name, ">=")) {
+
+		DEBUG_LOG("a IS %d,b is %d, c is %d",a,b,c);
+		double selectivity = (double) ((double)(a-c)/(double)(a-b));
+		DEBUG_LOG("s is %f",selectivity);
+		return selectivity;
+
+	}
+	if(!strcmp(operator_name, "<") || !strcmp(operator_name, "<=")) {
+
+			DEBUG_LOG("a IS %d,b is %d, c is %d",a,b,c);
+			double selectivity = (double) ((double)(c-b)/(double)(a-b));
+			DEBUG_LOG("s is %f",selectivity);
+			return selectivity;
+
+	}
+	return 0;
+}
+/*
+void *
+constantToValue(Constant *constant){
+	switch(constant->constType)
+	    {
+	        case DT_INT:
+	        	return (int *) constant->value;
+	            break;
+	        case DT_FLOAT:
+	        	return (double *) constant->value;
+	            break;
+	        case DT_LONG:
+	        	return (gprom_long_t *) constant->value;
+	            break;
+	    }
+	return 0;
+}*/
 /*
 List*
 addBitset(int length, List *result)
