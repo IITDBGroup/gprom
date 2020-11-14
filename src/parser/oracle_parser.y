@@ -1413,7 +1413,7 @@ unaryOperatorExpression:
          | expression IS NOT NULLVAL
          {
          	RULELOG("unaryOperatorExpression::IS NOT NULL");
-         	$$ = (Node *) createOpExpr("NOT", singleton(createIsNullExpr($1)));
+         	$$ = (Node *) createOpExpr(OPNAME_NOT, singleton(createIsNullExpr($1)));
          }
     ;
 
@@ -2005,7 +2005,7 @@ whereExpression:
                 	List *expr = singleton($1);
                 	expr = appendToTailOfList(expr, $4);
                 	Node *like = (Node *) createOpExpr($3, expr);
-                	$$ = (Node *) createOpExpr("NOT", singleton(like));
+                	$$ = (Node *) createOpExpr(OPNAME_NOT, singleton(like));
 				}*/
             }
         | whereExpression BETWEEN expression AND expression

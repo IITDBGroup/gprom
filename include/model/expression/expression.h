@@ -21,17 +21,29 @@ typedef struct Operator {
     List *args;
 } Operator;
 
+/* OPERATOR NAMES */
 #define OPNAME_AND "AND"
 #define OPNAME_OR "OR"
 #define OPNAME_NOT "NOT"
 #define OPNAME_not "not"
-#define OPNAME_CONCAT "CONCAT"
+
 #define OPNAME_EQ "="
 #define OPNAME_LT "<"
 #define OPNAME_LE "<="
 #define OPNAME_GT ">"
 #define OPNAME_GE ">="
 #define OPNAME_NEQ "<>"
+#define OPNAME_NEQ_BANG "!="
+
+#define OPNAME_STRING_CONCAT "||"
+#define OPNAME_CONCAT "CONCAT"
+#define OPNAME_LIKE "LIKE"
+
+#define OPNAME_ADD "+"
+#define OPNAME_MULT "*"
+#define OPNAME_DIV "/"
+#define OPNAME_MINUS "-"
+#define OPNAME_MOD "%"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,

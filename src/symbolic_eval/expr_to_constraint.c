@@ -229,7 +229,7 @@ static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 	}
 	/*
 	 //cond OR and AND wasn't considered
-	 else if(streq(o->name, "AND") || streq(o->name, "OR"))
+	 else if(streq(o->name, OPNAME_AND) || streq(o->name, OPNAME_OR))
 	 {
 
 	 return;

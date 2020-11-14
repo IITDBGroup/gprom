@@ -651,10 +651,10 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
             appendStringInfoString(str, " UNION ALL ");
             break;
         case SETOP_INTERSECTION:
-            appendStringInfoString(str, " INTERSECT ");
+            appendStringInfoString(str, " INTERSECT ALL ");
             break;
         case SETOP_DIFFERENCE:
-            appendStringInfoString(str, " EXCEPT ");
+            appendStringInfoString(str, " EXCEPT ALL ");
             break;
     }
 

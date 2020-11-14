@@ -147,7 +147,7 @@ lateralRewriteQuery(QueryOperator *input)
 				IsNullExpr *inulExpr = createIsNullExpr((Node *) singleton(copyObject(a)));
 				isNullList = appendToTailOfList(isNullList, inulExpr);
 			}
-    			Operator *orExpr = createOpExpr("OR", isNullList);
+    			Operator *orExpr = createOpExpr(OPNAME_OR, isNullList);
     			CaseWhen *when2 = createCaseWhen((Node *) orExpr, (Node *) copyObject(cHalf));
 
 			//0 else
@@ -321,7 +321,7 @@ getNestCondNode(Node *n, List **nestOpLists)
 				}
 			}
 		}
-		else if(streq(strToUpper(o->name), "OR") || streq(strToUpper(o->name), "AND") || streq(strToUpper(o->name), "NOT"))
+		else if(streq(strToUpper(o->name), OPNAME_OR) || streq(strToUpper(o->name), OPNAME_AND) || streq(strToUpper(o->name), OPNAME_NOT))
 		{
 			FOREACH(Node, n, o->args)
 				getNestCondNode(n, nestOpLists);

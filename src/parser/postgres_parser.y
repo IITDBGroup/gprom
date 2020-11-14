@@ -1096,7 +1096,7 @@ whereExpression:
                 	List *expr = singleton($1);
                 	expr = appendToTailOfList(expr, $4);
                 	Node *like = (Node *) createOpExpr($3, expr);
-                	$$ = (Node *) createOpExpr("NOT", singleton(like));
+                	$$ = (Node *) createOpExpr(OPNAME_NOT, singleton(like));
 				}*/
             }
         | whereExpression BETWEEN expression AND expression

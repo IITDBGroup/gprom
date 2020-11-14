@@ -1176,7 +1176,7 @@ addCoalesce (QueryOperator *input)
 	AttributeReference *t5CondRef2 = getAttrRefByName(t5ProjOp, TEND_NAME);
 
     IsNullExpr *t5O2 = createIsNullExpr((Node *) singleton(t5CondRef2));
-    Operator *t5O3 = createOpExpr("NOT", singleton(t5O2));
+    Operator *t5O3 = createOpExpr(OPNAME_NOT, singleton(t5O2));
 
     SelectionOperator *t5 = createSelectionOp((Node *) t5O3, t5ProjOp, NIL, deepCopyStringList(t5ProjNames));
     t5ProjOp->parents = singleton(t5);
@@ -2557,7 +2557,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     // final selection that removes intervals without an upper bound (largest change point) and intervals that are gaps in the input
     AttributeReference *tendSel = getAttrRefByName(projT4Op,TEND_NAME);
     IsNullExpr *isnullExprSel =  createIsNullExpr((Node *) singleton(tendSel));
-    Operator *notnullOperator = createOpExpr("NOT", singleton(isnullExprSel));
+    Operator *notnullOperator = createOpExpr(OPNAME_NOT, singleton(isnullExprSel));
     Node *selectionCond = NULL;
     if (isGB)
     {

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * rpq_to_sql.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -42,7 +42,7 @@
             return SQL_TEMPLATE(db,rpqtype,STAR); \
         if (streq(opVar,"CONC")) \
             return SQL_TEMPLATE(db,rpqtype,CONC); \
-        if (streq(opVar,"OR")) \
+        if (streq(opVar,OPNAME_OR)) \
             return SQL_TEMPLATE(db,rpqtype,OR); \
         if (streq(opVar,"RESULT")) \
             return SQL_TEMPLATE(db,rpqtype,RESULT); \
@@ -358,4 +358,3 @@ replaceCharsForPred(char *in)
 
     return res;
 }
-
