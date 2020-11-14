@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * query_block.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -122,7 +122,7 @@ createSetQuery(char *setOp, boolean all, Node *lChild,
         result->setOp = SETOP_UNION;
     else if (streq(setOp, "INTERSECT"))
         result->setOp = SETOP_INTERSECTION;
-    else if (streq(setOp, "MINUS"))
+    else if (streq(setOp, "MINUS") || (streq(setOp, "EXCEPT")))
         result->setOp = SETOP_DIFFERENCE;
     else
         FATAL_LOG("set operation has to be one of UNION, INTERSECT, MINUS and not <%s>", setOp);
@@ -501,4 +501,3 @@ setStringProvProperty (FromProvInfo *from, char *key, Node *value)
 {
 	setProvProperty(from, (Node *) createConstString(key), value);
 }
-

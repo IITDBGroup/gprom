@@ -642,6 +642,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
     List *resultAttrs;
 
     // output left child
+	appendStringInfoString(str, "(");
     resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
 
     // output set operation
@@ -660,6 +661,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
 
     // output right child
     api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
+	appendStringInfoString(str, ")");
 
     return resultAttrs;
 }

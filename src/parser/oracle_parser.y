@@ -94,7 +94,7 @@ Node *oracleParseResult = NULL;
 /*
  * Declare token for operators specify their associativity and precedence
  */
-%left UNION INTERSECT MINUS
+%left UNION INTERSECT MINUS EXCEPT
 
 /* Logical operators */
 %left '|'
@@ -1143,6 +1143,11 @@ setOperatorQuery:     // Need to look into createFunction
                 $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
             }
         | queryStmt MINUS optionalAll queryStmt
+            {
+                RULELOG("setOperatorQuery::EXCEPT");
+                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
+            }
+		| queryStmt EXCEPT optionalAll queryStmt
             {
                 RULELOG("setOperatorQuery::MINUS");
                 $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
