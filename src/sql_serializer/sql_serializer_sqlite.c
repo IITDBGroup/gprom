@@ -639,6 +639,9 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
 
+	// wrap set operation into a block to ensure that we can preserve evaluation order (SQLite does not support parenthesis around set operations)
+	appendStringInfoString(str, "SELECT * FROM (");
+
     // output left child
     resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
 
@@ -648,6 +651,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
         case SETOP_UNION:
             appendStringInfoString(str, " UNION ALL ");
             break;
+			//TODO SQLite does not support bag intersect and difference, have to implement workaround query
         case SETOP_INTERSECTION:
             appendStringInfoString(str, " INTERSECT ");
             break;
@@ -658,6 +662,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
 
     // output right child
     api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
+	appendStringInfoString(str, ")");
 
     return resultAttrs;
 }
