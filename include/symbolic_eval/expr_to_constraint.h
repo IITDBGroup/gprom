@@ -21,16 +21,17 @@
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 
-/*
 #define DEFAULT_NUM_COLS 10
 #define DEFAULT_COLNAME_SIZE 20
 
 typedef struct CplexObjects {
-        char *tableName;
-        HashMap *attrIndex;       // hashmap attributename -> attribute index in
-obj double obj[DEFAULT_NUM_COLS]; double lb[DEFAULT_NUM_COLS]; double
-ub[DEFAULT_NUM_COLS]; char *colname[DEFAULT_NUM_COLS]; } CplexObjects;
-*/
+    char *tableName;
+    HashMap *attrIndex;        // hashmap attributename -> attribute index in obj
+    double *obj;
+    double *lb;
+    double *ub;
+    char **colname;
+} CplexObjects;
 
 extern boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2);
 extern List *symbolicHistoryExe(List *exprs);
