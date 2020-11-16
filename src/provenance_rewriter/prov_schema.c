@@ -14,6 +14,7 @@
 
 #include "log/logger.h"
 
+#include "model/expression/expression.h"
 #include "uthash.h"
 
 #include "mem_manager/mem_mgr.h"
@@ -26,7 +27,7 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 /* consts */
-#define PROV_ATTR_PREFIX "PROV_"
+#define PROV_ATTR_PREFIX backendifyIdentifier("PROV_")
 
 /* data types */
 typedef struct ProvSchemaInfo
@@ -40,6 +41,7 @@ typedef struct ProvSchemaInfo
 static boolean findBaserelationsVisitor (Node *node, ProvSchemaInfo *status);
 static int getRelCount(ProvSchemaInfo *info, char *tableName);
 static boolean findTablerefVisitor (Node *node, ProvSchemaInfo *status);
+static boolean findTablerefVisitorForCoarse (Node *node, ProvSchemaInfo *status);
 static char *escapeUnderscore (char *str);
 
 /* definitions */
@@ -59,6 +61,14 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         case PROV_XML:
             return singleton(strdup("xmlprov"));
         case PROV_NONE:
+        {
+            return NIL;
+        }
+        case PROV_COARSE_GRAINED:
+        {
+            return NIL;
+        }
+        case USE_PROV_COARSE_GRAINED:
         {
             return NIL;
         }
@@ -218,6 +228,28 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 
         return;
     }
+    if (stmt->provType == PROV_COARSE_GRAINED || stmt->provType == USE_PROV_COARSE_GRAINED)
+    {
+        //TODO create list of prov attributes PROV_R, PROV_S, .... and their DTs
+        ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
+
+        pSchema->provAttrs = NIL;
+        pSchema->dts = NIL;
+        findTablerefVisitorForCoarse((Node *) stmt->query, pSchema);
+
+        //semiring combiner check
+        if(isSemiringCombinerActivatedPs(stmt)){
+            *attrNames = singleton("PROV");
+            *dts = singletonInt(getSemiringCombinerDatatype(stmt,pSchema->dts));
+            return;
+        }
+
+        *attrNames = pSchema->provAttrs;
+        *dts = pSchema->dts;
+
+
+        return;
+    }
     if (stmt->provType == PROV_XML)
     {
         *attrNames = appendToTailOfList(*attrNames, "PROV");
@@ -252,7 +284,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     if (stmt->inputType == PROV_INPUT_RANGE_QUERY)
     {
     	List *qAttrDef =  getQBAttrDefs(stmt->query);
-    	INFO_LOG("=======================", stringListToString(*attrNames));
+    	INFO_LOG("=======================%s", stringListToString(*attrNames));
     	// add attribute range attributes
     	FOREACH(Node,n,qAttrDef)
     	{
@@ -350,4 +382,28 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
     }
 
     return visit(node, findTablerefVisitor, status);
+}
+
+
+static boolean
+findTablerefVisitorForCoarse (Node *node, ProvSchemaInfo *status)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isFromItem(node))
+    {
+        if (isA(node, FromTableRef))
+        {
+            FromTableRef *r = (FromTableRef *) node;
+            char *tableName = r->tableId;
+
+            status->provAttrs = appendToTailOfList(status->provAttrs,
+                		 CONCAT_STRINGS("PROV_", strdup(tableName)));
+
+            status->dts = appendToTailOfListInt(status->dts, DT_STRING);
+        }
+    }
+
+    return visit(node, findTablerefVisitorForCoarse, status);
 }

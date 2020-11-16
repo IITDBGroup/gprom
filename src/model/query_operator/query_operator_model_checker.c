@@ -146,6 +146,7 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
 {
     FOREACH(AttributeReference,a,attrRefs)
     {
+        int levelsUp = a->outerLevelsUp;
         int input = a->fromClauseItem;
         int attrPos = a->attrPosition;
         QueryOperator *child;
@@ -166,7 +167,16 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
             return FALSE;
         }
 
-        child = (QueryOperator *) getNthOfListP(children, input);
+        //child = (QueryOperator *) getNthOfListP(children, input);
+        if(levelsUp > 0)
+        {
+        	        QueryOperator *tempChild = OP_LCHILD(parent);
+                QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(tempChild, levelsUp);
+                child = (QueryOperator *) getNthOfListP(nestingOp->inputs, input);
+        }
+        else
+                child = (QueryOperator *) getNthOfListP(children, input);
+        
         if (attrPos < 0 || attrPos >= getNumAttrs(child))
         {
             ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "

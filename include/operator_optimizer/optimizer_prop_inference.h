@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * optimizer_prop_inference.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -13,8 +13,18 @@
 
 #include "model/query_operator/query_operator.h"
 #include "model/set/set.h"
+#include "model/set/hashmap.h"
 
 extern void computeKeyProp (QueryOperator *root);
+
+#define MIN_KEY "MIN"
+#define MAX_KEY "MAX"
+
+extern void computeMinMaxPropForSubset(QueryOperator *root, Set *attrs);
+extern void computeMinMaxProp(QueryOperator *root);
+extern Set *getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left);
+extern void computeChildOperatorProp(QueryOperator *root);
+extern void getConMap(Node *expr, HashMap *leftResult, HashMap *rightResult);
 
 extern void computeECProp (QueryOperator *root);
 extern void computeECPropBottomUp (QueryOperator *root);
@@ -44,6 +54,6 @@ extern void printSingleECList(List *l);
 /* empty property for each operator used in loop each optimization method*/
 extern void emptyProperty(QueryOperator *root);
 extern void removeProp(QueryOperator *op, char *prop);
-
+extern void removeMinMaxProps(QueryOperator *op);
 
 #endif /* INCLUDE_OPERATOR_OPTIMIZER_OPTIMIZER_PROP_INFERENCE_H_ */

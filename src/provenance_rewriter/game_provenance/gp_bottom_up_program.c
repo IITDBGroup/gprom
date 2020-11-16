@@ -381,7 +381,7 @@ createInputDBprogram (DLProgram *p, DLAtom *question)
 //						FORBOTH(Node,ln,rn,r->head->args,(List *) getTailOfListP(values))
 //						{
 //							DLComparison *dlC = makeNode(DLComparison);
-//							dlC->opExpr = createOpExpr("=",LIST_MAKE(ln,rn));
+//							dlC->opExpr = createOpExpr(OPNAME_EQ,LIST_MAKE(ln,rn));
 //							dlR->body = appendToTailOfList(dlR->body,dlC);
 //						}
 //					}
@@ -2865,7 +2865,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	                    createArgs = createDLVar(vName, DT_BOOL);
 
 	                    if(((DLAtom *) n)->negated)
-	                    	createArgs = (DLVar *) createOpExpr("not", LIST_MAKE(createArgs));
+	                    	createArgs = (DLVar *) createOpExpr(OPNAME_not, LIST_MAKE(createArgs));
 //	                    	createArgs->name = CONCAT_STRINGS("not(",createArgs->name,")");
 
 	                    numGoals++; // For calculation of length of only new args
@@ -4176,7 +4176,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
 
 						DLComparison *comp = makeNode(DLComparison);
-						comp->opExpr = createOpExpr(">=",compArgs);
+						comp->opExpr = createOpExpr(OPNAME_GE,compArgs);
 						r->body = appendToTailOfList(r->body,comp);
 					}
 				}
@@ -4209,7 +4209,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
 
 						DLComparison *comp = makeNode(DLComparison);
-						comp->opExpr = createOpExpr(">=",compArgs);
+						comp->opExpr = createOpExpr(OPNAME_GE,compArgs);
 						r->body = appendToTailOfList(r->body,comp);
 					}
 				}

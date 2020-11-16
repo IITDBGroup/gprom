@@ -26,6 +26,11 @@ NEW_ENUM_WITH_TO_STRING(SetOpType,
         SETOP_INTERSECTION,
         SETOP_DIFFERENCE);
 
+#define SETOP_STRING_UNION "UNION"
+#define SETOP_STRING_EXCEPT "EXCEPT"
+#define SETOP_STRING_MINUS "MINUS"
+#define SETOP_STRING_INTERSECT "INTERSECT"
+
 typedef struct SetQuery
 {
     NodeTag type;
@@ -202,7 +207,8 @@ NEW_ENUM_WITH_TO_STRING(NestingExprType,
     NESTQ_ANY,
     NESTQ_ALL,
     NESTQ_UNIQUE,
-    NESTQ_SCALAR
+    NESTQ_SCALAR,
+    NESTQ_LATERAL
 );
 
 typedef struct NestedSubquery
@@ -212,6 +218,7 @@ typedef struct NestedSubquery
     Node *expr;
     char *comparisonOp;
     Node *query;
+    DataType nestingAttrDatatype;
 } NestedSubquery;
 
 typedef struct Insert

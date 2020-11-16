@@ -660,9 +660,9 @@ rewriteTopkExplOutput (Node *fMeasureInput, int topK)
 	Node *selCond = NULL;
 
 	if (topK != 0)
-		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(topK)));
+		selCond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(makeNode(RowNumExpr),createConstInt(topK)));
 	else
-		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(1))); // TODO: top1 or more?
+		selCond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(makeNode(RowNumExpr),createConstInt(1))); // TODO: top1 or more?
 
 	SelectionOperator *so = createSelectionOp(selCond, topkOp, NIL, getAttrNames(topkOp->schema));
 
@@ -741,7 +741,7 @@ rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sI
 //		whereCond = (Node *) createOpExpr("+",LIST_MAKE(whereCond,lA));
 //
 //	int maxNum = count - LIST_LENGTH(userQuestion) - 1;
-//	Node *filterCond = (Node *) createOpExpr("<",LIST_MAKE(whereCond,createConstInt(maxNum)));
+//	Node *filterCond = (Node *) createOpExpr(OPNAME_LT,LIST_MAKE(whereCond,createConstInt(maxNum)));
 //
 //	SelectionOperator *so = createSelectionOp(filterCond, fMeasure, NIL, getAttrNames(fMeasure->schema));
 //	fMeasure->parents = appendToTailOfList(fMeasure->parents,so);
@@ -838,7 +838,7 @@ rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sI
 
 		if(thPrec != 0)
 		{
-			precCond = (Node *) createOpExpr(">=",LIST_MAKE(prec,createConstFloat(thPrec)));
+			precCond = (Node *) createOpExpr(OPNAME_GE,LIST_MAKE(prec,createConstFloat(thPrec)));
 			if(cond != NULL)
 				cond = AND_EXPRS(cond,precCond);
 			else
@@ -847,7 +847,7 @@ rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sI
 
 		if(thRec != 0)
 		{
-			recCond = (Node *) createOpExpr(">=",LIST_MAKE(rec,createConstFloat(thRec)));
+			recCond = (Node *) createOpExpr(OPNAME_GE,LIST_MAKE(rec,createConstFloat(thRec)));
 			if(cond != NULL)
 				cond = AND_EXPRS(cond,recCond);
 			else
@@ -856,7 +856,7 @@ rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sI
 
 		if(thInfo!= 0)
 		{
-			infoCond = (Node *) createOpExpr(">=",LIST_MAKE(info,createConstFloat(thInfo)));
+			infoCond = (Node *) createOpExpr(OPNAME_GE,LIST_MAKE(info,createConstFloat(thInfo)));
 			if(cond != NULL)
 				cond = AND_EXPRS(cond,infoCond);
 			else
@@ -939,7 +939,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion
 //	int aPos = LIST_LENGTH(samples->schema->attrDefs) - 1;
 //	AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 //
-//	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+//	Node *whereClause = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lC,createConstInt(1)));
 //	SelectionOperator *so = createSelectionOp(whereClause, samples, NIL, getAttrNames(samples->schema));
 //
 //	samples->parents = appendToTailOfList(samples->parents,so);
@@ -1121,7 +1121,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 	int aPos = LIST_LENGTH(provQuery->schema->attrDefs) - 1;
 	AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
-	Node *cond = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+	Node *cond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lC,createConstInt(1)));
 	SelectionOperator *so = createSelectionOp(cond, provQuery, NIL, getAttrNames(provQuery->schema));
 
 	provQuery->parents = singleton(so);
@@ -1367,7 +1367,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 				SelectionOperator *so = (SelectionOperator *) parent;
 				Operator *op = (Operator *) so->cond;
 
-				if(streq(op->name,"="))
+				if(streq(op->name,OPNAME_EQ))
 				{
 					FOREACH(Node,n,op->args)
 					{
@@ -1794,7 +1794,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 				lA = createFullAttrReference(strdup(al->attrName), 0, alPos, 0, al->dataType);
 
 				// create equality condition and update global condition
-				joinCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+				joinCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
 				isNullCond = (Node *) createIsNullExpr((Node *) rA);
 				attrCond = OR_EXPRS(joinCond,isNullCond);
 				curCond = AND_EXPRS(attrCond,curCond);
@@ -1900,7 +1900,7 @@ rewritePatternOutput (char *summaryType, Node *unionSample, Node *randProv)
 //		int aPos = LIST_LENGTH(provSample->schema->attrDefs) - 1;
 //		AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 //
-//		Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+//		Node *whereClause = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lC,createConstInt(1)));
 //		SelectionOperator *so = createSelectionOp(whereClause, provSample, NIL, getAttrNames(provSample->schema));
 //
 //		provSample->parents = singleton(so);
@@ -1967,7 +1967,7 @@ rewritePatternOutput (char *summaryType, Node *unionSample, Node *randProv)
 				provAttrNames = appendToTailOfList(provAttrNames,a->attrName);
 
 				DataType d = a->dataType;
-				Node *cond = (Node *) createOpExpr("=",LIST_MAKE(l,r));
+				Node *cond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(l,r));
 
 				Node *then = l;
 				Node *els = (Node *) createNullConst(d);
@@ -2041,7 +2041,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, ProvQues
 //
 //		/* sampling from prov */
 //		// create selection clause
-//		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
+//		selCond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
 //		so = createSelectionOp(selCond, randomProv, NIL, getAttrNames(randomProv->schema));
 //
 //		randomProv->parents = singleton(so);
@@ -2084,7 +2084,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, ProvQues
 
 		// generate non-prov for the size of (sampleSize - sampleProvSize/2)
 		AttributeReference *npSize = (AttributeReference *) getNthOfListP(intermedProj->projExprs,pos-1);
-		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr), npSize));
+		selCond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(makeNode(RowNumExpr), npSize));
 		so = createSelectionOp(selCond,randomNonProvJoin,NIL,getAttrNames(randomNonProvJoin->schema));
 
 		randomNonProvJoin->parents = singleton(so);
@@ -2172,7 +2172,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, ProvQues
 	//				AttributeReference *lA, *rA = NULL;
 	//				lA = createFullAttrReference(strdup(l->attrName), 0, LIST_LENGTH(left->schema->attrDefs)-1, 0, l->dataType);
 	//				rA = createFullAttrReference(strdup(r->attrName), 1, 0, 0, r->dataType);
-	//				joinCond = (Node *) createOpExpr("<=",LIST_MAKE(lA,rA));
+	//				joinCond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(lA,rA));
 	//			}
 	//		}
 	//	}
@@ -2249,7 +2249,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, ProvQues
 	//				AttributeReference *lA, *rA = NULL;
 	//				lA = createFullAttrReference(strdup(l->attrName), 0, LIST_LENGTH(left->schema->attrDefs)-1, 0, l->dataType);
 	//				rA = createFullAttrReference(strdup(r->attrName), 1, 0, 0, r->dataType);
-	//				joinCond = (Node *) createOpExpr("<=",LIST_MAKE(lA,rA));
+	//				joinCond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(lA,rA));
 	//			}
 	//		}
 	//	}
@@ -2347,7 +2347,7 @@ rewriteRandomNonProvTuples (Node *provExpl, ProvQuestion qType, List *fPattern)
 		int aPos = LIST_LENGTH(randomNonProv->schema->attrDefs) - 1;
 		AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
-		Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(0)));
+		Node *whereClause = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lC,createConstInt(0)));
 		SelectionOperator *so = createSelectionOp(whereClause, randomNonProv, NIL, attrNames);
 
 		randomNonProv->parents = appendToTailOfList(randomNonProv->parents, so);
@@ -2473,7 +2473,7 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, Lis
 		int aPos = LIST_LENGTH(randomProv->schema->attrDefs) - 1;
 		AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
-		Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+		Node *whereClause = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lC,createConstInt(1)));
 		so = createSelectionOp(whereClause, randomProv, NIL, attrNames);
 
 		randomProv->parents = singleton(so);
@@ -2525,7 +2525,7 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, Lis
 				AttributeReference *lA = createFullAttrReference(strdup(a->attrName),0,patternPos,0,a->dataType);
 				Node *rA = (Node *) createConstInt(INT_VALUE(getNthOfListP(fPattern,pos)));
 
-				attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+				attrCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
 
 				if(pos == 0)
 					curCond = attrCond;
@@ -2589,7 +2589,7 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, Lis
 	/* sampling from prov */
 	// create selection clause
 	Node *selCond = NULL;
-	selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
+	selCond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
 	so = createSelectionOp(selCond, randomProv, NIL, getAttrNames(randomProv->schema));
 
 	randomProv->parents = singleton(so);
@@ -2741,7 +2741,7 @@ joinOnSeqOutput (List *doms)
 			// create join on "seq"
 			if(lA != NULL && rA != NULL)
 			{
-				Node *cond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+				Node *cond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
 				sampDom = (QueryOperator *) createJoinOp(JOIN_INNER, cond, inputs, NIL, attrNames);
 			}
 
@@ -2882,7 +2882,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 					SelectionOperator *so = (SelectionOperator *) parent;
 					Operator *op = (Operator *) so->cond;
 
-					if(streq(op->name,"="))
+					if(streq(op->name,OPNAME_EQ))
 					{
 						FOREACH(Node,n,op->args)
 						{
@@ -3023,7 +3023,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 				if(isSuffix(pa->attrName,ia->attrName))
 				{
 					rA = createFullAttrReference(strdup(pa->attrName), 1, provAttr, 0, pa->dataType);
-					attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+					attrCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
 					chkPos++;
 
 					if(chkPos == 1)
@@ -3062,7 +3062,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 					{
 	//					AttributeDef *r = getAttrDefByPos(prov,rPos);
 						rA = createFullAttrReference(strdup(rPos->name), 1, rPos->attrPosition, 0, rPos->attrType);
-						attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+						attrCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
 						chkPos++;
 
 						if(chkPos == 1)
@@ -3091,7 +3091,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 						if(isSuffix(ra->attrName,lA->name))
 						{
 							AttributeReference *rA = createFullAttrReference(strdup(ra->attrName), 1, pos, 0, ra->dataType);
-							attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+							attrCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
 
 							if(curCond == NULL)
 								curCond = attrCond;
@@ -3231,7 +3231,7 @@ rewriteUserQuestion (List *userQ, Node *rewrittenTree)
 			AttributeDef *aDef = getAttrDefByName(input,attr);
 
 			AttributeReference *quest = createFullAttrReference(strdup(attr), 0, attrPos, 0, aDef->dataType);
-			Node *selCond = (Node *) createOpExpr("=",LIST_MAKE(quest,c));
+			Node *selCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(quest,c));
 
 			if(chkPos == 0)
 				curCond = selCond;

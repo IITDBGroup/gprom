@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * translator_dl.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel & seokki
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -75,10 +75,10 @@ translateParseDL(Node *q)
 	HashMap *props = copyObject(p->n.properties);
 
 //
-	
+
 	if(doSumm)
 		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
-	
+
     // check if ans exists
     if(ans != NULL)
     	provQ = TRUE;
@@ -120,7 +120,7 @@ translateParseDL(Node *q)
 		result = rewriteSummaryOutput(result, props, qType);
 		INFO_OP_LOG("translated DL model with summarization:\n", result);
 	}
-	
+
     return result;
 }
 
@@ -180,7 +180,7 @@ translateProgram(DLProgram *p)
 //                    TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
 //                    QueryOperator *op = (QueryOperator *) rel;
 //
-//        			Node *cond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(5)));
+//        			Node *cond = (Node *) createOpExpr(OPNAME_LE,LIST_MAKE(makeNode(RowNumExpr),createConstInt(5)));
 //        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
 //        			op->parents = singleton(sel);
 //        			op = (QueryOperator *) sel;
@@ -1122,7 +1122,7 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
         	AttributeReference *ar = (AttributeReference *) newA;
 
         	if(!searchListString(negBoolDone,ar->name))
-        		newA = (Node *) createOpExpr("not", LIST_MAKE(newA));
+        		newA = (Node *) createOpExpr(OPNAME_not, LIST_MAKE(newA));
 
         	/*
         	 *  only at first appearance, keep it as an operator expression for neg-bool
@@ -1254,7 +1254,7 @@ createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigA
                             getAttrDefByPos(l,lPos)->dataType);
                     rAr = createFullAttrReference(rName, 1, rPos, INVALID_ATTR,
                             getAttrDefByPos(r,rPos)->dataType);
-                    op = createOpExpr("=", LIST_MAKE(lAr,rAr));
+                    op = createOpExpr(OPNAME_EQ, LIST_MAKE(lAr,rAr));
 
                     if (result == NULL)
                         result = (Node *) op;
@@ -1281,7 +1281,7 @@ createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigA
 //                getAttrDefByPos(l,lPos)->dataType);
 //        rA = createFullAttrReference(rName, 1, rPos, INVALID_ATTR,
 //                getAttrDefByPos(r,rPos)->dataType);
-//        op = createOpExpr("=", LIST_MAKE(lA,rA));
+//        op = createOpExpr(OPNAME_EQ, LIST_MAKE(lA,rA));
 //
 //        if (result == NULL)
 //            result = (Node *) op;
@@ -1321,10 +1321,10 @@ createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTm
 
         if (isA(rightIn,Constant) && (CONST_IS_NULL(rightIn)))
         {
-            if (streq(d->opExpr->name,"="))
+            if (streq(d->opExpr->name,OPNAME_EQ))
                 newC = (Node *) createIsNullExpr(leftIn);
             else if (streq(d->opExpr->name,"!="))
-                newC = (Node *) createOpExpr("NOT", singleton(createIsNullExpr(leftIn)));
+                newC = (Node *) createOpExpr(OPNAME_NOT, singleton(createIsNullExpr(leftIn)));
         }
 
         if (result == NULL)
@@ -1463,7 +1463,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     			{
     				Node *comp;
     				AttributeDef *a = getAttrDefByPos(sdom,s);
-    				comp = (Node *) createOpExpr("=",
+    				comp = (Node *) createOpExpr(OPNAME_EQ,
     						LIST_MAKE(createFullAttrReference(strdup(a->attrName),
     								0, s, INVALID_ATTR, a->dataType),
     						copyObject(arg)));
@@ -1775,7 +1775,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 					{
 						Node *comp;
 						AttributeDef *a = getAttrDefByPos(sdom,s);
-						comp = (Node *) createOpExpr("=",
+						comp = (Node *) createOpExpr(OPNAME_EQ,
 								LIST_MAKE(createFullAttrReference(strdup(a->attrName),
 										0, s, INVALID_ATTR, a->dataType),
 								copyObject(arg)));
@@ -2074,7 +2074,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
             {
                 Node *comp;
                 AttributeDef *a = getAttrDefByPos(pInput,i);
-                comp = (Node *) createOpExpr("=",
+                comp = (Node *) createOpExpr(OPNAME_EQ,
                         LIST_MAKE(createFullAttrReference(strdup(a->attrName),
                                 0, i, INVALID_ATTR, a->dataType),
                         copyObject(arg)));
@@ -2108,7 +2108,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
                             Node *comp;
                             AttributeDef *aI = getAttrDefByPos(pInput,i);
                             AttributeDef *aJ = getAttrDefByPos(pInput,j);
-                            comp = (Node *) createOpExpr("=",
+                            comp = (Node *) createOpExpr(OPNAME_EQ,
                                     LIST_MAKE(createFullAttrReference(strdup(aI->attrName),
                                             0, i, INVALID_ATTR, aI->dataType),
                                             createFullAttrReference(strdup(aJ->attrName),
@@ -2484,7 +2484,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         {
             Node *comp;
             AttributeDef *a = getAttrDefByPos(pInput,i);
-            comp = (Node *) createOpExpr("=",
+            comp = (Node *) createOpExpr(OPNAME_EQ,
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName),
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
@@ -2519,7 +2519,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                         Node *comp;
                         AttributeDef *aI = getAttrDefByPos(pInput,i);
                         AttributeDef *aJ = getAttrDefByPos(pInput,j);
-                        comp = (Node *) createOpExpr("=",
+                        comp = (Node *) createOpExpr(OPNAME_EQ,
                                 LIST_MAKE(createFullAttrReference(strdup(aI->attrName),
                                         0, i, INVALID_ATTR, aI->dataType),
                                         createFullAttrReference(strdup(aJ->attrName),
@@ -2739,4 +2739,3 @@ adaptProjectionAttrRef (QueryOperator *o, void *context)
 
     return TRUE;
 }
-

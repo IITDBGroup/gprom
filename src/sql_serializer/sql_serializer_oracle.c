@@ -3,14 +3,14 @@
  * sql_serializer_oracle.c
  *
  *
- *		AUTHOR: lord_pretzel
+ *      AUTHOR: lord_pretzel
  *
  *
  *
  *-----------------------------------------------------------------------------
  */
 
-
+#include <stdio.h>
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
@@ -26,7 +26,6 @@
 
 #include "sql_serializer/sql_serializer_common.h"
 
-
 #define ORACLE_IDENT_LIMIT 30
 #define TEMP_VIEW_NAME_PATTERN "temp_view_%u"
 
@@ -34,6 +33,18 @@ typedef struct ReplaceNonOracleDTsContext {
     void *curOp;
     boolean inCond;
 } ReplaceNonOracleDTsContext;
+
+typedef struct FromAttrsContext {
+    List *fromAttrs;
+    List *fromAttrsList;
+} FromAttrsContext;
+
+typedef struct JoinStateFac {
+    JoinAttrRenameState *state;
+    FromAttrsContext *fac;
+} JoinStateFac;
+
+
 
 /* variables */
 static TemporaryViewMap *viewMap;
@@ -49,43 +60,47 @@ static boolean replaceNonOracleDTs (Node *node,
         ReplaceNonOracleDTsContext *context, void **partentPointer);
 
 
-static List *serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent);
-static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
-static List *serializeSetOperator (QueryOperator *q, StringInfo str);
+static List *serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac);
+static List *serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac);
+static List *serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac);
 
-static void serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs);
+static void serializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac);
 static void serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
-        int *curFromItem, int *attrOffset, List **fromAttrs);
+        int *curFromItem, int *attrOffset, FromAttrsContext *fac);
 static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
-        List** fromAttrs, int* attrOffset);
-static void serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
+        FromAttrsContext *fac, int* attrOffset);
+static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem);
-static void serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem, List** fromAttrs);
+static void serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem, FromAttrsContext *fac);
+static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
+        int* curFromItem, int* attrOffset, FromAttrsContext *fac);
 
-static void serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs);
-static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
 static void serializeLimit(StringInfo str, LimitOperator *q);
-
-static boolean updateAttributeNamesOracle(Node *node, List *fromAttrs);
+static void serializeOrder (OrderOperator *q, StringInfo order, FromAttrsContext *fac);
+static void serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac);
+static boolean updateAttributeNamesOracle(Node *node, FromAttrsContext *fac);
 static boolean updateAttributeNamesSimpleOracle(Node *node, List *attrNames);
 static boolean updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state);
 
 static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize);
+        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize);
 
-static char *oracleExprToSQLWithNamingScheme(Node *expr, int rOffset, List *fromAttrs);
-static boolean renameAttrsVisitor(Node *node, JoinAttrRenameState *state);
+static char *oracleExprToSQLWithNamingScheme(Node *expr, int rOffset, FromAttrsContext *fac);
+static boolean renameAttrsVisitor(Node *node,  JoinStateFac *jsf);
 
-static char *createAttrName(char *name, int fItem);
+static char *createAttrName(char *name, int fItem, FromAttrsContext *fac);
 //static char *createFromNames(int *attrOffset, int count);
 
-static List *createTempView(QueryOperator *q, StringInfo str, QueryOperator *parent);
+static List *createTempView(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac);
 static char *createViewName(void);
 static boolean shortenAttributeNames(QueryOperator *q, void *context);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
 
-
+//for nesting
+static FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
+static void printFromAttrsContext(FromAttrsContext *fac);
+static FromAttrsContext *initializeFromAttrsContext ();
 
 char *
 serializeOperatorModelOracle(Node *q)
@@ -188,7 +203,19 @@ fixAttrReferences (QueryOperator *q)
 
     FOREACH(AttributeReference, a, attRefs)
     {
-        QueryOperator *child = getNthOfListP(q->inputs, a->fromClauseItem);
+        //QueryOperator *child = getNthOfListP(q->inputs, a->fromClauseItem);
+        QueryOperator *child = NULL;
+        if(a->outerLevelsUp > 0)
+        {
+                int levelsUp = a->outerLevelsUp;
+                QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(q, levelsUp);
+                child = getNthOfListP(nestingOp->inputs, a->fromClauseItem);
+        }
+        else
+                child = getNthOfListP(q->inputs, a->fromClauseItem);
+
+
+
         char *newName = getAttrNameByPos(child,a->attrPosition);
         if (!streq(newName, a->name))
             a->name = strdup(newName);
@@ -231,6 +258,70 @@ quoteAttributeNames (Node *node, void *context)
 }
 
 
+FromAttrsContext *
+initializeFromAttrsContext ()
+{
+    struct FromAttrsContext *fac;
+    fac =  CALLOC(sizeof(FromAttrsContext),1);
+    fac->fromAttrsList = NIL;
+    fac->fromAttrs = NIL;
+
+    return fac;
+}
+
+FromAttrsContext *
+copyFromAttrsContext(FromAttrsContext *fac)
+{
+    struct FromAttrsContext *result;
+    result =  CALLOC(sizeof(FromAttrsContext),1);
+    result->fromAttrsList = copyList(fac->fromAttrsList);
+    result->fromAttrs = copyList(fac->fromAttrs);
+
+    return result;
+}
+
+void
+printFromAttrsContext(FromAttrsContext *fac)
+{
+     DEBUG_LOG("FromAttrsContext:");
+     if(fac->fromAttrsList != NIL)
+     {
+     StringInfo s1 = makeStringInfo();
+     appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
+     FOREACH(List, l1, fac->fromAttrsList)
+     {
+         FOREACH(List, l2, l1)
+        {
+            appendStringInfo(s1, "(");
+             FOREACH(char, c, l2)
+                appendStringInfo(s1, " %s ", c);
+                 //DEBUG_LOG("%s",c);
+            appendStringInfo(s1, ")");
+        }
+        appendStringInfo(s1, " , ");
+     }
+     DEBUG_LOG(" %s ", s1->data);
+     }
+     else
+             DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
+
+     if(fac->fromAttrs != NIL)
+     {
+     StringInfo s2 = makeStringInfo();
+     appendStringInfo(s2,"Len: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
+     FOREACH(List, l1, fac->fromAttrs)
+     {
+            appendStringInfo(s2, "(");
+         FOREACH(char, c, l1)
+             appendStringInfo(s2, " %s ", c);
+        appendStringInfo(s2, ")");
+     }
+     DEBUG_LOG(" %s ", s2->data);
+     }
+     else
+         DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
+}
+
 char *
 serializeQueryOracle(QueryOperator *q)
 {
@@ -250,8 +341,11 @@ serializeQueryOracle(QueryOperator *q)
     // simulate non Oracle conformant data types and expressions (boolean)
     makeDTOracleConformant(q);
 
+    // initialize FromAttrsContext structure
+    struct FromAttrsContext *fac = initializeFromAttrsContext();
+
     // call main entry point for translation
-    serializeQueryOperator (q, str, NULL);
+    serializeQueryOperator (q, str, NULL, fac);
 
     /*
      *  prepend the temporary view definition to create something like
@@ -344,13 +438,13 @@ replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **par
             if (context->inCond)
             {
                 if (isNull)
-                    *partentPointer = createOpExpr("=",
+                    *partentPointer = createOpExpr(OPNAME_EQ,
                         LIST_MAKE(createConstInt(1),createNullConst(DT_INT)));
                 else if (val)
-                    *partentPointer = createOpExpr("=",
+                    *partentPointer = createOpExpr(OPNAME_EQ,
                             LIST_MAKE(createConstInt(1),createConstInt(1)));
                 else
-                    *partentPointer = createOpExpr("=",
+                    *partentPointer = createOpExpr(OPNAME_EQ,
                             LIST_MAKE(createConstInt(1),createConstInt(0)));
             }
 
@@ -369,22 +463,22 @@ replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **par
  * Main entry point for serialization.
  */
 static List *
-serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent)
+serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac)
 {
     // operator with multiple parents
     if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
-        return createTempView (q, str, parent);
+        return createTempView (q, str, parent, fac);
     else if (isA(q, SetOperator))
-        return serializeSetOperator(q, str);
+        return serializeSetOperator(q, str, fac);
     else
-        return serializeQueryBlock(q, str);
+        return serializeQueryBlock(q, str, fac);
 }
 
 /*
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
 static List *
-serializeQueryBlock (QueryOperator *q, StringInfo str)
+serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
     StringInfo fromString = makeStringInfo();
@@ -437,8 +531,8 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             /* START state */
             case MATCH_START:
             case MATCH_DISTINCT:
+            case MATCH_LIMIT:
             case MATCH_ORDER:
-		    case MATCH_LIMIT:
             {
                 switch(cur->type)
                 {
@@ -481,7 +575,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                     }
                     break;
                     case T_DuplicateRemoval:
-                        if (state == MATCH_START || state == MATCH_ORDER || state == MATCH_LIMIT)
+                        if (state == MATCH_START || state == MATCH_ORDER)
                         {
                             matchInfo->distinct = (DuplicateRemoval *) cur;
                             state = MATCH_DISTINCT;
@@ -493,21 +587,9 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                         }
                         break;
                     case T_OrderOperator:
-                        if (state == MATCH_START || state == MATCH_LIMIT)
-                        {
-                            matchInfo->orderBy = (OrderOperator *) cur;
-                            state = MATCH_ORDER;
-                        }
-                        else
-                        {
-                            matchInfo->fromRoot = cur;
-                            state = MATCH_NEXTBLOCK;
-                        }
-                        break;
-                    case T_LimitOperator:
                         if (state == MATCH_START)
                         {
-                            matchInfo->limitOffset = (LimitOperator *) cur;
+                            matchInfo->orderBy = (OrderOperator *) cur;
                             state = MATCH_ORDER;
                         }
                         else
@@ -662,20 +744,31 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
-    List *fromAttrs = NIL;
-    serializeFrom(matchInfo->fromRoot, fromString, &fromAttrs);
+
+    //sine want to use fac->fromAttrs as a local variable in serializeFrom
+    FromAttrsContext *cfac = copyFromAttrsContext(fac);
+    cfac->fromAttrs = NIL;
+    serializeFrom(matchInfo->fromRoot, fromString, cfac);
+    printFromAttrsContext(cfac);
+
 
     DEBUG_LOG("serializeWhere");
+//    if(matchInfo->where != NULL) //old version
+//         serializeWhere(matchInfo->where, whereString, fromAttrs);
     if(matchInfo->where != NULL)
-        serializeWhere(matchInfo->where, whereString, fromAttrs);
+        serializeWhere(matchInfo->where, whereString, cfac);
 
     DEBUG_LOG("serialize projection + aggregation + groupBy +  having + window functions");
     serializeProjectionAndAggregation(matchInfo, selectString, havingString,
-            groupByString, fromAttrs, topMaterialize);
+            groupByString, cfac, topMaterialize);
 
     DEBUG_LOG("serializeOrder");
     if(matchInfo->orderBy != NULL)
-        serializeOrder(matchInfo->orderBy, orderString, fromAttrs);
+        serializeOrder(matchInfo->orderBy, orderString, cfac);
+
+    //remove unnecessary list in fac->fromAttrsList after this list was used,
+    //e.g., (((C,D)) ((A,B) (nesting_eval_1))), ((C,D)) will be removed
+    fac->fromAttrsList = removeFromHead(cfac->fromAttrsList);
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
@@ -725,65 +818,64 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
  * Translate a FROM clause
  */
 static void
-serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs)
+serializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac)
 {
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    serializeFromItem (q, q, from, &curFromItem, &attrOffset, fromAttrs);
+    serializeFromItem (q, q, from, &curFromItem, &attrOffset, fac);
 }
 
 static void
 ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedcount)
 {
-	if(col->forOrdinality)
-	{
-		appendStringInfoString(*from, col->forOrdinality);
-		DEBUG_LOG("for Ordinality: %s", col->forOrdinality);
-		appendStringInfoString(*from, " FOR ORDINALITY,");
-	}
+    if(col->forOrdinality)
+    {
+        appendStringInfoString(*from, col->forOrdinality);
+        DEBUG_LOG("for Ordinality: %s", col->forOrdinality);
+        appendStringInfoString(*from, " FOR ORDINALITY,");
+    }
 
-	FOREACH(JsonColInfoItem, col1, col->nested)
-	{
-		if (col1->nested)
-		{
-			(*nestedcount) ++;
+    FOREACH(JsonColInfoItem, col1, col->nested)
+    {
+        if (col1->nested)
+        {
+            (*nestedcount) ++;
 
-			appendStringInfoString(*from, " NESTED PATH");
-			appendStringInfo(*from, " '%s'", col1->path);
-			appendStringInfoString(*from, " COLUMNS");
-			appendStringInfoString(*from, "(");
+            appendStringInfoString(*from, " NESTED PATH");
+            appendStringInfo(*from, " '%s'", col1->path);
+            appendStringInfoString(*from, " COLUMNS");
+            appendStringInfoString(*from, "(");
 
-			ConstructNestedJsonColItems(col1, from, nestedcount);
-		}
-		else
-		{
-			appendStringInfo(*from, "%s", col1->attrName);
-			appendStringInfo(*from, " %s", col1->attrType);
+            ConstructNestedJsonColItems(col1, from, nestedcount);
+        }
+        else
+        {
+            appendStringInfo(*from, "%s", col1->attrName);
+            appendStringInfo(*from, " %s", col1->attrType);
 
-			if (col1->format)
-			{
-				appendStringInfoString(*from, " FORMAT");
-				appendStringInfo(*from, " %s", col1->format);
-			}
-			if (col1->wrapper)
-			{
-				appendStringInfo(*from, " %s", col1->wrapper);
-				appendStringInfo(*from, " WRAPPER");
-			}
-			appendStringInfoString(*from, " PATH");
-			appendStringInfo(*from, " '%s'", col1->path);
-			appendStringInfoString(*from, ",");
-		}
-	}
+            if (col1->format)
+            {
+                appendStringInfoString(*from, " FORMAT");
+                appendStringInfo(*from, " %s", col1->format);
+            }
+            if (col1->wrapper)
+            {
+                appendStringInfo(*from, " %s", col1->wrapper);
+                appendStringInfo(*from, " WRAPPER");
+            }
+            appendStringInfoString(*from, " PATH");
+            appendStringInfo(*from, " '%s'", col1->path);
+            appendStringInfoString(*from, ",");
+        }
+    }
 }
 
 static void
 serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
-        List** fromAttrs, int* attrOffset)
+        FromAttrsContext *fac, int* attrOffset)
 {
     char* asOf = NULL;
-
     // use history join to prefilter updated rows
     if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
     {
@@ -836,7 +928,8 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
                     (*curFromItem)++);
         }
-        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+        fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     }
     else
     {
@@ -866,42 +959,46 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 //        // add SAMPLE clause
 //        char* samp = NULL;
 //        if (t->sampClause)
-//        	samp = CONCAT_STRINGS(" SAMPLE(", exprToSQL(t->sampClause), ")");
+//          samp = CONCAT_STRINGS(" SAMPLE(", exprToSQL(t->sampClause), ")");
 
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
-        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-
+        fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+        DEBUG_LOG("table access append fac->fromAttrsList");
+        //append fromAttrs into fromAttrsList, e.g., fromAttrs: ((A,B)), fromAttrsList: ( ((A,B)) )
+        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+        printFromAttrsContext(fac);
         //for temporal database coalesce
         if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
         {
             QueryOperator *inp = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(t,PROP_TEMP_TNTAB));
             StringInfo tabName = makeStringInfo();
             QueryOperator *inpParent = (QueryOperator *) getHeadOfListP(inp->parents);
-            createTempView(inp, tabName,inpParent);
+            createTempView(inp, tabName,inpParent, fac);
             appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s)))) F%u)",
-            		tabName->data, (*curFromItem)++);
+                    tabName->data, (*curFromItem)++);
 //            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0))) F%u)",
-//            		tabName->data, (*curFromItem)++);
+//                  tabName->data, (*curFromItem)++);
         }
         else
         {
-        	appendStringInfo(from, "(%s%s F%u)",
-        			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-        					(*curFromItem)++);
+            appendStringInfo(from, "(%s%s F%u_%u)",
+                quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+                        (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
         }
     }
 }
 
 
 void
-serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem, List** fromAttrs)
+serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem, FromAttrsContext *fac)
 {
 	char* samp = NULL;
 	if (s->sampPerc)
 		samp = CONCAT_STRINGS(" ", s->op.schema->name, "(", exprToSQL(s->sampPerc, NULL), ")");
 
-	List* attrNames = getAttrNames(((QueryOperator*) s)->schema);
-    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    List* attrNames = getAttrNames(((QueryOperator*) s)->schema);
+    fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
 
     TableAccessOperator *t = (TableAccessOperator *) getHeadOfListP(s->op.inputs);
     char *tableName = t->tableName;
@@ -913,13 +1010,16 @@ serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem
 
 void
 serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
-        int* curFromItem, int* attrOffset, List** fromAttrs)
+        int* curFromItem, int* attrOffset, FromAttrsContext *fac)
 {
     int rOffset;
     appendStringInfoString(from, "(");
     //left child
     serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset,
-            fromAttrs);
+            fac);
+
+    fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+
     // join
     switch (j->joinType)
     {
@@ -942,23 +1042,24 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
     // right child
     rOffset = *curFromItem;
     serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset,
-            fromAttrs);
+            fac);
     // join condition
     if (j->cond)
         appendStringInfo(from, " ON (%s)",
                 oracleExprToSQLWithNamingScheme(copyObject(j->cond), rOffset,
-                        *fromAttrs));
+                        fac));
 
     appendStringInfoString(from, ")");
 }
 
 static void
-serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
+serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem)
 {
     int pos = 0;
     List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
-    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     appendStringInfoString(from, "(SELECT ");
     FOREACH(char,attrName,attrNames)
     {
@@ -974,7 +1075,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
 
 static void
 serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
-        int *attrOffset, List **fromAttrs)
+        int *attrOffset, FromAttrsContext *fac)
 {
     // if operator has more than one parent then it will be represented as a CTE
     // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
@@ -987,135 +1088,150 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             {
                 JoinOperator *j = (JoinOperator *) q;
                 serializeJoinOperator(from, fromRoot, j, curFromItem,
-                        attrOffset, fromAttrs);
+                        attrOffset, fac);
             }
             break;
             // JSON TABLE OPERATOR
             case T_JsonTableOperator:
             {
-            	JsonTableOperator *jt = (JsonTableOperator *) q;
+                JsonTableOperator *jt = (JsonTableOperator *) q;
 
-            	QueryOperator *child = OP_LCHILD(jt);
-            	// Serialize left child
-            	serializeFromItem(fromRoot, child, from, curFromItem, attrOffset, fromAttrs);
+                QueryOperator *child = OP_LCHILD(jt);
+                // Serialize left child
+                serializeFromItem(fromRoot, child, from, curFromItem, attrOffset, fac);
 
-            	// TODO  Get the attributes of JSON TABLE operator
-            	List *jsonAttrNames = getAttrNames(((QueryOperator *) jt)->schema);
+                // TODO  Get the attributes of JSON TABLE operator
+                List *jsonAttrNames = getAttrNames(((QueryOperator *) jt)->schema);
 
-            	// Get attributes of child
-            	List *childAttrNames = getAttrNames(((QueryOperator *) child)->schema);
+                // Get attributes of child
+                List *childAttrNames = getAttrNames(((QueryOperator *) child)->schema);
 
-            	// Remove childAttrNames from jsonAttrNames for
-            	// updateAttributeNames to work correctly and identify the
-            	// correct fromclause item
-            	List *attrNames = NIL;
-            	boolean flag = FALSE;
+                // Remove childAttrNames from jsonAttrNames for
+                // updateAttributeNames to work correctly and identify the
+                // correct fromclause item
+                List *attrNames = NIL;
+                boolean flag = FALSE;
 
-            	FOREACH(char, jsonAttr, jsonAttrNames)
-            	{
-            		flag = FALSE;
-            		FOREACH(char, childAttr, childAttrNames)
-            		{
-            			if(streq(childAttr, jsonAttr))
-            			{
-            				flag = TRUE;
-            				break;
-            			}
-            		}
-            		if(flag == FALSE)
-            		{
-            			attrNames = appendToTailOfList(attrNames, strdup(jsonAttr));
-            		}
-            	}
+                FOREACH(char, jsonAttr, jsonAttrNames)
+                {
+                    flag = FALSE;
+                    FOREACH(char, childAttr, childAttrNames)
+                    {
+                        if(streq(childAttr, jsonAttr))
+                        {
+                            flag = TRUE;
+                            break;
+                        }
+                    }
+                    if(flag == FALSE)
+                    {
+                        attrNames = appendToTailOfList(attrNames, strdup(jsonAttr));
+                    }
+                }
 
-            	// Add it to list of fromAttrs
-            	*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+                // Add it to list of fromAttrs
+                fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
 
-            	appendStringInfoString(from, ",");
-            	appendStringInfo(from, " JSON_TABLE");
-            	appendStringInfoString(from, "(");
+            fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+            printFromAttrsContext(fac);
+                appendStringInfoString(from, ",");
+                appendStringInfo(from, " JSON_TABLE");
+                appendStringInfoString(from, "(");
 
-            	// Call updateAtrrNames on jsonColumn and then serialize
-            	updateAttributeNamesOracle((Node*)jt->jsonColumn, *fromAttrs);
+                // Call updateAtrrNames on jsonColumn and then serialize
+                updateAttributeNamesOracle((Node*)jt->jsonColumn, fac);
 
-            	appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn, NULL));
-            	appendStringInfoString(from, ",");
-            	appendStringInfo(from, " '%s'", jt->documentcontext);
-            	appendStringInfoString(from, " COLUMNS");
-            	appendStringInfoString(from, "(");
+                appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn, NULL));
+                appendStringInfoString(from, ",");
+                appendStringInfo(from, " '%s'", jt->documentcontext);
+                appendStringInfoString(from, " COLUMNS");
+                appendStringInfoString(from, "(");
 
-    			if(jt->forOrdinality)
-    			{
-    				appendStringInfoString(from, jt->forOrdinality);
-    				appendStringInfoString(from, " FOR ORDINALITY, ");
-    			}
+                if(jt->forOrdinality)
+                {
+                    appendStringInfoString(from, jt->forOrdinality);
+                    appendStringInfoString(from, " FOR ORDINALITY, ");
+                }
 
-            	int nestedcount = 0;
-            	FOREACH(JsonColInfoItem, col, jt->columns)
-            	{
-            		if (col->nested)
-            		{
-//            			if(col->forOrdinality)
-//            			{
-//            				appendStringInfoString(from, col->forOrdinality);
-//            				appendStringInfoString(from, " FOR ORDINALITY, ");
-//            			}
+                int nestedcount = 0;
+                FOREACH(JsonColInfoItem, col, jt->columns)
+                {
+                    if (col->nested)
+                    {
+//                      if(col->forOrdinality)
+//                      {
+//                          appendStringInfoString(from, col->forOrdinality);
+//                          appendStringInfoString(from, " FOR ORDINALITY, ");
+//                      }
 
-            			if (nestedcount++ > 0)
-            				appendStringInfoString(from, ",");
+                        if (nestedcount++ > 0)
+                            appendStringInfoString(from, ",");
 
-            			appendStringInfoString(from, " NESTED PATH");
-            			appendStringInfo(from, " '%s'", col->path);
-            			appendStringInfoString(from, " COLUMNS");
-            			appendStringInfoString(from, "(");
+                        appendStringInfoString(from, " NESTED PATH");
+                        appendStringInfo(from, " '%s'", col->path);
+                        appendStringInfoString(from, " COLUMNS");
+                        appendStringInfoString(from, "(");
 
-            			ConstructNestedJsonColItems (col,&from,&nestedcount);
+                        ConstructNestedJsonColItems (col,&from,&nestedcount);
 
-            		}
-            		else
-            		{
-            			appendStringInfo(from, "%s", col->attrName);
-            			appendStringInfo(from, " %s", col->attrType);
+                    }
+                    else
+                    {
+                        appendStringInfo(from, "%s", col->attrName);
+                        appendStringInfo(from, " %s", col->attrType);
 
-            			if (col->format)
-            			{
-            				appendStringInfoString(from, " FORMAT");
-            				appendStringInfo(from, " %s", col->format);
-            			}
-            			if (col->wrapper)
-            			{
-            				appendStringInfo(from, " %s", col->wrapper);
-            				appendStringInfo(from, " WRAPPER");
-            			}
-            			appendStringInfoString(from, " PATH");
-            			appendStringInfo(from, " '%s'", col->path);
-            			appendStringInfoString(from, ",");
-            		}
-            	}
+                        if (col->format)
+                        {
+                            appendStringInfoString(from, " FORMAT");
+                            appendStringInfo(from, " %s", col->format);
+                        }
+                        if (col->wrapper)
+                        {
+                            appendStringInfo(from, " %s", col->wrapper);
+                            appendStringInfo(from, " WRAPPER");
+                        }
+                        appendStringInfoString(from, " PATH");
+                        appendStringInfo(from, " '%s'", col->path);
+                        appendStringInfoString(from, ",");
+                    }
+                }
 
-            	// Remove the last unnecessary comma
-            	from->data[from->len - 1] = ' ';
-            	appendStringInfoString(from, ")");
-            	appendStringInfoString(from, ")");
+                // Remove the last unnecessary comma
+                from->data[from->len - 1] = ' ';
+                appendStringInfoString(from, ")");
+                appendStringInfoString(from, ")");
 
-            	for(int i=0; i<nestedcount; i++)
-            		appendStringInfoString(from, ")");
-//            	appendStringInfoString(from, " AS ");
-            	appendStringInfo(from, " F%u", (*curFromItem)++);
+                for(int i=0; i<nestedcount; i++)
+                    appendStringInfoString(from, ")");
+//              appendStringInfoString(from, " AS ");
+                appendStringInfo(from, " F%u", (*curFromItem)++);
             }
             break;
             case T_NestingOperator:
             {
                 NestingOperator *no = (NestingOperator *) q;
+
                 char *subAttr = getTailOfListP(getQueryOperatorAttrNames(q));
                 QueryOperator *input = OP_LCHILD(no);
                 QueryOperator *subquery = OP_RCHILD(no);
+                List *subqueryNames = getQueryOperatorAttrNames(subquery);
+
                 // Serialize input
-                serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fromAttrs);
+                serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fac);
 
                 // Add it to list of fromAttrs
-                *fromAttrs = appendToTailOfList(*fromAttrs, LIST_MAKE(strdup(subAttr)));
+                //fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr))); //old
+                if(no->nestingType == NESTQ_LATERAL)
+                        fac->fromAttrs = appendToTailOfList(fac->fromAttrs, subqueryNames);
+                else
+                        fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr)));
 
+                //fromAttrsList: ( ((C,D)) , ((A,B), (nesting)) ) -> format: (L1, L2)
+                //here (((A,B))) -> (((A,B), (nesting_eval_1)))
+                fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+                fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+                printFromAttrsContext(fac);
                 // create lateral subquery for nested subquery
                 //TODO only necessary if correlation is used
                 //TODO correlated attributes would not work unless we do more bookkeeping and make sure from clause aliases are different in the nested subquery translation
@@ -1128,24 +1244,24 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                    case NESTQ_EXISTS:
                    {
                        appendStringInfo(from, "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS %s FROM (", strdup(subAttr));
-                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
-                       appendStringInfoString(from, ") F0");
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
+                       appendStringInfoString(from, ") F0_0");
                    }
                    break;
                    case NESTQ_ANY:
                    {
                        char *expr = exprToSQL(no->cond, NULL);
                        appendStringInfo(from, "SELECT MAX(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
-                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
-                       appendStringInfoString(from, ") F0");
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
+                       appendStringInfoString(from, ") F0_0");
                    }
                    break;
                    case NESTQ_ALL:
                    {
                        char *expr = exprToSQL(no->cond, NULL);
                        appendStringInfo(from, "SELECT MIN(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
-                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
-                       appendStringInfoString(from, ") F0");
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
+                       appendStringInfoString(from, ") F0_0");
                    }
                    break;
                    case NESTQ_UNIQUE:
@@ -1159,53 +1275,63 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                        appendStringInfo(from, "SELECT CASE WHEN max(multip) > 0 THEN 1 ELSE 0 END AS %s FROM ("
                                " SELECT count(*) OVER (PARTITION BY %s) AS multip FROM (", strdup(subAttr), attrRef);
 
-                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
-                       appendStringInfoString(from, ") F0) F0");
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
+                       appendStringInfoString(from, ") F0_0) F0_0");
                    }
                    break;
                    case NESTQ_SCALAR:
                    {
                        AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
                        a->attrName = strdup(subAttr);
-                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
+                   }
+                   break;
+                   case NESTQ_LATERAL:
+                   {
+                       AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
+                       a->attrName = strdup(subAttr);
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no, fac);
                    }
                    break;
                 }
 
                 appendStringInfoString(from, ")");
-                appendStringInfo(from, " F%u", (*curFromItem)++);
+                appendStringInfo(from, " F%u_0", (*curFromItem)++);
+                //appendStringInfo(from, " F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
             }
             break;
             // Table Access
             case T_TableAccessOperator:
             {
-            	TableAccessOperator *t = (TableAccessOperator *) q;
-                serializeTableAccess(from, t, curFromItem, fromAttrs,
+                TableAccessOperator *t = (TableAccessOperator *) q;
+                serializeTableAccess(from, t, curFromItem, fac,
                         attrOffset);
             }
             break;
             // Sample Clause
             case T_SampleClauseOperator:
             {
-            	SampleClauseOperator *s = (SampleClauseOperator *) q;
-            	serializeSampleClause(from, s, curFromItem, fromAttrs);
+                SampleClauseOperator *s = (SampleClauseOperator *) q;
+                serializeSampleClause(from, s, curFromItem, fac);
             }
             break;
             // A constant relation, turn into (SELECT ... FROM dual) subquery
             case T_ConstRelOperator:
             {
                 ConstRelOperator *t = (ConstRelOperator *) q;
-                serializeConstRel(from, t, fromAttrs, curFromItem);
+                serializeConstRel(from, t, fac, curFromItem);
             }
             break;
             default:
             {
                 List *attrNames;
-
                 appendStringInfoString(from, "((");
-                attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0)); //TODO ok to use first?
-                *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                appendStringInfo(from, ") F%u)", (*curFromItem)++);
+                attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
+                fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+                //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+                fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+                printFromAttrsContext(fac);
+                appendStringInfo(from, ") F%u_%u)", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
             }
             break;
         }
@@ -1217,29 +1343,39 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             List *attrNames;
 
             appendStringInfoString(from, "((");
-            attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0)); //TODO ok to use first?
-            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+            attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
+            fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+            //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
             appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
     }
 }
 
 static char *
-oracleExprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
+oracleExprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac)
 {
     JoinAttrRenameState *state = NEW(JoinAttrRenameState);
 
     state->rightFromOffsets = rOffset;
-    state->fromAttrs = fromAttrs;
-    renameAttrsVisitor(expr, state);
+    state->fromAttrs = fac->fromAttrs;
+
+    JoinStateFac *jsf = NEW(JoinStateFac);
+    jsf->fac = fac;
+    jsf->state = state;
+
+    renameAttrsVisitor(expr, jsf);
 
     FREE(state);
     return exprToSQL(expr, NULL);
 }
 
 static boolean
-renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
+renameAttrsVisitor (Node *node, JoinStateFac *jsf)
 {
+    JoinAttrRenameState *state = jsf->state;
+    FromAttrsContext *fac = jsf->fac;
+
     if (node == NULL)
         return TRUE;
 
@@ -1276,12 +1412,12 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
         pos = a->attrPosition - pos + LIST_LENGTH(from);
         name = getNthOfListP(from, pos);
 
-        a->name = createAttrName(name, fPos);
+        a->name = createAttrName(name, fPos, fac);
 
         return TRUE;
     }
 
-    return visit(node, renameAttrsVisitor, state);
+    return visit(node, renameAttrsVisitor, jsf);
 }
 
 //static char *
@@ -1302,12 +1438,14 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 //}
 
 static char *
-createAttrName (char *name, int fItem)
+createAttrName (char *name, int fItem, FromAttrsContext *fac)
 {
    StringInfo str = makeStringInfo();
    char *result = NULL;
 
-   appendStringInfo(str, "F%u.%s", fItem, name);
+   appendStringInfo(str, "F%u_%u.%s", fItem, LIST_LENGTH(fac->fromAttrsList) - 1, name);
+   //appendStringInfo(str, "F%u_0.%s", fItem, name);
+
    result = str->data;
    FREE(str);
 
@@ -1318,10 +1456,10 @@ createAttrName (char *name, int fItem)
  * Translate a order expr into a ORDER BY clause
  */
 static void
-serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs)
+serializeOrder (OrderOperator *q, StringInfo order, FromAttrsContext *fac)
 {
     appendStringInfoString(order, "\nORDER BY ");
-    updateAttributeNamesOracle((Node *) q->orderExprs, (List *) fromAttrs);
+    updateAttributeNamesOracle((Node *) q->orderExprs, fac);
 
     char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
@@ -1355,15 +1493,16 @@ serializeLimit(StringInfo str, LimitOperator *q)
  * Translate a selection into a WHERE clause
  */
 static void
-serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
+serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac)
 {
     appendStringInfoString(where, "\nWHERE ");
-    updateAttributeNamesOracle((Node *) q->cond, (List *) fromAttrs);
+    //updateAttributeNamesOracle((Node *) q->cond, (List *) fromAttrs); //old version which uses fromAttrs
+    updateAttributeNamesOracle((Node *) q->cond, fac);
     appendStringInfoString(where, exprToSQL(q->cond, NULL));
 }
 
 static boolean
-updateAttributeNamesOracle(Node *node, List *fromAttrs)
+updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
 {
     if (node == NULL)
         return TRUE;
@@ -1375,24 +1514,73 @@ updateAttributeNamesOracle(Node *node, List *fromAttrs)
         List *outer = NIL;
         int fromItem = -1;
         int attrPos = 0;
+        //int count = 0;
 
-        // LOOP THROUGH fromItems (outer list)
-        FOREACH(List, attrs, fromAttrs)
-        {
-            attrPos += LIST_LENGTH(attrs);
-            fromItem++;
-            if (attrPos > a->attrPosition)
+//old version
+//              // LOOP THROUGH fromItems (outer list)
+//              FOREACH(List, attrs, fac->fromAttrs)
+//              {
+//                  attrPos += LIST_LENGTH(attrs);
+//                  fromItem++;
+//                  if (attrPos > a->attrPosition)
+//                  {
+//                      outer = attrs;
+//                      break;
+//                  }
+//              }
+        //printFromAttrsContext(fac);
+            List *attrsList = NIL;
+            if(a->outerLevelsUp >= 0)
+                    attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp);
+            else
+                    attrsList = (List *) getNthOfListP(fac->fromAttrsList, 0);
+
+            FOREACH(List, attrs, attrsList)
             {
-                outer = attrs;
-                break;
+                    attrPos += LIST_LENGTH(attrs);
+                    fromItem++;
+                    if (attrPos > a->attrPosition)
+                    {
+                        outer = attrs;
+                        break;
+                    }
             }
-        }
+
+// stable version
+//              // LOOP THROUGH all fromItems (outer list)
+//              FOREACH(List, attrsList, fac->fromAttrsList)
+//              {
+//                  attrPos = 0;
+//                  fromItem = -1;
+//
+//                  if(a->outerLevelsUp == count || a->outerLevelsUp == -1)
+//                  {
+//                      FOREACH(List, attrs, attrsList)
+//                      {
+//                          attrPos += LIST_LENGTH(attrs);
+//                          fromItem++;
+//                          if (attrPos > a->attrPosition)
+//                          {
+//                              outer = attrs;
+//                              break;
+//                          }
+//                      }
+//                      if(outer != NIL)
+//                          break;
+//                  }
+//                  count ++;
+//              }
+
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
-        a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
+
+        if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
+                a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-1) , ".", newName);
+        else
+                a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
     }
 
-    return visit(node, updateAttributeNamesOracle, fromAttrs);
+    return visit(node, updateAttributeNamesOracle, fac);
 }
 
 static boolean
@@ -1452,7 +1640,7 @@ updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state)
  */
 static List *
 serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize)
+        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize)
 {
     int pos = 0;
     List *firstProjs = NIL;
@@ -1480,13 +1668,12 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         FOREACH(Node,n,m->secondProj->projExprs)
         {
-            updateAttributeNamesOracle(n, fromAttrs);
-            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL)); //TODO
+            updateAttributeNamesOracle(n, fac);
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
     }
-
 
     // aggregation if need be
     if (agg != NULL)
@@ -1496,7 +1683,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         // aggregation
         FOREACH(Node,expr,agg->aggrs)
         {
-            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
@@ -1514,7 +1701,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             else
                 appendStringInfoString (groupBy, ", ");
 
-            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
@@ -1548,14 +1735,14 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
 																	(WindowOperator *) curOp), NULL));
 
-            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->partitionBy, fromAttrs, firstProjs);
-            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->orderBy, fromAttrs, firstProjs);
-            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->frameDef, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->partitionBy, fac, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->orderBy, fac, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
 
             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
 																  (WindowOperator *) curOp), NULL));
@@ -1603,34 +1790,34 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(Node,n,p->projExprs)
         {
             if(isA(n,Operator))
-        	{
-            	Operator *o = (Operator *) n;
-            	Node *dv = (Node *) getHeadOfListP(o->args);
+            {
+                Operator *o = (Operator *) n;
+                Node *dv = (Node *) getHeadOfListP(o->args);
 
-            	// instead of having DLVar here, check the operator for neg-bool by length
-            	if(LIST_LENGTH(o->args) == 1)
-            	{
-        			Node *cond = (Node *) createConstInt(0);
-        			Node *then = (Node *) createConstInt(1);
-        			Node *els = (Node *) createConstInt(0);
+                // instead of having DLVar here, check the operator for neg-bool by length
+                if(LIST_LENGTH(o->args) == 1)
+                {
+                    Node *cond = (Node *) createConstInt(0);
+                    Node *then = (Node *) createConstInt(1);
+                    Node *els = (Node *) createConstInt(0);
 
-        			CaseWhen *caseWhen = createCaseWhen(cond, then);
-        			caseExpr = createCaseExpr(dv, singleton(caseWhen), els);
-            	}
-        	}
+                    CaseWhen *caseWhen = createCaseWhen(cond, then);
+                    caseExpr = createCaseExpr(dv, singleton(caseWhen), els);
+                }
+            }
             else
-            	newProjExprs = appendToTailOfList(newProjExprs,n);
+                newProjExprs = appendToTailOfList(newProjExprs,n);
         }
 
         if(caseExpr != NULL)
         {
-        	newProjExprs = appendToTailOfList(newProjExprs,caseExpr);
-        	p->projExprs = newProjExprs;
+            newProjExprs = appendToTailOfList(newProjExprs,caseExpr);
+            p->projExprs = newProjExprs;
         }
 
         FOREACH(Node,a,p->projExprs)
         {
-        	char *attrName = (char *) getNthOfListP(attrNames, pos);
+                char *attrName = (char *) getNthOfListP(attrNames, pos);
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
 
@@ -1642,8 +1829,9 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 updateAggsAndGroupByAttrsOracle(a, state);
             // is projection in query without aggregation
             else
-                updateAttributeNamesOracle(a, fromAttrs);
-            appendStringInfo(select, "%s%s", exprToSQL(a,NULL), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+                updateAttributeNamesOracle(a, fac);
+
+            appendStringInfo(select, "%s%s", exprToSQL(a, NULL), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
         resultAttrs = attrNames;
@@ -1699,10 +1887,10 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         // attribute aliases are determined by the fromRoot operator's schema
         resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
         // construct list of from clause attribute names with from clause item aliases
-        FOREACH(List, attrs, fromAttrs)
+        FOREACH(List, attrs, fac->fromAttrs)
         {
             FOREACH(char,name,attrs)
-                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name));
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList) - 1), ".", name));
             fromItem++;
         }
 
@@ -1728,13 +1916,13 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
  * Serialize a set operation UNION/MINUS/INTERSECT
  */
 static List *
-serializeSetOperator (QueryOperator *q, StringInfo str)
+serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
 {
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
 
     // output left child
-    WITH_PARENS(str,resultAttrs = serializeQueryOperator(OP_LCHILD(q), str, q));
+    WITH_PARENS(str,resultAttrs = serializeQueryOperator(OP_LCHILD(q), str, q, fac));
 
     // output set operation
     switch(setOp->setOpType)
@@ -1742,6 +1930,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str)
         case SETOP_UNION:
             appendStringInfoString(str, " UNION ALL ");
             break;
+			//TODO Oracle does not support bag intersect and difference, have to implement workaround query
         case SETOP_INTERSECTION:
             appendStringInfoString(str, " INTERSECT ");
             break;
@@ -1751,7 +1940,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str)
     }
 
     // output right child
-    WITH_PARENS(str,serializeQueryOperator(OP_RCHILD(q), str, q));
+    WITH_PARENS(str,serializeQueryOperator(OP_RCHILD(q), str, q, fac));
 
     return resultAttrs;
 }
@@ -1760,7 +1949,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str)
  * Create a temporary view
  */
 static List *
-createTempView (QueryOperator *q, StringInfo str, QueryOperator *parent)
+createTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac)
 {
     StringInfo viewDef = makeStringInfo();
     char *viewName = createViewName();
@@ -1781,9 +1970,9 @@ createTempView (QueryOperator *q, StringInfo str, QueryOperator *parent)
     // create sql code to create view
     appendStringInfo(viewDef, "%s AS (", viewName);
     if (isA(q, SetOperator))
-        resultAttrs = serializeSetOperator(q, viewDef);
+        resultAttrs = serializeSetOperator(q, viewDef, fac);
     else
-        resultAttrs = serializeQueryBlock(q, viewDef);
+        resultAttrs = serializeQueryBlock(q, viewDef, fac);
 
     appendStringInfoString(viewDef, ")");
 

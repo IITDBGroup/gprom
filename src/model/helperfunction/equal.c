@@ -15,6 +15,7 @@
 #include "model/set/set.h"
 #include "model/set/vector.h"
 #include "model/set/hashmap.h"
+#include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -34,6 +35,7 @@ static boolean equalSet (Set *a, Set *b, HashMap *seenOps, MemContext *c);
 static boolean equalKeyValue (KeyValue *a, KeyValue *b, HashMap *seenOps, MemContext *c);
 static boolean equalHashMap (HashMap *a, HashMap *b, HashMap *seenOps, MemContext *c);
 static boolean equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c);
+static boolean equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c);
 
 /* equal functions for expression types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext *c);
@@ -400,6 +402,17 @@ equalOrderExpr (OrderExpr *a, OrderExpr *b, HashMap *seenOps, MemContext *c)
     return TRUE;
 }
 
+static boolean
+equalQuantifiedComparison (QuantifiedComparison *a, QuantifiedComparison *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_NODE_FIELD(checkExpr);
+    COMPARE_NODE_FIELD(exprList);
+    COMPARE_SCALAR_FIELD(qType);
+    COMPARE_STRING_FIELD(opName);
+
+    return TRUE;
+}
+
 /* */
 static boolean
 equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext *c)
@@ -605,6 +618,12 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
     }
 
     return TRUE;
+}
+
+static boolean
+equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c)
+{
+	return bitsetEquals(a,b);
 }
 
 
@@ -1142,7 +1161,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_Vector:
             retval = equalVector(a,b, seenOps, c);
             break;
-
+	    case T_BitSet:
+			retval = equalBitset(a, b, seenOps, c);
+			break;
         case T_FunctionCall:
             retval = equalFunctionCall(a,b, seenOps, c);
             break;
@@ -1187,6 +1208,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_OrderExpr:
             retval = equalOrderExpr(a,b, seenOps, c);
+            break;
+        case T_QuantifiedComparison:
+            retval = equalQuantifiedComparison(a,b, seenOps, c);
             break;
             /*something different cases this, and we have*/
             /*different types of T_Node       */

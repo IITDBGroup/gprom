@@ -35,6 +35,7 @@ static void caseToSQL(StringInfo str, CaseExpr *expr, HashMap *nestedSubqueries)
 static void winFuncToSQL(StringInfo str, WindowFunction *expr, HashMap *nestedSubqueries);
 static void winBoundToSQL (StringInfo str, WindowBound *b, HashMap *nestedSubqueries);
 static void orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *nestedSubqueries);
+static void quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o);
 static void dataTypeToSQL (StringInfo str, DataType dt);
 
 static void functionCallToLatex (StringInfo str, FunctionCall *node, HashMap *nestedSubqueries);
@@ -365,6 +366,21 @@ orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *nestedSubqueries)
 }
 
 static void
+quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o)
+{
+    exprToSQLString(str, (Node *) o->checkExpr, NULL);
+
+    appendStringInfo(str, " %s", strdup(o->opName));
+
+    if (o->qType == QUANTIFIED_EXPR_ANY)
+        appendStringInfoString(str, " ANY ");
+    else if (o->qType == QUANTIFIED_EXPR_ALL)
+        appendStringInfoString(str, " ALL ");
+
+    exprToSQLString(str, (Node *) o->exprList, NULL);
+}
+
+static void
 sqlParamToSQL(StringInfo str, SQLParameter *p)
 {
     appendStringInfo(str, ":%s", p->name);
@@ -449,6 +465,9 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *nestedSubqueries)
         case T_OrderExpr:
             orderExprToSQL(str, (OrderExpr *) expr, nestedSubqueries);
         break;
+        case T_QuantifiedComparison:
+        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr);
+        break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr);
         break;
@@ -526,6 +545,9 @@ exprToLatexString(StringInfo str,  Node *expr, HashMap *nestedSubqueries)
         case T_OrderExpr:
             orderExprToSQL(str, (OrderExpr *) expr, nestedSubqueries);
         break;
+        case T_QuantifiedComparison:
+        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr);
+        break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr);
         break;
@@ -599,7 +621,7 @@ operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries)
     //TODO deal with other specific operators, e.g., comparison
     else if (LIST_LENGTH(node->args) == 1)
     {
-        if (streq(node->name,"NOT"))
+        if (streq(node->name,OPNAME_NOT))
             appendStringInfoString(str, "\\neg");
         else
             appendStringInfo(str, "%s ", node->name);
@@ -616,9 +638,9 @@ operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries)
             exprToLatexString(str,arg, nestedSubqueries);
             if(arg_his_cell != node->args->tail)
             {
-                if (streq(node->name,"AND"))
+                if (streq(node->name,OPNAME_AND))
                     appendStringInfoString(str, "\\wedge");
-                else if (streq(node->name,"OR"))
+                else if (streq(node->name,OPNAME_OR))
                     appendStringInfoString(str, "\\vee");
                 else
                     appendStringInfo(str, " %s ", node->name);

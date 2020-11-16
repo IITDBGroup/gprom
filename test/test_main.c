@@ -40,6 +40,7 @@ static TestNameToFunc testFuncs [] = {
         { "list", testList },
         { "set", testSet },
         { "vector", testVector },
+		{ "bitset", testBitset },
         { "hashmap", testHashMap },
         { "expr", testExpr },
         { "copy", testCopy },
@@ -66,10 +67,10 @@ testSuites(void)
 {
     RUN_TEST(testLogger(), "Logger test");
     RUN_TEST(testMemManager(), "Memory manager test");
-    RUN_TEST(testException(), "Exception handling");
     RUN_TEST(testList(), "List model");
     RUN_TEST(testSet(), "Set");
     RUN_TEST(testVector(), "Vector");
+	RUN_TEST(testBitset(), "Bitset");
     RUN_TEST(testHashMap(), "HashMap");
     RUN_TEST(testExpr(), "Expression model");
     RUN_TEST(testCopy(), "Test generic copy function");
@@ -77,6 +78,7 @@ testSuites(void)
     RUN_TEST(testStringUtils(), "Test String utilities");
     RUN_TEST(testToString(), "Test generic toString function");
     RUN_TEST(testString(), "Test stringinfo");
+    RUN_TEST(testException(), "Exception handling");
     RUN_TEST(testParse(), "Test parser");
     RUN_TEST(testMetadataLookup(), "Test metadata lookup");
     RUN_TEST(testMetadataLookupPostgres(), "Test metadata lookup - Postgres");

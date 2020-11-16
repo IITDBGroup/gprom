@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * translate_update.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -168,7 +168,7 @@ translateDelete(Delete *delete)
 
 	SelectionOperator *so;
 	Node *negatedCond;
-	negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(delete->cond)));
+	negatedCond = (Node *) createOpExpr(OPNAME_NOT, singleton(copyObject(delete->cond)));
 	so = createSelectionOp(negatedCond, (QueryOperator *) to, NIL, deepCopyStringList(attr));
 
 	addParent((QueryOperator *) to, (QueryOperator *) so);
@@ -207,7 +207,7 @@ translateUpdateUnion(Update *update)
 
         SelectionOperator *nso;
         Node *negatedCond;
-        negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(update->cond)));
+        negatedCond = (Node *) createOpExpr(OPNAME_NOT, singleton(copyObject(update->cond)));
         nso = createSelectionOp(negatedCond, (QueryOperator *) to, NIL, deepCopyStringList(attrs));
         addParent((QueryOperator *) to, (QueryOperator *) nso);
 
@@ -306,6 +306,3 @@ translateUpdateWithCase(Update *update)
 	return (QueryOperator *) po;
 
 }
-
-
-

@@ -31,6 +31,7 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
+static boolean replaceFunctionsWithEquivalent(Node *node, void *context);
 static boolean replaceBoolWithInt (Node *node, void *context);
 static void createAPI (void);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
@@ -76,6 +77,7 @@ serializeQuerySQLite(QueryOperator *q)
     StringInfo str;
     StringInfo viewDef;
     char *result;
+
     createAPI();
 
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
@@ -91,6 +93,9 @@ serializeQuerySQLite(QueryOperator *q)
 
     // simulate non Oracle conformant data types and expressions (boolean)
     genQuoteAttributeNames((Node *) q);
+
+	// replace functions not supported by SQLite with equivalent alternatives
+	replaceFunctionsWithEquivalent((Node *) q, NULL);
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, api);
@@ -121,8 +126,6 @@ serializeQuerySQLite(QueryOperator *q)
     // copy result to callers memory context and clean up
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
-
-
 
 char *
 quoteIdentifierSQLite (char *ident)
@@ -169,6 +172,24 @@ quoteIdentifierSQLite (char *ident)
         ident = CONCAT_STRINGS("\"",ident,"\"");
 
     return ident;
+}
+
+static boolean
+replaceFunctionsWithEquivalent(Node *node, void *context)
+{
+	if (node == NULL)
+		return TRUE;
+
+	if (isA(node, FunctionCall))
+	{
+		FunctionCall *f = (FunctionCall *) node;
+		if (streq(f->functionname, LEAST_FUNC_NAME))
+			f->functionname = strdup(MIN_FUNC_NAME);
+		if (streq(f->functionname, GREATEST_FUNC_NAME))
+			f->functionname = strdup(GREATEST_FUNC_NAME);
+	}
+
+	return visit(node, replaceFunctionsWithEquivalent, context);
 }
 
 static boolean
@@ -618,6 +639,9 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
 
+	// wrap set operation into a block to ensure that we can preserve evaluation order (SQLite does not support parenthesis around set operations)
+	appendStringInfoString(str, "SELECT * FROM (");
+
     // output left child
     resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
 
@@ -627,6 +651,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
         case SETOP_UNION:
             appendStringInfoString(str, " UNION ALL ");
             break;
+			//TODO SQLite does not support bag intersect and difference, have to implement workaround query
         case SETOP_INTERSECTION:
             appendStringInfoString(str, " INTERSECT ");
             break;
@@ -637,6 +662,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
 
     // output right child
     api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
+	appendStringInfoString(str, ")");
 
     return resultAttrs;
 }

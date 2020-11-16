@@ -21,10 +21,29 @@ typedef struct Operator {
     List *args;
 } Operator;
 
+/* OPERATOR NAMES */
 #define OPNAME_AND "AND"
 #define OPNAME_OR "OR"
 #define OPNAME_NOT "NOT"
 #define OPNAME_not "not"
+
+#define OPNAME_EQ "="
+#define OPNAME_LT "<"
+#define OPNAME_LE "<="
+#define OPNAME_GT ">"
+#define OPNAME_GE ">="
+#define OPNAME_NEQ "<>"
+#define OPNAME_NEQ_BANG "!="
+
+#define OPNAME_STRING_CONCAT "||"
+#define OPNAME_CONCAT "CONCAT"
+#define OPNAME_LIKE "LIKE"
+
+#define OPNAME_ADD "+"
+#define OPNAME_MULT "*"
+#define OPNAME_DIV "/"
+#define OPNAME_MINUS "-"
+#define OPNAME_MOD "%"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -145,6 +164,19 @@ typedef struct OrderExpr {
     SortNullOrder nullOrder;
 } OrderExpr;
 
+NEW_ENUM_WITH_TO_STRING(QuantifiedExprType,
+    QUANTIFIED_EXPR_ALL,
+    QUANTIFIED_EXPR_ANY
+);
+
+typedef struct QuantifiedComparison {
+    NodeTag type;
+    Node *checkExpr;
+    QuantifiedExprType qType;
+    List *exprList;
+    char *opName;
+} QuantifiedComparison;
+
 #define IS_EXPR(_n) (isA(_n,FunctionCall) || \
     isA(_n,Operator) || \
 	isA(_n,Constant) || \
@@ -162,6 +194,11 @@ typedef struct OrderExpr {
 	isA(_n,OrderExpr)  \
     )
 
+#define FUNC_LEFT_INPUT(_e) ((Node *) getNthOfListP(((FunctionCall *) _e)->args, 0))
+#define FUNC_RIGHT_INPUT(_e) ((Node *) getNthOfListP(((FunctionCall *) _e)->args, 1))
+#define OP_LEFT_INPUT(_e) ((Node *) getNthOfListP(((Operator *) _e)->args, 0))
+#define OP_RIGHT_INPUT(_e) ((Node *) getNthOfListP(((Operator *) _e)->args, 1))
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
@@ -169,11 +206,14 @@ extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
 extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
+extern Node *concatExprList (List *exprs);
 extern Node *andExprList (List *exprs);
 extern Node *orExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprList (List *exprs);
 extern Node *orExprs (Node *expr, ...);
+extern Node *concatExprs (Node *expr, ...);
+#define CONCAT_EXPRS(...) concatExprs(__VA_ARGS__, NULL)
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
 #define OR_EXPRS(...) orExprs(__VA_ARGS__, NULL)
 extern SQLParameter *createSQLParameter (char *name);
@@ -188,6 +228,7 @@ extern WindowDef *createWindowDef (List *partitionBy, List *orderBy, WindowFrame
 extern WindowFunction *createWindowFunction (FunctionCall *f, WindowDef *win);
 
 extern OrderExpr *createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder);
+extern QuantifiedComparison *createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);
@@ -197,6 +238,7 @@ extern Constant *createConstFloat (double value);
 extern Constant *createConstBoolFromString (char *v);
 extern Constant *createConstBool (boolean value);
 extern Constant *createNullConst (DataType dt);
+extern Constant *makeConst(DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
 #define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
 #define LONG_VALUE(_c) *((gprom_long_t *) ((Constant *) _c)->value)
@@ -204,12 +246,17 @@ extern Constant *createNullConst (DataType dt);
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
 #define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL))
+extern Constant *minConsts(Constant *l, Constant *r, boolean nullIsMin);
+extern Constant *maxConsts(Constant *l, Constant *r, boolean nullIsMax);
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
-extern boolean isConstExpr (Node *expr);
+extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
+
+/* expression node type accessors */
+extern char *getAttributeReferenceName(AttributeReference *a);
 
 /* backend specific */
 extern char *backendifyIdentifier(char *name);
@@ -243,5 +290,16 @@ extern Node *changeListOpToAnOpNode(List *l1);
 /* find all nodes of a certain type */
 extern List *findAllNodes(Node *node, NodeTag type);
 
+// names for common SQL functions
+#define LEAST_FUNC_NAME backendifyIdentifier("least")
+#define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
+
+// names for common SQL aggregation functions
+#define MIN_FUNC_NAME backendifyIdentifier("min")
+#define MAX_FUNC_NAME backendifyIdentifier("max")
+#define SUM_FUNC_NAME backendifyIdentifier("sum")
+#define AVG_FUNC_NAME backendifyIdentifier("avg")
+#define COUNT_FUNC_NAME backendifyIdentifier("count")
+#define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 
 #endif /* EXPRESSION_H */

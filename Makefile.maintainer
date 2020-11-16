@@ -1,4 +1,4 @@
-LIBTOOLIZE:=libtoolize
+LIBTOOLIZE:=glibtoolize
 AUTORECONF:=autoreconf
 MAIN_MAKEFILE:=./Makefile
 
@@ -17,7 +17,7 @@ $(MAIN_MAKEFILE): autotools
 autotools: runLibTool autoReConf
 
 runLibTool:
-	$(LIBTOOLIZE)
+	$(GLIBTOOLIZE)
 
 autoReConf: runLibTool
 	$(AUTORECONF) --force --install
