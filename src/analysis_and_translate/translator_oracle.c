@@ -1035,8 +1035,8 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     reenactModifiedHistoryStmt->inputType = PROV_INPUT_REENACT;
     reenactModifiedHistoryStmt->provType = PROV_NONE;
 
-    QueryOperator *reenactHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactHistoryStmt));
-    QueryOperator *reenactModifiedHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactModifiedHistoryStmt));
+    QueryOperator *reenactHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactHistoryStmt, NULL));
+    QueryOperator *reenactModifiedHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactModifiedHistoryStmt, NULL));
 
     QueryOperator *d1 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactHistoryOp, reenactModifiedHistoryOp), NIL, NIL);
     QueryOperator *d2 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactModifiedHistoryOp, reenactHistoryOp), NIL, NIL);
