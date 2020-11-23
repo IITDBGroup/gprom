@@ -34,8 +34,8 @@ newConstraintTranslationCtx ()
     ctx->constraints = NIL;
     ctx->caseConds = NIL;
 
-    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(1000));
-    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-1000)); //TODO: There is definitely a better way to be doing this.
+    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX));
+    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-INT_MAX)); //TODO: There is definitely a better way to be doing this.
 
     return ctx;
 }

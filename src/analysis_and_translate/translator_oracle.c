@@ -983,11 +983,11 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     ERROR_LOG("Something is wrong, not at least 2 case exprs for update dependency determination.");
                 }
                 LPProblem *modifiedLp = newLPProblem(modifiedCtx);
-                FOREACH(Constraint, c, modifiedCtx->constraints)
+                /* FOREACH(Constraint, c, modifiedCtx->constraints)
                 {
                     INFO_LOG("%s", cstringConstraint(c, TRUE));
                 }
-                INFO_LOG("Modified is %s", beatify(cstringLPProblem(modifiedLp, TRUE)));
+                INFO_LOG("Modified is %s", beatify(cstringLPProblem(modifiedLp, TRUE))); */
 
                 // A = 2; A = 3;
                 // A = 1; A = 3;
@@ -997,7 +997,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                 int modifiedResult = executeLPProblem(modifiedLp);
 
                 INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u)) && searchList(whatif->indices, createConstInt(u+1))) // 101 is CPLEX MIP optimal solution found
+                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u)) && !searchList(whatif->indices, createConstInt(u+1))) // 101 is CPLEX MIP optimal solution found
                 {
                     INFO_LOG("Independent update detected...");
                     independentUpdates = appendToTailOfList(independentUpdates, getNthOfListP(whatif->history, u));
