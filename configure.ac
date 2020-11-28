@@ -532,7 +532,7 @@ AS_IF([test "x$enable_oracle" == "xyes"], [
 AC_DEFUN([AC_ENABLE_JAVA_BINDING],
 [
 AC_MSG_CHECKING([build with Java bindings including JDBC driver])
-AC_ARG_ENABLE(java, AS_HELP_STRING([--disable-java],[Disable building of Java bindings]))
+AC_ARG_ENABLE(java, AS_HELP_STRING([--enable-java],[Enable building of Java bindings and tests]))
 
 AS_IF([test "x$enable_java" == "xyes"], [
   AC_MSG_RESULT([yes])
@@ -541,7 +541,7 @@ AS_IF([test "x$enable_java" == "xyes"], [
   AC_DEFINE([DISABLE_JAVA],[],[Disable building of Java binding])
   AC_MSG_RESULT([no])
 ])
-AM_CONDITIONAL(JAVABINDING, test "x$enable_java" != "xyes")
+AM_CONDITIONAL(JAVABINDING, test "x$enable_java" = "xyes")
 ])
 # enable/disable readline support
 AC_DEFUN([AC_ENABLE_READLINE],
