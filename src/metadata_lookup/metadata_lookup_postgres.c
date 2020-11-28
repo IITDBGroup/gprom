@@ -161,8 +161,6 @@ static DataType postgresOidToDT(char *Oid);
 static DataType postgresOidIntToDT(int oid);
 static DataType postgresTypenameToDT (char *typName);
 
-
-
 // closing result sets and connections
 #define CLOSE_QUERY() \
 		do { \
@@ -207,7 +205,7 @@ typedef struct PostgresMetaCache {
 
 // names of timers used here
 #define METADATA_LOOKUP_TIMER "module - metadata lookup"
-#define METADATA_LOOKUP_QUERY_TIMER "modeul - metadata lookup - running queries"
+#define METADATA_LOOKUP_QUERY_TIMER "module - metadata lookup - running queries"
 
 // global vars
 static PostgresPlugin *plugin = NULL;
@@ -294,18 +292,21 @@ postgresShutdownMetadataLookupPlugin (void)
     // clear cache and postgres cache
 
     FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+	plugin = NULL;
+
     return EXIT_SUCCESS;
 }
 
 int
 postgresDatabaseConnectionOpen (void)
 {
-    StringInfo connStr = makeStringInfo();
+    StringInfo connStr;
 //    OptionConnection *op = getOptions()->optionConnection;
 
     ACQUIRE_MEM_CONTEXT(memContext);
-
 	START_TIMER(METADATA_LOOKUP_TIMER);
+
+	connStr = makeStringInfo();
 
     /* create connection string */
     appendStringInfo(connStr, " host=%s", getStringOption("connection.host"));
@@ -1304,7 +1305,6 @@ postgresExecuteQuery(char *query)
         char *name = PQfname(rs, i);
         r->schema = appendToTailOfList(r->schema, strdup((char *) name));
     }
-
 
     // read rows
     r->tuples = NIL;

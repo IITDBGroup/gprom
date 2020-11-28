@@ -184,8 +184,18 @@ typedef (void *) gprom_long_t;
 #define HAVE_MONETDB_BACKEND 1
 #endif
 
+// odbc
+#if HAVE_LIBODBC && HAVE_SQL_H && HAVE_SQLEXT_H
+#define HAVE_ODBC_BACKEND 1
+#endif
+
+// mssql
+#if HAVE_MSODBCSQL_H && HAVE_LIBMSODBCSQL && HAVE_ODBC_BACKEND
+#define HAVE_MSSQL_BACKEND 1
+#endif
+
 // any backend
-#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_SQLITE_BACKEND || HAVE_MONETDB_BACKEND
+#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_SQLITE_BACKEND || HAVE_MONETDB_BACKEND || HAVE_ODBC_BACKEND || HAVE_ODBC_BACKEND
 #define HAVE_A_BACKEND 1
 #endif
 
@@ -250,5 +260,8 @@ typedef (void *) gprom_long_t;
 // min and max
 #define MIN(x,y) (x < y ? x : y)
 #define MAX(x,y) (x > y ? x : y)
+
+// throw error for unimplemented method
+#define TODO_IMPL FATAL_LOG("method not implemented yet!")
 
 #endif /* COMMON_H */

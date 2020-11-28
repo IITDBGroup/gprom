@@ -112,6 +112,110 @@ AC_DEFUN([AC_ORACLE_ALL_CHECKS],
     AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
 ])
+# ODBC header location
+AC_DEFUN([AC_ODBC_HEADER_LOCATION],
+[AC_ARG_WITH(odbc-headers, [  --with-odbc-headers], , )
+AC_MSG_CHECKING([for user provided odbc header location])
+if test "x$with_odbc_headers" != x; then
+	if test -f "$with_odbc_headers/sql.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_odbc_headers"
+    	AC_MSG_RESULT([yes, found at $with_odbc_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no headers for ODBC found in location $with_ODBC_headers])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# ODBC library location
+AC_DEFUN([AC_ODBC_LOCATION],
+[AC_ARG_WITH(odbc, [  --with-odbc], , )
+AC_MSG_CHECKING([for user provided odbc location])
+if test "x$with_odbc" != x; then
+	if test -d "$with_odbc"; then
+		LDFLAGS="$LDFLAGS -L$with_odbc"
+    	CPPFLAGS="$CPPFLAGS -I$with_odbc/../include"
+    	AC_MSG_RESULT([yes, $with_odbc])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no odbc library found in location $with_odbc])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# All ODBC Checks
+AC_DEFUN([AC_ODBC_ALL_CHECKS],
+[
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_ODBC_LOCATION
+  AC_ODBC_HEADER_LOCATION
+  AC_CHECK_HEADERS([sql.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find ODBC sql.h])]
+  )
+  AC_CHECK_HEADERS([sqlext.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find ODBC sqlext.h])]
+  )
+# check for the libpq library
+  AC_CHECK_LIB([odbc],[SQLAllocEnv],[],[
+    AC_MSG_ERROR([missing ODBC library - if you want to compile without ODBC backend support use --disable-odbc])
+  ])
+]
+)
+# MSSQL header location
+AC_DEFUN([AC_MSSQL_HEADER_LOCATION],
+[AC_ARG_WITH(mssql-headers, [  --with-mssql-headers], , )
+AC_MSG_CHECKING([for user provided mssql header location])
+if test "x$with_mssql_headers" != x; then
+	if test -f "$with_mssql_headers/msodbcsql.h"; then
+    	AC_MSG_RESULT([yes, found at $with_mssql_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no headers for MSSQL found in location $with_mssql_headers])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# MSSQL library location
+AC_DEFUN([AC_MSSQL_LOCATION],
+[AC_ARG_WITH(mssql, [  --with-mssql], , )
+AC_MSG_CHECKING([for user provided MSSQL location])
+if test "x$with_mssql" != x; then
+	if test -f "$with_mssql/msodbcsql.h"; then
+    	AC_MSG_RESULT([yes, $with_mssql])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no mssql library found in location $with_mssql])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# All MSSQL Checks
+AC_DEFUN([AC_MSSQL_ALL_CHECKS],
+[
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_MSSQL_HEADER_LOCATION
+#  AC_CHECK_HEADERS([msodbcsql.h],
+# nothing when found
+#    [],
+# fail if not found
+#    [AC_MSG_ERROR([Unable to find MSSSQL msodbcsql.h])]
+#  )
+# check for the libpq library
+#  AC_CHECK_LIB([libmsodbcsql],[bcp_gettypenameA],[],[
+#    AC_MSG_ERROR([missing MSSQL ODBC library - if you want to compile without MSSQL backend support use --disable-mssql])
+#  ])
+]
+)
 # Postgres libpq header location
 AC_DEFUN([AC_LIBPQ_HEADER_LOCATION],
 [AC_ARG_WITH(libpq-headers, [  --with-libpq-headers], , )
@@ -346,12 +450,12 @@ AC_DEFUN([AC_ENABLE_SQLITE],
 AC_MSG_CHECKING([should be compiled with support for SQLite backends])
 AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--disable-sqlite],[Disable compilation with support for SQLite backends]))
 
-AS_IF([test "x$enable_sqlite" == "xno"], [
-  AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_sqlite" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # compile with MonetDB support
@@ -360,12 +464,40 @@ AC_DEFUN([AC_ENABLE_MONETDB],
 AC_MSG_CHECKING([should be compiled with support for MonetDB backends])
 AC_ARG_ENABLE(monetdb, AS_HELP_STRING([--disable-monetdb],[Disable compilation with support for MonetDB backends]))
 
-AS_IF([test "x$enable_monetdb" == "xno"], [
-  AC_DEFINE([DISABLE_MONETDB],[],[Disable support for MonetDB backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_monetdb" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
+  AC_MSG_RESULT([no])
+  AC_DEFINE([DISABLE_MONETDB],[],[Disable support for MonetDB backends])
+])
+])
+# compile with ODBC support
+AC_DEFUN([AC_ENABLE_ODBC],
+[
+AC_MSG_CHECKING([should be compiled with support for ODBC backends])
+AC_ARG_ENABLE(odbc, AS_HELP_STRING([--disable-odbc],[Disable compilation with support for ODBC backends]))
+
+AS_IF([test "x$enable_odbc" == "xyes"], [
   AC_MSG_RESULT([yes])
+],
+[
+  AC_DEFINE([DISABLE_ODBC],[],[Disable support for ODBC backends])
+  AC_MSG_RESULT([no])
+])
+])
+# compile with MSSQL support
+AC_DEFUN([AC_ENABLE_MSSQL],
+[
+AC_MSG_CHECKING([should be compiled with support for MSSQL ODBC backends])
+AC_ARG_ENABLE(mssql, AS_HELP_STRING([--enable-mssql],[Enable compilation with support for MSSQL ODBC backends]))
+
+AS_IF([test "x$enable_mssql" == "xyes"], [
+  AC_MSG_RESULT([yes])
+],
+[
+  AC_DEFINE([DISABLE_MSSQL],[],[Disable support for ODBC backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # compile with Postgres support
@@ -374,26 +506,26 @@ AC_DEFUN([AC_ENABLE_POSTGRES],
 AC_MSG_CHECKING([should be compiled with support for Postgres backends])
 AC_ARG_ENABLE(postgres, AS_HELP_STRING([--disable-postgres],[Disable compilation with support for Postgres backends]))
 
-AS_IF([test "x$enable_postgres" == "xno"], [
-  AC_DEFINE([DISABLE_POSTGRES],[],[Disable support for Postgres backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_postgres" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_POSTGRES],[],[Disable support for Postgres backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # compile with Oracle support
 AC_DEFUN([AC_ENABLE_ORACLE],
 [
 AC_MSG_CHECKING([should be compiled with support for Oracle backends])
-AC_ARG_ENABLE(oracle, AS_HELP_STRING([--disable-oracle],[Disable compilation with support for Oracle backends]))
+AC_ARG_ENABLE(oracle, AS_HELP_STRING([--enable-oracle],[Disable compilation with support for Oracle backends]))
 
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_DEFINE([DISABLE_ORACLE],[],[Disable support for Oracle backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_oracle" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_ORACLE],[],[Disable support for Oracle backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # enable/disable Java bindings
@@ -402,14 +534,14 @@ AC_DEFUN([AC_ENABLE_JAVA_BINDING],
 AC_MSG_CHECKING([build with Java bindings including JDBC driver])
 AC_ARG_ENABLE(java, AS_HELP_STRING([--disable-java],[Disable building of Java bindings]))
 
-AS_IF([test "x$enable_java" == "xno"], [
-  AC_DEFINE([DISABLE_JAVA],[],[Disable building of Java binding])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_java" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_JAVA],[],[Disable building of Java binding])
+  AC_MSG_RESULT([no])
 ])
-AM_CONDITIONAL(JAVABINDING, test "x$enable_java" != "xno")
+AM_CONDITIONAL(JAVABINDING, test "x$enable_java" != "xyes")
 ])
 # enable/disable readline support
 AC_DEFUN([AC_ENABLE_READLINE],
@@ -573,6 +705,8 @@ AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
 AC_ENABLE_SQLITE
 AC_ENABLE_MONETDB
+AC_ENABLE_ODBC
+AC_ENABLE_MSSQL
 ################################################################################
 # Check which language bindings to build
 AC_ENABLE_JAVA_BINDING
@@ -614,13 +748,6 @@ AS_CASE(["$enable_cplex"],
   []
 )
 ################################################################################
-# Oracle access libraries (OCI and OCILIB)
-AS_CASE(["$enable_oracle"],
-  [yes], [AC_ORACLE_ALL_CHECKS],
-  [no], [],
-  [AC_ORACLE_ALL_CHECKS]
-)
-################################################################################
 # Readline
 AC_CHECK_LIB([readline],[readline],[],[
 AS_IF([test "x$enable_readline" == "xno"], [
@@ -636,13 +763,20 @@ AS_IF([test "x$enable_readline" == "xno"], [
 #  AC_MSG_ERROR([missing cplex library])
 #])
 ################################################################################
+# Oracle access libraries (OCI and OCILIB)
+AS_CASE(["$enable_oracle"],
+  [yes], [AC_ORACLE_ALL_CHECKS],
+  [no], [],
+  []
+)
+################################################################################
 # Postgres C client library (libpq)
 AS_CASE(["$enable_postgres"],
   [yes], [AC_POSTGRES_ALL_CHECKS],
   # Deactivated
   [no], [],
-  # Default (active)
-  [AC_POSTGRES_ALL_CHECKS]
+  # Default (inactive)
+  []
 )
 ################################################################################
 # SQlite library (libsqlite3)
@@ -651,8 +785,8 @@ AS_CASE(["$enable_sqlite"],
 	[yes], [AC_SQLITE_ALL_CHECKS],
     # Deactivated
     [no], [],
-    # Default (active)
-	[AC_SQLITE_ALL_CHECKS]
+    # Default (inactive)
+	[]
 )
 ################################################################################
 # MonetDB C client library (mapi)
@@ -660,8 +794,26 @@ AS_CASE(["$enable_monetdb"],
   [yes], [AC_MONETDB_ALL_CHECKS],
 # Deactivated
   [no], [],
-# Default (active)
-  [AC_MONETDB_ALL_CHECKS]
+# Default (inactive)
+  []
+)
+################################################################################
+# ODBC
+AS_CASE(["$enable_odbc"],
+  [yes], [AC_ODBC_ALL_CHECKS],
+# Deactivated
+  [no], [],
+# Default (inactive)
+  []
+)
+################################################################################
+# MSSQL ODBC driver
+AS_CASE(["$enable_mssql"],
+  [yes], [AC_MSSQL_ALL_CHECKS],
+# Deactivated
+  [no], [],
+# Default (inactive)
+  []
 )
 ################################################################################
 # enable/disable features
@@ -709,7 +861,7 @@ AC_CONFIG_FILES([
     src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
-  src/provenance_rewriter/coarse_grained/Makefile
+    src/provenance_rewriter/coarse_grained/Makefile
 	src/provenance_rewriter/game_provenance/Makefile
 	src/provenance_rewriter/semiring_combiner/Makefile
 	src/provenance_rewriter/uncertainty_rewrites/Makefile
@@ -718,7 +870,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/provenance_rewriter/summarization_rewrites/Makefile
 	src/provenance_rewriter/xml_rewrites/Makefile
-  src/provenance_rewriter/lateral_rewrites/Makefile
+    src/provenance_rewriter/lateral_rewrites/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile
@@ -739,8 +891,8 @@ echo "
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
-  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}, MonetDB - ${enable_monetdb:=yes}
-  Language bindings..: Java - ${enable_java:=yes}
+  Backends supported.: Oracle - ${enable_oracle:=no}, Postgres - ${enable_postgres:=no}, SQLite - ${enable_sqlite:=no}, MonetDB - ${enable_monetdb:=no}, ODBC - ${enable_odbc:=no}, MSSQL - ${enable_mssql:=no}
+  Language bindings..: Java - ${enable_java:=no}
   Readline support...: ${enable_readline:=yes}
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   CFLAGS ........: $CFLAGS

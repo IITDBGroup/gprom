@@ -89,6 +89,8 @@ int connection_port = 0;
 char *oracle_audit_log_table = NULL;
 boolean oracle_use_service_name = FALSE;
 
+char *odbc_driver = NULL;
+
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
@@ -351,6 +353,14 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionString(&oracle_use_service_name),
                 defOptionBool(FALSE)
+        },
+        {
+                OPTION_ODBC_DRIVER,
+                "-Bodbc.driver",
+                "Name of the ODBC driver to use.",
+                OPTION_STRING,
+                wrapOptionString(&odbc_driver),
+                defOptionString("")
         },
         // logging options
         {

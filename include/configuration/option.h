@@ -22,6 +22,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_CONN_DB "connection.db"
 #define OPTION_CONN_PORT "connection.port"
 #define OPTION_CONN_HOST "connection.host"
+#define OPTION_ODBC_DRIVER "connection.odbcdriver"
 
 /* backend specific options */
 #define OPTION_ORACLE_AUDITTABLE "backendOpts.oracle.logtable"
