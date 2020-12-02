@@ -915,6 +915,15 @@ BackendInfo backends[]  = {
             "sqlite",    // sqlserializer
             "oracle"   // translator
         },
+		{
+			BACKEND_MSSQL,
+            "mssql",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "mssql",   // metadata
+            "postgres",    // sqlserializer
+            "oracle"   // translator
+		},
         {
             BACKEND_ORACLE, STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
@@ -1342,6 +1351,11 @@ char *
 getBackendPlugin(char *be, char *pluginOpt)
 {
     HashMap *bInfo = (HashMap *) MAP_GET_STRING(backendInfo, be);
+
+	if(bInfo == NULL)
+	{
+		FATAL_LOG("backend %s not defined", be);
+	}
 
     return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
 }

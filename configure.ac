@@ -493,10 +493,11 @@ AC_MSG_CHECKING([should be compiled with support for MSSQL ODBC backends])
 AC_ARG_ENABLE(mssql, AS_HELP_STRING([--enable-mssql],[Enable compilation with support for MSSQL ODBC backends]))
 
 AS_IF([test "x$enable_mssql" == "xyes"], [
+  AC_DEFINE([HAVE_MSSQL_ODBC_DRIVER],[1],[Have MSSQL ODBC driver])
   AC_MSG_RESULT([yes])
 ],
 [
-  AC_DEFINE([DISABLE_MSSQL],[],[Disable support for ODBC backends])
+  AC_DEFINE([DISABLE_MSSQL],[],[Disable support for ODBC MSSQL backends])
   AC_MSG_RESULT([no])
 ])
 ])

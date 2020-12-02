@@ -190,7 +190,7 @@ typedef (void *) gprom_long_t;
 #endif
 
 // mssql
-#if HAVE_MSODBCSQL_H && HAVE_LIBMSODBCSQL && HAVE_ODBC_BACKEND
+#if HAVE_MSSQL_ODBC_DRIVER && HAVE_ODBC_BACKEND
 #define HAVE_MSSQL_BACKEND 1
 #endif
 

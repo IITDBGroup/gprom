@@ -16,56 +16,69 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
-
+#include "utility/string_utils.h"
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_odbc.h"
 #include "metadata_lookup/metadata_lookup_mssql.h"
+#include "model/list/list.h"
 #include "model/query_operator/query_operator.h"
+#include "sqltypes.h"
 
 #if HAVE_MSSQL_BACKEND
 #include "sql.h"
 #include "sqlext.h"
 #endif
 
+typedef struct AggInfo {
+	char *name;
+} AggInfo;
+
+static AggInfo aggs[] = {
+	{ "min" },
+	{ "max" },
+	{ "avg" },
+	{ "checksum_agg" },
+	{ "count" },
+	{ "count_big" },
+	{ "max" },
+	{ "min" },
+	{ "stdev" },
+	{ "stdevp" },
+	{ "sum" },
+	{ "var" },
+	{ "varp" },
+	{ NULL } // end marker
+};
+
 // Mem context
 #define CONTEXT_NAME "MSSQLMemContext"
+#define METADATA_LOOKUP_TIMER "module - metadata lookup"
+#define METADATA_LOOKUP_QUERY_TIMER "module - metadata lookup - running queries"
 
 // real versions if MSSQL is present
 #ifdef HAVE_MSSQL_BACKEND
 
 // global vars
-static MemContext *memContext = NULL;
-static MSSQLPlugin *plugin = NULL;
-
-// extends MetadataLookupPlugin with postgres connection
+// extends MetadataLookupPlugin with MSSQL ODBC connection
 typedef struct MSSQLPlugin
 {
     ODBCPlugin plugin;
 } MSSQLPlugin;
 
-#define RUN_WITH_ERROR_HANDLING(handle,htype,op)			\
-	do {													\
-	     RETCODE _rc = (op);								\
-		 if (_rc != SQL_SUCCESS)							\
-		 {													\
-			 handleError(handle,htype,_rc);					\
-		 }													\
-	} while(0)
+static MemContext *memContext = NULL;
+static MSSQLPlugin *plugin = NULL;
 
 #define DRIVER_NAME "ODBC Driver 17 for SQL Server"
 #define CONNECTION_STRING_TEMPLATE "Driver=" DRIVER_NAME ";Server=tcp:%s,%d;UID=%s;PWD=%s"
 
-// static methods
-static void handleError(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
-
 MetadataLookupPlugin *
-assemblePostgresMetadataLookupPlugin (void)
+assembleMssqlMetadataLookupPlugin (void)
 {
     plugin = NEW(MSSQLPlugin);
     MetadataLookupPlugin *p = (MetadataLookupPlugin *) plugin;
 
-    p->type = METADATA_LOOKUP_PLUGIN_POSTGRES;
+    p->type = METADATA_LOOKUP_PLUGIN_MSSQL;
 
     p->initMetadataLookupPlugin = mssqlInitMetadataLookupPlugin;
     p->databaseConnectionOpen = mssqlDatabaseConnectionOpen;
@@ -88,7 +101,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getKeyInformation = mssqlGetKeyInformation;
     p->executeQuery = mssqlExecuteQuery;
     p->executeQueryIgnoreResult = mssqlExecuteQueryIgnoreResult;
-    p->connectionDescription = mssqlGetConnectionDescription;
+    p->connectionDescription = odbcGetConnectionDescription;
     p->sqlTypeToDT = mssqlBackendSQLTypeToDT;
     p->dataTypeToSQL = mssqlBackendDatatypeToSQL;
 	p->getMinAndMax = mssqlGetMinAndMax;
@@ -99,167 +112,263 @@ assemblePostgresMetadataLookupPlugin (void)
 int
 mssqlInitMetadataLookupPlugin (void)
 {
+    if (plugin && plugin->plugin.initialized)
+    {
+        INFO_LOG("tried to initialize MSSQL metadata lookup plugin more than once");
+        return EXIT_SUCCESS;
+    }
+	INFO_LOG("initialize MSSQL metadata lookup plugin.");
+
+	setOption(OPTION_ODBC_DRIVER, DRIVER_NAME);
+
+	NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
+	memContext = getCurMemContext();
+
+	START_TIMER(METADATA_LOOKUP_TIMER);
+
+	odbcCreateEnvironment((ODBCPlugin *) plugin);
+
+	plugin->plugin.initialized = TRUE;
+
+	DEBUG_LOG("initialized MSSQL metadata lookup plugin.");
+
+	STOP_TIMER(METADATA_LOOKUP_TIMER);
+    RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
 
 int
 mssqlShutdownMetadataLookupPlugin(void)
 {
-	mssqlDatabaseConnectionClode();
-	SQLFreeHandle(SQL_HANDLE_ENV,plugin->environment);
-	//TODO error handling
-    return EXIT_SUCCESS;
+	DEBUG_LOG("shutdown MSSQL metadata lookup plugin.");
+	if (memContext)
+	{
+		ACQUIRE_MEM_CONTEXT(memContext);
+
+		odbcDestroyEnvironment((ODBCPlugin *) plugin);
+
+		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+		plugin = NULL;
+	}
+
+	return EXIT_SUCCESS;
 }
 
 int
 mssqlDatabaseConnectionOpen (void)
 {
-    // Allocate a connection
-    RUN_WITH_ERROR_HANDLING(plugin->environment,
-							SQL_HANDLE_ENV,
-							SQLAllocHandle(SQL_HANDLE_DBC,
-										   plugin->environment,
-										   plugin->connection));
+	ACQUIRE_MEM_CONTEXT(memContext);
+	START_TIMER(METADATA_LOOKUP_TIMER);
 
-    RUN_WITH_ERROR_HANDLING(plugin->connection,
-        SQL_HANDLE_DBC,
-        SQLDriverConnect(plugin->connection,
-                         NULL,
-                         pwszConnStr,
-                         SQL_NTS,
-                         NULL,
-                         0,
-                         NULL,
-                         SQL_DRIVER_COMPLETE));
+	DEBUG_LOG("open MSSQL metadata lookup plugin database connection...");
 
+	odbcOpenDatabaseConnectionFromConnStr(
+		(ODBCPlugin *) plugin,
+		odbcCreateConnectionString(DRIVER_NAME)
+		);
 
+//TODO reuse plugin->plugin.stmt = odbcCreateStatement((ODBCPlugin *) plugin);
+
+	DEBUG_LOG("opened MSSQL metadata lookup plugin database connection...");
+
+	STOP_TIMER(METADATA_LOOKUP_TIMER);
+    RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
-}
-
-static char*
-createConnectionString(void)
-{
-	StringInfo str = makeStringInfo();
-
-	appendStringInfo(str, CONNECTION_STRING_TEMPLATE,
-					 getStringOption(OPTION_CONN_HOST),
-					 getIntOption(OPTION_CONN_PORT),
-					 getStringOption(OPTION_CONN_USER),
-					 getStringOption(OPTION_CONN_PASSWD));
-
-	return str->data;
 }
 
 int
 mssqlDatabaseConnectionClose(void)
 {
-	SQLFreeHandle(SQL_HANDLE_DBC,plugin->connection);
+	SQLRETURN rc;
+
+	DEBUG_LOG("close MSSQL metadata lookup plugin database connection...");
+	rc = SQLDisconnect(plugin->plugin.connection);
+
+	SQLFreeHandle(SQL_HANDLE_DBC,plugin->plugin.connection);
     return EXIT_SUCCESS;
 }
-
-static SQLHSTMT
-createStatement(void)
-{
-	SQLHSTMT stmt;
-
-	RUN_WITH_ERROR_HANDLING(plugin->connection,
-            SQL_HANDLE_DBC,
-            SQLAllocHandle(SQL_HANDLE_STMT, plugin->connection, &stmt));
-
-	return stmt;
-}
-
-static void
-handleError(SQLHANDLE handle, SQLSMALLINT htype, RETCODE retCode)
-{
-    SQLSMALLINT recPos = 0;
-    SQLINTEGER error;
-    WCHAR message[1000];
-    WCHAR state[SQL_SQLSTATE_SIZE+1];
-	StringInfo str = makeStringInfo();
-
-    if (RetCode == SQL_INVALID_HANDLE)
-    {
-		FATAL_LOG("invalid handle!");
-    }
-
-	while (SQLGetDiagRec(htype,
-                         handle,
-                         ++recPos,
-                         state,
-                         &error,
-                         message,
-                         (SQLSMALLINT)(sizeof(message) / sizeof(WCHAR)),
-                         (SQLSMALLINT *)NULL) == SQL_SUCCESS)
-    {
-        // Hide data truncated..
-        if (wcsncmp(state, L"01004", 5))
-        {
-            appendStringInfo(str, "[%5.5s] %s (%d)\n", state, message, error);
-        }
-    }
-
-	FATAL_LOG("ODBC errors:\n%s" str->data);
-}
-
 
 boolean
 mssqlIsInitialized (void)
 {
+	ODBCPlugin *p = (ODBCPlugin *) plugin;
+    if (p && p->initialized)
+    {
+        if (p->connection == NULL)
+        {
+            if (mssqlDatabaseConnectionOpen() != EXIT_SUCCESS)
+                return FALSE;
+        }
+
+		//TODO check connection
+
+        return TRUE;
+    }
+
     return FALSE;
+
+
+	return plugin && plugin->plugin.initialized;
 }
 
 boolean
 mssqlCatalogTableExists (char * tableName)
 {
-    return FALSE;
+	ASSERT(mssqlIsInitialized());
+	return odbcTableExistsAsType((ODBCPlugin *) plugin, "TABLE", tableName);
 }
 
 boolean
 mssqlCatalogViewExists (char * viewName)
 {
-    return FALSE;
+	ASSERT(mssqlIsInitialized());
+	return odbcTableExistsAsType((ODBCPlugin *) plugin, "VIEW", viewName);
 }
 
 List *
 mssqlGetAttributes (char *tableName)
 {
-    return NIL;
+	ASSERT(mssqlIsInitialized());
+	return odbcGetAttributesWithTypeConversion((ODBCPlugin *) plugin, tableName, mssqlBackendSQLTypeToDT);
 }
 
 List *
 mssqlGetAttributeNames (char *tableName)
 {
-    return NIL;
+	ASSERT(mssqlIsInitialized());
+	List *attrs = mssqlGetAttributes(tableName);
+	List *result = NIL;
+
+	FOREACH(AttributeDef,a,attrs)
+	{
+		result = appendToTailOfList(result, a->attrName);
+	}
+
+    return result;
 }
 
 boolean
 mssqlIsAgg(char *functionName)
 {
+	ASSERT(mssqlIsInitialized());
+	functionName = strToLower(functionName);
+
+	for(AggInfo *a = aggs; a->name != NULL; a++)
+	{
+		if(streq(functionName, a->name))
+		{
+			return TRUE;
+		}
+	}
+
     return FALSE;
 }
 
 boolean
 mssqlIsWindowFunction(char *functionName)
 {
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
     return FALSE;
 }
 
 char *
 mssqlGetTableDefinition(char *tableName)
 {
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
     return NULL;
 }
 
 char *
 mssqlGetViewDefinition(char *viewName)
 {
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
     return NULL;
 }
 
 char *
 mssqlBackendDatatypeToSQL (DataType dt)
 {
+	ASSERT(mssqlIsInitialized());
+	switch(dt)
+	{
+	case DT_INT:
+		return "INT"; // 4 byte int
+	case DT_LONG:
+		return "BIGINT"; // 8 byte int
+	case DT_FLOAT:
+		return "FLOAT";
+	case DT_BOOL: // do not support boolean
+		return "BIT";
+	case DT_STRING:
+	case DT_VARCHAR2:
+		return "VARCHAR";
+	}
+	return NULL;
+}
+
+DataType
+mssqlGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
+{
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
+	return DT_STRING;
+}
+
+DataType
+mssqlGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
+{
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
+	return DT_STRING;
+}
+
+DataType
+mssqlBackendSQLTypeToDT (char *sqlType)
+{
+	ASSERT(mssqlIsInitialized());
+
+	//TODO fetch type information from system tables: https://docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-types-transact-sql?view=sql-server-ver15
+
+	// string data types
+    if (isPrefix(sqlType, "char")
+		|| isPrefix(sqlType, "varchar")
+		|| streq(sqlType, "xml")
+		)
+        return DT_STRING;
+
+    // integer data types
+    if (isPrefix(sqlType, "int")
+		|| isPrefix(sqlType, "smallint")
+		|| isPrefix(sqlType, "tinyint")
+		|| streq(sqlType,"int4"))
+        return DT_INT;
+
+    // long data types
+    if (streq(sqlType, "bigint"))
+        return DT_LONG;
+
+    // numeric data types
+    if (isPrefix(sqlType, "float")
+            || streq(sqlType, "real")
+            || streq(sqlType, "numeric")
+            )
+        return DT_FLOAT;
+
+    // boolean
+    if (streq(sqlType,"bit"))
+        return DT_BOOL;
+
+    return DT_STRING;
+}
+
+HashMap *
+mssqlGetMinAndMax(char* tableName, char* colName)
+{
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
 	return NULL;
 }
 
@@ -267,39 +376,47 @@ void
 mssqlGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
 {
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
 }
 
 Node *
 mssqlExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
     return NULL;
 }
 
 int
 mssqlGetCostEstimation(char *query)
 {
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
     return 0;
 }
 
 List *
 mssqlGetKeyInformation(char *tableName)
 {
+	ASSERT(mssqlIsInitialized());
+	TODO_IMPL;
     return NULL;
 }
 
 Relation *
 mssqlExecuteQuery(char *query)
 {
-    return odbcExecuteQueryGetResult(plugin, query);
+	ASSERT(mssqlIsInitialized());
+    return odbcExecuteQueryGetResult((ODBCPlugin *) plugin, query);
 }
 
 void
 mssqlExecuteQueryIgnoreResult (char *query)
 {
-	odbcExecuteQueryWithPluginIgnoreResult(plugin, query);
+	ASSERT(mssqlIsInitialized());
+	odbcExecuteQueryWithPluginIgnoreResult((ODBCPlugin *) plugin, query);
 }
-
-
 
 // NO ODBC driver present. Provide dummy methods to keep compiler quiet
 #else

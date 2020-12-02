@@ -28,7 +28,7 @@ extern int mssqlDatabaseConnectionClose();
 extern boolean mssqlIsInitialized (void);
 
 #ifdef HAVE_MSSQL_BACKEND
-extern PGconn *getMssqlConnection(void);
+//extern PGconn *getMssqlConnection(void);
 #endif
 
 extern boolean mssqlCatalogTableExists (char * tableName);
@@ -44,7 +44,7 @@ extern char *mssqlGetViewDefinition(char *viewName);
 extern int mssqlGetCostEstimation(char *query);
 extern List *mssqlGetKeyInformation(char *tableName);
 extern DataType mssqlBackendSQLTypeToDT (char *sqlType);
-extern char * mssqlBackendDatatypeToSQL (DataType dt);
+extern char *mssqlBackendDatatypeToSQL (DataType dt);
 extern HashMap *mssqlGetMinAndMax(char* tableName, char* colName);
 
 extern void mssqlGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,

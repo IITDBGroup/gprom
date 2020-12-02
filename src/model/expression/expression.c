@@ -848,6 +848,10 @@ backendifyIdentifier(char *name)
                 break;
 		    case BACKEND_SQLITE: // treat everything as upper case since SQLite completely ignores all cases when it comes to matching attribute names even through internally identifiers are stored case sensitive
 				result = strToUpper(name);
+				break;
+		    case BACKEND_MSSQL:
+				result = strToLower(name);
+				break;
             default:
                 result = strToUpper(name);
                 break;

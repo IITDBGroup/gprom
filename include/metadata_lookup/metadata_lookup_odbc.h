@@ -31,6 +31,8 @@
 #include "sqltypes.h"
 #endif
 
+#include "log/logger.h"
+
 extern MetadataLookupPlugin *assembleOdbcMetadataLookupPlugin (void);
 
 /* additional methods */
@@ -48,17 +50,75 @@ typedef struct ODBCPlugin
 	//connection handle
 } ODBCPlugin;
 
+#define ODBC_COLNUMBER_SQLCOLUMNS_TYPE_COLUMN_NAME 4
+#define ODBC_COLNUMBER_SQLCOLUMNS_SQL_TYPE_NAME 6
+
 extern void odbcCreateEnvironment(ODBCPlugin *p);
 extern void odbcDestroyEnvironment(ODBCPlugin *p);
 extern SQLHDBC odbcOpenDatabaseConnectionFromConnStr(ODBCPlugin *p, char *connstr);
 extern SQLHDBC odbcOpenDatabaseConnection(ODBCPlugin *p);
 extern int odbcCloseDatabaseConnection(ODBCPlugin *p);
 extern SQLHSTMT odbcCreateStatement(ODBCPlugin *p);
+extern void odbcDestoryStatement(ODBCPlugin *p, SQLHSTMT stmt);
 extern boolean odbcTableExistsAsType (ODBCPlugin *p, char *type, char *table);
 extern Relation *odbcExecuteQueryGetResult(ODBCPlugin *p, char *query);
 extern void odbcExecuteQueryWithPluginIgnoreResult (ODBCPlugin *p, char *query);
+extern List *odbcGetAttributesWithTypeConversion(ODBCPlugin *p, char *tableName, DataType (*convert) (char *typeName));
+
+extern void odbcHandleError(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
+extern StringInfo odbcDiagnosticsToStringInfo(SQLHANDLE handle, SQLSMALLINT htype, RETCODE retCode);
+extern void odbcLogDiagnostics(char *message, LogLevel l, SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
+
+#define ODBC_SUCCESS(_rc) (_rc == SQL_SUCCESS || _rc == SQL_SUCCESS_WITH_INFO)
+#define ODBC_NO_ERROR(_rc) (_rc == SQL_SUCCESS || _rc == SQL_SUCCESS_WITH_INFO || _rc == SQL_NO_DATA)
+#define HANDLE_STMT_ERROR(_stmt,_rc)					\
+	do {												\
+		if (!ODBC_NO_ERROR(_rc))						\
+		{												\
+			odbcHandleError(_stmt,SQL_HANDLE_STMT,_rc); \
+		}												\
+	} while(0)
+
+#define WITH_STMT(_p,_s,_code)					\
+	do {										\
+		SQLHSTMT _s;							\
+		_s = odbcCreateStatement(_p);			\
+		_code									\
+			odbcDestoryStatement(_p,_s);		\
+	} while(0);
+
+#define EXEC_QUERY(_p,_code)											\
+	do {																\
+		SQLRETURN _retcode;												\
+		SQLHSTMT _stmt;													\
+		_stmt = odbcCreateStatement(_p);								\
+		_retcode = SQLExecDirect(_stmt, (SQLCHAR *) query, SQL_NTS);	\
+		HANDLE_STMT_ERROR(_stmt,_retcode);								\
+		_code															\
+			HANDLE_STMT_ERROR(_stmt,_retcode);							\
+		odbcDestoryStatement(_p,_stmt);									\
+	} while(0)
+#define FOR_EXEC_RESULTS() for(_retcode = SQLFetch(_stmt) ;  ODBC_SUCCESS(_retcode) ; _retcode = SQLFetch(_stmt))
+#define EXEC_STMT _stmt
+#define FOR_RESULTS(s) for(SQLRETURN _retcode = SQLFetch(s) ;  ODBC_SUCCESS(_retcode) ; _retcode = SQLFetch(s))
+
+#define HANDLE_STMT_RESULT_ERROR(_s) if(!ODBC_NO_ERROR(_retcode)) { odbcHandleError(_s,SQL_HANDLE_STMT,_retcode); }
+#define RUN_WITH_ERROR_HANDLING(handle,htype,op)						\
+	do {																\
+		RETCODE _rc = (op);												\
+		if (!ODBC_NO_ERROR(_rc))											\
+		{																\
+			odbcHandleError(handle,htype,_rc);							\
+		}																\
+		if (_rc == SQL_SUCCESS_WITH_INFO)								\
+		{																\
+			odbcLogDiagnostics("Statement ODBC info:\n", LOG_DEBUG, handle,htype,_rc); \
+		}																\
+	} while(0)
 
 #endif
+
+extern char *odbcGetConnectionDescription(void);
 
 /* plugin methods */
 extern int odbcInitMetadataLookupPlugin (void);
