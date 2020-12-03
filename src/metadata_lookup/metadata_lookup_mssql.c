@@ -35,16 +35,48 @@ typedef struct AggInfo {
 } AggInfo;
 
 static AggInfo aggs[] = {
-	{ "min" },
-	{ "max" },
+	{ "approx_count_distinct" },
 	{ "avg" },
 	{ "checksum_agg" },
 	{ "count" },
 	{ "count_big" },
+	{ "grouping" },
+	{ "grouping_id" },
 	{ "max" },
 	{ "min" },
 	{ "stdev" },
 	{ "stdevp" },
+	{ "string_agg" },
+	{ "sum" },
+	{ "var" },
+	{ "varp" },
+	{ NULL } // end marker
+};
+
+static AggInfo winfs[] = {
+	{ "approx_count_distinct" },
+	{ "avg" },
+	{ "count" },
+	{ "count_big" },
+	{ "cume_dist" },
+	{ "dense_rank" },
+	{ "first_value" },
+	{ "grouping" },
+	{ "grouping_id" },
+	{ "lag" },
+	{ "last_value" },
+	{ "lead" },
+	{ "max" },
+	{ "min" },
+	{ "ntile" },
+	{ "percent_rank" },
+	{ "percentile_cont" },
+	{ "percentile_disc" },
+	{ "rank" },
+	{ "row_number" },
+	{ "stdev" },
+	{ "stdevp" },
+	{ "string_agg" },
 	{ "sum" },
 	{ "var" },
 	{ "varp" },
@@ -251,11 +283,10 @@ boolean
 mssqlIsAgg(char *functionName)
 {
 	ASSERT(mssqlIsInitialized());
-	functionName = strToLower(functionName);
 
 	for(AggInfo *a = aggs; a->name != NULL; a++)
 	{
-		if(streq(functionName, a->name))
+		if(strcaseeq(functionName, a->name))
 		{
 			return TRUE;
 		}
@@ -268,7 +299,15 @@ boolean
 mssqlIsWindowFunction(char *functionName)
 {
 	ASSERT(mssqlIsInitialized());
-	TODO_IMPL;
+
+	for(AggInfo *a = winfs; a->name != NULL; a++)
+	{
+		if(strcaseeq(functionName, a->name))
+		{
+			return TRUE;
+		}
+	}
+
     return FALSE;
 }
 
@@ -309,11 +348,127 @@ mssqlBackendDatatypeToSQL (DataType dt)
 	return NULL;
 }
 
+/*
+ MATH functions: https://docs.microsoft.com/en-us/sql/t-sql/functions/mathematical-functions-transact-sql?view=sql-server-ver15
+ STRING functions https://docs.microsoft.com/en-us/sql/t-sql/functions/string-functions-transact-sql?view=sql-server-ver15
+ */
+
 DataType
 mssqlGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
 {
 	ASSERT(mssqlIsInitialized());
-	TODO_IMPL;
+	*funcExists = TRUE;
+
+	// uncertainty dummy functions
+	if (strcaseeq(fName, "UNCERT"))
+	{
+		ASSERT(LIST_LENGTH(argTypes) == 1);
+		DataType argType = getNthOfListInt(argTypes, 0);
+		return argType;
+	}
+
+	// aggregation functions
+	if (strcaseeq(fName,"SUM") || strcaseeq(fName, "MIN") || strcaseeq(fName, "MAX"))
+	{
+		ASSERT(LIST_LENGTH(argTypes) == 1);
+		DataType argType = getNthOfListInt(argTypes, 0);
+
+		switch (argType) {
+		case DT_INT:
+			if (strcaseeq(fName, "SUM"))
+				return DT_LONG;
+			else
+				return DT_INT;
+		case DT_LONG:
+			return DT_LONG;
+		case DT_FLOAT:
+			return DT_FLOAT;
+		default:
+			return DT_STRING;
+		}
+	}
+
+	if (strcaseeq(fName, "AVG"))
+	{
+		if (LIST_LENGTH(argTypes) == 1) {
+			DataType argType = getNthOfListInt(argTypes, 0);
+
+			switch (argType) {
+			case DT_INT:
+			case DT_LONG:
+			case DT_FLOAT:
+				return DT_FLOAT;
+			default:
+				return DT_STRING;
+			}
+		}
+	}
+
+	if (strcaseeq(fName, "COUNT"))
+		return DT_LONG;
+	if (strcaseeq(fName, "ROW_NUMBER"))
+		return DT_INT;
+	if (strcaseeq(fName, "DENSE_RANK"))
+		return DT_INT;
+
+	if (strcaseeq(fName, "CEILING")
+		|| strcaseeq(fName, "FLOOR"))
+	{
+		if (LIST_LENGTH(argTypes) == 1) {
+			DataType argType = getNthOfListInt(argTypes, 0);
+			switch (argType) {
+			case DT_INT:
+				return DT_INT;
+			case DT_LONG:
+			case DT_FLOAT:
+				return DT_LONG;
+			default:
+				;
+			}
+		}
+	}
+
+	if (strcaseeq(fName, "ROUND"))
+	{
+		if (LIST_LENGTH(argTypes) == 2)
+		{
+			DataType argType = getNthOfListInt(argTypes, 0);
+			DataType parType = getNthOfListInt(argTypes, 1);
+
+			if (parType == DT_INT)
+			{
+				switch (argType)
+				{
+				case DT_INT:
+					return DT_INT;
+				case DT_LONG:
+				case DT_FLOAT:
+					return DT_LONG;
+				default:
+					;
+				}
+			}
+		}
+	}
+
+	if (strcaseeq(fName, "GREATEST") || strcaseeq(fName, "LEAST")
+		|| strcaseeq(fName, "COALESCE") || strcaseeq(fName, "LEAD")
+		|| strcaseeq(fName, "LAG") || strcaseeq(fName, "FIRST_VALUE")
+		|| strcaseeq(fName, "LAST_VALUE"))
+	{
+		DataType dt = getNthOfListInt(argTypes, 0);
+
+		FOREACH_INT(argDT, argTypes)
+		{
+			dt = lcaType(dt, argDT);
+		}
+
+		return dt;
+	}
+	//TODO
+
+	*funcExists = FALSE;
+
 	return DT_STRING;
 }
 
