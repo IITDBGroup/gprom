@@ -555,7 +555,9 @@ List *
 mssqlGetKeyInformation(char *tableName)
 {
 	ASSERT(mssqlIsInitialized());
-	TODO_IMPL;
+
+	return odbcGetKeyInformationWithPlugin((ODBCPlugin *) plugin, tableName);
+
     return NULL;
 }
 

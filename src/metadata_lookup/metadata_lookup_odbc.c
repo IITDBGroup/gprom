@@ -34,6 +34,8 @@
 // don't use unicode string
 //#undef UNICODE
 
+#define ODBC_STRING_BUFFER_SIZE 1024
+
 // Mem context
 #define CONTEXT_NAME "ODBCMemContext"
 #define METADATA_LOOKUP_TIMER "module - metadata lookup"
@@ -412,8 +414,8 @@ odbcGetAttributesWithTypeConversion(ODBCPlugin *p,
 {
 	List *result = NIL;
 	SQLSMALLINT numCols;
-	SQLCHAR *colName = (SQLCHAR *) CALLOC(sizeof(char), 1024);
-	SQLCHAR *colDT = (SQLCHAR *) CALLOC(sizeof(char), 1024);
+	SQLCHAR *colName = (SQLCHAR *) CALLOC(sizeof(char), ODBC_STRING_BUFFER_SIZE);
+	SQLCHAR *colDT = (SQLCHAR *) CALLOC(sizeof(char), ODBC_STRING_BUFFER_SIZE);
 	SQLLEN length;
 
 	ASSERT(p->initialized);
@@ -441,7 +443,7 @@ odbcGetAttributesWithTypeConversion(ODBCPlugin *p,
 													 ODBC_COLNUMBER_SQLCOLUMNS_TYPE_COLUMN_NAME,
 													 SQL_CHAR,
 													 colName,
-													 1024,
+													 ODBC_STRING_BUFFER_SIZE,
 													 &length
 											  )
 					  );
@@ -451,7 +453,7 @@ odbcGetAttributesWithTypeConversion(ODBCPlugin *p,
 													 ODBC_COLNUMBER_SQLCOLUMNS_SQL_TYPE_NAME,
 													 SQL_CHAR,
 													 colDT,
-													 1024,
+													 ODBC_STRING_BUFFER_SIZE,
 													 &length
 											  )
 					  );
@@ -528,7 +530,57 @@ List *
 odbcGetKeyInformation(char *tableName)
 {
 	TODO_IMPL;
-    return NULL;
+	return NIL;
+}
+
+List *
+odbcGetKeyInformationWithPlugin(ODBCPlugin *p, char *tableName)
+{
+	List *result = NIL;
+	Set *keySet;
+	SQLCHAR buf[ODBC_STRING_BUFFER_SIZE];
+	SQLLEN length;
+
+	ASSERT(p->initialized);
+	ACQUIRE_MEM_CONTEXT(memContext);
+
+    keySet = STRSET();
+
+	WITH_STMT((ODBCPlugin *) p, stmt,
+			  SQLRETURN _retcode = 	SQLPrimaryKeys(stmt,
+												   NULL,
+												   SQL_NTS,
+												   NULL,
+												   SQL_NTS,
+												   (SQLCHAR *) tableName,
+												   SQL_NTS);
+
+			  HANDLE_STMT_ERROR(stmt, _retcode);
+			  FOR_RESULTS(stmt)
+			  {
+				  HANDLE_STMT_RESULT_ERROR(stmt);
+
+				  RUN_WITH_ERROR_HANDLING(stmt, SQL_HANDLE_STMT,
+										  SQLGetData(stmt,
+													 ODBC_COLNUMBER_SQLPRIMARYKEYS_COLUMN_NAME,
+													 SQL_CHAR,
+													 buf,
+													 ODBC_STRING_BUFFER_SIZE,
+													 &length
+											  )
+					  );
+
+				  DEBUG_LOG("key attribute %s", buf);
+				  addToSet(keySet, strdup((char *) buf));
+			  }
+		);
+
+	if(!EMPTY_SET(keySet))
+	{
+		result = singleton(keySet);
+	}
+
+	RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List,result);
 }
 
 Relation *
@@ -563,7 +615,7 @@ odbcExecuteQueryGetResult(ODBCPlugin *p, char *query)
 				   for(int i = 1; i <= numcols; i++)
 				   {
 					   SQLLEN  len;
-					   SQLCHAR buf[1024];
+					   SQLCHAR buf[ODBC_STRING_BUFFER_SIZE];
 
 					   //TODO deal with larger size
 					   // Retrieve column data as a string

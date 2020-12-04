@@ -53,6 +53,8 @@ typedef struct ODBCPlugin
 #define ODBC_COLNUMBER_SQLCOLUMNS_TYPE_COLUMN_NAME 4
 #define ODBC_COLNUMBER_SQLCOLUMNS_SQL_TYPE_NAME 6
 
+#define ODBC_COLNUMBER_SQLPRIMARYKEYS_COLUMN_NAME 4
+
 extern void odbcCreateEnvironment(ODBCPlugin *p);
 extern void odbcDestroyEnvironment(ODBCPlugin *p);
 extern SQLHDBC odbcOpenDatabaseConnectionFromConnStr(ODBCPlugin *p, char *connstr);
@@ -64,6 +66,7 @@ extern boolean odbcTableExistsAsType (ODBCPlugin *p, char *type, char *table);
 extern Relation *odbcExecuteQueryGetResult(ODBCPlugin *p, char *query);
 extern void odbcExecuteQueryWithPluginIgnoreResult (ODBCPlugin *p, char *query);
 extern List *odbcGetAttributesWithTypeConversion(ODBCPlugin *p, char *tableName, DataType (*convert) (char *typeName));
+extern List *odbcGetKeyInformationWithPlugin(ODBCPlugin *p, char *tableName);
 
 extern void odbcHandleError(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCode);
 extern StringInfo odbcDiagnosticsToStringInfo(SQLHANDLE handle, SQLSMALLINT htype, RETCODE retCode);
