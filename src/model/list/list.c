@@ -507,7 +507,7 @@ List *
 concatTwoLists(List *lista, List*listb)
 {
     if (lista == listb)
-	{
+    {
         listb = copyList(listb);
 	}
 

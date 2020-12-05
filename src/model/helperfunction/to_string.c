@@ -25,6 +25,7 @@
 #include "model/set/set.h"
 #include "model/set/vector.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -123,6 +124,9 @@ static void operatorToOverviewInternal(StringInfo str, QueryOperator *op,
         int indent, HashMap *map, boolean printChildren);
 static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
+// for provenance sketch
+static void outPSInfo(StringInfo str, psInfo *node);
+static void outPSAttrInfo(StringInfo str, psAttrInfo *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -776,6 +780,9 @@ outCastExpr (StringInfo str, CastExpr *node)
 
     WRITE_ENUM_FIELD(resultDT,DataType);
     WRITE_NODE_FIELD(expr);
+    WRITE_STRING_FIELD(otherDT);
+    WRITE_INT_FIELD(num);
+
 }
 
 static void
@@ -1111,6 +1118,28 @@ outRPQQuery(StringInfo str, RPQQuery *node)
     WRITE_STRING_FIELD(resultRel);
 }
 
+
+static void
+outPSInfo(StringInfo str, psInfo *node)
+{
+    WRITE_NODE_TYPE(PSINFO);
+
+    WRITE_STRING_FIELD(psType);
+    WRITE_NODE_FIELD(tablePSAttrInfos);
+}
+
+
+static void
+outPSAttrInfo(StringInfo str, psAttrInfo *node)
+{
+    WRITE_NODE_TYPE(PSATTRINFO);
+
+    WRITE_STRING_FIELD(attrName);
+    WRITE_NODE_FIELD(rangeList);
+    WRITE_NODE_FIELD(BitVector);
+    WRITE_NODE_FIELD(psIndexList);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1336,6 +1365,15 @@ outNode(StringInfo str, void *obj)
             case T_RPQQuery:
                 outRPQQuery(str, (RPQQuery *) obj);
                 break;
+
+            /* provenance sketch  */
+		    case T_psInfo:
+				outPSInfo(str, (psInfo *) obj);
+			    break;
+		    case T_psAttrInfo:
+				outPSAttrInfo(str, (psAttrInfo *) obj);
+			    break;
+
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);

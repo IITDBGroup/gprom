@@ -15,6 +15,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_HashMap,
     T_Vector,
 	T_BitSet,
+
     /* options */
     T_KeyValue,
 
@@ -100,7 +101,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 
     /* ddl */
     T_CreateTable,
-    T_AlterTable
+    T_AlterTable,
+
+	/* provenance sketch */
+	T_psInfo,
+	T_psAttrInfo
 );
 
 typedef struct Node{
@@ -111,8 +116,10 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION,
     PROV_XML,
+	CAP_USE_PROV_COARSE_GRAINED,
 	PROV_COARSE_GRAINED,
 	USE_PROV_COARSE_GRAINED,
+	USE_PROV_COARSE_GRAINED_BIND,
     PROV_NONE /* for reenactment of bag semantics only */
 );
 

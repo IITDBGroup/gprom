@@ -34,10 +34,10 @@ typedef struct ReplaceNonOracleDTsContext {
     boolean inCond;
 } ReplaceNonOracleDTsContext;
 
-typedef struct FromAttrsContext {
-    List *fromAttrs;
-    List *fromAttrsList;
-} FromAttrsContext;
+//typedef struct FromAttrsContext {
+//    List *fromAttrs;
+//    List *fromAttrsList;
+//} FromAttrsContext;
 
 typedef struct JoinStateFac {
     JoinAttrRenameState *state;
@@ -86,7 +86,8 @@ static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo se
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize);
 
 static char *oracleExprToSQLWithNamingScheme(Node *expr, int rOffset, FromAttrsContext *fac);
-static boolean renameAttrsVisitor(Node *node,  JoinStateFac *jsf);
+static boolean renameAttrsVisitor(Node *node,  JoinAttrRenameState *state);
+//static boolean renameAttrsVisitor(Node *node,  JoinStateFac *jsf);
 
 static char *createAttrName(char *name, int fItem, FromAttrsContext *fac);
 //static char *createFromNames(int *attrOffset, int count);
@@ -97,10 +98,10 @@ static boolean shortenAttributeNames(QueryOperator *q, void *context);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
 
-//for nesting
-static FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
-static void printFromAttrsContext(FromAttrsContext *fac);
-static FromAttrsContext *initializeFromAttrsContext ();
+////for nesting
+//static FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
+//static void printFromAttrsContext(FromAttrsContext *fac);
+//static FromAttrsContext *initializeFromAttrsContext ();
 
 char *
 serializeOperatorModelOracle(Node *q)
@@ -258,69 +259,69 @@ quoteAttributeNames (Node *node, void *context)
 }
 
 
-FromAttrsContext *
-initializeFromAttrsContext ()
-{
-    struct FromAttrsContext *fac;
-    fac =  CALLOC(sizeof(FromAttrsContext),1);
-    fac->fromAttrsList = NIL;
-    fac->fromAttrs = NIL;
+//FromAttrsContext *
+//initializeFromAttrsContext ()
+//{
+//  	struct FromAttrsContext *fac;
+//  	fac =  CALLOC(sizeof(FromAttrsContext),1);
+//  	fac->fromAttrsList = NIL;
+//  	fac->fromAttrs = NIL;
+//
+//  	return fac;
+//}
+//
+//FromAttrsContext *
+//copyFromAttrsContext(FromAttrsContext *fac)
+//{
+//  	struct FromAttrsContext *result;
+//  	result =  CALLOC(sizeof(FromAttrsContext),1);
+//  	result->fromAttrsList = copyList(fac->fromAttrsList);
+//  	result->fromAttrs = copyList(fac->fromAttrs);
+//
+//  	return result;
+//}
 
-    return fac;
-}
-
-FromAttrsContext *
-copyFromAttrsContext(FromAttrsContext *fac)
-{
-    struct FromAttrsContext *result;
-    result =  CALLOC(sizeof(FromAttrsContext),1);
-    result->fromAttrsList = copyList(fac->fromAttrsList);
-    result->fromAttrs = copyList(fac->fromAttrs);
-
-    return result;
-}
-
-void
-printFromAttrsContext(FromAttrsContext *fac)
-{
-     DEBUG_LOG("FromAttrsContext:");
-     if(fac->fromAttrsList != NIL)
-     {
-     StringInfo s1 = makeStringInfo();
-     appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
-     FOREACH(List, l1, fac->fromAttrsList)
-     {
-         FOREACH(List, l2, l1)
-        {
-            appendStringInfo(s1, "(");
-             FOREACH(char, c, l2)
-                appendStringInfo(s1, " %s ", c);
-                 //DEBUG_LOG("%s",c);
-            appendStringInfo(s1, ")");
-        }
-        appendStringInfo(s1, " , ");
-     }
-     DEBUG_LOG(" %s ", s1->data);
-     }
-     else
-             DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
-
-     if(fac->fromAttrs != NIL)
-     {
-     StringInfo s2 = makeStringInfo();
-     appendStringInfo(s2,"Len: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
-     FOREACH(List, l1, fac->fromAttrs)
-     {
-            appendStringInfo(s2, "(");
-         FOREACH(char, c, l1)
-             appendStringInfo(s2, " %s ", c);
-        appendStringInfo(s2, ")");
-     }
-     DEBUG_LOG(" %s ", s2->data);
-     }
-     else
-         DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
-}
+//void
+//printFromAttrsContext(FromAttrsContext *fac)
+//{
+//     DEBUG_LOG("FromAttrsContext:");
+//     if(fac->fromAttrsList != NIL)
+//     {
+//     StringInfo s1 = makeStringInfo();
+//     appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
+//     FOREACH(List, l1, fac->fromAttrsList)
+//     {
+//     	 FOREACH(List, l2, l1)
+//		{
+//     	    appendStringInfo(s1, "(");
+//		 	 FOREACH(char, c, l2)
+//			    appendStringInfo(s1, " %s ", c);
+//			 	 //DEBUG_LOG("%s",c);
+//		 	appendStringInfo(s1, ")");
+//		}
+//     	appendStringInfo(s1, " , ");
+//     }
+//     DEBUG_LOG(" %s ", s1->data);
+//     }
+//     else
+//    	 	 DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
+//
+//     if(fac->fromAttrs != NIL)
+//     {
+//     StringInfo s2 = makeStringInfo();
+//     appendStringInfo(s2,"Len: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
+//     FOREACH(List, l1, fac->fromAttrs)
+//     {
+//    	    appendStringInfo(s2, "(");
+// 	 	 FOREACH(char, c, l1)
+//		 	 appendStringInfo(s2, " %s ", c);
+// 	 	appendStringInfo(s2, ")");
+//     }
+//     DEBUG_LOG(" %s ", s2->data);
+//     }
+//     else
+//    	 DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
+//}
 
 char *
 serializeQueryOracle(QueryOperator *q)
@@ -1346,8 +1347,9 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac); //TODO ok to use first?
             fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
             //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+            //appendStringInfo(from, ") F%u)", (*curFromItem)++);
             fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-            appendStringInfo(from, ") F%u)", (*curFromItem)++);
+            appendStringInfo(from, ") F%u_%u)", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
         }
     }
 }
@@ -1358,23 +1360,25 @@ oracleExprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac)
     JoinAttrRenameState *state = NEW(JoinAttrRenameState);
 
     state->rightFromOffsets = rOffset;
-    state->fromAttrs = fac->fromAttrs;
+    state->fac = fac;
+//    state->fromAttrs = fac->fromAttrs;
+//
+//    JoinStateFac *jsf = NEW(JoinStateFac);
+//    jsf->fac = fac;
+//    jsf->state = state;
 
-    JoinStateFac *jsf = NEW(JoinStateFac);
-    jsf->fac = fac;
-    jsf->state = state;
 
-    renameAttrsVisitor(expr, jsf);
+    renameAttrsVisitor(expr, state);
 
     FREE(state);
     return exprToSQL(expr, NULL);
 }
 
 static boolean
-renameAttrsVisitor (Node *node, JoinStateFac *jsf)
+renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 {
-    JoinAttrRenameState *state = jsf->state;
-    FromAttrsContext *fac = jsf->fac;
+	//JoinAttrRenameState *state = jsf->state;
+	//FromAttrsContext *fac = jsf->fac;
 
     if (node == NULL)
         return TRUE;
@@ -1391,10 +1395,10 @@ renameAttrsVisitor (Node *node, JoinStateFac *jsf)
 
         // if right join input find first from item from right input
         if (isRight)
-            for(lc = getHeadOfList(state->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
+            for(lc = getHeadOfList(state->fac->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
                 ;
         else
-            lc = getHeadOfList(state->fromAttrs);
+            lc = getHeadOfList(state->fac->fromAttrs);
 
         // find from position and attr name
         for(; lc != NULL; lc = lc->next)
@@ -1412,12 +1416,12 @@ renameAttrsVisitor (Node *node, JoinStateFac *jsf)
         pos = a->attrPosition - pos + LIST_LENGTH(from);
         name = getNthOfListP(from, pos);
 
-        a->name = createAttrName(name, fPos, fac);
+        a->name = createAttrName(name, fPos, state->fac);
 
         return TRUE;
     }
 
-    return visit(node, renameAttrsVisitor, jsf);
+    return visit(node, renameAttrsVisitor, state);
 }
 
 //static char *

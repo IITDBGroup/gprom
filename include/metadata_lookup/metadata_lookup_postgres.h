@@ -34,6 +34,8 @@ extern boolean postgresCatalogTableExists (char * tableName);
 extern boolean postgresCatalogViewExists (char * viewName);
 extern List *postgresGetAttributes (char *tableName);
 extern List *postgresGetAttributeNames (char *tableName);
+extern List *postgresGetHist (char *tableName, char *attrName, int numPartitions);
+extern HashMap *postgresGetPS (char *sql, List *attrNames);
 extern boolean postgresIsAgg(char *functionName);
 extern boolean postgresIsWindowFunction(char *functionName);
 extern DataType postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
@@ -45,6 +47,7 @@ extern List *postgresGetKeyInformation(char *tableName);
 extern DataType postgresBackendSQLTypeToDT (char *sqlType);
 extern char * postgresBackendDatatypeToSQL (DataType dt);
 extern HashMap *postgresGetMinAndMax(char* tableName, char* colName);
+extern List *postgresGetAllMinAndMax(TableAccessOperator *table);
 
 extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

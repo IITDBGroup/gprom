@@ -1214,7 +1214,7 @@ getAttrRefByName(QueryOperator *op, char *attr)
 
     AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
             getAttrPos(op, attr),
-            INVALID_ATTR,
+            0,
             d->dataType);
 
     return res;

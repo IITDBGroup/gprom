@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_string.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -18,7 +18,7 @@ static rc testStringConstruction(void);
 rc
 testString(void)
 {
-    RUN_TEST(testStringConstruction(), "Test simple SQL queries");
+    RUN_TEST(testStringConstruction(), "Test extensible string (StringInfo)");
 
     return PASS;
 }

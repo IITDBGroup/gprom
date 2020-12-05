@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/rpq/rpq_model.h"
 #include "log/logger.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 #define EQUAL_CONTEXT_NAME "EQUAL_CONTEXT"
 
@@ -114,6 +115,10 @@ static boolean equalDLDomain (DLDomain *a, DLDomain *b, HashMap *seenOps, MemCon
 // equal functions for regex model
 static boolean equalRegex (Regex *a, Regex *b, HashMap *seenOps, MemContext *c);
 static boolean equalRPQQuery (RPQQuery *a, RPQQuery *b, HashMap *seenOps, MemContext *c);
+
+// equal structure provenance sketch
+static boolean equalPSInfo(psInfo *a, psInfo *b, HashMap *seenOps, MemContext *c);
+static boolean equalPSAttrInfo(psAttrInfo *a, psAttrInfo *b, HashMap *seenOps, MemContext *c);
 
 /* use these macros to compare fields */
 
@@ -335,6 +340,8 @@ equalCastExpr (CastExpr *a, CastExpr *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_SCALAR_FIELD(resultDT);
     COMPARE_NODE_FIELD(expr);
+    COMPARE_STRING_FIELD(otherDT);
+    COMPARE_SCALAR_FIELD(num);
 
     return TRUE;
 }
@@ -624,7 +631,6 @@ equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c)
 {
 	return bitsetEquals(a,b);
 }
-
 
 static boolean
 equalSchema(Schema *a, Schema *b, HashMap *seenOps, MemContext *c)
@@ -1085,6 +1091,26 @@ equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b, HashMap *seenOps, MemContext
 }
 
 static boolean
+equalPSInfo(psInfo *a, psInfo *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_STRING_FIELD(psType);
+	COMPARE_NODE_FIELD(tablePSAttrInfos);
+
+    return TRUE;
+}
+
+static boolean
+equalPSAttrInfo(psAttrInfo *a, psAttrInfo *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_STRING_FIELD(attrName);
+	COMPARE_NODE_FIELD(rangeList);
+	COMPARE_NODE_FIELD(BitVector);
+	COMPARE_NODE_FIELD(psIndexList);
+
+    return TRUE;
+}
+
+static boolean
 equalDistinctClause(DistinctClause *a,  DistinctClause *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(distinctExprs);
@@ -1320,13 +1346,13 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_JsonColInfoItem:
         	retval = equalJsonColInfoItem(a,b, seenOps, c);
-        	break;
+        		break;
         case T_JsonTableOperator:
         	retval = equalJsonTableOperator(a,b, seenOps, c);
-        	break;
+        		break;
         case T_JsonPath:
         	retval = equalJsonPath(a,b, seenOps, c);
-        	break;
+        		break;
         /* datalog model */
         case T_DLAtom:
             retval = equalDLAtom(a,b, seenOps, c);
@@ -1352,6 +1378,14 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_RPQQuery:
             retval = equalRPQQuery(a,b, seenOps, c);
             break;
+
+        /* provenance sketch */
+	    case T_psInfo:
+			retval = equalPSInfo(a, b, seenOps, c);
+			break;
+	    case T_psAttrInfo:
+			retval = equalPSAttrInfo(a, b, seenOps, c);
+			break;
         default:
             retval = FALSE;
             break;

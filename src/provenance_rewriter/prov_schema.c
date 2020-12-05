@@ -64,11 +64,19 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         {
             return NIL;
         }
+        case CAP_USE_PROV_COARSE_GRAINED:
+        {
+            return NIL;
+        }
         case PROV_COARSE_GRAINED:
         {
             return NIL;
         }
         case USE_PROV_COARSE_GRAINED:
+        {
+            return NIL;
+        }
+        case USE_PROV_COARSE_GRAINED_BIND:
         {
             return NIL;
         }
@@ -228,7 +236,10 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 
         return;
     }
-    if (stmt->provType == PROV_COARSE_GRAINED || stmt->provType == USE_PROV_COARSE_GRAINED)
+    if (stmt->provType == PROV_COARSE_GRAINED
+    			|| stmt->provType == USE_PROV_COARSE_GRAINED
+			|| stmt->provType == CAP_USE_PROV_COARSE_GRAINED
+			|| stmt->provType == USE_PROV_COARSE_GRAINED_BIND)
     {
         //TODO create list of prov attributes PROV_R, PROV_S, .... and their DTs
         ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);

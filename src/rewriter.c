@@ -41,6 +41,7 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 //#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 
@@ -446,15 +447,12 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-    //Ziyu Liu
-	//TODO only run check if
-	/* HashMap *checkResult; //TODO only call if we are computing prov sketches */
-	/* checkResult = monotoneCheck(oModel); */
-	// FREE(checkResult); //TODO why free this?
-	//Ziyu Liu
-
-    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
+    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
     		oModel = lateralTranslateQBModel(oModel);
+
+    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
+    		oModel = unnestTranslateQBModel(oModel);
+
     rewrittenTree = provRewriteQBModel(oModel);
 
 	if (IS_QB(rewrittenTree))

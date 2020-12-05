@@ -1655,13 +1655,15 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         if (((NestedSubquery *) node)->nestingType == NESTQ_SCALAR)
             return (Node *) attr;
 
-        // create "nesting_eval_i = true" expression
-        Constant *trueValue = createConstBool(TRUE);
-        List *args = LIST_MAKE(attr, trueValue);
-        Operator *opExpr = createOpExpr(OPNAME_EQ, args);
+//        // create "nesting_eval_i = true" expression
+//        Constant *trueValue = createConstBool(TRUE);
+//        List *args = LIST_MAKE(attr, trueValue);
+//        Operator *opExpr = createOpExpr("=", args);
+//
+//        // replace the nested subquery node with the auxiliary expression
+//        return (Node *) opExpr;
 
-        // replace the nested subquery node with the auxiliary expression
-        return (Node *) opExpr;
+        return (Node *) attr;
     }
 
     if (isQBQuery(node))
@@ -1714,7 +1716,9 @@ static boolean
 visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 {
     if (n == NULL)
+    {
         return TRUE;
+	}
     if (isA(n, AttributeReference))
     {
     	//int count = 0;

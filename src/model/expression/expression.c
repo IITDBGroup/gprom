@@ -106,6 +106,21 @@ createCastExpr (Node *expr, DataType resultDt)
 
     result->expr = expr;
     result->resultDT = resultDt;
+    result->otherDT = NULL;
+    result->num = -1;
+
+    return result;
+}
+
+CastExpr *
+createCastExprOtherDT (Node *expr, char* otherDT, int num)
+{
+    CastExpr *result = makeNode(CastExpr);
+
+    result->expr = expr;
+    result->resultDT = -1;
+    result->otherDT = otherDT;
+    result->num = num;
 
     return result;
 }
@@ -1416,6 +1431,14 @@ getSelectionCondOperatorList(Node *expr, List **opList)
     // only are interested in operators here
 	if (isA(expr,Operator)) {
 	    Operator *op = (Operator *) copyObject(expr);
+
+	    // uppercase operator name
+	    char *opName = op->name;
+	    while (*opName) {
+	      *opName = toupper((unsigned char) *opName);
+	      opName++;
+	    }
+
 	    if(streq(op->name,OPNAME_AND))
 	    {
 	        FOREACH(Node,arg,op->args)

@@ -240,6 +240,13 @@ strconcat		"||"
 (?i:RANGESA)		UPCASE_TOK(RANGESA)
 (?i:RANGESB)		UPCASE_TOK(RANGESB)
 
+
+(?i:HASH)		UPCASE_TOK(HASH)
+(?i:CAPTUREUSE)		UPCASE_TOK(CAPTUREUSE)
+(?i:BIND)		UPCASE_TOK(BIND)
+(?i:FOR)		UPCASE_TOK(FOR)
+(?i:CANUSE)		UPCASE_TOK(CANUSE)
+
 	/* booleans */
 {bool}			TOK(boolConst)
 

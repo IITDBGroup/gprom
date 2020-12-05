@@ -87,6 +87,23 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# z3 libz3 library location
+AC_DEFUN([AC_LIBZ3_LOCATION],
+[AC_ARG_WITH(libz3, [  --with-libz3], , )
+AC_MSG_CHECKING([for user provided libz3 location])
+if test "x$with_libz3" != x; then
+	if test -d "$with_libz3"; then
+		LDFLAGS="$LDFLAGS -L$with_libz3"
+    	CPPFLAGS="$CPPFLAGS -I$with_libz3/../include"
+    	AC_MSG_RESULT([yes, $with_libz3])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no libz3 library found in location $with_libz3])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 # All Oracle Checks
 AC_DEFUN([AC_ORACLE_ALL_CHECKS],
 [
@@ -780,6 +797,23 @@ AS_CASE(["$enable_postgres"],
   []
 )
 ################################################################################
+# Z3 library (libz3)
+AS_CASE(["$enable_z3"],
+  [yes], [
+# check if user has provided us with a non-standard location for libz3 library
+  AC_LIBZ3_LOCATION
+  AC_CHECK_HEADERS([z3.h])
+# check for the libz3 library
+  AC_CHECK_LIB([z3],[Z3_get_version],[],[
+    AC_MSG_ERROR([missing libz3 library - if you want to compile without z3 support use --disable-z3])
+  ])
+  ],
+  # Deactivated
+  [no], [],
+  # Default (inactive)
+  []
+)
+################################################################################
 # SQlite library (libsqlite3)
 # check for the sqlite3 library
 AS_CASE(["$enable_sqlite"],
@@ -871,7 +905,8 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/provenance_rewriter/summarization_rewrites/Makefile
 	src/provenance_rewriter/xml_rewrites/Makefile
-    src/provenance_rewriter/lateral_rewrites/Makefile
+	src/provenance_rewriter/lateral_rewrites/Makefile
+	src/provenance_rewriter/unnest_rewrites/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile
@@ -883,6 +918,7 @@ AC_CONFIG_FILES([
 ])
 AC_OUTPUT
 
+
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -891,7 +927,7 @@ echo "
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
-  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
+  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no} Z3:${enable_z3:=no}
   Backends supported.: Oracle - ${enable_oracle:=no}, Postgres - ${enable_postgres:=no}, SQLite - ${enable_sqlite:=no}, MonetDB - ${enable_monetdb:=no}, ODBC - ${enable_odbc:=no}, MSSQL - ${enable_mssql:=no}
   Language bindings..: Java - ${enable_java:=no}
   Readline support...: ${enable_readline:=yes}
