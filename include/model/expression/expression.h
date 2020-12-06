@@ -35,6 +35,7 @@ typedef struct Operator {
 #define OPNAME_GE ">="
 #define OPNAME_NEQ "<>"
 #define OPNAME_NEQ_BANG "!="
+#define OPNAME_NEQ_HAT "^="
 
 #define OPNAME_STRING_CONCAT "||"
 #define OPNAME_CONCAT "CONCAT"

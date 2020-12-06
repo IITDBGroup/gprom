@@ -265,7 +265,7 @@ strconcat		"||"
 	}
 
 	/* punctuation */
-[(),.;] TOKSELF()
+[(),.;\[\]] TOKSELF()
 
 	/* operators */
 {comparisonOps}		TOK(comparisonOps)

@@ -28,7 +28,8 @@
 #include "symbolic_eval/expr_to_constraint.h"
 #include "symbolic_eval/whatif_algo.h"
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
 	Node *result;
 //    int retVal;
 

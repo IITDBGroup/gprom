@@ -10,11 +10,13 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "model/list/list.h"
 #include "test_main.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
+#include "parser/parser_oracle.h"
 
 /* internal tests */
 static rc testAttributeReference (void);
@@ -24,6 +26,7 @@ static rc testOperator (void);
 static rc testExpressionToSQL (void);
 static rc testAutoCasting (void);
 static rc testMinMaxForConstants (void);
+static rc testExprParsing (void);
 
 /* check expression model */
 rc
@@ -36,6 +39,7 @@ testExpr (void)
     RUN_TEST(testExpressionToSQL(), "test code that translates an expression tree into SQL code");
     RUN_TEST(testAutoCasting(), "test code that introduces casts for function and operator arguments where necessary");
     RUN_TEST(testMinMaxForConstants(), "test code that computes min and max of constants");
+	RUN_TEST(testExprParsing(), "test expression parsing");
 
     return PASS;
 }
@@ -201,4 +205,49 @@ testAutoCasting (void)
     ASSERT_EQUALS_NODE(exp,result,"1.0 * (2 + 1.0)  = 2 -> \"1\" = 1.0 * (CAST(2 AS FLOAT) + 1.0)");
 
     return PASS;
+}
+
+static rc
+testExprParsing (void)
+{
+	const char *exprStr;
+	Node *expected = (Node *) createOpExpr(OPNAME_EQ,
+								  LIST_MAKE(
+								  createOpExpr(OPNAME_ADD,
+											   LIST_MAKE(
+												   createConstFloat(1.0),
+												   createConstFloat(2.0)
+												   )),
+								  createConstFloat(3.0)));
+	Node *actual;
+
+	exprStr = "1.0 + 2.0 = 3.0";
+	actual = parseExprFromStringOracle((char *) exprStr);
+	expected = (Node *) createOpExpr(OPNAME_EQ,
+								  LIST_MAKE(
+								  createOpExpr(OPNAME_ADD,
+											   LIST_MAKE(
+												   createConstFloat(1.0),
+												   createConstFloat(2.0)
+												   )),
+								  createConstFloat(3.0)));
+	ASSERT_EQUALS_NODE(expected, actual, "parsed 1.0 + 2.0 = 3.0");
+
+	exprStr = "(3 = 4) AND (2 = 2)";
+	actual = parseExprFromStringOracle((char *) exprStr);
+	expected = (Node *) createOpExpr(OPNAME_AND,
+									 LIST_MAKE(
+										 createOpExpr(OPNAME_EQ,
+													  LIST_MAKE(
+														  createConstInt(3),
+														  createConstInt(4)
+														  )),
+										 createOpExpr(OPNAME_EQ,
+													  LIST_MAKE(
+														  createConstInt(2),
+														  createConstInt(2)
+														  ))));
+	ASSERT_EQUALS_NODE(expected, actual, "parsed 3 = 4 AND 2 = 2");
+
+	return PASS;
 }

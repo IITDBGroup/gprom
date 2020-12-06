@@ -208,7 +208,7 @@ typedef (void *) gprom_long_t;
 /********************************************************************************
  * Z3
  */
-#if HAVE_LIBZ3 && HAVE_LIBZ3_H
+#if HAVE_LIBZ3 && HAVE_Z3_H
 #define HAVE_Z3 1
 #endif
 

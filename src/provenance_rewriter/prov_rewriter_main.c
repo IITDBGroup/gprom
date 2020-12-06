@@ -17,7 +17,7 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
-#include "provenance_rewriter/coarse_grained/z3_solver.h"
+#include "symbolic_eval/z3_solver.h"
 #include "provenance_rewriter/coarse_grained/prop_inference.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
@@ -265,7 +265,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             removeParent(result, (QueryOperator *) useOp);
 
         		break;
-
         case PROV_COARSE_GRAINED:
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		psPara = createPSInfo(coarsePara);
@@ -364,5 +363,3 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     return result;
 }
-
-

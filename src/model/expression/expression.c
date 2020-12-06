@@ -1201,8 +1201,8 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 
     // logical operators
     if (streq(upCaseOpName,OPNAME_OR)
-            || streq(upCaseOpName,OPNAME_AND)
-            )
+		|| streq(upCaseOpName,OPNAME_AND)
+		)
     {
         if (dLeft == dRight && dLeft == DT_BOOL)
             return DT_BOOL;
@@ -1217,11 +1217,11 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 
     // standard arithmetic operators
     if (streq(opName,OPNAME_ADD)
-            || streq(opName,OPNAME_MULT)
-            || streq(opName,OPNAME_DIV)
-            || streq(opName,OPNAME_MINUS)
-		    || streq(opName,OPNAME_MOD)
-            )
+		|| streq(opName,OPNAME_MULT)
+		|| streq(opName,OPNAME_DIV)
+		|| streq(opName,OPNAME_MINUS)
+		|| streq(opName,OPNAME_MOD)
+		)
     {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
@@ -1238,15 +1238,15 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 
     // comparison operators
     if (streq(opName,OPNAME_LT)
-            || streq(opName,OPNAME_GT)
-            || streq(opName,OPNAME_LE)
-            || streq(opName,OPNAME_GE)
-            || streq(opName,"=>")
-		    || streq(opName,OPNAME_NEQ)
-            || streq(opName,"^=")
-            || streq(opName,OPNAME_EQ)
-            || streq(opName,OPNAME_NEQ_BANG)
-     		|| streq(opName,OPNAME_LIKE)
+		|| streq(opName,OPNAME_GT)
+		|| streq(opName,OPNAME_LE)
+		|| streq(opName,OPNAME_GE)
+		|| streq(opName,"=>") //TODO is this supposed ot be >=?
+		|| streq(opName,OPNAME_NEQ)
+		|| streq(opName,OPNAME_NEQ_HAT)
+		|| streq(opName,OPNAME_EQ)
+		|| streq(opName,OPNAME_NEQ_BANG)
+		|| streq(opName,OPNAME_LIKE)
     )
     {
        return DT_BOOL;

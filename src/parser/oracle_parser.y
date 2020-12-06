@@ -55,7 +55,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> boolConst
 %token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']'
 
 /*
  * Tokens for in-built keywords
@@ -87,7 +87,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> CREATE ALTER ADD REMOVE COLUMN
 %token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE TOP
 
-%token <stringVal> DUMMYEXPR
+%token <stringVal> DUMMYEXPR SUBQUERYEXPR
 
 /* Keywords for Join queries */
 %token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL TYPE TRANSACTION WITH
@@ -110,25 +110,26 @@ Node *oracleParseResult = NULL;
 %right NOT
 %left AND OR
 %right IS NULLVAL
-%nonassoc  LIKE IN  BETWEEN
+%nonassoc  LIKE IN BETWEEN
 
 /* Arithmetic operators : FOR TESTING */
-%nonassoc DUMMYEXPR
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
-%nonassoc '(' ')'
+%nonassoc DUMMYEXPR
+%nonassoc SUBQUERYEXPR
+%left '(' ')'
 
 %left NATURAL JOIN CROSS LEFT FULL RIGHT INNER
 
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt queryStmt ddlStmt reenactStmtWithOptions
+%type <node> stmt stmtWithSemicolon provStmt dmlStmt queryStmt queryStmtNoParens queryStmtWithParens ddlStmt reenactStmtWithOptions
 %type <node> createTableStmt alterTableStmt alterTableCommand
 %type <list> tableElemList optTableElemList attrElemList
 %type <node> tableElement attr
-%type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
+%type <node> selectQuery deleteQuery updateQuery insertQuery setOperatorQuery //subQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList
 			 optionalGroupBy optionalOrderBy setClause  stmtList stmtWithReenactOptionsList //insertList
@@ -138,7 +139,7 @@ Node *oracleParseResult = NULL;
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalOffset optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable optionalFromRADB optionalFromUADB
-%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
+%type <node> expression expressionWithParens constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem
 %type <node> binaryOperatorExpression unaryOperatorExpression
@@ -159,19 +160,33 @@ Node *oracleParseResult = NULL;
 
 /* Rule for all types of statements */
 stmtList:
-		stmt ';'
-			{
-				RULELOG("stmtList::stmt");
-				$$ = singleton($1);
-				oracleParseResult = (Node *) $$;
-			}
-		| stmtList stmt ';'
-			{
-				RULELOG("stmtlist::stmtList::stmt");
-				$$ = appendToTailOfList($1, $2);
-				oracleParseResult = (Node *) $$;
-			}
+		stmtWithSemicolon
+		{
+			RULELOG("stmtList::stmt");
+			$$ = singleton($1);
+			oracleParseResult = (Node *) $$;
+		}
+		| stmtList stmtWithSemicolon
+		{
+			RULELOG("stmtlist::stmtList::stmt");
+			$$ = appendToTailOfList($1, $2);
+			oracleParseResult = (Node *) $$;
+		}
+		| '[' whereExpression ']'
+		{
+			RULELOG("stmt::expression");
+			$$ = singleton($2);
+			oracleParseResult = (Node *) $$;
+		}
 	;
+
+stmtWithSemicolon:
+		stmt ';'
+		{
+			RULELOG("stmtList::stmt");
+			$$ = $1;
+		}
+    ;
 
 stmt:
         ddlStmt		// DDL statments
@@ -184,7 +199,7 @@ stmt:
             RULELOG("stmt::dmlStmt");
             $$ = $1;
         }
-		| queryStmt
+		| queryStmt %prec SUBQUERYEXPR
         {
             RULELOG("stmt::queryStmt");
             $$ = $1;
@@ -197,11 +212,6 @@ stmt:
 		| withQuery
 		{
 			RULELOG("stmt::withQuery");
-			$$ = $1;
-		}
-		| expression
-		{
-			RULELOG("stmt::expression");
 			$$ = $1;
 		}
     ;
@@ -306,11 +316,20 @@ dmlStmt:
  * Rule to parse all types projection queries.
  */
 queryStmt:
-		'(' queryStmt ')'	{ RULELOG("queryStmt::bracketedQuery"); $$ = $2; }
-		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
+		queryStmtNoParens %prec SUBQUERYEXPR     { RULELOG("queryStmt::noparens"); }
+		| queryStmtWithParens %prec SUBQUERYEXPR { RULELOG("queryStmt::withparens"); }
+	;
+
+queryStmtNoParens:
+		selectQuery        { RULELOG("queryStmt::selectQuery"); }
 		| provStmt        { RULELOG("queryStmt::provStmt"); }
 		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
-    ;
+	;
+
+queryStmtWithParens:
+		 '(' queryStmtNoParens ')'	{ RULELOG("queryStmtWithParens::queryStmtNoParens"); $$ = $2; }
+		| '(' queryStmtWithParens ')' { RULELOG("queryStmtWithParens::queryStmtWithParens"); $$ = $2; }
+	;
 
 withQuery:
 		WITH withViewList queryStmt
@@ -334,10 +353,10 @@ withViewList:
 	;
 
 withView:
-		identifier AS '(' queryStmt ')'
+		identifier AS queryStmtWithParens
 		{
 			RULELOG("withView::ident::AS:queryStmt");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), $4);
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), $3);
 		}
 	;
 
@@ -1180,15 +1199,15 @@ setExpression:
                     $$ = (Node *) createOpExpr($2, expr);
                 }
             }
-        | attributeRef comparisonOps subQuery
-            {
-                if (!strcmp($2, "=")) {
-                    RULELOG("setExpression::attributeRef::queryStmt");
-                    List *expr = singleton($1);
-                    expr = appendToTailOfList(expr, $3);
-                    $$ = (Node *) createOpExpr($2, expr);
-                }
-            }
+        /* | attributeRef comparisonOps queryStmtWithParens */
+        /*     { */
+        /*         if (!strcmp($2, "=")) { */
+        /*             RULELOG("setExpression::attributeRef::queryStmt"); */
+        /*             List *expr = singleton($1); */
+        /*             expr = appendToTailOfList(expr, $3); */
+        /*             $$ = (Node *) createOpExpr($2, expr); */
+        /*         } */
+        /*     } */
     ;
 
 /*
@@ -1348,7 +1367,10 @@ exprList:
  * Rule to parse expressions used in various lists
  */
 expression:
-		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; }
+		expressionWithParens %prec '+'
+		{
+			RULELOG("expression::bracked"); $$ = $1;
+		}
 		| constant     				   	{ RULELOG("expression::constant"); }
         | attributeRef         		  	{ RULELOG("expression::attributeRef"); }
 	    | sqlParameter					{ RULELOG("expression::sqlParameter"); }
@@ -1358,8 +1380,17 @@ expression:
         | castExpression				{ RULELOG("expression::castExpression"); }
 		| caseExpression				{ RULELOG("expression::case"); }
 		| ROWNUM						{ RULELOG("expression::ROWNUM"); $$ = (Node *) makeNode(RowNumExpr); }
-/*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
+        | queryStmtWithParens %prec SUBQUERYEXPR
+		{
+			RULELOG ("expression::scalar queryStmtWithParens");
+			Node *q = (Node *) createNestedSubquery("SCALAR", NULL, NULL, $1);
+			$$ = q;
+		}
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
+    ;
+
+expressionWithParens:
+		 '(' expression ')' { RULELOG("expressionWithParens::expression"); $$ = $2; }
     ;
 
 /*
@@ -1807,14 +1838,14 @@ fromClauseItem:
                 $$ = (Node *) f;
             }
 
-        | subQuery optionalFromProv
+        | queryStmtWithParens optionalFromProv
             {
                 RULELOG("fromClauseItem::subQuery");
                 FromItem *f = (FromItem *) $1;
                 f->provInfo = (FromProvInfo *) $2;
                 $$ = $1;
             }
-        | subQuery optionalAlias
+        | queryStmtWithParens optionalAlias
             {
                 RULELOG("fromClauseItem::subQuery");
                 FromSubquery *s = (FromSubquery *) $1;
@@ -1850,13 +1881,13 @@ fromClauseItem:
                 }
     ;
 
-subQuery:
-        '(' queryStmt ')'
-            {
-                RULELOG("subQuery::queryStmt");
-                $$ = (Node *) createFromSubquery(NULL, NULL, $2);
-            }
-    ;
+/* subQuery: */
+/*         queryStmtWithParens */
+/*             { */
+/*                 RULELOG("subQuery::queryStmt"); */
+/*                 $$ = (Node *) createFromSubquery(NULL, NULL, $1); */
+/*             } */
+/*     ; */
 
 identifierList:
 		delimIdentifier { $$ = singleton($1); }
@@ -2058,8 +2089,8 @@ optionalWhere:
     ;
 
 whereExpression:
-		'(' whereExpression ')' { RULELOG("where::brackedWhereExpression"); $$ = $2; } %prec DUMMYEXPR
-        | expression        { RULELOG("whereExpression::expression"); $$ = $1; } %prec '+'
+		'(' whereExpression ')' %prec DUMMYEXPR { RULELOG("where::brackedWhereExpression"); $$ = $2; }
+        | expression %prec '+' { RULELOG("whereExpression::expression"); $$ = $1; }
         | NOT whereExpression
             {
                 RULELOG("whereExpression::NOT");
@@ -2106,18 +2137,18 @@ whereExpression:
                 expr = appendToTailOfList(expr, $5);
                 $$ = (Node *) createOpExpr($2, expr);
             }
-        | expression comparisonOps nestedSubQueryOperator '(' queryStmt ')'
+        | expression comparisonOps nestedSubQueryOperator queryStmtWithParens
             {
                 RULELOG("whereExpression::comparisonOps::nestedSubQueryOperator::Subquery");
-                $$ = (Node *) createNestedSubquery($3, $1, $2, $5);
+                $$ = (Node *) createNestedSubquery($3, $1, $2, $4);
             }
-        | expression comparisonOps '(' queryStmt ')'
-            {
-                RULELOG("whereExpression::Subquery");
-                Node *q = (Node *) createNestedSubquery("SCALAR", NULL, NULL, $4);
-                List *expr = LIST_MAKE($1, q);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
+        /* | expression comparisonOps queryStmtWithParens */
+        /*     { */
+        /*         RULELOG("whereExpression::Subquery"); */
+        /*         Node *q = (Node *) createNestedSubquery("SCALAR", NULL, NULL, $4); */
+        /*         List *expr = LIST_MAKE($1, q); */
+        /*         $$ = (Node *) createOpExpr($2, expr); */
+        /*     } */
         | expression optionalNot IN '(' exprList ')'
             {
                 if ($2 == NULL)
@@ -2131,23 +2162,23 @@ whereExpression:
                     $$ = (Node *) createQuantifiedComparison("ALL",$1, "<>", $5);
                 }
             }
-        | expression optionalNot IN '(' queryStmt ')'
+        | expression optionalNot IN queryStmtWithParens
             {
                 if ($2 == NULL)
                 {
                     RULELOG("whereExpression::IN");
-                    $$ = (Node *) createNestedSubquery("ANY", $1, OPNAME_EQ, $5);
+                    $$ = (Node *) createNestedSubquery("ANY", $1, OPNAME_EQ, $4);
                 }
                 else
                 {
                     RULELOG("whereExpression::NOT::IN");
-                    $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $5);
+                    $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $4);
                 }
             }
-        | EXISTS '(' queryStmt ')'
+        | EXISTS queryStmtWithParens
             {
                 RULELOG("whereExpression::EXISTS");
-                $$ = (Node *) createNestedSubquery($1, NULL, NULL, $3);
+                $$ = (Node *) createNestedSubquery($1, NULL, NULL, $2);
             }
     ;
 

@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * string_utils.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -21,6 +21,7 @@ extern char *strEndTok(char *string, char *delim);
 extern char *replaceSubstr(char *str, char *pattern, char *repl);
 extern char *substr(char *str, int from, int to);
 extern char *strRemPostfix(char *str, int postFixSize);
+extern char *strRemPrefix(char *str, int prefixSize);
 extern boolean isPrefix(char *str, char *prefix);
 extern boolean isSuffix(char *str, char *suffix);
 extern boolean isSubstr(char *str, char *substr);
