@@ -173,8 +173,8 @@ quoteIdentifierPostgres (char *ident)
     if (ident[0] == '"')
         return ident;
 
-    // sqlite completely ignores case no matter whether the identifier is quoted or not
-    // so upper/lower case does not indicate whether we need to escape
+	// certain characters need to be quoted
+	// also upper case needs to be quoted to preserve the case
     for(i = 0; i < strlen(ident); i++)
     {
         switch(ident[i])

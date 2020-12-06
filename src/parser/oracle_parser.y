@@ -1848,7 +1848,7 @@ fromClauseItem:
         | queryStmtWithParens optionalAlias
             {
                 RULELOG("fromClauseItem::subQuery");
-                FromSubquery *s = (FromSubquery *) $1;
+                FromSubquery *s = (FromSubquery *) createFromSubquery(NULL, NULL, $1);
                 s->from.name = ((FromItem *) $2)->name;
                 s->from.attrNames = ((FromItem *) $2)->attrNames;
                 s->from.provInfo = ((FromItem *) $2)->provInfo;
@@ -1873,12 +1873,12 @@ fromClauseItem:
         		$$ = (Node *) f;
         	}
          | jsonTable
-                {
-                    RULELOG("fromClauseItem::jsonTable");
-                    //FromJsonTable *jt = (FromJsonTable *) $1;
-                    FromItem *jt = (FromItem *)$1;
-                    $$ = (Node*) jt;
-                }
+            {
+				RULELOG("fromClauseItem::jsonTable");
+				//FromJsonTable *jt = (FromJsonTable *) $1;
+				FromItem *jt = (FromItem *)$1;
+				$$ = (Node*) jt;
+			}
     ;
 
 /* subQuery: */

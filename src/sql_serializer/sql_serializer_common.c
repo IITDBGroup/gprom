@@ -209,11 +209,21 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 				Operator *cond = (Operator *) nest->cond;
 				Node *a = getHeadOfListP(cond->args);
 				char *name = exprToSQL(a, *map);
-				appendStringInfoString(s, name);
-				appendStringInfoString(s, cond->name);
-				appendStringInfoString(s, " ANY ");
+				appendStringInfo(s, "%s %s ANY ", name, cond->name);
+				/* appendStringInfoString(s, name); */
+				/* appendStringInfoString(s, cond->name); */
+				/* appendStringInfoString(s, " ANY "); */
 			}
-
+			else if(nest->nestingType == NESTQ_ALL)
+			{
+				Operator *cond = (Operator *) nest->cond;
+				Node *a = getHeadOfListP(cond->args);
+				char *name = exprToSQL(a, *map);
+				appendStringInfo(s, "%s %s ALL ", name, cond->name);
+				/* appendStringInfoString(s, name); */
+				/* appendStringInfoString(s, cond->name); */
+				/* appendStringInfoString(s, " ALL "); */
+			}
 
 			appendStringInfoString(s, "(");
 			api->serializeQueryOperator(OP_RCHILD(op), s, NULL, fac, api);
