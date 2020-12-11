@@ -80,6 +80,7 @@ static void outFromProvInfo (StringInfo str, FromProvInfo *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
 static void outFromSubquery (StringInfo str, FromSubquery *node);
+static void outFromLateralSubquery (StringInfo str, FromLateralSubquery *node);
 
 // operator model
 static void outSchema (StringInfo str, Schema *node);
@@ -862,6 +863,15 @@ outFromSubquery (StringInfo str, FromSubquery *node)
 }
 
 static void
+outFromLateralSubquery (StringInfo str, FromLateralSubquery *node)
+{
+    WRITE_NODE_TYPE(FROMLATERALSUBQUERY);
+
+    writeCommonFromItemFields(str, (FromItem *) node);
+    WRITE_NODE_FIELD(subquery);
+}
+
+static void
 outNestedSubquery (StringInfo str, NestedSubquery *node)
 {
     WRITE_NODE_TYPE(NESTEDSUBQUERY);
@@ -1238,6 +1248,9 @@ outNode(StringInfo str, void *obj)
             case T_FromSubquery:
                 outFromSubquery(str, (FromSubquery*) obj);
                 break;
+		    case T_FromLateralSubquery:
+				outFromLateralSubquery(str, (FromLateralSubquery*) obj);
+				break;
             case T_NestedSubquery:
                 outNestedSubquery(str, (NestedSubquery*) obj);
                 break;

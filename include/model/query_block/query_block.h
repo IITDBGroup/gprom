@@ -135,6 +135,12 @@ typedef struct FromSubquery
     Node *subquery;
 } FromSubquery;
 
+typedef struct FromLateralSubquery
+{
+	FromItem from;
+	Node *subquery;
+} FromLateralSubquery;
+
 typedef struct JsonColInfoItem
 {
     NodeTag type;
@@ -313,6 +319,7 @@ extern FromItem *createFromItem (char *alias, List *attrNames);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
         char *tableId, List *dataTypes);
 extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
+extern FromItem *createFromLateralSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond);

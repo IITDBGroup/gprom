@@ -214,7 +214,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(subquery);
         	}
         	break;
-        case T_FromJoinExpr:
+        case T_FromLateralSubquery:
+        	{
+        		PREP_VISIT(FromLateralSubquery);
+        		VISIT(subquery);
+        	}
+        	break;
+	    case T_FromJoinExpr:
         	{
         		PREP_VISIT(FromJoinExpr);
         		VISIT(left);
@@ -600,6 +606,13 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         		MUTATE(Node, subquery);
         	}
         	break;
+        case T_FromLateralSubquery:
+        	{
+        		NEWN(FromLateralSubquery);
+        		MUTATE(List, from.attrNames);
+        		MUTATE(Node, subquery);
+        	}
+        	break;
         case T_FromJoinExpr:
         	{
         		NEWN(FromJoinExpr);
@@ -970,6 +983,12 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
         case T_FromSubquery:
             {
                 PREP_VISIT_P(FromSubquery);
+                VISIT_P(subquery);
+            }
+            break;
+        case T_FromLateralSubquery:
+            {
+                PREP_VISIT_P(FromLateralSubquery);
                 VISIT_P(subquery);
             }
             break;

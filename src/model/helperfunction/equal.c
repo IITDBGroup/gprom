@@ -94,6 +94,7 @@ static boolean equalSelectItem(SelectItem *a, SelectItem *b, HashMap *seenOps, M
 static boolean equalFromItem(FromItem *a, FromItem *b, HashMap *seenOps, MemContext *c);
 static boolean equalFromTableRef(FromTableRef *a, FromTableRef *b, HashMap *seenOps, MemContext *c);
 static boolean equalFromSubquery(FromSubquery *a, FromSubquery *b, HashMap *seenOps, MemContext *c);
+static boolean equalFromLateralSubquery(FromLateralSubquery *a, FromLateralSubquery *b, HashMap *seenOps, MemContext *c);
 static boolean equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b, HashMap *seenOps, MemContext *c);
 static boolean equalDistinctClause(DistinctClause *a,  DistinctClause *b, HashMap *seenOps, MemContext *c);
 static boolean equalInsert(Insert *a, Insert *b, HashMap *seenOps, MemContext *c);
@@ -1074,6 +1075,16 @@ equalFromSubquery(FromSubquery *a, FromSubquery *b, HashMap *seenOps, MemContext
 }
 
 static boolean
+equalFromLateralSubquery(FromLateralSubquery *a, FromLateralSubquery *b, HashMap *seenOps, MemContext *c)
+{
+    if (!equalFromItem((FromItem *) a, (FromItem *) b, seenOps, c))
+        return FALSE;
+    COMPARE_NODE_FIELD(subquery);
+
+    return TRUE;
+}
+
+static boolean
 equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b, HashMap *seenOps, MemContext *c)
 {
     if (!equalFromItem((FromItem *) a, (FromItem *) b, seenOps, c))
@@ -1305,7 +1316,10 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_FromSubquery:
             retval = equalFromSubquery(a,b, seenOps, c);
             break;
-        case T_FromJoinExpr:
+        case T_FromLateralSubquery:
+            retval = equalFromLateralSubquery(a,b, seenOps, c);
+            break;
+	    case T_FromJoinExpr:
             retval = equalFromJoinExpr(a,b, seenOps, c);
             break;
         case T_DistinctClause:

@@ -81,6 +81,7 @@ static uint64_t hashSelectItem (uint64_t cur, SelectItem *node);
 static uint64_t hashFromProvInfo (uint64_t cur, FromProvInfo *node);
 static uint64_t hashFromTableRef (uint64_t cur, FromTableRef *node);
 static uint64_t hashFromSubquery (uint64_t cur, FromSubquery *node);
+static uint64_t hashFromLateralSubquery (uint64_t cur, FromLateralSubquery *node);
 static uint64_t hashFromJoinExpr (uint64_t cur, FromJoinExpr *node);
 static uint64_t hashDistinctClause (uint64_t cur, DistinctClause *node);
 static uint64_t hashNestedSubquery (uint64_t cur, NestedSubquery *node);
@@ -586,6 +587,15 @@ hashFromSubquery (uint64_t cur, FromSubquery *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashFromLateralSubquery (uint64_t cur, FromLateralSubquery *node)
+{
+    HASH_FROM_ITEM();
+    HASH_NODE(subquery);
+
+    HASH_RETURN();
+}
+
 
 static uint64_t
 hashFromJoinExpr (uint64_t cur, FromJoinExpr *node)
@@ -1024,7 +1034,9 @@ hashValueInternal(uint64_t h, void *a)
             return hashFromTableRef(h, (FromTableRef *) n);
         case T_FromSubquery:
             return hashFromSubquery(h, (FromSubquery *) n);
-        case T_FromJoinExpr:
+        case T_FromLateralSubquery:
+            return hashFromLateralSubquery(h, (FromLateralSubquery *) n);
+	    case T_FromJoinExpr:
             return hashFromJoinExpr(h, (FromJoinExpr *) n);
         case T_DistinctClause:
             return hashDistinctClause(h, (DistinctClause *) n);

@@ -68,7 +68,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE
 %token <stringVal> TIP INCOMPLETE XTABLE RADB UADB
 
-%token <stringVal> FROM
+%token <stringVal> FROM LATERAL
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -1837,11 +1837,10 @@ fromClauseItem:
 				f->provInfo = ((FromItem *) $2)->provInfo;
                 $$ = (Node *) f;
             }
-
         | queryStmtWithParens optionalFromProv
             {
                 RULELOG("fromClauseItem::subQuery");
-                FromItem *f = (FromItem *) $1;
+                FromItem *f = (FromItem *) createFromSubquery(NULL, NULL, $1);;
                 f->provInfo = (FromProvInfo *) $2;
                 $$ = $1;
             }
@@ -1854,6 +1853,22 @@ fromClauseItem:
                 s->from.provInfo = ((FromItem *) $2)->provInfo;
                 $$ = (Node *) s;
             }
+        | LATERAL queryStmtWithParens optionalFromProv
+            {
+                RULELOG("fromClauseItem::LATERALsubQuery");
+                FromItem *f = (FromItem *) createFromLateralSubquery(NULL, NULL, $2);
+                f->provInfo = (FromProvInfo *) $3;
+                $$ = $2;
+            }
+		| LATERAL queryStmtWithParens optionalAlias
+			{
+                RULELOG("fromClauseItem::LATERALsubQuery");
+                FromSubquery *s = (FromSubquery *) createFromLateralSubquery(NULL, NULL, $2);
+                s->from.name = ((FromItem *) $3)->name;
+                s->from.attrNames = ((FromItem *) $3)->attrNames;
+                s->from.provInfo = ((FromItem *) $3)->provInfo;
+                $$ = (Node *) s;
+			}
         | fromJoinItem
         	{
         		FromItem *f;

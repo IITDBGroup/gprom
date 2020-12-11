@@ -209,6 +209,20 @@ createFromSubquery(char *alias, List *attrNames, Node *query)
 }
 
 FromItem *
+createFromLateralSubquery(char *alias, List *attrNames, Node *query)
+{
+    FromLateralSubquery *result = makeNode(FromLateralSubquery);
+
+    ((FromItem *) result)->name = alias;
+    ((FromItem *) result)->attrNames = attrNames;
+    ((FromItem *) result)->provInfo = NULL;
+
+    result->subquery = query;
+
+    return (FromItem *) result;
+}
+
+FromItem *
 createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond)

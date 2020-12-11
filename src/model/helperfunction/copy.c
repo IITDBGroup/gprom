@@ -116,6 +116,7 @@ static SelectItem *copySelectItem(SelectItem  *from, OperatorMap **opMap);
 static void copyFromItem (FromItem *from, FromItem *to);
 static FromTableRef *copyFromTableRef(FromTableRef *from, OperatorMap **opMap);
 static FromSubquery *copyFromSubquery(FromSubquery *from, OperatorMap **opMap);
+static FromLateralSubquery *copyFromLateralSubquery(FromLateralSubquery *from, OperatorMap **opMap);
 static FromJoinExpr *copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap);
 static DistinctClause *copyDistinctClause(DistinctClause *from, OperatorMap **opMap);
 static Insert *copyInsert(Insert *from, OperatorMap **opMap);
@@ -1092,6 +1093,16 @@ copyFromSubquery(FromSubquery *from, OperatorMap **opMap)
     return new;
 }
 
+static FromLateralSubquery *
+copyFromLateralSubquery(FromLateralSubquery *from, OperatorMap **opMap)
+{
+    COPY_INIT(FromLateralSubquery);
+    COPY_FROM();
+    COPY_NODE_FIELD(subquery);
+
+    return new;
+}
+
 static FromJoinExpr *
 copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap)
 {
@@ -1237,6 +1248,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_FromSubquery:
             retval = copyFromSubquery(from, opMap);
             break;
+	    case T_FromLateralSubquery:
+			retval = copyFromLateralSubquery(from, opMap);
+			break;
         case T_FromJoinExpr:
             retval = copyFromJoinExpr(from, opMap);
             break;
