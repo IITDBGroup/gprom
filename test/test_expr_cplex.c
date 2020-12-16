@@ -19,6 +19,7 @@
 #include "model/expression/expr_to_constraint.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
+#include "parser/parser_oracle.h"
 #include <ilcplex/cplex.h>
 
 /* internal tests */
@@ -28,6 +29,7 @@ static rc testCPLEXCompile (void);
 static rc testHLCompile (void);
 static rc testCompilationStack (void);
 static rc testCPLEXOpt (void);
+static int optimize (List *l, boolean enforce);
 
 /* check equal model */
 rc
@@ -51,17 +53,9 @@ testLogicExpr (void)
     exprToConstraints(test, ctx);
     FOREACH(Constraint, c, ctx->constraints)
     {
-        INFO_LOG("---BEGIN CONSTRAINT---");
-        FOREACH(KeyValue, t, c->terms)
-        {
-            INFO_LOG("Constraint term: %d * %s", INT_VALUE(t->key), ((SQLParameter *)(t->value))->name);
-        }
-        INFO_LOG("%s %d", ConstraintSenseToString(c->sense), c->rhs);
-        INFO_LOG("---END CONSTRAINT---");
+        INFO_LOG(cstringConstraint(c, TRUE));
     }
-    //TODO create constraint
-    //TODO solve constraint
-    //TODO LOG constraints
+
     //TODO compare result against expected result
     return PASS;
 }
@@ -73,15 +67,7 @@ testCPLEXCompile (void)
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     exprToConstraints(test, ctx);
     LPProblem *lp = newLPProblem(ctx);
-    for(int i = 0; i < lp->ccnt; i++) {
-        INFO_LOG("- Variable %s", lp->colname[i]);
-    }
-    for(int i = 0; i < lp->rcnt; i++)
-    {
-        INFO_LOG("- Constraint beginning at rmatval/rmatind index %d", lp->rmatbeg[i]);
-        INFO_LOG("- Sense is %c", lp->sense[i]);
-        INFO_LOG("- RHS is %f", lp->rhs[i]);
-    }
+    INFO_LOG(cstringLPProblem(lp, TRUE));
 
     return PASS;
 }
@@ -91,10 +77,12 @@ testHLCompile (void)
 {
     RenamingCtx* renamingCtx = newRenamingCtx();
 
-    List *history = NIL;
-    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))));
-    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))));
-    history = appendToTailOfList(history, createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60)))));
+    List *history = LIST_MAKE(
+        createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))),
+        createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))),
+        createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60))))
+    );
+
     List *caseExprs = historyToCaseExprsFreshVars(history, renamingCtx);
     INFO_LOG("history is %s", beatify(nodeToString(caseExprs)));
 
@@ -105,10 +93,11 @@ static rc
 testCompilationStack (void)
 {
     RenamingCtx* renamingCtx = newRenamingCtx();
-    List *history = NIL;
-    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))));
-    history = appendToTailOfList(history, createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))));
-    history = appendToTailOfList(history, createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60)))));
+    List *history = LIST_MAKE(
+        createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(10)))), (Node *) createOpExpr("<", LIST_MAKE(createSQLParameter("a"), createConstInt(4)))),
+        createUpdate("a", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("a"), createConstInt(0)))), (Node *) createOpExpr("=", LIST_MAKE(createSQLParameter("a"), createConstInt(10)))),
+        createUpdate("b", LIST_MAKE(createOpExpr("=", LIST_MAKE(createAttributeReference("b"), createConstInt(3)))), (Node *) createOpExpr("<=", LIST_MAKE(createSQLParameter("a"), createConstInt(60))))
+    );
     
     List *caseExprs = historyToCaseExprsFreshVars(history, renamingCtx);
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
@@ -117,44 +106,63 @@ testCompilationStack (void)
         exprToConstraints(e, ctx);
     }
     LPProblem *lp = newLPProblem(ctx);
-    INFO_LOG("entire compilation stack is");
-    for(int i = 0; i < lp->ccnt; i++) {
-        INFO_LOG("- Variable %s", lp->colname[i]);
-    }
-    for(int i = 0; i < lp->rcnt; i++)
-    {
-        INFO_LOG("- Constraint beginning at rmatval/rmatind index %d", lp->rmatbeg[i]);
-        INFO_LOG("- Sense is %c", lp->sense[i]);
-        INFO_LOG("- RHS is %f", lp->rhs[i]);
-    }
+    INFO_LOG(cstringLPProblem(lp, TRUE));
 
     return PASS;
 }
 
+#define CPLEX_TEST(expr, result, enforce) ASSERT_EQUALS_INT(result, optimize((List *)parseFromStringOracle(expr), enforce), expr);
+
 static rc
 testCPLEXOpt (void)
 {
-    // test < 6 AND test >= 10
-    // Node *test = (Node *) createOpExpr("AND", LIST_MAKE(createOpExpr("<", LIST_MAKE(createSQLParameter("test"), createConstInt(6))), createOpExpr("NOT", singleton(createOpExpr("<", LIST_MAKE(createSQLParameter("test"), createConstInt(10)))))));
-    Node *test = (Node *) createCaseExpr(NULL, singleton(createCaseWhen((Node *)createOpExpr("<", LIST_MAKE(createConstInt(2), createConstInt(3))), (Node *)createConstInt(10))), (Node *)createConstInt(100));
-    ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
-    exprToConstraints(test, ctx);
-    LPProblem *lp = newLPProblem(ctx);
+    // Comparisons
+    CPLEX_TEST(":x = 1;", 1, FALSE);
 
-    INFO_LOG("%s", beatify(nodeToString(ctx->variableMap)));
-    Node *previousOrigin = NULL;
-    FOREACH(Constraint, c, ctx->constraints)
-    {
-        if(c->originalExpr != previousOrigin)
-        {
-            INFO_LOG("========================");
-            INFO_LOG("%s", nodeToString(c->originalExpr));
-            INFO_LOG("------------------------");
-        }
-        INFO_LOG(cstringConstraint(c, FALSE));
-        previousOrigin = c->originalExpr;
+    CPLEX_TEST("x = 3; x := 3;", 1, TRUE);
+    CPLEX_TEST("x = 4; x := 3;", 0, TRUE);
+    CPLEX_TEST("x < 4; x := 3;", 1, TRUE);
+    CPLEX_TEST("x > 4; x := 5;", 1, TRUE);
+
+    CPLEX_TEST("x = 3.5; x := 3.5;", 1, TRUE);
+    CPLEX_TEST("x < 3.5; x := 3.25;", 1, TRUE);
+    CPLEX_TEST("x > 3.5; x := 3.75;", 1, TRUE);
+    
+    // Logical Operators
+    CPLEX_TEST("(x > 2) AND (x < 1);", 1, FALSE);
+    CPLEX_TEST("(x > 2) AND (x < 1);", 0, TRUE);
+
+    // Case Expressions (w/ or w/o assignment)
+    CPLEX_TEST("CASE WHEN (x < 3) THEN x ELSE 10 END;", 1, FALSE);
+    CPLEX_TEST("x = 8; y := CASE WHEN (x = 8) THEN 1 ELSE 0 END;", 1, TRUE);
+    CPLEX_TEST("x = 8; z := CASE WHEN (x = 8) THEN y + 3.21 ELSE y END;", 1, TRUE);
+
+    return PASS;
+}
+
+static int optimize(List *l, boolean enforce)
+{
+    ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
+    FOREACH(Node, node, l) {
+       exprToConstraints(node, ctx);
     }
-    INFO_LOG(cstringLPProblem(lp, TRUE));
+
+    if(enforce) {
+        Constraint *c = makeNode(Constraint);
+        c->sense = CONSTRAINT_E;
+        c->rhs = 1;
+        c->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)getNthOfListP(ctx->variables, 0))
+        );
+
+        ctx->constraints = appendToTailOfList(ctx->constraints, c);
+    }
+
+    FOREACH(Constraint, c, ctx->constraints) {
+        INFO_LOG(cstringConstraint(c, TRUE));
+    }
+
+    LPProblem *lp = newLPProblem(ctx);
 
     int cplexStatus = 0;
     CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
@@ -178,7 +186,7 @@ testCPLEXOpt (void)
     cplexStatus = CPXmipopt(cplexEnv, cplexLp);
     if(cplexStatus) {
         INFO_LOG("Error evaluating LP.");
-        return FAIL;
+        return -1;
     }
     else
     {
@@ -191,10 +199,10 @@ testCPLEXOpt (void)
             INFO_LOG("Optimal solution found");
             CPXgetx(cplexEnv, cplexLp, x, 0, lp->ccnt-1);
             for(int i = 0; i < lp->ccnt; i++) INFO_LOG("Col. %s opt. val. is %f", lp->colname[i], x[i]);
-            break;
+            return 1;
         case 103:
             INFO_LOG("Integer infeasible.");
-            break;
+            return 0;
         case 110:        
         case 114:
             INFO_LOG("No solution exists.");
@@ -207,5 +215,5 @@ testCPLEXOpt (void)
     cplexStatus = CPXcloseCPLEX(&cplexEnv);
     if(cplexStatus) ERROR_LOG("Problem closing CPLEX environment.");
 
-    return PASS;
+    return 0;
 }

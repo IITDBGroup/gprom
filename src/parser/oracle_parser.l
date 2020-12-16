@@ -89,7 +89,7 @@ parameters		[:]({identifiers}|{integer})
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */
-comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">="|":=")
 /*shiftsOps		("<<"|">>") */
 /* string concatenation */
 strconcat		"||"

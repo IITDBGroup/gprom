@@ -198,9 +198,9 @@ stmt:
 			RULELOG("stmt::withQuery");
 			$$ = $1;
 		}
-		| expression
+		| whereExpression
 		{
-			RULELOG("stmt::expression");
+			RULELOG("stmt::whereExpression");
 			$$ = $1;
 		}
     ;

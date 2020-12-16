@@ -1005,6 +1005,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
             }
         }
         STOP_TIMER("translator - program slicing optimization");
+        INFO_LOG("%d dependent updates/%d total", getListLength(whatif->history) - getListLength(independentUpdates), getListLength(whatif->history));
     }
     #endif
 
