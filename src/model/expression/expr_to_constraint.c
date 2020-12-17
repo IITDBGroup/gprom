@@ -11,7 +11,6 @@
 
 #ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
-#endif
 
 #define GPROM_INFBOUND 1e20
 
@@ -59,10 +58,10 @@ introduceMILPVariable (Node *expr, ConstraintTranslationCtx *ctx, boolean isBool
         }
         else
         {
-             variable = createSQLParameter(CONCAT_STRINGS(isBoolean ? "b" : "v", gprom_itoa(++(ctx->current_expr))));
-             if (isBoolean) variable->parType = DT_BOOL;
-             MAP_ADD_STRING_KEY(ctx->variableMap, parameter->name, variable);
-             ctx->variables = appendToTailOfList(ctx->variables, variable);
+			variable = createSQLParameter(CONCAT_STRINGS(isBoolean ? "b" : "v", gprom_itoa(++(ctx->current_expr))));
+			if (isBoolean) variable->parType = DT_BOOL;
+			MAP_ADD_STRING_KEY(ctx->variableMap, parameter->name, variable);
+			ctx->variables = appendToTailOfList(ctx->variables, variable);
         }
     }
     else if(isA(expr, AttributeReference))
@@ -156,8 +155,8 @@ historyToCaseExprsFreshVars (List *history, RenamingCtx *ctx) {
 
         // foo1 = case when foo0 > 3 then foo0 + 3 else 4
         caseExprs = appendToTailOfList(caseExprs, createOpExpr(":=", LIST_MAKE(createSQLParameter(setAttr->name), 
-            createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)getTailOfListP(set->args))), (Node *)createSQLParameter(rhsSetAttr))
-        )));
+																			   createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)getTailOfListP(set->args))), (Node *)createSQLParameter(rhsSetAttr))
+																   )));
     }
     return caseExprs;
 }
@@ -184,23 +183,23 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             // Make constraints for this expression
             Constraint *c1 = makeNode(Constraint);
             c1->sense = CONSTRAINT_GE;
-            c1->rhs = 0;
+            c1->rhs = createConstInt(0);
             c1->originalExpr = (Node *)operator;
             c1->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
                 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
-            );
+				);
 
             Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_G;
-            c2->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
+            c2->rhs = copyObject((MAP_GET_STRING(ctx->variableMap, "-M")));
             c2->originalExpr = (Node *)operator;
             c2->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
                 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)resultant)
-            );
+				);
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
@@ -225,23 +224,23 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             // Make constraints for this expression
             Constraint *c1 = makeNode(Constraint);
             c1->sense = CONSTRAINT_G;
-            c1->rhs = 0;
+            c1->rhs = createConstInt(0);
             c1->originalExpr = (Node *)operator;
             c1->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
                 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
-            );
+				);
 
             Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_GE;
-            c2->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M")); // TODO: rhs should likely be a pointer to a Constant so M can change
+            c2->rhs = copyObject(MAP_GET_STRING(ctx->variableMap, "-M")); // TODO: rhs should likely be a pointer to a Constant so M can change
             c2->originalExpr = (Node *)operator;
             c2->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
                 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)resultant)
-            );
+				);
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
@@ -266,23 +265,23 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             // Make constraints for this expression
             Constraint *c1 = makeNode(Constraint);
             c1->sense = CONSTRAINT_LE;
-            c1->rhs = 1;
+            c1->rhs = createConstInt(1);
             c1->originalExpr = (Node *)operator;
             c1->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant)
-            );
+				);
 
             Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_GE;
-            c2->rhs = 0;
+            c2->rhs = createConstInt(0);
             c2->originalExpr = (Node *)operator;
             c2->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant)
-            );
+				);
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
@@ -302,23 +301,23 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             // Make constraints for this expression
             Constraint *c1 = makeNode(Constraint);
             c1->sense = CONSTRAINT_LE;
-            c1->rhs = 0;
+            c1->rhs = createConstInt(0);
             c1->originalExpr = (Node *)operator;
             c1->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-2), (Node*)resultant)
-            );
+				);
 
             Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_GE;
-            c2->rhs = 0;
+            c2->rhs = createConstInt(0);
             c2->originalExpr = (Node *)operator;
             c2->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
-            );
+				);
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
@@ -334,12 +333,12 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
             Constraint *c = makeNode(Constraint);
             c->sense = CONSTRAINT_E;
-            c->rhs = 1;
+            c->rhs = createConstInt(1);
             c->originalExpr = (Node *)operator;
             c->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant),
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)notExpr)
-            );
+				);
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c);
         }
@@ -357,73 +356,73 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             // Make constraints for this expression
             Constraint *c = makeNode(Constraint);
             c->sense = CONSTRAINT_E;
-            c->rhs = 0;
+            c->rhs = createConstInt(0);
             c->originalExpr = (Node *)operator;
             c->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
-            );
+				);
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c);
         }
         else if(strcmp(operator->name, "=") == 0)
         {
             /*SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
-            resultant->parType = DT_BOOL;
-            ctx->variables = appendToTailOfList(ctx->variables, resultant);
+			  resultant->parType = DT_BOOL;
+			  ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
-            SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
-            exprToConstraints(getHeadOfListP(operator->args), ctx);
+			  SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
+			  exprToConstraints(getHeadOfListP(operator->args), ctx);
 
-            SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
-            exprToConstraints(getTailOfListP(operator->args), ctx);
+			  SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
+			  exprToConstraints(getTailOfListP(operator->args), ctx);
 
-            // Make constraints for this expression
-            Constraint *c1 = makeNode(Constraint);
-            c1->sense = CONSTRAINT_G;
-            c1->rhs = 0;
-            c1->originalExpr = (Node *)operator;
-            c1->terms = LIST_MAKE(
-                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
-                createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
-                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
-            );
+			  // Make constraints for this expression
+			  Constraint *c1 = makeNode(Constraint);
+			  c1->sense = CONSTRAINT_G;
+			  c1->rhs = 0;
+			  c1->originalExpr = (Node *)operator;
+			  c1->terms = LIST_MAKE(
+			  createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+			  createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
+			  createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
+			  );
 
-            Constraint *c2 = makeNode(Constraint);
-            c2->sense = CONSTRAINT_GE;
-            c2->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
-            c2->originalExpr = (Node *)operator;
-            c2->terms = LIST_MAKE(
-                createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
-                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
-                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)resultant)
-            );
+			  Constraint *c2 = makeNode(Constraint);
+			  c2->sense = CONSTRAINT_GE;
+			  c2->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
+			  c2->originalExpr = (Node *)operator;
+			  c2->terms = LIST_MAKE(
+			  createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
+			  createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+			  createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)resultant)
+			  );
 
-            Constraint *c3 = makeNode(Constraint);
-            c3->sense = CONSTRAINT_G;
-            c3->rhs = 0;
-            c3->originalExpr = (Node *)operator;
-            c3->terms = LIST_MAKE(
-                createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
-                createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
-                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
-            );
+			  Constraint *c3 = makeNode(Constraint);
+			  c3->sense = CONSTRAINT_G;
+			  c3->rhs = 0;
+			  c3->originalExpr = (Node *)operator;
+			  c3->terms = LIST_MAKE(
+			  createNodeKeyValue((Node*)createConstInt(-1), (Node*)leftVar),
+			  createNodeKeyValue((Node*)createConstInt(1), (Node*)rightVar),
+			  createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)resultant)
+			  );
 
-            Constraint *c4 = makeNode(Constraint);
-            c4->sense = CONSTRAINT_GE;
-            c4->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
-            c4->originalExpr = (Node *)operator;
-            c4->terms = LIST_MAKE(
-                createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
-                createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
-                createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)resultant)
-            );
+			  Constraint *c4 = makeNode(Constraint);
+			  c4->sense = CONSTRAINT_GE;
+			  c4->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
+			  c4->originalExpr = (Node *)operator;
+			  c4->terms = LIST_MAKE(
+			  createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
+			  createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar),
+			  createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)resultant)
+			  );
 
-            ctx->constraints = appendToTailOfList(ctx->constraints, c1);
-            ctx->constraints = appendToTailOfList(ctx->constraints, c2);
-            ctx->constraints = appendToTailOfList(ctx->constraints, c3);
-            ctx->constraints = appendToTailOfList(ctx->constraints, c4);*/
+			  ctx->constraints = appendToTailOfList(ctx->constraints, c1);
+			  ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+			  ctx->constraints = appendToTailOfList(ctx->constraints, c3);
+			  ctx->constraints = appendToTailOfList(ctx->constraints, c4);*/
             List *args = copyObject(operator->args);
             Operator *as = createOpExpr("AND", LIST_MAKE(createOpExpr("<=", operator->args), createOpExpr(">=", args)));
             exprToConstraints((Node*)as, ctx);
@@ -439,12 +438,12 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             // Make constraints for this expression
             Constraint *c = makeNode(Constraint);
             c->sense = CONSTRAINT_E;
-            c->rhs = 0;
+            c->rhs = createConstInt(0);
             c->originalExpr = (Node *)operator;
             c->terms = LIST_MAKE(
                 createNodeKeyValue((Node*)createConstInt(1), (Node*)leftVar),
                 createNodeKeyValue((Node*)createConstInt(-1), (Node*)rightVar)
-            );
+				);
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c);
         }
@@ -458,129 +457,138 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         // TODO: only handles CASE caseWhenList optionalCaseElse END
         // e.g. foo = case when 3 > 2 then 2 + 4 else 
 
-        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
-        ctx->variables = appendToTailOfList(ctx->variables, resultant);
+													 SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+													 ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
-        SQLParameter *b = introduceMILPVariable(caseWhen->when, ctx, TRUE);
-        exprToConstraints(caseWhen->when, ctx);
-        ctx->caseConds = appendToTailOfList(ctx->caseConds, b);
+													 SQLParameter *b = introduceMILPVariable(caseWhen->when, ctx, TRUE);
+													 exprToConstraints(caseWhen->when, ctx);
+													 ctx->caseConds = appendToTailOfList(ctx->caseConds, b);
 
-        SQLParameter *v1 = introduceMILPVariable(caseWhen->then, ctx, FALSE);
-        exprToConstraints(caseWhen->then, ctx);
+													 SQLParameter *v1 = introduceMILPVariable(caseWhen->then, ctx, FALSE);
+													 exprToConstraints(caseWhen->then, ctx);
 
-        SQLParameter *v2 = introduceMILPVariable(caseExpr->elseRes, ctx, FALSE);
-        exprToConstraints(caseExpr->elseRes, ctx);
+													 SQLParameter *v2 = introduceMILPVariable(caseExpr->elseRes, ctx, FALSE);
+													 exprToConstraints(caseExpr->elseRes, ctx);
 
-        SQLParameter *vIf = introduceMILPVariable(NULL, ctx, FALSE);
-        ctx->variables = appendToTailOfList(ctx->variables, vIf); // append manually because not calling exprToConstraints on anything here as its a slack variable
+													 SQLParameter *vIf = introduceMILPVariable(NULL, ctx, FALSE);
+													 ctx->variables = appendToTailOfList(ctx->variables, vIf); // append manually because not calling exprToConstraints on anything here as its a slack variable
 
-        SQLParameter *vElse = introduceMILPVariable(NULL, ctx, FALSE);
-        ctx->variables = appendToTailOfList(ctx->variables, vElse);
+													 SQLParameter *vElse = introduceMILPVariable(NULL, ctx, FALSE);
+													 ctx->variables = appendToTailOfList(ctx->variables, vElse);
 
-        Constraint *c1 = makeNode(Constraint);
-        c1->sense = CONSTRAINT_E;
-        c1->rhs = 0;
-        c1->originalExpr = (Node *)expr;
-        c1->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-            createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
-        );
+													 Constraint *c1 = makeNode(Constraint);
+													 c1->sense = CONSTRAINT_E;
+													 c1->rhs = createConstInt(0);
+													 c1->originalExpr = (Node *)expr;
+													 c1->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
+														 );
 
-        Constraint *c2 = makeNode(Constraint);
-        c2->sense = CONSTRAINT_LE;
-        c2->rhs = 0;
-        c2->originalExpr = (Node *)expr;
-        c2->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1)
-        );
+													 Constraint *c2 = makeNode(Constraint);
+													 c2->sense = CONSTRAINT_LE;
+													 c2->rhs = createConstInt(0);
+													 c2->originalExpr = (Node *)expr;
+													 c2->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1)
+														 );
 
-        Constraint *c3 = makeNode(Constraint);
-        c3->sense = CONSTRAINT_GE;
-        c3->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
-        c3->originalExpr = (Node *)expr;
-        c3->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1),
-            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
-        );
+													 Constraint *c3 = makeNode(Constraint);
+													 c3->sense = CONSTRAINT_GE;
+													 c3->rhs = copyObject(MAP_GET_STRING(ctx->variableMap, "-M"));
+													 c3->originalExpr = (Node *)expr;
+													 c3->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1),
+														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+														 );
 
-        Constraint *c4 = makeNode(Constraint);
-        c4->sense = CONSTRAINT_LE;
-        c4->rhs = 0;
-        c4->originalExpr = (Node *)expr;
-        c4->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
-        );
+													 Constraint *c4 = makeNode(Constraint);
+													 c4->sense = CONSTRAINT_LE;
+													 c4->rhs = createConstInt(0);
+													 c4->originalExpr = (Node *)expr;
+													 c4->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+														 );
 
-        Constraint *c5 = makeNode(Constraint);
-        c5->sense = CONSTRAINT_GE;
-        c5->rhs = 0;
-        c5->originalExpr = (Node *)expr;
-        c5->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
-        );
+													 Constraint *c5 = makeNode(Constraint);
+													 c5->sense = CONSTRAINT_GE;
+													 c5->rhs = createConstInt(0);
+													 c5->originalExpr = (Node *)expr;
+													 c5->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+														 );
 
-        Constraint *c6 = makeNode(Constraint);
-        c6->sense = CONSTRAINT_LE;
-        c6->rhs = 0;
-        c6->originalExpr = (Node *)expr;
-        c6->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2)
-        );
+													 Constraint *c6 = makeNode(Constraint);
+													 c6->sense = CONSTRAINT_LE;
+													 c6->rhs = createConstInt(0);
+													 c6->originalExpr = (Node *)expr;
+													 c6->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2)
+														 );
 
-        Constraint *c7 = makeNode(Constraint);
-        c7->sense = CONSTRAINT_LE;
-        c7->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "M"));
-        c7->originalExpr = (Node *)expr;
-        c7->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
-        );
+													 Constraint *c7 = makeNode(Constraint);
+													 c7->sense = CONSTRAINT_LE;
+													 c7->rhs = (Constant *) copyObject(MAP_GET_STRING(ctx->variableMap, "M"));
+													 c7->originalExpr = (Node *)expr;
+													 c7->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+														 );
 
-        Constraint *c8 = makeNode(Constraint);
-        c8->sense = CONSTRAINT_GE;
-        c8->rhs = 0;
-        c8->originalExpr = (Node *)expr;
-        c8->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2),
-            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
-        );
+													 Constraint *c8 = makeNode(Constraint);
+													 c8->sense = CONSTRAINT_GE;
+													 c8->rhs = createConstInt(0);
+													 c8->originalExpr = (Node *)expr;
+													 c8->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2),
+														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+														 );
 
-        Constraint *c9 = makeNode(Constraint);
-        c9->sense = CONSTRAINT_GE;
-        c9->rhs = INT_VALUE(MAP_GET_STRING(ctx->variableMap, "-M"));
-        c9->originalExpr = (Node *)expr;
-        c9->terms = LIST_MAKE(
-            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
-        );
+													 Constraint *c9 = makeNode(Constraint);
+													 c9->sense = CONSTRAINT_GE;
+													 c9->rhs = copyObject(MAP_GET_STRING(ctx->variableMap, "-M"));
+													 c9->originalExpr = (Node *)expr;
+													 c9->terms = LIST_MAKE(
+														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+														 );
 
-        // TODO Macro?
-        ctx->constraints = appendToTailOfList(ctx->constraints, c1);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c2);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c3);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c4);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c5);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c6);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c7);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c8);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c9);
+													 // TODO Macro?
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c1);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c3);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c4);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c5);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c6);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c7);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c8);
+													 ctx->constraints = appendToTailOfList(ctx->constraints, c9);
     }
     else if(isA(expr, Constant))
     {
         SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+		Constant *c = (Constant *) expr;
         ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
         Constraint *constraint = makeNode(Constraint);
         constraint->sense = CONSTRAINT_E;
-        constraint->rhs = INT_VALUE(expr);
-        constraint->originalExpr = (Node *)expr;
+		switch(c->constType)
+		{
+		case DT_STRING:
+		case DT_VARCHAR2:
+			THROW(SEVERITY_RECOVERABLE, "strings are not supported in MILPs.");
+			break;
+		default:
+			constraint->rhs = c;
+		}
+        constraint->originalExpr = (Node *)expr;		
         constraint->terms = LIST_MAKE(createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant));
 
         ctx->constraints = appendToTailOfList(ctx->constraints, constraint);
@@ -607,15 +615,15 @@ newLPProblem (ConstraintTranslationCtx* ctx)
         problem->colname[i] = relatedParameter->name;
         switch(relatedParameter->parType)
         {
-            case DT_BOOL:
-                problem->lb[i] = 0.0;
-                problem->ub[i] = 1.0;
-                problem->types[i] = 'I';
-                break;
-            default:
-                problem->lb[i] = -GPROM_INFBOUND;
-                problem->ub[i] = GPROM_INFBOUND;
-                problem->types[i] = 'C';
+		case DT_BOOL:
+			problem->lb[i] = 0.0;
+			problem->ub[i] = 1.0;
+			problem->types[i] = 'I';
+			break;
+		default:
+			problem->lb[i] = -GPROM_INFBOUND;
+			problem->ub[i] = GPROM_INFBOUND;
+			problem->types[i] = 'C';
         }
     }
     problem->obj[0] = 1.0; // Experimental
@@ -626,28 +634,41 @@ newLPProblem (ConstraintTranslationCtx* ctx)
     problem->sense = MALLOC(sizeof(char) * problem->rcnt);
     for(int i = 0; i < problem->rcnt; i++) {
         Constraint *c = (Constraint*)getNthOfListP(ctx->constraints, i);
-        problem->rhs[i] = c->rhs;
+		switch(c->rhs->constType)
+		{
+		case DT_INT:
+			problem->rhs[i] = (double) INT_VALUE(c->rhs);
+			break;
+		case DT_LONG:
+			problem->rhs[i] = (double) LONG_VALUE(c->rhs);
+			break;			
+		case DT_FLOAT:
+			problem->rhs[i] = FLOAT_VALUE(c->rhs);
+			break;
+		default:
+			break;
+		}
         switch(c->sense) {
-            case CONSTRAINT_E:
-                problem->sense[i] = 'E';
-                break;
-            case CONSTRAINT_LE:
-                problem->sense[i] = 'L';
-                break;
-            case CONSTRAINT_GE:
-                problem->sense[i] = 'G';
-                break;
-            case CONSTRAINT_L:
-                problem->sense[i] = 'L';
-                problem->rhs[i] -= 0.01; // x < 4 can be x <= 3.99
-                break;
-            case CONSTRAINT_G:
-                problem->sense[i] = 'G';
-                problem->rhs[i] += 0.01; // x > 4 can be x >= 4.01
-                break;
-            default:
-                problem->sense[i] = 'U';
-                ERROR_LOG("Unimplemented sense. This should never happen.");
+		case CONSTRAINT_E:
+			problem->sense[i] = 'E';
+			break;
+		case CONSTRAINT_LE:
+			problem->sense[i] = 'L';
+			break;
+		case CONSTRAINT_GE:
+			problem->sense[i] = 'G';
+			break;
+		case CONSTRAINT_L:
+			problem->sense[i] = 'L';
+			problem->rhs[i] -= 0.01; // x < 4 can be x <= 3.99
+			break;
+		case CONSTRAINT_G:
+			problem->sense[i] = 'G';
+			problem->rhs[i] += 0.01; // x > 4 can be x >= 4.01
+			break;
+		default:
+			problem->sense[i] = 'U';
+			ERROR_LOG("Unimplemented sense. This should never happen.");
         }
     }
 
@@ -681,7 +702,9 @@ newLPProblem (ConstraintTranslationCtx* ctx)
     return problem;
 }
 
-char *cstringLPProblem(LPProblem *lp, boolean details) {
+char *
+cstringLPProblem(LPProblem *lp, boolean details)
+{
     StringInfo str = makeStringInfo();
     
     appendStringInfo(str, "Rcnt: %d, Ccnt: %d, Non-zero: %d, LB: %f, UB: %f\n\n", lp->rcnt, lp->ccnt, lp->nzcnt, lp->lb[0], lp->ub[0]);
@@ -703,15 +726,15 @@ char *cstringLPProblem(LPProblem *lp, boolean details) {
             char *sense;
             switch(lp->sense[i])
             {
-                case 'G':
-                    sense = ">=";
-                    break;
-                case 'E':
-                    sense = "=";
-                    break;
-                case 'L':
-                    sense = "<=";
-                    break;    
+			case 'G':
+				sense = ">=";
+				break;
+			case 'E':
+				sense = "=";
+				break;
+			case 'L':
+				sense = "<=";
+				break;    
             }
             appendStringInfo(str, "%s %f\n", sense, lp->rhs[i]);
         }
@@ -722,89 +745,166 @@ char *cstringLPProblem(LPProblem *lp, boolean details) {
 
 int executeLPProblem(LPProblem *lp)
 {
-        int cplexStatus = 0;
-        CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
-        if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
-        cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
-        cplexStatus ^= CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
-        if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
+	int cplexStatus = 0;
+	CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
+	if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
+	cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
+	cplexStatus ^= CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
+	if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
 
-        CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
-        cplexStatus = CPXchgobjsen(cplexEnv, cplexLp, CPX_MAX);
+	CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
+	cplexStatus = CPXchgobjsen(cplexEnv, cplexLp, CPX_MAX);
 
-        cplexStatus = CPXnewcols(cplexEnv, cplexLp, lp->ccnt, lp->obj, lp->lb, lp->ub, lp->types, lp->colname); // TODO: lb and ub
-        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXnewcols"); else INFO_LOG("CPXnewcols succeeded.");
+	cplexStatus = CPXnewcols(cplexEnv, cplexLp, lp->ccnt, lp->obj, lp->lb, lp->ub, lp->types, lp->colname); // TODO: lb and ub
+	if(cplexStatus) ERROR_LOG("CPLEX failure - CPXnewcols"); else INFO_LOG("CPXnewcols succeeded.");
 
-        cplexStatus = CPXaddrows(cplexEnv, cplexLp, 0, lp->rcnt, lp->nzcnt, lp->rhs, lp->sense, lp->rmatbeg,
-                        lp->rmatind, lp->rmatval, NULL, NULL);
-        if(cplexStatus) ERROR_LOG("CPLEX failure - CPXaddrows"); else INFO_LOG("CPXaddrows succeded.");
+	cplexStatus = CPXaddrows(cplexEnv, cplexLp, 0, lp->rcnt, lp->nzcnt, lp->rhs, lp->sense, lp->rmatbeg,
+							 lp->rmatind, lp->rmatval, NULL, NULL);
+	if(cplexStatus) ERROR_LOG("CPLEX failure - CPXaddrows"); else INFO_LOG("CPXaddrows succeded.");
 
-        INFO_LOG("CPXgetnumnz %d", CPXgetnumnz(cplexEnv, cplexLp));
+	INFO_LOG("CPXgetnumnz %d", CPXgetnumnz(cplexEnv, cplexLp));
 
-        cplexStatus = CPXmipopt(cplexEnv, cplexLp);
-        if(cplexStatus) {
-            INFO_LOG("Error evaluating LP.");
-        }
-        else
-        {
-            INFO_LOG("Evaluated LP.");
-        }
+	cplexStatus = CPXmipopt(cplexEnv, cplexLp);
+	if(cplexStatus) {
+		INFO_LOG("Error evaluating LP.");
+	}
+	else
+	{
+		INFO_LOG("Evaluated LP.");
+	}
 
-        int result = CPXgetstat(cplexEnv, cplexLp);
-        /* double x[lp->ccnt];
-        switch(CPXgetstat(cplexEnv, cplexLp)) {
-            case 101:
-                INFO_LOG("Optimal solution found");
-                CPXgetx(cplexEnv, cplexLp, x, 0, lp->ccnt-1);
-                for(int i = 0; i < lp->ccnt; i++) INFO_LOG("Col. %s opt. val. is %f", lp->colname[i], x[i]);
-                break;
-            case 103:
-                INFO_LOG("Integer infeasible.");
-                break;
-            case 110:
-            case 114:
-                INFO_LOG("No solution exists.");
-                break;
-            default:
-                INFO_LOG("Something else... value %d", CPXgetstat(cplexEnv, cplexLp));
-        } */
+	int result = CPXgetstat(cplexEnv, cplexLp);
+	/* double x[lp->ccnt];
+	   switch(CPXgetstat(cplexEnv, cplexLp)) {
+	   case 101:
+	   INFO_LOG("Optimal solution found");
+	   CPXgetx(cplexEnv, cplexLp, x, 0, lp->ccnt-1);
+	   for(int i = 0; i < lp->ccnt; i++) INFO_LOG("Col. %s opt. val. is %f", lp->colname[i], x[i]);
+	   break;
+	   case 103:
+	   INFO_LOG("Integer infeasible.");
+	   break;
+	   case 110:
+	   case 114:
+	   INFO_LOG("No solution exists.");
+	   break;
+	   default:
+	   INFO_LOG("Something else... value %d", CPXgetstat(cplexEnv, cplexLp));
+	   } */
 
-        cplexStatus = CPXfreeprob(cplexEnv, &cplexLp);
-        cplexStatus = CPXcloseCPLEX(&cplexEnv);
-        if(cplexStatus) ERROR_LOG("Problem closing CPLEX environment.");
+	cplexStatus = CPXfreeprob(cplexEnv, &cplexLp);
+	cplexStatus = CPXcloseCPLEX(&cplexEnv);
+	if(cplexStatus) ERROR_LOG("Problem closing CPLEX environment.");
 
-        return result;
+	return result;
 }
 
-char *cstringConstraint(Constraint *constraint, boolean origin) {
+char *
+cstringConstraintTranslationCtx(ConstraintTranslationCtx *ctx, boolean origin)
+{
+	StringInfo str = makeStringInfo();
+
+	FOREACH(Constraint,c,ctx->constraints)
+	{
+		appendStringInfo(str, "%s\n", cstringConstraint(c, TRUE, 60));		
+	}
+
+	return str->data;
+}
+
+char *
+cstringConstraint(Constraint *constraint, boolean origin, int padLength)
+{
     StringInfo str = makeStringInfo();
-    
+    StringInfo result = makeStringInfo();
+	
     FOREACH(KeyValue, term, constraint->terms)
     {
-        appendStringInfo(str, "%d * %s ", INT_VALUE(term->key), ((SQLParameter *)term->value)->name);
+        appendStringInfo(str, "%d * %s%s",
+						 INT_VALUE(term->key),
+						 ((SQLParameter *)term->value)->name,
+						 FOREACH_HAS_MORE(term) ? " + " : ""
+			);
     }
     
     char *sense;
     switch(constraint->sense)
     {
-        case CONSTRAINT_E:
-            sense = "=";
-            break;
-        case CONSTRAINT_G:
-            sense = ">";
-            break;
-        case CONSTRAINT_GE:
-            sense = ">=";
-            break;
-        case CONSTRAINT_L:
-            sense = "<";
-            break;
-        case CONSTRAINT_LE:
-            sense = "<=";
+	case CONSTRAINT_E:
+		sense = "=";
+		break;
+	case CONSTRAINT_G:
+		sense = ">";
+		break;
+	case CONSTRAINT_GE:
+		sense = ">=";
+		break;
+	case CONSTRAINT_L:
+		sense = "<";
+		break;
+	case CONSTRAINT_LE:
+		sense = "<=";
     }
 
-    appendStringInfo(str, "%s %d", sense, constraint->rhs);
-    if(origin) appendStringInfo(str, " (%s)", nodeToString(constraint->originalExpr));
+    appendStringInfo(str, " %s %d", sense, exprToSQL((Node *) constraint->rhs, NULL));
+	appendStringInfo(result, CONCAT_STRINGS("%-", gprom_itoa(padLength), "s"), str->data);
+    if(origin)
+	{
+		appendStringInfo(result, "\t[ %s ]", exprToSQL(constraint->originalExpr, NULL));
+	}
 
-    return str->data;
+    return result->data;
 }
+
+// define dummy functions if CPLEX is not available
+#else
+
+RenamingCtx *
+newRenamingCtx (void)
+{
+	return NULL;
+}
+
+ConstraintTranslationCtx *
+newConstraintTranslationCtx (void)
+{
+	return NULL;
+}
+
+List *
+historyToCaseExprsFreshVars (List *history, RenamingCtx *ctx)
+{
+	return NIL;
+}
+
+ConstraintTranslationCtx *
+exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
+{
+	return NULL;
+}
+
+LPProblem *
+newLPProblem (ConstraintTranslationCtx *ctx)
+{
+	return NULL;
+}
+
+int
+executeLPProblem (LPProblem *lp)
+{
+	return 0;
+}
+
+char *
+cstringConstraintTranslationCtx(ConstraintTranslationCtx *ctx, boolean origin)
+{
+	return NULL;
+}
+
+char *
+cstringConstraint (Constraint *constraint, boolean origin, int padLength)
+{
+	return NULL;
+}
+
+#endif

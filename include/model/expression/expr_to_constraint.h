@@ -23,7 +23,8 @@ typedef struct RenamingCtx {
 typedef struct Constraint {
     ConstraintSense sense;
     List *terms;
-    int rhs;
+	Constant *rhs;
+//    int rhs; //TODO should allow floats too
     Node *originalExpr;
 } Constraint;
 
@@ -71,7 +72,6 @@ extern LPProblem *newLPProblem (ConstraintTranslationCtx *ctx);
 extern int executeLPProblem (LPProblem *lp);
 
 extern char *cstringLPProblem (LPProblem *lp, boolean details);
-extern char *cstringConstraint (Constraint *constraint, boolean origin);
-
-
+extern char *cstringConstraint (Constraint *constraint, boolean origin, int padLength);
+extern char *cstringConstraintTranslationCtx(ConstraintTranslationCtx *ctx, boolean origin);
 #endif

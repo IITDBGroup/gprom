@@ -941,7 +941,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     SQLParameter *j = (SQLParameter *)getTailOfListP(originalCtx->caseConds);
                     Constraint *c = makeNode(Constraint);
                     c->sense = CONSTRAINT_E;
-                    c->rhs = 2;
+                    c->rhs = createConstInt(2);
                     c->terms = LIST_MAKE(
                         createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
                         createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
@@ -971,7 +971,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     SQLParameter *j = (SQLParameter *)getTailOfListP(modifiedCtx->caseConds);
                     Constraint *c = makeNode(Constraint);
                     c->sense = CONSTRAINT_E;
-                    c->rhs = 2;
+                    c->rhs = createConstInt(2);
                     c->terms = LIST_MAKE(
                         createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
                         createNodeKeyValue((Node*)createConstInt(1), (Node*)j)

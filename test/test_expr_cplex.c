@@ -20,7 +20,12 @@
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "parser/parser_oracle.h"
+#ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
+#endif
+
+
+#ifdef HAVE_LIBCPLEX
 
 /* internal tests */
 //static rc testcopyAttributeReference (void);
@@ -51,10 +56,7 @@ testLogicExpr (void)
     Node *test = (Node *) createOpExpr("AND", LIST_MAKE(createOpExpr("<", LIST_MAKE(createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2))), createOpExpr("+", LIST_MAKE(createConstInt(2), createConstInt(3))))), createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)))));
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
     exprToConstraints(test, ctx);
-    FOREACH(Constraint, c, ctx->constraints)
-    {
-        INFO_LOG(cstringConstraint(c, TRUE));
-    }
+	INFO_LOG("Cplex logic expression:\n%s", cstringConstraintTranslationCtx(ctx, TRUE));
 
     //TODO compare result against expected result
     return PASS;
@@ -150,7 +152,7 @@ static int optimize(List *l, boolean enforce)
     if(enforce) {
         Constraint *c = makeNode(Constraint);
         c->sense = CONSTRAINT_E;
-        c->rhs = 1;
+        c->rhs = createConstInt(1);
         c->terms = LIST_MAKE(
             createNodeKeyValue((Node*)createConstInt(1), (Node*)getNthOfListP(ctx->variables, 0))
         );
@@ -158,9 +160,7 @@ static int optimize(List *l, boolean enforce)
         ctx->constraints = appendToTailOfList(ctx->constraints, c);
     }
 
-    FOREACH(Constraint, c, ctx->constraints) {
-        INFO_LOG(cstringConstraint(c, TRUE));
-    }
+    INFO_LOG("MILP program:\n%s", cstringConstraintTranslationCtx(ctx, TRUE));
 
     LPProblem *lp = newLPProblem(ctx);
 
@@ -217,3 +217,15 @@ static int optimize(List *l, boolean enforce)
 
     return 0;
 }
+
+// no cplex support just return pass
+#else
+
+rc
+testCplexExpr(void)
+{
+    return PASS;
+}
+
+
+#endif 

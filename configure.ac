@@ -599,23 +599,22 @@ AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
 # Enable cplex
 AC_ENABLE_CPLEX
 ################################################################################
-# cplex library
+# cplex Oracle
 AS_CASE(["$enable_cplex"],
   [yes], [
 # check if user has provided us with non-standard locations for CPLEX libraries
   AC_CPLEX_LOCATION
 # check for the libraries
-  AC_CHECK_LIB([dl], [dlinfo], [], [AC_MSG_ERROR[missing ldl]])
   AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
     AC_MSG_ERROR([missing cplex library - if you want to compile without cplex support do not use --enable-cplex])
-  ],[-ldl])
+  ])
   ],
   # No and default
   [no], [],
   []
 )
 ################################################################################
-# Oracle access libraries (OCI and OCILIB)
+# library access libraries (OCI and OCILIB)
 AS_CASE(["$enable_oracle"],
   [yes], [AC_ORACLE_ALL_CHECKS],
   [no], [],
