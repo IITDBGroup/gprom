@@ -186,8 +186,56 @@ testCheckingForDependentUpdates(void)
 static rc
 testCPLEXOpt (void)
 {
-    // Comparisons
-    CPLEX_TEST(":x = 1;", 1, FALSE);
+	// comparisons with constants
+	CPLEX_TEST("-1 = -1;", 1, TRUE);
+	CPLEX_TEST("0 = 0;", 1, TRUE);
+	CPLEX_TEST("1 = 1;", 1, TRUE);
+	CPLEX_TEST("-2 = -1;", 0, TRUE);
+	CPLEX_TEST("0 = 1;", 0, TRUE);
+	CPLEX_TEST("1 = 2;", 0, TRUE);
+
+	CPLEX_TEST("-1 <> -1;", 0, TRUE);
+	CPLEX_TEST("0 <> 0;", 0, TRUE);
+	CPLEX_TEST("1 <> 1;", 0, TRUE);
+	CPLEX_TEST("-2 <> -1;", 1, TRUE);
+	CPLEX_TEST("0 <> 1;", 1, TRUE);
+	CPLEX_TEST("1 <> 2;", 1, TRUE);
+	
+    CPLEX_TEST("-3 < -1;", 1, TRUE);
+	CPLEX_TEST("-1 < 0;", 1, TRUE);
+    CPLEX_TEST("-1 < 2;", 1, TRUE);
+	CPLEX_TEST("0 < 1;", 1, TRUE);
+	CPLEX_TEST("1 < 2;", 1, TRUE);	
+    CPLEX_TEST("-1 < -3;", 0, TRUE);
+	CPLEX_TEST("0 < -1;", 0, TRUE);
+    CPLEX_TEST("2 < -2;", 0, TRUE);
+	CPLEX_TEST("2 < 1;", 0, TRUE);
+	CPLEX_TEST("1 < 0;", 0, TRUE);
+
+    CPLEX_TEST("-3 <= -1;", 1, TRUE);
+	CPLEX_TEST("-1 <= 0;", 1, TRUE);
+    CPLEX_TEST("-1 <= 2;", 1, TRUE);
+	CPLEX_TEST("0 <= 1;", 1, TRUE);
+	CPLEX_TEST("1 <= 2;", 1, TRUE);	
+    CPLEX_TEST("-1 <= -3;", 0, TRUE);
+	CPLEX_TEST("0 <= -1;", 0, TRUE);
+    CPLEX_TEST("2 <= -2;", 0, TRUE);
+	CPLEX_TEST("2 <= 1;", 0, TRUE);
+	CPLEX_TEST("1 <= 0;", 0, TRUE);
+
+    CPLEX_TEST("-3 > -1;", 0, TRUE);
+	CPLEX_TEST("-1 > 0;", 0, TRUE);
+    CPLEX_TEST("-1 > 2;", 0, TRUE);
+	CPLEX_TEST("0 > 1;", 0, TRUE);
+	CPLEX_TEST("1 > 2;", 0, TRUE);	
+    CPLEX_TEST("-1 > -3;", 1, TRUE);
+	CPLEX_TEST("0 > -1;", 1, TRUE);
+    CPLEX_TEST("2 > -2;", 1, TRUE);
+	CPLEX_TEST("2 > 1;", 1, TRUE);
+	CPLEX_TEST("1 > 0;", 1, TRUE);
+	
+    // Comparisons with assignments
+	CPLEX_TEST(":x = 1;", 1, FALSE);
 
     CPLEX_TEST("x = 3; x := 3;", 1, TRUE);
     CPLEX_TEST("x = 4; x := 3;", 0, TRUE);

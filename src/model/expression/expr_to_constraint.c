@@ -168,7 +168,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
     if(isA(expr, Operator))
     {
         Operator *operator = (Operator *)expr;
-        if(strcmp(operator->name, "<") == 0)
+        if(strcmp(operator->name, OPNAME_LT) == 0)
         {
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
@@ -204,12 +204,12 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
         }
-        else if(strcmp(operator->name, ">") == 0)
+        else if(strcmp(operator->name, OPNAME_GT) == 0)
         {
-            Operator *as = createOpExpr("NOT", LIST_MAKE(createOpExpr("<=", operator->args)));
+            Operator *as = createOpExpr(OPNAME_NOT, LIST_MAKE(createOpExpr(OPNAME_LE, operator->args)));
             exprToConstraints((Node*)as, ctx);
         }
-        else if(strcmp(operator->name, "<=") == 0)
+        else if(strcmp(operator->name, OPNAME_LE) == 0)
         {
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
@@ -245,12 +245,12 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
         }
-        else if(strcmp(operator->name, ">=") == 0)
+        else if(strcmp(operator->name, OPNAME_GE) == 0)
         {
-            Operator *as = createOpExpr("NOT", LIST_MAKE(createOpExpr("<", operator->args)));
+            Operator *as = createOpExpr(OPNAME_NOT, LIST_MAKE(createOpExpr(OPNAME_LT, operator->args)));
             exprToConstraints((Node*)as, ctx);
         }
-        else if(strcmp(operator->name, "AND") == 0)
+        else if(streq(operator->name, OPNAME_AND))
         {
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
@@ -286,7 +286,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
         }
-        else if(strcmp(operator->name, "OR") == 0)
+        else if(streq(operator->name, OPNAME_OR))
         {
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
@@ -322,7 +322,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             ctx->constraints = appendToTailOfList(ctx->constraints, c1);
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
         }
-        else if(strcmp(operator->name, "NOT") == 0)
+        else if(streq(operator->name, OPNAME_NOT))
         {
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
@@ -342,7 +342,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c);
         }
-        else if(strcmp(operator->name, "+") == 0)
+        else if(streq(operator->name, OPNAME_ADD))
         {
             SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
             ctx->variables = appendToTailOfList(ctx->variables, resultant);
@@ -366,7 +366,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c);
         }
-        else if(strcmp(operator->name, "=") == 0)
+        else if(streq(operator->name, OPNAME_EQ))
         {
             /*SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
 			  resultant->parType = DT_BOOL;
@@ -427,7 +427,12 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             Operator *as = createOpExpr("AND", LIST_MAKE(createOpExpr("<=", operator->args), createOpExpr(">=", args)));
             exprToConstraints((Node*)as, ctx);
         }
-        else if(strcmp(operator->name, ":=") == 0)
+		else if (streq(operator->name, OPNAME_NEQ) || streq(operator->name, OPNAME_NEQ_BANG))
+		{
+            Operator *as = createOpExpr(OPNAME_NOT, LIST_MAKE(createOpExpr(OPNAME_EQ, operator->args)));
+            exprToConstraints((Node*)as, ctx);
+		}
+        else if(streq(operator->name, ":="))
         {
             SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);

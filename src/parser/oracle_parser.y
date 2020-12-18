@@ -113,6 +113,7 @@ Node *oracleParseResult = NULL;
 
 /* Arithmetic operators : FOR TESTING */
 %nonassoc DUMMYEXPR
+%right UNARYMINUS						
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
@@ -1271,6 +1272,29 @@ exprList:
  */
 expression:
 		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; }
+		| '-' constant       %prec UNARYMINUS
+		{
+			RULELOG("expression::UNARYMINUS constant");
+			Constant *c = $2;
+			switch(c->constType)
+			{
+				case DT_INT:
+					INT_VALUE(c) = -1 * INT_VALUE(c);
+					break;
+				case DT_LONG:
+				    LONG_VALUE(c) = -1 * LONG_VALUE(c);
+					break;
+			    case DT_FLOAT:
+					FLOAT_VALUE(c) = -1 * FLOAT_VALUE(c);
+					break;
+				default:
+					THROW(SEVERITY_RECOVERABLE,
+						  "unary minus only applicable to int, float, and long constants, but was:\n%s",
+						  beatify(nodeToString((Node *) c)));
+					break;
+			}
+			$$ = (Node *) c;
+		}
 		| constant     				   	{ RULELOG("expression::constant"); }
         | attributeRef         		  	{ RULELOG("expression::attributeRef"); }
 	    | sqlParameter					{ RULELOG("expression::sqlParameter"); }
