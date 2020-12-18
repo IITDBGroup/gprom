@@ -743,7 +743,8 @@ cstringLPProblem(LPProblem *lp, boolean details)
     return str->data;
 }
 
-int executeLPProblem(LPProblem *lp)
+int
+executeLPProblem(LPProblem *lp)
 {
 	int cplexStatus = 0;
 	CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);

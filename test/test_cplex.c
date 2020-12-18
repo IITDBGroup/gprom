@@ -19,9 +19,9 @@
 #include <stdlib.h>
 //#include "common.h"
 /* Shortcut for infinity. */
-#define INF CPX_INFBOUND
-
 #ifdef HAVE_LIBCPLEX
+
+#define INF CPX_INFBOUND
 
 static int populatebyrow(CPXENVptr env, CPXLPptr lp);
 static void free_and_null(char **ptr);
