@@ -274,7 +274,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                     DEBUG_LOG("view: %s", view);
                     StringInfo s = makeStringInfo();
                     appendStringInfoString(s,view);
-                    appendStringInfoString(s,";");
+					if(!regExMatch(".*[;].*$", view))
+					{
+						appendStringInfoString(s,";");
+					}
                     view = s->data;
                     Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
                     FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
