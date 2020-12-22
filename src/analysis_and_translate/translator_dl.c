@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * translator_dl.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel & seokki
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -75,10 +75,10 @@ translateParseDL(Node *q)
 	HashMap *props = copyObject(p->n.properties);
 
 //
-	
+
 	if(doSumm)
 		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
-	
+
     // check if ans exists
     if(ans != NULL)
     	provQ = TRUE;
@@ -120,7 +120,7 @@ translateParseDL(Node *q)
 		result = rewriteSummaryOutput(result, props, qType);
 		INFO_OP_LOG("translated DL model with summarization:\n", result);
 	}
-	
+
     return result;
 }
 
@@ -1122,7 +1122,7 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
         	AttributeReference *ar = (AttributeReference *) newA;
 
         	if(!searchListString(negBoolDone,ar->name))
-        		newA = (Node *) createOpExpr("not", LIST_MAKE(newA));
+        		newA = (Node *) createOpExpr(OPNAME_not, LIST_MAKE(newA));
 
         	/*
         	 *  only at first appearance, keep it as an operator expression for neg-bool
@@ -1324,7 +1324,7 @@ createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTm
             if (streq(d->opExpr->name,OPNAME_EQ))
                 newC = (Node *) createIsNullExpr(leftIn);
             else if (streq(d->opExpr->name,"!="))
-                newC = (Node *) createOpExpr("NOT", singleton(createIsNullExpr(leftIn)));
+                newC = (Node *) createOpExpr(OPNAME_NOT, singleton(createIsNullExpr(leftIn)));
         }
 
         if (result == NULL)
@@ -2739,4 +2739,3 @@ adaptProjectionAttrRef (QueryOperator *o, void *context)
 
     return TRUE;
 }
-

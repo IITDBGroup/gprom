@@ -2865,7 +2865,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	                    createArgs = createDLVar(vName, DT_BOOL);
 
 	                    if(((DLAtom *) n)->negated)
-	                    	createArgs = (DLVar *) createOpExpr("not", LIST_MAKE(createArgs));
+	                    	createArgs = (DLVar *) createOpExpr(OPNAME_not, LIST_MAKE(createArgs));
 //	                    	createArgs->name = CONCAT_STRINGS("not(",createArgs->name,")");
 
 	                    numGoals++; // For calculation of length of only new args

@@ -55,7 +55,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> boolConst
 %token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' STRINGCONCAT POSTGRESCAST
 
 /*
  * Tokens for in-built keywords
@@ -94,7 +94,7 @@ Node *oracleParseResult = NULL;
 /*
  * Declare token for operators specify their associativity and precedence
  */
-%left UNION INTERSECT MINUS
+%left UNION INTERSECT MINUS EXCEPT
 
 /* Logical operators */
 %left '|'
@@ -113,6 +113,7 @@ Node *oracleParseResult = NULL;
 
 /* Arithmetic operators : FOR TESTING */
 %nonassoc DUMMYEXPR
+%right POSTGRESCAST
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
@@ -1144,6 +1145,11 @@ setOperatorQuery:     // Need to look into createFunction
             }
         | queryStmt MINUS optionalAll queryStmt
             {
+                RULELOG("setOperatorQuery::EXCEPT");
+                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
+            }
+		| queryStmt EXCEPT optionalAll queryStmt
+            {
                 RULELOG("setOperatorQuery::MINUS");
                 $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
             }
@@ -1413,8 +1419,14 @@ unaryOperatorExpression:
          | expression IS NOT NULLVAL
          {
          	RULELOG("unaryOperatorExpression::IS NOT NULL");
-         	$$ = (Node *) createOpExpr("NOT", singleton(createIsNullExpr($1)));
+         	$$ = (Node *) createOpExpr(OPNAME_NOT, singleton(createIsNullExpr($1)));
          }
+		 | expression POSTGRESCAST identifier
+		 {
+			 RULELOG("postgres castExpression");
+			 CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3));
+			 $$ = (Node *) c;
+		 }
     ;
 
 /*
@@ -2005,7 +2017,7 @@ whereExpression:
                 	List *expr = singleton($1);
                 	expr = appendToTailOfList(expr, $4);
                 	Node *like = (Node *) createOpExpr($3, expr);
-                	$$ = (Node *) createOpExpr("NOT", singleton(like));
+                	$$ = (Node *) createOpExpr(OPNAME_NOT, singleton(like));
 				}*/
             }
         | whereExpression BETWEEN expression AND expression

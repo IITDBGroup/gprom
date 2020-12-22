@@ -1930,6 +1930,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
         case SETOP_UNION:
             appendStringInfoString(str, " UNION ALL ");
             break;
+			//TODO Oracle does not support bag intersect and difference, have to implement workaround query
         case SETOP_INTERSECTION:
             appendStringInfoString(str, " INTERSECT ");
             break;

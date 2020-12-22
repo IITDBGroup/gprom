@@ -55,7 +55,7 @@ mergeSelection(SelectionOperator *op)
         	break;
 
         // and condition and link child's children to root
-        op->cond = (Node *) createOpExpr("AND", LIST_MAKE(op->cond, child->cond));
+        op->cond = (Node *) createOpExpr(OPNAME_AND, LIST_MAKE(op->cond, child->cond));
         op->op.inputs = child->op.inputs;
 
         FOREACH(QueryOperator, el, op->op.inputs)

@@ -641,7 +641,10 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
 
+	//TODO be smarter to use UNION / INTERSECT / EXCEPT when these are implemented in rel algebra as duplicate elimination
+
     // output left child
+	appendStringInfoString(str, "(");
     resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
 
     // output set operation
@@ -651,15 +654,16 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
             appendStringInfoString(str, " UNION ALL ");
             break;
         case SETOP_INTERSECTION:
-            appendStringInfoString(str, " INTERSECT ");
+            appendStringInfoString(str, " INTERSECT ALL ");
             break;
         case SETOP_DIFFERENCE:
-            appendStringInfoString(str, " EXCEPT ");
+            appendStringInfoString(str, " EXCEPT ALL ");
             break;
     }
 
     // output right child
     api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
+	appendStringInfoString(str, ")");
 
     return resultAttrs;
 }

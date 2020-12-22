@@ -621,7 +621,7 @@ operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries)
     //TODO deal with other specific operators, e.g., comparison
     else if (LIST_LENGTH(node->args) == 1)
     {
-        if (streq(node->name,"NOT"))
+        if (streq(node->name,OPNAME_NOT))
             appendStringInfoString(str, "\\neg");
         else
             appendStringInfo(str, "%s ", node->name);
@@ -638,9 +638,9 @@ operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries)
             exprToLatexString(str,arg, nestedSubqueries);
             if(arg_his_cell != node->args->tail)
             {
-                if (streq(node->name,"AND"))
+                if (streq(node->name,OPNAME_AND))
                     appendStringInfoString(str, "\\wedge");
-                else if (streq(node->name,"OR"))
+                else if (streq(node->name,OPNAME_OR))
                     appendStringInfoString(str, "\\vee");
                 else
                     appendStringInfo(str, " %s ", node->name);

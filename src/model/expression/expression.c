@@ -1189,7 +1189,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             return DT_BOOL;
     }
 
-    // TODO: operator name is "NOT" or "not"
+    // TODO: operator name is OPNAME_NOT or OPNAME_not
     if (streq(opName,OPNAME_NOT) || streq(opName,OPNAME_not))
     {
         if (dLeft == DT_BOOL)
@@ -1197,10 +1197,11 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     }
 
     // standard arithmetic operators
-    if (streq(opName,"+")
-            || streq(opName,"*")
-            || streq(opName,"/")
-            || streq(opName,"-")
+    if (streq(opName,OPNAME_ADD)
+            || streq(opName,OPNAME_MULT)
+            || streq(opName,OPNAME_DIV)
+            || streq(opName,OPNAME_MINUS)
+		    || streq(opName,OPNAME_MOD)
             )
     {
         // if the same input data types then we can safely assume that we get the same return data type
@@ -1210,25 +1211,26 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     }
 
     // string ops
-    if (streq(opName,"||"))
+    if (streq(opName,OPNAME_STRING_CONCAT))
     {
         if (dLeft == dRight && dLeft == DT_STRING)
             return DT_STRING;
     }
+
     // comparison operators
     if (streq(opName,OPNAME_LT)
             || streq(opName,OPNAME_GT)
             || streq(opName,OPNAME_LE)
             || streq(opName,OPNAME_GE)
             || streq(opName,"=>")
-            || streq(opName,"<>")
+		    || streq(opName,OPNAME_NEQ)
             || streq(opName,"^=")
             || streq(opName,OPNAME_EQ)
-            || streq(opName,"!=")
-                )
+            || streq(opName,OPNAME_NEQ_BANG)
+     		|| streq(opName,OPNAME_LIKE)
+    )
     {
-        //if (dLeft == dRight)
-            return DT_BOOL;
+       return DT_BOOL;
     }
 
     *exists = FALSE;
