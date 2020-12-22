@@ -55,7 +55,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> boolConst
 %token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' STRINGCONCAT POSTGRESCAST
 
 /*
  * Tokens for in-built keywords
@@ -113,6 +113,7 @@ Node *oracleParseResult = NULL;
 
 /* Arithmetic operators : FOR TESTING */
 %nonassoc DUMMYEXPR
+%right POSTGRESCAST
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
@@ -1420,6 +1421,12 @@ unaryOperatorExpression:
          	RULELOG("unaryOperatorExpression::IS NOT NULL");
          	$$ = (Node *) createOpExpr(OPNAME_NOT, singleton(createIsNullExpr($1)));
          }
+		 | expression POSTGRESCAST identifier
+		 {
+			 RULELOG("postgres castExpression");
+			 CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3));
+			 $$ = (Node *) c;
+		 }
     ;
 
 /*

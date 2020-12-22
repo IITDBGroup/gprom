@@ -93,6 +93,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		("<<"|">>") */
 /* string concatenation */
 strconcat		"||"
+postgrescast    "::"
 
 /*******************************************************************************
  * Token definitions and actions
@@ -263,6 +264,7 @@ strconcat		"||"
 	/* operators */
 {comparisonOps}		TOK(comparisonOps)
 {strconcat}			TOK(STRINGCONCAT)
+{postgrescast}      TOK(POSTGRESCAST)
 [-+*%/^~&|!]		TOKSELF()
 
 
