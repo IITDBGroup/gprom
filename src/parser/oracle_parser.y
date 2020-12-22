@@ -1433,7 +1433,16 @@ unaryOperatorExpression:
  * Rule to parse function calls
  */
 sqlFunctionCall:
-        identifier '(' exprList ')' overClause
+		identifier '(' ')' overClause
+        {
+			RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
+			FunctionCall *f = createFunctionCall($1, NIL);
+			if ($4 != NULL)
+				$$ = (Node *) createWindowFunction(f, (WindowDef *) $4);
+			else
+				$$ = (Node *) f;
+		}
+        | identifier '(' exprList ')' overClause
             {
                 RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);
