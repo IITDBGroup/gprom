@@ -1043,6 +1043,18 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     QueryOperator *d2 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactModifiedHistoryOp, reenactHistoryOp), NIL, NIL);
     QueryOperator *result = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(d1, d2), NIL, NIL);
 
+    // single update data slicing implementation
+    if(getBoolOption(OPTIMIZATION_WHATIF_DATA_SLICING)) {
+        List *tas = NIL;
+        findTableAccessVisitor((Node *)result, &tas);
+        FOREACH(TableAccessOperator, ta, tas) {
+            Node *cond1 = ((Update *)getHeadOfListP(whatif->history))->cond, *cond2 = ((Update *)getHeadOfListP(whatif->modifiedHistory))->cond;
+            Node *cond = (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2));
+            SelectionOperator *select = createSelectionOp(cond, (QueryOperator *)ta, NIL, getAttrNames(((QueryOperator *)ta)->schema)); // TODO: make sure on right table
+            switchSubtrees((QueryOperator *)ta, (QueryOperator *)select);
+        }
+    }
+
     return (QueryOperator *)result;
 }
 

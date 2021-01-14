@@ -96,6 +96,7 @@ NEW_ENUM_WITH_TO_STRING(
 /* define optimization options for group by*/
 #define OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN "optimization.push_down_aggregation_through_join"
 #define OPTIMIZATION_WHATIF_PROGRAM_SLICING "optimization.whatif_program_slicing"
+#define OPTIMIZATION_WHATIF_DATA_SLICING "optimization.whatif_data_slicing"
 
 
 /* model checking options */
@@ -196,6 +197,7 @@ extern boolean opt_optimization_remove_unnecessary_window_operators;
 extern boolean opt_optimization_pull_up_duplicate_remove_operators;
 extern boolean cost_based_close_option_removedp_by_set;
 extern boolean opt_optimization_whatif_program_slicing;
+extern boolean opt_optimization_whatif_data_slicing;
 
 // temporal database options
 extern boolean temporal_use_coalesce;

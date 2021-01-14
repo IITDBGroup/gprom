@@ -161,6 +161,7 @@ boolean opt_optimization_push_down_aggregation_through_join = FALSE;
 
 // optimization options for whatif
 boolean opt_optimization_whatif_program_slicing = FALSE;
+boolean opt_optimization_whatif_data_slicing = FALSE;
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
@@ -771,6 +772,12 @@ OptionInfo opts[] =
 				opt_optimization_whatif_program_slicing,
 				TRUE
 		),
+        anOptimizationOption(OPTIMIZATION_WHATIF_DATA_SLICING,
+                "-Owhatif_data_slicing",
+                "Optimization: run data slicing to optimize whatif query execution",
+                opt_optimization_whatif_data_slicing,
+                TRUE
+        ),
         // temporal database options for coalesce and normalization
         anTemporaldbOption(TEMPORAL_USE_COALSECE,
                 "-temporal_use_coalesce",

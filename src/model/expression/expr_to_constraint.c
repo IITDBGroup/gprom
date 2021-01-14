@@ -462,119 +462,119 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         // TODO: only handles CASE caseWhenList optionalCaseElse END
         // e.g. foo = case when 3 > 2 then 2 + 4 else 
 
-													 SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
-													 ctx->variables = appendToTailOfList(ctx->variables, resultant);
+        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+        ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
-													 SQLParameter *b = introduceMILPVariable(caseWhen->when, ctx, TRUE);
-													 exprToConstraints(caseWhen->when, ctx);
-													 ctx->caseConds = appendToTailOfList(ctx->caseConds, b);
+        SQLParameter *b = introduceMILPVariable(caseWhen->when, ctx, TRUE);
+        exprToConstraints(caseWhen->when, ctx);
+        ctx->caseConds = appendToTailOfList(ctx->caseConds, b);
 
-													 SQLParameter *v1 = introduceMILPVariable(caseWhen->then, ctx, FALSE);
-													 exprToConstraints(caseWhen->then, ctx);
+        SQLParameter *v1 = introduceMILPVariable(caseWhen->then, ctx, FALSE);
+        exprToConstraints(caseWhen->then, ctx);
 
-													 SQLParameter *v2 = introduceMILPVariable(caseExpr->elseRes, ctx, FALSE);
-													 exprToConstraints(caseExpr->elseRes, ctx);
+        SQLParameter *v2 = introduceMILPVariable(caseExpr->elseRes, ctx, FALSE);
+        exprToConstraints(caseExpr->elseRes, ctx);
 
-													 SQLParameter *vIf = introduceMILPVariable(NULL, ctx, FALSE);
-													 ctx->variables = appendToTailOfList(ctx->variables, vIf); // append manually because not calling exprToConstraints on anything here as its a slack variable
+        SQLParameter *vIf = introduceMILPVariable(NULL, ctx, FALSE);
+        ctx->variables = appendToTailOfList(ctx->variables, vIf); // append manually because not calling exprToConstraints on anything here as its a slack variable
 
-													 SQLParameter *vElse = introduceMILPVariable(NULL, ctx, FALSE);
-													 ctx->variables = appendToTailOfList(ctx->variables, vElse);
+        SQLParameter *vElse = introduceMILPVariable(NULL, ctx, FALSE);
+        ctx->variables = appendToTailOfList(ctx->variables, vElse);
 
-													 Constraint *c1 = makeNode(Constraint);
-													 c1->sense = CONSTRAINT_E;
-													 c1->rhs = createConstInt(0);
-													 c1->originalExpr = (Node *)expr;
-													 c1->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
-														 );
+        Constraint *c1 = makeNode(Constraint);
+        c1->sense = CONSTRAINT_E;
+        c1->rhs = createConstInt(0);
+        c1->originalExpr = (Node *)expr;
+        c1->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)resultant)
+        );
 
-													 Constraint *c2 = makeNode(Constraint);
-													 c2->sense = CONSTRAINT_LE;
-													 c2->rhs = createConstInt(0);
-													 c2->originalExpr = (Node *)expr;
-													 c2->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1)
-														 );
+        Constraint *c2 = makeNode(Constraint);
+        c2->sense = CONSTRAINT_LE;
+        c2->rhs = createConstInt(0);
+        c2->originalExpr = (Node *)expr;
+        c2->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1)
+        );
 
-													 Constraint *c3 = makeNode(Constraint);
-													 c3->sense = CONSTRAINT_GE;
-													 c3->rhs = copyObject(MAP_GET_STRING(ctx->variableMap, "-M"));
-													 c3->originalExpr = (Node *)expr;
-													 c3->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1),
-														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
-														 );
+        Constraint *c3 = makeNode(Constraint);
+        c3->sense = CONSTRAINT_GE;
+        c3->rhs = copyObject(MAP_GET_STRING(ctx->variableMap, "-M"));
+        c3->originalExpr = (Node *)expr;
+        c3->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v1),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+        );
 
-													 Constraint *c4 = makeNode(Constraint);
-													 c4->sense = CONSTRAINT_LE;
-													 c4->rhs = createConstInt(0);
-													 c4->originalExpr = (Node *)expr;
-													 c4->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
-														 );
+        Constraint *c4 = makeNode(Constraint);
+        c4->sense = CONSTRAINT_LE;
+        c4->rhs = createConstInt(0);
+        c4->originalExpr = (Node *)expr;
+        c4->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+        );
 
-													 Constraint *c5 = makeNode(Constraint);
-													 c5->sense = CONSTRAINT_GE;
-													 c5->rhs = createConstInt(0);
-													 c5->originalExpr = (Node *)expr;
-													 c5->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
-														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
-														 );
+        Constraint *c5 = makeNode(Constraint);
+        c5->sense = CONSTRAINT_GE;
+        c5->rhs = createConstInt(0);
+        c5->originalExpr = (Node *)expr;
+        c5->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vIf),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+        );
 
-													 Constraint *c6 = makeNode(Constraint);
-													 c6->sense = CONSTRAINT_LE;
-													 c6->rhs = createConstInt(0);
-													 c6->originalExpr = (Node *)expr;
-													 c6->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2)
-														 );
+        Constraint *c6 = makeNode(Constraint);
+        c6->sense = CONSTRAINT_LE;
+        c6->rhs = createConstInt(0);
+        c6->originalExpr = (Node *)expr;
+        c6->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2)
+        );
 
-													 Constraint *c7 = makeNode(Constraint);
-													 c7->sense = CONSTRAINT_LE;
-													 c7->rhs = (Constant *) copyObject(MAP_GET_STRING(ctx->variableMap, "M"));
-													 c7->originalExpr = (Node *)expr;
-													 c7->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
-														 );
+        Constraint *c7 = makeNode(Constraint);
+        c7->sense = CONSTRAINT_LE;
+        c7->rhs = (Constant *) copyObject(MAP_GET_STRING(ctx->variableMap, "M"));
+        c7->originalExpr = (Node *)expr;
+        c7->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+        );
 
-													 Constraint *c8 = makeNode(Constraint);
-													 c8->sense = CONSTRAINT_GE;
-													 c8->rhs = createConstInt(0);
-													 c8->originalExpr = (Node *)expr;
-													 c8->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-														 createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2),
-														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
-														 );
+        Constraint *c8 = makeNode(Constraint);
+        c8->sense = CONSTRAINT_GE;
+        c8->rhs = createConstInt(0);
+        c8->originalExpr = (Node *)expr;
+        c8->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)createConstInt(-1), (Node*)v2),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "M"), (Node*)b)
+        );
 
-													 Constraint *c9 = makeNode(Constraint);
-													 c9->sense = CONSTRAINT_GE;
-													 c9->rhs = copyObject(MAP_GET_STRING(ctx->variableMap, "-M"));
-													 c9->originalExpr = (Node *)expr;
-													 c9->terms = LIST_MAKE(
-														 createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
-														 createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
-														 );
+        Constraint *c9 = makeNode(Constraint);
+        c9->sense = CONSTRAINT_GE;
+        c9->rhs = copyObject(MAP_GET_STRING(ctx->variableMap, "-M"));
+        c9->originalExpr = (Node *)expr;
+        c9->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)vElse),
+            createNodeKeyValue((Node*)MAP_GET_STRING(ctx->variableMap, "-M"), (Node*)b)
+        );
 
-													 // TODO Macro?
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c1);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c2);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c3);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c4);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c5);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c6);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c7);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c8);
-													 ctx->constraints = appendToTailOfList(ctx->constraints, c9);
+        // TODO Macro?
+        ctx->constraints = appendToTailOfList(ctx->constraints, c1);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c3);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c4);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c5);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c6);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c7);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c8);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c9);
     }
     else if(isA(expr, Constant))
     {
