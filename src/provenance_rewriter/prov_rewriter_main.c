@@ -295,7 +295,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             removeParent(result, (QueryOperator *) op);
         	break;
         case USE_PROV_COARSE_GRAINED_BIND:
-       		testp();
     			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
     				op = originalOp;
 

@@ -25,8 +25,8 @@
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "stdlib.h"
-#include "z3_api.h"
 #if HAVE_Z3
+#include "z3_api.h"
 #include "z3.h"
 #endif
 

@@ -418,6 +418,18 @@ AS_IF([test "x$enable_cplex" == "xyes"], [
   AC_MSG_RESULT([no])
 ])
 ])
+# Activate cplex support
+AC_DEFUN([AC_ENABLE_Z3],
+[
+AC_ARG_ENABLE(cplex, AS_HELP_STRING([--enable-z3],[activate support for Z3]))
+AC_MSG_CHECKING([activate linking against Z3])
+
+AS_IF([test "x$enable_z3" == "xyes"], [
+  AC_MSG_RESULT([yes])
+],[
+  AC_MSG_RESULT([no])
+])
+])
 # enable or disable assertions
 AC_DEFUN([AC_ASSERT_ACTIVE],
 [
