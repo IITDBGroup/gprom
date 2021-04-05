@@ -30,6 +30,29 @@ NEW_ENUM_WITH_TO_STRING(SetOpType,
 #define SETOP_STRING_MINUS "MINUS"
 #define SETOP_STRING_INTERSECT "INTERSECT"
 
+typedef struct ParameterizedQuery
+{
+	NodeTag type;
+	Node *q;
+	List *parameters;
+} ParameterizedQuery;
+
+typedef struct PreparedQuery
+{
+	NodeTag type;
+	char *name;
+	Node *q;
+	char *sqlText;
+	List *dts;
+} PreparedQuery;
+
+typedef struct ExecQuery
+{
+	NodeTag type;
+	char *name;
+	List *params;
+} ExecQuery;
+
 typedef struct SetQuery
 {
     NodeTag type;
@@ -342,6 +365,8 @@ extern CreateTable *createCreateTable (char *tName, List *tableElem);
 extern CreateTable *createCreateTableQuery (char *tName, Node *q);
 extern AlterTable *createAlterTableAddColumn (char *tName, char *newColName, char *newColDT);
 extern AlterTable *createAlterTableRemoveColumn (char *tName, char *colName);
+extern ExecQuery *createExecQuery (char *name, List *vals);
+extern PreparedQuery *createPrepareQuery (char *name, Node *q, List *dts, char *sqlText);
 
 /* deal with provProperties*/
 extern void setProvProperty (FromProvInfo *from, Node *key, Node *value);

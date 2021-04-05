@@ -72,6 +72,9 @@ static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
 static void outCreateTable(StringInfo str, CreateTable *node);
 static void outAlterTable(StringInfo str, AlterTable *node);
+static void outPreparedQuery(StringInfo str, PreparedQuery *node);
+static void outExecQuery(StringInfo str, ExecQuery *node);
+static void outExecPreparedOperator(StringInfo str, ExecPreparedOperator *node);
 
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
@@ -86,6 +89,7 @@ static void outFromLateralSubquery (StringInfo str, FromLateralSubquery *node);
 static void outSchema (StringInfo str, Schema *node);
 static void outAttributeDef (StringInfo str, AttributeDef *node);
 static void outQueryOperator(StringInfo str, QueryOperator *node);
+static void outParameterizedQuery(StringInfo str, ParameterizedQuery *node);
 static void outProjectionOperator(StringInfo str, ProjectionOperator *node);
 static void outSelectionOperator(StringInfo str, SelectionOperator *node);
 static void outJoinOperator(StringInfo str, JoinOperator *node);
@@ -120,7 +124,7 @@ static void outDLComparison(StringInfo str, DLComparison *node);
 static void outDLDomain(StringInfo str, DLDomain *node);
 
 // create overview string for an operator tree
-static int compareOpInfos (const void *l, const void *r);
+static int compareOpInfos (const void **l, const void **r);
 static void operatorToOverviewInternal(StringInfo str, QueryOperator *op,
         int indent, HashMap *map, boolean printChildren);
 static void datalogToStrInternal(StringInfo str, Node *n, int indent);
@@ -220,6 +224,9 @@ static void outPSAttrInfo(StringInfo str, psAttrInfo *node);
 			appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
 			outPointerList(str, (List *) node->fldname); \
 		} while(0)
+
+/* write all the common query operator fields */
+#define WRITE_QUERY_OPERATOR() outQueryOperator(str, (QueryOperator *) node)
 
 /* out pointer list */
 static void
@@ -389,7 +396,7 @@ outHashMap(StringInfo str, HashMap *node)
 
     // sort entries lexigraphically (deterministic output)
     sortEntries = sortList(entryStrings,
-            (int (*) (const void *, const void *)) strCompare);
+            (int (*) (const void **, const void **)) strCompare);
 
     // append entries to output
     FOREACH(char,s,sortEntries)
@@ -571,6 +578,35 @@ outAlterTable(StringInfo str, AlterTable *node)
     WRITE_NODE_FIELD(schema);
     WRITE_NODE_FIELD(beforeSchema);
 }
+
+static void
+outPreparedQuery(StringInfo str, PreparedQuery *node)
+{
+	WRITE_NODE_TYPE(PREPARED_QUERY);
+	WRITE_STRING_FIELD(name);
+	WRITE_NODE_FIELD(q);
+	WRITE_STRING_FIELD(sqlText);
+	WRITE_NODE_FIELD(dts);
+}
+
+static void
+outExecQuery(StringInfo str, ExecQuery *node)
+{
+	WRITE_NODE_TYPE(EXEC_QUERY);
+	WRITE_STRING_FIELD(name);
+	WRITE_NODE_FIELD(params);
+}
+
+static void
+outExecPreparedOperator(StringInfo str, ExecPreparedOperator *node)
+{
+	WRITE_NODE_TYPE(EXEC_PREPARED_OPERATOR);
+    WRITE_QUERY_OPERATOR();
+	WRITE_STRING_FIELD(name);
+	WRITE_NODE_FIELD(params);
+}
+
+
 
 static void
 outQueryBlock (StringInfo str, QueryBlock *node)
@@ -934,8 +970,6 @@ outAttributeDef (StringInfo str, AttributeDef *node)
     WRITE_STRING_FIELD(attrName);
 }
 
-#define WRITE_QUERY_OPERATOR() outQueryOperator(str, (QueryOperator *) node)
-
 static void
 outQueryOperator (StringInfo str, QueryOperator *node)
 {
@@ -945,6 +979,13 @@ outQueryOperator (StringInfo str, QueryOperator *node)
     WRITE_NODE_FIELD(provAttrs);
     WRITE_NODE_FIELD(properties);
     WRITE_NODE_FIELD(inputs);
+}
+
+static void
+outParameterizedQuery (StringInfo str, ParameterizedQuery *node)
+{
+	WRITE_NODE_FIELD(q);
+	WRITE_NODE_FIELD(parameters);
 }
 
 static void
@@ -1293,7 +1334,12 @@ outNode(StringInfo str, void *obj)
             case T_AlterTable:
                 outAlterTable(str, (AlterTable *) obj);
                 break;
-
+		    case T_PreparedQuery:
+				outPreparedQuery(str, (PreparedQuery *) obj);
+				break;
+		    case T_ExecQuery:
+				outExecQuery(str, (ExecQuery *) obj);
+				break;
                 //query operator model nodes
             case T_QueryOperator:
                 outQueryOperator(str, (QueryOperator *) obj);
@@ -1301,10 +1347,13 @@ outNode(StringInfo str, void *obj)
             case T_SelectionOperator:
                 outSelectionOperator(str, (SelectionOperator *) obj);
                 break;
+		    case T_ParameterizedQuery:
+                outParameterizedQuery(str, (ParameterizedQuery *) obj);
+                break;
             case T_ProjectionOperator:
                 outProjectionOperator(str, (ProjectionOperator *) obj);
                 break;
-            case T_JoinOperator:
+      		case T_JoinOperator:
                 outJoinOperator(str, (JoinOperator *) obj);
                 break;
             case T_AggregationOperator:
@@ -1340,6 +1389,9 @@ outNode(StringInfo str, void *obj)
 		    case T_LimitOperator:
                 outLimitOperator(str, (LimitOperator *) obj);
                 break;
+		    case T_ExecPreparedOperator:
+				outExecPreparedOperator(str, (ExecPreparedOperator *) obj);
+				break;
             /* datalog stuff */
             case T_DLAtom:
                 outDLAtom(str, (DLAtom *) obj);
@@ -1727,7 +1779,7 @@ operatorToOverviewString(void *op)
             operatorToOverviewInternal(str,(QueryOperator *) o, 0, m, TRUE);
 
             removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
-            reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+            reusedSubtrees = sortList(getEntries(m), (int (*)(const void **, const void **)) compareOpInfos);
 
             FOREACH(KeyValue,k,reusedSubtrees)
             {
@@ -1749,7 +1801,7 @@ operatorToOverviewString(void *op)
         operatorToOverviewInternal(str,(QueryOperator *) op, 0, m, TRUE);
 
         removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
-        reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+        reusedSubtrees = sortList(getEntries(m), (int (*)(const void **, const void **))compareOpInfos);
 
         FOREACH(KeyValue,k,reusedSubtrees)
         {
@@ -1765,7 +1817,7 @@ operatorToOverviewString(void *op)
 }
 
 static int
-compareOpInfos (const void *l, const void *r)
+compareOpInfos (const void **l, const void **r)
 {
     List *lList = (List *) (*((KeyValue **) l))->value;
     List *rList = (List *) (*((KeyValue **) r))->value;

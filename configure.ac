@@ -34,7 +34,7 @@ else
     	AC_MSG_RESULT([yes, found at $with_oci])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no OCI library found in location $with_oci])
+    	AC_MSG_WARN(no OCI library found in location $with_oci)
 	fi
 fi
 ])
@@ -48,7 +48,7 @@ if test "x$with_oci_lib" != x; then
     	AC_MSG_RESULT([yes, found at $with_oci_lib])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no library for OCI found in location $with_oci_lib])
+    	AC_MSG_WARN(no library for OCI found in location $with_oci_lib)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -64,7 +64,7 @@ if test "x$with_oci_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_oci_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for OCI found in location $with_oci_headers])
+    	AC_MSG_WARN(no headers for OCI found in location $with_oci_headers)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -81,7 +81,7 @@ if test "x$with_ocilib" != x; then
     	AC_MSG_RESULT([yes, $with_ocilib])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no OCI library found in location $with_ocilib])
+    	AC_MSG_WARN(no OCI library found in location $with_ocilib)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -98,7 +98,7 @@ if test "x$with_libz3" != x; then
     	AC_MSG_RESULT([yes, $with_libz3])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no libz3 library found in location $with_libz3])
+    	AC_MSG_WARN(no libz3 library found in location $with_libz3)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -139,7 +139,7 @@ if test "x$with_odbc_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_odbc_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for ODBC found in location $with_ODBC_headers])
+    	AC_MSG_WARN(no headers for ODBC found in location $with_ODBC_headers)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -156,7 +156,7 @@ if test "x$with_odbc" != x; then
     	AC_MSG_RESULT([yes, $with_odbc])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no odbc library found in location $with_odbc])
+    	AC_MSG_WARN(no odbc library found in location $with_odbc)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -195,7 +195,7 @@ if test "x$with_mssql_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_mssql_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for MSSQL found in location $with_mssql_headers])
+    	AC_MSG_WARN(no headers for MSSQL found in location $with_mssql_headers)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -210,7 +210,7 @@ if test "x$with_mssql" != x; then
     	AC_MSG_RESULT([yes, $with_mssql])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no mssql library found in location $with_mssql])
+    	AC_MSG_WARN(no mssql library found in location $with_mssql)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -243,7 +243,7 @@ if test "x$with_libpq_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_libpq_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for Postgres libpq found in location $with_libpq_headers])
+    	AC_MSG_WARN(no headers for Postgres libpq found in location $with_libpq_headers)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -260,7 +260,7 @@ if test "x$with_libpq" != x; then
     	AC_MSG_RESULT([yes, $with_libpq])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no libpq library found in location $with_libpq])
+    	AC_MSG_WARN(no libpq library found in location $with_libpq)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -294,7 +294,7 @@ if test "x$with_mapi_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_mapi_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for MonetDB mapi found in location $with_mapi_headers])
+    	AC_MSG_WARN(no headers for MonetDB mapi found in location $with_mapi_headers)
 	fi
 else
     # monetdb install in monetdb subdir of include directory
@@ -312,7 +312,7 @@ if test "x$with_mapi_lib" != x; then
     	AC_MSG_RESULT([yes, $with_mapi_lib])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no libmapi library found in location $with_mapi_lib])
+    	AC_MSG_WARN(no libmapi library found in location $with_mapi_lib)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -358,7 +358,7 @@ if test "x$with_cplex" != x; then
     	AC_MSG_RESULT([yes, $with_cplex])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no cplex library found in location $with_cplex])
+    	AC_MSG_WARN(no cplex library found in location $with_cplex)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -647,7 +647,7 @@ AC_MACHINE_ARCH
 ################################################################################
 # CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
 #CFLAGS="${GPROM_CFLAGS}"
-AC_PROG_CC_STDC
+AC_PROG_CC
 # restore user CFLAGS
 #CFLAGS=""
 #AS_IF([test "x$userCFLAGS" == "x"],
@@ -906,6 +906,7 @@ AC_CONFIG_FILES([
 	src/model/rpq/Makefile
 	src/model/set/Makefile
     src/operator_optimizer/Makefile
+    src/parameterized_queries/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
     src/provenance_rewriter/coarse_grained/Makefile
@@ -919,6 +920,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/xml_rewrites/Makefile
 	src/provenance_rewriter/lateral_rewrites/Makefile
 	src/provenance_rewriter/unnest_rewrites/Makefile
+    src/provenance_sketches/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile

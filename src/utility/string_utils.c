@@ -346,7 +346,7 @@ specializeTemplate(char *template, List *args)
 }
 
 int
-strCompare(const void *a, const void *b)
+strCompare(const void **a, const void **b)
 {
     const char **l = ((const char **) a);
     const char **r = ((const char **) b);

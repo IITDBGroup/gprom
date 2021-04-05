@@ -27,6 +27,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
+#include "parameterized_query/parameterized_queries.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
@@ -53,6 +54,9 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
 static QueryOperator *translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList);
+static QueryOperator *translateExecQuery(ExecQuery *q, List **attrsOffsetsList);
+static QueryOperator *translatePrepareQuery(PreparedQuery *q, List **attrsOffsetsList);
+static int compareParameters(const void **a, const void **b);
 static void markTableAccessForRowidProv (QueryOperator *o);
 static void getAffectedTableAndOperationType (Node *stmt,
         ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
@@ -165,6 +169,10 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
             return translateSetQuery((SetQuery *) node, attrsOffsetsList);
         case T_ProvenanceStmt:
             return translateProvenanceStmt((ProvenanceStmt *) node, attrsOffsetsList);
+	    case T_ExecQuery:
+			return translateExecQuery((ExecQuery *) node, attrsOffsetsList);
+	    case T_PreparedQuery:
+			return translatePrepareQuery((PreparedQuery *) node, attrsOffsetsList);
         case T_Insert:
         case T_Update:
         case T_Delete:
@@ -569,6 +577,61 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     	prop = (Node *) limitAndOffset;
 
     return limitAndOffset;
+}
+
+static QueryOperator *
+translateExecQuery(ExecQuery *e, List **attrsOffsetsList)
+{
+    ExecPreparedOperator *q = (ExecPreparedOperator *) makeNode(ExecPreparedOperator);
+
+	q->name = e->name;
+	q->params = e->params;
+
+	return (QueryOperator *) q;
+}
+
+static QueryOperator *
+translatePrepareQuery(PreparedQuery *p, List **attrsOffsetsList)
+{
+	QueryOperator *q = translateQueryOracleInternal(p->q, attrsOffsetsList);
+	ParameterizedQuery *pq = makeNode(ParameterizedQuery);
+	List *parameters = findParameters((Node *) q);
+
+	// store prepared query's name and dts as property
+	setStringProperty(q,
+					  PROP_PREPARED_QUERY_NAME,
+					  (Node *) createConstString(p->name));
+
+	setStringProperty(q, PROP_PREPARED_QUERY_DTS,
+					  (Node *) p->dts);
+
+	setStringProperty(q, PROP_PREPARED_QUERY_SQLTEXT,
+					  (Node *) createConstString(p->sqlText));
+
+	pq->q = (Node *) q;
+	pq->parameters = unique(parameters, compareParameters); //TODO what to record here?
+
+	// store parameterized query
+	createParameterizedQuery(p->name, pq);
+
+	return q;
+}
+
+static int
+compareParameters(const void **a, const void **b)
+{
+	ASSERT(isA(*a,SQLParameter) && isA(*b,SQLParameter));
+	SQLParameter *p1, *p2;
+
+	p1 = (SQLParameter *) *a;
+	p2 = (SQLParameter *) *b;
+
+	if (p1->position < p2->position)
+		return -1;
+	if (p1->position > p2->position)
+		return 1;
+
+	return 0;
 }
 
 static QueryOperator *

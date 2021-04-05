@@ -163,6 +163,13 @@ typedef struct LimitOperator
 	Node *offsetExpr;
 } LimitOperator;
 
+typedef struct ExecPreparedOperator
+{
+	QueryOperator op;
+	char *name;
+	List *params;
+} ExecPreparedOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator) \

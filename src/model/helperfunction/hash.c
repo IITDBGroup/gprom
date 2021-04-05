@@ -23,6 +23,7 @@
 #include "model/list/list.h"
 #include "log/logger.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include <stdint.h>
 
 // hash constants
 #define FNV_OFFSET ((uint64_t) 14695981039346656037U)
@@ -96,6 +97,9 @@ static uint64_t hashUtilityStatement (uint64_t cur, UtilityStatement *node);
 static uint64_t hashSchema (uint64_t cur, Schema *node);
 static uint64_t hashAttributeDef (uint64_t cur, AttributeDef *node);
 static uint64_t hashQueryOperator (uint64_t cur, QueryOperator *node);
+static uint64_t hashParameterizedQuery (uint64_t cur, ParameterizedQuery *node);
+static uint64_t hashPreparedQuery(uint64_t cur, PreparedQuery *node);
+static uint64_t hashExecQuery(uint64_t cur, ExecQuery *node);
 static uint64_t hashSelectionOperator (uint64_t cur, SelectionOperator *node);
 static uint64_t hashProjectionOperator (uint64_t cur, ProjectionOperator *node);
 static uint64_t hashJoinOperator (uint64_t cur, JoinOperator *node);
@@ -109,6 +113,7 @@ static uint64_t hashNestingOperator (uint64_t cur, NestingOperator *node);
 static uint64_t hashWindowOperator (uint64_t cur, WindowOperator *node);
 static uint64_t hashOrderOperator (uint64_t cur, OrderOperator *node);
 static uint64_t hashLimitOperator (uint64_t cur, LimitOperator *node);
+static uint64_t hashExecPreparedOperator (uint64_t cur, ExecPreparedOperator *node);
 
 // hash functions for datalog model
 static uint64_t hashDLNode (uint64_t cur, DLNode *node);
@@ -725,6 +730,36 @@ hashQueryOperator (uint64_t cur, QueryOperator *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashParameterizedQuery (uint64_t cur, ParameterizedQuery *node)
+{
+	HASH_NODE(q);
+	HASH_NODE(parameters);
+
+	HASH_RETURN();
+}
+
+static uint64_t
+hashPreparedQuery(uint64_t cur, PreparedQuery *node)
+{
+	HASH_STRING(name);
+	HASH_NODE(q);
+	HASH_STRING(sqlText);
+	HASH_NODE(dts);
+
+	HASH_RETURN();
+}
+
+static uint64_t
+hashExecQuery(uint64_t cur, ExecQuery *node)
+{
+	HASH_STRING(name);
+	HASH_NODE(params);
+
+	HASH_RETURN();
+}
+
+
 #define HASH_QO() hashQueryOperator (cur, (QueryOperator *) node)
 
 static uint64_t
@@ -867,6 +902,15 @@ hashLimitOperator (uint64_t cur, LimitOperator *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashExecPreparedOperator (uint64_t cur, ExecPreparedOperator *node)
+{
+	HASH_QO();
+	HASH_STRING(name);
+	HASH_NODE(params);
+
+	HASH_RETURN();
+}
 
 static uint64_t
 hashDLNode (uint64_t cur, DLNode *node)
@@ -1059,6 +1103,12 @@ hashValueInternal(uint64_t h, void *a)
             return hashSchema(h, (Schema *) n);
         case T_AttributeDef:
             return hashAttributeDef(h, (AttributeDef *) n);
+	    case T_ParameterizedQuery:
+			return hashParameterizedQuery(h, (ParameterizedQuery *) n);
+	    case T_PreparedQuery:
+		    return hashPreparedQuery(h, (PreparedQuery *) n);
+	    case T_ExecQuery:
+		    return hashExecQuery(h, (ExecQuery *) n);
         case T_SelectionOperator:
             return hashSelectionOperator(h, (SelectionOperator *) n);
         case T_ProjectionOperator:
@@ -1085,6 +1135,9 @@ hashValueInternal(uint64_t h, void *a)
             return hashOrderOperator(h, (OrderOperator *) n);
         case T_LimitOperator:
             return hashLimitOperator(h, (LimitOperator *) n);
+	    case T_ExecPreparedOperator:
+            return hashExecPreparedOperator(h, (ExecPreparedOperator *) n);
+
             /* datalog model */
         case T_DLAtom:
             return hashDLAtom(h, (DLAtom *) n);

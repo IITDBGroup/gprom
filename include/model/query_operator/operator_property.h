@@ -15,6 +15,11 @@
 /* general operator properties */
 #define PROP_MATERIALIZE "MATERIALIZE"                      // hint to materialize output of this operator
 
+// exec and prepared queries
+#define PROP_PREPARED_QUERY_NAME "PREPARED_QUERY"
+#define PROP_PREPARED_QUERY_DTS "PREPARED_DTS"
+#define PROP_PREPARED_QUERY_SQLTEXT "PREPARED_SQL_TEXT"
+
 // provenance
 #define PROP_SHOW_INTERMEDIATE_PROV "SHOW_INTERMEDIATE_PROV" // show provenance for this intermediate subquery result
 #define PROP_USE_PROVENANCE "USE_PROVENANCE"                // duplicate user provided attributes as provenance

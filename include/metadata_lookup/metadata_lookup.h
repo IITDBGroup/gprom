@@ -147,7 +147,7 @@ extern boolean isWindowFunction(char *functionName);
 extern DataType getFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
 extern DataType getOpReturnType (char *oName, List *argTypes, boolean *opExists);
 extern DataType backendSQLTypeToDT (char *sqlType);
-extern char * backendDatatypeToSQL (DataType dt);
+extern char *backendDatatypeToSQL (DataType dt);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern List *getKeyInformation (char *tableName);

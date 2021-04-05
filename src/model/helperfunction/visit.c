@@ -260,6 +260,19 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(cond);
         	}
         	break;
+	case T_PreparedQuery:
+	{
+		PREP_VISIT(PreparedQuery);
+		VISIT(q);
+		VISIT(dts);
+	}
+	break;
+	case T_ExecQuery:
+	{
+		PREP_VISIT(ExecQuery);
+		VISIT(params);
+	}
+	break;
         /* query operator model nodes */
         case T_Schema:
         	{
@@ -273,6 +286,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		//VISIT();
         	}
         	break;
+	    case T_ParameterizedQuery:
+		{
+			PREP_VISIT(ParameterizedQuery);
+			VISIT(q);
+			VISIT(parameters);
+		}
         case T_SelectionOperator:
             {
                 PREP_VISIT(SelectionOperator);
@@ -365,6 +384,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(offsetExpr);
             }
             break;
+	case T_ExecPreparedOperator:
+	{
+		PREP_VISIT(ExecPreparedOperator);
+		VISIT_OPERATOR_FIELDS();
+		VISIT(params);
+	}
         // DLNodes
         case T_DLAtom:
         {
@@ -581,6 +606,18 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
 				MUTATE(Node, offsetClause);
         	}
         	break;
+	    case T_ExecQuery:
+		{
+			NEWN(ExecQuery);
+			MUTATE(List, params);
+		}
+	    case T_PreparedQuery:
+		{
+			NEWN(PreparedQuery);
+			MUTATE(Node, q);
+			MUTATE(List, dts);
+		}
+		break;
         case T_SelectItem:
         	{
         		NEWN(SelectItem);
@@ -665,6 +702,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
             break;
         case T_AttributeDef:
         	return node;
+	    case T_ParameterizedQuery:
+		{
+			NEWN(ParameterizedQuery);
+			MUTATE(Node, q);
+			MUTATE(List, parameters);
+		}
         case T_SelectionOperator:
             {
                 NEWN(SelectionOperator);
@@ -755,6 +798,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(Node,offsetExpr);
             }
             break;
+	    case T_ExecPreparedOperator:
+		{
+			NEWN(ExecPreparedOperator);
+			MUTATE_OPERATOR();
+			MUTATE(List,params);
+		}
 		// DL nodes
         case T_DLAtom:
             {
@@ -1045,6 +1094,13 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 //VISIT_P();
             }
             break;
+	    case T_ParameterizedQuery:
+		{
+			PREP_VISIT_P(ParameterizedQuery);
+			VISIT_P(q);
+			VISIT_P(parameters);
+		}
+		break;
         case T_SelectionOperator:
             {
                 PREP_VISIT_P(SelectionOperator);

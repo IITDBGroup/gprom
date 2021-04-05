@@ -84,6 +84,7 @@ static Schema *copySchema(Schema *from, OperatorMap **opMap);
 
 /*functions to copy query_operator*/
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
+static ParameterizedQuery *copyParameterizedQuery(ParameterizedQuery *from, OperatorMap **opMap);
 static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
 static SampleClauseOperator *copySampleClauseOperator(SampleClauseOperator *from, OperatorMap **opMap);
 static JsonTableOperator *copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap);
@@ -101,7 +102,8 @@ static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **op
 static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
 static LimitOperator *copyLimitOperator(LimitOperator *from, OperatorMap **opMap);
 static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
-static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap ** opMap);
+static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap **opMap);
+static ExecPreparedOperator *copyExecPreparedOperator(ExecPreparedOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -127,6 +129,8 @@ static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
 static CreateTable *copyCreateTable(CreateTable *from, OperatorMap **opMap);
 static AlterTable *copyAlterTable(AlterTable *from, OperatorMap **opMap);
+static PreparedQuery *copyPreparedQuery(PreparedQuery *from, OperatorMap **opMap);
+static ExecQuery *copyExecQuery(ExecQuery *from, OperatorMap **opMap);
 
 /* functions to copy datalog model elements */
 static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
@@ -631,6 +635,16 @@ copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
     return new;
 }
 
+static ParameterizedQuery *
+copyParameterizedQuery(ParameterizedQuery *from, OperatorMap **opMap)
+{
+	COPY_INIT(ParameterizedQuery);
+	COPY_NODE_FIELD(q);
+	COPY_NODE_FIELD(parameters);
+
+	return new;
+}
+
 #define COPY_OPERATOR() copyQueryOperator((QueryOperator *) from, (QueryOperator *) new, opMap)
 
 static TableAccessOperator *
@@ -831,6 +845,19 @@ copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
     return new;
 }
 
+
+
+static ExecPreparedOperator *
+copyExecPreparedOperator(ExecPreparedOperator *from, OperatorMap **opMap)
+{
+	COPY_INIT(ExecPreparedOperator);
+
+	COPY_STRING_FIELD(name);
+	COPY_NODE_FIELD(params);
+
+	return new;
+}
+
 /*functions to copy query_block*/
 static SetQuery *
 copySetQuery(SetQuery *from, OperatorMap **opMap)
@@ -951,6 +978,28 @@ copyAlterTable(AlterTable *from, OperatorMap **opMap)
     COPY_NODE_FIELD(beforeSchema);
 
     return new;
+}
+
+static PreparedQuery *
+copyPreparedQuery(PreparedQuery *from, OperatorMap **opMap)
+{
+	COPY_INIT(PreparedQuery);
+	COPY_STRING_FIELD(name);
+	COPY_NODE_FIELD(q);
+	COPY_STRING_FIELD(sqlText);
+	COPY_NODE_FIELD(dts);
+
+	return new;
+}
+
+static ExecQuery *
+copyExecQuery(ExecQuery *from, OperatorMap **opMap)
+{
+	COPY_INIT(ExecQuery);
+	COPY_NODE_FIELD(name);
+	COPY_NODE_FIELD(params);
+
+	return new;
 }
 
 
@@ -1278,9 +1327,17 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_AlterTable:
             retval = copyAlterTable(from, opMap);
             break;
-
+	    case T_PreparedQuery:
+			retval = copyPreparedQuery(from, opMap);
+			break;
+	    case T_ExecQuery:
+			retval = copyExecQuery(from, opMap);
+			break;
              /* query operator model nodes */
-        case T_SelectionOperator:
+	    case T_ParameterizedQuery:
+			 retval = copyParameterizedQuery(from, opMap);
+			 break;
+	    case T_SelectionOperator:
             retval = copySelectionOperator(from, opMap);
             break;
         case T_ProjectionOperator:
@@ -1327,6 +1384,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_JsonColInfoItem:
 			retval = copyJsonColInfoItem(from, opMap);
+			break;
+	    case T_ExecPreparedOperator:
+			retval = copyExecPreparedOperator(from, opMap);
 			break;
             /* datalog model nodes */
         case T_DLAtom:

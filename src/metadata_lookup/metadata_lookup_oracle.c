@@ -1259,7 +1259,9 @@ oracleGetViewDefinition(char *viewName) {
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
-DataType oracleGetOpReturnType(char *oName, List *dataTypes, boolean *opExists) {
+DataType
+oracleGetOpReturnType(char *oName, List *dataTypes, boolean *opExists)
+{
 	*opExists = TRUE;
 
 	if (streq(oName,

@@ -186,7 +186,8 @@ extern List *appendToHeadOfListInt (List *list, int value);
 
 /* sort and reverse list */
 extern void reverseList(List *list);
-extern List *sortList(List *list, int (*sm) (const void *, const void *));
+extern List *sortList(List *list, int (*sm) (const void **, const void **));
+extern List *unique(List *list, int (*cmp) (const void **, const void **));
 
 /* copy and free lists */
 extern List *copyList(List *list);

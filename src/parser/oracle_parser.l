@@ -245,6 +245,8 @@ strconcat		"||"
 (?i:FOR)		    UPCASE_TOK(FOR)
 (?i:CANUSE)		    UPCASE_TOK(CANUSE)
 (?i:LATERAL)        UPCASE_TOK(LATERAL)
+(?i:EXECUTE)        UPCASE_TOK(EXECUTE)
+(?i:PREPARE)        UPCASE_TOK(PREPARE)
 
 	/* booleans */
 {bool}			TOK(boolConst)

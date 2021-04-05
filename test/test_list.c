@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_list.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -23,8 +23,11 @@ static rc testPList(void);
 static rc testListConstruction(void);
 static rc testListOperations(void);
 static rc testListGenericOps(void);
+static rc testSort(void);
+static rc testUnique(void);
 
-static boolean cmpConstFirst (void *a, void *b);
+static boolean eqConstFirst (void *a, void *b);
+static int cmpConstFirst (const void **a, const void **b);
 
 rc
 testList()
@@ -34,6 +37,8 @@ testList()
     RUN_TEST(testListConstruction(), "test list construction");
     RUN_TEST(testListOperations(), "test list operations");
     RUN_TEST(testListGenericOps(), "test generic list operations");
+	RUN_TEST(testSort(), "test generic list sorting");
+	RUN_TEST(testUnique(), "test duplicate elimination");
 
     return PASS;
 }
@@ -185,21 +190,71 @@ testListGenericOps(void)
     List *l = LIST_MAKE(c1,c2,c3);
 
     // search
-    ASSERT_TRUE(genericSearchList(l, cmpConstFirst, createConstString("bbb")), "has string starting with b");
-    ASSERT_FALSE(genericSearchList(l, cmpConstFirst, createConstString("cbc")), "doe not have string starting with c");
+    ASSERT_TRUE(genericSearchList(l, eqConstFirst, createConstString("bbb")), "has string starting with b");
+    ASSERT_FALSE(genericSearchList(l, eqConstFirst, createConstString("cbc")), "doe not have string starting with c");
 
     // remove
-    l = genericRemoveFromList(l, cmpConstFirst, createConstString("axxxx"));
+    l = genericRemoveFromList(l, eqConstFirst, createConstString("axxxx"));
     ASSERT_EQUALS_NODE(l, LIST_MAKE(c3), "after removal list is: (\"bcd\")");
     return PASS;
 }
 
+static rc
+testSort(void)
+{
+	Constant *c1 = createConstString("abc");
+	Constant *c2 = createConstString("caa");
+	Constant *c3 = createConstString("bbb");
+
+	List *l = LIST_MAKE(c1,c2,c3);
+	List *exp = LIST_MAKE(c1,c3,c2);
+	List *actual = sortList(l, cmpConstFirst);
+
+	ASSERT_EQUALS_NODE(exp, actual, "sorted is [abc, bbb, caa]");
+
+	return PASS;
+}
+
+static rc
+testUnique(void)
+{
+	Constant *c1 = createConstString("abc");
+	Constant *c2 = createConstString("aaa");
+	Constant *c3 = createConstString("bbb");
+
+	List *l = LIST_MAKE(c1,c2,c3);
+
+	// remove dups based on first character equality
+	List *exp = LIST_MAKE(c1,c3);
+	List *actual = unique(l, cmpConstFirst);
+
+	ASSERT_EQUALS_NODE(exp, actual, "unique removes one element starting with a.");
+
+	return PASS;
+}
+
 static boolean
-cmpConstFirst (void *a, void *b)
+eqConstFirst (void *a, void *b)
 {
     char *c1 = STRING_VALUE(a);
     char *c2 = STRING_VALUE(b);
 
-    return c1[0] == c2[0];
+	return c2[0] == c1[0];
 }
 
+static int
+cmpConstFirst (const void **a, const void **b)
+{
+    char *c1;
+	char *c2;
+
+	if(*a == *b)
+		return 0;
+	if(*a == NULL || *b == NULL)
+		return -1;
+
+    c1 = STRING_VALUE(*a);
+    c2 = STRING_VALUE(*b);
+
+	return c1[0] - c2[0];
+}

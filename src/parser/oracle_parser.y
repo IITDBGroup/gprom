@@ -84,7 +84,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> NULLS FIRST LAST ASC DESC
 %token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
 %token <stringVal> CAST
-%token <stringVal> CREATE ALTER ADD REMOVE COLUMN
+%token <stringVal> CREATE ALTER ADD REMOVE COLUMN PREPARE EXECUTE
 %token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE TOP
 
 %token <stringVal> DUMMYEXPR SUBQUERYEXPR
@@ -126,7 +126,7 @@ Node *oracleParseResult = NULL;
  * Types of non-terminal symbols
  */
 %type <node> stmt stmtWithSemicolon provStmt dmlStmt queryStmt queryStmtNoParens queryStmtWithParens ddlStmt reenactStmtWithOptions
-%type <node> createTableStmt alterTableStmt alterTableCommand
+%type <node> createTableStmt alterTableStmt alterTableCommand prepareQuery execQuery
 %type <list> tableElemList optTableElemList attrElemList
 %type <node> tableElement attr
 %type <node> selectQuery deleteQuery updateQuery insertQuery setOperatorQuery //subQuery
@@ -145,7 +145,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec optionalCoarseGrainedPara
-%type <list> hashList fragmentList pageList rangeAList rangeBList intConstList strConstList attrRangeList coarseGrainedSpec
+%type <list> hashList fragmentList pageList rangeAList rangeBList constList intConstList strConstList attrRangeList coarseGrainedSpec optionalDTList optionalConstList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -214,6 +214,16 @@ stmt:
 			RULELOG("stmt::withQuery");
 			$$ = $1;
 		}
+		| prepareQuery
+		{
+			RULELOG("stmt:prepareQuery");
+			$$ = $1;
+		}
+		| execQuery
+		{
+			RULELOG("stmt:execQuery");
+			$$ = $1;
+	    }
     ;
 
 /*
@@ -311,6 +321,42 @@ dmlStmt:
         | deleteQuery        { RULELOG("dmlStmt::deleteQuery"); }
         | updateQuery        { RULELOG("dmlStmt::updateQuery"); }
     ;
+
+/*
+ * Rule to part prepare queries and execute them.
+ */
+prepareQuery:
+		PREPARE identifier optionalDTList AS queryStmt
+		{
+			RULELOG("prepreQuery");
+			$$ = (Node *) createPrepareQuery($2,$5,$3,NULL);
+        }
+   ;
+
+execQuery:
+		EXECUTE identifier optionalConstList
+		{
+			RULELOG("execQuery");
+			$$ = (Node *) createExecQuery($2,$3);
+		}
+   ;
+
+optionalDTList:
+		/* EMPTY */ { $$ = NIL; }
+		| '(' identifierList ')'
+		{
+			 $$ = $2;
+		}
+   ;
+
+optionalConstList:
+		/* EMPTY */ { $$ = NIL; }
+		| '(' constList ')'
+		{
+			$$ = $2;
+		}
+   ;
+
 
 /*
  * Rule to parse all types projection queries.
@@ -871,6 +917,11 @@ rangeAList:
        }
     ;
 
+
+constList:
+        constant { $$ = singleton($1); }
+		| constList ',' constant { $$ = appendToTailOfList($1, (Node *) $3); }
+	;
 
 intConstList:
 		intConst { $$ = singleton((Node *) createConstInt($1)); }

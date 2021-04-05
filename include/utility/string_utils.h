@@ -30,11 +30,12 @@ extern char *strtrim (char *in);
 extern boolean strieq(char *left, char *right);
 
 // string comparison for sorting
-extern int strCompare(const void *a, const void *b);
+extern int strCompare(const void **a, const void **b);
 
 // string to upper
 extern char *strToUpper(const char *input);
 extern char *strToLower(const char *input);
+
 
 
 #endif /* INCLUDE_UTILITY_STRING_UTILS_H_ */

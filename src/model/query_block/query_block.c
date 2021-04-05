@@ -461,6 +461,31 @@ createAlterTableRemoveColumn (char *tName, char *colName)
 }
 
 
+ExecQuery *
+createExecQuery (char *name, List *vals)
+{
+	ExecQuery *result = makeNode(ExecQuery);
+
+	result->name = name;
+	result->params = vals;
+
+	return result;
+}
+
+PreparedQuery *
+createPrepareQuery (char *name, Node *q, List *dts, char *sqlText)
+{
+	PreparedQuery *result = makeNode(PreparedQuery);
+
+	result->name = name;
+	result->q = q;
+	result->dts = dts;
+	result->sqlText = sqlText;
+
+	return result;
+}
+
+
 /* fromProvInfo ProvProperties helper functions*/
 static KeyValue *getProvProp (FromProvInfo *from, Node *key);
 

@@ -62,8 +62,9 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     /* query operator model nodes */
     T_Schema,
     T_AttributeDef,
-    T_QueryOperator,
-    T_SelectionOperator,
+	T_QueryOperator,
+	T_ParameterizedQuery,
+	T_SelectionOperator,
     T_ProjectionOperator,
     T_JoinOperator,
     T_AggregationOperator,
@@ -77,6 +78,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_OrderOperator,
 	T_SampleClauseOperator,
 	T_LimitOperator,
+    T_ExecPrepratedOperator,
 
     /* datalog model nodes */
     T_DLNode,
@@ -103,6 +105,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     /* ddl */
     T_CreateTable,
     T_AlterTable,
+
+    /* parameterized query */
+	T_PreparedQuery,
+	T_ExecQuery,
+	T_ExecPreparedOperator,
 
 	/* provenance sketch */
 	T_psInfo,

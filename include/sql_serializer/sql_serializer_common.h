@@ -127,6 +127,8 @@ typedef struct SerializeClausesAPI {
  	void (*serializeOrderByOperator) (OrderOperator *q, StringInfo orderby, FromAttrsContext *fac,
 									struct SerializeClausesAPI *api);
 	void (*serializeLimitOperator) (LimitOperator *q, StringInfo limit, struct SerializeClausesAPI *api);
+	void (*serializePreparedStatment) (QueryOperator *q, StringInfo prep, struct SerializeClausesAPI *api);
+	void (*serializeExecPreparedOperator) (ExecPreparedOperator *q, StringInfo exec);
     List *(*createTempView) (QueryOperator *q, StringInfo str,
             QueryOperator *parent, FromAttrsContext *fac, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
@@ -149,6 +151,8 @@ extern void genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrs
         SerializeClausesAPI *api);
 extern void genSerializeLimitOperator (LimitOperator *q, StringInfo limit,
 									struct SerializeClausesAPI *api);
+extern void genSerializePreparedStatement (QueryOperator *q, StringInfo prep, SerializeClausesAPI *api);
+extern void genSerializeExecPreparedOperator (ExecPreparedOperator *q, StringInfo exec);
 extern void genSerializeOrderByOperator (OrderOperator *q, StringInfo order,  FromAttrsContext *fac,
 									struct SerializeClausesAPI *api);
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,

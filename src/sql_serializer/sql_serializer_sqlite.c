@@ -100,7 +100,6 @@ serializeQuerySQLite(QueryOperator *q)
 	// replace functions not supported by SQLite with equivalent alternatives
 	replaceFunctionsWithEquivalent((Node *) q, NULL);
 
-
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, fac, api);
 

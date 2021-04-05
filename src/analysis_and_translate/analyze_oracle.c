@@ -20,11 +20,13 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
+#include "model/query_block/query_block_to_sql.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "parameterized_query/parameterized_queries.h"
 #include "parser/parser.h"
 #include "model/query_operator/operator_property.h"
 #include "temporal_queries/temporal_rewriter.h"
@@ -40,6 +42,8 @@ static boolean reenactOptionHasTimes (List *opts);
 static void analyzeWithStmt (WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
+static void analyzeExecQuery (ExecQuery *e);
+static void analyzePreparedQuery (PreparedQuery *p);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 static void analyzeWhere(QueryBlock *qb, List *parentFroms);
@@ -186,6 +190,12 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
         case T_AlterTable:
             analyzeAlterTable((AlterTable *) stmt);
             break;
+	    case T_ExecQuery:
+			analyzeExecQuery((ExecQuery *) stmt);
+			break;
+	    case T_PreparedQuery:
+			analyzePreparedQuery((PreparedQuery *) stmt);
+			break;
         default:
             break;
     }
@@ -2280,6 +2290,66 @@ analyzeAlterTable (AlterTable *a)
     a->schema = copyObject(schema);
 
     DEBUG_NODE_BEATIFY_LOG("analyzed alter table is:", a);
+}
+
+static void
+analyzeExecQuery(ExecQuery *e)
+{
+	ParameterizedQuery *pq;
+	if(!parameterizedQueryExists(e->name))
+	{
+		FATAL_LOG("execute asks for parameterized query that does not exist.");
+	}
+
+	pq = getParameterizedQuery(e->name);
+
+	if(LIST_LENGTH(pq->parameters) != LIST_LENGTH(e->params))
+	{
+		FATAL_LOG("parameter list not of right length: expected %u but was %u",
+				  LIST_LENGTH(pq->parameters),
+				  LIST_LENGTH(e->params));
+	}
+
+	FORBOTH(Node, n1, n2, pq->parameters, e->params)
+	{
+		FATAL_LOG("non-compatible data type for parameter: %s and %s",
+				  beatify(nodeToString(n1)),
+				  beatify(nodeToString(n2)));
+	}
+}
+
+static void
+analyzePreparedQuery(PreparedQuery *p)
+{
+	List *dts;
+
+	analyzeQueryBlockStmt(p->q, NIL);
+	p->sqlText = parseBackQueryBlock(p->q);
+	dts = getQBAttrDTs(p->q);
+
+	if(p->dts != NIL)
+	{
+		if(LIST_LENGTH(p->dts) != LIST_LENGTH(dts))
+		{
+			FATAL_LOG("provides lists of data types has different size than the schema of the parameterized query:\n%s\n\n%s",
+					  p->dts,
+					  dts);
+		}
+
+		// check that data types provided by the user are compatible with the query's result data type
+		FORBOTH_INT(d1,d2,dts,p->dts)
+		{
+			DataType dt1 = (DataType) d1;
+			DataType dt2 = (DataType) d2;
+
+			if (lcaType(dt1,dt2) != dt2)
+			{
+				FATAL_LOG("cannot cast parameterized query result DT %s into provided type %s",
+						  DataTypeToString(dt1),
+						  DataTypeToString(dt2));
+			}
+		}
+	}
 }
 
 static boolean
