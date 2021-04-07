@@ -34,8 +34,6 @@
 /* consts */
 #define RIGHT_ATTR_PREFIX backendifyIdentifier("R")
 
-
-
 /*
  * bottom-up propagation of expression
  */
