@@ -23,12 +23,11 @@
 #include "metadata_lookup/metadata_lookup_mssql.h"
 #include "model/list/list.h"
 #include "model/query_operator/query_operator.h"
-#include "sqltypes.h"
 
 #if HAVE_MSSQL_BACKEND
 #include "sql.h"
 #include "sqlext.h"
-#endif
+#include "sqltypes.h"
 
 typedef struct AggInfo {
 	char *name;
@@ -82,6 +81,7 @@ static AggInfo winfs[] = {
 	{ "varp" },
 	{ NULL } // end marker
 };
+#endif
 
 // Mem context
 #define CONTEXT_NAME "MSSQLMemContext"

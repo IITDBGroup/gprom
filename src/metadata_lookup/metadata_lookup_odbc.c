@@ -23,12 +23,15 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
-#include "sqltypes.h"
 #include "src/parser/postgres_parser.tab.h"
 
 #if HAVE_ODBC_BACKEND
 #include "sql.h"
 #include "sqlext.h"
+#include "sqltypes.h"
+
+// global vars
+static MemContext *memContext = NULL;
 #endif
 
 // don't use unicode string
@@ -41,8 +44,7 @@
 #define METADATA_LOOKUP_TIMER "module - metadata lookup"
 #define METADATA_LOOKUP_QUERY_TIMER "module - metadata lookup - running queries"
 
-// global vars
-static MemContext *memContext = NULL;
+
 
 // real versions if ODBC is present
 #ifdef HAVE_ODBC_BACKEND

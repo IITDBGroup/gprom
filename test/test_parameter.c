@@ -13,11 +13,14 @@
 #include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
 #include "metadata_lookup/metadata_lookup_sqlite.h"
+#include "model/query_block/query_block.h"
+#include "model/query_block/query_block_to_sql.h"
 #include "test_main.h"
 #include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "analysis_and_translate/parameter.h"
+#include "parameterized_query/parameterized_queries.h"
 #include "parser/parser.h"
 #include "analysis_and_translate/analyze_oracle.h"
 #include "metadata_lookup/metadata_lookup.h"
@@ -29,7 +32,7 @@
 #endif
 
 static rc setupParameterDB (void);
-static rc shutdownPlugin(void);
+//static rc shutdownPlugin(void);
 static rc testParseBinds (void);
 static rc testSetParameterValues (void);
 static rc testTemplatizeQuery (void);
@@ -218,18 +221,9 @@ testTemplatizeQuery (void)
         Node *expQO = translateParse(analyzeParseModel(parseFromString(expSQL)));
         Node *inQO = translateParse(analyzeParseModel(parseFromString(inSQL)));
 
+	    ParameterizedQuery *p = queryToTemplate((QueryOperator *) inQO);
 
-
-        SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
-
-
-        analyzeQueryBlockStmt(expParse, NIL);
-        analyzeQueryBlockStmt(inParse, NIL);
-        p->position = 1;
-
-        inParse = setParameterValues(inParse, singleton(val));
-
-        ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
+        ASSERT_EQUALS_NODE(expQO, parseBackQueryBlock(p->q), "templatize query");
 
         shutdownMetadataLookupPlugin();
     }
@@ -238,20 +232,14 @@ testTemplatizeQuery (void)
 #ifdef HAVE_POSTGRES_BACKEND
     if (strpleq(getStringOption("backend"),"postgres"))
     {
-        char *expSQL = "SELECT \"a\" FROM \"param_test1\" WHERE \"a\" = '5';";
-        char *inSQL = "SELECT \"a\" FROM \"param_test1\" WHERE \"a\" = :param;";
-        Node *expParse = parseFromString(expSQL);
-        Node *inParse = parseFromString(inSQL);
-        Node *val = (Node *) createConstString("5");
-        SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
+        char *inSQL = "SELECT a FROM param_test1 WHERE a = '5';";
+        char *expSQL = "SELECT a FROM param_test1 WHERE a = :param;";
+        Node *expQO = translateParse(analyzeParseModel(parseFromString(expSQL)));
+        Node *inQO = translateParse(analyzeParseModel(parseFromString(inSQL)));
 
-        analyzeQueryBlockStmt(expParse, NIL);
-        analyzeQueryBlockStmt(inParse, NIL);
-        p->position = 1;
+	    ParameterizedQuery *p = queryToTemplate((QueryOperator *) inQO);
 
-        inParse = setParameterValues(inParse, singleton(val));
-
-        ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
+        ASSERT_EQUALS_NODE(expQO, parseBackQueryBlock(p->q), "templatize query");
 
         shutdownMetadataLookupPlugin();
     }
@@ -260,8 +248,8 @@ testTemplatizeQuery (void)
 	return PASS;
 }
 
-static rc
-shutdownPlugin(void)
-{
-	shutdownMetadataLookupPlugin();
-}
+/* static rc */
+/* shutdownPlugin(void) */
+/* { */
+/* 	return shutdownMetadataLookupPlugin(); */
+/* } */
