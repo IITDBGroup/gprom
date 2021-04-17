@@ -32,7 +32,7 @@
 #endif
 
 static rc setupParameterDB (void);
-//static rc shutdownPlugin(void);
+static rc shutdownPlugin(void);
 static rc testParseBinds (void);
 static rc testSetParameterValues (void);
 static rc testTemplatizeQuery (void);
@@ -44,6 +44,7 @@ testParameter(void)
     RUN_TEST(testParseBinds(), "test parse binds");
     RUN_TEST(testSetParameterValues(), "test setting values for parameters");
 	RUN_TEST(testTemplatizeQuery(), "test templetizing queries");
+	RUN_TEST(shutdownPlugin(), "shutdown metadata lookup plugin");
 
     return PASS;
 }
@@ -156,8 +157,6 @@ testSetParameterValues (void)
         inParse = setParameterValues(inParse, singleton(val));
 
         ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
-
-        shutdownMetadataLookupPlugin();
 	}
 #endif
 
@@ -179,8 +178,6 @@ testSetParameterValues (void)
         inParse = setParameterValues(inParse, singleton(val));
 
         ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
-
-        shutdownMetadataLookupPlugin();
     }
 #endif
 
@@ -201,8 +198,6 @@ testSetParameterValues (void)
         inParse = setParameterValues(inParse, singleton(val));
 
         ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
-
-        shutdownMetadataLookupPlugin();
     }
 #endif
 
@@ -213,19 +208,30 @@ static rc
 testTemplatizeQuery (void)
 {
 // only if a backend DB library is available
-#if HAVE_ORACLE_BACKEND
-    if (strpleq(getStringOption("backend"),"oracle"))
+#ifdef HAVE_SQLITE_BACKEND
+    if (strpleq(getStringOption("backend"),"sqlite"))
     {
         char *inSQL = "SELECT a FROM param_test1 WHERE a = '5';";
-        char *expSQL = "SELECT a FROM param_test1 WHERE a = :param;";
+        char *expSQL = "SELECT a FROM param_test1 WHERE a = :1;";
         Node *expQO = translateParse(analyzeParseModel(parseFromString(expSQL)));
         Node *inQO = translateParse(analyzeParseModel(parseFromString(inSQL)));
 
 	    ParameterizedQuery *p = queryToTemplate((QueryOperator *) inQO);
 
-        ASSERT_EQUALS_NODE(expQO, parseBackQueryBlock(p->q), "templatize query");
+        ASSERT_EQUALS_NODE(expQO, p->q, "templatize query");
+    }
+#endif
+#if HAVE_ORACLE_BACKEND
+    if (strpleq(getStringOption("backend"),"oracle"))
+    {
+        char *inSQL = "SELECT a FROM param_test1 WHERE a = '5';";
+        char *expSQL = "SELECT a FROM param_test1 WHERE a = :1;";
+        Node *expQO = translateParse(analyzeParseModel(parseFromString(expSQL)));
+        Node *inQO = translateParse(analyzeParseModel(parseFromString(inSQL)));
 
-        shutdownMetadataLookupPlugin();
+	    ParameterizedQuery *p = queryToTemplate((QueryOperator *) inQO);
+
+        ASSERT_EQUALS_NODE(expQO, p->q, "templatize query");
     }
 #endif
 
@@ -233,23 +239,25 @@ testTemplatizeQuery (void)
     if (strpleq(getStringOption("backend"),"postgres"))
     {
         char *inSQL = "SELECT a FROM param_test1 WHERE a = '5';";
-        char *expSQL = "SELECT a FROM param_test1 WHERE a = :param;";
+        char *expSQL = "SELECT a FROM param_test1 WHERE a = :1;";
         Node *expQO = translateParse(analyzeParseModel(parseFromString(expSQL)));
         Node *inQO = translateParse(analyzeParseModel(parseFromString(inSQL)));
 
 	    ParameterizedQuery *p = queryToTemplate((QueryOperator *) inQO);
 
-        ASSERT_EQUALS_NODE(expQO, parseBackQueryBlock(p->q), "templatize query");
-
-        shutdownMetadataLookupPlugin();
+        ASSERT_EQUALS_NODE(expQO, p->q, "templatize query");
     }
 #endif
 
 	return PASS;
 }
 
-/* static rc */
-/* shutdownPlugin(void) */
-/* { */
-/* 	return shutdownMetadataLookupPlugin(); */
-/* } */
+static rc
+shutdownPlugin(void)
+{
+#if HAVE_SQLITE_BACKEND || HAVE_ORACLE_BACKEND || HAVE_POSTGRES_BACKEND
+	return shutdownMetadataLookupPlugin();
+#else
+	return PASS;
+#endif
+}

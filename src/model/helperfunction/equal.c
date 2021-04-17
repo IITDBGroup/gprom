@@ -680,7 +680,7 @@ equalQueryOperator(QueryOperator *a, QueryOperator *b, HashMap *seenOps, MemCont
 
     if (MAP_HAS_LONG_KEY(seenOps, aAddr))
         return LONG_VALUE(MAP_GET_LONG(seenOps, aAddr)) == bAddr;
-//    COMPARE_NODE_FIELD(inputs);
+    COMPARE_NODE_FIELD(inputs);
 
     COMPARE_NODE_FIELD(schema);
     //COMPARE_NODE_FIELD(parents); //TODO implement compare one node

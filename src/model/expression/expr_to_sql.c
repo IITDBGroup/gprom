@@ -428,10 +428,10 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries)
             appendStringInfoString(str, "(");
             exprToSQLString(str, c->expr, nestedSubqueries);
             appendStringInfoString(str, ")::");
-            if(streq(c->otherDT, "bit"))
-            		appendStringInfo(str, "%s(%d)", c->otherDT, c->num);
+            if(c->otherDT && streq(c->otherDT, "bit"))
+				appendStringInfo(str, "%s(%d)", c->otherDT, c->num);
             else
-            		dataTypeToSQL(str, c->resultDT);
+				dataTypeToSQL(str, c->resultDT);
         }
         break;
         default:

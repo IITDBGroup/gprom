@@ -17,6 +17,8 @@
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "analysis_and_translate/parameter.h"
+#include "model/expression/expression.h"
+#include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/set/hashmap.h"
@@ -92,12 +94,14 @@ ParameterizedQuery *
 queryToTemplate(QueryOperator *root)
 {
 	ParameterizedQuery *result = makeNode(ParameterizedQuery);
-	List *paramValues = NIL;
 	QueryToTemplateContext *context = NEW(QueryToTemplateContext);
 	QueryOperator *parameterizedQ = copyObject(root);
 
+	result->q = (Node *) parameterizedQ;
 	queryToTemplateVisitor((Node *) parameterizedQ, context);
-	result->parameters = paramValues;
+	result->parameters = context->vals;
+
+	DEBUG_NODE_BEATIFY_LOG("templatized query is", result);
 
 	return result;
 }
@@ -111,12 +115,12 @@ queryToTemplateVisitor(Node *node, QueryToTemplateContext *state)
 	if (isA(node, SelectionOperator))
 	{
 		SelectionOperator *s = (SelectionOperator *) node;
-		s->cond = queryToTemplateMutator(node, state);
+		s->cond = queryToTemplateMutator(s->cond, state);
 	}
 	if (isA(node, JoinOperator))
 	{
 		JoinOperator *j = (JoinOperator *) node;
-		j->cond = queryToTemplateMutator(node, state);
+		j->cond = queryToTemplateMutator(j->cond, state);
 	}
 	//TODO which else?
 
@@ -132,15 +136,21 @@ queryToTemplateMutator(Node *node, QueryToTemplateContext *state)
 	if (isA(node, Constant))
     {
 		// only replace in parameterizable expresison e.g., selection condition
-        SQLParameter *p = (SQLParameter *) node;
-        p->position = LIST_LENGTH(state->vals) + 1;
+		Constant *c = (Constant *) node;
         Node *val = copyObject(node);
+		int pos = LIST_LENGTH(state->vals) + 1;
+        SQLParameter *p;
+
+		p = (SQLParameter *) createSQLParameter(gprom_itoa(pos));
+		p->position = pos;
+		p->parType = c->constType;
+        p->position = pos;
 
 		state->vals = appendToTailOfList(state->vals, val);
         DEBUG_LOG("replaced constant <%s> with parameter <%s>",
 				  nodeToString(val), nodeToString(p));
 
-        return copyObject(val);
+        return (Node *) p;
     }
 
     return mutate(node, queryToTemplateMutator, state);
