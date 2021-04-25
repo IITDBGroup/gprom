@@ -211,6 +211,11 @@ typedef struct PostgresMetaCache {
 // names of timers used here
 #define METADATA_LOOKUP_TIMER "module - metadata lookup"
 #define METADATA_LOOKUP_QUERY_TIMER "module - metadata lookup - running queries"
+#define METADATA_LOOKUP_COMMIT_TIMER "Postgres - execute commit"
+#define METADATA_LOOKUP_EXEC_QUERY_TIME "Postgres - execute query"
+#define METADATA_LOOKUP_PREPARE_QUERY_TIME "Postgres - execute prepare query"
+#define METADATA_LOOKUP_EXEC_PREPARED "Postgres - execute prepared"
+#define METADATA_LOOKUP_EXEC_STMT "Postgres - execute stmt"
 
 // global vars
 static PostgresPlugin *plugin = NULL;
@@ -366,6 +371,7 @@ fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
     int numRes = 0;
 
     // get OID to DT mapping
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     res = execQuery(QUERY_GET_DT_OIDS);
     numRes = PQntuples(res);
 
@@ -384,6 +390,7 @@ fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
     execCommit();
 
     // get OIDs of any/anyelement types that have to be treated special
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     res = execQuery(QUERY_GET_ANY_OIDS);
     numRes = PQntuples(res);
 
@@ -409,6 +416,7 @@ determineServerVersion(void)
     int numRes = 0;
 
     // get OID to DT mapping
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     res = execQuery(QUERY_GET_SERVER_VERSION);
     numRes = PQntuples(res);
     ASSERT(numRes == 1);
@@ -449,6 +457,7 @@ prepareLookupQueries(void)
     // create explain function
     if (!funcExists && plugin->serverMajorVersion >= 9)
     {
+		START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
         execStmt(CREATE_EXPLAIN_FUNC);
     }
 
@@ -547,7 +556,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     }
 
     ACQUIRE_MEM_CONTEXT(memContext);
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     //TODO cache function information
     res = execPrepared(NAME_GET_FUNC_DEFS,
             LIST_MAKE(createConstString(fName),
@@ -585,7 +594,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     PQclear(res);
 
     RELEASE_MEM_CONTEXT();
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return resType;
 }
 
@@ -660,7 +669,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 
     *opExists = FALSE;
     ACQUIRE_MEM_CONTEXT(memContext);
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     //TODO cache operator information
     res = execPrepared(NAME_GET_OP_DEFS,
             LIST_MAKE(createConstString(oName)));
@@ -684,7 +693,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 
     PQclear(res);
     RELEASE_MEM_CONTEXT();
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return resType;
 }
 
@@ -726,17 +735,17 @@ boolean
 postgresCatalogTableExists (char * tableName)
 {
     PGresult *res = NULL;
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
 
     if (hasSetElem(plugin->plugin.cache->tableNames,tableName)){
-   	STOP_TIMER("module - metadata lookup");
+   	STOP_TIMER(METADATA_LOOKUP_TIMER);
         return TRUE;
     }
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_TABLE_EXISTS, singleton(createConstString(tableName)));
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
         addToSet(plugin->plugin.cache->tableNames, tableName);
@@ -754,20 +763,21 @@ boolean
 postgresCatalogViewExists (char * viewName)
 {
     PGresult *res = NULL;
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
 
     if (hasSetElem(plugin->plugin.cache->viewNames,viewName)){
-        STOP_TIMER("module - metadata lookup");
+        STOP_TIMER(METADATA_LOOKUP_TIMER);
         return TRUE;
     }
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_VIEW_EXISTS, singleton(createConstString(viewName)));
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
         addToSet(plugin->plugin.cache->viewNames, viewName);
         PQclear(res);
+		RELEASE_MEM_CONTEXT();
         return TRUE;
     }
     PQclear(res);
@@ -783,9 +793,9 @@ postgresGetAttributes (char *tableName)
     PGresult *res = NULL;
     List *attrs = NIL;
     ASSERT(postgresCatalogTableExists(tableName));
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrDefs, tableName)){
-        STOP_TIMER("module - metadata lookup");
+        STOP_TIMER(METADATA_LOOKUP_TIMER);
         return (List *) (MAP_GET_STRING(plugin->plugin.cache->tableAttrDefs,tableName));
     }
     // do query
@@ -809,7 +819,7 @@ postgresGetAttributes (char *tableName)
     DEBUG_LOG("table %s", tableName);
     DEBUG_NODE_BEATIFY_LOG("attributes are", attrs);
     RELEASE_MEM_CONTEXT();
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return attrs;
 }
 
@@ -819,9 +829,9 @@ postgresGetAttributeNames (char *tableName)
     List *attrs = NIL;
     PGresult *res = NULL;
     ASSERT(postgresCatalogTableExists(tableName));
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName)){
-        STOP_TIMER("module - metadata lookup");
+        STOP_TIMER(METADATA_LOOKUP_TIMER);
         return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrs,tableName);
     }
     // do query
@@ -838,7 +848,7 @@ postgresGetAttributeNames (char *tableName)
 
     DEBUG_LOG("table %s attributes are <%s>", tableName, stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return attrs;
 }
 
@@ -856,7 +866,7 @@ postgresGetPS (char *sql, List *attrNames)
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute get ps");
 	res = execQuery(sql);
 
@@ -877,7 +887,7 @@ postgresGetPS (char *sql, List *attrNames)
     DEBUG_NODE_LOG("Captured Provenance Sketch :", (Node *) hm);
     //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return hm;
 }
 
@@ -894,7 +904,7 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     if(getBoolOption(OPTION_PS_ANALYZE))
     {
                 START_TIMER("Postgres - execute ps analyze");
@@ -942,7 +952,7 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
 
     DEBUG_LOG("SELECT MinMax on %s attributes on %s table <%s>", attrName, tableName, stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return attrs;
 }
 
@@ -1011,9 +1021,9 @@ postgresGetViewDefinition(char *viewName)
     PGresult *res = NULL;
 
     ASSERT(postgresCatalogViewExists(viewName));
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     if (MAP_HAS_STRING_KEY(plugin->plugin.cache->viewDefs, viewName)){
-         STOP_TIMER("module - metadata lookup");
+         STOP_TIMER(METADATA_LOOKUP_TIMER);
          return STRING_VALUE(MAP_GET_STRING(plugin->plugin.cache->viewDefs,viewName));
     }
     // do query
@@ -1025,12 +1035,12 @@ postgresGetViewDefinition(char *viewName)
         MAP_ADD_STRING_KEY(plugin->plugin.cache->viewDefs, viewName,
                 def);
         PQclear(res);
-        STOP_TIMER("module - metadata lookup");
+        STOP_TIMER(METADATA_LOOKUP_TIMER);
         return STRING_VALUE(def);
     }
     PQclear(res);
     RELEASE_MEM_CONTEXT();
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return NULL;
 }
 
@@ -1047,7 +1057,7 @@ postgresGetCostEstimation(char *query)
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     res = execPrepared(NAME_QUERY_GET_COST, singleton(createConstString(query)));
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
@@ -1056,7 +1066,7 @@ postgresGetCostEstimation(char *query)
     }
     RELEASE_MEM_CONTEXT();
 
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return cost;
 }
 
@@ -1070,7 +1080,7 @@ postgresGetKeyInformation(char *tableName)
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
     keySet = STRSET();
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     res = execPrepared(NAME_GET_PK, singleton(createConstString(tableName)));
 
     // loop through results
@@ -1087,7 +1097,7 @@ postgresGetKeyInformation(char *tableName)
     // cleanup
     PQclear(res);
 
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List,result);
 }
 
@@ -1336,10 +1346,10 @@ execStmt (char *stmt)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;;
-    START_TIMER("Postgres - execute stmt");
+    START_TIMER(METADATA_LOOKUP_EXEC_STMT);
     res = PQexec(c, "BEGIN TRANSACTION;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK){
-            STOP_TIMER("Postgres - execute stmt");
+            STOP_TIMER(METADATA_LOOKUP_EXEC_STMT);
             CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
                     PQerrorMessage(c));
         }
@@ -1348,13 +1358,13 @@ execStmt (char *stmt)
     DEBUG_LOG("execute statement %s", stmt);
     res = PQexec(c, stmt);
     if (PQresultStatus(res) != PGRES_COMMAND_OK){
-        STOP_TIMER("Postgres - execute stmt");
+        STOP_TIMER(METADATA_LOOKUP_EXEC_STMT);
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
     }
     PQclear(res);
 
-    STOP_TIMER("Postgres - execute stmt");
+    STOP_TIMER(METADATA_LOOKUP_EXEC_STMT);
 
     execCommit();
 }
@@ -1365,12 +1375,12 @@ execQuery(char *query)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
-    START_TIMER("Postgres - execute query");
+    START_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
     START_TIMER("Postgres - execute query - BEGIN TRANSACTION");
     res = PQexec(c, "BEGIN TRANSACTION;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK){
             STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
-            STOP_TIMER("Postgres - execute query");
+            STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
             CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
         }
@@ -1382,7 +1392,7 @@ execQuery(char *query)
     res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
     if (PQresultStatus(res) != PGRES_COMMAND_OK){
         STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
-        STOP_TIMER("Postgres - execute query");
+        STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
     }
@@ -1393,11 +1403,11 @@ execQuery(char *query)
     res = PQexec(c, "FETCH ALL in myportal");
     if (PQresultStatus(res) != PGRES_TUPLES_OK){
         STOP_TIMER("Postgres - execute query - FETCH ALL");
-        STOP_TIMER("Postgres - execute query");
+        STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
     }
     STOP_TIMER("Postgres - execute query - FETCH ALL");
-    STOP_TIMER("Postgres - execute query");
+    STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
     return res;
 }
 
@@ -1407,14 +1417,14 @@ execCommit(void)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
-    START_TIMER("Postgres - execute commit");
+    START_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
     res = PQexec(c, "COMMIT;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK){
-            STOP_TIMER("Postgres - execute commit");
+            STOP_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
             CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
         }
-    STOP_TIMER("Postgres - execute commit");
+    STOP_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
     PQclear(res);
 
 	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
@@ -1429,7 +1439,7 @@ execPrepared(char *qName, List *values)
     PGresult *res = NULL;
     params = CALLOC(sizeof(char*),LIST_LENGTH(values));
 
-    START_TIMER("Postgres - execute prepare");
+    START_TIMER(METADATA_LOOKUP_EXEC_PREPARED);
     ASSERT(postgresIsInitialized());
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
@@ -1449,11 +1459,12 @@ execPrepared(char *qName, List *values)
             0);
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK){
-        STOP_TIMER("Postgres - execute prepare");
+        STOP_TIMER(METADATA_LOOKUP_EXEC_PREPARED);
         CLOSE_RES_CONN_AND_FATAL(res, "query %s failed:\n%s", qName,
                 PQresultErrorMessage(res));
     }
-    STOP_TIMER("Postgres - execute prepare");
+    STOP_TIMER(METADATA_LOOKUP_EXEC_PREPARED);
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     return res;
 }
 
@@ -1463,21 +1474,21 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
-    START_TIMER("Postgres - execute prepare query");
+    START_TIMER(METADATA_LOOKUP_PREPARE_QUERY_TIME);
     res = PQprepare(c,
                     qName,
                     query,
                     parameters,
                     types);
     if (PQresultStatus(res) != PGRES_COMMAND_OK){
-        STOP_TIMER("Postgres - execute prepare query");
+        STOP_TIMER(METADATA_LOOKUP_PREPARE_QUERY_TIME);
         CLOSE_RES_CONN_AND_FATAL(res, "prepare query %s failed: %s",
                 qName, PQresultErrorMessage(res));
     }
     PQclear(res);
 
     DEBUG_LOG("prepared query: %s AS\n%s", qName, query);
-    STOP_TIMER("Postgres - execute prepare query");
+    STOP_TIMER(METADATA_LOOKUP_PREPARE_QUERY_TIME);
     return TRUE;
 }
 
@@ -1537,7 +1548,7 @@ postgresTypenameToDT (char *typName)
 Relation *
 postgresExecuteQuery(char *query)
 {
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");
     Relation *r = makeNode(Relation);
     PGresult *rs = execQuery(query);
@@ -1575,7 +1586,7 @@ postgresExecuteQuery(char *query)
     PQclear(rs);
     execCommit();
     STOP_TIMER("Postgres - execute ExecuteQuery");
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
     return r;
 }
 
@@ -1586,7 +1597,7 @@ postgresExecuteQueryIgnoreResult (char *query)
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
     boolean done = FALSE;
-    START_TIMER("module - metadata lookup");
+    START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
     START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
     // start transaction
@@ -1627,7 +1638,7 @@ postgresExecuteQueryIgnoreResult (char *query)
 
     execCommit();
     STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
-    STOP_TIMER("module - metadata lookup");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
 }
 
 // NO libpq present. Provide dummy methods to keep compiler quiet
