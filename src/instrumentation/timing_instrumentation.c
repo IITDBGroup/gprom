@@ -85,7 +85,7 @@ startTimer(char *name, int line, const char *function, const char *sourceFile)
 
     t = getOrCreateTimer(name, line, function, sourceFile);
     if (t->isRunning)
-        FATAL_LOG("try to start timer <%s: %s-%s-%d > that is still running", t->name, t->file, t->func, t->line);
+        FATAL_LOG("try to start timer <%s>: %s-%s-%d that is still running", t->name, t->file, t->func, t->line);
     gettimeofday(&st, NULL);
     DEBUG_LOG("FULLTIME %ld", st.tv_sec * 1000000 + st.tv_usec);
     t->fullStart = st.tv_sec * 1000000 + st.tv_usec;
@@ -112,7 +112,7 @@ endTimer(char *name, int line, const char *function, const char *sourceFile)
 
     t = getOrCreateTimer(name, line, function, sourceFile);
     if(!t->isRunning)
-        FATAL_LOG("try to stop timer <%s: %s-%s-%d > that is not running", t->name, t->file, t->func, t->line);
+        FATAL_LOG("try to stop timer <%s>: %s-%s-%d that is not running", t->name, t->file, t->func, t->line);
     gettimeofday(&st, NULL);
     t->curEnd = st;
     t->fullEnd = st.tv_sec * 1000000 + st.tv_usec;
