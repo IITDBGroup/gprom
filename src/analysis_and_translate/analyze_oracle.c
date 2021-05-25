@@ -183,6 +183,7 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             break;
         case T_WithStmt:
             analyzeWithStmt((WithStmt *) stmt);
+            DEBUG_LOG("analyzed With Stmt");
             break;
         case T_CreateTable:
             analyzeCreateTable((CreateTable *) stmt);
@@ -1934,7 +1935,6 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             List *provDts = NIL;
 
             analyzeQueryBlockStmt(q->query, parentFroms);
-
             switch(q->provType)
             {
                 case PROV_COARSE_GRAINED:
@@ -1944,10 +1944,17 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
                     q->selectClause = provAttrNames;
                     q->dts = provDts;
-                    break;
-                	default:
+                break;
+                default:
                     q->selectClause = getQBAttrNames(q->query);
                     q->dts = getQBAttrDTs(q->query);
+                    /*
+                     * if q->query is WithStmt
+                     * /WithStmt *ws = (WithStmt *)q->query;
+                     * q->selectClause = getQBAttrNames(ws->query);
+                     * q->dts = getQBAttrDTs(ws->query);
+                     * fixed in getQBAttrNames and getQBAttrDTs
+                     */
                     // if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
                     // semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
                     correctFromTableVisitor(q->query, NULL);
@@ -1955,7 +1962,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
                     q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
                     q->dts = concatTwoLists(q->dts,provDts);
-                    break;
+                break;
             }
         }
         break;

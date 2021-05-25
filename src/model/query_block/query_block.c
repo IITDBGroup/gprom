@@ -66,6 +66,12 @@ getQBAttrDTs (Node *qb)
             DTs = pStmt->dts;
         }
         break;
+        case T_WithStmt:
+        {
+            WithStmt *wStmt = (WithStmt *) qb;
+            DTs = getQBAttrDTs(wStmt->query);
+        }
+        break;
         default:
             FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;
@@ -102,6 +108,12 @@ getQBAttrNames (Node *qb)
         {
             ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
             attrs = deepCopyStringList(pStmt->selectClause);
+        }
+        break;
+        case T_WithStmt:
+        {
+            WithStmt *wStmt = (WithStmt *) qb;
+            attrs = getQBAttrNames(wStmt->query);
         }
         break;
         default:

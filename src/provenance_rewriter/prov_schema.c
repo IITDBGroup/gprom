@@ -218,6 +218,13 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         pSchema->provAttrs = NIL;
         pSchema->dts = NIL;
         findTablerefVisitor((Node *) stmt->query, pSchema);
+        /*
+         * if stmt->query is WithStmt
+         * WithStmt *ws = (WithStmt *)(stmt->query);
+         * findTablerefVisitor((Node *) ws->query, pSchema);
+         * fixed in findTablerefVisitor
+         */
+
 
         if (LIST_LENGTH(pSchema->dts) == 0)
         {
@@ -322,6 +329,12 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
 {
     if (node == NULL)
         return TRUE;
+
+    if(isA(node,WithStmt))
+    {
+    	WithStmt *ws = (WithStmt *) node;
+    	node = (Node *) ws->query;
+    }
 
     if (isFromItem(node))
     {
