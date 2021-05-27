@@ -15,6 +15,7 @@
 #include "log/logger.h"
 
 #include "model/expression/expression.h"
+#include "model/set/hashmap.h"
 #include "uthash.h"
 
 #include "mem_manager/mem_mgr.h"
@@ -35,6 +36,7 @@ typedef struct ProvSchemaInfo
     List *provAttrs;
     List *dts;
     RelCount *rels;
+	HashMap *views;
 } ProvSchemaInfo;
 
 /* function declarations */
@@ -325,15 +327,27 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 }
 
 static boolean
-findTablerefVisitor (Node *node, ProvSchemaInfo *status)
+findTablerefVisitor(Node *node, ProvSchemaInfo *status)
 {
     if (node == NULL)
         return TRUE;
 
+
     if(isA(node,WithStmt))
     {
     	WithStmt *ws = (WithStmt *) node;
-    	node = (Node *) ws->query;
+		HashMap *views = NEW_MAP(Constant,Node);
+
+		// need to first map table references refering to CTEs to queries
+		FOREACH(KeyValue,v,ws->withViews)
+		{
+			addToMap(views,v->key,v->value);
+		}
+
+		status->views = views;
+
+		// just pass on the CTE and search in the main query
+		return findTablerefVisitor(ws->query, status);
     }
 
     if (isFromItem(node))
@@ -395,13 +409,26 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
         {
             FromTableRef *r = (FromTableRef *) node;
             char *tableName = r->tableId;
-            int curRelCount = getRelCount(status, tableName);
 
-            FOREACH(char,a,r->from.attrNames)
-                status->provAttrs = appendToTailOfList(status->provAttrs,
-                        getProvenanceAttrName(tableName,a, curRelCount));
-            FOREACH_INT(dt,r->from.dataTypes)
-                status->dts = appendToTailOfListInt(status->dts, dt);
+			// if the table is a CTE, search for table references in the view defintion
+			if (MAP_HAS_STRING_KEY(status->views, tableName))
+			{
+				Node *viewDef = MAP_GET_STRING(status->views, tableName);
+
+				// find table references in the view
+				visit(viewDef, findTablerefVisitor, status);
+			}
+			// table is not a view, generate its provenance attributes
+			else
+			{
+				int curRelCount = getRelCount(status, tableName);
+
+				FOREACH(char,a,r->from.attrNames)
+					status->provAttrs = appendToTailOfList(status->provAttrs,
+														   getProvenanceAttrName(tableName,a, curRelCount));
+				FOREACH_INT(dt,r->from.dataTypes)
+					status->dts = appendToTailOfListInt(status->dts, dt);
+			}
         }
     }
 
