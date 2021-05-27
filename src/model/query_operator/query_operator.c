@@ -1366,12 +1366,30 @@ treeify(QueryOperator *op)
     if (LIST_LENGTH(op->parents) > 1)
     {
         INFO_LOG("operator has more than one parent %s", operatorToOverviewString((Node *) op));
+		Set *parentSet = NODESET();
 
         FOREACH(QueryOperator,parent,op->parents)
+		{
+			addToSet(parentSet, parent);
+		}
+
+        FOREACH_SET(QueryOperator,parent,parentSet)
         {
-            QueryOperator *copy = copyUnrootedSubtree(op);
-            replaceNode(parent->inputs, op, copy);
-            copy->parents = singleton(parent);
+			// check for special case where a binary parent has the operators as both of its inputs
+			if(equal(parent->inputs,LIST_MAKE(op, op)))
+			{
+				QueryOperator *cp1 = copyUnrootedSubtree(op);
+				QueryOperator *cp2 = copyUnrootedSubtree(op);
+				cp1->parents = singleton(parent);
+				cp2->parents = singleton(parent);
+				parent->inputs = LIST_MAKE(cp1, cp2);
+			}
+			else
+			{
+				QueryOperator *copy = copyUnrootedSubtree(op);
+				replaceNode(parent->inputs, op, copy);
+				copy->parents = singleton(parent);
+			}
         }
         op->parents = NIL;
     }
