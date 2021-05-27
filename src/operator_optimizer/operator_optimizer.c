@@ -1538,7 +1538,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 						break;
 					}
 				}
-             }
+			}
 		}
 		else
 		{
@@ -1549,7 +1549,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 					fd = TRUE;
 					break;
 				}
-             }
+			}
 		}
 
 		//if not find this attrRef(searched by name), means lost, need add
@@ -1598,7 +1598,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 								break;
 							}
 						}
-		             }
+					}
 				}
 			}
 			else
@@ -1614,7 +1614,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 	{
 
 		FOREACH(QueryOperator, opChild, o->inputs)
-		    		{
+		{
 			List *projAttrNames = NIL;
 			List *projExpr = NIL;
 
@@ -1640,66 +1640,66 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 				FOREACH(AttributeDef,attrDef,opChild->schema->attrDefs)
 				{
 					projExpr = appendToTailOfList(projExpr,
-							createFullAttrReference(
-									attrDef->attrName, 0,
-									cnt, 0,
-									attrDef->dataType));
+												  createFullAttrReference(
+													  attrDef->attrName, 0,
+													  cnt, 0,
+													  attrDef->dataType));
 					cnt++;
 				}
 			}
 
 			// (1.2)
-                		FOREACH(char, attrName, LostList)
-                		projAttrNames = appendToTailOfList(projAttrNames, attrName);
+			FOREACH(char, attrName, LostList)
+				projAttrNames = appendToTailOfList(projAttrNames, attrName);
 
-                		// (2.2)
-                		List *childType = getDataTypes(opChild->schema);
-                		List *childName = getAttrNames(opChild->schema);
+			// (2.2)
+			/* List *childType = getDataTypes(opChild->schema); */
+			/* List *childName = getAttrNames(opChild->schema); */
+			List *childAttrDefs = opChild->schema->attrDefs;
+			FOREACH(char, attrName, LostNormalList)
+			{
+				DataType type = DT_INT;
+				char *name = NULL;
+				FOREACH(AttributeDef, a, childAttrDefs)
+				{
+					name = a->attrName;
+					if(streq(name, attrName))
+					{
+						type = a->dataType;
+						break;
+					}
+				}
+				if(name != NULL)
+				{
+					projExpr = appendToTailOfList(projExpr,
+												  createFullAttrReference(
+													  name, 0,
+													  cnt, 0,
+													  type));
+					cnt++;
+				}
+			}
 
-                		FOREACH(char, attrName, LostNormalList)
-                		{
-                			DataType type = DT_INT;
-                			char *name = NULL;
-                			FORBOTH(Node, t, n, childType, childName)
-                			{
-                				name = (char *) n;
-                				if(streq(name, attrName))
-                				{
-                					type = (DataType) t;
-                					break;
-                				}
-                			}
-                			if(name != NULL)
-                			{
-                				projExpr = appendToTailOfList(projExpr,
-                						createFullAttrReference(
-                								name, 0,
-                								cnt, 0,
-                								type));
-                				cnt++;
-                			}
-                		}
+			List *newProvPosList = NIL;
+			CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
 
-                		List *newProvPosList = NIL;
-                		CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
+			//Add projection
+			ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, projAttrNames);
+			newpo->op.provAttrs = newProvPosList;
 
-                		//Add projection
-                		ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, projAttrNames);
-                		newpo->op.provAttrs = newProvPosList;
+			// Switch the subtree with this newly created projection operator.
+			switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
 
-                		// Switch the subtree with this newly created projection operator.
-                		switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+			// Add child to the newly created projections operator,
+			addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
 
-                		// Add child to the newly created projections operator,
-                		addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+			//Reset the pos of the schema
+			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newpo,(QueryOperator *)op);
+			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)newpo);
 
-                		//Reset the pos of the schema
-                		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newpo,(QueryOperator *)op);
-                		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)newpo);
-
-                		if(LIST_LENGTH(o->parents) == 1)
-                			pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
-		    		}
+			if(LIST_LENGTH(o->parents) == 1)
+				pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
+		}
 	}
 	else
 	{
