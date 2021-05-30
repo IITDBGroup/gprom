@@ -18,6 +18,8 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "symbolic_eval/z3_solver.h"
+#include "provenance_rewriter/coarse_grained/common_prop_inference.h"
+#include "provenance_rewriter/coarse_grained/gc_prop_inference.h"
 #include "provenance_rewriter/coarse_grained/prop_inference.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
@@ -113,16 +115,16 @@ findProvenanceComputations (QueryOperator *op, Set *haveSeen)
     return op;
 }
 
-static HashMap *
-bindsToHashMap(List *names, List *values)
-{
-	HashMap *map = NEW_MAP(Constant,Constant);
-	FORBOTH(Constant, n, v, names, values)
-	{
-		MAP_ADD_STRING_KEY(map, STRING_VALUE(n), v);
-	}
-	return map;
-}
+//static HashMap *
+//bindsToHashMap(List *names, List *values)
+//{
+//	HashMap *map = NEW_MAP(Constant,Constant);
+//	FORBOTH(Constant, n, v, names, values)
+//	{
+//		MAP_ADD_STRING_KEY(map, STRING_VALUE(n), v);
+//	}
+//	return map;
+//}
 
 static QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
@@ -266,18 +268,32 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
         		break;
         case PROV_COARSE_GRAINED:
-        		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
-        		psPara = createPSInfo(coarsePara);
-        		DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
-        		markTableAccessAndAggregation((QueryOperator *) op,  (Node *) psPara);
+        	DEBUG_LOG("Start Capture PS: ");
+        	DEBUG_LOG("Start exprBottomUp: ");
+        	exprBottomUp(OP_LCHILD(op));
+        	DEBUG_LOG("Start predBottomUp: ");
+        	predBottomUp(OP_LCHILD(op));
+        	DEBUG_LOG("print expr:");
+        	printEXPRPro(OP_LCHILD(op));
+        	DEBUG_LOG("print pred:");
+        	printPREDPro(OP_LCHILD(op));
+        	DEBUG_LOG("Start gcBottomUp: ");
+        	gcBottomUp(OP_LCHILD(op),singleton("a"));
+        	boolean isSafe = GET_BOOL_STRING_PROP(OP_LCHILD(op), PROP_STORE_SET_GC);
+        	DEBUG_LOG("isSaft (1 is safe, 0 is unsafe): %d", isSafe);
 
-        	    //mark the number of table - used in provenance scratch
-        	    markNumOfTableAccess((QueryOperator *) op);
-        	    DEBUG_LOG("finish markNumOfTableAccess!");
-        	    bottomUpPropagateLevelAggregation((QueryOperator *) op, psPara);
-        	    DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
-            result = rewritePI_CS(op);
-            result = addTopAggForCoarse(result);
+        	coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
+        	psPara = createPSInfo(coarsePara);
+        	DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
+        	markTableAccessAndAggregation((QueryOperator *) op,  (Node *) psPara);
+
+        	//mark the number of table - used in provenance scratch
+        	markNumOfTableAccess((QueryOperator *) op);
+        	DEBUG_LOG("finish markNumOfTableAccess!");
+        	bottomUpPropagateLevelAggregation((QueryOperator *) op, psPara);
+        	DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
+        	result = rewritePI_CS(op);
+        	result = addTopAggForCoarse(result);
             break;
         case USE_PROV_COARSE_GRAINED:
     			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
@@ -298,29 +314,29 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
     				op = originalOp;
 
-    			List *binds = (List *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED_BIND);
-    			List *b1 = (List *) getNthOfListP(binds,0);
-    			List *b2 = (List *) getNthOfListP(binds,1);
-    			List *b3 = (List *) getNthOfListP(binds,2);
-    			DEBUG_LOG("bind parameters 1:");
-    			FOREACH(Constant, c, b1)
-    			{
-    				DEBUG_LOG("%s",STRING_VALUE(c));
-    			}
-    			DEBUG_LOG("bind values 2:");
-    			FOREACH(Constant, c, b2)
-    			{
-    				DEBUG_LOG("%d",INT_VALUE(c));
-    			}
-    			DEBUG_LOG("bind values 3:");
-    			FOREACH(Constant, c, b3)
-    			{
-    				DEBUG_LOG("%d",INT_VALUE(c));
-    			}
-    			HashMap *lmap = bindsToHashMap(b1, b2);
-    			HashMap *rmap = bindsToHashMap(b1, b3);
-
-    			bottomUpInference(OP_LCHILD(op), lmap, rmap);
+//    			List *binds = (List *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED_BIND);
+//    			List *b1 = (List *) getNthOfListP(binds,0);
+//    			List *b2 = (List *) getNthOfListP(binds,1);
+//    			List *b3 = (List *) getNthOfListP(binds,2);
+//    			DEBUG_LOG("bind parameters 1:");
+//    			FOREACH(Constant, c, b1)
+//    			{
+//    				DEBUG_LOG("%s",STRING_VALUE(c));
+//    			}
+//    			DEBUG_LOG("bind values 2:");
+//    			FOREACH(Constant, c, b2)
+//    			{
+//    				DEBUG_LOG("%d",INT_VALUE(c));
+//    			}
+//    			DEBUG_LOG("bind values 3:");
+//    			FOREACH(Constant, c, b3)
+//    			{
+//    				DEBUG_LOG("%d",INT_VALUE(c));
+//    			}
+//    			HashMap *lmap = bindsToHashMap(b1, b2);
+//    			HashMap *rmap = bindsToHashMap(b1, b3);
+//
+//    			bottomUpInference(OP_LCHILD(op), lmap, rmap);
 
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		psPara = createPSInfo(coarsePara);
