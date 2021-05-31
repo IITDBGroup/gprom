@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * pi_cs_composable.c
- *			  
- *		
- *		AUTHOR: lord_pretzel
  *
- *		
+ *
+ *        AUTHOR: lord_pretzel
+ *
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -32,35 +32,42 @@
 
 #define LOG_RESULT(mes,op) \
     do { \
-    	INFO_OP_LOG(mes,op); \
-    	DEBUG_NODE_BEATIFY_LOG(mes,op); \
+        INFO_OP_LOG(mes,op); \
+        DEBUG_NODE_BEATIFY_LOG(mes,op); \
     } while(0)
 
 // data structures
 static Node *asOf;
 static RelCount *nameState;
 
+typedef struct PICSRewriteState {
+    HashMap *opToRewrittenOp; // mapping op address to address of rewritten operator
+    HashMap *provAttrNamesAndCount;
+} PICSRewriteState;
+
 // static methods
 static boolean isTupleAtATimeSubtree(QueryOperator *op);
 
-static QueryOperator *rewritePI_CSComposableOperator (QueryOperator *op);
-static QueryOperator *rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs);
-static QueryOperator *rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs);
+static QueryOperator *rewritePI_CSComposableOperator (QueryOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state);
 static QueryOperator *composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate);
 static QueryOperator *composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs);
 
+static QueryOperator *rewritePI_CSComposableSelection (SelectionOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableProjection (ProjectionOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableSet (SetOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableConstRel(ConstRelOperator *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSRewriteState *state);
+static QueryOperator *rewritePI_CSComposableOrderOp(OrderOperator *op, PICSRewriteState *state);
 
-static QueryOperator *rewritePI_CSComposableSelection (SelectionOperator *op);
-static QueryOperator *rewritePI_CSComposableProjection (ProjectionOperator *op);
-static QueryOperator *rewritePI_CSComposableJoin (JoinOperator *op);
-static QueryOperator *rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op);
-static QueryOperator *rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op);
-static QueryOperator *rewritePI_CSComposableSet (SetOperator *op);
-static QueryOperator *rewritePI_CSComposableTableAccess(TableAccessOperator *op);
-static QueryOperator *rewritePI_CSComposableConstRel(ConstRelOperator *op);
-static QueryOperator *rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op);
-static QueryOperator *rewritePI_CSComposableOrderOp(OrderOperator *op);
-
+static boolean isOpRewritten(PICSRewriteState *state, QueryOperator *op);
+static QueryOperator *getRewrittenOp(PICSRewriteState *state, QueryOperator *op);
+static QueryOperator *setRewrittenOp(PICSRewriteState *state, QueryOperator *op, QueryOperator *rewrittenOp);
 static void addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema);
 static void addChildResultTIDAndProvDupAttrsToSchema (QueryOperator *op);
 static List *getResultTidAndProvDupAttrsProjExprs(QueryOperator * op);
@@ -83,9 +90,13 @@ QueryOperator *
 rewritePI_CSComposable (ProvenanceComputation *op)
 {
     QueryOperator *rewRoot;
+    PICSRewriteState *state = NEW(PICSRewriteState);
+
+    state->opToRewrittenOp = NEW_MAP(Constant,Constant);
+    state->provAttrNamesAndCount = NEW_MAP(Constant,KeyValue);
 
     rewRoot = OP_LCHILD(op);
-    rewRoot = rewritePI_CSComposableOperator(rewRoot);
+    rewRoot = rewritePI_CSComposableOperator(rewRoot, state);
 
     return (QueryOperator *) rewRoot;
 }
@@ -127,8 +138,27 @@ isTupleAtATimeSubtree(QueryOperator *op)
     return TRUE;
 }
 
+static boolean
+isOpRewritten(PICSRewriteState *state, QueryOperator *op)
+{
+	return MAP_HAS_LONG_KEY(state->opToRewrittenOp, (gprom_long_t) op);
+}
+
 static QueryOperator *
-rewritePI_CSComposableOperator (QueryOperator *op)
+getRewrittenOp(PICSRewriteState *state, QueryOperator *op)
+{
+	return (QueryOperator *) MAP_GET_LONG(state->opToRewrittenOp, (gprom_long_t) op);
+}
+
+static QueryOperator *
+setRewrittenOp(PICSRewriteState *state, QueryOperator *op, QueryOperator *rewrittenOp)
+{
+	MAP_ADD_LONG_KEY(state->opToRewrittenOp, (gprom_long_t) op, (gprom_long_t) rewrittenOp);
+	return rewrittenOp;
+}
+
+static QueryOperator *
+rewritePI_CSComposableOperator (QueryOperator *op, PICSRewriteState *state)
 {
     boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
     boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
@@ -143,74 +173,90 @@ rewritePI_CSComposableOperator (QueryOperator *op)
         addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
 
     DEBUG_LOG("REWRITE OPERATIONS:\n\tshow intermediates: %s\n\tuse prov: %s"
-            "\n\thas prov: %s\n\tadd prov: %s"
-            "\n\tuser prov attrs: %s"
-            "\n\tadd prov attrs: %s"
-            "\n\tignore prov attrs: %s",
-            showIntermediate ? "T": "F",
-            noRewriteUseProv ? "T": "F",
-            noRewriteHasProv ? "T": "F",
-            rewriteAddProv ? "T": "F",
-            nodeToString(userProvAttrs),
-            nodeToString(addProvAttrs),
-            nodeToString(ignoreProvAttrs));
+			  "\n\thas prov: %s\n\tadd prov: %s"
+			  "\n\tuser prov attrs: %s"
+			  "\n\tadd prov attrs: %s"
+			  "\n\tignore prov attrs: %s"
+			  "\n\talready was rewritten: %s",
+			  showIntermediate ? "T": "F",
+			  noRewriteUseProv ? "T": "F",
+			  noRewriteHasProv ? "T": "F",
+			  rewriteAddProv ? "T": "F",
+			  nodeToString(userProvAttrs),
+			  nodeToString(addProvAttrs),
+			  nodeToString(ignoreProvAttrs),
+			  isOpRewritten(state, op) ? "T" : "F"
+		);
+
+	// when operator is already rewritten, then just reuse the rewritten operator, but change provenance attribute names
+	if(isOpRewritten(state, op))
+	{
+		return rewritePI_CSComposableReuseRewrittenOp(op, state);
+	}
 
     if (noRewriteUseProv)
-        return rewritePI_CSComposableAddProvNoRewrite(op, userProvAttrs);
+        return rewritePI_CSComposableAddProvNoRewrite(op, userProvAttrs, state);
     if (noRewriteHasProv)
-        return rewritePI_CSComposableUseProvNoRewrite(op, userProvAttrs);
-
+        return rewritePI_CSComposableUseProvNoRewrite(op, userProvAttrs, state);
 
     switch(op->type)
     {
         case T_SelectionOperator:
-            rewrittenOp = rewritePI_CSComposableSelection((SelectionOperator *) op);
+            rewrittenOp = rewritePI_CSComposableSelection((SelectionOperator *) op, state);
             break;
         case T_ProjectionOperator:
-            rewrittenOp = rewritePI_CSComposableProjection((ProjectionOperator *) op);
+            rewrittenOp = rewritePI_CSComposableProjection((ProjectionOperator *) op, state);
             break;
         case T_JoinOperator:
-            rewrittenOp = rewritePI_CSComposableJoin((JoinOperator *) op);
+            rewrittenOp = rewritePI_CSComposableJoin((JoinOperator *) op, state);
             break;
         case T_AggregationOperator:
         {
-        	if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
-        	{
-            	QueryOperator *op1;
-            	int res;
+            if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+            {
+                QueryOperator *op1;
+                int res;
 
-            	res = callback(2);
+                res = callback(2);
 
-        		if (res == 1)
-        			op1 = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
-        		else
-       				op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+                if (res == 1)
+                {
+                    op1 = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op, state);
+                }
+                else
+                {
+                       op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op, state);
+                }
 
-        		rewrittenOp = op1;
-       	    }
-        	else
-        	{
-        		if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
-					rewrittenOp = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
-				else
-					rewrittenOp = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
-        	}
+                rewrittenOp = op1;
+               }
+            else
+            {
+                if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
+                {
+                    rewrittenOp = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op, state);
+                }
+                else
+                {
+                    rewrittenOp = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op, state);
+                }
+            }
             break;
         }
         case T_Set:
-            rewrittenOp = rewritePI_CSComposableSet((SetOperator *) op);
+            rewrittenOp = rewritePI_CSComposableSet((SetOperator *) op, state);
             break;
         case T_TableAccessOperator:
-            rewrittenOp = rewritePI_CSComposableTableAccess((TableAccessOperator *) op);
+            rewrittenOp = rewritePI_CSComposableTableAccess((TableAccessOperator *) op, state);
             break;
         case T_ConstRelOperator:
-            rewrittenOp = rewritePI_CSComposableConstRel((ConstRelOperator *) op);
+            rewrittenOp = rewritePI_CSComposableConstRel((ConstRelOperator *) op, state);
             break;
         case T_DuplicateRemoval:
-            rewrittenOp = rewritePI_CSComposableDuplicateRemOp((DuplicateRemoval *) op);
+            rewrittenOp = rewritePI_CSComposableDuplicateRemOp((DuplicateRemoval *) op, state);
             break;
         case T_OrderOperator:
-            rewrittenOp = rewritePI_CSComposableOrderOp((OrderOperator *) op);
+            rewrittenOp = rewritePI_CSComposableOrderOp((OrderOperator *) op, state);
             break;
         default:
             FATAL_LOG("rewrite for %u not implemented", op->type);
@@ -228,6 +274,30 @@ rewritePI_CSComposableOperator (QueryOperator *op)
         ASSERT(checkModel(rewrittenOp));
 
     return rewrittenOp;
+}
+
+static QueryOperator *
+rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSRewriteState *state)
+{
+	QueryOperator *rewr = getRewrittenOp(state, op);
+	QueryOperator *proj;
+	List *normalAttrNames = getNormalAttrNames(rewr);
+	List *oldProjAttrNames = getOpProvenanceAttrNames(rewr);
+	List *newProvAttrNames;
+	List *oldAttrs;
+	List *newAttrs;
+
+	// create new provenance attribute names
+
+
+	// create projection to rename provenance attributes
+	oldAttrs = CONCAT_LISTS(normalAttrNames, oldProjAttrNames);
+    newAttrs = CONCAT_LISTS(normalAttrNames, newProvAttrNames);
+	proj = createProjOnAttrsByName(rewr, oldAttrs, newAttrs);
+
+	addChildOperator(proj, rewr);
+
+	return proj;
 }
 
 static QueryOperator *
@@ -461,7 +531,7 @@ composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set
 
 
 static QueryOperator *
-rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
+rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
 {
 //    List *tableAttr;
     List *provAttr = NIL;
@@ -549,7 +619,7 @@ rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 }
 
 static QueryOperator *
-rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
+rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
 {
     char *newAttrName;
     List *provAttrs = op->provAttrs;
@@ -698,7 +768,7 @@ rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 }
 
 static QueryOperator *
-rewritePI_CSComposableSelection (SelectionOperator *op)
+rewritePI_CSComposableSelection (SelectionOperator *op, PICSRewriteState *state)
 {
     ASSERT(OP_LCHILD(op));
 
@@ -706,7 +776,7 @@ rewritePI_CSComposableSelection (SelectionOperator *op)
     DEBUG_NODE_BEATIFY_LOG("Operator tree", op);
 
     // rewrite child first
-    rewritePI_CSComposableOperator(OP_LCHILD(op));
+    rewritePI_CSComposableOperator(OP_LCHILD(op), state);
 
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
@@ -722,7 +792,7 @@ rewritePI_CSComposableSelection (SelectionOperator *op)
 }
 
 static QueryOperator *
-rewritePI_CSComposableProjection (ProjectionOperator *op)
+rewritePI_CSComposableProjection (ProjectionOperator *op, PICSRewriteState *state)
 {
     ASSERT(OP_LCHILD(op));
 
@@ -730,7 +800,7 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
     // rewrite child
-    rewritePI_CSComposableOperator(OP_LCHILD(op));
+    rewritePI_CSComposableOperator(OP_LCHILD(op), state);
 
     // add projection expressions for provenance attrs
     QueryOperator *child = OP_LCHILD(op);
@@ -759,7 +829,7 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
 }
 
 static QueryOperator *
-rewritePI_CSComposableJoin (JoinOperator *op)
+rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state)
 {
     DEBUG_LOG("REWRITE-PICS-Composable - Join");
     WindowOperator *wOp = NULL;
@@ -777,8 +847,8 @@ rewritePI_CSComposableJoin (JoinOperator *op)
     numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
 
     // rewrite children
-    lChild = rewritePI_CSComposableOperator(lChild);
-    rChild = rewritePI_CSComposableOperator(rChild);
+    lChild = rewritePI_CSComposableOperator(lChild, state);
+    rChild = rewritePI_CSComposableOperator(rChild, state);
 
     // get attributes from right input
     rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
@@ -894,7 +964,7 @@ rewritePI_CSComposableJoin (JoinOperator *op)
 }
 
 static QueryOperator *
-rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
+rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSRewriteState *state)
 {
     JoinOperator *joinProv;
     boolean groupBy = (op->groupBy != NIL);
@@ -931,7 +1001,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
     origAgg = (QueryOperator *) op;
     aggInput = copyUnrootedSubtree(OP_LCHILD(op));
     // rewrite aggregation input copy
-    aggInput = rewritePI_CSComposableOperator(aggInput);
+    aggInput = rewritePI_CSComposableOperator(aggInput, state);
 //    noDupInput =
     isTupleAtATimeSubtree(aggInput);
 
@@ -1108,7 +1178,7 @@ aggCreateParitionAndOrderBy(AggregationOperator* op, List** partitionBy,
 }
 
 static QueryOperator *
-rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op)
+rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSRewriteState *state)
 {
     boolean groupBy = (op->groupBy != NIL);
     WindowOperator *curWindow = NULL;
@@ -1129,7 +1199,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op)
     DEBUG_NODE_BEATIFY_LOG("Operator tree", op);
 
     // rewrite child
-    curChild = rewritePI_CSComposableOperator(OP_LCHILD(op));
+    curChild = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
     firstChild = curChild;
     removeParentFromOps(singleton(firstChild), (QueryOperator *) op);
     noDupInput = isTupleAtATimeSubtree(curChild);
@@ -1317,14 +1387,14 @@ replaceAttrWithCaseForProvDupRemoval (FunctionCall *f, Node *provDupAttrRef)
 }
 
 static QueryOperator *
-rewritePI_CSComposableSet (SetOperator *op)
+rewritePI_CSComposableSet (SetOperator *op, PICSRewriteState *state)
 {
     FATAL_LOG("not implemented yet");
     return NULL;
 }
 
 static QueryOperator *
-rewritePI_CSComposableTableAccess(TableAccessOperator *op)
+rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSRewriteState *state)
 {
 //    List *tableAttr;
     List *provAttr = NIL;
@@ -1395,14 +1465,14 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
 }
 
 static QueryOperator *
-rewritePI_CSComposableConstRel(ConstRelOperator *op)
+rewritePI_CSComposableConstRel(ConstRelOperator *op, PICSRewriteState *state)
 {
     FATAL_LOG("not implemented yet");
     return NULL;
 }
 
 static QueryOperator *
-rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op)
+rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSRewriteState *state)
 {
     FATAL_LOG("not implemented yet");
     return NULL;
@@ -1548,12 +1618,12 @@ removeSpecialAttrsFromNormalProjectionExprs(List *projExpr)
 
 
 static QueryOperator *
-rewritePI_CSComposableOrderOp(OrderOperator *op)
+rewritePI_CSComposableOrderOp(OrderOperator *op, PICSRewriteState *state)
 {
     QueryOperator *child = OP_LCHILD(op);
 
     // rewrite child
-    rewritePI_CSComposableOperator(child);
+    rewritePI_CSComposableOperator(child, state);
 
     // adapt provenance attr list and schema
     addProvenanceAttrsToSchema((QueryOperator *) op, child);
