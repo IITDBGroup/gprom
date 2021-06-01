@@ -183,6 +183,7 @@ boolean opt_agg_reduction_model_rewrite = FALSE;
 int max_number_paritions_for_uses = 0;
 int bit_vector_size = 32;
 boolean ps_binary_search = FALSE;
+boolean ps_binary_search_case_when = FALSE;
 boolean ps_settings = FALSE;
 boolean ps_set_bits = FALSE;
 boolean ps_use_brin_op = FALSE;
@@ -721,6 +722,14 @@ OptionInfo opts[] =
 				 "Activate binary search instead of case when",
 				 OPTION_BOOL,
 				 wrapOptionBool(&ps_binary_search),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_BINARY_SEARCH_CASE_WHEN,
+				 "-ps_binary_search_case_when",
+				 "Activate binary search case when",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_binary_search_case_when),
 				 defOptionBool(FALSE)
 		 },
 		 {

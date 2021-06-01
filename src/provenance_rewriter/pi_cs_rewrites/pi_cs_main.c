@@ -71,6 +71,8 @@ static List* getCondList(AttributeReference *attr, List *rangeList);
 static List* getWhenList(List *condList);
 static List* getWhenListOracle(List *condList);
 static char* getBinarySearchArryList(List *rangeList);
+static Node* bsCaseWhen(AttributeReference *attr, List *l, int low, int high, char *s);
+static Node* baCaseWhenBar(AttributeReference *attr, List *l, int low, int high);
 
 static Node *asOf;
 static RelCount *nameState;
@@ -1824,6 +1826,7 @@ getWhenListOracle(List *condList)
 	return whenList;
 }
 
+
 static List*
 getWhenList(List *condList)
 {
@@ -1840,6 +1843,36 @@ getWhenList(List *condList)
 	}
 
 	return whenList;
+}
+
+static Node*
+baCaseWhenBar(AttributeReference *attr, List *l, int low, int high)
+{
+	StringInfo s1 = makeStringInfo();
+	int len = (high+8-1)/8; //ceil
+
+	for(int i=0; i<len; i++)
+	{
+		appendStringInfo(s1, "-");
+	}
+	return bsCaseWhen(attr,l,low,high, s1->data);
+}
+
+
+static Node*
+bsCaseWhen(AttributeReference *attr, List *l, int low, int high, char *s)
+{
+	if(low < high)
+	{
+		int mid = (low + high)/2;
+		Operator *oper = createOpExpr("<", LIST_MAKE(copyObject(attr), copyObject(getNthOfListP(l, mid)) ));
+		CaseWhen *when = createCaseWhen((Node *) oper, bsCaseWhen(attr,l,low,mid,s));
+		return (Node *) createCaseExpr(NULL, singleton(when), bsCaseWhen(attr,l,mid+1,high,s));
+	}
+	else
+	{
+		return (Node *) createConstString(s);
+	}
 }
 
 static QueryOperator *
@@ -1899,6 +1932,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     			{
     				//case -> binary search
     				char *bsArray = getBinarySearchArryList(curPSAI->rangeList);
+    				DEBUG_LOG("bsArray: %s", bsArray);
     				bsfc = createFunctionCall ("binary_search_array_pos", LIST_MAKE(createConstString(bsArray),copyObject(pAttr)));
 //    				if(getBoolOption(OPTION_PS_SET_BITS))
 //    				{
@@ -1911,6 +1945,11 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 //    					projExpr = appendToTailOfList(projExpr, setBit);
  //   				}
     			}
+    			else if(getBoolOption(OPTION_PS_BINARY_SEARCH_CASE_WHEN))
+    			{
+    				CaseExpr *caseExpr = (CaseExpr *) baCaseWhenBar(pAttr,curPSAI->rangeList, 0, LIST_LENGTH(curPSAI->rangeList)-1);
+    				projExpr = appendToTailOfList(projExpr, caseExpr);
+    			}
     			else
     			{
     				List *condList = getCondList(pAttr, curPSAI->rangeList);
@@ -1922,6 +1961,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     		        		whenList = getWhenList(condList);
 
     				CaseExpr *caseExpr = createCaseExpr(NULL, whenList, NULL);
+
     				projExpr = appendToTailOfList(projExpr, caseExpr);
     			}
     		}
