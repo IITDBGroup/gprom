@@ -216,6 +216,9 @@ extern List *getAttrDataTypes (List *defs);
 extern List *inferOpResultDTs (QueryOperator *op);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
+/* shallow copy of a query operator (do not copy children or parents) */
+extern QueryOperator *shallowCopyQueryOperator(QueryOperator *op);
+
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
         char *alias, List *parents, List *attrNames, List *dataTypes);

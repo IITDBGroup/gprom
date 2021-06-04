@@ -219,6 +219,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 
         pSchema->provAttrs = NIL;
         pSchema->dts = NIL;
+		pSchema->views = NEW_MAP(Constant,Node);
         findTablerefVisitor((Node *) stmt->query, pSchema);
         /*
          * if stmt->query is WithStmt
@@ -336,7 +337,7 @@ findTablerefVisitor(Node *node, ProvSchemaInfo *status)
     if(isA(node,WithStmt))
     {
     	WithStmt *ws = (WithStmt *) node;
-		HashMap *views = NEW_MAP(Constant,Node);
+		HashMap *views = status->views;
 
 		// need to first map table references refering to CTEs to queries
 		FOREACH(KeyValue,v,ws->withViews)

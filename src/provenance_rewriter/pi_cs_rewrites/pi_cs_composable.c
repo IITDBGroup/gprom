@@ -21,28 +21,84 @@
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 
 // result tuple-id attribute and provenance duplicate counter attribute
-#define RESULT_TID_ATTR "_result_tid"
-#define PROV_DUPL_COUNT_ATTR "_prov_dup_count"
+#define RESULT_TID_ATTR backendifyIdentifier("_result_tid")
+#define PROV_DUPL_COUNT_ATTR backendifyIdentifier("_prov_dup_count")
 
-#define LOG_RESULT(mes,op) \
-    do { \
-        INFO_OP_LOG(mes,op); \
-        DEBUG_NODE_BEATIFY_LOG(mes,op); \
+#define LOG_RESULT(mes,op)						\
+    do {										\
+        INFO_OP_LOG(mes,op);					\
+        DEBUG_NODE_BEATIFY_LOG(mes,op);			\
     } while(0)
 
+#define LOG_RESULT_AND_RETURN(optype)						\
+	do														\
+	{														\
+		LOG_RESULT(#optype " - rewritten operator:", rewr);	\
+		return (QueryOperator *) rewr;						\
+	} while(0)
+
+
+#define REWR_UNARY_SETUP(optype)						\
+	QueryOperator *rewr;								\
+	QueryOperator *rewrInput;							\
+														\
+    ASSERT(OP_LCHILD(op));								\
+														\
+    DEBUG_LOG("REWRITE-PICS-Composable - " #optype);	\
+    DEBUG_NODE_BEATIFY_LOG("Operator tree", op)
+
+#define REWR_BINARY_SETUP(optype)						\
+	QueryOperator *rewr;								\
+	QueryOperator *rewrLeftInput;						\
+	QueryOperator *rewrRightInput;						\
+														\
+    ASSERT(OP_LCHILD(op));								\
+														\
+    DEBUG_LOG("REWRITE-PICS-Composable - " #optype);	\
+    DEBUG_NODE_BEATIFY_LOG("Operator tree", op)
+
+#define REWR_UNARY_CHILD()												\
+	do																	\
+	{																	\
+     	rewr = shallowCopyQueryOperator((QueryOperator *) op);			\
+	    rewrInput = rewritePI_CSComposableOperator(OP_LCHILD(op), state); \
+		addChildOperator(rewr, rewrInput);								\
+	} while(0)
+
+#define REWR_BINARY_CHILDREN()											\
+	do																	\
+	{																	\
+     	rewr = shallowCopyQueryOperator((QueryOperator *) op);			\
+	    rewrLeftInput = rewritePI_CSComposableOperator(OP_LCHILD(op), state); \
+	    rewrRightInput = rewritePI_CSComposableOperator(OP_RCHILD(op), state); \
+		addChildOperator(rewr, rewrLeftInput);							\
+		addChildOperator(rewr, rewrRightInput);							\
+	} while(0)
+
+#define COPY_PROV_INFO(to,from) \
+	do \
+	{ \
+		SET_STRING_PROP(to, PROP_PROVENANCE_TABLE_ATTRS, \
+						GET_STRING_PROP(from, PROP_PROVENANCE_TABLE_ATTRS)); \
+	} while(0)
+
+
 // data structures
-static Node *asOf;
-static RelCount *nameState;
+/* static Node *asOf; */
+static RelCount *nameState; //TODO replace with PICSRewriteState
 
 typedef struct PICSRewriteState {
     HashMap *opToRewrittenOp; // mapping op address to address of rewritten operator
-    HashMap *provAttrNamesAndCount;
+    /* HashMap *opProvAttrs; // map op -> list of keyvalues ( tablename , list of attribute names ) */
+	HashMap *provCounts; // map from tablename / prov prefix -> count
+	Node *asOf;
 } PICSRewriteState;
 
 // static methods
@@ -65,9 +121,13 @@ static QueryOperator *rewritePI_CSComposableConstRel(ConstRelOperator *op, PICSR
 static QueryOperator *rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSRewriteState *state);
 static QueryOperator *rewritePI_CSComposableOrderOp(OrderOperator *op, PICSRewriteState *state);
 
+static QueryOperator *rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSRewriteState *state);
+
 static boolean isOpRewritten(PICSRewriteState *state, QueryOperator *op);
 static QueryOperator *getRewrittenOp(PICSRewriteState *state, QueryOperator *op);
 static QueryOperator *setRewrittenOp(PICSRewriteState *state, QueryOperator *op, QueryOperator *rewrittenOp);
+static List *opGetProvAttrInfo(QueryOperator *op);
+static int increaseRefCount(PICSRewriteState *state, char *prefix);
 static void addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema);
 static void addChildResultTIDAndProvDupAttrsToSchema (QueryOperator *op);
 static List *getResultTidAndProvDupAttrsProjExprs(QueryOperator * op);
@@ -93,10 +153,12 @@ rewritePI_CSComposable (ProvenanceComputation *op)
     PICSRewriteState *state = NEW(PICSRewriteState);
 
     state->opToRewrittenOp = NEW_MAP(Constant,Constant);
-    state->provAttrNamesAndCount = NEW_MAP(Constant,KeyValue);
+    /* state->opProvAttrs = NEW_MAP(Constant,KeyValue); */
+	state->provCounts = NEW_MAP(Constant,Constant);
 
     rewRoot = OP_LCHILD(op);
     rewRoot = rewritePI_CSComposableOperator(rewRoot, state);
+	switchSubtreeWithExisting((QueryOperator *) op, rewRoot);
 
     return (QueryOperator *) rewRoot;
 }
@@ -155,6 +217,27 @@ setRewrittenOp(PICSRewriteState *state, QueryOperator *op, QueryOperator *rewrit
 {
 	MAP_ADD_LONG_KEY(state->opToRewrittenOp, (gprom_long_t) op, (gprom_long_t) rewrittenOp);
 	return rewrittenOp;
+}
+
+static List *
+opGetProvAttrInfo(QueryOperator *op)
+{
+	return (List *) getStringProperty(op, PROP_PROVENANCE_TABLE_ATTRS);
+}
+
+static int
+increaseRefCount(PICSRewriteState *state, char *prefix)
+{
+	if (MAP_HAS_STRING_KEY(state->provCounts, prefix))
+	{
+		Constant *cntC = (Constant *) MAP_GET_STRING(state->provCounts, prefix);
+		INT_VALUE(cntC) = INT_VALUE(cntC) + 1;
+	}
+	else {
+		MAP_ADD_STRING_KEY(state->provCounts, prefix, createConstInt(0));
+	}
+
+	return INT_VALUE(MAP_GET_STRING(state->provCounts, prefix));
 }
 
 static QueryOperator *
@@ -273,31 +356,59 @@ rewritePI_CSComposableOperator (QueryOperator *op, PICSRewriteState *state)
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel(rewrittenOp));
 
+	setRewrittenOp(state, op, rewrittenOp);
+
     return rewrittenOp;
 }
 
+/**
+ * @brief      Reuse an already rewritten subquery, but rename provenance attributes.
+ *
+ * @details
+ *
+ * @param      op - the operator to rewrite
+ * @param      state - bookkeeping datastructure
+ *
+ * @return     a projection on the rewritten subtree that renames provenance attributes
+ */
 static QueryOperator *
 rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSRewriteState *state)
 {
-	QueryOperator *rewr = getRewrittenOp(state, op);
-	QueryOperator *proj;
-	List *normalAttrNames = getNormalAttrNames(rewr);
-	List *oldProjAttrNames = getOpProvenanceAttrNames(rewr);
-	List *newProvAttrNames;
+	QueryOperator *rewrOp = getRewrittenOp(state, op);
+	QueryOperator *rewr;
+	List *normalAttrNames = getNormalAttrNames(rewrOp);
+	List *oldProjAttrNames = getOpProvenanceAttrNames(rewrOp);
+	List *newProvAttrNames = NIL;
 	List *oldAttrs;
 	List *newAttrs;
 
+	DEBUG_NODE_BEATIFY_LOG("reuse rewritten subquery: ", rewrOp);
+	
 	// create new provenance attribute names
+	FOREACH(KeyValue,k,opGetProvAttrInfo(op))
+	{
+		char *table = STRING_VALUE(k->key);
+		List *attNames = constStringListToStringList((List *) k->value);
+		int cnt = increaseRefCount(state, table);
 
+		newProvAttrNames = concatTwoLists(newProvAttrNames, getProvenanceAttrNames(table, attNames, cnt));
+	}
 
 	// create projection to rename provenance attributes
 	oldAttrs = CONCAT_LISTS(normalAttrNames, oldProjAttrNames);
     newAttrs = CONCAT_LISTS(normalAttrNames, newProvAttrNames);
-	proj = createProjOnAttrsByName(rewr, oldAttrs, newAttrs);
 
-	addChildOperator(proj, rewr);
+	DEBUG_LOG("rename %s to %s", stringListToString(oldAttrs), stringListToString(newAttrs));
+	
+	rewr = createProjOnAttrsByName(rewrOp, oldAttrs, newAttrs);	
+	addChildOperator(rewr, rewrOp);
 
-	return proj;
+	// add result TID and dupl attributes
+    addResultTIDAndProvDupAttrs(rewr, FALSE);
+
+	COPY_PROV_INFO(rewr, rewrOp);
+
+	LOG_RESULT_AND_RETURN(REUSE);
 }
 
 static QueryOperator *
@@ -770,68 +881,70 @@ rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, 
 static QueryOperator *
 rewritePI_CSComposableSelection (SelectionOperator *op, PICSRewriteState *state)
 {
-    ASSERT(OP_LCHILD(op));
+	REWR_UNARY_SETUP(Selection);
 
-    DEBUG_LOG("REWRITE-PICS-Composable - Selection");
-    DEBUG_NODE_BEATIFY_LOG("Operator tree", op);
-
-    // rewrite child first
-    rewritePI_CSComposableOperator(OP_LCHILD(op), state);
+	REWR_UNARY_CHILD();
 
     // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
     // add result TID and prov duplicate attributes
-    addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
+    addResultTIDAndProvDupAttrs((QueryOperator *) rewr, TRUE);
 
     if (isTupleAtATimeSubtree(OP_LCHILD(op)))
         SET_BOOL_STRING_PROP(op,PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
 
-    LOG_RESULT("Selection - Rewritten Operator tree", op);
-    return (QueryOperator *) op;
+	// copy provenance table and attr info
+	COPY_PROV_INFO(rewr,rewrInput);
+
+    LOG_RESULT_AND_RETURN(Selection);
 }
 
 static QueryOperator *
 rewritePI_CSComposableProjection (ProjectionOperator *op, PICSRewriteState *state)
 {
-    ASSERT(OP_LCHILD(op));
+	ProjectionOperator *p;
+	REWR_UNARY_SETUP(Projection);
+	REWR_UNARY_CHILD();
 
-    DEBUG_LOG("REWRITE-PICS-Composable - Projection");
-    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+	p = (ProjectionOperator *) rewr;
 
-    // rewrite child
-    rewritePI_CSComposableOperator(OP_LCHILD(op), state);
+    /* // rewrite child */
+    /* rewritePI_CSComposableOperator(OP_LCHILD(op), state); */
 
     // add projection expressions for provenance attrs
-    QueryOperator *child = OP_LCHILD(op);
-    FOREACH_INT(a, child->provAttrs)
+    FOREACH_INT(a, rewrInput->provAttrs)
     {
-        AttributeDef *att = getAttrDef(child,a);
+        AttributeDef *att = getAttrDef(rewrInput,a);
         DEBUG_LOG("attr: %s", nodeToString(att));
-        op->projExprs = appendToTailOfList(op->projExprs,
+        p->projExprs = appendToTailOfList(p->projExprs,
                 createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
     }
 
     // add projection expressions for result TID and prov dup attrs
-    op->projExprs = appendToTailOfList(op->projExprs,
+    p->projExprs = appendToTailOfList(p->projExprs,
             createFullAttrReference(RESULT_TID_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,PROP_RESULT_TID_ATTR)), 0, DT_INT));
+                    INT_VALUE(GET_STRING_PROP(rewrInput,PROP_RESULT_TID_ATTR)), 0, DT_INT));
 
-    op->projExprs = appendToTailOfList(op->projExprs,
+    p->projExprs = appendToTailOfList(p->projExprs,
             createFullAttrReference(PROV_DUPL_COUNT_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,PROP_PROV_DUP_ATTR)), 0, DT_INT));
-    // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
-    addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
+                    INT_VALUE(GET_STRING_PROP(rewrInput,PROP_PROV_DUP_ATTR)), 0, DT_INT));
 
-    LOG_RESULT("Projection - Rewritten Operator tree", op);
-    return (QueryOperator *) op;
+    // adapt schema
+    addProvenanceAttrsToSchema(rewr, OP_LCHILD(rewr));
+    addResultTIDAndProvDupAttrs(rewr, TRUE);
+
+	// copy provenance table and attr info
+	COPY_PROV_INFO(rewr,rewrInput);
+
+    LOG_RESULT_AND_RETURN(Projection);
 }
 
 static QueryOperator *
 rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state)
 {
-    DEBUG_LOG("REWRITE-PICS-Composable - Join");
+	REWR_BINARY_SETUP(Join);
+
     WindowOperator *wOp = NULL;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
@@ -842,25 +955,25 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state)
     boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
     List *rNormAttrs;
     int numLAttrs, numRAttrs;
+	List *provInfo;
 
     numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
     numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
 
-    // rewrite children
-    lChild = rewritePI_CSComposableOperator(lChild, state);
-    rChild = rewritePI_CSComposableOperator(rChild, state);
+	// rewrite children
+	REWR_BINARY_CHILDREN();
 
     // get attributes from right input
     rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
     o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
 
     // adapt schema for join op
-    addProvenanceAttrsToSchema((QueryOperator *) op, lChild);
-    addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
+    addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrLeftInput);
+    addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) rewr);
 
     o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
-    addProvenanceAttrsToSchema((QueryOperator *) op, rChild);
-    addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
+    addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrRightInput);
+    addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) rewr);
 
     // add window functions for result TID and prov dup columns
     if (!lChildNoDup || !rChildNoDup)
@@ -872,14 +985,14 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state)
         if (lChildNoDup)
         {
             AttributeReference *childResultTidAttr = (AttributeReference *)
-                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(lChild));
+                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrLeftInput));
             orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
             partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
         }
         if (rChildNoDup)
         {
             AttributeReference *childResultTidAttr = (AttributeReference *)
-                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rChild));
+                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrRightInput));
             childResultTidAttr->attrPosition += getNumAttrs(lChild);
             orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
             partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
@@ -893,10 +1006,10 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state)
                 orderBy,
                 NULL,
                 strdup(RESULT_TID_ATTR),
-                (QueryOperator *) op,
+                (QueryOperator *) rewr,
                 NIL
         );
-        wOp->op.provAttrs = copyObject(op->op.provAttrs);
+        wOp->op.provAttrs = copyObject(rewr->provAttrs);
 
         // add window function for prov dup attr
         prev = (QueryOperator *) wOp;
@@ -923,7 +1036,7 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state)
     List *projExpr;
     ProjectionOperator *proj;
     QueryOperator *projInput = (noDupInput) ?
-            (QueryOperator *) op :
+            (QueryOperator *) rewr :
             (QueryOperator *) wOp;
 
     // get special attributes from window op or create projection expression for them
@@ -950,17 +1063,23 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSRewriteState *state)
     SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(projExpr) - 1));
 
     // switch projection with join in tree
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    //TODO check, but should not be necessary anymore, switchSubtrees((QueryOperator *) rewr, (QueryOperator *) proj);
     if (noDupInput)
-        addParent((QueryOperator *) op, (QueryOperator *) proj);
+        addParent((QueryOperator *) rewr, (QueryOperator *) proj);
     else
     {
         addParent((QueryOperator *) wOp, (QueryOperator *) proj);
-        addParent((QueryOperator *) op, (QueryOperator *) prev);
+        addParent((QueryOperator *) rewr, (QueryOperator *) prev);
     }
 
-    LOG_RESULT("Join - Rewritten Operator tree", proj);
-    return (QueryOperator *) proj;
+	// provenance info is concatenation of child prov infos
+	provInfo = CONCAT_LISTS(
+		(List *) GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS),
+		(List *) GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS));
+
+	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+
+    LOG_RESULT_AND_RETURN(Join);
 }
 
 static QueryOperator *
@@ -1396,21 +1515,26 @@ rewritePI_CSComposableSet (SetOperator *op, PICSRewriteState *state)
 static QueryOperator *
 rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSRewriteState *state)
 {
-//    List *tableAttr;
     List *provAttr = NIL;
+	List *provAttrsOnly = NIL;
     List *projExpr = NIL;
     char *newAttrName;
-
-    int relAccessCount = getRelNameCount(&nameState, op->tableName);
+	char *tableName;
+    TableAccessOperator *t = (TableAccessOperator *) shallowCopyQueryOperator((QueryOperator *) op);
+	QueryOperator *rewr;
+	List *provInfo;
+    int relAccessCount = increaseRefCount(state, op->tableName);
     int cnt = 0;
 
     DEBUG_LOG("REWRITE-PICS-Composable - Table Access <%s> <%u>", op->tableName, relAccessCount);
 
-    // copy any as of clause if there
-    if (asOf)
-        op->asOf = copyObject(asOf);
+	tableName = strdup(op->tableName);
 
-    // Get the povenance name for each attribute
+    // copy any as of clause if there
+    if (state->asOf)
+        t->asOf = copyObject(state->asOf);
+
+    // Add normal attributes
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
@@ -1418,12 +1542,14 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSRewriteState *sta
         cnt++;
     }
 
+	// create provenance attributes by duplicating each of the table's attributes
     cnt = 0;
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+		provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(strdup(newAttrName)));
+		projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -1454,21 +1580,80 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSRewriteState *sta
     SET_STRING_PROP(newpo, PROP_PROV_DUP_ATTR, createConstInt((cnt * 2) + 1));
 
     // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+    //TODO no longer necessary switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
 
     // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) t);
     SET_BOOL_STRING_PROP(newpo,PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
+	rewr = (QueryOperator *) newpo;
 
-    LOG_RESULT("Table Access - Rewritten Operator tree", newpo);
-    return (QueryOperator *) newpo;
+	// prov info (key: TABLE_NAME, value: (ATTRIBUTES))
+	provInfo = singleton(createNodeKeyValue((Node *) createConstString(tableName),
+										    (Node *) provAttrsOnly));
+	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+
+    LOG_RESULT_AND_RETURN(TableAccess);
 }
 
 static QueryOperator *
 rewritePI_CSComposableConstRel(ConstRelOperator *op, PICSRewriteState *state)
 {
-    FATAL_LOG("not implemented yet");
-    return NULL;
+//    List *tableAttr;
+    List *provAttr = NIL;
+    List *projExpr = NIL;
+	List *provAttrsOnly = NIL;
+    char *newAttrName;
+	List *provInfo;
+	QueryOperator *rewr;
+	ConstRelOperator *inCopy = (ConstRelOperator *) shallowCopyQueryOperator((QueryOperator *) op);
+    int relAccessCount = increaseRefCount(state, "query");
+    int cnt = 0;
+
+    DEBUG_LOG("REWRITE-PICS-Composable - Const Rel Operator <%s> <%u>", nodeToString(op->values), relAccessCount);
+
+    // Get the povenance name for each attribute
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        cnt++;
+    }
+
+    cnt = 0;
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        newAttrName = getProvenanceAttrName("query", attr->attrName, relAccessCount);
+        provAttr = appendToTailOfList(provAttr, newAttrName);
+		provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(strdup(newAttrName)));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        cnt++;
+    }
+
+    List *newProvPosList = NIL;
+    CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
+
+    DEBUG_LOG("rewrite const rel operator, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+            stringListToString(provAttr),
+            nodeToString(projExpr),
+            nodeToString(newProvPosList));
+
+    // Create a new projection operator with these new attributes
+    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    newpo->op.provAttrs = newProvPosList;
+
+    // Switch the subtree with this newly created projection operator.
+    //switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+    // Add child to the newly created projections operator,
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) inCopy);
+	rewr = (QueryOperator *) newpo;
+
+	// prov info (key: TABLE_NAME, value: (ATTRIBUTES))
+	provInfo = singleton(createNodeKeyValue((Node *) createConstString("query"),
+										    (Node *) provAttrsOnly));
+	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+
+	LOG_RESULT_AND_RETURN(ConstRel);
 }
 
 static QueryOperator *

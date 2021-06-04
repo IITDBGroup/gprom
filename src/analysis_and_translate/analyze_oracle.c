@@ -111,6 +111,7 @@ Node *
 analyzeOracleModel (Node *stmt)
 {
     adaptIdentifiers(stmt);
+	DEBUG_NODE_BEATIFY_LOG("After backendifying identifiers: ", stmt);
     analyzeQueryBlockStmt(stmt, NULL);
 
     return stmt;
@@ -129,7 +130,11 @@ adaptIdentifiers (Node *stmt)
  * handled already. This method deals with:
  *
  * - names of functions FunctionCall nodes
- *
+ * - from clause items
+ * - attribute references
+ * - fromprovinfo
+ * - select itmes
+ * - with statements
  */
 static boolean
 visitAdaptIdents(Node *node, Set *context)
@@ -137,14 +142,146 @@ visitAdaptIdents(Node *node, Set *context)
     if (node == NULL)
         return TRUE;
 
+	DEBUG_LOG("adapt node type %s at %p [%s]",
+			  NodeTagToString(node->type),
+			  (void *) node,
+			  hasSetElem(context, node) ? "SEEN BEFORE" : "NEW");
+	
     if(!hasSetElem(context, node))
     {
-        if(isA(node,FunctionCall))
-        {
-            FunctionCall *f = (FunctionCall *) node;
-            f->functionname = backendifyIdentifier(f->functionname);
-            addToSet(context, node);
-        }
+		if(isA(node,FunctionCall)
+		   || isA(node,WithStmt)
+		   || isFromItem(node)
+		   || isA(node,SelectItem)
+		   || isA(node,FromProvInfo)
+		   || isA(node,AttributeReference))
+		{
+			if(isA(node,FunctionCall))
+			{
+				FunctionCall *f = (FunctionCall *) node;
+				f->functionname = backendifyIdentifier(f->functionname);
+			}
+
+			if(isFromItem(node))
+			{
+				FromItem *f = (FromItem *) node;
+
+				DEBUG_NODE_BEATIFY_LOG("fix idents in from item", f);
+				
+				// change alias
+				if (f->name != NULL)
+					f->name = backendifyIdentifier(f->name);
+
+				switch(node->type)
+				{
+				case T_FromTableRef:
+				{
+					FromTableRef *tr = (FromTableRef *) f;
+					DEBUG_LOG("updated table name %s to %s", tr->tableId,
+							  backendifyIdentifier(tr->tableId));
+					tr->tableId = backendifyIdentifier(tr->tableId);
+				}
+				break;
+				default:
+					break;
+				}
+			}
+
+			if (isA(node,WithStmt))
+			{
+				WithStmt *w = (WithStmt *) node;
+
+				FOREACH(KeyValue,kv,w->withViews)
+				{
+					kv->key = (Node *) createConstString(backendifyIdentifier(STRING_VALUE(kv->key)));
+				}
+			}
+
+			if (isA(node,FromProvInfo))
+			{
+				FromProvInfo *fp = (FromProvInfo *) node;
+
+				if (fp->userProvAttrs)
+				{
+					/* handle case of attribute names and quoted identifiers here */
+					FOREACH(char,name,fp->userProvAttrs)
+					{
+						ListCell *lc = FOREACH_GET_LC(name);
+						lc->data.ptr_value = backendifyIdentifier(name);
+					}
+				}
+
+				//Checking if a provProperty was declared
+				if (fp->provProperties)
+				{
+					//Remove the probability attribute if specified through the TIP flag
+					if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
+					{
+						char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+						setStringProvProperty(fp, PROV_PROP_TIP_ATTR, (Node *) createConstString(attrname));
+					}
+
+					if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))
+					{
+						if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
+						{
+							char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)));
+							setStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID, (Node *) createConstString(attrname));
+
+							attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB)));
+							setStringProvProperty(fp, PROV_PROP_XTABLE_PROB, (Node *) createConstString(attrname));
+						}
+					}
+				}				
+			}
+
+			if (isA(node, SelectItem))
+			{
+				SelectItem *s = (SelectItem *) node;
+
+				if (s->alias == NULL)
+				{
+					char *newAlias;
+
+					// need to first fixe attribute references in children for this to work
+					visit(node, visitAdaptIdents, context);
+					
+					newAlias = generateAttrNameFromExpr(s);					
+					s->alias = strdup(newAlias);
+
+					// return to avoid checking again
+					return TRUE;
+				}
+				else
+				{
+					s->alias = backendifyIdentifier(s->alias);
+				}				
+			}
+
+			if(isA(node,AttributeReference))
+			{
+				AttributeReference *a = (AttributeReference *) node;
+				List *result = NIL;
+				StringInfo str = makeStringInfo();
+				
+				result = splitString(strdup(a->name), "."); //FIXME will fail when . appears in a quoted ident part
+				FOREACH(char,part,result)
+				{
+					ListCell *lc = FOREACH_GET_LC(part);
+					char *newName = backendifyIdentifier(part);
+					lc->data.ptr_value = newName;
+					appendStringInfo(str, "%s%s",
+									 !FOREACH_IS_FIRST(part,result) ? "." : "",
+									 newName);
+				}				
+
+				TRACE_LOG("name <%s> backendified into <%s>", a->name, str->data);
+				
+				a->name = strdup(str->data);				
+			}
+			
+			addToSet(context, node);
+		}
     }
 
     return visit(node, visitAdaptIdents, context);
@@ -262,15 +399,15 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     FOREACH(FromItem,f,qb->fromClause)
     {
         // deal with identifiers
-        if (f->name != NULL)
-            f->name = backendifyIdentifier(f->name);
+        /* if (f->name != NULL) */
+        /*     f->name = backendifyIdentifier(f->name); */
 
         switch(f->type)
         {
             case T_FromTableRef:
             {
                 FromTableRef *tr = (FromTableRef *) f;
-                tr->tableId = backendifyIdentifier(tr->tableId);
+                /* tr->tableId = backendifyIdentifier(tr->tableId); */
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
 
@@ -365,18 +502,18 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     adaptAttributeRefs(attrRefs, parentFroms);
 
     // create attribute names for unnamed attribute in select clause
-    FOREACH(SelectItem,s,qb->selectClause)
-    {
-        if (s->alias == NULL)
-        {
-            char *newAlias = generateAttrNameFromExpr(s);
-            s->alias = strdup(newAlias);
-        }
-        else
-        {
-            s->alias = backendifyIdentifier(s->alias);
-        }
-    }
+    /* FOREACH(SelectItem,s,qb->selectClause) */
+    /* { */
+    /*     if (s->alias == NULL) */
+    /*     { */
+    /*         char *newAlias = generateAttrNameFromExpr(s); */
+    /*         s->alias = strdup(newAlias); */
+    /*     } */
+    /*     else */
+    /*     { */
+    /*         s->alias = backendifyIdentifier(s->alias); */
+    /*     } */
+    /* } */
 
     // adapt function call (isAgg)
     analyzeFunctionCall(qb);
@@ -434,15 +571,15 @@ analyzeFromProvInfo (FromItem *f)
     {
         FromProvInfo *fp = f->provInfo;
 
-        if (fp->userProvAttrs)
-        {
-            /* handle case of attribute names and quoted identifiers here */
-            FOREACH(char,name,fp->userProvAttrs)
-            {
-                ListCell *lc = FOREACH_GET_LC(name);
-                lc->data.ptr_value = backendifyIdentifier(name);
-            }
-        }
+        /* if (fp->userProvAttrs) */
+        /* { */
+        /*     /\* handle case of attribute names and quoted identifiers here *\/ */
+        /*     FOREACH(char,name,fp->userProvAttrs) */
+        /*     { */
+        /*         ListCell *lc = FOREACH_GET_LC(name); */
+        /*         lc->data.ptr_value = backendifyIdentifier(name); */
+        /*     } */
+        /* } */
 
         /* if the user provides a list of attributes (that store provenance
          * or should be duplicated as provenance attributes) then we need
@@ -473,8 +610,8 @@ analyzeFromProvInfo (FromItem *f)
         	//Remove the probability attribute if specified through the TIP flag
         	if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
         	{
-				char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
-				setStringProvProperty(fp, PROV_PROP_TIP_ATTR, (Node *) createConstString(attrname));
+				char *attrname = STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR));
+				/* setStringProvProperty(fp, PROV_PROP_TIP_ATTR, (Node *) createConstString(attrname)); */
         		int pos = listPosString(f->attrNames, attrname);
 				DEBUG_LOG("TIP attribute %s at position %u", attrname, pos);
 				f->attrNames = deepCopyStringList(f->attrNames);
@@ -550,8 +687,9 @@ analyzeFromProvInfo (FromItem *f)
 				// test unnecessary?
 				if (getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
 				{
-					char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID)));
-					setStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID, (Node *) createConstString(attrname));
+					char *attrname = STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID));
+					/* char *attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID))); */
+					/* setStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID, (Node *) createConstString(attrname)); */
 					int pos = listPosString(f->attrNames, attrname);
 					DEBUG_LOG("XTABLE groupID attribute %s at position %u", attrname, pos);
 					f->attrNames = deepCopyStringList(f->attrNames);
@@ -559,8 +697,9 @@ analyzeFromProvInfo (FromItem *f)
 					f->attrNames = removeListElemAtPos(f->attrNames, pos);
 					f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
 
-					attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB)));
-					setStringProvProperty(fp, PROV_PROP_XTABLE_PROB, (Node *) createConstString(attrname));
+					attrname = STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB));
+					/* attrname = backendifyIdentifier(STRING_VALUE(getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))); */
+					/* setStringProvProperty(fp, PROV_PROP_XTABLE_PROB, (Node *) createConstString(attrname)); */
 					pos = listPosString(f->attrNames, attrname);
 					DEBUG_LOG("XTABLE probability attribute %s at position %u", attrname, pos);
 					f->attrNames = deepCopyStringList(f->attrNames);
@@ -1017,8 +1156,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     {
         case T_FromTableRef:
         {
-			FromTableRef *lt = (FromTableRef *) left;
-			lt->tableId = backendifyIdentifier(lt->tableId);
+			/* FromTableRef *lt = (FromTableRef *) left; */
+			/* lt->tableId = backendifyIdentifier(lt->tableId); */
         	analyzeFromTableRef((FromTableRef *)left);
             analyzeFromProvInfo(left);
         }
@@ -1040,8 +1179,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 	{
 		case T_FromTableRef:
 		{
-			FromTableRef *rt = (FromTableRef *) right;
-			rt->tableId = backendifyIdentifier(rt->tableId);
+			/* FromTableRef *rt = (FromTableRef *) right; */
+			/* rt->tableId = backendifyIdentifier(rt->tableId); */
             analyzeFromTableRef((FromTableRef *)right);
 		    analyzeFromProvInfo(right);
 		}
@@ -1631,17 +1770,17 @@ analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 }
 
 static List *
-splitAttrOnDot (char *dotName)
+splitAttrOnDot(char *dotName)
 {
     List *result = NIL;
 
-    result = splitString(strdup(dotName), ".");
-    FOREACH(char,part,result)
-    {
-        ListCell *lc = FOREACH_GET_LC(part);
-        char *newName = backendifyIdentifier(part);
-        lc->data.ptr_value = newName;
-    }
+    result = splitString(strdup(dotName), "."); //FIXME will fail when . appears in a quoted ident part
+    /* FOREACH(char,part,result) */
+    /* { */
+    /*     ListCell *lc = FOREACH_GET_LC(part); */
+    /*     char *newName = backendifyIdentifier(part); */
+    /*     lc->data.ptr_value = newName; */
+    /* } */
 
     TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
 
@@ -1651,9 +1790,9 @@ splitAttrOnDot (char *dotName)
 #define DUMMY_FROM_IDENT_PREFIX backendifyIdentifier("dummyFrom")
 
 static List *
-expandStarExpression (SelectItem *s, List *fromClause)
+expandStarExpression(SelectItem *s, List *fromClause)
 {
-    List *nameParts = splitAttrOnDot(s->alias);
+    List *nameParts = splitAttrOnDot(s->alias); //TODO check why splitting here? 
     List *newSelectItems = NIL;
     List *leafItems = getFromTreeLeafs(fromClause);
     ASSERT(LIST_LENGTH(nameParts) == 1 || LIST_LENGTH(nameParts) == 2);
@@ -1774,20 +1913,32 @@ generateAttrNameFromExpr(SelectItem *s)
     char *name = exprToSQL(s->expr, NULL);
     char c;
     StringInfo str = makeStringInfo();
-
+	
     if (streq(getOptionAsString(OPTION_BACKEND),"oracle"))
     {
+		
         while((c = *name++) != '\0')
-            if (c != ' ')
+		{
+            if (c != ' ' && c != '"')
+			{
                 appendStringInfoChar(str, toupper(c));
+			}
+		}
     }
     else
     {
         while((c = *name++) != '\0')
+		{
             if (c != ' ')
+			{
                 appendStringInfoChar(str, c);
-    }
+			}
+		}
 
+		// need to escape double quotes in generated string
+		str->data = replaceSubstr(str->data, "\"", "_");
+    }
+	
     return str->data;
 }
 

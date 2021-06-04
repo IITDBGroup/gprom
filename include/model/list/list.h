@@ -57,6 +57,7 @@ typedef struct List
 
 #define FOREACH_GET_LC(_node_) (DUMMY_LC(_node_))
 #define FOREACH_HAS_MORE(_node_) (DUMMY_LC(_node_)->next != NULL)
+#define FOREACH_IS_FIRST(_node_,_list_) (DUMMY_LC(_node_) == _list_->head)
 
 /*
  * Loop through integer list _list_ and access each element using name _ival_.

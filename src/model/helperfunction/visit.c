@@ -79,6 +79,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             break;
         case T_IntList:
         	break;
+    	case T_KeyValue:
+		{
+			PREP_VISIT(KeyValue);
+			VISIT(key);
+			VISIT(value);
+		}
+		break;
         /* expression nodes */
         case T_Constant:
         	{
@@ -260,19 +267,26 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(cond);
         	}
         	break;
-	case T_PreparedQuery:
-	{
-		PREP_VISIT(PreparedQuery);
-		VISIT(q);
-		VISIT(dts);
-	}
-	break;
-	case T_ExecQuery:
-	{
-		PREP_VISIT(ExecQuery);
-		VISIT(params);
-	}
-	break;
+	    case T_PreparedQuery:
+		{
+			PREP_VISIT(PreparedQuery);
+			VISIT(q);
+			VISIT(dts);
+		}
+		break;
+	    case T_ExecQuery:
+		{
+			PREP_VISIT(ExecQuery);
+			VISIT(params);
+		}
+		break;
+	    case T_WithStmt:
+		{
+			PREP_VISIT(WithStmt);
+			VISIT(withViews);
+			VISIT(query);
+		}
+		break;
         /* query operator model nodes */
         case T_Schema:
         	{
@@ -384,12 +398,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(offsetExpr);
             }
             break;
-	case T_ExecPreparedOperator:
-	{
-		PREP_VISIT(ExecPreparedOperator);
-		VISIT_OPERATOR_FIELDS();
-		VISIT(params);
-	}
+     	case T_ExecPreparedOperator:
+		{
+			PREP_VISIT(ExecPreparedOperator);
+			VISIT_OPERATOR_FIELDS();
+			VISIT(params);
+		}
+		break;
         // DLNodes
         case T_DLAtom:
         {

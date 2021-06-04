@@ -75,6 +75,7 @@
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable
 #define PROP_PROV_DUP_ATTR "PROV_DUP_ATTR"                  // provenance duplicate counter attribute for PI-CS composable
 #define PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME" // is the operator not sensitive to duplication
+#define PROP_PROVENANCE_TABLE_ATTRS "PROVENANCE_TABLES_AND_ATTRS" // store tables and their attributes int he provenance of an operator
 
 // provenance of transaction
 #define PROP_PROV_IS_UPDATE_ROOT "UPDATE_ROOT"              // root of a translated update reenactment query

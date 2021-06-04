@@ -560,6 +560,24 @@ inferOpResultDTs (QueryOperator *op)
 }
 
 
+QueryOperator *
+shallowCopyQueryOperator(QueryOperator *op)
+{
+	QueryOperator *result;
+	List *parents = op->parents;
+	List *children = op->inputs;
+
+	op->parents = NIL;
+	op->inputs = NIL;
+
+	result = copyObject(op);
+
+	op->parents = parents;
+	op->inputs = children;
+
+	return result;
+}
+
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
         List *attrNames, List *dataTypes)
