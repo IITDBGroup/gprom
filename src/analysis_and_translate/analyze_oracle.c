@@ -40,6 +40,7 @@ static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static boolean reenactOptionHasTimes (List *opts);
 static void analyzeWithStmt (WithStmt *w);
+static List *getAnalyzedViews(WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 static void analyzeExecQuery (ExecQuery *e);
@@ -1820,7 +1821,7 @@ expandStarExpression(SelectItem *s, List *fromClause)
                 if (!(f->type == T_FromTableRef && strcmp(attr,"ROWID") == 0))
                 {
                     AttributeReference *newA = createAttributeReference(
-                              CONCAT_STRINGS("\"", f->name,"\".",attr));
+                              CONCAT_STRINGS(f->name,".",attr));
 
                     newSelectItems = appendToTailOfList(newSelectItems,
                             createSelectItem(
@@ -2030,7 +2031,7 @@ analyzeSetQuery (SetQuery *q, List *parentFroms)
 
 static void
 analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
-{
+{	
     switch (q->inputType)
     {
         case PROV_INPUT_TRANSACTION:
@@ -2108,6 +2109,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
                      */
                     // if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
                     // semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+					DEBUG_NODE_BEATIFY_LOG("before correct table visitor", q->query);
                     correctFromTableVisitor(q->query, NULL);
                     getQBProvenanceAttrList(q,&provAttrNames,&provDts);
 
@@ -2255,13 +2257,32 @@ checkTemporalAttributesVisitor (Node *node, DataType **context)
 }
 
 
-
+//FIXME this messes table references up that are refer to WITH CTEs, need to account for that
 static boolean
-correctFromTableVisitor (Node *node, void *context)
+correctFromTableVisitor(Node *node, void *context)
 {
     if (node == NULL)
         return TRUE;
 
+	// neex to restore with views and pass them on
+	if(isA(node,WithStmt))
+	{
+		WithStmt *w = (WithStmt *) node;
+		List *analyzedViews = NIL;
+		
+		// analyze each view, but make sure to set attributes of dummy views upfront
+		FOREACH(KeyValue,v,w->withViews)
+		{
+//			correctFromTableVisitor(v->value, analyzedViews);
+			setViewFromTableRefAttrs(v->value, analyzedViews);
+			analyzedViews = appendToTailOfList(analyzedViews, v);
+		}
+
+		setViewFromTableRefAttrs(w->query, analyzedViews);
+
+		return TRUE;
+	}	   
+	
     if(isFromItem(node))
     {
         switch (node->type)
@@ -2347,7 +2368,19 @@ analyzeWithStmt (WithStmt *w)
             addToSet(viewNames, vName);
     }
 
-    // analyze each view, but make sure to set attributes of dummy views upfront
+	analyzedViews = getAnalyzedViews(w);
+    DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
+    analyzeQueryBlockStmt(w->query, NIL);
+
+    DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
+}
+
+static List *
+getAnalyzedViews(WithStmt *w)
+{
+	List *analyzedViews = NIL;
+	
+   // analyze each view, but make sure to set attributes of dummy views upfront
     FOREACH(KeyValue,v,w->withViews)
     {
         setViewFromTableRefAttrs(v->value, analyzedViews);
@@ -2356,11 +2389,9 @@ analyzeWithStmt (WithStmt *w)
         analyzedViews = appendToTailOfList(analyzedViews, v);
     }
 
-    setViewFromTableRefAttrs(w->query, analyzedViews);
-    DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
-    analyzeQueryBlockStmt(w->query, NIL);
+	setViewFromTableRefAttrs(w->query, analyzedViews);
 
-    DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
+	return analyzedViews;
 }
 
 static void

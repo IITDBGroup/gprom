@@ -128,9 +128,21 @@ schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inpu
 {
     List *dataTypes = NIL;
 
+	// if attributeNames is NIL, then generate attribute names
+	if(attributeNames == NIL)
+	{
+		FOREACH(Node,n,exprs)
+		{
+			char *name = exprToSQL(n, NULL);
+			attributeNames = appendToTailOfList(attributeNames, name);
+		}
+	}
+	
     FOREACH(Node,n,exprs)
+	{
         dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
-
+	}
+		
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
 
@@ -655,9 +667,12 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 {
     ProjectionOperator *prj = makeNode(ProjectionOperator);
 
-    FOREACH(Node, expr, projExprs)
-    prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
-
+    /* FOREACH(Node, expr, projExprs) */
+	/* { */
+	/* 	prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr)); */
+	/* } */
+	prj->projExprs = copyObject(projExprs);
+		
     if (input != NULL)
         prj->op.inputs = singleton(input);
     else

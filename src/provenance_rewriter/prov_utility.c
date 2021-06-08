@@ -12,6 +12,7 @@
 
 #include "common.h"
 
+#include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
@@ -110,6 +111,23 @@ getNormalAttrProjectionExprs(QueryOperator *op)
     }
 
     return result;
+}
+
+List *
+getAllAttrProjectionExprs(QueryOperator *op)
+{
+	List *result = NIL;
+	int i = 0;
+	
+	FOREACH(AttributeDef,a,op->schema->attrDefs)
+	{
+		AttributeReference *at;
+
+		at = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+		result = appendToTailOfList(result, at);
+	}
+
+	return result;
 }
 
 QueryOperator *

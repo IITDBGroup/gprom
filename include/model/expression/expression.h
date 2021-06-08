@@ -306,5 +306,6 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define AVG_FUNC_NAME backendifyIdentifier("avg")
 #define COUNT_FUNC_NAME backendifyIdentifier("count")
 #define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
+#define DENSE_RANK_FUNC_NAME backendifyIdentifier("dense_rank")
 
 #endif /* EXPRESSION_H */

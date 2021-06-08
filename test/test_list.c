@@ -67,8 +67,6 @@ testIntList(void)
         ASSERT_EQUALS_INT(1, i, "first element is 1");
     }
 
-
-
     return PASS;
 }
 

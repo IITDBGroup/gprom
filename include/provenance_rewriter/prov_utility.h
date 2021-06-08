@@ -25,6 +25,7 @@ extern void makeNamesUnique (List *names, Set *allNames);
 // create projection expressions
 extern List *getProvAttrProjectionExprs(QueryOperator *op);
 extern List *getNormalAttrProjectionExprs(QueryOperator *op);
+extern List *getAllAttrProjectionExprs(QueryOperator *op);
 extern QueryOperator *createProjOnAllAttrs(QueryOperator *op);
 extern QueryOperator *createProjOnAttrs(QueryOperator *op, List *attrPos);
 extern QueryOperator *createProjOnAttrsByName(QueryOperator *op, List *attrNames, List *newAttrNames);

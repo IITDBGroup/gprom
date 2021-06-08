@@ -671,8 +671,19 @@ typeOf (Node *expr)
         }
         case T_IsNullExpr:
             return DT_BOOL;
+			// Oracle has an ROWNUM pseudo attribute for that. All other systems we have to use ROW_NUMBER()
         case T_RowNumExpr:
-            return DT_INT;
+			if(getBackend() == BACKEND_ORACLE)
+			{
+				return DT_INT;
+			}
+			else
+			{
+				DataType rt;
+				boolean exists;
+				rt = getFuncReturnType(ROW_NUMBER_FUNC_NAME, NIL, &exists);
+				return rt;
+			}
         case T_SQLParameter:
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:

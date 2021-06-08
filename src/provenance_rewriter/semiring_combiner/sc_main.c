@@ -195,8 +195,11 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 	FATAL_LOG("No semiring combiner info in provenance options.");
 }
 
-extern void addSCOptionToChild(QueryOperator *op, QueryOperator *to) {
-	if(HAS_STRING_PROP(op,PROP_PC_SC_AGGR_OPT)){
+extern void
+addSCOptionToChild(QueryOperator *op, QueryOperator *to)
+{
+	if(HAS_STRING_PROP(op,PROP_PC_SC_AGGR_OPT))
+	{
 		SET_STRING_PROP(to, PROP_PC_SC_AGGR_OPT, GET_STRING_PROP(op,PROP_PC_SC_AGGR_OPT));
 	}
 }
