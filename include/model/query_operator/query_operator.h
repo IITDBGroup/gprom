@@ -339,6 +339,9 @@ extern unsigned int numOpsInGraph (QueryOperator *root);
 extern unsigned int numOpsInTree (QueryOperator *root);
 
 //find NestingOperator based on levelsUp
-extern QueryOperator* findNestingOperator (QueryOperator *op, int levelsUp);
+extern QueryOperator*findNestingOperator (QueryOperator *op, int levelsUp);
+extern char *getNestingAttrPrefix();
+extern char *getNestingResultAttribute(int number);
+extern boolean isNestingAttribute(char *attr);
 
 #endif /* QUERY_OPERATOR_H_ */

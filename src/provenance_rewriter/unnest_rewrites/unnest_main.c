@@ -90,7 +90,7 @@ static QueryOperator *unnestScalar(QueryOperator *op);
 static QueryOperator *unnestInClause(QueryOperator *op);
 static QueryOperator *unnestExists(QueryOperator *op);
 static QueryOperator *unnestExistsSpecial(List *l);
-static QueryOperator * unnestNotInLike(NestingOperator *nestOp);
+static QueryOperator *unnestNotInLike(NestingOperator *nestOp);
 static QueryOperator *unnestNotExists(NestingOperator *nest);
 
 //static List *getListNestingOperator (QueryOperator *op);
@@ -100,7 +100,7 @@ static QueryOperator *unnestNotExists(NestingOperator *nest);
 //static void getNestCondNode(Node *n, List **nestOpLists);
 
 Node *
-unnestTranslateQBModel (Node *qbModel)
+unnestTranslateQBModel(Node *qbModel)
 {
 	DEBUG_LOG("unnest rewrite:");
 
@@ -1535,20 +1535,14 @@ isCorrelatedCond(Node *node)
 			char *namel = strdup(al->name);
 			char *namer = strdup(ar->name);
 
-			if(strlen(namel) > 12)
+			if(isPrefix(namel, getNestingAttrPrefix()))
 			{
-				char *prefix = substr(strdup(namel), 0, 12);
-
-				if (streq(prefix, "nesting_eval_"))
-					return TRUE;
+				return TRUE;
 			}
 
-			if(strlen(namer) > 12)
+			if(isPrefix(namer, getNestingAttrPrefix()))
 			{
-				char *prefix = substr(strdup(namer), 0, 12);
-
-				if (streq(prefix, "nesting_eval_"))
-					return TRUE;
+				return TRUE;
 			}
 
 		}
@@ -1860,11 +1854,9 @@ adaptSchema (List *attrDefs, char *attr)
 	FOREACH(AttributeDef, ad, attrDefs)
 	{
 		   char *name = strdup(ad->attrName);
-	       if(strlen(name) > 12)
+		   if(isPrefix(name, getNestingAttrPrefix()))
 	       {
-	    	   	   char *prefix = substr(strdup(name), 0, 12);
-	    	   	   if (streq(prefix, "nesting_eval_"))
-	    	   		   ad->attrName = strdup(attr);
+			   ad->attrName = strdup(attr);
 	       }
 	}
 }
@@ -1872,43 +1864,14 @@ adaptSchema (List *attrDefs, char *attr)
 boolean
 isNestAttrName(char* c)
 {
-	if(strlen(c) > 12 && strstr(c, "nesting_eval_") != NULL)
-		return TRUE;
-
-	return FALSE;
+	return isPrefix(c, getNestingAttrPrefix());
 }
 
 boolean
 isNestAttr(AttributeReference *a)
 {
-	char *name = strdup(a->name);
-	if(strlen(name) > 12)
-	{
-		//char *prefix = substr(strdup(name), 0, 12);
-
-		//if (streq(prefix, "nesting_eval_"))
-		if(strstr(name, "nesting_eval_") != NULL)
-			return TRUE;
-	}
-
-	return FALSE;
+	return isNestAttrName(a->name);
 }
-
-//static boolean
-//isNestAttr(AttributeReference *a)
-//{
-//	char *name = strdup(a->name);
-//	if(strlen(name) > 12)
-//	{
-//		char *prefix = substr(strdup(name), 0, 12);
-//
-//		if (streq(prefix, "nesting_eval_"))
-//			return TRUE;
-//	}
-//
-//	return FALSE;
-//}
-
 
 static boolean
 adaptAttrName (Node *node, char *attr)

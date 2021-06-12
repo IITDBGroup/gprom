@@ -31,11 +31,11 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
-static void createAPI (void);
+static void createAPI(void);
 static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
-static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
 static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem,  SerializeClausesAPI *api);

@@ -91,7 +91,6 @@ static void analyzeFromJsonTable(FromJsonTable *f, List **state);
 
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
-static List *splitAttrOnDot (char *dotName);
 
 //static char *getAttrNameFromNameWithBlank(char *blankName);
 static List *getFromTreeLeafs (List *from);
@@ -1770,17 +1769,26 @@ analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 	return result;
 }
 
-static List *
+List *
 splitAttrOnDot(char *dotName)
 {
-    List *result = NIL;
+    List *nameParts = NIL;
 
-    result = splitString(strdup(dotName), "."); //FIXME will fail when . appears in a quoted ident part
+    nameParts = splitString(strdup(dotName), "."); //FIXME will fail when . appears in a quoted ident part
 
-    TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
+    TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(nameParts));
 
-    return result;
+    return nameParts;
 }
+
+char *
+lastAttrNamePart(char *attrName)
+{
+	List *nameParts = splitAttrOnDot(attrName);
+
+	return (char *) getTailOfListP(nameParts);
+}
+
 
 #define DUMMY_FROM_IDENT_PREFIX backendifyIdentifier("dummyFrom")
 

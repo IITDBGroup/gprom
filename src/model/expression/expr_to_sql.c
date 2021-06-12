@@ -20,6 +20,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
+#include "analysis_and_translate/analyze_oracle.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -52,10 +53,11 @@ static void xmlConstantToSQL (StringInfo str, Node *node);
 static void
 attributeReferenceToSQL(StringInfo str, AttributeReference *node, HashMap *map, boolean trimAttrNames)
 {
-    TRACE_LOG("attributeReferenceToSQL %s", node->name);
-	if(map != NULL && strstr(node->name, "\"nesting_eval_") != NULL)
+	char *lastNamePart = lastAttrNamePart(node->name);
+    TRACE_LOG("attributeReferenceToSQL %s with last part %s", node->name, lastNamePart);
+	if(map != NULL && isNestingAttribute(lastNamePart))
 	{
-		char *extractName = strchr(strdup(node->name), '"');
+		char *extractName = lastNamePart; //TODO use splitting on . which is safer
 		TRACE_LOG("Extract Name %s", extractName);
 
 		if(hasMapStringKey(map, extractName))

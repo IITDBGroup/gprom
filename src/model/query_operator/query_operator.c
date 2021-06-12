@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "log/logger.h"
+#include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
@@ -21,6 +22,7 @@
 #include "model/set/set.h"
 #include "model/query_operator/operator_property.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
+#include "utility/string_utils.h"
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
@@ -53,6 +55,25 @@ findNestingOperator (QueryOperator *op, int levelsUp)
     return result;
 }
 
+char *
+getNestingAttrPrefix()
+{
+	return backendifyIdentifier("nesting_eval_");
+}
+
+char *
+getNestingResultAttribute(int number)
+{
+	return backendifyIdentifier(CONCAT_STRINGS("nesting_eval_", gprom_itoa(number)));
+}
+
+boolean
+isNestingAttribute(char *attr)
+{
+	char *prefix = getNestingAttrPrefix();
+	return isPrefix(attr, prefix)
+		|| isPrefix(attr, CONCAT_STRINGS("\"", prefix));
+}
 
 Schema *
 createSchema(char *name, List *attrDefs)

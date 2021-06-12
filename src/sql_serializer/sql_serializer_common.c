@@ -695,7 +695,7 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
  * Translate a selection into a WHERE clause
  */
 void
-genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
+genSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
 	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api);
 
@@ -705,7 +705,7 @@ genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac
 }
 
 void
-genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesAPI *api)
+genSerializeLimitOperator(LimitOperator *q, StringInfo limit, SerializeClausesAPI *api)
 {
 	if (q->limitExpr != NULL)
 	{
@@ -720,7 +720,7 @@ genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesA
 }
 
 void
-genSerializePreparedStatement (QueryOperator *q, StringInfo prep, SerializeClausesAPI *api)
+genSerializePreparedStatement(QueryOperator *q, StringInfo prep, SerializeClausesAPI *api)
 {
 	if(HAS_STRING_PROP(q, PROP_PREPARED_QUERY_NAME))
 	{
