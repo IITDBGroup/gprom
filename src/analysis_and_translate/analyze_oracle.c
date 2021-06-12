@@ -147,7 +147,7 @@ visitAdaptIdents(Node *node, Set *context)
 			  NodeTagToString(node->type),
 			  (void *) node,
 			  hasSetElem(context, node) ? "SEEN BEFORE" : "NEW");
-	
+
     if(!hasSetElem(context, node))
     {
 		if(isA(node,FunctionCall)
@@ -168,7 +168,7 @@ visitAdaptIdents(Node *node, Set *context)
 				FromItem *f = (FromItem *) node;
 
 				DEBUG_NODE_BEATIFY_LOG("fix idents in from item", f);
-				
+
 				// change alias
 				if (f->name != NULL)
 					f->name = backendifyIdentifier(f->name);
@@ -233,7 +233,7 @@ visitAdaptIdents(Node *node, Set *context)
 							setStringProvProperty(fp, PROV_PROP_XTABLE_PROB, (Node *) createConstString(attrname));
 						}
 					}
-				}				
+				}
 			}
 
 			if (isA(node, SelectItem))
@@ -246,8 +246,8 @@ visitAdaptIdents(Node *node, Set *context)
 
 					// need to first fixe attribute references in children for this to work
 					visit(node, visitAdaptIdents, context);
-					
-					newAlias = generateAttrNameFromExpr(s);					
+
+					newAlias = generateAttrNameFromExpr(s);
 					s->alias = strdup(newAlias);
 
 					// return to avoid checking again
@@ -256,7 +256,7 @@ visitAdaptIdents(Node *node, Set *context)
 				else
 				{
 					s->alias = backendifyIdentifier(s->alias);
-				}				
+				}
 			}
 
 			if(isA(node,AttributeReference))
@@ -264,7 +264,7 @@ visitAdaptIdents(Node *node, Set *context)
 				AttributeReference *a = (AttributeReference *) node;
 				List *result = NIL;
 				StringInfo str = makeStringInfo();
-				
+
 				result = splitString(strdup(a->name), "."); //FIXME will fail when . appears in a quoted ident part
 				FOREACH(char,part,result)
 				{
@@ -274,13 +274,13 @@ visitAdaptIdents(Node *node, Set *context)
 					appendStringInfo(str, "%s%s",
 									 !FOREACH_IS_FIRST(part,result) ? "." : "",
 									 newName);
-				}				
+				}
 
 				TRACE_LOG("name <%s> backendified into <%s>", a->name, str->data);
-				
-				a->name = strdup(str->data);				
+
+				a->name = strdup(str->data);
 			}
-			
+
 			addToSet(context, node);
 		}
     }
@@ -1776,12 +1776,6 @@ splitAttrOnDot(char *dotName)
     List *result = NIL;
 
     result = splitString(strdup(dotName), "."); //FIXME will fail when . appears in a quoted ident part
-    /* FOREACH(char,part,result) */
-    /* { */
-    /*     ListCell *lc = FOREACH_GET_LC(part); */
-    /*     char *newName = backendifyIdentifier(part); */
-    /*     lc->data.ptr_value = newName; */
-    /* } */
 
     TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
 
@@ -1793,7 +1787,7 @@ splitAttrOnDot(char *dotName)
 static List *
 expandStarExpression(SelectItem *s, List *fromClause)
 {
-    List *nameParts = splitAttrOnDot(s->alias); //TODO check why splitting here? 
+    List *nameParts = splitAttrOnDot(s->alias); //TODO check why splitting here?
     List *newSelectItems = NIL;
     List *leafItems = getFromTreeLeafs(fromClause);
     ASSERT(LIST_LENGTH(nameParts) == 1 || LIST_LENGTH(nameParts) == 2);
@@ -1911,16 +1905,16 @@ getFromTreeLeafs (List *from)
 static char *
 generateAttrNameFromExpr(SelectItem *s)
 {
-    char *name = exprToSQL(s->expr, NULL);
+    char *name = exprToSQL(s->expr, NULL, TRUE);
     char c;
     StringInfo str = makeStringInfo();
-	
+
     if (streq(getOptionAsString(OPTION_BACKEND),"oracle"))
     {
-		
+
         while((c = *name++) != '\0')
 		{
-            if (c != ' ' && c != '"')
+            if (c != ' ' && c != '"' && c != '.')
 			{
                 appendStringInfoChar(str, toupper(c));
 			}
@@ -1930,7 +1924,7 @@ generateAttrNameFromExpr(SelectItem *s)
     {
         while((c = *name++) != '\0')
 		{
-            if (c != ' ')
+            if (c != ' ' && c != '.')
 			{
                 appendStringInfoChar(str, c);
 			}
@@ -1939,7 +1933,7 @@ generateAttrNameFromExpr(SelectItem *s)
 		// need to escape double quotes in generated string
 		str->data = replaceSubstr(str->data, "\"", "_");
     }
-	
+
     return str->data;
 }
 
@@ -2031,7 +2025,7 @@ analyzeSetQuery (SetQuery *q, List *parentFroms)
 
 static void
 analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
-{	
+{
     switch (q->inputType)
     {
         case PROV_INPUT_TRANSACTION:
@@ -2269,7 +2263,7 @@ correctFromTableVisitor(Node *node, void *context)
 	{
 		WithStmt *w = (WithStmt *) node;
 		List *analyzedViews = NIL;
-		
+
 		// analyze each view, but make sure to set attributes of dummy views upfront
 		FOREACH(KeyValue,v,w->withViews)
 		{
@@ -2281,8 +2275,8 @@ correctFromTableVisitor(Node *node, void *context)
 		setViewFromTableRefAttrs(w->query, analyzedViews);
 
 		return TRUE;
-	}	   
-	
+	}
+
     if(isFromItem(node))
     {
         switch (node->type)
@@ -2379,7 +2373,7 @@ static List *
 getAnalyzedViews(WithStmt *w)
 {
 	List *analyzedViews = NIL;
-	
+
    // analyze each view, but make sure to set attributes of dummy views upfront
     FOREACH(KeyValue,v,w->withViews)
     {

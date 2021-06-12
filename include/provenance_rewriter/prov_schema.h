@@ -16,15 +16,13 @@
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 
-/* data types */
-typedef struct RelCount {
-    char *relName;
-    int count;
-    UT_hash_handle hh;
-} RelCount;
+extern int getCurRelNameCount(HashMap *relCount, char *tableName);
+extern int increaseRefCount(HashMap *provCounts, char *prefix);
 
-extern int getCurRelNameCount(RelCount **relCount, char *tableName);
-extern int getRelNameCount(RelCount **relCount, char *tableName);
+extern List *opGetProvAttrInfo(QueryOperator *op);
+extern void copyProvInfo(QueryOperator *to, QueryOperator *from);
+#define COPY_PROV_INFO(to,from) copyProvInfo((QueryOperator *) to, (QueryOperator *) from)
+
 extern List *getProvenanceAttributes(QueryOperator *q, ProvenanceType type);
 extern List *getProvenanceAttrNames (char *table, List *attrs, int count);
 extern char *getProvenanceAttrName (char *table, char *attr, int count);

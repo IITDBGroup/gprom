@@ -50,7 +50,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 		FOREACH(SelectItem,s,qb->selectClause)
 		{
 			appendStringInfo(str, "%s%s",
-							 exprToSQL(s->expr, NULL),
+							 exprToSQL(s->expr, NULL, FALSE),
 							 s->alias ? CONCAT_STRINGS(" AS ", s->alias) : "");
 			if(FOREACH_HAS_MORE(s))
 			{
@@ -69,7 +69,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 		// WHERE clause
 		if (qb->whereClause)
 		{
-			appendStringInfo(str, "\nWHERE %s ", exprToSQL(qb->whereClause, NULL)); //TODO deal with nested subqueries
+			appendStringInfo(str, "\nWHERE %s ", exprToSQL(qb->whereClause, NULL, FALSE)); //TODO deal with nested subqueries
 		}
 		// GROUP BY clause
 		if (qb->groupByClause)
@@ -77,7 +77,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 			appendStringInfoString(str, "\nGROUP BY ");
 			FOREACH(Node,gb,qb->groupByClause)
 			{
-				appendStringInfo(str, "%s", exprToSQL(gb, NULL));
+				appendStringInfo(str, "%s", exprToSQL(gb, NULL, FALSE));
 				if(FOREACH_HAS_MORE(gb))
 				{
 					appendStringInfoString(str, ", ");
@@ -87,7 +87,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 		// HAVING clause
 		if (qb->havingClause)
 		{
-			appendStringInfo(str, "\nHAVING %s", exprToSQL(qb->havingClause, NULL));
+			appendStringInfo(str, "\nHAVING %s", exprToSQL(qb->havingClause, NULL, FALSE));
 		}
 		// ORDER BY clause
 		if (qb->orderByClause)
@@ -95,7 +95,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 			appendStringInfoString(str, "ORDER BY ");
 			FOREACH(Node,o,qb->orderByClause)
 			{
-				appendStringInfo(str, "%s", exprToSQL(o, NULL));
+				appendStringInfo(str, "%s", exprToSQL(o, NULL, FALSE));
 				if(FOREACH_HAS_MORE(o))
 				{
 					appendStringInfoString(str, ", ");
@@ -105,12 +105,12 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 		// LIMIT clause
 		if (qb->limitClause)
 		{
-			appendStringInfo(str, "\nLIMIT %s", exprToSQL(qb->limitClause, NULL));
+			appendStringInfo(str, "\nLIMIT %s", exprToSQL(qb->limitClause, NULL, FALSE));
 		}
 		// OFFSET clause
 		if (qb->offsetClause)
 		{
-			appendStringInfo(str, "\nOFFSET %s", exprToSQL(qb->offsetClause, NULL));
+			appendStringInfo(str, "\nOFFSET %s", exprToSQL(qb->offsetClause, NULL, FALSE));
 		}
 	}
 	break;
@@ -173,7 +173,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 			appendStringInfoString(str, " VALUES (");
 			FOREACH(Node,n,(List *) i->query)
 			{
-				appendStringInfo(str, "%s", exprToSQL(n, NULL));
+				appendStringInfo(str, "%s", exprToSQL(n, NULL, FALSE));
 				if(FOREACH_HAS_MORE(n))
 				{
 					appendStringInfoString(str, ",");
@@ -204,7 +204,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 		appendStringInfo(str, "UPDATE %s SET ", u->updateTableName);
 		FOREACH(Node,n,u->selectClause)
 		{
-			appendStringInfo(str, "%s", exprToSQL(n, NULL));
+			appendStringInfo(str, "%s", exprToSQL(n, NULL, FALSE));
 			if(FOREACH_HAS_MORE(n))
 			{
 				appendStringInfoString(str, ",");
@@ -212,7 +212,7 @@ parseBackQueryBlockInternal(Node *stmt, StringInfo str)
 		}
 		if (u->cond)
 		{
-			appendStringInfo(str, " WHERE %s", exprToSQL(u->cond, NULL));
+			appendStringInfo(str, " WHERE %s", exprToSQL(u->cond, NULL, FALSE));
 		}
 	}
 	break;
@@ -288,7 +288,7 @@ parseBackFromItem(FromItem *f, StringInfo str)
 		if (j->cond && j->joinCond == JOIN_COND_ON)
 		{
 			appendStringInfo(str, " ON (%s)",
-                exprToSQL(copyObject(j->cond), NULL));
+                exprToSQL(copyObject(j->cond), NULL, FALSE));
 		}
 
 		if (j->cond && j->joinCond == JOIN_COND_USING)

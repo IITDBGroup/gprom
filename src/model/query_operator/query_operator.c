@@ -124,7 +124,7 @@ setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2)
 }
 
 static Schema *
-schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs)
+schemaFromExpressions(char *name, List *attributeNames, List *exprs, List *inputs)
 {
     List *dataTypes = NIL;
 
@@ -133,16 +133,16 @@ schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inpu
 	{
 		FOREACH(Node,n,exprs)
 		{
-			char *name = exprToSQL(n, NULL);
+			char *name = exprToSQL(n, NULL, FALSE); //TODO is that right for this usage?
 			attributeNames = appendToTailOfList(attributeNames, name);
 		}
 	}
-	
+
     FOREACH(Node,n,exprs)
 	{
         dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
 	}
-		
+
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
 
@@ -672,7 +672,7 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 	/* 	prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr)); */
 	/* } */
 	prj->projExprs = copyObject(projExprs);
-		
+
     if (input != NULL)
         prj->op.inputs = singleton(input);
     else

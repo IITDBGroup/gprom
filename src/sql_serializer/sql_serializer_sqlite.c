@@ -315,7 +315,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(Node,n,m->secondProj->projExprs)
         {
             updateAttributeNames(n, fac);
-            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL));
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
@@ -335,7 +335,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL)); //TODO
+            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL, FALSE)); //TODO
         }
         DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
 
@@ -353,7 +353,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            g = exprToSQL(expr, NULL);
+            g = exprToSQL(expr, NULL, FALSE);
 
             groupBys = appendToTailOfList(groupBys, g);
             appendStringInfo(groupBy, "%s", strdup(g));
@@ -378,8 +378,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             WindowOperator *wOp = (WindowOperator *) curOp;
             Node *expr = wOp->f;
 
-            DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
-																	(WindowOperator *) curOp), NULL));
+            DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
@@ -391,10 +390,10 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
 
             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
-																  (WindowOperator *) curOp), NULL));
+																  (WindowOperator *) curOp), NULL, FALSE));
 
             DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc(
-																   (WindowOperator *) curOp), NULL));
+																   (WindowOperator *) curOp), NULL, FALSE));
 
             curOp = OP_LCHILD(curOp);
         }
@@ -414,7 +413,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         SelectionOperator *sel = (SelectionOperator *) m->having;
         DEBUG_LOG("having condition %s", nodeToString(sel->cond));
         updateAggsAndGroupByAttrs(sel->cond, state);
-        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL));
+        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL, FALSE));
         DEBUG_LOG("having translation %s", having->data);
     }
 
@@ -444,7 +443,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             // is projection in query without aggregation
             else
                 updateAttributeNames(a, fac);
-            appendStringInfo(select, "%s%s", exprToSQL(a, NULL), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+            appendStringInfo(select, "%s%s", exprToSQL(a, NULL, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
         resultAttrs = attrNames;
@@ -546,7 +545,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         if (pos != 0)
             appendStringInfoString(from, ", ");
         value = getNthOfListP(t->values, pos++);
-        appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL), attrName);
+        appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName);
 
     }
     appendStringInfo(from, ") F%u", (*curFromItem)++);
@@ -624,10 +623,10 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             {
                 Constant* c = (Constant*) t->asOf;
                 if (c->constType == DT_LONG)
-                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf, NULL));
+                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf, NULL, FALSE));
                 else
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(",
-										  exprToSQL(t->asOf, NULL), ")");
+										  exprToSQL(t->asOf, NULL, FALSE), ")");
             }
             else
             {
@@ -635,7 +634,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                 Node* begin = (Node*) getNthOfListP(scns, 0);
                 Node* end = (Node*) getNthOfListP(scns, 1);
                 asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ",
-									  exprToSQL(begin, NULL), " AND ", exprToSQL(end, NULL));
+									  exprToSQL(begin, NULL, FALSE), " AND ", exprToSQL(end, NULL, FALSE));
             }
         }
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);

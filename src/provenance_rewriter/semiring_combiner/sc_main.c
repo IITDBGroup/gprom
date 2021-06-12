@@ -237,7 +237,7 @@ addSemiringCombiner(QueryOperator * result, Node *addExpr, Node *multExpr)
 
 	// projection for multiplication
 	appendToTailOfList(projExprs,expre);
-	appendToTailOfList(attrNames,replaceSubstr(exprToSQL(expre, NULL), " ", ""));
+	appendToTailOfList(attrNames,replaceSubstr(exprToSQL(expre, NULL, FALSE), " ", ""));
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExprs, (QueryOperator *)result, NIL, attrNames);
 	proj->provAttrs = singletonInt(getListLength(attrNames)-1);
 	switchSubtrees(result, proj);

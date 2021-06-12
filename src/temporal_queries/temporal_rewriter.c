@@ -43,8 +43,6 @@ static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int nu
 static List *getAttrRefsByNames (QueryOperator *op, List *attrNames);
 static void markTemporalAttrsAsProv (QueryOperator *op);
 
-#define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
-
 #define ONE 1
 #define ZERO 0
 #define INT_MINVAL -2000000000

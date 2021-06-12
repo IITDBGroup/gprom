@@ -250,7 +250,7 @@ extern Constant *makeConst(DataType dt);
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
-#define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL))
+#define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL, FALSE))
 extern Constant *minConsts(Constant *l, Constant *r, boolean nullIsMin);
 extern Constant *maxConsts(Constant *l, Constant *r, boolean nullIsMax);
 
@@ -274,7 +274,7 @@ extern DataType lcaType (DataType l, DataType r);
 extern DataType SQLdataTypeToDataType (char *dt);
 
 /* create an SQL expression from an expression tree */
-extern char *exprToSQL (Node *expr, HashMap *nestedSubqueries);
+extern char *exprToSQL(Node *expr, HashMap *nestedSubqueries, boolean trimAttrNames);
 
 /* create an Latex expression from an expression tree */
 extern char *exprToLatex (Node *expr);
