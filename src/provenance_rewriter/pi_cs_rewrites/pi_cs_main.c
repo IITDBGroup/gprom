@@ -837,58 +837,48 @@ rewritePI_CSJoin (JoinOperator *op, PICSRewriteState *state)
 static QueryOperator *
 rewritePI_CSNestingOp (NestingOperator *op, PICSRewriteState *state)
 {
-    DEBUG_LOG("REWRITE-PICS - Nesting");
-    QueryOperator *o = (QueryOperator *) op;
-    QueryOperator *lChild = OP_LCHILD(op);
-    QueryOperator *rChild = OP_RCHILD(op);
+	REWR_BINARY_SETUP_PI(NestingOperator);
+    QueryOperator *llChild = OP_LCHILD(op);
+    QueryOperator *rrChild = OP_RCHILD(op);
     List *rNormAttrs;
     int numLAttrs, numRAttrs;
 
-    numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
-    numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
+    numLAttrs = LIST_LENGTH(llChild->schema->attrDefs);
+    numRAttrs = LIST_LENGTH(rrChild->schema->attrDefs);
 
-    // get attributes from right input
-    rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
-    o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
 
     // rewrite children
 
     //add semiring options
-    addSCOptionToChild((QueryOperator *) op,lChild);
-    // if (!HAS_STRING_PROP(PROP...))
-    lChild = rewritePI_CSOperator(lChild, state);
+    addSCOptionToChild((QueryOperator *) op,llChild);
+    addSCOptionToChild((QueryOperator *) op,rrChild);
 
-    //add semiring options
-    addSCOptionToChild((QueryOperator *) op,rChild);
-    // if (!HAS_STRING_PROP(PROP...))
-    rChild = rewritePI_CSOperator(rChild, state);
+	REWR_BINARY_CHILDREN_PI();
+
+    // get attributes from right input
+    rNormAttrs = sublist(op->op.schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
+    rewr->schema->attrDefs = sublist(copyObject(rewr->schema->attrDefs), 0, numLAttrs - 1);
 
     // adapt schema for join op
 //    clearAttrsFromSchema((QueryOperator *) op);
 //    addNormalAttrsToSchema(o, lChild);
-    addProvenanceAttrsToSchema(o, lChild);
-    o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
-    addProvenanceAttrsToSchema(o, rChild);
-
-
+    addProvenanceAttrsToSchema(rewr, rewrLeftInput);
+    rewr->schema->attrDefs = CONCAT_LISTS(rewr->schema->attrDefs, rNormAttrs);
+    addProvenanceAttrsToSchema(rewr, rewrRightInput);
 
     // add projection to put attributes into order on top of join op
     List *projExpr = CONCAT_LISTS(
-            getNormalAttrProjectionExprs((QueryOperator *) op),
-            getProvAttrProjectionExprs((QueryOperator *) op));
+            getNormalAttrProjectionExprs((QueryOperator *) rewr),
+            getProvAttrProjectionExprs((QueryOperator *) rewr));
     ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
 
-    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
-    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
-    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) rewr);
+    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) rewr);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) rewr);
 
-    // SET PROP IS_REWRITTEN
-
-    LOG_RESULT("Rewritten Operator tree", op);
-
-
-	return (QueryOperator *) proj;
+	// set rewritten op
+	rewr = (QueryOperator *) proj;
+	LOG_RESULT_AND_RETURN(NestingOperator);
 }
 
 
@@ -1287,23 +1277,17 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
         joinCond = andExprList(comparisons);
         DEBUG_LOG("join cond: %s", beatify(nodeToString(joinCond)));
 
-        // rewrite children
-        lChild = rewritePI_CSOperator(lChild, state);
-        rChild = rewritePI_CSOperator(rChild, state);
-
         //restrcuture the tree
-    	JoinOperator *joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(lChild,rChild), NIL, NIL);
-    	removeParent(lChild, (QueryOperator *) op);
-    	addParent(lChild,(QueryOperator *)  joinOp);
-    	removeParent(rChild, (QueryOperator *) op);
-    	addParent(rChild, (QueryOperator *) joinOp);
+    	JoinOperator *joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(rewrLeftInput,rewrRightInput), NIL, NIL);
+    	addParent(rewrLeftInput,(QueryOperator *)  joinOp);
+    	addParent(rewrRightInput, (QueryOperator *) joinOp);
 
         // adapt schema for join op
         clearAttrsFromSchema((QueryOperator *) joinOp);
-        addNormalAttrsToSchema((QueryOperator *) joinOp, lChild);
-        addProvenanceAttrsToSchema((QueryOperator *) joinOp, lChild);
-        addNormalAttrsToSchema((QueryOperator *) joinOp, rChild);
-        addProvenanceAttrsToSchema((QueryOperator *) joinOp, rChild);
+        addNormalAttrsToSchema((QueryOperator *) joinOp, rewrLeftInput);
+        addProvenanceAttrsToSchema((QueryOperator *) joinOp, rewrLeftInput);
+        addNormalAttrsToSchema((QueryOperator *) joinOp, rewrRightInput);
+        addProvenanceAttrsToSchema((QueryOperator *) joinOp, rewrRightInput);
 
     	// add projection
         List *projExpr = CONCAT_LISTS(
@@ -1315,8 +1299,6 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
         addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) joinOp);
         addChildOperator((QueryOperator *) proj, (QueryOperator *) joinOp);
 
-    	switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
-
         rewr =  (QueryOperator *) joinOp;
     }
 	break;
@@ -1324,20 +1306,21 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
     {
     	JoinOperator *joinOp;
     	ProjectionOperator *projOp;
-    	QueryOperator *rewrLeftChild = rewritePI_CSOperator(
-			copyUnrootedSubtree(lChild), state);
-    	QueryOperator *rewrRightChild = rewritePI_CSOperator(
-			copyUnrootedSubtree(rChild), state); //TODO do not rewrite just get prov attrs
+		QueryOperator *diffCopy = getOrSetOpCopy(state->origOps, (QueryOperator *) op);
+
+		// remove copy of set operator from rewritten left inputs parents list
+		rewrLeftInput->parents = NIL;
+
     	// join provenance with rewritten right input
     	// create join condition
         Node *joinCond;
-        List *joinAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) op),
-                getQueryOperatorAttrNames(rewrLeftChild));
+        List *joinAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) diffCopy),
+                getQueryOperatorAttrNames(rewrLeftInput));
         makeNamesUnique(joinAttrs, NULL);
     	joinCond = NULL;
 
-        FORBOTH(AttributeReference, aL , aR, getNormalAttrProjectionExprs(lChild),
-                getNormalAttrProjectionExprs(rewrLeftChild))
+        FORBOTH(AttributeReference, aL , aR, getNormalAttrProjectionExprs(rewrLeftInput),
+                getNormalAttrProjectionExprs(rewrLeftInput))
         {
             aL->fromClauseItem = 0;
             aR->fromClauseItem = 1;
@@ -1347,32 +1330,31 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
                 joinCond = (Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR);
         }
 
-        joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(op, rewrLeftChild),
+        joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(diffCopy, rewrLeftInput),
                 NIL, joinAttrs);
-        joinOp->op.provAttrs = copyObject(rewrLeftChild->provAttrs);
-        SHIFT_INT_LIST(joinOp->op.provAttrs, getNumAttrs((QueryOperator *) op));
+        joinOp->op.provAttrs = copyObject(rewrLeftInput->provAttrs);
+        SHIFT_INT_LIST(joinOp->op.provAttrs, getNumAttrs((QueryOperator *) diffCopy));
 
     	// adapt schema using projection
-        List *rightProvAttrs = getProvenanceAttrDefs(rewrRightChild);
-//        List *rightProvNames = getOpProvenanceAttrNames(rewrRightChild);
+        List *rightProvAttrs = getProvenanceAttrDefs(rewrRightInput);
+//        List *rightProvNames = getOpProvenanceAttrNames(rewrRightInput);
 
-        List *projExpr = CONCAT_LISTS(getNormalAttrProjectionExprs((QueryOperator *)op),
+        List *projExpr = CONCAT_LISTS(getNormalAttrProjectionExprs((QueryOperator *) diffCopy),
                 getProvAttrProjectionExprs((QueryOperator *) joinOp));
         FOREACH(AttributeDef,a,rightProvAttrs)
             projExpr = appendToTailOfList(projExpr, createNullConst(a->dataType));
 
-        List *projAttrs = getQueryOperatorAttrNames((QueryOperator *) op);
+        List *projAttrs = getQueryOperatorAttrNames((QueryOperator *) diffCopy);
 
         projOp = createProjectionOp(projExpr, (QueryOperator *) joinOp, NIL, projAttrs);
-        projOp->op.provAttrs = copyObject(rewrLeftChild->provAttrs);
+        /* projOp->op.provAttrs = copyObject(rewrLeftInput->provAttrs); */
     	addProvenanceAttrsToSchema((QueryOperator *) projOp, OP_LCHILD(projOp));
-    	addProvenanceAttrsToSchema((QueryOperator *) projOp, rewrRightChild);
+    	addProvenanceAttrsToSchema((QueryOperator *) projOp, rewrRightInput);
     	addParent((QueryOperator *) joinOp, (QueryOperator *) projOp);
 
     	// switch original set diff with projection
-    	switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) projOp);
-    	addParent((QueryOperator *) op, (QueryOperator *) joinOp);
-    	addParent((QueryOperator *) rewrLeftChild, (QueryOperator *) joinOp);
+    	addParent((QueryOperator *) diffCopy, (QueryOperator *) joinOp);
+    	addParent((QueryOperator *) rewrLeftInput, (QueryOperator *) joinOp);
 
         rewr = (QueryOperator *) projOp;
     }

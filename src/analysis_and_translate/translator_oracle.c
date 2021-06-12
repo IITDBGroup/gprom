@@ -1634,7 +1634,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         else if (nsq->nestingType == NESTQ_SCALAR)
         {
-        		nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
+			nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
             dts = appendToTailOfListInt(dts, getAttrDefByPos(rChild, 0)->dataType);
         }
         else
