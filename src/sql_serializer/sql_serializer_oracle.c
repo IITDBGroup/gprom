@@ -1496,7 +1496,6 @@ serializeLimitStart(StringInfo str, LimitOperator *q)
     appendStringInfoString(str, "SELECT * FROM (");
 }
 
-
 static void
 serializeLimitEnd(StringInfo str, LimitOperator *q)
 {

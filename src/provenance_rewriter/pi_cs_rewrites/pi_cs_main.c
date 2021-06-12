@@ -1158,13 +1158,17 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op, PICSRewriteState
 static QueryOperator *
 rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
 {
-    DEBUG_LOG("REWRITE-PICS - Set");
-
+	REWR_BINARY_SETUP_PI(Set-Operation);
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
+	List *provInfo;
+
     //add semiring options
     addSCOptionToChild((QueryOperator *) op,lChild);
     addSCOptionToChild((QueryOperator *) op,rChild);
+
+	// rewrite children
+	REWR_BINARY_CHILDREN_PI();
 
     switch(op->setOpType)
     {
@@ -1176,26 +1180,21 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
         int lProvs;
         int i;
 
-        // rewrite children
-        lChild = rewritePI_CSOperator(lChild, state);
-        rChild = rewritePI_CSOperator(rChild, state);
-        lProvs = LIST_LENGTH(lChild->provAttrs);
+        // left provenance attributes
+        lProvs = LIST_LENGTH(rewrLeftInput->provAttrs);
 
         // create projection over left rewritten input
-        attNames = concatTwoLists(getQueryOperatorAttrNames(lChild), getOpProvenanceAttrNames(rChild));
+        attNames = concatTwoLists(getQueryOperatorAttrNames(rewrLeftInput),
+								  getOpProvenanceAttrNames(rewrRightInput));
 
         // createAttrRefs for attributes of left input
         i = 0;
-        FOREACH(AttributeDef,a,lChild->schema->attrDefs)
-        {
-            AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR, a->dataType);
-            projExprs = appendToTailOfList(projExprs, att);
-        }
-        provAttrs = copyObject(lChild->provAttrs);
+        provAttrs = copyObject(rewrLeftInput->provAttrs);
+		projExprs = getAllAttrProjectionExprs(rewrLeftInput);
 
         // create NULL expressions for provenance attrs of right input
-        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rChild))
+		i = LIST_LENGTH(projExprs);
+		FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrRightInput))
         {
             Constant *expr;
 
@@ -1209,19 +1208,19 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
                 nodeToString(provAttrs));
 
         ProjectionOperator *projLeftChild = createProjectionOp(projExprs,
-                lChild, NIL, attNames);
+                rewrLeftInput, NIL, attNames);
         ((QueryOperator *) projLeftChild)->provAttrs = provAttrs;
 
         // create projection over right rewritten input
         provAttrs = NIL;
         projExprs = NIL;
-        attNames = CONCAT_LISTS(getNormalAttrNames(rChild),
-                getOpProvenanceAttrNames(lChild),
-                getOpProvenanceAttrNames(rChild));
+        attNames = CONCAT_LISTS(getNormalAttrNames(rewrRightInput),
+                getOpProvenanceAttrNames(rewrLeftInput),
+                getOpProvenanceAttrNames(rewrRightInput));
 
         // create AttrRefs for normal attributes of right input
         i = 0;
-        FOREACH(AttributeDef,a,getNormalAttrs(rChild))
+        FOREACH(AttributeDef,a,getNormalAttrs(rewrRightInput))
         {
             AttributeReference *att;
             att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR, a->dataType);
@@ -1229,7 +1228,7 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
         }
 
         // create NULL expressions for provenance attrs of left input
-        FOREACH(AttributeDef,a, getProvenanceAttrDefs(lChild))
+        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrLeftInput))
         {
             Constant *expr;
 
@@ -1239,7 +1238,7 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
         }
 
         // create AttrRefs for provenance attrs of right input
-        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rChild))
+        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrRightInput))
         {
             AttributeReference *att;
             att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, INVALID_ATTR, a->dataType);
@@ -1252,19 +1251,22 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
                 nodeToString(projExprs), stringListToString(attNames),
                 nodeToString(provAttrs));
         ProjectionOperator *projRightChild = createProjectionOp(projExprs,
-                rChild, NIL, attNames);
+                rewrRightInput, NIL, attNames);
         ((QueryOperator *) projRightChild)->provAttrs = provAttrs;
 
     	// make projections of rewritten inputs the direct children of the union operation
-        switchSubtrees(lChild, (QueryOperator *) projLeftChild);
-        switchSubtrees(rChild, (QueryOperator *) projRightChild);
-        lChild->parents = singleton(projLeftChild);
-        rChild->parents = singleton(projRightChild);
+        /* switchSubtrees(rewrLeftInput, (QueryOperator *) projLeftChild); */
+        /* switchSubtrees(rewrRightInput, (QueryOperator *) projRightChild); */
+        rewrLeftInput->parents = singleton(projLeftChild);
+        rewrRightInput->parents = singleton(projRightChild);
+		rewr->inputs = NIL;
+		addChildOperator(rewr, (QueryOperator *) projLeftChild);
+		addChildOperator(rewr, (QueryOperator *) projRightChild);
 
     	// adapt schema of union itself, we can get full provenance attributes from left input
-    	addProvenanceAttrsToSchema((QueryOperator *) op, (QueryOperator *) projLeftChild);
-        return (QueryOperator *) op;
+    	addProvenanceAttrsToSchema((QueryOperator *) rewr, (QueryOperator *) projLeftChild);
     }
+	break;
     case SETOP_INTERSECTION:
     {
         //create join condition
@@ -1315,8 +1317,9 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
 
     	switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
 
-    	return (QueryOperator *) joinOp;
+        rewr =  (QueryOperator *) joinOp;
     }
+	break;
     case SETOP_DIFFERENCE:
     {
     	JoinOperator *joinOp;
@@ -1371,12 +1374,21 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
     	addParent((QueryOperator *) op, (QueryOperator *) joinOp);
     	addParent((QueryOperator *) rewrLeftChild, (QueryOperator *) joinOp);
 
-    	return (QueryOperator *) projOp;
+        rewr = (QueryOperator *) projOp;
     }
+	break;
     default:
     	break;
     }
-    return NULL;
+
+	// provenance info is concatenation of child prov infos
+	provInfo = CONCAT_LISTS(
+		(List *) GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS),
+		(List *) GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS));
+
+	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+
+	LOG_RESULT_AND_RETURN(SetOperation);
 }
 
 static QueryOperator *
