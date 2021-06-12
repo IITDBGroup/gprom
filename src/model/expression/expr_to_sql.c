@@ -68,7 +68,7 @@ attributeReferenceToSQL(StringInfo str, AttributeReference *node, HashMap *map, 
 		{
 			if(trimAttrNames)
 			{
-				appendStringInfoString(str, getHeadOfListP(splitString(node->name, ".")));
+				appendStringInfoString(str, getTailOfListP(splitString(strdup(node->name), ".")));
 			}
 			else
 			{
@@ -80,7 +80,7 @@ attributeReferenceToSQL(StringInfo str, AttributeReference *node, HashMap *map, 
 	{
 		if(trimAttrNames)
 		{
-			appendStringInfoString(str, getHeadOfListP(splitString(node->name, ".")));
+			appendStringInfoString(str, getTailOfListP(splitString(strdup(node->name), ".")));
 		}
 		else
 		{

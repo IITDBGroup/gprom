@@ -711,30 +711,27 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
 //    }
 }
 
+//TODO this may fail for regular PI-CS if there are duplicates, we should throw an exception
 static QueryOperator *
-rewritePI_CSLimit (LimitOperator *op, PICSRewriteState *state)
+rewritePI_CSLimit(LimitOperator *op, PICSRewriteState *state)
 {
-    ASSERT(OP_LCHILD(op));
-
-    DEBUG_LOG("REWRITE-PICS - Limit");
-    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+	REWR_UNARY_SETUP_PI(Limit);
 
     //add semiring options
     addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
 
-    // rewrite child first
-    rewritePI_CSOperator(OP_LCHILD(op), state);
+	// rewrite child first
+	REWR_UNARY_CHILD_PI();
 
     // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-    LOG_RESULT("Rewritten Operator tree", op);
-    return (QueryOperator *) op;
+	LOG_RESULT_AND_RETURN(Limit);
 }
 
 
 static QueryOperator *
-rewritePI_CSSelection (SelectionOperator *op, PICSRewriteState *state)
+rewritePI_CSSelection(SelectionOperator *op, PICSRewriteState *state)
 {
 	REWR_UNARY_SETUP_PI(Selection);
 
@@ -903,20 +900,21 @@ rewritePI_CSNestingOp (NestingOperator *op, PICSRewriteState *state)
 static QueryOperator *
 rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 {
+	REWR_UNARY_SETUP_PI(Aggregation);
     JoinOperator *joinProv;
     ProjectionOperator *proj;
-    QueryOperator *aggInput;
     QueryOperator *origAgg;
+	QueryOperator *curOp;
     int numGroupAttrs = LIST_LENGTH(op->groupBy);
 
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
-    // copy aggregation input
-    origAgg = (QueryOperator *) op;
-    aggInput = copyUnrootedSubtree(OP_LCHILD(op));
-    // rewrite aggregation input copy
+    // copy aggregation
+    origAgg = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);;
 
-    aggInput = rewritePI_CSOperator(aggInput, state);
+    // rewrite aggregation input copy
+	rewrInput = rewritePI_CSOperator(OP_LCHILD(op), state);
+	curOp = rewrInput;
 
     // add projection including group by expressions if necessary
     if(op->groupBy != NIL)
@@ -934,15 +932,15 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
             LC_P_VAL(lc) = CONCAT_STRINGS("_P_SIDE_", name);
         }
 
-        attrNames = CONCAT_LISTS(gbNames, getOpProvenanceAttrNames(aggInput));
-        groupByProjExprs = CONCAT_LISTS(groupByProjExprs, getProvAttrProjectionExprs(aggInput));
+        attrNames = CONCAT_LISTS(gbNames, getOpProvenanceAttrNames(curOp));
+        groupByProjExprs = CONCAT_LISTS(groupByProjExprs, getProvAttrProjectionExprs(curOp));
 
         groupByProj = createProjectionOp(groupByProjExprs,
-                        aggInput, NIL, attrNames);
-        CREATE_INT_SEQ(provAttrs, numGroupAttrs, numGroupAttrs + getNumProvAttrs(aggInput) - 1,1);
+                        curOp, NIL, attrNames);
+        CREATE_INT_SEQ(provAttrs, numGroupAttrs, numGroupAttrs + getNumProvAttrs(curOp) - 1,1);
         groupByProj->op.provAttrs = provAttrs;
-        aggInput->parents = singleton(groupByProj);
-        aggInput = (QueryOperator *) groupByProj;
+        curOp->parents = singleton(groupByProj);
+        curOp = (QueryOperator *) groupByProj;
     }
 
     // create join condition
@@ -973,15 +971,15 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 	    joinCond = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(1), createConstInt(1)));
 
     // create join operator
-    List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
-    joinProv = createJoinOp(joinT, joinCond, LIST_MAKE(origAgg, aggInput), NIL,
+    List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(curOp));
+    joinProv = createJoinOp(joinT, joinCond, LIST_MAKE(origAgg, curOp), NIL,
             joinAttrNames);
-    joinProv->op.provAttrs = copyObject(aggInput->provAttrs);
+    joinProv->op.provAttrs = copyObject(curOp->provAttrs);
     FOREACH_LC(lc,joinProv->op.provAttrs)
         lc->data.int_value += getNumAttrs(origAgg);
 
 	// create projection expressions for final projection
-    List *projAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getOpProvenanceAttrNames(aggInput));
+    List *projAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getOpProvenanceAttrNames(curOp));
     List *projExprs = CONCAT_LISTS(getNormalAttrProjectionExprs(origAgg),
                                 getProvAttrProjectionExprs((QueryOperator *) joinProv));
 
@@ -992,13 +990,17 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 	        getNumNormalAttrs((QueryOperator *) origAgg) + getNumProvAttrs((QueryOperator *) joinProv) - 1,1);
 
 	// switch provenance computation with original aggregation
-	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+	/* switchSubtrees((QueryOperator *) op, (QueryOperator *) proj); */
     addParent(origAgg, (QueryOperator *) joinProv);
-    addParent(aggInput, (QueryOperator *) joinProv);
+    addParent(curOp, (QueryOperator *) joinProv);
 
     // adapt schema for final projection
-    DEBUG_NODE_BEATIFY_LOG("Rewritten Operator tree", proj);
-    return (QueryOperator *) proj;
+	rewr = (QueryOperator *) proj;
+
+	// copy provenance table and attr info
+	COPY_PROV_INFO(rewr,rewrInput);
+
+	LOG_RESULT_AND_RETURN(Aggregation);
 }
 
 
@@ -1447,11 +1449,13 @@ rewritePI_CSTableAccess(TableAccessOperator *op, PICSRewriteState *state)
 static QueryOperator *
 rewritePI_CSConstRel(ConstRelOperator *op, PICSRewriteState *state)
 {
-//    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
+	List *provAttrsOnly = NIL;
+	List *provInfo;
     char *newAttrName;
-
+	ConstRelOperator *inCopy = (ConstRelOperator *) shallowCopyQueryOperator((QueryOperator *) op);
+	QueryOperator *rewr;
     int relAccessCount = increaseRefCount(state->provCounts, "query");
     int cnt = 0;
 
@@ -1470,6 +1474,7 @@ rewritePI_CSConstRel(ConstRelOperator *op, PICSRewriteState *state)
     {
         newAttrName = getProvenanceAttrName("query", attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
+		provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(strdup(newAttrName)));
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
@@ -1487,41 +1492,46 @@ rewritePI_CSConstRel(ConstRelOperator *op, PICSRewriteState *state)
     newpo->op.provAttrs = newProvPosList;
 
     // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+    //switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
 
     // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) inCopy);
+	rewr = (QueryOperator *) newpo;
 
-    DEBUG_LOG("rewrite const rel operator: %s", operatorToOverviewString((Node *) newpo));
-    return (QueryOperator *) newpo;
+	// prov info (key: TABLE_NAME, value: (ATTRIBUTES))
+	provInfo = singleton(createNodeKeyValue((Node *) createConstString("query"),
+										    (Node *) provAttrsOnly));
+	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+
+	LOG_RESULT_AND_RETURN(ConstRel);
 }
 
 static QueryOperator *
 rewritePI_CSDuplicateRemOp(DuplicateRemoval *op, PICSRewriteState *state)
 {
     QueryOperator *child = OP_LCHILD(op);
-    QueryOperator *theOp = (QueryOperator *) op;
+	QueryOperator *rewr;
+	DEBUG_LOG("REWRITE-PICS - DuplicateRemoval");
 
-    // remove duplicate removal op
-    removeParentFromOps(singleton(child), theOp);
-    switchSubtreeWithExisting(theOp, child);
+	rewr = rewritePI_CSOperator(child, state);
 
-    return rewritePI_CSOperator(child, state);
+	LOG_RESULT_AND_RETURN(DuplicateRemoval);
 }
 
 static QueryOperator *
 rewritePI_CSOrderOp(OrderOperator *op, PICSRewriteState *state)
 {
-    QueryOperator *child = OP_LCHILD(op);
+	REWR_UNARY_SETUP_PI(OrderBy);
 
     // rewrite child
-    rewritePI_CSOperator(child, state);
+	REWR_UNARY_CHILD_PI();
 
     // adapt provenance attr list and schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, child);
+    addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrInput);
 
-    return (QueryOperator *) op;
+	LOG_RESULT_AND_RETURN(OrderBy);
 }
+
 void
 recursiveAppendNestedAttr(JsonColInfoItem *attr, List **provAttr, List **newDef, List **provList, int *cnt, JsonTableOperator *op)
 {

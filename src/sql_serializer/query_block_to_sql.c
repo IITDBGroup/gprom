@@ -55,17 +55,17 @@ nodeToSQL(StringInfo str, Node *node)
 static void
 blockToSQL(StringInfo str, QueryBlock *q)
 {
-    appendStringInfo(str, "SELECT %s", exprToSQL((Node *) q->selectClause, NULL));
+    appendStringInfo(str, "SELECT %s", exprToSQL((Node *) q->selectClause, NULL, FALSE));
     if (q->fromClause)
         fromToSQL(str, q->fromClause);
     if (q->whereClause)
-        appendStringInfo(str, " WHERE %s", exprToSQL(q->whereClause, NULL));
+        appendStringInfo(str, " WHERE %s", exprToSQL(q->whereClause, NULL, FALSE));
     if (q->groupByClause)
-        appendStringInfo(str, " GROUP BY %s", exprToSQL((Node *) q->groupByClause, NULL));
+        appendStringInfo(str, " GROUP BY %s", exprToSQL((Node *) q->groupByClause, NULL, FALSE));
     if (q->havingClause)
-        appendStringInfo(str, " HAVING %s", exprToSQL(q->havingClause, NULL));
+        appendStringInfo(str, " HAVING %s", exprToSQL(q->havingClause, NULL, FALSE));
     if (q->orderByClause)
-        appendStringInfo(str, " ORDER BY %s", exprToSQL((Node *) q->orderByClause, NULL));
+        appendStringInfo(str, " ORDER BY %s", exprToSQL((Node *) q->orderByClause, NULL, FALSE));
 }
 
 static void
