@@ -75,7 +75,8 @@ static void serializeSampleClause(StringInfo from, SampleClauseOperator* s, int*
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac);
 
-static void serializeLimit(StringInfo str, LimitOperator *q);
+static void serializeLimitStart(StringInfo str, LimitOperator *q);
+static void serializeLimitEnd(StringInfo str, LimitOperator *q);
 static void serializeOrder (OrderOperator *q, StringInfo order, FromAttrsContext *fac);
 static void serializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac);
 static boolean updateAttributeNamesOracle(Node *node, FromAttrsContext *fac);
@@ -607,6 +608,18 @@ serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
                         matchInfo->windowRoot = (WindowOperator *) cur;
                         state = MATCH_WINDOW;
                         break;
+				    case T_LimitOperator:
+						if (state == MATCH_START)
+                        {
+							matchInfo->limitOffset = (LimitOperator *) cur;
+							state = MATCH_LIMIT;
+                        }
+                        else
+                        {
+                            matchInfo->fromRoot = cur;
+                            state = MATCH_NEXTBLOCK;
+                        }
+						break;
                     default:
                         matchInfo->fromRoot = cur;
                         state = MATCH_NEXTBLOCK;
@@ -746,7 +759,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
     // translate each clause
     DEBUG_LOG("serializeFrom");
 
-    //sine want to use fac->fromAttrs as a local variable in serializeFrom
+    // since want to use fac->fromAttrs as a local variable in serializeFrom
     FromAttrsContext *cfac = copyFromAttrsContext(fac);
     cfac->fromAttrs = NIL;
     serializeFrom(matchInfo->fromRoot, fromString, cfac);
@@ -773,6 +786,12 @@ serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
+
+
+	if (matchInfo->limitOffset != NULL)
+	{
+		serializeLimitStart(str, matchInfo->limitOffset);
+	}
 
     if (STRINGLEN(selectString) > 0)
 	{
@@ -807,7 +826,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
 
 	if (matchInfo->limitOffset != NULL)
 	{
-		serializeLimit(str, matchInfo->limitOffset);
+		serializeLimitEnd(str, matchInfo->limitOffset);
 	}
 
     FREE(matchInfo);
@@ -819,7 +838,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
  * Translate a FROM clause
  */
 static void
-serializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac)
+serializeFrom(QueryOperator *q, StringInfo from, FromAttrsContext *fac)
 {
     int curFromItem = 0, attrOffset = 0;
 
@@ -828,7 +847,7 @@ serializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac)
 }
 
 static void
-ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedcount)
+ConstructNestedJsonColItems(JsonColInfoItem *col,StringInfo *from,int *nestedcount)
 {
     if(col->forOrdinality)
     {
@@ -1472,12 +1491,18 @@ serializeOrder (OrderOperator *q, StringInfo order, FromAttrsContext *fac)
 }
 
 static void
-serializeLimit(StringInfo str, LimitOperator *q)
+serializeLimitStart(StringInfo str, LimitOperator *q)
+{
+    appendStringInfoString(str, "SELECT * FROM (");
+}
+
+
+static void
+serializeLimitEnd(StringInfo str, LimitOperator *q)
 {
 	char *limit = "";
 	char *offset = "";
 
-	prependStringInfo(str, "SELECT * FROM (");
 	appendStringInfoString(str, "\n) F0 WHERE ");
 
 	if (q->limitExpr)

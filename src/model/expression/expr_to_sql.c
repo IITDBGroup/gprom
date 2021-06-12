@@ -52,16 +52,16 @@ static void xmlConstantToSQL (StringInfo str, Node *node);
 static void
 attributeReferenceToSQL(StringInfo str, AttributeReference *node, HashMap *map, boolean trimAttrNames)
 {
-	DEBUG_LOG("attributeReferenceToSQL %s", node->name);
+    TRACE_LOG("attributeReferenceToSQL %s", node->name);
 	if(map != NULL && strstr(node->name, "\"nesting_eval_") != NULL)
 	{
 		char *extractName = strchr(strdup(node->name), '"');
-		DEBUG_LOG("Extract Name %s", extractName);
+		TRACE_LOG("Extract Name %s", extractName);
 
 		if(hasMapStringKey(map, extractName))
 		{
 			char *sql = STRING_VALUE(getMapString(map, extractName));
-			DEBUG_LOG("Nested subquery: %s", sql);
+			TRACE_LOG("Nested subquery: %s", sql);
 			appendStringInfoString(str, sql);
 		}
 		else

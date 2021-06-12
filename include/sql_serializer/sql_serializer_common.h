@@ -47,7 +47,7 @@ typedef struct QueryBlockMatch {
 
 #define OUT_BLOCK_MATCH(_level,_m,_message) \
     do { \
-        _level ## _LOG ("MATCH INFO: %s", _message); \
+        _level ## _LOG ("================================================================================\n\t\tMATCH INFO: %s\n================================================================================", _message); \
         _level ## _LOG ("distinct: %s", operatorToOverviewString((Node *) _m->distinct)); \
         _level ## _LOG ("firstProj: %s", operatorToOverviewString((Node *) _m->firstProj)); \
         _level ## _LOG ("having: %s", operatorToOverviewString((Node *) _m->having)); \
@@ -58,6 +58,7 @@ typedef struct QueryBlockMatch {
         _level ## _LOG ("windowRoot: %s", operatorToOverviewString((Node *) _m->windowRoot)); \
         _level ## _LOG ("orderBy: %s", operatorToOverviewString((Node *) _m->orderBy)); \
 		_level ## _LOG ("limitOffset: %s", operatorToOverviewString((Node *) _m->limitOffset)); \
+		_level ## _LOG ("============================================================"); \
     } while(0)
 
 typedef struct TemporaryViewMap {
