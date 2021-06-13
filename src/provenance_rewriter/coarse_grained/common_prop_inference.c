@@ -34,8 +34,8 @@
 /* consts */
 #define RIGHT_ATTR_PREFIX backendifyIdentifier("R")
 
-static boolean printEXPRProVisitor (QueryOperator *op, void *context);
-static boolean printPREDProVisitor (QueryOperator *op, void *context);
+static boolean printEXPRProVisitor(QueryOperator *op, void *context);
+static boolean printPREDProVisitor(QueryOperator *op, void *context);
 
 
 /*

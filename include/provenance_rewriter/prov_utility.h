@@ -41,6 +41,12 @@
 	DEBUG_LOG("REWRITE-" #rewrite_method  " - " #optype);	\
     DEBUG_NODE_BEATIFY_LOG("Operator tree", op)
 
+#define REWR_NULLARY()											\
+	do															\
+	{															\
+		rewr = shallowCopyQueryOperator((QueryOperator *) op);	\
+	} while(0)
+
 #define REWR_UNARY_CHILD(_method)								\
 	do															\
 	{															\

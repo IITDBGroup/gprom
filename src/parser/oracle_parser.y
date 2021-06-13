@@ -938,34 +938,34 @@ strConstList:
 attrRangeList:
          '(' delimIdentifier intConstList optionalCoarseGrainedPara ')'
          {
-            	List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);
-            	if($4 != NULL)
-            		l = appendToTailOfList(l, (Node *) $4);
+			 List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);
+			 if($4 != NULL)
+				 l = appendToTailOfList(l, (Node *) $4);
 
-            $$ = singleton(l);
+			 $$ = singleton(l);
          }
          |
          '(' delimIdentifier strConstList optionalCoarseGrainedPara ')'
          {
-            List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);
-            if($4 != NULL)
-            		l = appendToTailOfList(l, (Node *) $4);
+			 List *l = LIST_MAKE((Node *) createConstString($2), (Node *) $3);
+			 if($4 != NULL)
+				 l = appendToTailOfList(l, (Node *) $4);
 
-            $$ = singleton(l);
+			 $$ = singleton(l);
          }
          | attrRangeList '(' delimIdentifier intConstList optionalCoarseGrainedPara ')'
          {
-            	List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);
-            	if($5 != NULL)
-            		l = appendToTailOfList(l, (Node *) $5);
-            $$ = appendToTailOfList($1, l);
+			 List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);
+			 if($5 != NULL)
+				 l = appendToTailOfList(l, (Node *) $5);
+			 $$ = appendToTailOfList($1, l);
          }
          | attrRangeList '(' delimIdentifier strConstList optionalCoarseGrainedPara ')'
          {
-            	List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);
-            	if($5 != NULL)
-            		l = appendToTailOfList(l, (Node *) $5);
-            $$ = appendToTailOfList($1, l);
+			 List *l = LIST_MAKE((Node *) createConstString($3), (Node *) $4);
+			 if($5 != NULL)
+				 l = appendToTailOfList(l, (Node *) $5);
+			 $$ = appendToTailOfList($1, l);
          }
 	;
 
@@ -1051,8 +1051,8 @@ hashList:
             if($6 == NULL)
             {
              	//l = concatTwoLists(stringListToConstList($3),singleton(createConstInt($5)));
-            		l = LIST_MAKE(k1,k2,k3);
-             }
+				l = LIST_MAKE(k1,k2,k3);
+			}
             else
             {
                 //l = CONCAT_LISTS(stringListToConstList($3),singleton(createConstInt($5)), singleton($6));
@@ -1076,7 +1076,7 @@ hashList:
             KeyValue *k3 = createNodeKeyValue((Node *) createConstString("HVALUE"),
             									(Node *) createConstInt($7));
             if($8 == NULL)
-            		l = LIST_MAKE(k1,k2,k3);
+				l = LIST_MAKE(k1,k2,k3);
             	else
             	{
             	    KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"),
@@ -1085,8 +1085,7 @@ hashList:
             	}
 
             //List *l = concatTwoLists(stringListToConstList($5),singleton(createConstInt($7)));
-            KeyValue *k = createNodeKeyValue((Node *) createConstString($3),
-            									(Node *) l);
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($3), (Node *) l);
             $$ = appendToTailOfList($1, k);
        }
     ;
