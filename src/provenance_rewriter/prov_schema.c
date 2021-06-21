@@ -28,9 +28,6 @@
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
-/* consts */
-#define PROV_ATTR_PREFIX backendifyIdentifier("PROV_")
-
 /* data types */
 typedef struct ProvSchemaInfo
 {
@@ -57,7 +54,7 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
             ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
 
 			pSchema->rels = NEW_MAP(Constant,Constant);
-			
+
             findBaserelationsVisitor((Node *) q, pSchema);
             return pSchema->provAttrs;
         }
@@ -90,7 +87,7 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
 }
 
 List *
-getProvenanceAttrNames (char *table, List *attrs, int count)
+getProvenanceAttrNames(char *table, List *attrs, int count)
 {
      List *result = NIL;
 
@@ -101,13 +98,30 @@ getProvenanceAttrNames (char *table, List *attrs, int count)
 }
 
 char *
-getProvenanceAttrName (char *table, char *attr, int count)
+getProvenanceAttrName(char *table, char *attr, int count)
 {
     char *countStr = CALLOC(1,128);
     if (count > 0)
         sprintf(countStr,"_%u", count);
     return CONCAT_STRINGS(PROV_ATTR_PREFIX, escapeUnderscore(table), countStr, "_",
             escapeUnderscore(attr));
+}
+
+List *
+getCoarseGrainedAttrNames(char *table, List *attrs, int count)
+{
+     List *result = NIL;
+
+     FOREACH(char,a,attrs)
+         result = appendToTailOfList(result, getCoarseGrainedAttrName(table, a, count));
+
+     return result;
+}
+
+char *
+getCoarseGrainedAttrName(char *table, char *attr, int count)
+{
+    return CONCAT_STRINGS(PROV_ATTR_PREFIX, strdup(table), "_", strdup(attr), gprom_itoa(count));
 }
 
 static char *
@@ -175,7 +189,7 @@ int
 increaseRefCount(HashMap *provCounts, char *prefix)
 {
 	int cnt;
-	
+
 	if (MAP_HAS_STRING_KEY(provCounts, prefix))
 	{
 		Constant *cntC = (Constant *) MAP_GET_STRING(provCounts, prefix);
@@ -186,9 +200,9 @@ increaseRefCount(HashMap *provCounts, char *prefix)
 	}
 
 	cnt = INT_VALUE(MAP_GET_STRING(provCounts, prefix));
-	
+
 	DEBUG_LOG("count for <%s> is <%u>", prefix, cnt);
-	
+
 	return cnt;
 }
 
@@ -203,7 +217,7 @@ copyProvInfo(QueryOperator *to, QueryOperator *from)
 {
 	SET_STRING_PROP(
 		to,
-		PROP_PROVENANCE_TABLE_ATTRS,					
+		PROP_PROVENANCE_TABLE_ATTRS,
 		GET_STRING_PROP(from, PROP_PROVENANCE_TABLE_ATTRS));
 }
 
@@ -218,7 +232,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         pSchema->dts = NIL;
 		pSchema->views = NEW_MAP(Constant,Node);
 		pSchema->rels = NEW_MAP(Constant,Constant);
-		
+
         findTablerefVisitor((Node *) stmt->query, pSchema);
         /*
          * if stmt->query is WithStmt
@@ -452,7 +466,7 @@ findTablerefVisitorForCoarse (Node *node, ProvSchemaInfo *status)
             char *tableName = r->tableId;
 
             status->provAttrs = appendToTailOfList(status->provAttrs,
-                		 CONCAT_STRINGS("PROV_", strdup(tableName)));
+                		 CONCAT_STRINGS(PROV_ATTR_PREFIX, strdup(tableName)));
 
             status->dts = appendToTailOfListInt(status->dts, DT_STRING);
         }

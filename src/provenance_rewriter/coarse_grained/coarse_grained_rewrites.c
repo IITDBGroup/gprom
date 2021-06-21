@@ -23,12 +23,20 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "provenance_rewriter/prov_schema.h"
 
-static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
 #define MAX_NUM_RANGE 10000
 
+typedef struct AggLevelContext
+{
+	HashMap *opCnts;
+} AggLevelContext;
+
+static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
+static HashMap *bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, AggLevelContext *ctx);
+
 QueryOperator *
-addTopAggForCoarse (QueryOperator *op)
+addTopAggForCoarse(QueryOperator *op)
 {
     List *provAttr = getOpProvenanceAttrNames(op);
     List *projExpr = NIL;
@@ -36,7 +44,7 @@ addTopAggForCoarse (QueryOperator *op)
     List *provPosList = NIL;
 //    List *opParents = op->parents;
 
-    HashMap *map	 = (HashMap *) GET_STRING_PROP(op, PROP_LEVEL_AGGREGATION_MARK);
+    HashMap *map = (HashMap *) getHeadOfListP((List *) GET_STRING_PROP(op, PROP_LEVEL_AGGREGATION_MARK));
     FOREACH(char, c, provAttr)
     {
         List *levelandNumFrags =  (List *) getMapString(map, c);
@@ -47,31 +55,31 @@ addTopAggForCoarse (QueryOperator *op)
         FunctionCall *f = NULL;
         if(getBackend() == BACKEND_ORACLE)
         {
-        		f = createFunctionCall ("dbgroup.BITORAGG", singleton(a));
-        		projExpr = appendToTailOfList(projExpr, f);
+			f = createFunctionCall(ORACLE_SKETCH_AGG_FUN, singleton(a));
+			projExpr = appendToTailOfList(projExpr, f);
         }
         else if(getBackend() == BACKEND_POSTGRES)
         {
-        		//if(getBoolOption(OPTION_PS_SET_BITS))
-        		if(level == 0)
-        		{
-        			f = createFunctionCall ("set_bits", singleton(a));
-        			CastExpr *c = createCastExprOtherDT((Node *) f, "bit", numFrags);
-        			projExpr = appendToTailOfList(projExpr, c);
-        		}
-        		else
-        		{
-        			f = createFunctionCall ("fast_bit_or", singleton(a));
-        			projExpr = appendToTailOfList(projExpr, f);
-        		}
+			//if(getBoolOption(OPTION_PS_SET_BITS))
+			if(level == 0)
+			{
+				f = createFunctionCall(POSTGRES_SET_BITS_FUN, singleton(a));
+				CastExpr *c = createCastExprOtherDT((Node *) f, POSTGRES_BIT_DT, numFrags, DT_STRING);
+				projExpr = appendToTailOfList(projExpr, c);
+			}
+			else
+			{
+				f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
+				projExpr = appendToTailOfList(projExpr, f);
+			}
         }
 
         //FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
         //projExpr = appendToTailOfList(projExpr, f);
-        cnt ++;
+        cnt++;
     }
 
-    ProjectionOperator *newOp = createProjectionOp(projExpr, op, NIL, provAttr);
+    AggregationOperator *newOp = createAggregationOp(projExpr, NIL, op, NIL, provAttr);
     newOp->op.provAttrs = provPosList;
 
     switchSubtrees((QueryOperator *) op, (QueryOperator *) newOp);
@@ -83,93 +91,91 @@ addTopAggForCoarse (QueryOperator *op)
 
 
 void
-markTableAccessAndAggregation (QueryOperator *op, Node *psPara)
+markTableAccessAndAggregation(QueryOperator *op, Node *psPara)
 {
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		if(isA(o,TableAccessOperator))
+		{
+			DEBUG_LOG("mark tableAccessOperator.");
 
-      FOREACH(QueryOperator, o, op->inputs)
-      {
-           if(isA(o,TableAccessOperator))
-           {
-               DEBUG_LOG("mark tableAccessOperator.");
+			/* mark coarsePara info */
+			SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
 
-               /* mark coarsePara info */
-               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
+		}
+		if(isA(o,AggregationOperator))
+		{
+			DEBUG_LOG("mark aggregationOperator.");
+			SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+			//SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+		}
 
-           }
-           if(isA(o,AggregationOperator))
-           {
-               DEBUG_LOG("mark aggregationOperator.");
-               SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
-               //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
-           }
-
-           markTableAccessAndAggregation(o, psPara);
-      }
+		markTableAccessAndAggregation(o, psPara);
+	}
 }
 
 void
-autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara)
+autoMarkTableAccessAndAggregation(QueryOperator *op, Node *psPara)
 {
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		if(isA(o,TableAccessOperator))
+		{
+			// TableAccessOperator *tableOp = (TableAccessOperator *) o;
+			DEBUG_LOG("mark tableAccessOperator.");
 
-      FOREACH(QueryOperator, o, op->inputs)
-      {
-           if(isA(o,TableAccessOperator))
-           {
-        	   	  // TableAccessOperator *tableOp = (TableAccessOperator *) o;
-               DEBUG_LOG("mark tableAccessOperator.");
+			/* mark coarsePara info */
+			SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
+			//AUTO_HISTOGRAM_TABLEACCESS_MARK
+		}
+		if(isA(o,AggregationOperator))
+		{
+			DEBUG_LOG("mark aggregationOperator.");
+			SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+			//SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+		}
 
-               /* mark coarsePara info */
-               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
-               //AUTO_HISTOGRAM_TABLEACCESS_MARK
-           }
-           if(isA(o,AggregationOperator))
-           {
-               DEBUG_LOG("mark aggregationOperator.");
-               SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
-               //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
-           }
-
-           autoMarkTableAccessAndAggregation(o, psPara);
-      }
-}
-
-
-void
-markUseTableAccessAndAggregation (QueryOperator *op, Node *psPara)
-{
-      FOREACH(QueryOperator, o, op->inputs)
-      {
-           if(isA(o,TableAccessOperator))
-           {
-               DEBUG_LOG("mark use tableAccessOperator.");
-               SET_STRING_PROP(o, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
-           }
-           if(isA(o,AggregationOperator))
-           {
-               DEBUG_LOG("mark aggregationOperator.");
-               SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
-               SET_BOOL_STRING_PROP(o, USE_PROP_COARSE_GRAINED_AGGREGATION_MARK);
-               //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
-           }
-           markUseTableAccessAndAggregation(o,psPara);
-      }
+		autoMarkTableAccessAndAggregation(o, psPara);
+	}
 }
 
 
 void
-markAutoUseTableAccess (QueryOperator *op, HashMap *psMap)
+markUseTableAccessAndAggregation(QueryOperator *op, Node *psPara)
+{
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		if(isA(o,TableAccessOperator))
+		{
+			DEBUG_LOG("mark use tableAccessOperator.");
+			SET_STRING_PROP(o, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
+		}
+		if(isA(o,AggregationOperator))
+		{
+			DEBUG_LOG("mark aggregationOperator.");
+			SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+			SET_BOOL_STRING_PROP(o, USE_PROP_COARSE_GRAINED_AGGREGATION_MARK);
+			//SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+		}
+		markUseTableAccessAndAggregation(o,psPara);
+	}
+}
+
+
+void
+markAutoUseTableAccess(QueryOperator *op, HashMap *psMap)
 {
 
-      FOREACH(QueryOperator, o, op->inputs)
-      {
-           if(isA(o,TableAccessOperator))
-           {
-        	   	   DEBUG_NODE_BEATIFY_LOG("QueryOperator :", (Node *) o);
-               SET_STRING_PROP(o, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK, psMap);
-           }
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		if(isA(o,TableAccessOperator))
+		{
+			DEBUG_NODE_BEATIFY_LOG("QueryOperator :", (Node *) o);
+			SET_STRING_PROP(o, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK, psMap);
+		}
 
-           markAutoUseTableAccess(o, psMap);
-      }
+		markAutoUseTableAccess(o, psMap);
+	}
 }
 
 
@@ -184,96 +190,89 @@ markAutoUseTableAccess (QueryOperator *op, HashMap *psMap)
 void
 bottomUpPropagateLevelAggregation(QueryOperator *op, psInfo *psPara)
 {
+	AggLevelContext *ctx = NEW(AggLevelContext);
+
+	ctx->opCnts = NEW_MAP(Constant,Constant);
+	bottomUpPropagateLevelAggregationInternal(op, psPara, ctx);
+
+	deepFree(ctx->opCnts);
+	FREE(ctx);
+}
+
+/**
+ * @brief      propagate information about provenance sketch attributes (how many levels of aggregation and how many fragments.
+ *
+ * @details
+ *
+ * @param
+ *
+ * @return     void
+ */
+static HashMap *
+bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, AggLevelContext *ctx)
+{
+	HashMap *provAttrInfo = NEW_MAP(Constant,Node);
+
+	// table access, determine provenance sketch attributes and append to list of provInfo hash maps
+	if(isA(op, TableAccessOperator))
+	{
+		int cnt = mapIncrPointer(ctx->opCnts, op);
+		TableAccessOperator *tbOp = (TableAccessOperator *) op;
+		DEBUG_LOG("table-> %s", tbOp->tableName);
+		/*propagate map: prov_R_A1 -> (level of agg, num of fragments)*/
+
+		/*get num of table for ps attr*/
+		int numTable = 0;
+		if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+			numTable = INT_VALUE(getNthOfListP((List *) GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK),cnt));
+
+		/*get psInfo -> attrName and num of fragments*/
+		//psInfo* psPara = (psInfo*) GET_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+		if(hasMapStringKey((HashMap *) psPara->tablePSAttrInfos, tbOp->tableName))
+		{
+			List *psAttrList = (List *) getMapString(psPara->tablePSAttrInfos, tbOp->tableName);
+
+			FOREACH(psAttrInfo,curPSAI,psAttrList)
+			{
+				int numFragments = LIST_LENGTH(curPSAI->rangeList);
+				char *newAttrName = CONCAT_STRINGS(PROV_ATTR_PREFIX,
+												   strdup(tbOp->tableName),
+												   "_",
+												   strdup(curPSAI->attrName),
+												   gprom_itoa(numTable));
+
+				List *vl = LIST_MAKE(createConstInt(0), createConstInt(numFragments-1));
+				MAP_ADD_STRING_KEY(provAttrInfo, newAttrName, (Node *) vl);
+				DEBUG_LOG("tableAccess mark map: %s -> count: %d, numFragments: %d", newAttrName, 0, numFragments-1);
+			}
+		}
+		APPEND_STRING_PROP(op, PROP_LEVEL_AGGREGATION_MARK, provAttrInfo);
+		return provAttrInfo;
+	}
+
+	// process children first (may do this multiple times for operators have multiple parents
 	FOREACH(QueryOperator, o, op->inputs)
 	{
-		bottomUpPropagateLevelAggregation(o, psPara);
-
-		if(isA(o, TableAccessOperator))
-		{
-			HashMap *map = NEW_MAP(Constant,Node);
-			TableAccessOperator *tbOp = (TableAccessOperator *) o;
-			DEBUG_LOG("table-> %s", tbOp->tableName);
-			/*propagate map: prov_R_A1 -> (level of agg, num of fragments)*/
-
-			/*get num of table for ps attr*/
-			int numTable = 0;
-		    if(HAS_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK))
-		    		numTable = INT_VALUE(GET_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK));
-
-
-		    /*get psInfo -> attrName and num of fragments*/
-			//psInfo* psPara = (psInfo*) GET_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
-			if(hasMapStringKey((HashMap *) psPara->tablePSAttrInfos, tbOp->tableName))
-			{
-				List *psAttrList = (List *) getMapString(psPara->tablePSAttrInfos, tbOp->tableName);
-
-				for(int j=0; j<LIST_LENGTH(psAttrList); j++)
-				{
-					psAttrInfo *curPSAI = (psAttrInfo *) getNthOfListP(psAttrList, j);
-					int numFragments = LIST_LENGTH(curPSAI->rangeList);
-					char *newAttrName = CONCAT_STRINGS(  "prov_",
-														strdup(tbOp->tableName),
-														"_",
-														strdup(curPSAI->attrName),
-														gprom_itoa(numTable));
-
-					List *vl = LIST_MAKE(createConstInt(0), createConstInt(numFragments-1));
-					MAP_ADD_STRING_KEY(map, newAttrName, (Node *) vl);
-					DEBUG_LOG("tableAccess mark map: %s -> count: %d, numFragments: %d", newAttrName, 0, numFragments-1);
-
-				}
-			}
-			SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, map);
-		}
-		else if(LIST_LENGTH(o->inputs) > 1)
-		{
-			DEBUG_LOG("table-> more childrens");
-			HashMap *newMap = NEW_MAP(Constant,Node);
-			FOREACH(Operator, child, o->inputs)
-			{
-				HashMap *map = (HashMap *) GET_STRING_PROP(child, PROP_LEVEL_AGGREGATION_MARK);
-				FOREACH_HASH_ENTRY(kv, map)
-				{
-					Constant *k = (Constant *) kv->key;
-					List *v = (List *) kv->value;
-					Constant *firstV = (Constant *) getNthOfListP(v, 0);
-					Constant *secondV = (Constant *) getNthOfListP(v, 1);
-					List* newV = LIST_MAKE(createConstInt(INT_VALUE(firstV)), createConstInt(INT_VALUE(secondV)));
-					MAP_ADD_STRING_KEY(newMap, strdup(STRING_VALUE(k)), (Node *) newV);
-					DEBUG_LOG("join mark map: %s -> count: %d, numFragments: %d", STRING_VALUE(k), INT_VALUE(firstV), INT_VALUE(secondV));
-				}
-			}
-			SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, newMap);
-		}
-		else
-		{
-			DEBUG_LOG("table-> one child");
-			QueryOperator *child = (QueryOperator *) getNthOfListP(o->inputs, 0);
-			HashMap *map = (HashMap *) GET_STRING_PROP(child, PROP_LEVEL_AGGREGATION_MARK);
-			HashMap *newMap = NEW_MAP(Constant,Node);
-			if(isA(o, AggregationOperator))
-			{
-				DEBUG_LOG("table-> aggregation");
-				FOREACH_HASH_ENTRY(kv, map)
-				{
-					Constant *k = (Constant *) kv->key;
-					List *v = (List *) kv->value;
-					Constant *firstV = (Constant *) getNthOfListP(v, 0);
-					Constant *secondV = (Constant *) getNthOfListP(v, 1);
-					List* newV = LIST_MAKE(createConstInt(INT_VALUE(firstV) + 1), createConstInt(INT_VALUE(secondV)));
-					MAP_ADD_STRING_KEY(newMap, strdup(STRING_VALUE(k)), (Node *) newV);
-					DEBUG_LOG("agg mark map: %s -> count: %d, numFragments: %d", STRING_VALUE(k), INT_VALUE(firstV)+1, INT_VALUE(secondV));
-				}
-				SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, newMap);
-			}
-			else
-			{
-				DEBUG_LOG("table-> not aggregation");
-				SET_STRING_PROP(o, PROP_LEVEL_AGGREGATION_MARK, copyObject(map));
-			}
-		}
-
+		HashMap *childMap = bottomUpPropagateLevelAggregationInternal(o, psPara, ctx);
+		unionMap(provAttrInfo, copyObject(childMap));
 	}
+
+	// if this is an aggregation we have to adapt increment number of aggregation levels
+	if(isA(op, AggregationOperator))
+	{
+		DEBUG_LOG("table-> aggregation");
+		FOREACH_HASH_ENTRY(kv, provAttrInfo)
+		{
+			List *v = (List *) kv->value;
+			Constant *firstV = (Constant *) getNthOfListP(v, 0);
+			incrConst(firstV);
+		}
+	}
+
+	DEBUG_LOG("operator %s mark map: %s", NodeTagToString(op->type), nodeToString(provAttrInfo));
+	APPEND_STRING_PROP(op, PROP_LEVEL_AGGREGATION_MARK, provAttrInfo);
+	return provAttrInfo;
+
 }
 
 
@@ -309,9 +308,18 @@ loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map)
 			int pnum = INT_VALUE((Constant *) MAP_GET_STRING(map, tOp->tableName));
 			DEBUG_LOG("table: %s, num: %d", ctableName->value, pnum);
 
-			SET_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK, createConstInt(pnum));
+			if(HAS_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK))
+			{
+				SET_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK,
+								appendToTailOfList(
+									(List *) GET_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK),
+									createConstInt(pnum)));
+			}
+			else
+			{
+				SET_STRING_PROP(o, PROP_NUM_TABLEACCESS_MARK, singleton(createConstInt(pnum)));
+			}
 		}
-
 
 		loopMarkNumOfTableAccess(o, map);
 	}
@@ -331,14 +339,14 @@ createPSInfo(Node *coarsePara)
 
     FOREACH(KeyValue, tablesKV, tablePSList) //R-> [A 1,2,3,4 '101'] [B 1,2,3,4 '110'], S->......
     {
-    		List *attrPSInfoList = NIL;
-    		char *tableName = STRING_VALUE(tablesKV->key); //R
-    		FOREACH(List, l, (List *) tablesKV->value) //[A 1,2,3,4 '101'] [B 1,2,3,4 '110']
-    		{
-    			psAttrInfo* curPSAI = createPSAttrInfo(l, tableName);
-    			attrPSInfoList = appendToTailOfList(attrPSInfoList, curPSAI);
-    		}
-    		MAP_ADD_STRING_KEY(map, tableName, (Node *) attrPSInfoList);
+		List *attrPSInfoList = NIL;
+		char *tableName = STRING_VALUE(tablesKV->key); //R
+		FOREACH(List, l, (List *) tablesKV->value) //[A 1,2,3,4 '101'] [B 1,2,3,4 '110']
+		{
+			psAttrInfo* curPSAI = createPSAttrInfo(l, tableName);
+			attrPSInfoList = appendToTailOfList(attrPSInfoList, curPSAI);
+		}
+		MAP_ADD_STRING_KEY(map, tableName, (Node *) attrPSInfoList);
     }
     result->tablePSAttrInfos = map;
 
@@ -351,11 +359,11 @@ createPSInfo(Node *coarsePara)
      	FOREACH(Constant, c, psif->rangeList)
      	{
      		if(c->constType == DT_INT)
-    				DEBUG_LOG("psInfo rangeList: %d", INT_VALUE(c));
+				DEBUG_LOG("psInfo rangeList: %d", INT_VALUE(c));
      		else if(c->constType == DT_STRING)
      			DEBUG_LOG("psInfo rangeList: %s", STRING_VALUE(c));
      	}
-     }
+	}
 
 
 	return result;
@@ -364,56 +372,56 @@ createPSInfo(Node *coarsePara)
 psAttrInfo*
 createPSAttrInfo(List *l, char *tableName)
 {
-	 psAttrInfo *result = makeNode(psAttrInfo);
+	psAttrInfo *result = makeNode(psAttrInfo);
 
-	 Constant *attrName = (Constant *) getNthOfListP(l, 0);
-	 Constant *rangeList = (Constant *) getNthOfListP(l, 1);
+	Constant *attrName = (Constant *) getNthOfListP(l, 0);
+	Constant *rangeList = (Constant *) getNthOfListP(l, 1);
 
-	 result->attrName = STRING_VALUE(attrName);
-	 result->rangeList = (List *) rangeList;
-	 if(LIST_LENGTH(result->rangeList) == 1)
-	 {
-		 int numRanges = INT_VALUE((Constant *) getNthOfListP(result->rangeList, 0));
-		 DEBUG_LOG("Number of ranges: %d", numRanges);
-		 result->rangeList = getRangeList(numRanges, result->attrName, tableName);
-	 }
+	result->attrName = STRING_VALUE(attrName);
+	result->rangeList = (List *) rangeList;
+	if(LIST_LENGTH(result->rangeList) == 1)
+	{
+		int numRanges = INT_VALUE((Constant *) getNthOfListP(result->rangeList, 0));
+		DEBUG_LOG("Number of ranges: %d", numRanges);
+		result->rangeList = getRangeList(numRanges, result->attrName, tableName);
+	}
 
-	 if(LIST_LENGTH(l) == 3)
-	 {
-		 Constant *ps = (Constant *) getNthOfListP(l, 2);
-		 if(typeOf((Node *)ps) == DT_INT)
-		 {
-			 result->BitVector = NULL;
-			 int psValue = INT_VALUE(ps);
-			 unsigned long long int k;
-			 unsigned long long int n = psValue;
-			 int numPoints = LIST_LENGTH(result->rangeList);
+	if(LIST_LENGTH(l) == 3)
+	{
+		Constant *ps = (Constant *) getNthOfListP(l, 2);
+		if(typeOf((Node *)ps) == DT_INT)
+		{
+			result->BitVector = NULL;
+			int psValue = INT_VALUE(ps);
+			unsigned long long int k;
+			unsigned long long int n = psValue;
+			int numPoints = LIST_LENGTH(result->rangeList);
 
-			 for (int c = numPoints - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
-			 {
-				 k = n >> c;
-				 DEBUG_LOG("n is %llu, c is %d, k is: %llu, cntOnePos is: %d", n, c, k, cntOnePos);
-				 if (k & 1)
-				 {
-					 result->psIndexList = appendToTailOfList(result->psIndexList, createConstInt(numPoints - 1  - cntOnePos));
-					 DEBUG_LOG("cnt is: %d", numPoints - cntOnePos);
-				 }
-			 }
-		 }
-		 else
-		 {
-			 char *bitVectorStr = STRING_VALUE(ps);
-			 result->BitVector = stringToBitset(bitVectorStr);
-			 result->psIndexList = NIL;
-		 }
-	 }
-	 else
-	 {
-		 result->BitVector = NULL;
-		 result->psIndexList = NIL;
-	 }
+			for (int c = numPoints - 1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+			{
+				k = n >> c;
+				DEBUG_LOG("n is %llu, c is %d, k is: %llu, cntOnePos is: %d", n, c, k, cntOnePos);
+				if (k & 1)
+				{
+					result->psIndexList = appendToTailOfList(result->psIndexList, createConstInt(numPoints - 1  - cntOnePos));
+					DEBUG_LOG("cnt is: %d", numPoints - cntOnePos);
+				}
+			}
+		}
+		else
+		{
+			char *bitVectorStr = STRING_VALUE(ps);
+			result->BitVector = stringToBitset(bitVectorStr);
+			result->psIndexList = NIL;
+		}
+	}
+	else
+	{
+		result->BitVector = NULL;
+		result->psIndexList = NIL;
+	}
 
-	 return result;
+	return result;
 }
 
 List *
@@ -461,42 +469,42 @@ getRangeList(int numRanges, char* attrName, char *tableName)
 	DEBUG_LOG("numRanges %d, MAX_NUM_RANGE: %d", numRanges,LIST_LENGTH(result));
     if(numRanges > MAX_NUM_RANGE && LIST_LENGTH(result) == MAX_NUM_RANGE+1)
     {
-    	    int numPerRange = numRanges/MAX_NUM_RANGE;
-    		List *largeResult = NIL;
-    		for(int i=0; i<MAX_NUM_RANGE; i++)
-    		{
-    			int l = atoi(STRING_VALUE((Constant *) getNthOfListP(result, i)));
-    			int r = atoi(STRING_VALUE((Constant *) getNthOfListP(result, i+1)));
+		int numPerRange = numRanges/MAX_NUM_RANGE;
+		List *largeResult = NIL;
+		for(int i=0; i<MAX_NUM_RANGE; i++)
+		{
+			int l = atoi(STRING_VALUE((Constant *) getNthOfListP(result, i)));
+			int r = atoi(STRING_VALUE((Constant *) getNthOfListP(result, i+1)));
 
-    			if(l == r)
-    			{
-    				largeResult = appendToTailOfList(largeResult, createConstInt(l));
-    				continue;
-    			}
+			if(l == r)
+			{
+				largeResult = appendToTailOfList(largeResult, createConstInt(l));
+				continue;
+			}
 
-    			int intervalLen = (r-l)/numPerRange;
-    			if(r-l < numPerRange)
-    			{
-    				numPerRange = r-l;
-    				intervalLen = 1;
-    			}
+			int intervalLen = (r-l)/numPerRange;
+			if(r-l < numPerRange)
+			{
+				numPerRange = r-l;
+				intervalLen = 1;
+			}
 
-    			largeResult = appendToTailOfList(largeResult, createConstInt(l));
-    			int next = l;
-    			DEBUG_LOG("range begin: %d",l);
-    			for(int j=1; j<numPerRange; j++)
-    			{
-    				next = next + intervalLen;
-    				largeResult = appendToTailOfList(largeResult, createConstInt(next));
-    				DEBUG_LOG("range middle: %d",next);
-    			}
-    			numPerRange = numRanges/MAX_NUM_RANGE;
-    		}
+			largeResult = appendToTailOfList(largeResult, createConstInt(l));
+			int next = l;
+			DEBUG_LOG("range begin: %d",l);
+			for(int j=1; j<numPerRange; j++)
+			{
+				next = next + intervalLen;
+				largeResult = appendToTailOfList(largeResult, createConstInt(next));
+				DEBUG_LOG("range middle: %d",next);
+			}
+			numPerRange = numRanges/MAX_NUM_RANGE;
+		}
 
-    		int last = atoi(STRING_VALUE((Constant *) getTailOfListP(result)));
+		int last = atoi(STRING_VALUE((Constant *) getTailOfListP(result)));
 		largeResult = appendToTailOfList(largeResult, createConstInt(last));
 		DEBUG_LOG("range end: %d",last);
-    		return largeResult;
+		return largeResult;
     }
 
 	return result;

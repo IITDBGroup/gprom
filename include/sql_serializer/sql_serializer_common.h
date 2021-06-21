@@ -91,10 +91,6 @@ typedef struct JoinAttrRenameState {
 //	FromAttrsContext *fac;
 //} JoinStateFac;
 
-#define MAP_HAS_POINTER(map,p) MAP_HAS_LONG_KEY(map, (gprom_long_t) p)
-#define MAP_GET_POINTER(map,p) MAP_GET_LONG(map,(gprom_long_t) p)
-#define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (gprom_long_t) p, val)
-
 #define TVIEW_NAME_FIELD "ViewName"
 #define TVIEW_ATTRNAMES_FIELD "AttrNames"
 #define TVIEW_DEF_FIELD "Definition"

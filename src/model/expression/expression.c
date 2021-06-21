@@ -113,12 +113,12 @@ createCastExpr (Node *expr, DataType resultDt)
 }
 
 CastExpr *
-createCastExprOtherDT (Node *expr, char* otherDT, int num)
+createCastExprOtherDT(Node *expr, char* otherDT, int num, DataType gpromDT)
 {
     CastExpr *result = makeNode(CastExpr);
 
     result->expr = expr;
-    result->resultDT = -1;
+    result->resultDT = gpromDT;
     result->otherDT = otherDT;
     result->num = num;
 
@@ -633,6 +633,25 @@ maxConsts(Constant *l, Constant *r, boolean nullIsMax)
 	}
 
 	return result;
+}
+
+void
+incrConst(Constant *c)
+{
+	ASSERT(!c->isNull && (c->constType == DT_INT || c->constType == DT_LONG));
+
+	switch(c->constType)
+	{
+	case DT_INT:
+		INT_VALUE(c) = INT_VALUE(c) + 1;
+		break;
+	case DT_LONG:
+		LONG_VALUE(c) = LONG_VALUE(c) + 1;
+		break;
+	default:
+		c = NULL;
+		// will never end up here
+	}
 }
 
 DataType

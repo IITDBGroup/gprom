@@ -961,6 +961,29 @@ removeStringProperty (QueryOperator *op, char *key)
     removeMapStringElem((HashMap *) op->properties, key);
 }
 
+List *
+appendToListProperty(QueryOperator *op, Node *key, Node *newTail)
+{
+	List *cur = (List *) getProp(op, key);
+
+	cur = appendToTailOfList(cur, newTail);
+	setProperty(op, key, (Node *) cur);
+
+	return cur;
+}
+
+List *
+appendToListStringProperty(QueryOperator *op, char *key, Node *newTail)
+{
+	List *cur = (List *) getStringProperty(op, key);
+
+	cur = appendToTailOfList(cur, newTail);
+	setStringProperty(op, key, (Node *) cur);
+
+	return cur;
+}
+
+
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
 {

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * hashmap.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -240,6 +240,22 @@ mapIncrString(HashMap *map, char *key)
     return mapIncr(map, (Node *) stringDummy);
 }
 
+int
+mapIncrPointer(HashMap *map, void *key)
+{
+    static Constant *longDummy = NULL;
+    if (longDummy == NULL)
+    {
+        if (hashContext == NULL)
+            hashContext = NEW_MEM_CONTEXT(HASHMAP_MEM_CONTEXT_NAME);
+        ACQUIRE_MEM_CONTEXT(hashContext);
+        longDummy = createConstLong(0L);
+        RELEASE_MEM_CONTEXT();
+    }
+	LONG_VALUE(longDummy) = (gprom_long_t) key;
+	return mapIncr(map, (Node *) longDummy);
+}
+
 void
 removeAndFreeMapElem (HashMap *map, Node *key)
 {
@@ -290,4 +306,28 @@ mapSize (HashMap *map)
     if (map == NULL)
         return 0;
     return HASH_COUNT(map->elem);
+}
+
+void
+unionMap(HashMap *res, HashMap *new)
+{
+	FOREACH_HASH_ENTRY(kv,new)
+	{
+		if(!hasMapKey(res, kv->key))
+		{
+			addToMap(res, copyObject(kv->key), copyObject(kv->value));
+		}
+	}
+}
+
+void
+diffMap(HashMap *res, HashMap *new)
+{
+	FOREACH_HASH_ENTRY(kv,new)
+	{
+		if(hasMapKey(res, kv->key))
+		{
+			removeMapElem(res, kv->key);
+		}
+	}
 }

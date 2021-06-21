@@ -27,6 +27,7 @@
 #include "utility/string_utils.h"
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
+#include "provenance_rewriter/prov_schema.h"
 
 /* function declarations */
 static void exprToSQLString(StringInfo str, Node *expr, HashMap *nestedSubqueries, boolean trimAttrNames);
@@ -748,7 +749,7 @@ attributeReferenceToLatex (StringInfo str, AttributeReference *node)
 char *
 latexEscapeString (char *st)
 {
-    char *escapedName = replaceSubstr(st, "PROV_", "P_");
+    char *escapedName = replaceSubstr(st, PROV_ATTR_PREFIX, "P_");
     escapedName = replaceSubstr(escapedName, "_", "\\_");
     escapedName = replaceSubstr(escapedName, "\"", "\\rq \\rq ");
     return escapedName;

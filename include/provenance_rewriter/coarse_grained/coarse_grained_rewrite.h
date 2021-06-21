@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * coarse_grained_rewrite.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -29,6 +29,12 @@ typedef struct psAttrInfo
     BitSet  *BitVector;
     List *psIndexList;
 } psAttrInfo;
+
+#define ORACLE_SKETCH_AGG_FUN "dbgroup.BITORAGG"
+#define POSTGRES_SET_BITS_FUN "set_bits"
+#define POSTGRES_FAST_BITOR_FUN "fast_bit_or"
+
+#define POSTGRES_BIT_DT "bit"
 
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
 extern void autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara);

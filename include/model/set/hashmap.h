@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * hashmap.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -44,6 +44,7 @@ extern boolean hasMapLongKey (HashMap *map, gprom_long_t key);
 #define MAP_HAS_STRING_KEY(map,key) hasMapStringKey(map, key)
 #define MAP_HAS_INT_KEY(map,key) hasMapIntKey(map, key)
 #define MAP_HAS_LONG_KEY(map,key) hasMapLongKey(map, key)
+#define MAP_HAS_POINTER(map,p) MAP_HAS_LONG_KEY(map, (gprom_long_t) p)
 
 extern Node *getMap (HashMap *map, Node *key);
 extern Node *getMapString (HashMap *map, char *key);
@@ -52,6 +53,7 @@ extern Node *getMapLong (HashMap *map, gprom_long_t key);
 #define MAP_GET_STRING(map,key) getMapString(map, key)
 #define MAP_GET_INT(map,key) getMapInt(map, key)
 #define MAP_GET_LONG(map,key) getMapLong(map, key)
+#define MAP_GET_POINTER(map,key) getMapLong(map, (gprom_long_t) key)
 
 extern KeyValue *getMapEntry (HashMap *map, Node *key);
 #define MAP_GET_STRING_ENTRY(map,key) getMapEntry(map, (Node *) createConstString(key))
@@ -69,9 +71,12 @@ extern boolean addToMap (HashMap *map, Node *key, Node *value);
 #define MAP_ADD_STRING_KEY_AND_VAL(map, key, value) addToMap((HashMap *) map, (Node *) createConstString(key), (Node *) createConstString(value))
 #define MAP_ADD_INT_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstInt(key), (Node *) value)
 #define MAP_ADD_LONG_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong(key), (Node *) value)
+#define MAP_ADD_POINTER_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong((gprom_long_t) key), (Node *) value)
+#define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (gprom_long_t) p, val)
 
 extern int mapIncr(HashMap *map, Node *key);
 extern int mapIncrString(HashMap *map, char *key);
+extern int mapIncrPointer(HashMap *map, void *key);
 #define MAP_INCR_STRING_KEY(map, key) mapIncrString((HashMap *) map, key);
 
 // remove elements from map
@@ -81,6 +86,10 @@ extern void removeMapStringElem (HashMap *map, char *key);
 
 // map size
 extern int mapSize (HashMap *map);
+
+// set operations
+extern void unionMap(HashMap *res, HashMap *new);
+extern void diffMap(HashMap *res, HashMap *new);
 
 // iterate over map values or entries
 #define DUMMY_INT_FOR_COND_HASH(_name_) _name_##_stupid_int_
