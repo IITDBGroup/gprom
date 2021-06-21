@@ -2372,7 +2372,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 		for(int j=0; j<LIST_LENGTH(psAttrList); j++)
 		{
 			psAttrInfo *curPSAI = (psAttrInfo *) getNthOfListP(psAttrList, j);
-			curPSAI->BitVector = NULL;
+			//Bitset *bitvec = NULL;
 
 			newAttrName = getCoarseGrainedAttrName(op->tableName, curPSAI->attrName, numTable);
 			provAttr = appendToTailOfList(provAttr, newAttrName);
@@ -2440,6 +2440,9 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 				if(HAS_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK)) //or curPSAI->BitVector == NULL
 				{
 					HashMap *psMap  = (HashMap *) GET_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK);
+
+					curPSAI->BitVector = NULL;
+
 					FOREACH(Constant,i,attrCnts)
 					{
 						int cnt = INT_VALUE(i);
@@ -2528,16 +2531,17 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 			}
 		}
 		if(newCond != NULL)
+		{
 			sel = createSelectionOp ((Node *) newCond,rewr, NIL, getQueryOperatorAttrNames((QueryOperator *) op));
+		}
 	}
 
 	//TODO deal with other backends
 	if (sel == NULL)
 		return rewr;
 
-	((QueryOperator *) op)->parents = singleton(sel);
-
 	// sel is the result
+	rewr->parents = singleton(sel);
 	rewr = (QueryOperator *) sel;
 
     LOG_RESULT_AND_RETURN(TableAccess);
