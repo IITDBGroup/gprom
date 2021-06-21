@@ -17,6 +17,7 @@
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 #define RULELOG(grule) \
     { \
@@ -825,31 +826,31 @@ coarseGrainedSpec:
 		HASH '(' hashList ')'
 		{
 			RULELOG("coarse_grained::hashlist");
-			$$ = LIST_MAKE((Node *) createConstString("HASH"), (Node *) $3);
+			$$ = LIST_MAKE((Node *) createConstString(COARSE_GRAINED_HASH), (Node *) $3);
 		}
 		|
 		PAGE '(' pageList ')'
 		{
 			RULELOG("coarse_grained::pagelist");
-			$$ = LIST_MAKE((Node *) createConstString("PAGE"), (Node *) $3);
+			$$ = LIST_MAKE((Node *) createConstString(COARSE_GRAINED_PAGE), (Node *) $3);
 		}
 		|
 		RANGESA '(' rangeAList ')'
 		{
 			RULELOG("coarse_grained::rangelist A");
-			$$ = LIST_MAKE((Node *) createConstString("RANGEA"), (Node *) $3);
+			$$ = LIST_MAKE((Node *) createConstString(COARSE_GRAINED_RANGEA), (Node *) $3);
 		}
 		|
 		RANGESB '(' rangeBList ')'
 		{
 			RULELOG("coarse_grained::rangelist B");
-			$$ = LIST_MAKE((Node *) createConstString("RANGEB"), (Node *) $3);
+			$$ = LIST_MAKE((Node *) createConstString(COARSE_GRAINED_RANGEB), (Node *) $3);
 		}
 		|
 		FRAGMENT '(' fragmentList ')'
 		{
 			RULELOG("coarse_grained::fragmentlist");
-			$$ = LIST_MAKE((Node *) createConstString("FRAGMENT"), (Node *) $3);
+			$$ = LIST_MAKE((Node *) createConstString(COARSE_GRAINED_FRAGMENT), (Node *) $3);
 		}
 	;
 

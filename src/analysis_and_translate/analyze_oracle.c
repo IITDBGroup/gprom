@@ -32,6 +32,7 @@
 #include "temporal_queries/temporal_rewriter.h"
 #include "utility/string_utils.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -135,6 +136,7 @@ adaptIdentifiers (Node *stmt)
  * - fromprovinfo
  * - select itmes
  * - with statements
+ * - provenance sketch specfications in Provenance
  */
 static boolean
 visitAdaptIdents(Node *node, Set *context)
@@ -154,7 +156,8 @@ visitAdaptIdents(Node *node, Set *context)
 		   || isFromItem(node)
 		   || isA(node,SelectItem)
 		   || isA(node,FromProvInfo)
-		   || isA(node,AttributeReference))
+		   || isA(node,AttributeReference)
+		   || isA(node,ProvenanceStmt))
 		{
 			if(isA(node,FunctionCall))
 			{
@@ -278,6 +281,42 @@ visitAdaptIdents(Node *node, Set *context)
 				TRACE_LOG("name <%s> backendified into <%s>", a->name, str->data);
 
 				a->name = strdup(str->data);
+			}
+
+			if(isA(node,ProvenanceStmt))
+			{
+				ProvenanceStmt *p = (ProvenanceStmt *) node;
+
+				FOREACH(KeyValue,kv,p->options)
+				{
+					// backendify sketch table name and attribute name
+					if(isA(kv->key,Constant)
+					   && ((Constant *) kv->key)->constType == DT_STRING
+					   && streq(STRING_VALUE(kv->key),PROP_PC_COARSE_GRAINED))
+					{
+						List *typeSketch = (List *) kv->value;
+						Constant *type = (Constant *) getHeadOfListP(typeSketch);
+						List *sketches = (List *) getNthOfListP(typeSketch, 1);
+
+						//TODO check for other sketch types too
+						if(((Constant *) type)->constType == DT_STRING
+						   && streq(STRING_VALUE(type),COARSE_GRAINED_RANGEB))
+						{
+							FOREACH(KeyValue,ps,sketches)
+							{
+								Constant *tableName = (Constant *) ps->key;
+								List *attrSketchDefs = (List *) ps->value;
+								tableName->value = backendifyIdentifier(STRING_VALUE(tableName));
+
+								FOREACH(List,attrDef,attrSketchDefs)
+								{
+									Constant *attrName = (Constant *) getHeadOfListP(attrDef);
+									attrName->value = backendifyIdentifier(STRING_VALUE(attrName));
+								}
+							}
+						}
+					}
+				}
 			}
 
 			addToSet(context, node);

@@ -194,9 +194,6 @@ bottomUpPropagateLevelAggregation(QueryOperator *op, psInfo *psPara)
 
 	ctx->opCnts = NEW_MAP(Constant,Constant);
 	bottomUpPropagateLevelAggregationInternal(op, psPara, ctx);
-
-	deepFree(ctx->opCnts);
-	FREE(ctx);
 }
 
 /**
@@ -343,7 +340,7 @@ createPSInfo(Node *coarsePara)
 		char *tableName = STRING_VALUE(tablesKV->key); //R
 		FOREACH(List, l, (List *) tablesKV->value) //[A 1,2,3,4 '101'] [B 1,2,3,4 '110']
 		{
-			psAttrInfo* curPSAI = createPSAttrInfo(l, tableName);
+			psAttrInfo *curPSAI = createPSAttrInfo(l, tableName);
 			attrPSInfoList = appendToTailOfList(attrPSInfoList, curPSAI);
 		}
 		MAP_ADD_STRING_KEY(map, tableName, (Node *) attrPSInfoList);
@@ -352,7 +349,7 @@ createPSInfo(Node *coarsePara)
 
     DEBUG_LOG("psInfo psType: %s", result->psType);
     HashMap *testMap = result->tablePSAttrInfos;
-    List* listPSInfos = (List *) getMapString(testMap, "customer");
+    List *listPSInfos = (List *) getMapString(testMap, "customer");
     FOREACH(psAttrInfo, psif, listPSInfos)
     {
      	DEBUG_LOG("psInfo attrName: %s", psif->attrName);
@@ -364,7 +361,6 @@ createPSInfo(Node *coarsePara)
      			DEBUG_LOG("psInfo rangeList: %s", STRING_VALUE(c));
      	}
 	}
-
 
 	return result;
 }

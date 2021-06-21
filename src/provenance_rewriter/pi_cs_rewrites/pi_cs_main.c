@@ -119,7 +119,7 @@ rewritePI_CS(ProvenanceComputation  *op)
     // unset relation name counters
     /* nameState = (RelCount *) NULL; */
 
-    DEBUG_NODE_BEATIFY_LOG("*************************************\nREWRITE INPUT\n"
+    DEBUG_NODE_BEATIFY_LOG("*\n************************************\nREWRITE INPUT\n"
             "******************************\n", op);
 
 //    //mark the number of table - used in provenance scratch
@@ -234,7 +234,7 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
             break;
         case T_AggregationOperator:
         	if(combinerAggrOpt) {
-        		if(coarseGrainedUseProv == TRUE)
+        		if(coarseGrainedUseProv)
         			rewrittenOp = rewriteUseCoarseGrainedAggregation ((AggregationOperator *) op, state);
         		else
         			rewrittenOp = rewriteCoarseGrainedAggregation ((AggregationOperator *) op, state);
@@ -2036,7 +2036,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *state
     FunctionCall *bsfc = NULL;
     List *psAttrList = (List *) getMapString(map, op->tableName);
 
-    if(streq(psPara->psType, "RANGEB"))
+    if(streq(psPara->psType, COARSE_GRAINED_RANGEB))
     {
 		DEBUG_LOG("Using range B partition method");
 
@@ -2331,12 +2331,15 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
     List *projExpr = NIL;
     char *newAttrName;
     int cnt = 0;
+	List *attrCnts = NIL;
 
 	REWR_NULLARY();
 
     // copy any as of clause if there
     if (state->asOf)
+	{
         op->asOf = copyObject(state->asOf);
+	}
 
     // Get the povenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
@@ -2349,15 +2352,19 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
     int numTable = 0;
 	//TODO merge sketches if there is more than one (if this operator or one of its ancestors have more than one parent)
     if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
-		numTable = INT_VALUE(getHeadOfListP(
-								 (List *) GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK)));
+	{
+		// get all provenance attributes (if this table access is in a CTE we have to merge bitsets)
+		attrCnts = (List *) GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK);
+		// choose one as the provenance attribute name
+		numTable = INT_VALUE(getHeadOfListP(attrCnts));
+	}
 
-    psInfo* psPara = (psInfo*) GET_STRING_PROP(op, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+    psInfo *psPara = (psInfo *) GET_STRING_PROP(op, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK);
     HashMap *map = psPara->tablePSAttrInfos;
     List *psAttrList = (List *) getMapString(map, op->tableName);
 
     SelectionOperator *sel = NULL;
-	if(streq(psPara->psType, "RANGEB"))
+	if(streq(psPara->psType, COARSE_GRAINED_RANGEB))
 	{
 		DEBUG_LOG("Deal with range B partition method");
 
@@ -2365,23 +2372,26 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 		for(int j=0; j<LIST_LENGTH(psAttrList); j++)
 		{
 			psAttrInfo *curPSAI = (psAttrInfo *) getNthOfListP(psAttrList, j);
+			curPSAI->BitVector = NULL;
 
 			newAttrName = getCoarseGrainedAttrName(op->tableName, curPSAI->attrName, numTable);
 			provAttr = appendToTailOfList(provAttr, newAttrName);
 
 			AttributeReference *pAttr = createAttrsRefByName((QueryOperator *) rewr, curPSAI->attrName);
 
+			// Oracle backend
 			if(getBackend() == BACKEND_ORACLE)
 			{
 				if(HAS_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK)) //or curPSAI->BitVector == NULL
 				{
 					DEBUG_LOG("Auto use - BACKEND_ORACLE");
 					HashMap *psMap  = (HashMap *) GET_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK);
+					//FIXME need to loop over attrCnts and bitor the longs
 					if(hasMapStringKey(psMap, newAttrName))
 					{
 						int psValue = INT_VALUE((Constant *) getMapString(psMap, newAttrName));
 						unsigned long long int k;
-						unsigned long long int n = psValue;
+						unsigned long long int n = psValue; //FIXME this is still limited to an int, why not use at least a long constant?
 						DEBUG_LOG("psValue is %llu", psValue);
 						int numPoints = LIST_LENGTH(curPSAI->rangeList);
 
@@ -2402,7 +2412,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 			    List *elList = NIL;
 			    Constant *ll = (Constant *) popHeadOfListP(condRightValueList);
 			    int hh = INT_VALUE(ll) + 1;
-			    FOREACH(Constant, c,	condRightValueList)
+			    FOREACH(Constant, c, condRightValueList)
 			    {
 					if(INT_VALUE(c) == INT_VALUE(ll) - 1)
 						ll = c;
@@ -2424,15 +2434,28 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 			    newCond = orExprList(elList);
 			    DEBUG_NODE_BEATIFY_LOG("newCond ", newCond);
 			}
+			// Postgres backend
 			else if(getBackend() == BACKEND_POSTGRES)
 			{
 				if(HAS_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK)) //or curPSAI->BitVector == NULL
 				{
 					HashMap *psMap  = (HashMap *) GET_STRING_PROP(op, AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK);
-					if(hasMapStringKey(psMap, newAttrName))
+					FOREACH(Constant,i,attrCnts)
 					{
-						char * BitVectorStr = STRING_VALUE((Constant *) getMapString(psMap, newAttrName));
-						curPSAI->BitVector = stringToBitset(BitVectorStr);
+						int cnt = INT_VALUE(i);
+						char *newAttr = getCoarseGrainedAttrName(op->tableName, curPSAI->attrName, cnt);
+						if(hasMapStringKey(psMap, newAttr))
+						{
+							char *BitVectorStr = STRING_VALUE((Constant *) getMapString(psMap, newAttr));
+							if(curPSAI->BitVector)
+							{
+								curPSAI->BitVector = bitOr(curPSAI->BitVector, stringToBitset(BitVectorStr));
+							}
+							else
+							{
+								curPSAI->BitVector = stringToBitset(BitVectorStr);
+							}
+						}
 					}
 				}
 

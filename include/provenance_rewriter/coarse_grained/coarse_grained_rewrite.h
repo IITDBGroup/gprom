@@ -36,6 +36,12 @@ typedef struct psAttrInfo
 
 #define POSTGRES_BIT_DT "bit"
 
+#define COARSE_GRAINED_HASH "HASH"
+#define COARSE_GRAINED_PAGE "PAGE"
+#define COARSE_GRAINED_RANGEB "RANGEB"
+#define COARSE_GRAINED_RANGEA "RANGEA"
+#define COARSE_GRAINED_FRAGMENT "FRAGMENT"
+
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
 extern void autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara);
 extern void markTableAccessAndAggregation (QueryOperator *op, Node *psPara);
