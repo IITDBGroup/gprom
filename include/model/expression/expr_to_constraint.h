@@ -32,8 +32,10 @@ typedef struct {
     int current_expr;
     List *variables;
     HashMap *variableMap;
+    HashMap *reuseMap;
     List *constraints;
     List *caseConds; // case condition variable names
+    List *deletes; // delete condition resultants
 } ConstraintTranslationCtx;
 
 typedef struct {
@@ -61,7 +63,7 @@ extern RenamingCtx *newRenamingCtx (void);
 extern ConstraintTranslationCtx *newConstraintTranslationCtx (void);
 
 /* turn history into case statements with fresh variables */
-extern List *historyToCaseExprsFreshVars (List *history, RenamingCtx *ctx);
+extern List *historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translationCtx, RenamingCtx *renameCtx);
 
 /* create MILP constraints from an expression tree */
 extern ConstraintTranslationCtx *exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx);

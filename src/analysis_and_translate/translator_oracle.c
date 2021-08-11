@@ -10,6 +10,8 @@
  *-----------------------------------------------------------------------------
  */
 
+#define HAVE_LIBCPLEX 1
+
 #include "analysis_and_translate/translator.h"
 #include "common.h"
 #include "configuration/option.h"
@@ -163,7 +165,7 @@ translateQueryOracle (Node *node)
 static QueryOperator *
 translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
 {
-    DEBUG_LOG("translate query <%s>", nodeToString(node));
+    INFO_LOG("translate query <%s>", nodeToString(node));
 
     switch(node->type)
     {
@@ -904,16 +906,127 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
     return (QueryOperator *) result;
 }
 
+#ifdef HAVE_LIBCPLEX
+
+static LPProblem *
+constructLPProblem (List *slice)
+{
+    RenamingCtx *renamingCtx = newRenamingCtx();
+
+    ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
+    List *caseExprs = historyToCaseExprsFreshVars(slice, ctx, renamingCtx);
+    FOREACH(Node, e, caseExprs)
+    {
+        exprToConstraints(e, ctx);
+    }
+    if(getListLength(ctx->caseConds) > 1)
+    {
+        SQLParameter *i = (SQLParameter *)getHeadOfListP(ctx->caseConds);
+        SQLParameter *j = (SQLParameter *)getTailOfListP(ctx->caseConds);
+        Constraint *c = makeNode(Constraint);
+        c->sense = CONSTRAINT_E;
+        c->rhs = createConstInt(2);
+        c->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
+        );
+
+        Constraint *c2 = makeNode(Constraint);
+        c2->sense = CONSTRAINT_E;
+        c2->rhs = createConstInt(0);
+        c2->terms = NIL;
+        FOREACH(SQLParameter, d, ctx->deletes) {
+            c2->terms = appendToTailOfList(c2->terms, createNodeKeyValue((Node*)createConstInt(1), (Node*)d));
+        }
+
+        ctx->constraints = appendToTailOfList(ctx->constraints, c);
+        ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+    }
+    else
+    {
+        ERROR_LOG("Something is wrong, not at least 2 case exprs for update dependency determination.");
+    }
+    return newLPProblem(ctx); 
+}
+
+#endif
+
+static int
+separateInserts (List **source, List **dest)
+{
+    /* Separate inserts into their own list for their own processing */
+    int found = 0;
+    List *inserts = NIL;
+    FOREACH(Node, n, *source)
+    {
+        if(isA(n, Insert)) {
+            inserts = appendToTailOfList(inserts, n);
+        }
+    }
+    *dest = copyObject(*source);
+    *source = removeListElementsFromAnotherList(inserts, *source);
+    int n = 0;
+    FOREACH(Node, item, *dest)
+    {
+        if (isA(item, Insert)) {
+            found = 1;
+            break;
+        }
+        n++;
+    }
+    INFO_LOG("%d found / %d .. %d\n", found, n, getListLength(*dest)-1);
+    if(found) *dest = sublist(*dest, n, getListLength(*dest)-1);
+
+    return found;
+}
+
+static QueryOperator *
+whatifReenactment (List *slice)
+{
+    List *kvs = NIL;
+    FOREACH(Node, q, slice)
+    {
+        kvs = appendToTailOfList(kvs, createNodeKeyValue(q, NULL));
+    }
+
+    ProvenanceStmt *stmt = createProvenanceStmt((Node *)kvs);
+    stmt->inputType = PROV_INPUT_REENACT;
+    stmt->provType = PROV_NONE;
+
+    return provRewriteQuery(translateProvenanceStmt(stmt, NULL));
+}
+
+static void
+switchInsertSubtree (Node *node)
+{
+    INFO_LOG("Switching tree....\n");
+    List *tas = NIL;
+    findTableAccessVisitor(node, &tas);
+    FOREACH(TableAccessOperator, ta, tas) {
+        INFO_LOG("found ta\n");
+        QueryOperator *unionOp = (QueryOperator *)getHeadOfListP(((QueryOperator *)ta)->parents);
+        QueryOperator *constRelOp = getHeadOfListP(findAllNodes((Node*)(unionOp->inputs), T_ConstRelOperator));
+        switchSubtrees((QueryOperator *)unionOp, (QueryOperator *)constRelOp);
+        constRelOp->inputs = NIL;
+    }
+}
+
 static QueryOperator *
 translateWhatIfStmt (WhatIfStmt *whatif)
 {
     List *independentUpdates = NIL;
+
+    List *originalInserts = NIL, *modifiedInserts = NIL;
+    int insertsInOriginal = separateInserts(&(whatif->history), &originalInserts);
+    int insertsInModified = separateInserts(&(whatif->modifiedHistory), &modifiedInserts);
+
     #ifdef HAVE_LIBCPLEX
     if(getBoolOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING))
     {
         START_TIMER("translator - program slicing optimization");
         INFO_LOG("Program slicing optimization with CPLEX...");
         INFO_LOG("%s", beatify(nodeToString(whatif->indices)));
+
         /* Find dependent updates */
         FOREACH(Constant, modifiedIndex, whatif->indices)
         {
@@ -925,74 +1038,13 @@ translateWhatIfStmt (WhatIfStmt *whatif)
             for(int u = u0 + 1; u < getListLength(whatif->history); u++) 
             {
                 INFO_LOG("Comparing to update #%d", u);
-                RenamingCtx *renamingCtx = newRenamingCtx();
 
-                List *original = copyObject(whatif->history);
-                original = sublist(original, u0, u);
-                List *originalCaseExprs = historyToCaseExprsFreshVars(original, renamingCtx);
-                ConstraintTranslationCtx *originalCtx = newConstraintTranslationCtx();
-                FOREACH(Node, e, originalCaseExprs)
-                {
-                    exprToConstraints(e, originalCtx);
-                }
-                if(getListLength(originalCtx->caseConds) > 1)
-                {
-                    SQLParameter *i = (SQLParameter *)getHeadOfListP(originalCtx->caseConds);
-                    SQLParameter *j = (SQLParameter *)getTailOfListP(originalCtx->caseConds);
-                    Constraint *c = makeNode(Constraint);
-                    c->sense = CONSTRAINT_E;
-                    c->rhs = createConstInt(2);
-                    c->terms = LIST_MAKE(
-                        createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
-                        createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
-                    );
-                    originalCtx->constraints = appendToTailOfList(originalCtx->constraints, c);
-                }
-                else
-                {
-                    ERROR_LOG("Something is wrong, not at least 2 case exprs for update dependency determination.");
-                }
-                LPProblem *originalLp = newLPProblem(originalCtx);
+                List *original = sublist(copyObject(whatif->history), u0, u);
+                LPProblem *originalLp = constructLPProblem(original);
 
-                INFO_LOG("***MODIFIED***\n");
-                renamingCtx = newRenamingCtx();
-                List *modified = copyObject(whatif->modifiedHistory);
-                modified = sublist(modified, u0, u);
-                List *modifiedCaseExprs = historyToCaseExprsFreshVars(modified, renamingCtx);
-                ConstraintTranslationCtx *modifiedCtx = newConstraintTranslationCtx();
-                FOREACH(Node, e, modifiedCaseExprs)
-                {
-                    exprToConstraints(e, modifiedCtx);
-                }
-                if(getListLength(modifiedCtx->caseConds) > 1)
-                {
-                    INFO_LOG(beatify(nodeToString(modifiedCtx->caseConds)));
-                    SQLParameter *i = (SQLParameter *)getHeadOfListP(modifiedCtx->caseConds);
-                    SQLParameter *j = (SQLParameter *)getTailOfListP(modifiedCtx->caseConds);
-                    Constraint *c = makeNode(Constraint);
-                    c->sense = CONSTRAINT_E;
-                    c->rhs = createConstInt(2);
-                    c->terms = LIST_MAKE(
-                        createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
-                        createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
-                    );
-                    modifiedCtx->constraints = appendToTailOfList(modifiedCtx->constraints, c);
-                }
-                else
-                {
-                    ERROR_LOG("Something is wrong, not at least 2 case exprs for update dependency determination.");
-                }
-                LPProblem *modifiedLp = newLPProblem(modifiedCtx);
-                /* FOREACH(Constraint, c, modifiedCtx->constraints)
-                {
-                    INFO_LOG("%s", cstringConstraint(c, TRUE));
-                }
-                INFO_LOG("Modified is %s", beatify(cstringLPProblem(modifiedLp, TRUE))); */
+                List *modified = sublist(copyObject(whatif->modifiedHistory), u0, u);
+                LPProblem *modifiedLp = constructLPProblem(modified);
 
-                // A = 2; A = 3;
-                // A = 1; A = 3;
-                // A1 = 2 ELSE A0; A2 = 3 ELSE A1;
-                // A3 = 1 ELSE A0; A4 = 3 ELSE A3; 
                 int originalResult = executeLPProblem(originalLp);
                 int modifiedResult = executeLPProblem(modifiedLp);
 
@@ -1009,38 +1061,30 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     }
     #endif
 
-    // Prune independent updates
-    List *historyNoIndepUpdates = copyObject(whatif->history);
-    historyNoIndepUpdates = removeListElementsFromAnotherList(independentUpdates, historyNoIndepUpdates);
-    INFO_LOG(beatify(nodeToString(independentUpdates)));
-    List *reenactHistory = NIL;
-    FOREACH(Node, q, historyNoIndepUpdates)
-    {
-        reenactHistory = appendToTailOfList(reenactHistory, createNodeKeyValue(q, NULL));
+
+    QueryOperator *reenactHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->history)));     // Prune independent updates
+    QueryOperator *reenactModifiedHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->modifiedHistory)));     // Prune independent updates
+
+    QueryOperator *origUnion = NULL, *modifiedUnion = NULL;
+    if(insertsInOriginal || insertsInModified) {
+        QueryOperator *reenactHistoryInsertsOp = whatifReenactment(originalInserts);
+        QueryOperator *reenactModifiedHistoryInsertsOp = whatifReenactment(modifiedInserts);
+        if(insertsInOriginal) switchInsertSubtree((Node *)reenactHistoryInsertsOp);
+        if(insertsInModified) switchInsertSubtree((Node *)reenactModifiedHistoryInsertsOp);
+
+        origUnion = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(reenactHistoryOp, reenactHistoryInsertsOp), NIL, NIL);    
+        modifiedUnion = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(reenactModifiedHistoryOp, reenactModifiedHistoryInsertsOp), NIL, NIL); 
+    } else {
+        origUnion = reenactHistoryOp;
+        modifiedUnion = reenactModifiedHistoryOp;
     }
-    INFO_LOG("History to re-enact: %s", beatify(nodeToString(reenactHistory)));
 
-    List *modifiedHistoryNoIndepUpdates = copyObject(whatif->modifiedHistory);
-    modifiedHistoryNoIndepUpdates = removeListElementsFromAnotherList(independentUpdates, modifiedHistoryNoIndepUpdates);
-    List *reenactModifiedHistory = NIL;
-    FOREACH(Node, q, modifiedHistoryNoIndepUpdates)
-    {
-        reenactModifiedHistory = appendToTailOfList(reenactModifiedHistory, createNodeKeyValue(q, NULL));
-    }
+    ASSERT(origUnion);
+    ASSERT(modifiedUnion);
 
-    ProvenanceStmt *reenactHistoryStmt = createProvenanceStmt((Node *)reenactHistory);
-    reenactHistoryStmt->inputType = PROV_INPUT_REENACT;
-    reenactHistoryStmt->provType = PROV_NONE;
+    QueryOperator *d1 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(origUnion, modifiedUnion), NIL, NIL);
+    QueryOperator *d2 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(modifiedUnion, origUnion), NIL, NIL);
 
-    ProvenanceStmt *reenactModifiedHistoryStmt = createProvenanceStmt((Node *)reenactModifiedHistory);
-    reenactModifiedHistoryStmt->inputType = PROV_INPUT_REENACT;
-    reenactModifiedHistoryStmt->provType = PROV_NONE;
-
-    QueryOperator *reenactHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactHistoryStmt, NULL));
-    QueryOperator *reenactModifiedHistoryOp = provRewriteQuery(translateProvenanceStmt(reenactModifiedHistoryStmt, NULL));
-
-    QueryOperator *d1 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactHistoryOp, reenactModifiedHistoryOp), NIL, NIL);
-    QueryOperator *d2 = (QueryOperator *)createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(reenactModifiedHistoryOp, reenactHistoryOp), NIL, NIL);
     QueryOperator *result = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(d1, d2), NIL, NIL);
 
     // single update data slicing implementation
@@ -1049,9 +1093,11 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         findTableAccessVisitor((Node *)result, &tas);
         FOREACH(TableAccessOperator, ta, tas) {
             Node *cond1 = ((Update *)getHeadOfListP(whatif->history))->cond, *cond2 = ((Update *)getHeadOfListP(whatif->modifiedHistory))->cond;
-            Node *cond = (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2));
-            SelectionOperator *select = createSelectionOp(cond, (QueryOperator *)ta, NIL, getAttrNames(((QueryOperator *)ta)->schema)); // TODO: make sure on right table
-            switchSubtrees((QueryOperator *)ta, (QueryOperator *)select);
+            Node *cond = cond1 && cond2 ? (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2)) : (cond1 ? cond1 : (cond2 ? cond2 : NULL));
+            if(cond) {
+                SelectionOperator *select = createSelectionOp(cond, (QueryOperator *)ta, NIL, getAttrNames(((QueryOperator *)ta)->schema)); // TODO: make sure on right table
+                switchSubtrees((QueryOperator *)ta, (QueryOperator *)select);
+            }
         }
     }
 

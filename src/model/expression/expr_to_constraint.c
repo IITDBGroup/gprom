@@ -9,6 +9,8 @@
 #include "model/query_block/query_block.h"
 #include "configuration/option.h"
 
+#define HAVE_LIBCPLEX 1
+
 #ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
 
@@ -29,6 +31,7 @@ newConstraintTranslationCtx ()
     ConstraintTranslationCtx *ctx = MALLOC(sizeof(ConstraintTranslationCtx));
     ctx->current_expr = 0;
     ctx->variableMap = NEW_MAP(Constant, Constant);
+    ctx->reuseMap = NEW_MAP(Node, SQLParameter);
     ctx->variables = NIL;
     ctx->constraints = NIL;
     ctx->caseConds = NIL;
@@ -127,36 +130,51 @@ renameParameters (Node *node, RenamingCtx *ctx)
     return FALSE;
 }
 
+// update a = 5, c = 3 where a < 3;
+
+// a1 = case when a0 < 3 then 5 else a0 end <---- b1
+// c1 = case when a0 < 3 then 5 else a0 
+
 List *
-historyToCaseExprsFreshVars (List *history, RenamingCtx *ctx) {
-    HashMap *current = ctx->map;
+historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translationCtx, RenamingCtx *renameCtx) {
+    HashMap *current = renameCtx->map;
     List *caseExprs = NIL;
     // HashMap *current = NEW_MAP(Constant, Constant);
     // TODO: Deep copy history list? copyobject
     // Change variables and construct CASE exprs
-    FOREACH(Update, u, history)
+    FOREACH(Node, n, history)
     {
-        // TODO: handle multiple sets?
-        Operator *set = (Operator *)getHeadOfListP(u->selectClause);
-        AttributeReference *setAttr = (AttributeReference *)getHeadOfListP(set->args);
-        Node *setExpr = (Node *)getTailOfListP(set->args);
+        if(isA(n, Update)) {
+            Update *u = (Update *)n;
+            // TODO: handle multiple sets?
 
-        if(!MAP_HAS_STRING_KEY(current, setAttr->name)) {
-            // first update rename will look like foo1 = foo0 + 3 where foo0 > 2
-            MAP_ADD_STRING_KEY(current, setAttr->name, createConstInt(0));
+            List *updatedAttrs = NIL;
+            FOREACH(Operator, set, u->selectClause) {
+                AttributeReference *setAttr = (AttributeReference *)getHeadOfListP(set->args);
+                Node *setExpr = (Node *)getTailOfListP(set->args);
+
+                if(!MAP_HAS_STRING_KEY(current, setAttr->name)) {
+                    // first update rename will look like foo1 = foo0 + 3 where foo0 > 2
+                    MAP_ADD_STRING_KEY(current, setAttr->name, createConstInt(0));
+                }
+                char *rhsSetAttr = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name))));
+                visit((Node*)setExpr, renameParameters, renameCtx);
+                if(u->cond) visit(u->cond, renameParameters, renameCtx);
+                updatedAttrs = appendToTailOfList(updatedAttrs, strdup(setAttr->name));
+                setAttr->name = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name)) + 1));
+                // foo1 := case when foo0 > 3 then foo0 + 3 else 4
+                caseExprs = appendToTailOfList(caseExprs, createOpExpr(":=", LIST_MAKE(createSQLParameter(setAttr->name), 
+                                                                                    createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)getTailOfListP(set->args))), (Node *)createSQLParameter(rhsSetAttr))
+                                                                        )));
+            }
+
+            FOREACH(char, updatedAttr, updatedAttrs) {
+                MAP_ADD_STRING_KEY(current, updatedAttr, createConstInt(INT_VALUE(MAP_GET_STRING(current, updatedAttr)) + 1));
+            }
+        } else if(isA(n, Delete)) {
+            Delete *d = (Delete *)n;
+            caseExprs = appendToTailOfList(caseExprs, d); // pass delete directly through if delete
         }
-
-        char *rhsSetAttr = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name))));
-
-        visit((Node*)setExpr, renameParameters, ctx);
-        visit(u->cond, renameParameters, ctx);
-        MAP_ADD_STRING_KEY(current, setAttr->name, createConstInt(INT_VALUE(MAP_GET_STRING(current, setAttr->name)) + 1));
-        setAttr->name = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name)))); // visit break on AttributeReference
-
-        // foo1 = case when foo0 > 3 then foo0 + 3 else 4
-        caseExprs = appendToTailOfList(caseExprs, createOpExpr(":=", LIST_MAKE(createSQLParameter(setAttr->name), 
-																			   createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)getTailOfListP(set->args))), (Node *)createSQLParameter(rhsSetAttr))
-																   )));
     }
     return caseExprs;
 }
@@ -597,6 +615,13 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         constraint->terms = LIST_MAKE(createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant));
 
         ctx->constraints = appendToTailOfList(ctx->constraints, constraint);
+    }
+    else if(isA(expr, Delete))
+    {
+        Delete *d = (Delete *)d;
+        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+        exprToConstraints((Node*)(d->cond), ctx);
+        ctx->deletes = appendToTailOfList(ctx->deletes, resultant);
     }
     return ctx;
 }
