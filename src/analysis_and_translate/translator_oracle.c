@@ -914,11 +914,15 @@ constructLPProblem (List *slice)
     RenamingCtx *renamingCtx = newRenamingCtx();
 
     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
+    START_TIMER("translator - case exprs w/ fresh vars from history");
     List *caseExprs = historyToCaseExprsFreshVars(slice, ctx, renamingCtx);
+    STOP_TIMER("translator - case exprs w/ fresh vars from history");
+    START_TIMER("translator - expression to constraints");
     FOREACH(Node, e, caseExprs)
     {
         exprToConstraints(e, ctx);
     }
+    STOP_TIMER("translator - expression to constraints");
     if(getListLength(ctx->caseConds) > 1)
     {
         SQLParameter *i = (SQLParameter *)getHeadOfListP(ctx->caseConds);
@@ -931,22 +935,29 @@ constructLPProblem (List *slice)
             createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
         );
 
-        Constraint *c2 = makeNode(Constraint);
-        c2->sense = CONSTRAINT_E;
-        c2->rhs = createConstInt(0);
-        c2->terms = NIL;
-        FOREACH(SQLParameter, d, ctx->deletes) {
-            c2->terms = appendToTailOfList(c2->terms, createNodeKeyValue((Node*)createConstInt(1), (Node*)d));
-        }
-
         ctx->constraints = appendToTailOfList(ctx->constraints, c);
-        ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+
+        if(getListLength(ctx->deletes) > 0) 
+        {
+        Constraint *c2 = makeNode(Constraint);
+            c2->sense = CONSTRAINT_E;
+            c2->rhs = createConstInt(0);
+            c2->terms = NIL;
+            FOREACH(SQLParameter, d, ctx->deletes) {
+                c2->terms = appendToTailOfList(c2->terms, createNodeKeyValue((Node*)createConstInt(1), (Node*)d));
+            }
+            ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+        } 
     }
     else
     {
         ERROR_LOG("Something is wrong, not at least 2 case exprs for update dependency determination.");
     }
-    return newLPProblem(ctx); 
+
+    START_TIMER("translator - newLPProblem");
+    LPProblem *lp = newLPProblem(ctx);
+    STOP_TIMER("translator - newLPProblem");
+    return lp;
 }
 
 #endif
@@ -1011,6 +1022,22 @@ switchInsertSubtree (Node *node)
     }
 }
 
+static Node *
+deepReplaceAttrRefMutator(Node *node, HashMap *context)
+{
+    if (node == NULL)
+        return NULL;
+
+    if (isA(node, AttributeReference))
+    {
+        Node *r;
+        r = getMap(context, node);
+        if(r) return copyObject(r);
+    }
+
+    return mutate(node, deepReplaceAttrRefMutator, context);
+}
+
 static QueryOperator *
 translateWhatIfStmt (WhatIfStmt *whatif)
 {
@@ -1030,7 +1057,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         /* Find dependent updates */
         FOREACH(Constant, modifiedIndex, whatif->indices)
         {
-            INFO_LOG("Looking at original/modified update...");
+            INFO_LOG("Looking at original/modified modification for modification #%d...", INT_VALUE(modifiedIndex) - 1);
             int u0 = INT_VALUE(modifiedIndex) - 1;
             // M = u1' u2 u3 u4 u5 u6' u7 u8
             // eliminate dependency checks between updates that have already been established as dependent
@@ -1040,22 +1067,71 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                 INFO_LOG("Comparing to update #%d", u);
 
                 List *original = sublist(copyObject(whatif->history), u0, u);
+                START_TIMER("translator - LP construction");
                 LPProblem *originalLp = constructLPProblem(original);
+                STOP_TIMER("translator - LP construction");
 
                 List *modified = sublist(copyObject(whatif->modifiedHistory), u0, u);
+                START_TIMER("translator - LP construction");
                 LPProblem *modifiedLp = constructLPProblem(modified);
+                STOP_TIMER("translator - LP construction");
 
+                START_TIMER("translator - CPLEX time");
                 int originalResult = executeLPProblem(originalLp);
                 int modifiedResult = executeLPProblem(modifiedLp);
+                STOP_TIMER("translator - CPLEX time");
 
                 INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
                 if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u)) && !searchList(whatif->indices, createConstInt(u+1))) // 101 is CPLEX MIP optimal solution found
                 {
                     INFO_LOG("Independent update detected...");
                     independentUpdates = appendToTailOfList(independentUpdates, getNthOfListP(whatif->history, u));
-                } 
+                }
+                else if((originalResult == 101 || modifiedResult == 101) && searchList(independentUpdates, getNthOfListP(whatif->history, u)))
+                {
+                    independentUpdates = genericRemoveFromList(independentUpdates, equal, getNthOfListP(whatif->history, u)); // remove from independent updates list if classified independent update by previous modification
+                }
             }
         }
+
+        /* Second pass to check independent updates against modified updates further along in the history */
+        if(getListLength(whatif->indices) > 1) // no second pass necessary for only one modification
+        {
+            FOREACH(Node, updateToCheck, independentUpdates)
+            {
+                int updateToCheckIdx = genericListPos(whatif->history, equal, updateToCheck);
+                ASSERT(updateToCheckIdx > -1);
+                FOREACH(Constant, modifiedIndex, whatif->indices)
+                {
+                    int u = INT_VALUE(modifiedIndex) - 1;
+                    if(updateToCheckIdx < u)
+                    {
+                        List *original = sublist(copyObject(whatif->history), updateToCheckIdx, u);
+                        START_TIMER("translator - LP construction");
+                        LPProblem *originalLp = constructLPProblem(original);
+                        STOP_TIMER("translator - LP construction");
+
+                        START_TIMER("translator - LP construction");
+                        List *modified = sublist(copyObject(whatif->modifiedHistory), updateToCheckIdx, u);
+                        LPProblem *modifiedLp = constructLPProblem(modified);
+                        STOP_TIMER("translator - LP construction");
+
+                        START_TIMER("translator - CPLEX time");
+                        int originalResult = executeLPProblem(originalLp);
+                        int modifiedResult = executeLPProblem(modifiedLp);
+                        STOP_TIMER("translator - CPLEX time");
+
+                        INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
+                        if(originalResult == 101 || modifiedResult == 101) // 101 is CPLEX MIP optimal solution found, i.e. there exists a possible world
+                        {
+                            INFO_LOG("Determined independent update as dependent on second pass...");
+                            independentUpdates = genericRemoveFromList(independentUpdates, equal, updateToCheck);
+                        } 
+                    }
+                }
+            }
+        }
+
         STOP_TIMER("translator - program slicing optimization");
         INFO_LOG("%d dependent updates/%d total", getListLength(whatif->history) - getListLength(independentUpdates), getListLength(whatif->history));
     }
@@ -1089,12 +1165,58 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 
     // single update data slicing implementation
     if(getBoolOption(OPTIMIZATION_WHATIF_DATA_SLICING)) {
-        List *tas = NIL;
-        findTableAccessVisitor((Node *)result, &tas);
-        FOREACH(TableAccessOperator, ta, tas) {
-            Node *cond1 = ((Update *)getHeadOfListP(whatif->history))->cond, *cond2 = ((Update *)getHeadOfListP(whatif->modifiedHistory))->cond;
-            Node *cond = cond1 && cond2 ? (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2)) : (cond1 ? cond1 : (cond2 ? cond2 : NULL));
-            if(cond) {
+        if(getListLength(whatif->indices) == 1) // single modification
+        { 
+            INFO_LOG("single data slice");
+            List *tas = NIL;
+            findTableAccessVisitor((Node *)result, &tas);
+            FOREACH(TableAccessOperator, ta, tas) {
+                Node *cond1 = ((Update *)getHeadOfListP(whatif->history))->cond, *cond2 = ((Update *)getHeadOfListP(whatif->modifiedHistory))->cond;
+                Node *cond = cond1 && cond2 ? (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2)) : (cond1 ? cond1 : (cond2 ? cond2 : NULL));
+                if(cond) {
+                    SelectionOperator *select = createSelectionOp(cond, (QueryOperator *)ta, NIL, getAttrNames(((QueryOperator *)ta)->schema)); // TODO: make sure on right table
+                    switchSubtrees((QueryOperator *)ta, (QueryOperator *)select);
+                }
+            }
+        }
+        else
+        {
+            List *conds = NIL;
+            FOREACH(Constant, modifiedIndex, whatif->indices)
+            {
+                int idx = INT_VALUE(modifiedIndex) - 1;
+                FOREACH(List, currentHistory, LIST_MAKE(whatif->history, whatif->modifiedHistory)) {
+                    HashMap *sets = NEW_MAP(AttributeReference, Node);
+                    FOREACH(Operator, set, ((Update *)getNthOfListP(currentHistory, idx))->selectClause)
+                    {
+                        addToMap(sets, copyObject(getHeadOfListP(set->args)), copyObject(getTailOfListP(set->args)));
+                    }
+                    for(int i = idx-1; i >= 0; i--)
+                    {
+                        INFO_LOG("Going from %d w/ modded index @ %d...", i, idx);
+                        Update *u = ((Update *)getNthOfListP(currentHistory, i));
+                        FOREACH(Operator, set, u->selectClause)
+                        {
+                            AttributeReference *setAttr = (AttributeReference *)getHeadOfListP(set->args);
+                            Node *setExpr = (Node *)getTailOfListP(set->args);
+                            CaseExpr *caseExpr = createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)setExpr)), (Node *)setAttr);
+
+                            HashMap *rename = NEW_MAP(AttributeReference, Node);
+                            addToMap(rename, (Node *)setAttr, (Node *)caseExpr);
+                            deepReplaceAttrRefMutator(getMap(sets, (Node *)setAttr), rename);
+                        }
+                    }
+                    Operator *cond = copyObject(((Update *)getNthOfListP(currentHistory, idx))->cond);
+                    if(idx > 0) deepReplaceAttrRefMutator((Node *)cond, sets); // make sure we don't accidentally change condition on first modification
+                    conds = appendToTailOfList(conds, cond);
+                    INFO_LOG("cond %s", beatify(nodeToString(cond)));
+                }   
+            }
+
+            List *tas = NIL;
+            findTableAccessVisitor((Node *)result, &tas);
+            FOREACH(TableAccessOperator, ta, tas) {
+                Node *cond = (Node *)createOpExpr(OPNAME_OR, conds);
                 SelectionOperator *select = createSelectionOp(cond, (QueryOperator *)ta, NIL, getAttrNames(((QueryOperator *)ta)->schema)); // TODO: make sure on right table
                 switchSubtrees((QueryOperator *)ta, (QueryOperator *)select);
             }

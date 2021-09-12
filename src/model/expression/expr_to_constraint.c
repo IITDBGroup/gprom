@@ -2,6 +2,7 @@
 #include "model/expression/expression.h"
 #include "model/expression/expr_to_constraint.h"
 #include "mem_manager/mem_mgr.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
@@ -35,6 +36,7 @@ newConstraintTranslationCtx ()
     ctx->variables = NIL;
     ctx->constraints = NIL;
     ctx->caseConds = NIL;
+    ctx->deletes = NIL;
 
     MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX));
     MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-INT_MAX)); //TODO: There is definitely a better way to be doing this.
@@ -710,6 +712,7 @@ newLPProblem (ConstraintTranslationCtx* ctx)
     problem->nzcnt = terms;
     problem->rmatind = MALLOC(sizeof(int) * terms);
     problem->rmatval = MALLOC(sizeof(double) * terms);
+
     int current = 0, i = 0;
     FOREACH(Constraint, c, ctx->constraints) {
         problem->rmatbeg[current] = i;
@@ -779,8 +782,8 @@ executeLPProblem(LPProblem *lp)
 	int cplexStatus = 0;
 	CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
 	if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
-	cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
-	cplexStatus ^= CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
+	//cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
+	cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
 	if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
 
 	CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
