@@ -713,7 +713,7 @@ newLPProblem (ConstraintTranslationCtx* ctx)
     problem->rmatind = MALLOC(sizeof(int) * terms);
     problem->rmatval = MALLOC(sizeof(double) * terms);
 
-    int current = 0, i = 0;
+    /*int current = 0, i = 0;
     FOREACH(Constraint, c, ctx->constraints) {
         problem->rmatbeg[current] = i;
         FOREACH(KeyValue, kv, c->terms) {
@@ -731,7 +731,38 @@ newLPProblem (ConstraintTranslationCtx* ctx)
             i++;
         }
         current++;
+    }*/
+
+    int current = 0, i = 0;
+	HashMap *varsToPos = NEW_MAP(SQLParameter, Constant);
+	FOREACH(SQLParameter,v,ctx->variables)
+	{
+		addToMap(varsToPos, (Node *) v, (Node *) createConstInt(i));
+        i++;
+	}
+    
+	i = 0;
+    FOREACH(Constraint, c, ctx->constraints)
+	{
+        problem->rmatbeg[current] = i;
+        FOREACH(KeyValue, kv, c->terms) {
+            problem->rmatval[i] = INT_VALUE(kv->key);
+            /* problem->rmatind[i] = genericListPos(ctx->variables, equal, kv->value); */
+			problem->rmatind[i] = INT_VALUE(getMap(varsToPos, kv->value));
+            if(problem->rmatind[i] == -1)
+            {
+                ERROR_LOG("Something very wrong happened. Variable not found.");
+                ERROR_LOG("Looking for variable %s in haystack", nodeToString(kv->value));
+                FOREACH(SQLParameter, p, ctx->variables)
+                {
+                    ERROR_LOG("Variable %s", nodeToString(p));
+                }
+            }
+            i++;
+        }
+        current++;
     }
+
     return problem;
 }
 

@@ -937,7 +937,7 @@ constructLPProblem (List *slice)
 
         ctx->constraints = appendToTailOfList(ctx->constraints, c);
 
-        if(getListLength(ctx->deletes) > 0) 
+        if(getListLength(ctx->deletes) > 0)
         {
         Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_E;
@@ -947,7 +947,7 @@ constructLPProblem (List *slice)
                 c2->terms = appendToTailOfList(c2->terms, createNodeKeyValue((Node*)createConstInt(1), (Node*)d));
             }
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
-        } 
+        }
     }
     else
     {
@@ -1032,10 +1032,30 @@ deepReplaceAttrRefMutator(Node *node, HashMap *context)
     {
         Node *r;
         r = getMap(context, node);
-        if(r) return copyObject(r);
+        return r;
     }
 
     return mutate(node, deepReplaceAttrRefMutator, context);
+}
+
+static boolean
+replaceAttributeRefsMutator (Node *node, HashMap *state, void **parentPointer)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        Node *r = getMap(context, node);
+        if(r)
+        {
+            Node **parentP = (Node **) parentPointer;
+            *parentP = r;
+            return TRUE;
+        }
+    }
+
+    return visitWithPointers(node, replaceAttributeRefsMutator, parentPointer, state);
 }
 
 static QueryOperator *
@@ -1046,6 +1066,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     List *originalInserts = NIL, *modifiedInserts = NIL;
     int insertsInOriginal = separateInserts(&(whatif->history), &originalInserts);
     int insertsInModified = separateInserts(&(whatif->modifiedHistory), &modifiedInserts);
+    Set *dependentUpdated;
 
     #ifdef HAVE_LIBCPLEX
     if(getBoolOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING))
@@ -1062,7 +1083,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
             // M = u1' u2 u3 u4 u5 u6' u7 u8
             // eliminate dependency checks between updates that have already been established as dependent
             // merge dependency, do not delete modified updates under any circumstances
-            for(int u = u0 + 1; u < getListLength(whatif->history); u++) 
+            for(int u = u0 + 1; u < getListLength(whatif->history); u++)
             {
                 INFO_LOG("Comparing to update #%d", u);
 
@@ -1126,7 +1147,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         {
                             INFO_LOG("Determined independent update as dependent on second pass...");
                             independentUpdates = genericRemoveFromList(independentUpdates, equal, updateToCheck);
-                        } 
+                        }
                     }
                 }
             }
@@ -1148,8 +1169,8 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         if(insertsInOriginal) switchInsertSubtree((Node *)reenactHistoryInsertsOp);
         if(insertsInModified) switchInsertSubtree((Node *)reenactModifiedHistoryInsertsOp);
 
-        origUnion = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(reenactHistoryOp, reenactHistoryInsertsOp), NIL, NIL);    
-        modifiedUnion = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(reenactModifiedHistoryOp, reenactModifiedHistoryInsertsOp), NIL, NIL); 
+        origUnion = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(reenactHistoryOp, reenactHistoryInsertsOp), NIL, NIL);
+        modifiedUnion = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(reenactModifiedHistoryOp, reenactModifiedHistoryInsertsOp), NIL, NIL);
     } else {
         origUnion = reenactHistoryOp;
         modifiedUnion = reenactModifiedHistoryOp;
@@ -1166,7 +1187,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     // single update data slicing implementation
     if(getBoolOption(OPTIMIZATION_WHATIF_DATA_SLICING)) {
         if(getListLength(whatif->indices) == 1) // single modification
-        { 
+        {
             INFO_LOG("single data slice");
             List *tas = NIL;
             findTableAccessVisitor((Node *)result, &tas);
@@ -1203,14 +1224,15 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 
                             HashMap *rename = NEW_MAP(AttributeReference, Node);
                             addToMap(rename, (Node *)setAttr, (Node *)caseExpr);
-                            deepReplaceAttrRefMutator(getMap(sets, (Node *)setAttr), rename);
+
+                            replaceAttributeRefsMutator(getMap(sets, (Node *)setAttr), rename, NULL);
                         }
                     }
                     Operator *cond = copyObject(((Update *)getNthOfListP(currentHistory, idx))->cond);
                     if(idx > 0) deepReplaceAttrRefMutator((Node *)cond, sets); // make sure we don't accidentally change condition on first modification
                     conds = appendToTailOfList(conds, cond);
                     INFO_LOG("cond %s", beatify(nodeToString(cond)));
-                }   
+                }
             }
 
             List *tas = NIL;

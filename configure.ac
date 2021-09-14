@@ -605,9 +605,10 @@ AS_CASE(["$enable_cplex"],
 # check if user has provided us with non-standard locations for CPLEX libraries
   AC_CPLEX_LOCATION
 # check for the libraries
+  AC_CHECK_LIB([dl], [dlinfo], [], [AC_MSG_ERROR[missing ldl]])
   AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
     AC_MSG_ERROR([missing cplex library - if you want to compile without cplex support do not use --enable-cplex])
-  ])
+  ],[-ldl])
   ],
   # No and default
   [no], [],
