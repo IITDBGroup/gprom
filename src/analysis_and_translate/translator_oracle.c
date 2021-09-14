@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "model/set/set.h"
 #define HAVE_LIBCPLEX 1
 
 #include "analysis_and_translate/translator.h"
@@ -1066,7 +1067,18 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     List *originalInserts = NIL, *modifiedInserts = NIL;
     int insertsInOriginal = separateInserts(&(whatif->history), &originalInserts);
     int insertsInModified = separateInserts(&(whatif->modifiedHistory), &modifiedInserts);
-    Set *dependentUpdated;
+    Set *dependentUpdated = INTSET();
+	HashMap *upToPos = NEW_MAP(Constant,Node);
+	HashMap *upToPosReal = NEW_MAP(Node,Constant);
+	int pos;
+
+	pos = 0;
+	FOREACH(Node,u,whatif->history)
+	{
+		MAP_ADD_INT_KEY(upToPos, pos, u);
+		addToMap(upToPosReal, u, (Node *) createConstInt(pos));
+		pos++;
+	}
 
     #ifdef HAVE_LIBCPLEX
     if(getBoolOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING))
@@ -1085,33 +1097,42 @@ translateWhatIfStmt (WhatIfStmt *whatif)
             // merge dependency, do not delete modified updates under any circumstances
             for(int u = u0 + 1; u < getListLength(whatif->history); u++)
             {
-                INFO_LOG("Comparing to update #%d", u);
+				if (!hasSetIntElem(dependentUpdated, u))
+				{
+					INFO_LOG("Comparing to update #%d", u);
+					Node *up = MAP_GET_INT(upToPos, u);
 
-                List *original = sublist(copyObject(whatif->history), u0, u);
-                START_TIMER("translator - LP construction");
-                LPProblem *originalLp = constructLPProblem(original);
-                STOP_TIMER("translator - LP construction");
+					List *original = sublist(copyObject(whatif->history), u0, u);
+					START_TIMER("translator - LP construction");
+					LPProblem *originalLp = constructLPProblem(original);
+					STOP_TIMER("translator - LP construction");
 
-                List *modified = sublist(copyObject(whatif->modifiedHistory), u0, u);
-                START_TIMER("translator - LP construction");
-                LPProblem *modifiedLp = constructLPProblem(modified);
-                STOP_TIMER("translator - LP construction");
+					List *modified = sublist(copyObject(whatif->modifiedHistory), u0, u);
+					START_TIMER("translator - LP construction");
+					LPProblem *modifiedLp = constructLPProblem(modified);
+					STOP_TIMER("translator - LP construction");
 
-                START_TIMER("translator - CPLEX time");
-                int originalResult = executeLPProblem(originalLp);
-                int modifiedResult = executeLPProblem(modifiedLp);
-                STOP_TIMER("translator - CPLEX time");
+					START_TIMER("translator - CPLEX time");
+					int originalResult = executeLPProblem(originalLp);
+					int modifiedResult = executeLPProblem(modifiedLp);
+					STOP_TIMER("translator - CPLEX time");
 
-                INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-                if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, getNthOfListP(whatif->history, u)) && !searchList(whatif->indices, createConstInt(u+1))) // 101 is CPLEX MIP optimal solution found
-                {
-                    INFO_LOG("Independent update detected...");
-                    independentUpdates = appendToTailOfList(independentUpdates, getNthOfListP(whatif->history, u));
-                }
-                else if((originalResult == 101 || modifiedResult == 101) && searchList(independentUpdates, getNthOfListP(whatif->history, u)))
-                {
-                    independentUpdates = genericRemoveFromList(independentUpdates, equal, getNthOfListP(whatif->history, u)); // remove from independent updates list if classified independent update by previous modification
-                }
+					INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
+					if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, up) && !searchList(whatif->indices, createConstInt(u+1))) // 101 is CPLEX MIP optimal solution found
+					{
+						INFO_LOG("Independent update detected...");
+						independentUpdates = appendToTailOfList(independentUpdates, up);
+					}
+					else if((originalResult == 101 || modifiedResult == 101) && searchList(independentUpdates, up))
+					{
+						//independentUpdates = genericRemoveFromList(independentUpdates, equal, up); // remove from independent updates list if classified independent update by previous modification
+						addIntToSet(dependentUpdated, u);
+					}
+					else
+					{
+						addIntToSet(dependentUpdated, u);
+					}
+				}
             }
         }
 
@@ -1125,7 +1146,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                 FOREACH(Constant, modifiedIndex, whatif->indices)
                 {
                     int u = INT_VALUE(modifiedIndex) - 1;
-                    if(updateToCheckIdx < u)
+                    if(updateToCheckIdx < u && !hasSetIntElem(dependentUpdated, updateToCheckIdx))
                     {
                         List *original = sublist(copyObject(whatif->history), updateToCheckIdx, u);
                         START_TIMER("translator - LP construction");
@@ -1146,12 +1167,25 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         if(originalResult == 101 || modifiedResult == 101) // 101 is CPLEX MIP optimal solution found, i.e. there exists a possible world
                         {
                             INFO_LOG("Determined independent update as dependent on second pass...");
-                            independentUpdates = genericRemoveFromList(independentUpdates, equal, updateToCheck);
+							addIntToSet(dependentUpdated, updateToCheckIdx);
                         }
                     }
                 }
             }
         }
+
+		List *realIndependentUpdate = NIL;
+
+		FOREACH(Node,up,independentUpdates)
+		{
+			int pos = INT_VALUE(getMap(upToPosReal, up));
+			if(!hasSetIntElem(dependentUpdated, pos))
+			{
+				realIndependentUpdate = appendToTailOfList(realIndependentUpdate, up);
+			}
+		}
+
+		independentUpdates = realIndependentUpdate;
 
         STOP_TIMER("translator - program slicing optimization");
         INFO_LOG("%d dependent updates/%d total", getListLength(whatif->history) - getListLength(independentUpdates), getListLength(whatif->history));
