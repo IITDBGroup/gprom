@@ -1033,7 +1033,14 @@ deepReplaceAttrRefMutator(Node *node, HashMap *context)
     {
         Node *r;
         r = getMap(context, node);
-        return r;
+        if (r)
+        {
+            return r;
+        }
+        else
+        {
+            return node;
+        }
     }
 
     return mutate(node, deepReplaceAttrRefMutator, context);
@@ -1047,11 +1054,11 @@ replaceAttributeRefsMutator (Node *node, HashMap *state, void **parentPointer)
 
     if (isA(node, AttributeReference))
     {
-        Node *r = getMap(context, node);
+        Node *r = getMap(state, node);
         if(r)
         {
             Node **parentP = (Node **) parentPointer;
-            *parentP = r;
+            *parentP = copyObject(r);
             return TRUE;
         }
     }
@@ -1087,6 +1094,13 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         INFO_LOG("Program slicing optimization with CPLEX...");
         INFO_LOG("%s", beatify(nodeToString(whatif->indices)));
 
+        // Here we can eliminate evaluating slice that start and end on a modification
+        FOREACH(Constant, modifiedIndex, whatif->indices)
+        {
+            int u0 = INT_VALUE(modifiedIndex) - 1;
+            addIntToSet(dependentUpdated, u0); // Modifications are necessarily dependent
+        }
+
         /* Find dependent updates */
         FOREACH(Constant, modifiedIndex, whatif->indices)
         {
@@ -1100,7 +1114,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 				if (!hasSetIntElem(dependentUpdated, u))
 				{
 					INFO_LOG("Comparing to update #%d", u);
-					Node *up = MAP_GET_INT(upToPos, u);
+					//Node *up = MAP_GET_INT(upToPos, u);
 
 					List *original = sublist(copyObject(whatif->history), u0, u);
 					START_TIMER("translator - LP construction");
@@ -1118,18 +1132,9 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 					STOP_TIMER("translator - CPLEX time");
 
 					INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-					if(!(originalResult == 101 || modifiedResult == 101) && !searchList(independentUpdates, up) && !searchList(whatif->indices, createConstInt(u+1))) // 101 is CPLEX MIP optimal solution found
-					{
-						INFO_LOG("Independent update detected...");
-						independentUpdates = appendToTailOfList(independentUpdates, up);
-					}
-					else if((originalResult == 101 || modifiedResult == 101) && searchList(independentUpdates, up))
+					if(originalResult == 101 || modifiedResult == 101)
 					{
 						//independentUpdates = genericRemoveFromList(independentUpdates, equal, up); // remove from independent updates list if classified independent update by previous modification
-						addIntToSet(dependentUpdated, u);
-					}
-					else
-					{
 						addIntToSet(dependentUpdated, u);
 					}
 				}
@@ -1139,53 +1144,50 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         /* Second pass to check independent updates against modified updates further along in the history */
         if(getListLength(whatif->indices) > 1) // no second pass necessary for only one modification
         {
-            FOREACH(Node, updateToCheck, independentUpdates)
+            for(int i = 0; i < getListLength(whatif->history); i++)
             {
-                int updateToCheckIdx = genericListPos(whatif->history, equal, updateToCheck);
-                ASSERT(updateToCheckIdx > -1);
-                FOREACH(Constant, modifiedIndex, whatif->indices)
+                if(!hasSetIntElem(dependentUpdated, i))
                 {
-                    int u = INT_VALUE(modifiedIndex) - 1;
-                    if(updateToCheckIdx < u && !hasSetIntElem(dependentUpdated, updateToCheckIdx))
+                    //Node *up = MAP_GET_INT(posToUp, i);
+                    FOREACH(Constant, m, whatif->indices)
                     {
-                        List *original = sublist(copyObject(whatif->history), updateToCheckIdx, u);
-                        START_TIMER("translator - LP construction");
-                        LPProblem *originalLp = constructLPProblem(original);
-                        STOP_TIMER("translator - LP construction");
-
-                        START_TIMER("translator - LP construction");
-                        List *modified = sublist(copyObject(whatif->modifiedHistory), updateToCheckIdx, u);
-                        LPProblem *modifiedLp = constructLPProblem(modified);
-                        STOP_TIMER("translator - LP construction");
-
-                        START_TIMER("translator - CPLEX time");
-                        int originalResult = executeLPProblem(originalLp);
-                        int modifiedResult = executeLPProblem(modifiedLp);
-                        STOP_TIMER("translator - CPLEX time");
-
-                        INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-                        if(originalResult == 101 || modifiedResult == 101) // 101 is CPLEX MIP optimal solution found, i.e. there exists a possible world
+                        int modifiedIdx = INT_VALUE(m) - 1;
+                        if(i < modifiedIdx && !hasSetIntElem(dependentUpdated, i))
                         {
-                            INFO_LOG("Determined independent update as dependent on second pass...");
-							addIntToSet(dependentUpdated, updateToCheckIdx);
+                            List *original = sublist(copyObject(whatif->history), i, modifiedIdx);
+                            START_TIMER("translator - LP construction");
+                            LPProblem *originalLp = constructLPProblem(original);
+                            STOP_TIMER("translator - LP construction");
+
+                            START_TIMER("translator - LP construction");
+                            List *modified = sublist(copyObject(whatif->modifiedHistory), i, modifiedIdx);
+                            LPProblem *modifiedLp = constructLPProblem(modified);
+                            STOP_TIMER("translator - LP construction");
+
+                            START_TIMER("translator - CPLEX time");
+                            int originalResult = executeLPProblem(originalLp);
+                            int modifiedResult = executeLPProblem(modifiedLp);
+                            STOP_TIMER("translator - CPLEX time");
+
+                            INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
+                            if(originalResult == 101 || modifiedResult == 101) // 101 is CPLEX MIP optimal solution found, i.e. there exists a possible world
+                            {
+                                INFO_LOG("Determined independent update as dependent on second pass...");
+                                addIntToSet(dependentUpdated, i);
+                            }
                         }
                     }
                 }
             }
         }
 
-		List *realIndependentUpdate = NIL;
-
-		FOREACH(Node,up,independentUpdates)
-		{
-			int pos = INT_VALUE(getMap(upToPosReal, up));
-			if(!hasSetIntElem(dependentUpdated, pos))
+        for(int i = 0; i < getListLength(whatif->history); i++)
+        {
+			if(!hasSetIntElem(dependentUpdated, i))
 			{
-				realIndependentUpdate = appendToTailOfList(realIndependentUpdate, up);
+				independentUpdates = appendToTailOfList(independentUpdates, MAP_GET_INT(upToPos, i));
 			}
-		}
-
-		independentUpdates = realIndependentUpdate;
+        }
 
         STOP_TIMER("translator - program slicing optimization");
         INFO_LOG("%d dependent updates/%d total", getListLength(whatif->history) - getListLength(independentUpdates), getListLength(whatif->history));
@@ -1242,10 +1244,16 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                 int idx = INT_VALUE(modifiedIndex) - 1;
                 FOREACH(List, currentHistory, LIST_MAKE(whatif->history, whatif->modifiedHistory)) {
                     HashMap *sets = NEW_MAP(AttributeReference, Node);
-                    FOREACH(Operator, set, ((Update *)getNthOfListP(currentHistory, idx))->selectClause)
+                    Operator *cond = copyObject(((Update *)getNthOfListP(currentHistory, idx))->cond);
+                    List *condA = getAttrReferences((Node *) cond);
+                    FOREACH(AttributeReference,a,condA)
                     {
-                        addToMap(sets, copyObject(getHeadOfListP(set->args)), copyObject(getTailOfListP(set->args)));
+                        addToMap(sets, copyObject(a), copyObject(a));
                     }
+                    /* FOREACH(Operator, set, ((Update *)getNthOfListP(currentHistory, idx-1))->selectClause) */
+                    /* { */
+                    /*     addToMap(sets, copyObject(getHeadOfListP(set->args)), copyObject(getTailOfListP(set->args))); */
+                    /* } */
                     for(int i = idx-1; i >= 0; i--)
                     {
                         INFO_LOG("Going from %d w/ modded index @ %d...", i, idx);
@@ -1253,17 +1261,29 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         FOREACH(Operator, set, u->selectClause)
                         {
                             AttributeReference *setAttr = (AttributeReference *)getHeadOfListP(set->args);
-                            Node *setExpr = (Node *)getTailOfListP(set->args);
-                            CaseExpr *caseExpr = createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)setExpr)), (Node *)setAttr);
+                            if (hasMapKey(sets, (Node *) setAttr))
+                            {
+                                Node *setExpr = (Node *)getTailOfListP(set->args);
+                                CaseExpr *caseExpr = createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)setExpr)), (Node *)setAttr);
+                                List *setAs = getAttrReferences((Node *) caseExpr);
+                                FOREACH(AttributeReference, a, setAs)
+                                {
+                                    if(!hasMapKey(sets,(Node *) a))
+                                    {
+                                        addToMap(sets, copyObject(a), copyObject(a));
+                                    }
+                                }
+                                HashMap *rename = NEW_MAP(AttributeReference, Node);
+                                addToMap(rename, (Node *)setAttr, (Node *)caseExpr);
 
-                            HashMap *rename = NEW_MAP(AttributeReference, Node);
-                            addToMap(rename, (Node *)setAttr, (Node *)caseExpr);
-
-                            replaceAttributeRefsMutator(getMap(sets, (Node *)setAttr), rename, NULL);
+                                Node *subst =  getMap(sets, (Node *)setAttr);
+                                replaceAttributeRefsMutator(subst, rename, (void **) &subst);
+                                addToMap(sets, (Node *) setAttr, copyObject(subst));
+                            }
                         }
                     }
-                    Operator *cond = copyObject(((Update *)getNthOfListP(currentHistory, idx))->cond);
-                    if(idx > 0) deepReplaceAttrRefMutator((Node *)cond, sets); // make sure we don't accidentally change condition on first modification
+                    if(idx > 0) replaceAttributeRefsMutator((Node *)cond, sets, NULL); // make sure we don't accidentally change condition on first modification
+                    /* if(idx > 0) deepReplaceAttrRefMutator((Node *)cond, sets); // make sure we don't accidentally change condition on first modification */
                     conds = appendToTailOfList(conds, cond);
                     INFO_LOG("cond %s", beatify(nodeToString(cond)));
                 }
