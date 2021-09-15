@@ -32,6 +32,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
+#include "operator_optimizer/expr_attr_factor.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
@@ -1285,14 +1286,15 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     if(idx > 0) replaceAttributeRefsMutator((Node *)cond, sets, NULL); // make sure we don't accidentally change condition on first modification
                     /* if(idx > 0) deepReplaceAttrRefMutator((Node *)cond, sets); // make sure we don't accidentally change condition on first modification */
                     conds = appendToTailOfList(conds, cond);
-                    INFO_LOG("cond %s", beatify(nodeToString(cond)));
+                    //INFO_LOG("cond %s", beatify(nodeToString(cond)));
                 }
             }
 
             List *tas = NIL;
             findTableAccessVisitor((Node *)result, &tas);
+            Node *cond = (Node *)createOpExpr(OPNAME_OR, conds);
+            cond = factorAttrRefs(cond);
             FOREACH(TableAccessOperator, ta, tas) {
-                Node *cond = (Node *)createOpExpr(OPNAME_OR, conds);
                 SelectionOperator *select = createSelectionOp(cond, (QueryOperator *)ta, NIL, getAttrNames(((QueryOperator *)ta)->schema)); // TODO: make sure on right table
                 switchSubtrees((QueryOperator *)ta, (QueryOperator *)select);
             }

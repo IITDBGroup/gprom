@@ -20,7 +20,7 @@
 
 //static boolean getCaseExprs (Node *node, List **state);
 
-static Node *factorAttrRefs (Node *node);
+Node *factorAttrRefs (Node *node);
 static Node *removeNonOpCase (Node *node, void *state);
 static Node *factorAdd (Node *node, void *state);
 static Node *factorMult (Node *node, void *state);
@@ -78,7 +78,7 @@ projectionFactorAttrReferences(ProjectionOperator *op)
     return (QueryOperator *) op;
 }
 
-static Node *
+Node *
 factorAttrRefs (Node *node)
 {
     Node *previous;
