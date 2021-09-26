@@ -190,6 +190,7 @@ boolean ps_use_brin_op = FALSE;
 boolean ps_analyze = TRUE;
 boolean ps_use_nest = FALSE;
 boolean ps_post_to_oracle = FALSE;
+char *ps_store_table = "psinfo";
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -715,6 +716,14 @@ OptionInfo opts[] =
 				 OPTION_INT,
 				 wrapOptionInt(&bit_vector_size),
 				 defOptionInt(32)
+		 },
+		 {
+				 OPTION_PS_STORE_TABLE,
+				 "-ps_store_table",
+				 "the table name used to store the ps information",
+				 OPTION_STRING,
+				 wrapOptionString(&ps_store_table),
+				 defOptionString("psinfo")
 		 },
 		 {
 				 OPTION_PS_BINARY_SEARCH,

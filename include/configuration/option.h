@@ -128,6 +128,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PS_ANALYZE "ps_analyze"
 #define OPTION_PS_USE_NEST "ps_use_nest"
 #define OPTION_PS_POST_TO_ORACLE "ps_post_to_oracle"
+#define OPTION_PS_STORE_TABLE "ps_store_table"
 
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"

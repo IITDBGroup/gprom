@@ -31,6 +31,7 @@
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
+#include "parameterized_query/parameterized_queries.h"
 
 #include "temporal_queries/temporal_rewriter.h"
 
@@ -224,6 +225,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 		break;
         case CAP_USE_PROV_COARSE_GRAINED:
 		{
+
 			coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
 			psPara = createPSInfo(coarsePara);
 			DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
@@ -250,6 +252,11 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
 			/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
 			HashMap *psMap = getPS(capSql,attrNames);
+
+
+			//cache ps information
+			QueryOperator *rootParaSql = OP_LCHILD(op);
+			cachePsInfo(rootParaSql,psPara,psMap);
 
 			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
 			{

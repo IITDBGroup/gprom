@@ -52,6 +52,10 @@ extern psAttrInfo* createPSAttrInfo(List *l, char *tableName);
 extern psInfo* createPSInfo(Node *coarsePara);
 extern List *getRangeList(int numRanges, char* attrName, char *tableName);
 extern void bottomUpPropagateLevelAggregation(QueryOperator *op, psInfo *psPara);
+extern char *parameterToCharsSepByComma(List* paras);
+//extern psInfo *addPsIntoPsInfo(psInfo *psPara,HashMap *psMap);
+extern void cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap);
+extern int getPsSize(BitSet* psBitVector);
 
 
 

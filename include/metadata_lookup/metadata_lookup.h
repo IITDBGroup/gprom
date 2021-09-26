@@ -110,6 +110,8 @@ typedef struct MetadataLookupPlugin
     /* histogram */
     List * (*getHistogram) (char *tableName, char *attrName, int numPartitions);
     HashMap * (*getProvenanceSketch) (char *sql, List *attrNames);
+    void (*storePsInformation) (char *storeTable, char *template, char *paras,
+    		char *table, char *attr, char *tableAttr, int nPart, int psSize, char *ps);
 
 } MetadataLookupPlugin;
 
@@ -140,6 +142,8 @@ extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
 extern List *getHist (char *tableName, char *attrName, int numPartitions);
 extern HashMap *getPS (char *sql, List *attrNames);
+extern void storePsInfo (char *storeTable, char *template, char *paras,
+		char *table, char *attr, char *tableAttr, int nPart, int psSize, char *ps);
 extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);

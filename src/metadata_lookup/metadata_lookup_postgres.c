@@ -134,6 +134,7 @@
 #define PARAMS_GET_HIST 2
 #define QUERY_GET_HIST "SELECT histogram_bounds FROM pg_stats WHERE tablename = $1::text AND attname = $2::text;"
 
+
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
 //#define QUERY_ "SELECT"
@@ -241,6 +242,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getAttributeNames = postgresGetAttributeNames;
     p->getHistogram = postgresGetHist;
     p->getProvenanceSketch = postgresGetPS;
+    p->storePsInformation = postgresStorePsInfo;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
     p->getFuncReturnType = postgresGetFuncReturnType;
@@ -889,6 +891,30 @@ postgresGetPS (char *sql, List *attrNames)
     RELEASE_MEM_CONTEXT();
     STOP_TIMER(METADATA_LOOKUP_TIMER);
     return hm;
+}
+
+void
+postgresStorePsInfo(char *storeTable, char *template, char *paras,
+		char *table, char *attr, char *tableAttr, int nPart, int psSize, char *ps)
+{   DEBUG_LOG("postgresStorePsInfo: START");
+	START_TIMER("Postgres - store ps information");
+	StringInfo insertInfo = makeStringInfo();
+
+	/*
+	 *  template | parameters (,) | tableName | attribute | numPartitions | psSize |   ps   | ranges?
+	 *  select ..|  1,4,5         |     R     |    a      |   10000       |   50   | 10010..|  1,10,..
+	 *  select ..|  1,4,5         |     R     |    b      |   10000       |   20   | 00010..|  1,10,..
+	 *   ...
+	 */
+
+    appendStringInfo(insertInfo,"insert into %s values ('%s','%s','%s','%s','%s',%d,%d,'%s');",
+			storeTable,template,paras,table,attr,tableAttr,nPart,psSize,ps);
+	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
+	//					storeTable);
+    DEBUG_LOG("postgresStorePsInfo: %s", insertInfo->data);
+	execStmt(insertInfo->data);
+
+	STOP_TIMER("Postgres - store ps information");
 }
 
 List *

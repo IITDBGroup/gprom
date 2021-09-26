@@ -23,6 +23,8 @@
 #include "model/query_operator/query_operator.h"
 #include "model/set/hashmap.h"
 #include "parameterized_query/parameterized_queries.h"
+#include "sql_serializer/sql_serializer.h"
+#include "sql_serializer/sql_serializer_postgres.h"
 
 #define PARAM_MAP_CONTEXT_NAME "parameterized_queries"
 
@@ -104,6 +106,17 @@ queryToTemplate(QueryOperator *root)
 	DEBUG_NODE_BEATIFY_LOG("templatized query is", result);
 
 	return result;
+}
+
+char *
+queryToSqlTemplate(QueryOperator * op)
+{
+	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
+	char *sql = serializeOperatorModel((Node *) pq->q);
+
+	DEBUG_LOG("templatized sql query is %s", sql);
+
+	return sql;
 }
 
 static boolean

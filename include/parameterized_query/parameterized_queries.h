@@ -26,6 +26,7 @@ extern boolean parameterizedQueryExists(char *name);
 extern void createParameterizedQuery(char *name, ParameterizedQuery *q);
 extern QueryOperator *parameterizedQueryApplyBinds(char *paramQ, List *binds);
 extern ParameterizedQuery *queryToTemplate(QueryOperator *root);
+extern char *queryToSqlTemplate(QueryOperator * op);
 
 
 #endif /* _PARAMETERIZED_QUERIES_H_ */

@@ -24,8 +24,12 @@
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "parameterized_query/parameterized_queries.h"
+#include "sql_serializer/sql_serializer.h"
+#include "sql_serializer/sql_serializer_postgres.h"
 
 #define MAX_NUM_RANGE 10000
+#define COMMA "-"
 
 typedef struct AggLevelContext
 {
@@ -504,4 +508,125 @@ getRangeList(int numRanges, char* attrName, char *tableName)
     }
 
 	return result;
+}
+
+
+char *
+parameterToCharsSepByComma(List* paras)
+{
+	StringInfo cparas = makeStringInfo();
+	int len = LIST_LENGTH(paras);
+	int idx = 0;
+
+    FOREACH(Node, c, paras)
+	{
+    	if(typeOf(c) == DT_INT)
+    	{
+    		int curc = INT_VALUE(c);
+    		appendStringInfo(cparas,gprom_itoa(curc));
+    	}
+    	else if(typeOf(c) == DT_STRING)
+    	{
+    		appendStringInfo(cparas,STRING_VALUE(c));
+    	}
+
+    	idx ++;
+    	if(idx != len)
+    	{
+    		appendStringInfo(cparas,COMMA);
+    	}
+	}
+
+    return cparas->data;
+}
+
+//psInfo *
+//addPsIntoPsInfo(psInfo *psPara,HashMap *psMap)
+//{
+//
+//
+//
+//	DEBUG_LOG("map size: %d", mapSize(psMap));
+//	FOREACH_HASH_ENTRY(kv, psMap)
+//	{
+//	    char *k = STRING_VALUE(kv->key);
+//	    DEBUG_LOG("psMap : %s", k);
+//	}
+//
+//	psInfo *res = psPara;
+//	FOREACH_HASH_ENTRY(kv, res->tablePSAttrInfos)
+//	{
+//	    char *table = STRING_VALUE(kv->key);
+//		List *psAttrInfos = (List *) kv->value;
+//		DEBUG_LOG("table: %s, psAttrInfo length %d: %s", table, LIST_LENGTH(psAttrInfos));
+//		FOREACH(psAttrInfo, p, psAttrInfos)
+//		{
+//		    DEBUG_LOG("psAttrInfo->name: %s", p->attrName);
+//            char *newSubstr = CONCAT_STRINGS(strdup(table), "_", strdup(p->attrName));
+//
+//			char *ps = (char *) MAP_GET_STRING(psMap,p->attrName);
+//
+//			p->BitVector = stringToBitset(ps);
+//		}
+//	}
+//	return res;
+//}
+
+void
+cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
+{
+	// get template SQL and parameters separated by comma (string)
+	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
+	char *pqSql = serializeOperatorModel((Node *) pq->q);
+	char *cparas = parameterToCharsSepByComma(pq->parameters);
+	DEBUG_LOG("parameters to chars seperated by comma: %s", cparas);
+	char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
+
+	FOREACH_HASH_ENTRY(kv, psPara->tablePSAttrInfos)
+	{
+		char *tb = STRING_VALUE(kv->key);
+		List *psAttrInfos = (List *) kv->value;
+		DEBUG_LOG("table: %s, psAttrInfo length %d: %s", tb, LIST_LENGTH(psAttrInfos));
+		FOREACH(psAttrInfo, p, psAttrInfos)
+		{
+			FOREACH_HASH_ENTRY(kv, psMap)
+			{
+				char *provTableAttr = STRING_VALUE(kv->key);
+				char *subProvTableAttr = CONCAT_STRINGS(strdup(tb), "_", strdup(p->attrName));
+
+				DEBUG_LOG("provTableAttr: %s and subProvTableAttr: %s",provTableAttr, subProvTableAttr);
+				if(strstr(provTableAttr,subProvTableAttr))
+				{
+					//char *ps = STRING_VALUE(MAP_GET_STRING(psMap,provTableAttr));
+				    char *ps = STRING_VALUE(kv->value);
+					//DEBUG_LOG("ps: %s", ps);
+					storePsInfo(storeTable,
+						pqSql,
+						cparas,
+						tb,
+						p->attrName,
+						provTableAttr,
+						LIST_LENGTH(p->rangeList),
+						getPsSize(stringToBitset(ps)),
+						ps);
+				}
+			}
+		}
+	}
+}
+
+
+int
+getPsSize(BitSet* psBitVector)
+{
+	int psSize = 0;
+	for(int i=0; i<psBitVector->length; i++)
+	{
+		if(isBitSet(psBitVector, i))
+		{
+			psSize ++;
+		}
+	}
+
+	return psSize;
 }
