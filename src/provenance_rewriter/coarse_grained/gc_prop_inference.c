@@ -23,6 +23,7 @@
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/coarse_grained/common_prop_inference.h"
 #include "provenance_rewriter/coarse_grained/gc_prop_inference.h"
+#include "provenance_rewriter/coarse_grained/ge_prop_inference.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
@@ -35,68 +36,14 @@
 /* consts */
 #define RIGHT_ATTR_PREFIX backendifyIdentifier("R")
 
-static char *escapeUnderscore (char *str);
-static char *getRightAttrName (char *attr);
-static boolean addPrimeOnAttrsInOperator(Node *node, char *state);
-static Node *ListAttrRefsToEqCondsForAgg(QueryOperator *op, List *l);
-static Node *ListAttrRefsToNameSetForAgg(QueryOperator *op, List *l);
-static Node *getConds(QueryOperator *op);
+
 static Node *condAndCondPrimes(QueryOperator *op);
-static Node *generateAttrAndPrimeEq(List *l);
-static List *generateAttrDefAndPrimeNonEq(List *l);
-static List *generateAttrDefAndPrimeEq(List *l);
-static boolean isStartAsAGG(char *name);
 static boolean checkCountAndSumPositive(FunctionCall *fc, QueryOperator *op);
 static Node *generateFunCompExpr(AttributeReference *a, char *op);
 static boolean checkSumNegative(FunctionCall *fc, QueryOperator *op);
 static boolean checkEqCompForListAttrRefsOfOp(QueryOperator *root, List *l);
 static boolean generateNeqPrimeFromNode(Node *node, List **state);
 
-static char *
-escapeUnderscore (char *str)
-{
-    int len = strlen(str);
-    int newLen = len;
-    char *result;
-
-    for(char *s = str; *s != '\0'; s++, newLen = newLen + (*s == '_' ? 1 : 0));
-
-    result = (char *) MALLOC(newLen + 1);
-
-    for(int i = 0, j = 0; i <= len; i++, j++)
-    {
-        if (str[i] == '_')
-        {
-            result[j++] = '_';
-            result[j] = '_';
-        }
-        else
-            result[j] = str[i];
-    }
-
-    return result;
-}
-
-static char *
-getRightAttrName (char *attr)
-{
-    return CONCAT_STRINGS(RIGHT_ATTR_PREFIX, "_",
-            escapeUnderscore(attr));
-}
-
-static boolean
-addPrimeOnAttrsInOperator(Node *node, char *state)
-{
-    if (node == NULL)
-        return FALSE;
-
-    if(isA(node, AttributeReference))
-    {
-    		AttributeReference *attr = (AttributeReference *) node;
-    		attr->name = getRightAttrName(attr->name);
-    }
-    return visit(node, addPrimeOnAttrsInOperator, state);
-}
 
 
 /*
@@ -531,7 +478,7 @@ checkSumNegative(FunctionCall *fc, QueryOperator *op)
 	List *attrRefs = proj->projExprs;
 	boolean isValid = FALSE;
 
-	if(streq(fc->functionname, "sum") || streq(fc->functionname, "min"))
+	if(streq(fc->functionname, SUM_FUNC_NAME) || streq(fc->functionname, MIN_FUNC_NAME))
 	{
 		Node *cond = getConds(childOp);
 		Node *curAttr = getHeadOfListP(fc->args);
@@ -565,11 +512,11 @@ checkCountAndSumPositive(FunctionCall *fc, QueryOperator *op)
 	List *attrRefs = proj->projExprs;
 	boolean isValid = FALSE;
 
-	if(streq(fc->functionname, "count"))
+	if(streq(fc->functionname, COUNT_FUNC_NAME))
 	{
 		isValid = TRUE;
 	}
-	else if(streq(fc->functionname, "sum") || streq(fc->functionname, "max"))
+	else if(streq(fc->functionname, SUM_FUNC_NAME) || streq(fc->functionname, MAX_FUNC_NAME))
 	{
 		Node *cond = getConds(childOp);
 		//sum(a+b)? then need to construct a+b >= 0 or only a >= 0
@@ -602,156 +549,6 @@ checkCountAndSumPositive(FunctionCall *fc, QueryOperator *op)
 	return isValid;
 }
 
-
-static List *
-generateAttrDefAndPrimeEq(List *l)
-{
-	List *res = NIL;
-
-	int cnt = 0;
-    FOREACH(AttributeDef, attr, l)
-    {
-    	AttributeReference *a = createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType);
-        Node *oper = generateFunCompExpr(a, "=");
-
-      	res = appendToTailOfList(res, oper);
-        cnt++;
-    }
-	return res;
-}
-
-static List *
-generateAttrDefAndPrimeNonEq(List *l)
-{
-	List *res = NIL;
-
-	int cnt = 0;
-    FOREACH(AttributeDef, attr, l)
-    {
-    	AttributeReference *a = createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType);
-        Node *oper = generateFunCompExpr(a, "=");
-        Node *nonOper = (Node *) createOpExpr("NOT", singleton(oper));
-
-      	res = appendToTailOfList(res, nonOper);
-        cnt++;
-    }
-	return res;
-}
-
-static Node *
-generateAttrAndPrimeEq(List *l)
-{
-	Node *res = NULL;
-
-    FOREACH(AttributeReference, attr, l)
-    {
-        Node *oper = generateFunCompExpr(attr, "=");
-
-        if(res != NULL)
-        	res = AND_EXPRS(res, oper);
-        else
-        	res = oper;
-    }
-	return res;
-}
-
-static boolean
-isStartAsAGG(char *name)
-{
-	boolean f = FALSE;
-
-	if(strlen(name) >= 5)
-	{	//DEBUG_LOG("name[0]:%c,name[1]:%c,name[2]:%c,name[3]:%c,name[4]:%c",name[0],name[1],name[2],name[3],name[4]);
-		if(name[0] == 'A' && name[1] == 'G' && name[2] == 'G' && name[3] == 'R' && name[4] == '_')
-		{
-			f = TRUE;
-		}
-	}
-	return f;
-}
-
-static Node *
-ListAttrRefsToNameSetForAgg(QueryOperator *op, List *l)
-{
-	Set *s = STRSET();
-	QueryOperator *childOp = OP_LCHILD(op);
-
-	//TODO: might use a map to store a->AGG_GB_ARG1 when do the ps rewrite of aggregation
-	ProjectionOperator *proj = (ProjectionOperator *) childOp;
-
-	List *attrRefs = proj->projExprs;
-	FOREACH(AttributeReference, attr, l)
-	{
-		AttributeReference *a = getNthOfListP(attrRefs, attr->attrPosition);
-		addToSet(s,a->name);
-	}
-	return (Node *) s;
-}
-
-
-static Node *
-ListAttrRefsToEqCondsForAgg(QueryOperator *op, List *l)
-{
-	Node *res = NULL;
-	QueryOperator *childOp = OP_LCHILD(op);
-
-	//TODO: might use a map to store a->AGG_GB_ARG1 when do the ps rewrite of aggregation
-	ProjectionOperator *proj = (ProjectionOperator *) childOp;
-
-	List *attrRefs = proj->projExprs;
-	FOREACH(AttributeReference, attr, l)
-	{
-		AttributeReference *a = copyObject(getNthOfListP(attrRefs, attr->attrPosition));
-		AttributeReference *ap = copyObject(a);
-		ap->name = getRightAttrName(a->name);
-
-        Operator *oper = createOpExpr("=",LIST_MAKE(a,ap));
-        if(res != NULL)
-        	res = AND_EXPRS(res,(Node *) oper);
-        else
-        	res = (Node *) oper;
-	}
-
-	return res;
-}
-
-static Node *
-getConds(QueryOperator *op)
-{
-	//QueryOperator *childOp = OP_LCHILD(op);
-	//boolean childGc = GET_BOOL_STRING_PROP(childOp, PROP_STORE_SET_GC);
-	//Node *childComp = copyObject(getStringProperty(childOp, PROP_STORE_SET_GC_COMP));
-	Node *childExpr = copyObject(getStringProperty(op, PROP_STORE_SET_EXPR));
-	Node *childPred = copyObject(getStringProperty(op, PROP_STORE_SET_PRED));
-
-//	Node *childExprPrime = copyObject(childExpr);
-//	Node *childPredPrime = copyObject(childPred);
-//	addPrimeOnAttrsInOperator(childExprPrime,"dummy");
-//	addPrimeOnAttrsInOperator(childPredPrime,"dummy");
-
-	Node *conds = NULL;
-	//Node *condPrime = NULL;
-	//Node *notCondPrime = NULL;
-	//Node *finalCond = NULL;
-
-	if(childExpr != NULL && childPred != NULL)
-	{
-		conds = AND_EXPRS(childExpr,childPred);
-		//ondPrime = AND_EXPRS(childExprPrime,childPredPrime);
-	}
-	else if(childExpr != NULL)
-	{
-		conds = childExpr;
-		//condPrime = childExprPrime;
-	}
-	else if(childPred != NULL)
-	{
-		conds = childPred;
-		//condPrime = childPredPrime;
-	}
-
-	return conds;
-}
 
 
 //void

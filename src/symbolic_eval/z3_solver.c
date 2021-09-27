@@ -206,7 +206,7 @@ z3ExprIsValid(Node *expr, boolean exceptionOnUndef)
 							  singleton(copyObject(expr))),
 		exceptionOnUndef);
 
-	DEBUG_LOG("constraint is %s: \n%s", result ? "not valid" : "valid",  exprToSQL(expr, NULL));
+	DEBUG_LOG("constraint is %s: \n%s", result ? "not valid" : "valid",  exprToSQL(expr, NULL, FALSE));
 	return !result;
 }
 
@@ -224,12 +224,12 @@ z3ExprIsSatisfiable(Node *expr, boolean exceptionOnUndef)
 	constraints = exprtoz3(expr, solver->ctx);
 
 	DEBUG_LOG("translated expr:\n%s\ninto constraint\n%s",
-			  exprToSQL(expr, NULL),
+			  exprToSQL(expr, NULL, FALSE),
 			  Z3_ast_to_string(solver->ctx, constraints));
 
 	result = z3IsSatisfiable(NULL, constraints, exceptionOnUndef);
 
-	DEBUG_LOG("constraint is %s: \n%s", result ? "satisfiable" : "unsatisfiable",  exprToSQL(expr, NULL));
+	DEBUG_LOG("constraint is %s: \n%s", result ? "satisfiable" : "unsatisfiable",  exprToSQL(expr, NULL, FALSE));
 
 	FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 

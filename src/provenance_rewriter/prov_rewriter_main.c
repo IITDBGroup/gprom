@@ -20,6 +20,7 @@
 #include "symbolic_eval/z3_solver.h"
 #include "provenance_rewriter/coarse_grained/common_prop_inference.h"
 #include "provenance_rewriter/coarse_grained/gc_prop_inference.h"
+#include "provenance_rewriter/coarse_grained/ge_prop_inference.h"
 #include "provenance_rewriter/coarse_grained/prop_inference.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
@@ -352,7 +353,19 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 //    			HashMap *rmap = bindsToHashMap(b1, b3);
 //
 //    			bottomUpInference(OP_LCHILD(op), lmap, rmap);
-
+#if HAVE_Z3
+    			DEBUG_LOG("Start Capture PS: ");
+    			DEBUG_LOG("Start exprBottomUp: ");
+    			exprBottomUp(OP_LCHILD(op));
+    			DEBUG_LOG("Start predBottomUp: ");
+    			predBottomUp(OP_LCHILD(op));
+    			DEBUG_LOG("print expr:");
+    			printEXPRPro(OP_LCHILD(op));
+    			DEBUG_LOG("print pred:");
+    			printPREDPro(OP_LCHILD(op));
+    			DEBUG_LOG("Start gcBottomUp: ");
+    			doGeBottomUp((QueryOperator *) op);
+#endif
         		coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         		psPara = createPSInfo(coarsePara);
         		DEBUG_LOG("use coarse grained fragment parameters: %s",nodeToString((Node *) psPara));
