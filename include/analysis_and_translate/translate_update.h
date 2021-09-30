@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * translate_update.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -17,6 +17,12 @@
 extern QueryOperator *translateUpdate (Node *update);
 extern QueryOperator *translateCreateTable(CreateTable *c);
 extern QueryOperator *translateAlterTable(AlterTable *a);
+
+// for reenactment only
+extern QueryOperator *translateUpdateReenact(Node *update);
+extern QueryOperator *translateCreateTableReenact(CreateTable *c);
+extern QueryOperator *translateAlterTableReenact(AlterTable *a);
+
 
 
 //extern QueryOperator *translateInsert (Node *insert);

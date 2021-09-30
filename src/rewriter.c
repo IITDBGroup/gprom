@@ -548,6 +548,16 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
+
+	// shortcircuit DML and DDL statements directly translate into SQL code
+	if(isA(oModel, DLMorDDLOperator)) // check for list of DLMorDDLOperator operators
+	{
+		StringInfo result = makeStringInfo();
+
+		appendStringInfo(result, "%s\n", serializeOperatorModel(oModel));
+		return result->data;
+	}
+
     if (IS_OP(oModel))
     {
         INFO_OP_LOG("translator result as overview:", oModel);

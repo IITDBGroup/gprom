@@ -38,7 +38,26 @@ static QueryOperator *translateDelete(Delete *f);
 static List*generateProjectionForUpdate(int hasCond, List* attrs, List* dts, Update* update);
 
 QueryOperator *
-translateUpdate(Node *update)
+translateUpdate (Node *update)
+{
+	return (QueryOperator *) createDMLDDLOp(update);
+}
+
+QueryOperator *
+translateCreateTable(CreateTable *c)
+{
+	return (QueryOperator *) createDMLDDLOp((Node *) c);
+}
+
+QueryOperator *
+translateAlterTable(AlterTable *a)
+{
+	return (QueryOperator *) createDMLDDLOp((Node *) a);
+}
+
+
+QueryOperator *
+translateUpdateReenact(Node *update)
 {
 	switch (update->type) {
 	case T_Insert:
@@ -56,7 +75,7 @@ translateUpdate(Node *update)
 }
 
 QueryOperator *
-translateCreateTable(CreateTable *c)
+translateCreateTableReenact(CreateTable *c)
 {
     ConstRelOperator *op;
     SelectionOperator *sel;
@@ -84,7 +103,7 @@ translateCreateTable(CreateTable *c)
 }
 
 QueryOperator *
-translateAlterTable(AlterTable *a)
+translateAlterTableReenact(AlterTable *a)
 {
     TableAccessOperator *in;
     ProjectionOperator *p = NULL;

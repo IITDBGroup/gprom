@@ -16,9 +16,11 @@
 #include "configuration/option.h"
 #include "log/logger.h"
 
+#include "model/expression/expression.h"
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
@@ -33,6 +35,7 @@ static SerializeClausesAPI *api = NULL;
 /* methods */
 static void createAPI (void);
 static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
+static char *serializeDMLandDDLPostgres(QueryOperator *q);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
 static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
@@ -53,14 +56,12 @@ serializeOperatorModelPostgres(Node *q)
     createAPI();
 
     // quote idents for postgres
-
     if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
 		genQuoteAttributeNames(q);
 
     DEBUG_OP_LOG("after attr quoting", q);
 
     // add casts to null constants to make postgres aware of their types
-
     visitWithPointers(q,addNullCasts,(void **) &q, PSET());
 
     // serialize query
@@ -122,6 +123,12 @@ serializeQueryPostgres(QueryOperator *q)
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
     str = makeStringInfo();
     viewDef = makeStringInfo();
+
+	// DML and DDL statements
+	if(isA(q,DLMorDDLOperator))
+	{
+		return serializeDMLandDDLPostgres(q);
+	}
 
     // initialize basic structures and then call the worker
     api->tempViewMap = NEW_MAP(Constant, Node);
@@ -222,6 +229,43 @@ createAPI (void)
         api->serializeConstRel = serializeConstRel;
         api->serializeJoinOperator = serializeJoinOperator;
     }
+}
+
+static char *
+serializeDMLandDDLPostgres(QueryOperator *q)
+{
+	DLMorDDLOperator *o = (DLMorDDLOperator *) q;
+	StringInfo str = makeStringInfo();
+	Node *stmt = o->stmt;
+
+	switch(stmt->type)
+	{
+	case T_Update:
+	{
+		/* Update *u = (Update *) stmt; */
+
+	}
+	break;
+	case T_Insert:
+	case T_Delete:
+	{
+		Delete *d = (Delete *) stmt;
+		appendStringInfo(str,
+						 "DELETE FROM %s %s",
+						 d->deleteTableName,
+						 d->cond ? "" : CONCAT_STRINGS("WHERE ", exprToSQL(d->cond, NULL))
+			);
+	}
+	break;
+	case T_CreateTable:
+	case T_AlterTable:
+		break;
+	default:
+		FATAL_LOG("should only pass DML and DDL nodes to this function.");
+	}
+
+
+	return str->data;
 }
 
 static void

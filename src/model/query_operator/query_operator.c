@@ -137,12 +137,12 @@ schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inpu
 			attributeNames = appendToTailOfList(attributeNames, name);
 		}
 	}
-	
+
     FOREACH(Node,n,exprs)
 	{
         dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
 	}
-		
+
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
 
@@ -672,7 +672,7 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 	/* 	prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr)); */
 	/* } */
 	prj->projExprs = copyObject(projExprs);
-		
+
     if (input != NULL)
         prj->op.inputs = singleton(input);
     else
@@ -889,6 +889,16 @@ createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *par
 		o->op.schema = createSchemaFromLists("LIMIT", inputAttrs, dts);
 	}
 	o->op.parents = parents;
+
+	return o;
+}
+
+DLMorDDLOperator *
+createDMLDDLOp(Node *stmt)
+{
+	DLMorDDLOperator *o = makeNode(DLMorDDLOperator);
+
+	o->stmt = stmt;
 
 	return o;
 }
