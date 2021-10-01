@@ -21,6 +21,7 @@
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/rpq/rpq_model.h"
 
 /* data structures for copying operator nodes */
@@ -76,6 +77,10 @@ static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
 static QuantifiedComparison *copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap);
 static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
+
+/* integrity constraints */
+static FD *copyFD(FD *from, OperatorMap **opMap);
+static FOdep *copyFOdep(FOdep *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -543,6 +548,29 @@ copyCastExpr(CastExpr *from, OperatorMap **opMap)
 
     return new;
 }
+
+static FD *
+copyFD(FD *from, OperatorMap **opMap)
+{
+	COPY_INIT(FD);
+
+	COPY_STRING_FIELD(table);
+	COPY_NODE_FIELD(lhs);
+	COPY_NODE_FIELD(rhs);
+
+	return new;
+}
+static FOdep *
+copyFOdep(FOdep *from, OperatorMap **opMap)
+{
+	COPY_INIT(FOdep);
+
+	COPY_NODE_FIELD(lhs);
+	COPY_NODE_FIELD(rhs);
+
+	return new;
+}
+
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -1171,6 +1199,12 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_CastExpr:
             retval = copyCastExpr(from, opMap);
             break;
+     	case T_FD:
+     		retval = copyFD(from, opMap);
+     		break;
+     	case T_FOdep:
+     		retval = copyFOdep(from, opMap);
+     		break;
             /* query block model nodes */
 //        case T_SetOp:
 //            retval = copySetOp(from, opMap);

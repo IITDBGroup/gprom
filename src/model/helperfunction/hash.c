@@ -16,12 +16,14 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
 #include "model/bitset/bitset.h"
 #include "model/list/list.h"
 #include "log/logger.h"
+#include <stdint.h>
 
 // hash constants
 #define FNV_OFFSET ((uint64_t) 14695981039346656037U)
@@ -63,6 +65,10 @@ static uint64_t hashWindowBound (uint64_t cur, WindowBound *node);
 static uint64_t hashWindowFrame (uint64_t cur, WindowFrame *node);
 static uint64_t hashWindowDef (uint64_t cur, WindowDef *node);
 static uint64_t hashWindowFunction (uint64_t cur, WindowFunction *node);
+
+// hash functions for integrity constraints
+static uint64_t hashFD(uint64_t cur, FD *node);
+static uint64_t hashFOdep(uint64_t cur, FOdep *node);
 
 // hash functions for query block model
 static uint64_t hashFunctionCall (uint64_t cur, FunctionCall *node);
@@ -393,8 +399,24 @@ hashWindowFunction (uint64_t cur, WindowFunction *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashFD(uint64_t cur, FD *node)
+{
+	HASH_STRING(table);
+	HASH_NODE(lhs);
+	HASH_NODE(rhs);
 
+	HASH_RETURN();
+}
 
+static uint64_t
+hashFOdep(uint64_t cur, FOdep *node)
+{
+	HASH_NODE(lhs);
+	HASH_NODE(rhs);
+
+	HASH_RETURN();
+}
 
 static uint64_t
 hashKeyValue (uint64_t cur, KeyValue *node)
@@ -978,6 +1000,11 @@ hashValueInternal(uint64_t h, void *a)
             return hashQuantifiedComparison(h, (QuantifiedComparison *) n);
         case T_CastExpr:
             return hashCastExpr(h, (CastExpr *) n);
+			/* integrity constraints */
+        case T_FD:
+            return hashFD(h, (FD *) n);
+        case T_FOdep:
+            return hashFOdep(h, (FOdep *) n);
             /* query block nodes */
         case T_SetQuery:
             return hashSetQuery(h, (SetQuery *) n);

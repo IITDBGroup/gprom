@@ -36,6 +36,10 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_CastExpr,
 	T_QuantifiedComparison,
 
+    /* integrity constraint */
+	T_FD,
+	T_FOdep,
+
     /* query block model nodes */
     T_SetQuery,
     T_ProvenanceStmt,

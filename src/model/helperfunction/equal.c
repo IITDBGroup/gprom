@@ -20,6 +20,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/rpq/rpq_model.h"
 #include "log/logger.h"
 
@@ -54,6 +55,10 @@ static boolean equalWindowDef (WindowDef *a, WindowDef *b, HashMap *seenOps, Mem
 static boolean equalWindowFunction (WindowFunction *a, WindowFunction *b, HashMap *seenOps, MemContext *c);
 static boolean equalRowNumExpr (RowNumExpr *a, RowNumExpr *b, HashMap *seenOps, MemContext *c);
 static boolean equalOrderExpr (OrderExpr *a, OrderExpr *b, HashMap *seenOps, MemContext *c);
+
+/* equal functions for integrity constraints */
+static boolean equalFD(FD *a, FD *b, HashMap *seenOps, MemContext *c);
+static boolean equalFOdep(FOdep *a, FOdep *b, HashMap *seenOps, MemContext *c);
 
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b, HashMap *seenOps, MemContext *c);
@@ -400,6 +405,26 @@ equalOrderExpr (OrderExpr *a, OrderExpr *b, HashMap *seenOps, MemContext *c)
 
     return TRUE;
 }
+
+static boolean
+equalFD(FD *a, FD *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_STRING_FIELD(table);
+	COMPARE_NODE_FIELD(lhs);
+	COMPARE_NODE_FIELD(rhs);
+
+	return TRUE;
+}
+
+static boolean
+equalFOdep(FOdep *a, FOdep *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_NODE_FIELD(lhs);
+	COMPARE_NODE_FIELD(rhs);
+
+	return TRUE;
+}
+
 
 static boolean
 equalQuantifiedComparison (QuantifiedComparison *a, QuantifiedComparison *b, HashMap *seenOps, MemContext *c)
@@ -1199,7 +1224,13 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_OrderExpr:
             retval = equalOrderExpr(a,b, seenOps, c);
             break;
-        case T_QuantifiedComparison:
+        case T_FD:
+            retval = equalFD(a,b, seenOps, c);
+            break;
+        case T_FOdep:
+            retval = equalFOdep(a,b, seenOps, c);
+            break;
+	    case T_QuantifiedComparison:
             retval = equalQuantifiedComparison(a,b, seenOps, c);
             break;
             /*something different cases this, and we have*/

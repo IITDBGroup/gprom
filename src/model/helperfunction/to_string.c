@@ -21,6 +21,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/rpq/rpq_model.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "model/set/vector.h"
@@ -55,6 +56,10 @@ static void outWindowFunction (StringInfo str, WindowFunction *node);
 static void outRowNumExpr (StringInfo str, RowNumExpr *node);
 static void outOrderExpr (StringInfo str, OrderExpr *node);
 static void outCastExpr (StringInfo str, CastExpr *node);
+
+// integrity constraints
+static void outFD(StringInfo str, FD *node);
+static void outFOdep(StringInfo str, FOdep *node);
 
 // query block model
 static void outQueryBlock (StringInfo str, QueryBlock *node);
@@ -779,6 +784,26 @@ outCastExpr (StringInfo str, CastExpr *node)
 }
 
 static void
+outFD(StringInfo str, FD *node)
+{
+	WRITE_NODE_TYPE(FD);
+
+	WRITE_STRING_FIELD(table);
+	WRITE_NODE_FIELD(lhs);
+	WRITE_NODE_FIELD(rhs);
+}
+
+static void
+outFOdep(StringInfo str, FOdep *node)
+{
+	WRITE_NODE_TYPE(FODEP);
+
+	WRITE_NODE_FIELD(lhs);
+	WRITE_NODE_FIELD(rhs);
+}
+
+
+static void
 outSelectItem (StringInfo str, SelectItem *node)
 {
     WRITE_NODE_TYPE(SELECT_ITEM);
@@ -1185,7 +1210,13 @@ outNode(StringInfo str, void *obj)
             case T_CastExpr:
                 outCastExpr(str, (CastExpr *) obj);
                 break;
-            case T_SetQuery:
+            case T_FD:
+                outFD(str, (FD *) obj);
+                break;
+            case T_FOdep:
+                outFOdep(str, (FOdep *) obj);
+                break;
+		    case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);
                 break;
             case T_ProvenanceStmt:

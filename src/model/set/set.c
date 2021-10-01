@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * set.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -479,6 +479,26 @@ containsSet(Set *left, Set *right)
     		break;
     }
 	return containedElem;
+}
+
+void *
+popSet(Set *set)
+{
+    ASSERT(!EMPTY_SET(set));
+	SetElem *e = set->elem;
+
+	if(set->setType == SET_TYPE_STRING)
+	{
+		char *el = strdup(e->data);
+		removeSetElem(set, el);
+		return el;
+	}
+	else
+	{
+		Node *el = copyObject(e->data);
+		removeSetElem(set, el);
+		return el;
+	}
 }
 
 int

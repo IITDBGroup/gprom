@@ -31,6 +31,7 @@
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include <stdint.h>
 
 // macros for running and timing an optimization rule and logging the resulting AGM graph.
 #define OPTIMIZER_LOG_PREFIX "\n**********************************************" \
@@ -1671,7 +1672,8 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
                 				name = (char *) n;
                 				if(streq(name, attrName))
                 				{
-                					type = (DataType) t;
+									uint64_t dt = (uint64_t) t;
+                					type = (DataType) dt;
                 					break;
                 				}
                 			}

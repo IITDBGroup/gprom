@@ -43,6 +43,7 @@ static TestNameToFunc testFuncs [] = {
 		{ "bitset", testBitset },
         { "hashmap", testHashMap },
         { "expr", testExpr },
+		{ "ICs", testIntegrityConstraints },
         { "copy", testCopy },
         { "equal", testEqual },
         { "stringutils", testStringUtils },
@@ -72,6 +73,7 @@ testSuites(void)
 	RUN_TEST(testBitset(), "Bitset");
     RUN_TEST(testHashMap(), "HashMap");
     RUN_TEST(testExpr(), "Expression model");
+	RUN_TEST(testIntegrityConstraints(), "Integrity constraints.");
     RUN_TEST(testCopy(), "Test generic copy function");
     RUN_TEST(testEqual(), "Test generic equality function");
     RUN_TEST(testStringUtils(), "Test String utilities");

@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/datalog/datalog_model.h"
 
 /*
@@ -168,6 +169,16 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(exprList);
             }
         break;
+        /* integrity constraint nodes */
+    	case T_FD:
+    		break;
+    	case T_FOdep:
+    	{
+    		PREP_VISIT(FOdep);
+    		VISIT(lhs);
+    		VISIT(rhs);
+		}
+		break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -527,6 +538,16 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,exprList);
             }
         break;
+		/* integrity constraint nodes */
+    	case T_FD:
+			return node;
+    	case T_FOdep:
+    	{
+    		NEWN(FOdep);
+    		MUTATE(List,lhs);
+    		MUTATE(List,rhs);
+    	}
+		break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -890,6 +911,15 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(exprList);
             }
         break;
+		/* integrity constraints */
+    	case T_FD:
+    		break;
+    	case T_FOdep:
+    	{
+    		PREP_VISIT_P(FOdep);
+    		VISIT_P(lhs);
+    		VISIT_P(rhs);
+    	}
         /* query block model nodes */
         case T_SetQuery:
             {

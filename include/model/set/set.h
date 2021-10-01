@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * set.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -121,6 +121,8 @@ extern Set *setDifference(Set *left, Set *right);
 
 extern boolean overlapsSet(Set *left, Set *right);
 extern boolean containsSet(Set *left, Set *right);
+
+extern void *popSet(Set *set);
 
 extern int setSize (Set *set);
 #define EMPTY_SET(set) (setSize(set) == 0)
