@@ -236,7 +236,7 @@ addToSet (Set *set, void *elem)
     // Node: store nodeToString as key
     else
     {
-        setEl->key = nodeToString(elem);
+        setEl->key = nodeToString(elem); //TODO this is expensive
         HASH_ADD_KEYPTR(hh, set->elem, setEl->key, strlen(setEl->key), setEl);
     }
 

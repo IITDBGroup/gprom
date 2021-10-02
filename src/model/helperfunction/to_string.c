@@ -18,6 +18,7 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/graph/graph.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/rpq/rpq_model.h"
@@ -38,6 +39,7 @@ static void outSet(StringInfo str, Set *node);
 static void outVector(StringInfo str, Vector *node);
 static void outHashMap(StringInfo str, HashMap *node);
 static void outBitSet(StringInfo str, BitSet *node);
+static void outGraph(StringInfo str, Graph *node);
 
 // expression types
 static void outConstant (StringInfo str, Constant *node);
@@ -410,6 +412,15 @@ outBitSet(StringInfo str, BitSet *node)
 
 	appendStringInfoChar(str, ']');
 	appendStringInfo(str, " (len:%d)", node->length);
+}
+
+static void
+outGraph(StringInfo str, Graph *node)
+{
+	WRITE_NODE_TYPE(GRAPH);
+
+	WRITE_NODE_FIELD(nodes);
+	WRITE_NODE_FIELD(edges);
 }
 
 // datalog model
@@ -1163,6 +1174,9 @@ outNode(StringInfo str, void *obj)
                 break;
 		    case T_BitSet:
 				outBitSet(str, (BitSet *) obj);
+			    break;
+		    case T_Graph:
+				outGraph(str, (Graph *) obj);
 			    break;
 
             case T_QueryBlock:

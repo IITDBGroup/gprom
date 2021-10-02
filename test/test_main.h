@@ -137,6 +137,7 @@ extern rc testSet(void);
 extern rc testHashMap(void);
 extern rc testVector(void);
 extern rc testBitset(void);
+extern rc testGraph(void);
 extern rc testExpr(void);
 extern rc testIntegrityConstraints(void);
 extern rc testCopy(void);

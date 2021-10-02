@@ -42,6 +42,7 @@ static TestNameToFunc testFuncs [] = {
         { "vector", testVector },
 		{ "bitset", testBitset },
         { "hashmap", testHashMap },
+		{ "graph", testGraph },
         { "expr", testExpr },
 		{ "ICs", testIntegrityConstraints },
         { "copy", testCopy },
@@ -72,6 +73,7 @@ testSuites(void)
     RUN_TEST(testVector(), "Vector");
 	RUN_TEST(testBitset(), "Bitset");
     RUN_TEST(testHashMap(), "HashMap");
+	RUN_TEST(testGraph(), "Graph");
     RUN_TEST(testExpr(), "Expression model");
 	RUN_TEST(testIntegrityConstraints(), "Integrity constraints.");
     RUN_TEST(testCopy(), "Test generic copy function");

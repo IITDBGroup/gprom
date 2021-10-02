@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * datalog_model.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -90,35 +90,35 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         || isA(n,DLComparison) || isA(n,DLRule) || isA(n,DLProgram))
 
 // convenience functions
-extern DLAtom *createDLAtom (char *rel, List *args, boolean negated);
-extern DLVar *createDLVar (char *vName, DataType vType);
-extern boolean isConstAtom (DLAtom *a);
-extern DLRule *createDLRule (DLAtom *head, List *body);
-extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts);
-extern DLComparison *createDLComparison (char *op, Node *lArg, Node *rArg);
-extern DLDomain *createDLDomain (char *rel, char *attr, char *dom);
+extern DLAtom *createDLAtom(char *rel, List *args, boolean negated);
+extern DLVar *createDLVar(char *vName, DataType vType);
+extern boolean isConstAtom(DLAtom *a);
+extern DLRule *createDLRule(DLAtom *head, List *body);
+extern DLProgram *createDLProgram(List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts);
+extern DLComparison *createDLComparison(char *op, Node *lArg, Node *rArg);
+extern DLDomain *createDLDomain(char *rel, char *attr, char *dom);
 
 // get information about DL program elements
 extern char *getHeadPredName(DLRule *r);
-extern List *getRuleVars (DLRule *r);
-extern List *getBodyVars (DLRule *r);
-List *getBodyArgs (DLRule *r);
-extern List *getBodyPredVars (DLRule *r);
-extern List *getHeadVars (DLRule *r);
-extern List *getHeadExprVars (DLRule *r);
-extern List *getAtomExprVars (DLAtom *a);
+extern List *getRuleVars(DLRule *r);
+extern List *getBodyVars(DLRule *r);
+List *getBodyArgs(DLRule *r);
+extern List *getBodyPredVars(DLRule *r);
+extern List *getHeadVars(DLRule *r);
+extern List *getHeadExprVars(DLRule *r);
+extern List *getAtomExprVars(DLAtom *a);
 extern List *getExprVars(Node *expr);
 
-//extern List *getAtomVars (DLAtom *r);
+//extern List *getAtomVars(DLAtom *r);
 
-extern List *getVarNames (List *vars);
+extern List *getVarNames(List *vars);
 
 // unification and variable mappings
-extern DLRule *unifyRule (DLRule *r, List *headBinds);
+extern DLRule *unifyRule(DLRule *r, List *headBinds);
 // take a datalog model M as input and mappings of type Var -> Node
 // return  h(M)
 extern Node *applyVarMap(Node *input, HashMap *h);
-extern boolean argListsUnifyable (List *argsL, List *argsR);
+extern boolean argListsUnifyable(List *argsL, List *argsR);
 extern Node *applyVarMapAsLists(Node *input, List *vars, List *replacements);
 extern DLAtom *getNormalizedAtom(DLAtom *a);
 extern void makeVarNamesUnique(List *nodes);

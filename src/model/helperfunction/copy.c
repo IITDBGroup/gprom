@@ -16,6 +16,7 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/graph/graph.h"
 #include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
@@ -59,6 +60,7 @@ static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
 static BitSet *deepCopyBitSet(BitSet *from, OperatorMap **opMap);
+static Graph *deepCopyGraph(Graph *from, OperatorMap **opMap);
 
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
@@ -265,6 +267,17 @@ static BitSet *
 deepCopyBitSet(BitSet *from, OperatorMap **opMap)
 {
 	BitSet *new = copyBitSet(from);
+
+	return new;
+}
+
+static Graph *
+deepCopyGraph(Graph *from, OperatorMap **opMap)
+{
+	COPY_INIT(Graph);
+
+	COPY_NODE_FIELD(nodes);
+	COPY_NODE_FIELD(edges);
 
 	return new;
 }
@@ -1143,7 +1156,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_BitSet:
             retval = deepCopyBitSet(from, opMap);
             break;
-
+	    case T_Graph:
+			retval = deepCopyGraph(from, opMap);
+			break;
         /* expression model */
         case T_AttributeReference:
             retval = copyAttributeReference(from, opMap);

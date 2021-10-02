@@ -16,6 +16,7 @@
 #include "model/set/vector.h"
 #include "model/set/hashmap.h"
 #include "model/bitset/bitset.h"
+#include "model/graph/graph.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -37,6 +38,7 @@ static boolean equalKeyValue (KeyValue *a, KeyValue *b, HashMap *seenOps, MemCon
 static boolean equalHashMap (HashMap *a, HashMap *b, HashMap *seenOps, MemContext *c);
 static boolean equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c);
 static boolean equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c);
+static boolean equalGraph (Graph *a, Graph *b, HashMap *seenOps, MemContext *c);
 
 /* equal functions for expression types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext *c);
@@ -645,11 +647,19 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
 }
 
 static boolean
-equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c)
+equalBitset(BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c)
 {
 	return bitsetEquals(a,b);
 }
 
+static boolean
+equalGraph(Graph *a, Graph *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_NODE_FIELD(nodes);
+	COMPARE_NODE_FIELD(edges);
+
+	return TRUE;
+}
 
 static boolean
 equalSchema(Schema *a, Schema *b, HashMap *seenOps, MemContext *c)
@@ -1178,6 +1188,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
 	    case T_BitSet:
 			retval = equalBitset(a, b, seenOps, c);
+			break;
+	    case T_Graph:
+			retval = equalGraph(a, b, seenOps, c);
 			break;
         case T_FunctionCall:
             retval = equalFunctionCall(a,b, seenOps, c);
