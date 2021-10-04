@@ -25,6 +25,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 
 /* types of supported plugins */
@@ -110,8 +111,7 @@ typedef struct MetadataLookupPlugin
     /* histogram */
     List * (*getHistogram) (char *tableName, char *attrName, int numPartitions);
     HashMap * (*getProvenanceSketch) (char *sql, List *attrNames);
-    void (*storePsInformation) (char *storeTable, char *template, char *paras,
-    		char *table, char *attr, char *tableAttr, int nPart, int psSize, char *ps);
+    void (*storePsInformation) (psInfoCell *psc);
 
 } MetadataLookupPlugin;
 
@@ -142,8 +142,7 @@ extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
 extern List *getHist (char *tableName, char *attrName, int numPartitions);
 extern HashMap *getPS (char *sql, List *attrNames);
-extern void storePsInfo (char *storeTable, char *template, char *paras,
-		char *table, char *attr, char *tableAttr, int nPart, int psSize, char *ps);
+extern void storePsInfo (psInfoCell *psc);
 extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);

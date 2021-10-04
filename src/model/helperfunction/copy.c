@@ -147,6 +147,7 @@ static RPQQuery *copyRPQQuery(RPQQuery *from, OperatorMap **opMap);
 /* copy structure for provenance sketch */
 static psInfo *copyPSInfo(psInfo *from, OperatorMap **opMap);
 static psAttrInfo *copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap);
+static psInfoCell *copyPSInfoCell(psInfoCell *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -597,6 +598,24 @@ copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap)
     COPY_NODE_FIELD(rangeList);
     COPY_NODE_FIELD(BitVector);
     COPY_NODE_FIELD(psIndexList);
+
+    return new;
+}
+
+static psInfoCell *
+copyPSInfoCell(psInfoCell *from, OperatorMap **opMap)
+{
+    COPY_INIT(psInfoCell);
+
+    COPY_STRING_FIELD(storeTable);
+    COPY_STRING_FIELD(pqSql);
+    COPY_STRING_FIELD(paraValues);
+    COPY_STRING_FIELD(tableName);
+    COPY_STRING_FIELD(attrName);
+    COPY_STRING_FIELD(provTableAttr);
+    COPY_SCALAR_FIELD(numRanges);
+    COPY_SCALAR_FIELD(psSize);
+    COPY_NODE_FIELD(ps);
 
     return new;
 }
@@ -1426,6 +1445,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_psAttrInfo:
             retval = copyPSAttrInfo(from, opMap);
+            break;
+        case T_psInfoCell:
+            retval = copyPSInfoCell(from, opMap);
             break;
         default:
             retval = NULL;

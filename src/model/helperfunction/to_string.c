@@ -132,6 +132,7 @@ static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 // for provenance sketch
 static void outPSInfo(StringInfo str, psInfo *node);
 static void outPSAttrInfo(StringInfo str, psAttrInfo *node);
+static void outPSInfoCell(StringInfo str, psInfoCell *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -1191,6 +1192,23 @@ outPSAttrInfo(StringInfo str, psAttrInfo *node)
     WRITE_NODE_FIELD(psIndexList);
 }
 
+
+static void
+outPSInfoCell(StringInfo str, psInfoCell *node)
+{
+    WRITE_NODE_TYPE(PSINFOCELL);
+
+    WRITE_STRING_FIELD(storeTable);
+    WRITE_STRING_FIELD(pqSql);
+    WRITE_STRING_FIELD(paraValues);
+    WRITE_STRING_FIELD(tableName);
+    WRITE_STRING_FIELD(attrName);
+    WRITE_STRING_FIELD(provTableAttr);
+    WRITE_INT_FIELD(numRanges);
+	WRITE_INT_FIELD(psSize);
+    WRITE_NODE_FIELD(ps);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1438,6 +1456,10 @@ outNode(StringInfo str, void *obj)
 		    case T_psAttrInfo:
 				outPSAttrInfo(str, (psAttrInfo *) obj);
 			    break;
+		    case T_psInfoCell:
+				outPSInfoCell(str, (psInfoCell *) obj);
+			    break;
+
 
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));

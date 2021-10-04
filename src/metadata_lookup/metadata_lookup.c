@@ -456,12 +456,11 @@ getPS (char *sql, List *attrNames)
 }
 
 void
-storePsInfo (char *storeTable, char *template, char *paras,
-		char *table, char *attr, char *tableAttr, int nPart, int psSize, char *ps)
+storePsInfo (psInfoCell *psc)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    activePlugin->storePsInformation(storeTable,template,paras,table,attr,tableAttr,nPart,psSize,ps);
+    activePlugin->storePsInformation(psc);
     RELEASE_MEM_CONTEXT();
 }
 

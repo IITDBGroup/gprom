@@ -894,8 +894,7 @@ postgresGetPS (char *sql, List *attrNames)
 }
 
 void
-postgresStorePsInfo(char *storeTable, char *template, char *paras,
-		char *table, char *attr, char *tableAttr, int nPart, int psSize, char *ps)
+postgresStorePsInfo(psInfoCell *psc)
 {   DEBUG_LOG("postgresStorePsInfo: START");
 	START_TIMER("Postgres - store ps information");
 	StringInfo insertInfo = makeStringInfo();
@@ -908,7 +907,11 @@ postgresStorePsInfo(char *storeTable, char *template, char *paras,
 	 */
 
     appendStringInfo(insertInfo,"insert into %s values ('%s','%s','%s','%s','%s',%d,%d,'%s');",
-			storeTable,template,paras,table,attr,tableAttr,nPart,psSize,ps);
+    			psc->storeTable,psc->pqSql,
+				psc->paraValues,psc->tableName,
+				psc->attrName,psc->tableName,
+				psc->numRanges,psc->psSize,
+				bitSetToString(psc->ps));
 	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
 	//					storeTable);
     DEBUG_LOG("postgresStorePsInfo: %s", insertInfo->data);

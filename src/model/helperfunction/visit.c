@@ -450,6 +450,20 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             VISIT(psIndexList);
         }
         break;
+        case T_psInfoCell:
+        {
+//            PREP_VISIT(psInfoCell);
+//            VISIT(storeTable);
+//            VISIT(pqSql);
+//            VISIT(paraValues);
+//            VISIT(tableName);
+//            VISIT(attrName);
+//            VISIT(provTableAttr);
+//            VISIT(numRanges);
+//            VISIT(psSize);
+//            VISIT(ps);
+        }
+        break;
         default:
             break;
     }
@@ -867,6 +881,13 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,psIndexList);
             }
         break;
+        case T_psInfoCell:
+            {
+                NEWN(psInfoCell);
+
+                MUTATE(BitSet,ps);
+            }
+        break;
         default:
             break;
     }
@@ -1236,6 +1257,13 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(rangeList);
                 VISIT_P(BitVector);
                 VISIT_P(psIndexList);
+            }
+            break;
+        case T_psInfoCell:
+            {
+                PREP_VISIT_P(psInfoCell);
+
+                VISIT_P(ps);
             }
             break;
         default:

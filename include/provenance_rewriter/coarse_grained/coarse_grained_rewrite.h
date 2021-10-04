@@ -30,6 +30,21 @@ typedef struct psAttrInfo
     List *psIndexList;
 } psAttrInfo;
 
+typedef struct psInfoCell
+{
+	NodeTag type;
+	char 	*storeTable; 		//the table for storing the ps information
+	char	*pqSql;      		//query template SQL
+	char 	*paraValues;        //parameter values
+	char	*tableName;  		//the table name of current ps
+    char    *attrName;	 		//the attribute name of current ps
+    char 	*provTableAttr;     // prov_table_attr#
+    int 	numRanges;          //number of ranges for range partition
+    int     psSize;             //number of ranges which contains the provenance
+    BitSet  *ps;				//provenance sketch in bitset format
+} psInfoCell;
+
+
 #define ORACLE_SKETCH_AGG_FUN "dbgroup.BITORAGG"
 #define POSTGRES_SET_BITS_FUN "set_bits"
 #define POSTGRES_FAST_BITOR_FUN "fast_bit_or"
@@ -42,6 +57,8 @@ typedef struct psAttrInfo
 #define COARSE_GRAINED_RANGEA "RANGEA"
 #define COARSE_GRAINED_FRAGMENT "FRAGMENT"
 
+extern List *psinfos;
+
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
 extern void autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara);
 extern void markTableAccessAndAggregation (QueryOperator *op, Node *psPara);
@@ -50,15 +67,14 @@ extern void markNumOfTableAccess(QueryOperator *op);
 extern void markAutoUseTableAccess (QueryOperator *op, HashMap *psMap);
 extern psAttrInfo* createPSAttrInfo(List *l, char *tableName);
 extern psInfo* createPSInfo(Node *coarsePara);
+extern psInfoCell* createPSInfoCell(char *storeTable, char *pqSql, char *paraValues, char *tableName, char *attrName,
+		char *provTableAttr, int numRanges, int psSize, BitSet *ps);
 extern List *getRangeList(int numRanges, char* attrName, char *tableName);
 extern void bottomUpPropagateLevelAggregation(QueryOperator *op, psInfo *psPara);
 extern char *parameterToCharsSepByComma(List* paras);
 //extern psInfo *addPsIntoPsInfo(psInfo *psPara,HashMap *psMap);
 extern void cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap);
 extern int getPsSize(BitSet* psBitVector);
-
-
-
 
 
 

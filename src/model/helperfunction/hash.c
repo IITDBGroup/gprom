@@ -126,6 +126,7 @@ static uint64_t hashDLComparison (uint64_t cur, DLComparison *node);
 // hash structure for provenance sketch
 static uint64_t hashPSInfo (uint64_t cur, psInfo *node);
 static uint64_t hashPSAttrInfo (uint64_t cur, psAttrInfo *node);
+static uint64_t hashPSInfoCell (uint64_t cur, psInfoCell *node);
 
 // hash function entry point
 static uint64_t hashValueInternal(uint64_t h, void *a);
@@ -998,6 +999,22 @@ hashPSAttrInfo (uint64_t cur, psAttrInfo *node)
 	HASH_RETURN();
 }
 
+static uint64_t
+hashPSInfoCell (uint64_t cur, psInfoCell *node)
+{
+	HASH_STRING(storeTable);
+	HASH_STRING(pqSql);
+	HASH_STRING(paraValues);
+	HASH_STRING(tableName);
+	HASH_STRING(provTableAttr);
+	HASH_INT(numRanges);
+	HASH_INT(psSize);
+	HASH_NODE(ps);
+
+	HASH_RETURN();
+}
+
+
 
 /* generic hash function */
 static uint64_t
@@ -1155,6 +1172,8 @@ hashValueInternal(uint64_t h, void *a)
       		return hashPSInfo(h, (psInfo *)n );
 	    case T_psAttrInfo:
       		return hashPSAttrInfo(h, (psAttrInfo *)n );
+	    case T_psInfoCell:
+      		return hashPSInfoCell(h, (psInfoCell *)n );
         default:
             FATAL_LOG("unknown node type");
             break;

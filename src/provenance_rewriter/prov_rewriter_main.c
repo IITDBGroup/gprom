@@ -51,8 +51,6 @@
 
 #include "utility/string_utils.h"
 
-
-
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);

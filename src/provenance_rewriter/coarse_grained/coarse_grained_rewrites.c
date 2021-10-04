@@ -31,6 +31,9 @@
 #define MAX_NUM_RANGE 10000
 #define COMMA "-"
 
+/* global List psInfo */
+List *psinfos = NIL;
+
 typedef struct AggLevelContext
 {
 	HashMap *opCnts;
@@ -572,6 +575,25 @@ parameterToCharsSepByComma(List* paras)
 //	return res;
 //}
 
+psInfoCell *
+createPSInfoCell(char *storeTable, char *pqSql, char *paraValues, char *tableName, char *attrName,
+		char *provTableAttr, int numRanges, int psSize, BitSet *ps)
+{
+	psInfoCell* result = makeNode(psInfoCell);
+
+	result->storeTable = storeTable;
+	result->pqSql = pqSql;
+	result->paraValues = paraValues;
+	result->tableName = tableName;
+	result->attrName = attrName;
+	result->provTableAttr = provTableAttr;
+	result->numRanges = numRanges;
+	result->psSize = psSize;
+	result->ps = ps;
+
+	return result;
+}
+
 void
 cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 {
@@ -600,15 +622,13 @@ cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 					//char *ps = STRING_VALUE(MAP_GET_STRING(psMap,provTableAttr));
 				    char *ps = STRING_VALUE(kv->value);
 					//DEBUG_LOG("ps: %s", ps);
-					storePsInfo(storeTable,
-						pqSql,
-						cparas,
-						tb,
-						p->attrName,
-						provTableAttr,
-						LIST_LENGTH(p->rangeList),
-						getPsSize(stringToBitset(ps)),
-						ps);
+				    psInfoCell *psCell = createPSInfoCell(storeTable,pqSql,cparas,tb,p->attrName,provTableAttr,
+				    		LIST_LENGTH(p->rangeList),getPsSize(stringToBitset(ps)),stringToBitset(ps));
+
+				    //storePsInfo(psCell);
+				    psinfos = appendToTailOfList(psinfos, psCell);
+				    //DEBUG_LOG("psInfoCellList length: %d", LIST_LENGTH(psinfos));
+
 				}
 			}
 		}
