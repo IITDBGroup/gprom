@@ -33,6 +33,7 @@
 
 /* global List psInfo */
 List *psinfos = NIL;
+List *psinfosLoad = NIL;
 
 typedef struct AggLevelContext
 {
@@ -41,6 +42,13 @@ typedef struct AggLevelContext
 
 static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
 static HashMap *bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, AggLevelContext *ctx);
+
+
+//void
+//printListPSInfoCells(List *l)
+//{
+//	DEBUG_NODE_BEATIFY_LOG("ListPSInfoCells: ", l);
+//}
 
 QueryOperator *
 addTopAggForCoarse(QueryOperator *op)

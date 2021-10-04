@@ -111,6 +111,7 @@ typedef struct MetadataLookupPlugin
     /* histogram */
     List * (*getHistogram) (char *tableName, char *attrName, int numPartitions);
     HashMap * (*getProvenanceSketch) (char *sql, List *attrNames);
+    List *(*getProvenanceSketchInfoFromTable) ();
     void (*storePsInformation) (psInfoCell *psc);
 
 } MetadataLookupPlugin;
@@ -142,6 +143,7 @@ extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
 extern List *getHist (char *tableName, char *attrName, int numPartitions);
 extern HashMap *getPS (char *sql, List *attrNames);
+extern List *getPSInfoFromTable();
 extern void storePsInfo (psInfoCell *psc);
 extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern List *getAttributeDataTypes (char *tableName);

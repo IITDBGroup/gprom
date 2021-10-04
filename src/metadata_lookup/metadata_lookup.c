@@ -455,6 +455,16 @@ getPS (char *sql, List *attrNames)
     return result;
 }
 
+List *
+getPSInfoFromTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    List *result = activePlugin->getProvenanceSketchInfoFromTable();
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
 void
 storePsInfo (psInfoCell *psc)
 {

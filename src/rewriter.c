@@ -206,6 +206,10 @@ setupPluginsFromOptions(void)
         chooseOptimizerPluginFromString(pluginName);
     else
         chooseOptimizerPluginFromString("exhaustive");
+
+    //Load stored ps information
+    psinfosLoad = getPSInfoFromTable();
+    DEBUG_NODE_BEATIFY_LOG("ListPSInfoCells: ", psinfosLoad);
 }
 
 static void

@@ -242,6 +242,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getAttributeNames = postgresGetAttributeNames;
     p->getHistogram = postgresGetHist;
     p->getProvenanceSketch = postgresGetPS;
+    p->getProvenanceSketchInfoFromTable = postgresGetPSInfoFromTable;
     p->storePsInformation = postgresStorePsInfo;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
@@ -893,6 +894,53 @@ postgresGetPS (char *sql, List *attrNames)
     return hm;
 }
 
+
+List *
+postgresGetPSInfoFromTable ()
+{
+    List *psCells = NIL;
+    PGresult *res = NULL;
+
+    //ASSERT(postgresCatalogTableExists(tableName));
+
+    char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
+    ASSERT(postgresCatalogTableExists(storeTable));
+    char *sql = CONCAT_STRINGS("SELECT * FROM ", storeTable, ";");
+    DEBUG_LOG("The sql of postgresGetPSInfoFromTable: %s", sql);
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+    START_TIMER(METADATA_LOOKUP_TIMER);
+    START_TIMER("Postgres - execute get stored ps information");
+	res = execQuery(sql);
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++) {
+    	psInfoCell *psc = createPSInfoCell(storeTable,
+    			strdup(PQgetvalue(res,i,0)), //pqSql - template sql
+				strdup(PQgetvalue(res,i,1)), //parameter values
+				strdup(PQgetvalue(res,i,2)), //tableName
+				strdup(PQgetvalue(res,i,3)), //attrName
+				strdup(PQgetvalue(res,i,4)), //provTableAttr
+				atoi(strdup(PQgetvalue(res,i,5))), //numRanges
+				atoi(strdup(PQgetvalue(res,i,6))), //psSize
+				stringToBitset(strdup(PQgetvalue(res,i,7))));  //ps
+    	psCells = appendToTailOfList(psCells, psc);
+    }
+
+    START_TIMER("Postgres - execute get stored ps information");
+    execStmt("commit;");
+    // clear result
+    PQclear(res);
+
+    //DEBUG_NODE_LOG("Captured Provenance Sketch :", (Node *) hm);
+    //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
+    return psCells;
+}
+
+
 void
 postgresStorePsInfo(psInfoCell *psc)
 {   DEBUG_LOG("postgresStorePsInfo: START");
@@ -909,7 +957,7 @@ postgresStorePsInfo(psInfoCell *psc)
     appendStringInfo(insertInfo,"insert into %s values ('%s','%s','%s','%s','%s',%d,%d,'%s');",
     			psc->storeTable,psc->pqSql,
 				psc->paraValues,psc->tableName,
-				psc->attrName,psc->tableName,
+				psc->attrName,psc->provTableAttr,
 				psc->numRanges,psc->psSize,
 				bitSetToString(psc->ps));
 	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",

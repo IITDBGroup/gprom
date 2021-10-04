@@ -58,6 +58,7 @@ typedef struct psInfoCell
 #define COARSE_GRAINED_FRAGMENT "FRAGMENT"
 
 extern List *psinfos;
+extern List *psinfosLoad;
 
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
 extern void autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara);
@@ -75,6 +76,7 @@ extern char *parameterToCharsSepByComma(List* paras);
 //extern psInfo *addPsIntoPsInfo(psInfo *psPara,HashMap *psMap);
 extern void cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap);
 extern int getPsSize(BitSet* psBitVector);
+//extern void printListPSInfoCells(List *l);
 
 
 
