@@ -51,6 +51,10 @@
 
 #include "utility/string_utils.h"
 
+// Mem context
+#define CONTEXT_NAME "PSMemContext"
+static MemContext *memContext = NULL;
+
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
@@ -253,9 +257,15 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 			HashMap *psMap = getPS(capSql,attrNames);
 
 
-			//cache ps information
-			QueryOperator *rootParaSql = OP_LCHILD(op);
-			cachePsInfo(rootParaSql,psPara,psMap);
+			//cache ps information if in self-turning model
+			if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+			{
+			    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
+			    memContext = getCurMemContext();
+				QueryOperator *rootParaSql = OP_LCHILD(op);
+				cachePsInfo(rootParaSql,psPara,psMap);
+				RELEASE_MEM_CONTEXT();
+			}
 
 			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
 			{

@@ -207,9 +207,10 @@ setupPluginsFromOptions(void)
     else
         chooseOptimizerPluginFromString("exhaustive");
 
-    //Load stored ps information
-    psinfosLoad = getPSInfoFromTable();
-    DEBUG_NODE_BEATIFY_LOG("ListPSInfoCells: ", psinfosLoad);
+    // for self-turning of ps - load the stored provenance sketches from table first
+    if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    	loadPSInfoFromTable();
+
 }
 
 static void

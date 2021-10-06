@@ -232,13 +232,10 @@ utility(char *command)
     // QUIT
     if(strStartsWith(command,"\\q"))
     {
-    	//if(hasOption(OPTION_PS_STORE_TABLE))
-    	//{
-    		FOREACH(psInfoCell, p, psinfos)
-    		{
-    			storePsInfo(p);
-    		}
-    	//}
+    	//if in self-turning model, store the cached provenance sketches into table
+    	if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    		storePSInfoToTable();
+
         //printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
         printf("\n");
         persistHistory();

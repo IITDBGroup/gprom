@@ -32,8 +32,8 @@
 #define COMMA "-"
 
 /* global List psInfo */
-List *psinfos = NIL;
-List *psinfosLoad = NIL;
+static List *psinfos = NIL;
+static List *psinfosLoad = NIL;
 
 typedef struct AggLevelContext
 {
@@ -44,11 +44,21 @@ static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
 static HashMap *bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, AggLevelContext *ctx);
 
 
-//void
-//printListPSInfoCells(List *l)
-//{
-//	DEBUG_NODE_BEATIFY_LOG("ListPSInfoCells: ", l);
-//}
+void
+loadPSInfoFromTable()
+{
+	psinfosLoad = getPSInfoFromTable();
+	DEBUG_NODE_BEATIFY_LOG("ListPSInfoCells: ", psinfosLoad);
+}
+
+void
+storePSInfoToTable()
+{
+	FOREACH(psInfoCell, p, psinfos)
+	{
+		storePsInfo(p);
+	}
+}
 
 QueryOperator *
 addTopAggForCoarse(QueryOperator *op)
@@ -589,15 +599,15 @@ createPSInfoCell(char *storeTable, char *pqSql, char *paraValues, char *tableNam
 {
 	psInfoCell* result = makeNode(psInfoCell);
 
-	result->storeTable = storeTable;
-	result->pqSql = pqSql;
-	result->paraValues = paraValues;
-	result->tableName = tableName;
-	result->attrName = attrName;
-	result->provTableAttr = provTableAttr;
+	result->storeTable = strdup(storeTable);
+	result->pqSql = strdup(pqSql);
+	result->paraValues = strdup(paraValues);
+	result->tableName = strdup(tableName);
+	result->attrName = strdup(attrName);
+	result->provTableAttr = strdup(provTableAttr);
 	result->numRanges = numRanges;
 	result->psSize = psSize;
-	result->ps = ps;
+	result->ps = copyObject(ps);
 
 	return result;
 }
@@ -630,6 +640,8 @@ cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 					//char *ps = STRING_VALUE(MAP_GET_STRING(psMap,provTableAttr));
 				    char *ps = STRING_VALUE(kv->value);
 					//DEBUG_LOG("ps: %s", ps);
+
+
 				    psInfoCell *psCell = createPSInfoCell(storeTable,pqSql,cparas,tb,p->attrName,provTableAttr,
 				    		LIST_LENGTH(p->rangeList),getPsSize(stringToBitset(ps)),stringToBitset(ps));
 
