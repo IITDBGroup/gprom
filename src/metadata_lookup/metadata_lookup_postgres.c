@@ -248,6 +248,9 @@ assemblePostgresMetadataLookupPlugin (void)
     p->storePsTemplates = postgresStorePsTemplate;
     p->storePsHistogram = postgresStorePsHist;
     p->storePsInformation = postgresStorePsInfo;
+    p->createProvenanceSketchTemplateTable = postgresCreatePSTemplateTable;
+    p->createProvenanceSketchInfoTable = postgresCreatePSInfoTable;
+    p->createProvenanceSketchHistTable = postgresCreatePSHistTable;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
     p->getFuncReturnType = postgresGetFuncReturnType;
@@ -1125,6 +1128,101 @@ postgresGetPSHistogramFromTable ()
     STOP_TIMER(METADATA_LOOKUP_TIMER);
     return tmap;
 }
+
+
+void
+postgresCreatePSTemplateTable()
+{
+	char *tplTable = getTemplatesTableName();
+//	char *histTable = getHistTableName();
+//	char *psTable = getPSCellsTableName();
+
+	START_TIMER("Postgres - create ps Template table");
+	StringInfo createSql = makeStringInfo();
+
+	/*
+	 *  template | template Number
+	 *  select ..|  1
+	 *  select ..|  1
+	 *   ...
+	 */
+	appendStringInfo(createSql,"create table %s (template VARCHAR(2000),tid int); commit;",
+			tplTable);
+//	appendStringInfo(createSql,"create table %s (tid int,parameters VARCHAR(255),tableName VARCHAR(50),attribte VARCHAR(50),tableAttr VARCHAR(50),numPartitions int,psSize int,ps text);",
+//			psTable);
+//	appendStringInfo(createSql,"create table %s (tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
+//			histTable);
+
+	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
+	//					storeTable);
+    DEBUG_LOG("postgresCreatePSTemplateTable: %s", createSql->data);
+	execStmt(createSql->data);
+
+	STOP_TIMER("Postgres - create ps Template table");
+}
+
+void
+postgresCreatePSInfoTable()
+{
+//	char *tplTable = getTemplatesTableName();
+//	char *histTable = getHistTableName();
+	char *psTable = getPSCellsTableName();
+
+	START_TIMER("Postgres - create ps info table");
+	StringInfo createSql = makeStringInfo();
+
+	/*
+	 *  template | template Number
+	 *  select ..|  1
+	 *  select ..|  1
+	 *   ...
+	 */
+//	appendStringInfo(createSql,"create table %s (template VARCHAR(2000),tid int); commit;",
+//			tplTable);
+	appendStringInfo(createSql,"create table %s (tid int,parameters VARCHAR(255),tableName VARCHAR(50),attribte VARCHAR(50),tableAttr VARCHAR(50),numPartitions int,psSize int,ps text);",
+			psTable);
+//	appendStringInfo(createSql,"create table %s (tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
+//			histTable);
+
+	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
+	//					storeTable);
+    DEBUG_LOG("postgresCreatePSInfoTable: %s", createSql->data);
+	execStmt(createSql->data);
+
+	STOP_TIMER("Postgres - create ps info table");
+}
+
+void
+postgresCreatePSHistTable()
+{
+//	char *tplTable = getTemplatesTableName();
+	char *histTable = getHistTableName();
+//	char *psTable = getPSCellsTableName();
+
+	START_TIMER("Postgres - create ps hist table");
+	StringInfo createSql = makeStringInfo();
+
+	/*
+	 *  template | template Number
+	 *  select ..|  1
+	 *  select ..|  1
+	 *   ...
+	 */
+//	appendStringInfo(createSql,"create table %s (template VARCHAR(2000),tid int); commit;",
+//			histTable);
+//	appendStringInfo(createSql,"create table %s (tid int,parameters VARCHAR(255),tableName VARCHAR(50),attribte VARCHAR(50),tableAttr VARCHAR(50),numPartitions int,psSize int,ps text);",
+//			psTable);
+	appendStringInfo(createSql,"create table %s (tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
+			histTable);
+
+	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
+	//					storeTable);
+    DEBUG_LOG("postgresCreatePSHistTable: %s", createSql->data);
+	execStmt(createSql->data);
+
+	STOP_TIMER("Postgres - create ps hist table");
+}
+
 
 void
 postgresStorePsHist(KeyValue *kv)

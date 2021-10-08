@@ -117,6 +117,9 @@ typedef struct MetadataLookupPlugin
     void (*storePsInformation) (int tNo, char *paras, psInfoCell *psc);
     void (*storePsTemplates) (KeyValue *kv);
     void (*storePsHistogram) (KeyValue *kv);
+    void (*createProvenanceSketchTemplateTable) ();
+    void (*createProvenanceSketchInfoTable) ();
+    void (*createProvenanceSketchHistTable) ();
 
 } MetadataLookupPlugin;
 
@@ -150,6 +153,11 @@ extern HashMap *getPS (char *sql, List *attrNames);
 extern HashMap *getPSInfoFromTable();
 extern HashMap *getPSTemplateFromTable();
 extern HashMap *getPSHistogramFromTable();
+
+extern void createPSTemplateTable();
+extern void createPSInfoTable();
+extern void createPSHistTable();
+
 extern void storePsInfo (int tNo, char *paras, psInfoCell *psc);
 extern void storePsTemplate (KeyValue *kv);
 extern void storePsHist (KeyValue *kv);

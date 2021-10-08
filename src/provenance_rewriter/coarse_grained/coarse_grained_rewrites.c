@@ -61,6 +61,7 @@ static char *rangeListToString(List *l);
 static void storeTemplates();
 static void storePSInfoToTable();
 static void storeHist();
+static void initStoredTable();
 
 
 HashMap *
@@ -87,9 +88,25 @@ getpsCellMap()
 	return psCellMap;
 }
 
+static void
+initStoredTable()
+{
+	if(!catalogTableExists(getTemplatesTableName()))
+		createPSTemplateTable();
+
+	if(!catalogTableExists(getPSCellsTableName()))
+		createPSInfoTable();
+
+	if(!catalogTableExists(getHistTableName()))
+		createPSHistTable();
+}
+
 void
 loadPSInfoFromTable()
 {
+
+	initStoredTable();
+
 	ltempNoMap = getPSTemplateFromTable();
 	lpsCellMap = getPSInfoFromTable();
 	lhistMap = getPSHistogramFromTable();

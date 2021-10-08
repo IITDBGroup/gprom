@@ -43,6 +43,9 @@ extern HashMap *postgresGetPSHistogramFromTable ();
 extern void postgresStorePsInfo (int tNo, char *paras, psInfoCell *psc);
 extern void postgresStorePsTemplate(KeyValue *kv);
 extern void postgresStorePsHist(KeyValue *kv);
+extern void postgresCreatePSTemplateTable();
+extern void postgresCreatePSInfoTable();
+extern void postgresCreatePSHistTable();
 
 extern boolean postgresIsAgg(char *functionName);
 extern boolean postgresIsWindowFunction(char *functionName);

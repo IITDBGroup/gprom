@@ -486,6 +486,34 @@ getPSHistogramFromTable ()
 }
 
 void
+createPSTemplateTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->createProvenanceSketchTemplateTable();
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+createPSInfoTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->createProvenanceSketchInfoTable();
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+createPSHistTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->createProvenanceSketchHistTable();
+    RELEASE_MEM_CONTEXT();
+}
+
+
+void
 storePsInfo (int tNo, char *paras, psInfoCell *psc)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
