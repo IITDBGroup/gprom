@@ -162,6 +162,19 @@ makeNodeSetFromList(List *list)
     return result;
 }
 
+List *
+makeNodeListFromSet(Set *s)
+{
+	List *result = NIL;
+
+	FOREACH_SET(Node,n,s)
+	{
+		result = appendToTailOfList(result, n);
+	}
+
+	return result;
+}
+
 boolean
 hasSetElem (Set *set, void *_el)
 {

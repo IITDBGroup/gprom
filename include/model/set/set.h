@@ -61,6 +61,7 @@ extern Set *makeSetLong(gprom_long_t elem, ...);
 // turn lists into sets
 extern Set *makeStrSetFromList(List *strList);
 extern Set *makeNodeSetFromList(List *list);
+extern List *makeNodeListFromSet(Set *s);
 
 // iterate through sets
 #define DUMMY_INT_FOR_COND_SET(_name_) _name_##_stupid_int_
