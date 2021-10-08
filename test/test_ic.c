@@ -18,12 +18,14 @@
 
 static rc testAttributeClosure(void);
 static rc testNormalizeFDs(void);
+static rc testGetFDsForAttrs(void);
 
 rc
 testIntegrityConstraints(void)
 {
     RUN_TEST(testAttributeClosure(), "test computing attribtue closures");
     RUN_TEST(testNormalizeFDs(), "test normalizing FDs");
+	RUN_TEST(testGetFDsForAttrs(), "test returning subset of FDs that hold on attributes.");
 
     return PASS;
 }
@@ -73,4 +75,26 @@ testNormalizeFDs(void)
 					   "normalize FDs a,b,c->c,d ; a,b->a; a,b,->c into a,b,c->d and a,b->c");
 
 	return PASS;
+}
+
+static rc
+testGetFDsForAttrs(void)
+{
+	FD *f1 = createFD(NULL, MAKE_STR_SET("a"), MAKE_STR_SET("b"));
+	FD *f2 = createFD(NULL, MAKE_STR_SET("b"), MAKE_STR_SET("c"));
+	FD *f3 = createFD(NULL, MAKE_STR_SET("a","c"), MAKE_STR_SET("d"));
+	FD *f4 = createFD(NULL, MAKE_STR_SET("d"), MAKE_STR_SET("e"));
+
+	List *fds = LIST_MAKE(f1,f2,f3,f4);
+
+	ASSERT_EQUALS_NODE(LIST_MAKE(f1,f2,f3),
+					   getFDsForAttributes(fds, MAKE_STR_SET("a","b","c","d")),
+					   "FDSs on {a,b,c,d} are a->b; b->c; a,c->d");
+
+	ASSERT_EQUALS_NODE(LIST_MAKE(f1,f2),
+					   getFDsForAttributes(fds, MAKE_STR_SET("a","b","c")),
+					   "FDSs on {a,b,c,d} are a->b; b->c");
+
+	return PASS;
+
 }

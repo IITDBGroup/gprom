@@ -45,6 +45,8 @@ typedef struct RewriteSearchState {
 		_out->r = _in->r; \
 	} while(0)
 
+#define LOG_STATE(_st) DEBUG_NODE_BEATIFY_LOG("RewriteSearchState: \n", _st->in, _st->todo, _st->jg)
+
 static Set *varNamesForAtom(DLAtom *atom);
 static Set *varNamesForAtoms(Set *atoms);
 static Set *varListToNameSet(List *vars);
@@ -61,6 +63,7 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	DLAtom *target;
 	Graph *joinG = createJoinGraph(r);
 	List *todo = NIL;
+	DLRule *opt, *min;
 
 	// determine target goal
 	FOREACH(DLAtom,a,r->body)
@@ -71,15 +74,29 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 		}
 	}
 
+	ASSERT(target);
+	DEBUG_NODE_BEATIFY_LOG("target atom is ", target);
+
 	// determine seeds and setup todo list
 	seeds = computeSeeds(r, fds, target);
+
+	DEBUG_NODE_BEATIFY_LOG("seeds are: ", seeds);
+
+	// no seeds, head of the query provides all variables we need
+	if(!seeds) //TODO
+	{
+		min =  createDLRule(copyObject(r->head), NIL);
+		return createCaptureRule(min, target);
+	}
+
+	Set *bodyAts = makeNodeSetFromList(r->body);
 
 	FOREACH_SET(Set,seed,seeds)
 	{
 		RewriteSearchState *state = NEW(RewriteSearchState);
 
 		state->in = seed;
-		state->todo = setDifference(copyObject(r->body), seed);
+		state->todo = setDifference(copyObject(bodyAts), seed);
 		state->jg = copyObject(joinG);
 		state->fds = fds;
 		state->r = r;
@@ -93,15 +110,18 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	while(!LIST_EMPTY(todo))
 	{
 		RewriteSearchState *cur = (RewriteSearchState *) popHeadOfListP(todo);
+		LOG_STATE(cur);
 
 		// no more atoms to check -> we have a result
 		if(EMPTY_SET(cur->todo))
 		{
+			DEBUG_NODE_BEATIFY_LOG("new result: ", cur->in);
 			addToSet(results, cur->in);
 		}
 		// if there are non-reachable atoms, then remove them and put ourselves back on the todo list
 		else if(existsNonReachableAtom(cur))
 		{
+			DEBUG_NODE_BEATIFY_LOG("after removing unreachable we get: ", cur->in);
 			todo = appendToTailOfList(todo, cur);
 		}
 		// no unreachable atoms
@@ -112,11 +132,13 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 			// check whether we can remove and edge based on FDs and cur.in
 			if(removeOneEdgeBasedOnFDs(frontier, cur))
 			{
+				LOG_STATE(cur);
 				todo = appendToTailOfList(todo, cur);
 			}
 			// no edge removable, need to branch on all atoms in cur.check that are directly reachable from atoms in cur.in
 			else
 			{
+				DEBUG_NODE_BEATIFY_LOG("need to expand based on all directly reachable atoms: ", frontier);
 				FOREACH_SET(DLAtom,a,frontier)
 				{
 					if(hasSetElem(cur->todo, a))
@@ -135,8 +157,32 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 
 	}
 
-	// construct rules from results
-	return NULL;
+	// construct rule from results
+	//TODO for now just return the first one
+	Set *bodyAtoms = popSet(results);
+	List *body = NIL;
+
+	DEBUG_NODE_BEATIFY_LOG("minimized body is: ", bodyAtoms);
+
+	FOREACH_SET(DLAtom,a,bodyAtoms)
+	{
+		body = appendToTailOfList(body, a);
+	}
+
+	min = createDLRule(copyObject(r->head), body);
+	opt = createCaptureRule(min, target);
+
+	return opt;
+}
+
+DLRule *
+createCaptureRule(DLRule *r, DLAtom *targetAtom)
+{
+	List *body = copyObject(r->body);
+
+	body = appendToTailOfList(body, copyObject(r->head));
+
+	return createDLRule(copyObject(targetAtom), body);
 }
 
 static Set *
@@ -187,7 +233,13 @@ removeOneEdgeBasedOnFDs(Set *dreach, RewriteSearchState *state)
 					{
 						removeSetElem((Set *) kv->value, a);
 					}
+					else if (equal(kv->key,a))
+					{
+						kv->value = (Node *) setDifference((Set *) kv->value, state->in);
+					}
 				}
+
+				return TRUE;
 			}
 		}
 	}
