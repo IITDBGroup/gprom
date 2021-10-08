@@ -35,9 +35,15 @@ extern boolean postgresCatalogViewExists (char * viewName);
 extern List *postgresGetAttributes (char *tableName);
 extern List *postgresGetAttributeNames (char *tableName);
 extern List *postgresGetHist (char *tableName, char *attrName, int numPartitions);
+
 extern HashMap *postgresGetPS (char *sql, List *attrNames);
-extern List *postgresGetPSInfoFromTable();
-extern void postgresStorePsInfo (psInfoCell *psc);
+extern HashMap *postgresGetPSInfoFromTable();
+extern HashMap *postgresGetPSTemplateFromTable();
+extern HashMap *postgresGetPSHistogramFromTable ();
+extern void postgresStorePsInfo (int tNo, char *paras, psInfoCell *psc);
+extern void postgresStorePsTemplate(KeyValue *kv);
+extern void postgresStorePsHist(KeyValue *kv);
+
 extern boolean postgresIsAgg(char *functionName);
 extern boolean postgresIsWindowFunction(char *functionName);
 extern DataType postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);

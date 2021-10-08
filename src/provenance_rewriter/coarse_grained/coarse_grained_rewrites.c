@@ -30,10 +30,24 @@
 
 #define MAX_NUM_RANGE 10000
 #define COMMA "-"
+#define PSCELLS_TABLE_NAME "psinfo"
+#define TEMPLATES_TABLE_NAME "template"
+#define HIST_TABLE_NAME "hist"
+#define HIST_KEY_DELI "!@#"
 
 /* global List psInfo */
-static List *psinfos = NIL;
-static List *psinfosLoad = NIL;
+//static List *psinfos = NIL;
+//static List *psinfosLoad = NIL;
+
+/* for loading ps info */
+static HashMap *ltempNoMap = NULL;
+static HashMap *lpsCellMap = NULL;
+static HashMap *lhistMap = NULL;
+
+/* for caching ps info */
+static HashMap *tempNoMap = NULL;
+static HashMap *psCellMap = NULL;
+static HashMap *histMap = NULL;
 
 typedef struct AggLevelContext
 {
@@ -42,22 +56,113 @@ typedef struct AggLevelContext
 
 static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
 static HashMap *bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, AggLevelContext *ctx);
+static char *rangeListToString(List *l);
 
+static void storeTemplates();
+static void storePSInfoToTable();
+static void storeHist();
+
+
+HashMap *
+setLtempNoMap(HashMap *map)
+{
+	return tempNoMap = map;
+}
+
+HashMap *
+setpsCellMap(HashMap *map)
+{
+	return psCellMap = map;
+}
+
+HashMap *
+getLtempNoMap()
+{
+	return tempNoMap;
+}
+
+HashMap *
+getpsCellMap()
+{
+	return psCellMap;
+}
 
 void
 loadPSInfoFromTable()
 {
-	psinfosLoad = getPSInfoFromTable();
-	DEBUG_NODE_BEATIFY_LOG("ListPSInfoCells: ", psinfosLoad);
+	ltempNoMap = getPSTemplateFromTable();
+	lpsCellMap = getPSInfoFromTable();
+	lhistMap = getPSHistogramFromTable();
+	DEBUG_NODE_BEATIFY_LOG("ltempNoMap: ", ltempNoMap);
+	DEBUG_NODE_BEATIFY_LOG("lpsCellMap: ", lpsCellMap);
+	DEBUG_NODE_BEATIFY_LOG("lhistMap: ", lhistMap);
+}
+
+static void
+storeTemplates()
+{
+	FOREACH_HASH_ENTRY(kv, tempNoMap)
+	{
+		char *t = STRING_VALUE(kv->key);
+
+		//check the loaded templates
+		if(!MAP_HAS_STRING_KEY(ltempNoMap, t))
+		{
+			storePsTemplate(kv);
+		}
+	}
+}
+
+static void
+storeHist()
+{
+//	DEBUG_NODE_BEATIFY_LOG("histMap: ", histMap);
+	FOREACH_HASH_ENTRY(kv, histMap)
+	{
+		char *k = STRING_VALUE(kv->key);
+
+		//check the loaded histogram
+		if(!MAP_HAS_STRING_KEY(lhistMap, k))
+		{
+			storePsHist(kv);
+		}
+	}
+}
+
+static void
+storePSInfoToTable()
+{
+	FOREACH_HASH_ENTRY(paraKv, psCellMap)
+	{
+		int tNo = INT_VALUE(paraKv->key);
+		HashMap *paraCellsMap = (HashMap *) paraKv->value;
+
+		//for checking the loaded ps info
+		HashMap *lparaCellsMap = NULL;
+		if(MAP_HAS_INT_KEY(lpsCellMap, tNo))
+			lparaCellsMap = (HashMap *) MAP_GET_INT(lpsCellMap, tNo);
+
+		FOREACH_HASH_ENTRY(kv, paraCellsMap)
+		{
+			char *paras = STRING_VALUE(kv->key);
+
+			//check the loaded ps info
+			if(lparaCellsMap == NULL || !MAP_HAS_STRING_KEY(lparaCellsMap, paras))
+			{
+				List *cellList = (List *) kv->value;
+				FOREACH(psInfoCell, p, cellList)
+					storePsInfo(tNo, paras, p);
+			}
+		}
+	}
 }
 
 void
-storePSInfoToTable()
+storePS()
 {
-	FOREACH(psInfoCell, p, psinfos)
-	{
-		storePsInfo(p);
-	}
+	storeTemplates();
+	storePSInfoToTable();
+	storeHist();
 }
 
 QueryOperator *
@@ -392,23 +497,26 @@ createPSInfo(Node *coarsePara)
 
 psAttrInfo*
 createPSAttrInfo(List *l, char *tableName)
-{
+{DEBUG_LOG("!!!now in createPSAttrInfo!!!");
 	psAttrInfo *result = makeNode(psAttrInfo);
 
 	Constant *attrName = (Constant *) getNthOfListP(l, 0);
-	Constant *rangeList = (Constant *) getNthOfListP(l, 1);
+	//Constant *rangeList = (Constant *) getNthOfListP(l, 1);
+	List *rangeList = (List *) getNthOfListP(l, 1);
 
 	result->attrName = STRING_VALUE(attrName);
-	result->rangeList = (List *) rangeList;
+	result->rangeList = rangeList;
+	//DEBUG_NODE_BEATIFY_LOG("result->rangeList: ", rangeList);
+
 	if(LIST_LENGTH(result->rangeList) == 1)
-	{
+	{DEBUG_LOG("!!!1!!!");
 		int numRanges = INT_VALUE((Constant *) getNthOfListP(result->rangeList, 0));
 		DEBUG_LOG("Number of ranges: %d", numRanges);
 		result->rangeList = getRangeList(numRanges, result->attrName, tableName);
 	}
 
 	if(LIST_LENGTH(l) == 3)
-	{
+	{DEBUG_LOG("!!!2!!!");
 		Constant *ps = (Constant *) getNthOfListP(l, 2);
 		if(typeOf((Node *)ps) == DT_INT)
 		{
@@ -430,14 +538,14 @@ createPSAttrInfo(List *l, char *tableName)
 			}
 		}
 		else
-		{
+		{DEBUG_LOG("!!!3!!!");
 			char *bitVectorStr = STRING_VALUE(ps);
 			result->BitVector = stringToBitset(bitVectorStr);
 			result->psIndexList = NIL;
 		}
 	}
 	else
-	{
+	{DEBUG_LOG("!!!4!!!");
 		result->BitVector = NULL;
 		result->psIndexList = NIL;
 	}
@@ -448,6 +556,7 @@ createPSAttrInfo(List *l, char *tableName)
 List *
 getRangeList(int numRanges, char* attrName, char *tableName)
 {
+	DEBUG_LOG("!!!now in getRangeList!!!");
 	List *result = NIL;
 	/*  auto-range */
 	List *hist = getHist(tableName, attrName, numRanges);
@@ -466,7 +575,7 @@ getRangeList(int numRanges, char* attrName, char *tableName)
 	DEBUG_LOG("subRangeString : %s", subRangeString); //2,3,4,5,...,9999
 
 	StringInfo newRangeString = makeStringInfo();
-	appendStringInfo(newRangeString, "%s,%s,%d", minValue, subRangeString, maxV);
+	appendStringInfo(newRangeString, "%s,%s,%s", minValue, subRangeString, maxV);
 	DEBUG_LOG("newRangeString : %s", newRangeString->data);
 
 	char *p =  strtok(strdup(newRangeString->data),",");
@@ -593,15 +702,31 @@ parameterToCharsSepByComma(List* paras)
 //	return res;
 //}
 
+//psInfoCell *
+//createPSInfoCell(char *storeTable, char *pqSql, char *paraValues, char *tableName, char *attrName,
+//		char *provTableAttr, int numRanges, int psSize, BitSet *ps)
+//{
+//	psInfoCell* result = makeNode(psInfoCell);
+//
+//	result->storeTable = strdup(storeTable);
+//	result->pqSql = strdup(pqSql);
+//	result->paraValues = strdup(paraValues);
+//	result->tableName = strdup(tableName);
+//	result->attrName = strdup(attrName);
+//	result->provTableAttr = strdup(provTableAttr);
+//	result->numRanges = numRanges;
+//	result->psSize = psSize;
+//	result->ps = copyObject(ps);
+//
+//	return result;
+//}
+
 psInfoCell *
-createPSInfoCell(char *storeTable, char *pqSql, char *paraValues, char *tableName, char *attrName,
+createPSInfoCell(char *tableName, char *attrName,
 		char *provTableAttr, int numRanges, int psSize, BitSet *ps)
 {
 	psInfoCell* result = makeNode(psInfoCell);
 
-	result->storeTable = strdup(storeTable);
-	result->pqSql = strdup(pqSql);
-	result->paraValues = strdup(paraValues);
 	result->tableName = strdup(tableName);
 	result->attrName = strdup(attrName);
 	result->provTableAttr = strdup(provTableAttr);
@@ -612,6 +737,71 @@ createPSInfoCell(char *storeTable, char *pqSql, char *paraValues, char *tableNam
 	return result;
 }
 
+//static boolean
+//hasTempPara(psInfoCell *psCell, char *cparas)
+//{
+//
+//}
+
+char *
+getPSCellsTableName()
+{
+	return CONCAT_STRINGS(getStringOption(OPTION_PS_STORE_TABLE), "_", PSCELLS_TABLE_NAME);
+}
+
+char *
+getTemplatesTableName()
+{
+	return CONCAT_STRINGS(getStringOption(OPTION_PS_STORE_TABLE), "_", TEMPLATES_TABLE_NAME);
+}
+
+char *
+getHistTableName()
+{
+	return CONCAT_STRINGS(getStringOption(OPTION_PS_STORE_TABLE), "_", HIST_TABLE_NAME);
+}
+
+List *
+splitHistMapKey(char *k)
+{
+	DEBUG_LOG("splitHistMapKey!");
+	List *res = NIL;
+	char * token = strtok(k, HIST_KEY_DELI);
+	   while( token != NULL ) {
+	      //DEBUG_LOG( " %s\n", token );
+	      res = appendToTailOfList(res,createConstString(token));
+	      DEBUG_LOG("token: %s", token);
+	      token = strtok(NULL, HIST_KEY_DELI);
+	   }
+
+	return res;
+}
+
+char *
+rangeListToString(List *l)
+{
+	StringInfo res = makeStringInfo();
+	FOREACH(Node, c, l)
+	{
+		if(typeOf(c) == DT_INT)
+			appendStringInfo(res,"%d,",INT_VALUE(c));
+		else if(typeOf(c) == DT_STRING)
+			appendStringInfo(res,"%s,",STRING_VALUE(c));
+	}
+
+	removeTailingStringInfo(res,1);
+	DEBUG_LOG("rangeListToString: %s", res->data);
+	return res->data;
+}
+
+char *
+getHistMapKey(char *table, char *attr, char *numRanges)
+{
+	char *histMapKey = CONCAT_STRINGS(strdup(table), HIST_KEY_DELI, strdup(attr), HIST_KEY_DELI , strdup(numRanges));
+
+	return histMapKey;
+}
+
 void
 cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 {
@@ -620,38 +810,96 @@ cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 	char *pqSql = serializeOperatorModel((Node *) pq->q);
 	char *cparas = parameterToCharsSepByComma(pq->parameters);
 	DEBUG_LOG("parameters to chars seperated by comma: %s", cparas);
-	char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
+	//char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
 
-	FOREACH_HASH_ENTRY(kv, psPara->tablePSAttrInfos)
+	//tempNoMap: template -> template Number
+	int tempNo = 0;
+	if(tempNoMap == NULL)
+		tempNoMap = NEW_MAP(Constant, Constant);
+
+	if(psCellMap == NULL)
+		psCellMap = NEW_MAP(Constant, Node);
+
+	//setup tempalteMap
+	if(!MAP_HAS_STRING_KEY(tempNoMap,pqSql))
 	{
-		char *tb = STRING_VALUE(kv->key);
-		List *psAttrInfos = (List *) kv->value;
-		DEBUG_LOG("table: %s, psAttrInfo length %d: %s", tb, LIST_LENGTH(psAttrInfos));
-		FOREACH(psAttrInfo, p, psAttrInfos)
+		tempNo = mapSize(ltempNoMap) + mapSize(tempNoMap) + 1;
+		DEBUG_LOG("ltempNoMap len: %d and tempNoMap len: %d", mapSize(ltempNoMap), mapSize(tempNoMap));
+		//tempNo = mapSize(tempNoMap) + 1;
+		MAP_ADD_STRING_KEY(tempNoMap,pqSql,createConstInt(tempNo));
+	}
+	else
+	{
+		tempNo = INT_VALUE(MAP_GET_STRING(tempNoMap,pqSql));
+	}
+
+	//update tempNo if this query template is already loaded, we should use the same template number
+	if(MAP_HAS_STRING_KEY(ltempNoMap,pqSql))
+		tempNo = INT_VALUE(MAP_GET_STRING(ltempNoMap,pqSql));
+
+	//psCellMap: template Number -> paraMap (HashMap) : cparas -> psCell
+	//psInfoCell *psCell = NULL;
+	HashMap *paraMap = NULL;
+	if(MAP_HAS_INT_KEY(psCellMap, tempNo))
+		paraMap = (HashMap *) MAP_GET_INT(psCellMap,tempNo);
+	else
+	{
+		paraMap = NEW_MAP(Constant, Node);
+		MAP_ADD_INT_KEY(psCellMap, tempNo, paraMap);
+	}
+
+	//if not see this parameter values, than start to capture and cache the captured ps
+	//otherwise, might be applying strategy to choose one existing ps to use which skipped the capture step
+	if(!MAP_HAS_STRING_KEY(paraMap,cparas))
+	{
+		List *psCellList = NIL;
+		FOREACH_HASH_ENTRY(kv, psPara->tablePSAttrInfos)
 		{
-			FOREACH_HASH_ENTRY(kv, psMap)
+			char *tb = STRING_VALUE(kv->key);
+			List *psAttrInfos = (List *) kv->value;
+
+			DEBUG_LOG("table: %s, psAttrInfo length: %d", tb, LIST_LENGTH(psAttrInfos));
+			FOREACH(psAttrInfo, p, psAttrInfos)
 			{
-				char *provTableAttr = STRING_VALUE(kv->key);
-				char *subProvTableAttr = CONCAT_STRINGS(strdup(tb), "_", strdup(p->attrName));
+				//setup histMap
+				int numRanges = LIST_LENGTH(p->rangeList) - 1;
+				//char *histMapKey = CONCAT_STRINGS(strdup(tb), HIST_KEY_DELI, strdup(p->attrName), HIST_KEY_DELI , gprom_itoa(numRanges));
+				char *histMapKey = getHistMapKey(tb,p->attrName, gprom_itoa(numRanges));
+				if(histMap == NULL)
+					histMap = NEW_MAP(Constant, Constant);
 
-				DEBUG_LOG("provTableAttr: %s and subProvTableAttr: %s",provTableAttr, subProvTableAttr);
-				if(strstr(provTableAttr,subProvTableAttr))
+				if(!MAP_HAS_STRING_KEY(histMap,histMapKey))
+					MAP_ADD_STRING_KEY(histMap,histMapKey,createConstString(rangeListToString(p->rangeList)));
+
+				FOREACH_HASH_ENTRY(kv, psMap)
 				{
-					//char *ps = STRING_VALUE(MAP_GET_STRING(psMap,provTableAttr));
-				    char *ps = STRING_VALUE(kv->value);
-					//DEBUG_LOG("ps: %s", ps);
+					char *provTableAttr = STRING_VALUE(kv->key);
+					char *subProvTableAttr = CONCAT_STRINGS(strdup(tb), "_", strdup(p->attrName));
+
+					DEBUG_LOG("provTableAttr: %s and subProvTableAttr: %s",provTableAttr, subProvTableAttr);
+					if(strstr(provTableAttr,subProvTableAttr))
+					{
+						//char *ps = STRING_VALUE(MAP_GET_STRING(psMap,provTableAttr));
+						char *ps = STRING_VALUE(kv->value);
+						//DEBUG_LOG("ps: %s", ps);
 
 
-				    psInfoCell *psCell = createPSInfoCell(storeTable,pqSql,cparas,tb,p->attrName,provTableAttr,
-				    		LIST_LENGTH(p->rangeList),getPsSize(stringToBitset(ps)),stringToBitset(ps));
+//						psInfoCell *psCell = createPSInfoCell(storeTable,pqSql,cparas,tb,p->attrName,provTableAttr,
+//								LIST_LENGTH(p->rangeList),getPsSize(stringToBitset(ps)),stringToBitset(ps));
+						psInfoCell *psCell = createPSInfoCell(tb,p->attrName,provTableAttr,
+								numRanges,getPsSize(stringToBitset(ps)),stringToBitset(ps));
 
-				    //storePsInfo(psCell);
-				    psinfos = appendToTailOfList(psinfos, psCell);
-				    //DEBUG_LOG("psInfoCellList length: %d", LIST_LENGTH(psinfos));
 
+						//storePsInfo(psCell);
+						psCellList = appendToTailOfList(psCellList, psCell);
+						//DEBUG_LOG("psInfoCellList length: %d", LIST_LENGTH(psinfos));
+
+					}
 				}
 			}
 		}
+
+		MAP_ADD_STRING_KEY(paraMap,cparas,psCellList);
 	}
 }
 

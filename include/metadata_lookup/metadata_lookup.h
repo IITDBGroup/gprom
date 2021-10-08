@@ -111,8 +111,12 @@ typedef struct MetadataLookupPlugin
     /* histogram */
     List * (*getHistogram) (char *tableName, char *attrName, int numPartitions);
     HashMap * (*getProvenanceSketch) (char *sql, List *attrNames);
-    List *(*getProvenanceSketchInfoFromTable) ();
-    void (*storePsInformation) (psInfoCell *psc);
+    HashMap *(*getProvenanceSketchInfoFromTable) ();
+    HashMap *(*getProvenanceSketchTemplateFromTable) ();
+    HashMap *(*getProvenanceSketchHistogramFromTable) ();
+    void (*storePsInformation) (int tNo, char *paras, psInfoCell *psc);
+    void (*storePsTemplates) (KeyValue *kv);
+    void (*storePsHistogram) (KeyValue *kv);
 
 } MetadataLookupPlugin;
 
@@ -143,8 +147,12 @@ extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
 extern List *getHist (char *tableName, char *attrName, int numPartitions);
 extern HashMap *getPS (char *sql, List *attrNames);
-extern List *getPSInfoFromTable();
-extern void storePsInfo (psInfoCell *psc);
+extern HashMap *getPSInfoFromTable();
+extern HashMap *getPSTemplateFromTable();
+extern HashMap *getPSHistogramFromTable();
+extern void storePsInfo (int tNo, char *paras, psInfoCell *psc);
+extern void storePsTemplate (KeyValue *kv);
+extern void storePsHist (KeyValue *kv);
 extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);

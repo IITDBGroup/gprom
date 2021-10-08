@@ -234,7 +234,7 @@ utility(char *command)
     {
     	//if in self-turning model, store the cached provenance sketches into table
     	if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
-    		storePSInfoToTable();
+    		storePS();
 
         //printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
         printf("\n");

@@ -607,9 +607,9 @@ copyPSInfoCell(psInfoCell *from, OperatorMap **opMap)
 {
     COPY_INIT(psInfoCell);
 
-    COPY_STRING_FIELD(storeTable);
-    COPY_STRING_FIELD(pqSql);
-    COPY_STRING_FIELD(paraValues);
+//    COPY_STRING_FIELD(storeTable);
+//    COPY_STRING_FIELD(pqSql);
+//    COPY_STRING_FIELD(paraValues);
     COPY_STRING_FIELD(tableName);
     COPY_STRING_FIELD(attrName);
     COPY_STRING_FIELD(provTableAttr);

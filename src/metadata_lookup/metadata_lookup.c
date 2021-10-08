@@ -455,22 +455,60 @@ getPS (char *sql, List *attrNames)
     return result;
 }
 
-List *
+HashMap *
 getPSInfoFromTable ()
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    List *result = activePlugin->getProvenanceSketchInfoFromTable();
+    HashMap *result = activePlugin->getProvenanceSketchInfoFromTable();
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+HashMap *
+getPSTemplateFromTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    HashMap *result = activePlugin->getProvenanceSketchTemplateFromTable();
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+HashMap *
+getPSHistogramFromTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    HashMap *result = activePlugin->getProvenanceSketchHistogramFromTable();
     RELEASE_MEM_CONTEXT();
     return result;
 }
 
 void
-storePsInfo (psInfoCell *psc)
+storePsInfo (int tNo, char *paras, psInfoCell *psc)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    activePlugin->storePsInformation(psc);
+    activePlugin->storePsInformation(tNo,paras,psc);
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+storePsTemplate (KeyValue *kv)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->storePsTemplates(kv);
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+storePsHist (KeyValue *kv)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->storePsHistogram(kv);
     RELEASE_MEM_CONTEXT();
 }
 

@@ -242,7 +242,11 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getAttributeNames = postgresGetAttributeNames;
     p->getHistogram = postgresGetHist;
     p->getProvenanceSketch = postgresGetPS;
+    p->getProvenanceSketchTemplateFromTable = postgresGetPSTemplateFromTable;
+    p->getProvenanceSketchHistogramFromTable = postgresGetPSHistogramFromTable;
     p->getProvenanceSketchInfoFromTable = postgresGetPSInfoFromTable;
+    p->storePsTemplates = postgresStorePsTemplate;
+    p->storePsHistogram = postgresStorePsHist;
     p->storePsInformation = postgresStorePsInfo;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
@@ -895,16 +899,59 @@ postgresGetPS (char *sql, List *attrNames)
 }
 
 
-List *
+HashMap *
+postgresGetPSTemplateFromTable ()
+{
+	HashMap *tmap = NEW_MAP(Constant, Constant);
+    PGresult *res = NULL;
+
+    char *storeTable = getTemplatesTableName();
+    ASSERT(postgresCatalogTableExists(storeTable));
+
+    char *sql = CONCAT_STRINGS("SELECT * FROM ", storeTable, ";");
+    DEBUG_LOG("The sql of postgresGetPSTemplateFromTable: %s", sql);
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+    START_TIMER(METADATA_LOOKUP_TIMER);
+    START_TIMER("Postgres - execute get stored ps template");
+	res = execQuery(sql);
+
+//	HashMap *tmap = getLtempNoMap();
+//	if(tmap == NULL)
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++) {
+    	char *t = strdup(PQgetvalue(res,i,0));
+    	char *tid = strdup(PQgetvalue(res,i,1));
+    	MAP_ADD_STRING_KEY(tmap,t,createConstInt(atoi(tid)));
+    }
+//    setLtempNoMap(tmap);
+
+    START_TIMER("Postgres - execute get stored ps template");
+    execStmt("commit;");
+    // clear result
+    PQclear(res);
+
+    //DEBUG_NODE_LOG("Captured Provenance Sketch :", (Node *) hm);
+    //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
+    return tmap;
+}
+
+HashMap *
 postgresGetPSInfoFromTable ()
 {
-    List *psCells = NIL;
+	HashMap *map = NEW_MAP(Constant, Node);
     PGresult *res = NULL;
 
     //ASSERT(postgresCatalogTableExists(tableName));
 
-    char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
+    //char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
+    char *storeTable = getPSCellsTableName();
     ASSERT(postgresCatalogTableExists(storeTable));
+
     char *sql = CONCAT_STRINGS("SELECT * FROM ", storeTable, ";");
     DEBUG_LOG("The sql of postgresGetPSInfoFromTable: %s", sql);
 
@@ -916,16 +963,40 @@ postgresGetPSInfoFromTable ()
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++) {
-    	psInfoCell *psc = createPSInfoCell(storeTable,
-    			strdup(PQgetvalue(res,i,0)), //pqSql - template sql
-				strdup(PQgetvalue(res,i,1)), //parameter values
+    	int tid = atoi(strdup(PQgetvalue(res,i,0)));
+    	char *paras = strdup(PQgetvalue(res,i,1));
+//    	char *tableName = strdup(PQgetvalue(res,i,2));
+//    	char *attrName = strdup(PQgetvalue(res,i,3));
+//    	char *pta = strdup(PQgetvalue(res,i,4)); //prov_table_attr with number
+//    	int *numRanges = atoi(strdup(PQgetvalue(res,i,5)));
+//    	int *psSize = atoi(strdup(PQgetvalue(res,i,6)));
+//    	BitSet *ps = stringToBitset(strdup(PQgetvalue(res,i,7)));
+
+    	psInfoCell *psc = createPSInfoCell(//	storeTable,
+    			//strdup(PQgetvalue(res,i,0)), //pqSql - template sql
+				//strdup(PQgetvalue(res,i,1)), //parameter values
 				strdup(PQgetvalue(res,i,2)), //tableName
 				strdup(PQgetvalue(res,i,3)), //attrName
 				strdup(PQgetvalue(res,i,4)), //provTableAttr
 				atoi(strdup(PQgetvalue(res,i,5))), //numRanges
 				atoi(strdup(PQgetvalue(res,i,6))), //psSize
 				stringToBitset(strdup(PQgetvalue(res,i,7))));  //ps
-    	psCells = appendToTailOfList(psCells, psc);
+
+    	HashMap *paraMap = NULL;
+    	if(MAP_HAS_INT_KEY(map, tid))
+    		paraMap = (HashMap *) MAP_GET_INT(map,tid);
+    	else
+    		paraMap = NEW_MAP(Constant, Node);
+
+    	List *psCellList = NIL;
+    	if(MAP_HAS_STRING_KEY(paraMap, paras))
+    		psCellList = (List *) MAP_GET_STRING(paraMap,paras);
+
+    	psCellList = appendToTailOfList(psCellList, psc);
+
+    	//update hashmap
+    	MAP_ADD_STRING_KEY(paraMap, paras, psCellList);
+    	MAP_ADD_INT_KEY(map, tid, paraMap);
     }
 
     START_TIMER("Postgres - execute get stored ps information");
@@ -937,31 +1008,210 @@ postgresGetPSInfoFromTable ()
     //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
     RELEASE_MEM_CONTEXT();
     STOP_TIMER(METADATA_LOOKUP_TIMER);
-    return psCells;
+    return map;
 }
 
 
+//List *
+//postgresGetPSInfoFromTable ()
+//{
+//    List *psCells = NIL;
+//    PGresult *res = NULL;
+//
+//    //ASSERT(postgresCatalogTableExists(tableName));
+//
+//    //char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
+//    char *storeTable = getPSCellsTableName();
+//    ASSERT(postgresCatalogTableExists(storeTable));
+//
+//    char *sql = CONCAT_STRINGS("SELECT * FROM ", storeTable, ";");
+//    DEBUG_LOG("The sql of postgresGetPSInfoFromTable: %s", sql);
+//
+//    // do query
+//    ACQUIRE_MEM_CONTEXT(memContext);
+//    START_TIMER(METADATA_LOOKUP_TIMER);
+//    START_TIMER("Postgres - execute get stored ps information");
+//	res = execQuery(sql);
+//
+//    // loop through results
+//    for(int i = 0; i < PQntuples(res); i++) {
+//    	psInfoCell *psc = createPSInfoCell(//	storeTable,
+//    			//strdup(PQgetvalue(res,i,0)), //pqSql - template sql
+//				//strdup(PQgetvalue(res,i,1)), //parameter values
+//				strdup(PQgetvalue(res,i,2)), //tableName
+//				strdup(PQgetvalue(res,i,3)), //attrName
+//				strdup(PQgetvalue(res,i,4)), //provTableAttr
+//				atoi(strdup(PQgetvalue(res,i,5))), //numRanges
+//				atoi(strdup(PQgetvalue(res,i,6))), //psSize
+//				stringToBitset(strdup(PQgetvalue(res,i,7))));  //ps
+//    	psCells = appendToTailOfList(psCells, psc);
+//    }
+//
+//    START_TIMER("Postgres - execute get stored ps information");
+//    execStmt("commit;");
+//    // clear result
+//    PQclear(res);
+//
+//    //DEBUG_NODE_LOG("Captured Provenance Sketch :", (Node *) hm);
+//    //DEBUG_LOG("Captured Provenance Sketch : <%s>", stringListToString(attrs));
+//    RELEASE_MEM_CONTEXT();
+//    STOP_TIMER(METADATA_LOOKUP_TIMER);
+//    return psCells;
+//}
+
+
+//void
+//postgresStorePsInfo(psInfoCell *psc)
+//{   DEBUG_LOG("postgresStorePsInfo: START");
+//	START_TIMER("Postgres - store ps information");
+//	StringInfo insertInfo = makeStringInfo();
+//
+//	/*
+//	 *  template | parameters (,) | tableName | attribute | numPartitions | psSize |   ps   | ranges?
+//	 *  select ..|  1,4,5         |     R     |    a      |   10000       |   50   | 10010..|  1,10,..
+//	 *  select ..|  1,4,5         |     R     |    b      |   10000       |   20   | 00010..|  1,10,..
+//	 *   ...
+//	 */
+//
+//    appendStringInfo(insertInfo,"insert into %s values ('%s','%s','%s','%s','%s',%d,%d,'%s');",
+//    			psc->storeTable,psc->pqSql,
+//				psc->paraValues,psc->tableName,
+//				psc->attrName,psc->provTableAttr,
+//				psc->numRanges,psc->psSize,
+//				bitSetToString(psc->ps));
+//	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
+//	//					storeTable);
+//    DEBUG_LOG("postgresStorePsInfo: %s", insertInfo->data);
+//	execStmt(insertInfo->data);
+//
+//	STOP_TIMER("Postgres - store ps information");
+//}
+
+HashMap *
+postgresGetPSHistogramFromTable ()
+{
+	HashMap *tmap = NEW_MAP(Constant, Constant);
+    PGresult *res = NULL;
+
+    char *storeTable = getHistTableName();
+    ASSERT(postgresCatalogTableExists(storeTable));
+
+    char *sql = CONCAT_STRINGS("SELECT * FROM ", storeTable, ";");
+    DEBUG_LOG("The sql of postgresGetPSHistogramFromTable: %s", sql);
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+    START_TIMER(METADATA_LOOKUP_TIMER);
+    START_TIMER("Postgres - execute get stored ps histogram");
+	res = execQuery(sql);
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++) {
+    	char *tableName = strdup(PQgetvalue(res,i,0));
+    	char *attrName  = strdup(PQgetvalue(res,i,1));
+    	char *numRanges = strdup(PQgetvalue(res,i,2));
+    	char *hist 		= strdup(PQgetvalue(res,i,3));
+		char *histMapKey = getHistMapKey(tableName,attrName, numRanges);
+    	MAP_ADD_STRING_KEY(tmap,histMapKey,createConstString(hist));
+    }
+
+    START_TIMER("Postgres - execute get stored ps template");
+    execStmt("commit;");
+    // clear result
+    PQclear(res);
+
+    //DEBUG_NODE_LOG("Load PS Histogram from table :", (Node *) tmap);
+    RELEASE_MEM_CONTEXT();
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
+    return tmap;
+}
+
 void
-postgresStorePsInfo(psInfoCell *psc)
-{   DEBUG_LOG("postgresStorePsInfo: START");
+postgresStorePsHist(KeyValue *kv)
+{
+	char *tableName = getHistTableName();
+
+
+	START_TIMER("Postgres - store ps hist information");
+	StringInfo insertInfo = makeStringInfo();
+
+	/*
+	 *  tableName | attribute | numPartitions  |  ranges
+	 *  |     R     |    a      |   10000      |  1,10,..
+	 *  |     R     |    b      |   10000      |  1,10,..
+	 *   ...
+	 */
+
+	List *keyList = splitHistMapKey(STRING_VALUE(kv->key));
+    appendStringInfo(insertInfo,"insert into %s values ('%s','%s',%d,'%s');",
+    			tableName,
+				STRING_VALUE(getNthOfListP(keyList,0)),
+				STRING_VALUE(getNthOfListP(keyList,1)),
+				atoi(STRING_VALUE(getNthOfListP(keyList,2))),
+				STRING_VALUE(kv->value));
+	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
+	//					storeTable);
+    DEBUG_LOG("postgresStorePsHist: %s", insertInfo->data);
+	execStmt(insertInfo->data);
+
+	STOP_TIMER("Postgres - store ps hist information");
+}
+
+void
+postgresStorePsTemplate(KeyValue *kv)
+{
+	char *tableName = getTemplatesTableName();
+
+
+	START_TIMER("Postgres - store ps Template information");
+	StringInfo insertInfo = makeStringInfo();
+
+	/*
+	 *  template | template Number
+	 *  select ..|  1
+	 *  select ..|  1
+	 *   ...
+	 */
+
+    appendStringInfo(insertInfo,"insert into %s values ('%s','%d');",
+    			tableName,
+				STRING_VALUE(kv->key),
+				INT_VALUE(kv->value));
+	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
+	//					storeTable);
+    DEBUG_LOG("postgresStorePsTemplate: %s", insertInfo->data);
+	execStmt(insertInfo->data);
+
+	STOP_TIMER("Postgres - store ps Template information");
+}
+
+void
+postgresStorePsInfo(int tNo, char *paras, psInfoCell *psc)
+{
+	char *tableName = getPSCellsTableName();
+
+
 	START_TIMER("Postgres - store ps information");
 	StringInfo insertInfo = makeStringInfo();
 
 	/*
-	 *  template | parameters (,) | tableName | attribute | numPartitions | psSize |   ps   | ranges?
-	 *  select ..|  1,4,5         |     R     |    a      |   10000       |   50   | 10010..|  1,10,..
-	 *  select ..|  1,4,5         |     R     |    b      |   10000       |   20   | 00010..|  1,10,..
+	 *  template Number | parameters (,) | tableName | attribute | numPartitions | psSize |   ps
+	 *  1				|  1,4,5         |     R     |    a      |   10000       |   50   | 10010..
+	 *  2				|  1,4,5         |     R     |    b      |   10000       |   20   | 00010..
 	 *   ...
 	 */
 
-    appendStringInfo(insertInfo,"insert into %s values ('%s','%s','%s','%s','%s',%d,%d,'%s');",
-    			psc->storeTable,psc->pqSql,
-				psc->paraValues,psc->tableName,
-				psc->attrName,psc->provTableAttr,
-				psc->numRanges,psc->psSize,
+    appendStringInfo(insertInfo,"insert into %s values (%d,'%s','%s','%s','%s',%d,%d,'%s');",
+    			tableName,
+				tNo,
+				paras,
+    			psc->tableName,
+				psc->attrName,
+				psc->provTableAttr,
+				psc->numRanges,
+				psc->psSize,
 				bitSetToString(psc->ps));
-	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
-	//					storeTable);
+
     DEBUG_LOG("postgresStorePsInfo: %s", insertInfo->data);
 	execStmt(insertInfo->data);
 

@@ -1198,9 +1198,9 @@ outPSInfoCell(StringInfo str, psInfoCell *node)
 {
     WRITE_NODE_TYPE(PSINFOCELL);
 
-    WRITE_STRING_FIELD(storeTable);
-    WRITE_STRING_FIELD(pqSql);
-    WRITE_STRING_FIELD(paraValues);
+//    WRITE_STRING_FIELD(storeTable);
+//    WRITE_STRING_FIELD(pqSql);
+//    WRITE_STRING_FIELD(paraValues);
     WRITE_STRING_FIELD(tableName);
     WRITE_STRING_FIELD(attrName);
     WRITE_STRING_FIELD(provTableAttr);

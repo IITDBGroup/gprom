@@ -260,11 +260,11 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 			//cache ps information if in self-turning model
 			if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
 			{
-			    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
+			    //NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
 			    memContext = getCurMemContext();
 				QueryOperator *rootParaSql = OP_LCHILD(op);
 				cachePsInfo(rootParaSql,psPara,psMap);
-				RELEASE_MEM_CONTEXT();
+				//RELEASE_MEM_CONTEXT();
 			}
 
 			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))

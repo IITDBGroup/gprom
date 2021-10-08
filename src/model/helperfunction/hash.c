@@ -1002,9 +1002,9 @@ hashPSAttrInfo (uint64_t cur, psAttrInfo *node)
 static uint64_t
 hashPSInfoCell (uint64_t cur, psInfoCell *node)
 {
-	HASH_STRING(storeTable);
-	HASH_STRING(pqSql);
-	HASH_STRING(paraValues);
+//	HASH_STRING(storeTable);
+//	HASH_STRING(pqSql);
+//	HASH_STRING(paraValues);
 	HASH_STRING(tableName);
 	HASH_STRING(provTableAttr);
 	HASH_INT(numRanges);

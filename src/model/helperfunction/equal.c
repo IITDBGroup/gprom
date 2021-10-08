@@ -1167,9 +1167,9 @@ equalPSAttrInfo(psAttrInfo *a, psAttrInfo *b, HashMap *seenOps, MemContext *c)
 static boolean
 equalPSInfoCell(psInfoCell *a, psInfoCell *b, HashMap *seenOps, MemContext *c)
 {
-	COMPARE_STRING_FIELD(storeTable);
-	COMPARE_STRING_FIELD(pqSql);
-	COMPARE_STRING_FIELD(paraValues);
+//	COMPARE_STRING_FIELD(storeTable);
+//	COMPARE_STRING_FIELD(pqSql);
+//	COMPARE_STRING_FIELD(paraValues);
 	COMPARE_STRING_FIELD(tableName);
 	COMPARE_STRING_FIELD(attrName);
 	COMPARE_STRING_FIELD(provTableAttr);
