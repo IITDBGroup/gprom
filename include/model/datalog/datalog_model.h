@@ -91,12 +91,16 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
 
 // convenience functions
 extern DLAtom *createDLAtom(char *rel, List *args, boolean negated);
+extern DLAtom *createDLAtomFromStrs(char *rel, boolean negated, char *vars, ...);
+#define DLATOM_FROM_STRS(_rel, _negated, ...) createDLAtomFromStrs(_rel, _negated, ##__VA_ARGS__, (char *) NULL)
 extern DLVar *createDLVar(char *vName, DataType vType);
 extern boolean isConstAtom(DLAtom *a);
 extern DLRule *createDLRule(DLAtom *head, List *body);
 extern DLProgram *createDLProgram(List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts);
 extern DLComparison *createDLComparison(char *op, Node *lArg, Node *rArg);
 extern DLDomain *createDLDomain(char *rel, char *attr, char *dom);
+
+
 
 // get information about DL program elements
 extern char *getHeadPredName(DLRule *r);

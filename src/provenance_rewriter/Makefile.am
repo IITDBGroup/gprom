@@ -14,4 +14,5 @@ libprovenance_rewriter_la_LIBADD      	= pi_cs_rewrites/libpi_cs_rewrites.la \
 										summarization_rewrites/libsummarization_rewrites.la \
 										semiring_combiner/libsc.la \
 										uncertainty_rewrites/libur.la \
-										coarse_grained/libcoarse_grained_rewrites.la
+										coarse_grained/libcoarse_grained_rewrites.la \
+	                                    semantic_optimization/libsemantic_optimization.la

@@ -40,6 +40,27 @@ createDLAtom (char *rel, List *args, boolean negated)
     return result;
 }
 
+DLAtom *
+createDLAtomFromStrs(char *rel, boolean negated, char *vars, ...)
+{
+	List *vargs = NIL;
+	char *vname;
+	va_list args;
+
+	vargs = appendToTailOfList(vargs, createDLVar(vars, DT_INT));
+
+	va_start(args, vars);
+
+	while((vname = va_arg(args, void*)) != NULL)
+	{
+		vargs = appendToTailOfList(vargs, createDLVar(vname, DT_INT));
+	}
+
+	va_end(args);
+
+	return createDLAtom(rel, vargs, negated);
+}
+
 DLVar *
 createDLVar (char *vName, DataType vType)
 {

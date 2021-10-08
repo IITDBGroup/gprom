@@ -132,30 +132,31 @@ extern boolean testQuery (char *query, char *expectedResult);
 extern boolean fileExists (char *file);
 
 /* individual tests */
-extern rc testList(void);
-extern rc testSet(void);
-extern rc testHashMap(void);
-extern rc testVector(void);
+//extern rc testLibGProM(void);
+extern rc testAutocast(void);
 extern rc testBitset(void);
-extern rc testGraph(void);
-extern rc testExpr(void);
-extern rc testIntegrityConstraints(void);
 extern rc testCopy(void);
+extern rc testDatalogModel(void);
 extern rc testEqual(void);
-extern rc testToString(void);
+extern rc testException(void);
+extern rc testExpr(void);
+extern rc testGraph(void);
+extern rc testHash(void);
+extern rc testHashMap(void);
+extern rc testIntegrityConstraints(void);
+extern rc testList(void);
 extern rc testLogger(void);
 extern rc testMemManager(void);
-extern rc testException(void);
-extern rc testParse(void);
 extern rc testMetadataLookup(void);
 extern rc testMetadataLookupPostgres(void);
+extern rc testParameter(void);
+extern rc testParse(void);
+extern rc testRPQ(void);
+extern rc testSemanticOptimization(void);
+extern rc testSet(void);
 extern rc testString(void);
 extern rc testStringUtils(void);
-extern rc testParameter(void);
-extern rc testDatalogModel(void);
-extern rc testHash(void);
-//extern rc testLibGProM(void);
-extern rc testRPQ(void);
-extern rc testAutocast(void);
+extern rc testToString(void);
+extern rc testVector(void);
 
 #endif
