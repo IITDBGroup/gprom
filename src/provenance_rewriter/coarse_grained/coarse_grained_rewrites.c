@@ -62,6 +62,7 @@ static void storeTemplates();
 static void storePSInfoToTable();
 static void storeHist();
 static void initStoredTable();
+static int getTemplateNo();
 
 
 HashMap *
@@ -819,6 +820,24 @@ getHistMapKey(char *table, char *attr, char *numRanges)
 	return histMapKey;
 }
 
+
+static int
+getTemplateNo()
+{
+	int tno = mapSize(ltempNoMap);
+
+	 FOREACH_HASH_ENTRY(kv, tempNoMap)
+	 {
+		 char *t = STRING_VALUE(kv->key);
+
+		 //check the loaded templates
+		 if(!MAP_HAS_STRING_KEY(ltempNoMap, t))
+			 tno++;
+	 }
+
+	return tno+1;
+}
+
 void
 cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 {
@@ -840,7 +859,8 @@ cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 	//setup tempalteMap
 	if(!MAP_HAS_STRING_KEY(tempNoMap,pqSql))
 	{
-		tempNo = mapSize(ltempNoMap) + mapSize(tempNoMap) + 1;
+		//tempNo = mapSize(ltempNoMap) + mapSize(tempNoMap) + 1;
+		tempNo = getTemplateNo();
 		DEBUG_LOG("ltempNoMap len: %d and tempNoMap len: %d", mapSize(ltempNoMap), mapSize(tempNoMap));
 		//tempNo = mapSize(tempNoMap) + 1;
 		MAP_ADD_STRING_KEY(tempNoMap,pqSql,createConstInt(tempNo));
