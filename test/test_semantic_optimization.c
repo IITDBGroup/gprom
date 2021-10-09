@@ -145,10 +145,23 @@ testOptimization(void)
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
 
 	// Q(X) :- R(X,Y,A), S(Y,Z), T(A,B), U(B,C). x->y for R
+	// optimized capture rule: R(X,Y,A) :- Q(X), R(X,Y,A), T(A,B), U(B,C)
 	r = createDLRule(headx, LIST_MAKE(glr,gs,gt,gu));
 	fds = LIST_MAKE(createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y")));
 
 	exp = createDLRule(glr,LIST_MAKE(glr,gt,gu,headx));
+	opt = optimizeDLRule(r, fds, "R");
+
+	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
+	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
+
+	// Q(X) :- R(X,Y,A), S(Y,Z), T(A,B), U(B,C). x->y for R X -> A
+	// optimized capture rule: R(X,Y,A) :- Q(X), R(X,Y,A)
+	r = createDLRule(headx, LIST_MAKE(glr,gs,gt,gu));
+	fds = LIST_MAKE(createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y")),
+					createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("A")));
+
+	exp = createDLRule(glr,LIST_MAKE(glr,headx));
 	opt = optimizeDLRule(r, fds, "R");
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);

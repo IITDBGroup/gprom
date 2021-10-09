@@ -382,7 +382,7 @@ varListToNameSet(List *vars)
 }
 
 boolean
-checkFDonAtoms(Set *atoms, List *fds, FD *fd)
+checkFDonAtoms(Set *atoms, List *fds, FD *fd) //FIXME does ignore on which relations an FD holds which is not correct. Fix that
 {
 	Set *attrs = STRSET();
 	Set *closure;
