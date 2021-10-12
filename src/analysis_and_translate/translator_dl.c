@@ -30,6 +30,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
+#include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
 #include "utility/string_utils.h"
 
 static Node *translateProgram(DLProgram *p);
@@ -236,6 +237,16 @@ translateProgram(DLProgram *p)
 
             return gpComp;
         }
+
+		if (IS_LINEAGE_PROV(p))
+		{
+			Node *comp;
+			DLProgram *pl = rewriteDLForLinageCapture(p);
+
+			comp = translateParseDL((Node*) pl);
+
+			return comp;
+		}
 
         // determine pred -> rules
         FOREACH(DLRule,r,p->rules)
@@ -2057,7 +2068,9 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
    		}
     }
     else
+	{
         pInput = (QueryOperator *) rel;
+	}
 
     // do not generate selection if constants exist in the only negated body args
 //    if(!(typeTransConst && typeTransVar && r->negated))
