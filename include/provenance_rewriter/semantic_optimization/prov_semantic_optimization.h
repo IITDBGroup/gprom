@@ -22,7 +22,6 @@
 #include "model/datalog/datalog_model.h"
 
 extern DLRule *optimizeDLRule(DLRule *r, List *fds, char *targetTable);
-extern DLRule *createCaptureRule(DLRule *r, DLAtom *targetAtom);
 extern boolean checkFDonAtoms(Set *atoms, List *fds, FD *fd);
 extern Graph *createJoinGraph(DLRule *r);
 

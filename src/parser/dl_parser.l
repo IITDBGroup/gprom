@@ -1,4 +1,4 @@
-%option prefix="dl" 
+%option prefix="dl"
 %option outfile="dl_parser.lex.c"
 
 /*
@@ -7,7 +7,7 @@
 
 
 /*******************************************************************************
- * options section 
+ * options section
  ******************************************************************************/
 
 /* set lexer options */
@@ -52,13 +52,13 @@
 %}
 
 /********************************************************************
- * lexer states 
+ * lexer states
  */
 
 %s SQL
 
 /********************************************************************
- * predefined regular expressions 
+ * predefined regular expressions
  */
 
 /* whitespace */
@@ -88,9 +88,9 @@ variable		{variableStart}{identContinue}*
 
 /* operators */
 dot						'.'
-colon					':' 
-comma					',' 
-semicolon				';' 
+colon					':'
+comma					','
+semicolon				';'
 
 IMPLIES					":-"
 
@@ -115,6 +115,7 @@ IS					"IS"
 USERDOMAIN			"USERDOMAIN"
 TOP					"TOP"
 FOR					"FOR"
+LINEAGE             "LINEAGE"
 FAILURE				"FAILURE"
 SUMMARIZED			"SUMMARIZED"
 BY					"BY"
@@ -127,7 +128,7 @@ THRESHOLDS			"THRESHOLDS"
 /* LITERAL ONES */
 
 /*******************************************************************************
- * Token definitions and actions 
+ * Token definitions and actions
  ******************************************************************************/
 %%
 
@@ -141,6 +142,8 @@ THRESHOLDS			"THRESHOLDS"
 {GP}				TOK(GP)
 {WHY}				TOK(WHYPROV)
 {WHYNOT}			TOK(WHYNOTPROV)
+{LINEAGE}           TOK(LINEAGE)
+{FOR}               TOK(FOR)
 {RPQ}				TOK(RPQ)
 {FORMAT}			TOK(FORMAT)
 {OF}				TOK(OF)
@@ -169,13 +172,13 @@ THRESHOLDS			"THRESHOLDS"
 {identifier}	UPCASE_TOK(IDENT)
 	/* {variable}	 	UPCASE_TOK(VARIDENT)*/
 
-{quotedIdentifier}   { 		
+{quotedIdentifier}   {
 		dllval.stringVal = MALLOC(strlen(dltext) - 1);
 		memcpy(dllval.stringVal, dltext + 1, strlen(dltext) - 2);
 		dllval.stringVal[strlen(dltext) - 2] = '\0';
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", dltext);
 		return IDENT;
-	}	
+	}
 
 [(),.;:] 			TOKSELF()
 
@@ -190,7 +193,7 @@ THRESHOLDS			"THRESHOLDS"
 {integer}	TOKSAVE(intConst,intVal,atoi)
 {float}		TOKSAVE(floatConst,floatVal,atof)
 
-	
+
 '[^'\n]*'	{
 		dllval.stringVal = MALLOC(strlen(dltext) - 1);
 		memcpy(dllval.stringVal, dltext + 1, strlen(dltext) - 2);
@@ -199,7 +202,7 @@ THRESHOLDS			"THRESHOLDS"
 		return stringConst;
 	}
 
-		
+
 '[^'\n]*$	{ dlerror("Unterminated string"); }
 
 . 			{ dlerror("not matching any token"); }

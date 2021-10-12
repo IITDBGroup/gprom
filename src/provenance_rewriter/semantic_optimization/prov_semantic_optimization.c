@@ -25,6 +25,7 @@
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
+#include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
 #include "src/parser/oracle_parser.tab.h"
 
 typedef struct RewriteSearchState {
@@ -175,15 +176,6 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	return opt;
 }
 
-DLRule *
-createCaptureRule(DLRule *r, DLAtom *targetAtom)
-{
-	List *body = copyObject(r->body);
-
-	body = appendToTailOfList(body, copyObject(r->head));
-
-	return createDLRule(copyObject(targetAtom), body);
-}
 
 static Set *
 computeFrontier(Graph *g, Set *nodes)

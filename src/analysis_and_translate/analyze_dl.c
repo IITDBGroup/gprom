@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * analyze_dl.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -156,7 +156,7 @@ analyzeDLProgram (DLProgram *p)
      * 2) the failure pattern is assigned with why question
      */
 	analyzeSummarizationAdvanced(p);
-    
+
 //    // check that answer relation exists
 //    if (p->ans)
 //    {
@@ -177,7 +177,7 @@ analyzeSummerizationBasics (DLProgram *p)
         return;
 
 	DEBUG_LOG("user asked for summarization");
-	
+
     // either why or why-not
     FOREACH(Node,n,p->rules)
     {
@@ -404,6 +404,16 @@ analyzeProv (DLProgram *p, KeyValue *kv)
     {
         DL_SET_BOOL_PROP(p,DL_PROV_FULL_GP);
     }
+	// capture lineage, store target table
+	if (streq(type, DL_PROV_LINEAGE))
+	{
+		DL_SET_BOOL_PROP(p, DL_PROV_LINEAGE);
+		if(kv->value)
+		{
+			DL_SET_STRING_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE, copyObject(kv->value));
+		}
+		return;
+	}
 
     // check if format is given
     if (!streq(type,DL_PROV_WHY) && !streq(type,DL_PROV_WHYNOT) && !streq(type,DL_PROV_FULL_GP))
