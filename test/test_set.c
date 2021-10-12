@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_set.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -24,6 +24,7 @@ static rc testNodeSet(void);
 static rc testSetIteration(void);
 static rc testSetEquals(void);
 static rc testSetOperations(void);
+static rc testLargeNodeSet(void);
 
 rc
 testSet()
@@ -35,6 +36,7 @@ testSet()
     RUN_TEST(testSetIteration(), "test set iteration");
     RUN_TEST(testSetEquals(), "test equal function on sets");
     RUN_TEST(testSetOperations(), "test set operations");
+	RUN_TEST(testLargeNodeSet(), "test larger node set");
 
     return PASS;
 }
@@ -133,10 +135,10 @@ testStringSet(void)
 static rc
 testNodeSet(void)
 {
-    AttributeReference *a1 = createAttributeReference ("a1");
-    AttributeReference *a2 = createAttributeReference ("a2");
-    AttributeReference *a2a = createAttributeReference ("a2");
-    AttributeReference *a3 = createAttributeReference ("a3");
+    AttributeReference *a1 = createAttributeReference("a1");
+    AttributeReference *a2 = createAttributeReference("a2");
+    AttributeReference *a2a = createAttributeReference("a2");
+    AttributeReference *a3 = createAttributeReference("a3");
     Set *a = MAKE_NODE_SET(a1, a2);
     Set *b = MAKE_NODE_SET(a2a, a3);
 
@@ -158,6 +160,29 @@ testNodeSet(void)
     ASSERT_TRUE(hasSetElem(b, a3), "set b not has a3");
 
     return PASS;
+}
+
+static rc
+testLargeNodeSet(void)
+{
+	Constant *c = createConstInt(0);
+	Set *s = NODESET();
+
+	for (int i = 0; i < 1000000; i++)
+	{
+		addToSet(s, createConstInt(i));
+	}
+
+	for(int i = 0; i < 1000000; i++)
+	{
+		INT_VALUE(c) = i;
+		if(!hasSetElem(s, c))
+		{
+			ASSERT_TRUE(FALSE, "set has elem");
+		}
+	}
+
+	return PASS;
 }
 
 static rc
@@ -251,4 +276,3 @@ testSetOperations(void)
 
     return PASS;
 }
-

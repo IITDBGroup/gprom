@@ -1671,7 +1671,8 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
                 				name = (char *) n;
                 				if(streq(name, attrName))
                 				{
-                					type = (DataType) t;
+									uint64_t dt = (uint64_t) t;
+                					type = (DataType) dt;
                 					break;
                 				}
                 			}
