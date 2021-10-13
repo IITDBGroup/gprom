@@ -168,12 +168,12 @@ testLargeNodeSet(void)
 	Constant *c = createConstInt(0);
 	Set *s = NODESET();
 
-	for (int i = 0; i < 1000000; i++)
+	for (int i = 0; i < 100000; i++)
 	{
 		addToSet(s, createConstInt(i));
 	}
 
-	for(int i = 0; i < 1000000; i++)
+	for(int i = 0; i < 100000; i++)
 	{
 		INT_VALUE(c) = i;
 		if(!hasSetElem(s, c))
