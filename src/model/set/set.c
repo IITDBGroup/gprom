@@ -192,13 +192,19 @@ getSetElem(Set *set, void *key)
         HASH_FIND_STR(set->elem, key, result);
     else
     {
-        char *realKey = nodeToString(key);
-        HASH_FIND_STR(set->elem, realKey, result);
+		HASH_FIND_NODE(hh, set->elem, key, result);
+        /* char *realKey = nodeToString(key); */
+        /* HASH_FIND_STR(set->elem, realKey, result); */
     }
 
-    for(s=set->elem; s != NULL; s=s->hh.next) {
-        TRACE_LOG("key and value %p with hv %u keyptr %p", s->data, s->hh.hashv, s->hh.key);
-    }
+	if(maxLevel >= LOG_TRACE)
+	{
+		// do not loop through set unless log level if high enough
+		for(s=set->elem; s != NULL; s=s->hh.next)
+		{
+			TRACE_LOG("key and value %p with hv %u keyptr %p", s->data, s->hh.hashv, s->hh.key);
+		}
+	}
 
     return result;
 }
@@ -210,9 +216,14 @@ hasSetIntElem (Set *set, int _el)
 
     HASH_FIND(hh,set->elem, &_el, sizeof(int), result);
 
-    for(s=set->elem; s != NULL; s=s->hh.next) {
-        TRACE_LOG("key and value %d with hv %u keyptr %d", *((int *) s->data), s->hh.hashv, *((int *) s->hh.key));
-    }
+	if(maxLevel >= LOG_TRACE)
+	{
+		// do not loop through set unless log level if high enough
+		for(s=set->elem; s != NULL; s=s->hh.next)
+		{
+			TRACE_LOG("key and value %d with hv %u keyptr %d", *((int *) s->data), s->hh.hashv, *((int *) s->hh.key));
+		}
+	}
 
     return result != NULL;
 }
@@ -224,9 +235,14 @@ hasSetLongElem (Set *set, gprom_long_t _el)
 
     HASH_FIND(hh,set->elem, &_el, sizeof(gprom_long_t), result);
 
-    for(s=set->elem; s != NULL; s=s->hh.next) {
-        TRACE_LOG("key and value %d with hv %u keyptr %d", *((gprom_long_t *) s->data), s->hh.hashv, *((gprom_long_t *) s->hh.key));
-    }
+	if(maxLevel >= LOG_TRACE)
+	{
+		// do not loop through set unless log level if high enough
+		for(s=set->elem; s != NULL; s=s->hh.next)
+		{
+			TRACE_LOG("key and value %d with hv %u keyptr %d", *((gprom_long_t *) s->data), s->hh.hashv, *((gprom_long_t *) s->hh.key));
+		}
+	}
 
     return result != NULL;
 }
@@ -249,8 +265,9 @@ addToSet (Set *set, void *elem)
     // Node: store nodeToString as key
     else
     {
-        setEl->key = nodeToString(elem); //TODO this is expensive
-        HASH_ADD_KEYPTR(hh, set->elem, setEl->key, strlen(setEl->key), setEl);
+        /* setEl->key = nodeToString(elem); */
+        /* HASH_ADD_KEYPTR(hh, set->elem, setEl->key, strlen(setEl->key), setEl); */
+		HASH_ADD_NODE(hh, set->elem, setEl->data, setEl);
     }
 
     return TRUE;
@@ -303,7 +320,7 @@ removeAndFreeSetElem (Set *set, void *elem)
         if (set->setType == SET_TYPE_NODE)
         {
             deepFree(e->data);
-            FREE(e->key);
+            //FREE(e->key);
         }
         else if (set->setType == SET_TYPE_STRING)
             FREE(e->data);
@@ -322,8 +339,8 @@ removeSetElem (Set *set, void *elem)
     if (e != NULL)
     {
         HASH_DEL(set->elem, e);
-        if (set->setType == SET_TYPE_NODE)
-            FREE(e->key);
+        /* if (set->setType == SET_TYPE_NODE) */
+        /*     FREE(e->key); */
         FREE(e);
     }
 }
