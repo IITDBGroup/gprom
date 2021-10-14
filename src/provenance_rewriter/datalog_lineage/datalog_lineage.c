@@ -25,8 +25,18 @@ DLProgram *
 rewriteDLForLinageCapture(DLProgram *p)
 {
 	ASSERT(IS_LINEAGE_PROV(p));
+	char *targetTable;
+    HashMap *predToRules = (HashMap *) getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
+
+	// get target table if specified
+	if(DL_HAS_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE))
+	{
+		targetTable = DL_GET_STRING_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE);
+	}
 
 	//TODO rewrite rules to propagate provenance for R
+
+
 
 	return p;
 }

@@ -141,6 +141,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_GET_PROP(node,key) (getDLProp((DLNode *) node, key))
 #define DL_SET_BOOL_PROP(node,key) setDLProp((DLNode *) node, key, (Node *) createConstBool(TRUE));
 #define DL_SET_STRING_PROP(node,key,value) setDLProp((DLNode *) node, key, (Node *) createConstString(value));
+#define DL_GET_STRING_PROP(node,key) STRING_VALUE(getDLProp((DLNode *) node, key))
 #define DL_DEL_PROP(node,key) (delDLProp((DLNode *) node, key))
 #define DL_COPY_PROP(node1,node2,key) (setDLProp((DLNode *) node2, key, getDLProp((DLNode *) node1,key)))
 
