@@ -37,7 +37,8 @@ static void winBoundToSQL (StringInfo str, WindowBound *b, HashMap *map);
 static void orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *map);
 static void quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o, HashMap *map);
 static void dataTypeToSQL (StringInfo str, DataType dt);
-
+static void attributeDefToSQL(StringInfo str, AttributeDef* expr, HashMap* map); // update provenance sketch
+static void selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map); // update provenance sketch
 static void functionCallToLatex (StringInfo str, FunctionCall *node);
 static void operatorToLatex (StringInfo str, Operator *node);
 static void constantToLatex (StringInfo str, Constant *node);
@@ -101,6 +102,30 @@ constantToSQL (StringInfo str, Constant *node)
     }
 }
 
+static void
+attributeDefToSQL(StringInfo str, AttributeDef* expr, HashMap* map){
+	appendStringInfo(str, "%s ", expr->attrName);
+	char* type = NULL;
+	if(expr->dataType == DT_INT) {
+		type = "int";
+	} else if(expr->dataType == DT_LONG) {
+		type = "long";
+	} else if(expr->dataType == DT_STRING) {
+		type = "varchar2";
+	} else if(expr->dataType == DT_FLOAT) {
+		type = "float";
+	} else if(expr->dataType == DT_BOOL) {
+		type = "bool";
+	} else if(expr->dataType == DT_VARCHAR2) {
+		type = "varchar2";
+	}
+	appendStringInfo(str, "%s", type);
+}
+
+static void
+selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map) {
+	appendStringInfo(str, "%s", expr->alias);
+}
 static void
 xmlConstantToSQL (StringInfo str, Node *node)
 {
@@ -506,6 +531,12 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *map)
         break;
         case T_CastExpr:
             castExprToSQL(str, (CastExpr *) expr, map);
+        break;
+        case T_AttributeDef: // used for update provenancesketch
+        	attributeDefToSQL(str, (AttributeDef*) expr, map);
+        break;
+        case T_SelectItem: // used for update provenance sketch
+        	selectItemToSQL(str, (SelectItem*) expr, map);
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));

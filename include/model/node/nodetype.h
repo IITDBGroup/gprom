@@ -76,6 +76,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_OrderOperator,
 	T_SampleClauseOperator,
 	T_LimitOperator,
+	T_DLMorDDLOperator,
 
     /* datalog model nodes */
     T_DLNode,

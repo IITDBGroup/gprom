@@ -34,6 +34,8 @@
 
 #include "sql_serializer/sql_serializer.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "instrumentation/timing_instrumentation.h"
+#include "provenance_rewriter/update_ps/table_compress.h"
 
 /*
  * Macro
@@ -90,8 +92,9 @@ static QueryOperator* rewriteTableAccessOperator(TableAccessOperator *op,
 static boolean getTableAccessOps(Node *op, List **l);
 static BitSet* bitOrResults(HashMap *old, HashMap *new, StringInfo *result);
 void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result);
-void skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
+int skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
 		QueryOperator *updateQuery);
+void compressTable(char* tablename, char* psAttr, List* ranges);
 
 /*
  * Function Implementation
@@ -108,19 +111,62 @@ update_ps(ProvenanceComputation *qbModel) {
 	PROP_PC_COARSE_GRAINED);
 	psPara = createPSInfo(coarsePara);
 
-	DEBUG_LOG("use coarse grained fragment parameters: %s",
-			nodeToString((Node* ) psPara));
+//	DEBUG_LOG("use coarse grained fragment parameters: %s\n",
+//			nodeToString((Node* ) psPara));
+//	DEBUG_NODE_BEATIFY_LOG("WHAT IS psPARA", psPara);
+
+
+	List* allTables = getAllTables(psPara);
+
+	for(int i = 0; i < LIST_LENGTH(allTables); i++) {
+		char *tableName = (char*) ((Constant*) getNthOfListP(allTables, i))->value;
+		List *psAttrInfoList = (List*) getMapString(psPara->tablePSAttrInfos,
+				tableName);
+		psAttrInfo* attInfo = (psAttrInfo*) getNthOfListP(psAttrInfoList, 0);
+		printf("TABLE NAME: %s\n", tableName);
+		printf("ATTRI NAME: %s\n", attInfo->attrName);
+		DEBUG_NODE_BEATIFY_LOG("RANGE LIST\n", attInfo->rangeList);
+		tableCompress(tableName, attInfo->attrName, attInfo->rangeList);
+
+	}
 
 	/*
 	 * get the left and right childred respectively;
 	 * left child is a update statement
 	 * right child is a normal query
 	 */
-
 	QueryOperator *op1 = (QueryOperator*) op;
-	QueryOperator *rChild = OP_RCHILD(op1);
 	QueryOperator *lChild = (QueryOperator*) OP_LCHILD(op1);
+	removeParent(lChild, op1);
+	DEBUG_NODE_BEATIFY_LOG("LEFT CHILD\n", lChild);
+
+	char* updateTblName = ((TableAccessOperator*) getNthOfListP(lChild->inputs, 0))->tableName;
+
+	List* psAttrInfoList =  (List*) getMapString(psPara->tablePSAttrInfos, updateTblName);
+	psAttrInfo* attrInfo = (psAttrInfo*) getNthOfListP(psAttrInfoList, 0);
+
+	updateCompressedTable(lChild, updateTblName, attrInfo);
+
+	boolean stopHere = TRUE;
+	if(stopHere) {
+		return "END";
+	}
+
+	QueryOperator *rChild = OP_RCHILD(op1);
 	op1->inputs = singleton(rChild);
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	removeParent(lChild, (QueryOperator*) op);
 
@@ -130,12 +176,24 @@ update_ps(ProvenanceComputation *qbModel) {
 //	DEBUG_NODE_BEATIFY_LOG(
 //			"\n#######################\n \t PS INFO:\n#######################\n",
 //			psPara);
-	DEBUG_NODE_BEATIFY_LOG(
-			"\n#######################\n \t Update query:\n#######################\n",
-			lChild);
+//	DEBUG_NODE_BEATIFY_LOG(
+//			"\n#######################\n \t LEFT query:\n#######################\n",
+//			lChild);
 	INFO_OP_LOG(
-			"\n#######################\n \t Update query:\n#######################\n",
+			"\n#######################\n \t LEFT CHILD query:\n#######################\n",
 			lChild);
+
+
+	/*
+	 * Currently, stop
+	 */
+
+
+
+
+
+
+
 
 	markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
 
@@ -326,7 +384,7 @@ update_ps_delete_accurate(QueryOperator *query, QueryOperator *updateQuery,
 	//GET CAPTURE SQL
 //	DEB
 	DEBUG_LOG("BEGIN SERIALIZE");
-	char *capSql = serializeOperatorModel((Node*) query);
+	  char *capSql = serializeOperatorModel((Node*) query);
 
 	DEBUG_LOG("END SERIALIZE");
 	//CAPTURE NEW PS
@@ -334,17 +392,6 @@ update_ps_delete_accurate(QueryOperator *query, QueryOperator *updateQuery,
 	DEBUG_LOG("BEGIN CAP");
 	HashMap *psMap = getPS(capSql, attrNames);
 	DEBUG_NODE_BEATIFY_LOG("WHAT IS THE NWE PS", psMap);
-
-	//TODO posgtres
-
-//	if(getBackend() == BACKEND_POSTGRES) {
-//		StringInfo results = makeStringInfo();
-//		appendStringInfo(results, "%s", "{");
-//
-//		bitOrResultsPostgres(PSInfo->tablePSAttrInfos, psMap, &results);
-//		appendStringInfo(results, "%s", "}");
-//		return results->data;
-//	}
 
 	//GET RESULT AND RETURN
 	StringInfo result = makeStringInfo();
@@ -433,8 +480,50 @@ update_ps_insert_accurate(QueryOperator *query, QueryOperator *updateQuery,
 	//delta tuple join whole table;
 
 	char *updatedTable = getUpdatedTable(updateQuery);
+	DEBUG_LOG("the update tables is:--> %s", updatedTable);
 	ProjectionOperator *proOpDummy = createDummyProjTree(updateQuery);
 
+	//test apply min-max can affect the time;
+	psInfo *reservedPS = (psInfo*) copyObject(PSInfo);
+//	int skipped = skipFragsBasedOnPS(updatedTable, PSInfo, updateQuery);
+	int skipped = -1;
+
+	DEBUG_LOG("SKIPPED: %d\n", skipped);
+	DEBUG_LOG("BIT SIZE%d\n", getIntOption(OPTION_BIT_VECTOR_SIZE));
+	//Skip all the fragments, then just return the original PS
+	if (skipped == getIntOption(OPTION_BIT_VECTOR_SIZE)) {
+		//TODO returned;
+		List *tableList = getAllTables(PSInfo);
+
+		StringInfo result = makeStringInfo();
+		appendStringInfo(result, "%s", "{");
+		//iteratoion to get all the participation tables' ps info
+		for (int i = 0; i < LIST_LENGTH(tableList); i++) {
+
+			char *tableName =
+					(char*) ((Constant*) getNthOfListP(tableList, i))->value;
+			List *psAttrInfoList = (List*) getMapString(
+					reservedPS->tablePSAttrInfos, tableName);
+
+			/*
+			 *  One table could have multiple partition attributes.
+			 *  Iterate to get all partition attributes and the provenance sketchs.
+			 */
+			for (int j = 0; j < LIST_LENGTH(psAttrInfoList); j++) {
+				psAttrInfo *info = getNthOfListP(psAttrInfoList, j);
+
+				appendStringInfo(result, "%s",
+						createResultComponent(tableName, info->attrName,
+								bitSetToString(info->BitVector)));
+
+			}
+		}
+		appendStringInfo(result, "%s", "}");
+		//			STOP_TIMER("UPDATEPS_ins_app");
+		return result->data;
+	}
+
+	//end test
 	DEBUG_NODE_BEATIFY_LOG("WHAT IS THE DUMMY PROJ", proOpDummy);
 	List *taList = NIL;
 	getTableAccessOps((Node*) query, &taList);
@@ -474,7 +563,11 @@ update_ps_insert_accurate(QueryOperator *query, QueryOperator *updateQuery,
 	}
 	StringInfo result = makeStringInfo();
 	appendStringInfo(result, "%s", "{");
-	bitOrResults(PSInfo->tablePSAttrInfos, psMap, &result);
+
+	//min-max optimized
+	bitOrResults(reservedPS->tablePSAttrInfos, psMap, &result);
+
+	//bitOrResults(PSInfo->tablePSAttrInfos, psMap, &result);
 	appendStringInfo(result, "%s", "}");
 
 	return result->data;
@@ -484,6 +577,8 @@ update_ps_insert_accurate(QueryOperator *query, QueryOperator *updateQuery,
 static char*
 update_ps_insert_approximate(QueryOperator *query, QueryOperator *updateQuery,
 		psInfo *PSInfo) {
+
+	START_TIMER("UPDATEPS_ins_app");
 	char *updatedTable = getUpdatedTable(updateQuery);
 
 	//check the Dalta tuple's ps, and directly set it to '1' if it is '0';
@@ -542,15 +637,39 @@ update_ps_insert_approximate(QueryOperator *query, QueryOperator *updateQuery,
 	 * Here replace reversePSInfo(PSInfo, updateTable);
 	 */
 //	reversePSInfo(PSInfo, updatedTable);
+	int skipped = skipFragsBasedOnPS(updatedTable, PSInfo, updateQuery);
 
-	skipFragsBasedOnPS(updatedTable, PSInfo, updateQuery);
-	List* infos = (List*)getMapString(PSInfo->tablePSAttrInfos, "ss");
-	psAttrInfo* info = (psAttrInfo*)getHeadOfListP(infos);
-	DEBUG_LOG("%s", bitSetToString(info->BitVector));
-//	int returns = 1;
-//	if (returns == 1) {
-//		return "RETURN";
-//	}
+	DEBUG_LOG("SKIPPED: %d\n", skipped);
+	DEBUG_LOG("BIT SIZE%d\n", getIntOption(OPTION_BIT_VECTOR_SIZE));
+	//Skip all the fragments, then just return the original PS
+	if (skipped == getIntOption(OPTION_BIT_VECTOR_SIZE)) {
+		//TODO returned;
+		List *tableList = getAllTables(PSInfo);
+
+		StringInfo result = makeStringInfo();
+		appendStringInfo(result, "%s", "{");
+		//iteratoion to get all the participation tables' ps info
+		for (int i = 0; i < LIST_LENGTH(tableList); i++) {
+
+			char *tableName =
+					(char*) ((Constant*) getNthOfListP(tableList, i))->value;
+			List *psAttrInfoList = (List*) getMapString(
+					reservedPS->tablePSAttrInfos, tableName);
+
+			for (int j = 0; j < LIST_LENGTH(psAttrInfoList); j++) {
+				psAttrInfo *info = getNthOfListP(psAttrInfoList, j);
+
+				appendStringInfo(result, "%s",
+						createResultComponent(tableName, info->attrName,
+								bitSetToString(info->BitVector)));
+
+			}
+		}
+		appendStringInfo(result, "%s", "}");
+//			STOP_TIMER("UPDATEPS_ins_app");
+		return result->data;
+	}
+
 	List *taList = NIL;
 	getTableAccessOps((Node*) query, &taList);
 
@@ -576,6 +695,7 @@ update_ps_insert_approximate(QueryOperator *query, QueryOperator *updateQuery,
 			proOpDummy->op.parents = singleton(parent);
 		}
 	}
+	STOP_TIMER("UPDATEPS_ins_app");
 	DEBUG_LOG("BEGIN SERIALIZE");
 	char *capSql = serializeOperatorModel((Node*) query);
 
@@ -714,13 +834,13 @@ update_ps_del_ins_1(QueryOperator *query, QueryOperator *updateQuery,
  * OTHER METHODS
  */
 
-void skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
+int skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
 		QueryOperator *updateQuery) {
 	int bitVectorSize = getIntOption(OPTION_BIT_VECTOR_SIZE);
 	DEBUG_LOG(" the bit vector size: %d", bitVectorSize);
 //	List joinAttrList;
 
-	ConstRelOperator* cro;
+	ConstRelOperator *cro;
 	FOREACH(QueryOperator, o, updateQuery->inputs)
 	{
 		if (isA(o, ConstRelOperator)) {
@@ -735,18 +855,20 @@ void skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
 	int minMaxSteps;
 
 	psAttrInfo *info;
-	char* bitList;
+	char *bitList;
 	if (streq(updatedTable, "RR") || streq(updatedTable, "rr")) {
-		joinAttrValue = *((int*)((Constant*)getNthOfListP(cro->values, LIST_LENGTH(cro->values) - 1))->value);
+		joinAttrValue = *((int*) ((Constant*) getNthOfListP(cro->values,
+				LIST_LENGTH(cro->values) - 1))->value);
 		minMaxSteps = everyFragSize / 100;
-		List* infos = (List*)getMapString(PSInfo->tablePSAttrInfos, "ss");
-		info = (psAttrInfo*)getHeadOfListP(infos);
+		List *infos = (List*) getMapString(PSInfo->tablePSAttrInfos, "ss");
+		info = (psAttrInfo*) getHeadOfListP(infos);
 		bitList = bitSetToString(info->BitVector);
 	} else {
-		joinAttrValue = *((int*)((Constant*)getNthOfListP(cro->values, LIST_LENGTH(cro->values) - 2))->value);
+		joinAttrValue = *((int*) ((Constant*) getNthOfListP(cro->values,
+				LIST_LENGTH(cro->values) - 2))->value);
 		minMaxSteps = everyFragSize / 1000;
-		List* infos = (List*)getMapString(PSInfo->tablePSAttrInfos, "rr");
-		info = (psAttrInfo*)getHeadOfListP(infos);
+		List *infos = (List*) getMapString(PSInfo->tablePSAttrInfos, "rr");
+		info = (psAttrInfo*) getHeadOfListP(infos);
 		bitList = bitSetToString(info->BitVector);
 	}
 //
@@ -754,39 +876,37 @@ void skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo,
 //	DEBUG_LOG("everyFragSize %d", everyFragSize);
 //	DEBUG_LOG("minMaxSteps %d", minMaxSteps);
 	DEBUG_LOG("bitsetstring %s, %d", bitList, strlen(bitList));
-	List* joinAttrList = NIL;
+	List *joinAttrList = NIL;
 	// rr g: 100000; ss t: every 100 in a group;
 
 	for (int i = 1; i <= bitVectorSize; i++) {
 		//min
-		Constant* min = createConstInt((i - 1) * minMaxSteps + 1);
-		Constant* max = createConstInt(i * minMaxSteps);
+		Constant *min = createConstInt((i - 1) * minMaxSteps + 1);
+		Constant *max = createConstInt(i * minMaxSteps);
 		joinAttrList = appendToTailOfList(joinAttrList, min);
 		joinAttrList = appendToTailOfList(joinAttrList, max);
 	}
 
 	//compare the value to skip
-
-	for(int i = 0; i < bitVectorSize; i++) {
-		if(bitList[i] == '1') {
+	int skipped = bitVectorSize;
+	for (int i = 0; i < bitVectorSize; i++) {
+		if (bitList[i] == '1') {
 			setBit(info->BitVector, i, 0);
 		} else {
-			int min = *((int*) ((Constant*)getNthOfListP(joinAttrList, 2 * i))->value);
-			int max = *((int*) ((Constant*)getNthOfListP(joinAttrList, 2 * i + 1))->value);
+			int min =
+					*((int*) ((Constant*) getNthOfListP(joinAttrList, 2 * i))->value);
+			int max = *((int*) ((Constant*) getNthOfListP(joinAttrList,
+					2 * i + 1))->value);
 
-			if(joinAttrValue >= min && joinAttrValue <= max) {
+			if (joinAttrValue >= min && joinAttrValue <= max) {
 				setBit(info->BitVector, i, 1);
+				skipped--;
 			}
 		}
 	}
 
-	DEBUG_LOG("%s", bitSetToString(info->BitVector));
-
-
-
-
-
-
+	DEBUG_LOG("the skipped bitstring:%s", bitSetToString(info->BitVector));
+	return skipped;
 
 }
 
@@ -915,7 +1035,7 @@ createDummyProjTree(QueryOperator *updateQuery) {
 	ProjectionOperator *projOp = NULL;
 	if (getBackend() == BACKEND_ORACLE) {
 		TableAccessOperator *taOp = createTableAccessOp("DUAL", NULL, "DUAL",
-				NIL, singleton("DUMMY"), singletonInt(DT_STRING));
+		NIL, singleton("DUMMY"), singletonInt(DT_STRING));
 		projOp = createProjectionOp(attrValues, (QueryOperator*) taOp, NIL,
 				attrNames);
 		projOp->op.schema->attrDefs = attrDefs;
@@ -1126,3 +1246,10 @@ void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result) {
 		}
 	}
 }
+
+void compressTable(char* tablename, char* psAttr, List* ranges) {
+	// check the required table's exsitance
+	// build compress queiry
+	// execute to get the cdb
+}
+

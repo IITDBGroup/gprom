@@ -226,6 +226,10 @@ extern Constant *createNullConst (DataType dt);
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
 #define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL))
 
+/*
+ * extern void* getValue(Constant* c);
+ */
+
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);

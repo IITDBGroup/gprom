@@ -43,88 +43,72 @@
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 
-static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
-static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
+static char* rewriteParserOutput(Node *parse, boolean applyOptimizations);
+static char* rewriteQueryInternal(char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
 //static void summarizationPlan(Node *parse);
 //static List *summOpts = NIL;
 //static char *qType = NULL;
 
+int initBasicModules(void) {
+	initMemManager();
+	mallocOptions();
+	initLogger();
 
-int
-initBasicModules (void)
-{
-    initMemManager();
-    mallocOptions();
-    initLogger();
-
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
-
-int
-initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
-{
-    initBasicModules();
-    return readOptions(appName, appHelpText, argc, argv);
+int initBasicModulesAndReadOptions(char *appName, char *appHelpText, int argc,
+		char *argv[]) {
+	initBasicModules();
+	return readOptions(appName, appHelpText, argc, argv);
 }
 
-int
-readOptions (char *appName, char *appHelpText, int argc, char* argv[])
-{
-    int parserReturn = parseOption(argc, argv);
+int readOptions(char *appName, char *appHelpText, int argc, char *argv[]) {
+	int parserReturn = parseOption(argc, argv);
 
-    if(parserReturn == OPTION_PARSER_RETURN_ERROR)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, appName, appHelpText, TRUE);
-        return EXIT_FAILURE;
-    }
+	if (parserReturn == OPTION_PARSER_RETURN_ERROR) {
+		printOptionParseError(stdout);
+		printOptionsHelp(stdout, appName, appHelpText, TRUE);
+		return EXIT_FAILURE;
+	}
 
-    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption("help"))
-    {
-        printOptionsHelp(stdout, appName, appHelpText, FALSE);
-        return EXIT_FAILURE;
-    }
+	if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption("help")) {
+		printOptionsHelp(stdout, appName, appHelpText, FALSE);
+		return EXIT_FAILURE;
+	}
 
-    if (parserReturn == OPTION_PARSER_RETURN_VERSION)
-    {
-        printVersion(stdout);
-        return EXIT_FAILURE;
-    }
+	if (parserReturn == OPTION_PARSER_RETURN_VERSION) {
+		printVersion(stdout);
+		return EXIT_FAILURE;
+	}
 
+	// set log level from options
+	setMaxLevel(getIntOption("log.level"));
 
-    // set log level from options
-    setMaxLevel(getIntOption("log.level"));
+	if (opt_memmeasure)
+		setupMemInstrumentation();
 
-    if (opt_memmeasure)
-        setupMemInstrumentation();
-
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
-void
-reactToOptionsChange (const char *optName)
-{
-    // need to reinitialize logger
-    if (strStartsWith(optName, "log"))
-    {
-        reinitLogger();
-        return;
-    }
-    // need to reestablish connection
-    //TODO right now this would try to reconnect after one connection parameter has been changed
-    if (strStartsWith(optName, "connection"))
-    {
-        databaseConnectionClose();
-        databaseConnectionOpen();
-        return;
-    }
-    // need to switch a plugin
-    if (strStartsWith(optName, "plugin"))
-    {
-        setupPlugin(optName);
-    }
+void reactToOptionsChange(const char *optName) {
+	// need to reinitialize logger
+	if (strStartsWith(optName, "log")) {
+		reinitLogger();
+		return;
+	}
+	// need to reestablish connection
+	//TODO right now this would try to reconnect after one connection parameter has been changed
+	if (strStartsWith(optName, "connection")) {
+		databaseConnectionClose();
+		databaseConnectionOpen();
+		return;
+	}
+	// need to switch a plugin
+	if (strStartsWith(optName, "plugin")) {
+		setupPlugin(optName);
+	}
 }
 
 //int
@@ -161,388 +145,353 @@ reactToOptionsChange (const char *optName)
             FATAL_LOG("no backend is set and no " _plugin " provided either, e.g., use -backend BACKEND to set a backend"); \
     } while (0);
 
+void setupPluginsFromOptions(void) {
+	char *be = getStringOption("backend");
+	char *fe = getStringOption("frontend");
+	char *pluginName = be;
 
-void
-setupPluginsFromOptions(void)
-{
-    char *be = getStringOption("backend");
-    char *fe = getStringOption("frontend");
-    char *pluginName = be;
+	// setup parser - individual option overrides backend option
+	CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
 
-    // setup parser - individual option overrides backend option
-    CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
+	// setup metadata lookup - individual option overrides backend option
+	pluginName = getStringOption("plugin.metadata");
+	if (strpeq(pluginName, "external")) {
+		//printf("\nPLUGIN******************************************\n\n");
+	} else {
+		initMetadataLookupPlugins();
+		CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA,
+				chooseMetadataLookupPluginFromString);
+		initMetadataLookupPlugin();
+	}
 
-    // setup metadata lookup - individual option overrides backend option
-    pluginName = getStringOption("plugin.metadata");
-    if (strpeq(pluginName,"external"))
-    {
-        //printf("\nPLUGIN******************************************\n\n");
-    }
-    else
-    {
-        initMetadataLookupPlugins();
-        CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
-        initMetadataLookupPlugin();
-    }
+	// setup analyzer - individual option overrides backend option
+	CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
 
-    // setup analyzer - individual option overrides backend option
-    CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
+	// setup analyzer - individual option overrides backend option
+	CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
 
-    // setup analyzer - individual option overrides backend option
-    CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
+	// setup analyzer - individual option overrides backend option
+	CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER,
+			chooseSqlserializerPluginFromString);
+	CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLCODEGEN,
+			chooseSqlserializerPluginFromString);
 
-    // setup analyzer - individual option overrides backend option
-    CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
-    CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLCODEGEN, chooseSqlserializerPluginFromString);
+	// setup analyzer - individual option overrides backend option
+	pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+	chooseExecutorPluginFromString(pluginName);
 
-    // setup analyzer - individual option overrides backend option
-    pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
-    chooseExecutorPluginFromString(pluginName);
-
-    // setup cost-based optimizer
-    if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
-        chooseOptimizerPluginFromString(pluginName);
-    else
-        chooseOptimizerPluginFromString("exhaustive");
+	// setup cost-based optimizer
+	if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
+		chooseOptimizerPluginFromString(pluginName);
+	else
+		chooseOptimizerPluginFromString("exhaustive");
 }
 
-static void
-setupPlugin(const char *pluginType)
-{
-    char *pluginName;
-    char *be = getStringOption("backend");
-    char *fe = getStringOption("frontend");
+static void setupPlugin(const char *pluginType) {
+	char *pluginName;
+	char *be = getStringOption("backend");
+	char *fe = getStringOption("frontend");
 
-    if (streq(pluginType,OPTION_PLUGIN_PARSER))
-    {
-        CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
-    }
+	if (streq(pluginType, OPTION_PLUGIN_PARSER)) {
+		CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
+	}
 
-    // setup metadata lookup - individual option overrides backend option
-    if (streq(pluginType,OPTION_PLUGIN_METADATA))
-    {
-        pluginName = getStringOption(OPTION_PLUGIN_METADATA);
-        if (strpeq(pluginName,"external"))
-        {
-            printf("\nPLUGIN******************************************\n\n");
-        }
-        else
-        {
-            initMetadataLookupPlugins();//TODO not necessary
-            CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
-            initMetadataLookupPlugin();
-        }
-    }
+	// setup metadata lookup - individual option overrides backend option
+	if (streq(pluginType, OPTION_PLUGIN_METADATA)) {
+		pluginName = getStringOption(OPTION_PLUGIN_METADATA);
+		if (strpeq(pluginName, "external")) {
+			printf("\nPLUGIN******************************************\n\n");
+		} else {
+			initMetadataLookupPlugins();    //TODO not necessary
+			CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA,
+					chooseMetadataLookupPluginFromString);
+			initMetadataLookupPlugin();
+		}
+	}
 
-    // setup analyzer - individual option overrides backend option
-    if (streq(pluginType,OPTION_PLUGIN_ANALYZER))
-    {
-        CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
-    }
+	// setup analyzer - individual option overrides backend option
+	if (streq(pluginType, OPTION_PLUGIN_ANALYZER)) {
+		CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
+	}
 
-    // setup analyzer - individual option overrides backend option
-    if (streq(pluginType,OPTION_PLUGIN_TRANSLATOR))
-    {
-        CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
-    }
+	// setup analyzer - individual option overrides backend option
+	if (streq(pluginType, OPTION_PLUGIN_TRANSLATOR)) {
+		CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR,
+				chooseTranslatorPluginFromString);
+	}
 
-    // setup  sql serializer - individual option overrides backend option
-    if (streq(pluginType,OPTION_PLUGIN_SQLSERIALIZER))
-    {
-        CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
-    }
+	// setup  sql serializer - individual option overrides backend option
+	if (streq(pluginType, OPTION_PLUGIN_SQLSERIALIZER)) {
+		CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER,
+				chooseSqlserializerPluginFromString);
+	}
 
-    // setup executor
-    if (streq(pluginType,OPTION_PLUGIN_EXECUTOR))
-    {
-        pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
-        chooseExecutorPluginFromString(pluginName);
-    }
+	// setup executor
+	if (streq(pluginType, OPTION_PLUGIN_EXECUTOR)) {
+		pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+		chooseExecutorPluginFromString(pluginName);
+	}
 
-    // setup cost-based optimizer
-    if (streq(pluginType,OPTION_PLUGIN_CBO))
-    {
-        if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
-            chooseOptimizerPluginFromString(pluginName);
-        else
-            chooseOptimizerPluginFromString("exhaustive");
-    }
+	// setup cost-based optimizer
+	if (streq(pluginType, OPTION_PLUGIN_CBO)) {
+		if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
+			chooseOptimizerPluginFromString(pluginName);
+		else
+			chooseOptimizerPluginFromString("exhaustive");
+	}
 }
 
-void
-resetupPluginsFromOptions (void)
-{
-    char *be = getStringOption("backend");
-    char *pluginName = be;
+void resetupPluginsFromOptions(void) {
+	char *be = getStringOption("backend");
+	char *pluginName = be;
 
-    // setup parser - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.parser")) != NULL)
-        chooseParserPluginFromString(pluginName);
-    else
-        chooseParserPluginFromString(be);
+	// setup parser - individual option overrides backend option
+	if ((pluginName = getStringOption("plugin.parser")) != NULL)
+		chooseParserPluginFromString(pluginName);
+	else
+		chooseParserPluginFromString(be);
 
-    // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
-        chooseAnalyzerPluginFromString(pluginName);
-    else
-        chooseAnalyzerPluginFromString(be);
+	// setup analyzer - individual option overrides backend option
+	if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
+		chooseAnalyzerPluginFromString(pluginName);
+	else
+		chooseAnalyzerPluginFromString(be);
 
-    // setup translator - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.translator")) != NULL)
-        chooseTranslatorPluginFromString(pluginName);
-    else
-        chooseTranslatorPluginFromString(be);
+	// setup translator - individual option overrides backend option
+	if ((pluginName = getStringOption("plugin.translator")) != NULL)
+		chooseTranslatorPluginFromString(pluginName);
+	else
+		chooseTranslatorPluginFromString(be);
 
-    // setup serializer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
-        chooseSqlserializerPluginFromString(pluginName);
-    else
-        chooseSqlserializerPluginFromString(be);
+	// setup serializer - individual option overrides backend option
+	if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
+		chooseSqlserializerPluginFromString(pluginName);
+	else
+		chooseSqlserializerPluginFromString(be);
 
-    // setup executor- individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.executor")) != NULL)
-        chooseExecutorPluginFromString(pluginName);
-    else
-        chooseExecutorPluginFromString("sql");
+	// setup executor- individual option overrides backend option
+	if ((pluginName = getStringOption("plugin.executor")) != NULL)
+		chooseExecutorPluginFromString(pluginName);
+	else
+		chooseExecutorPluginFromString("sql");
 }
 
-int
-readOptionsAndIntialize(char *appName, char *appHelpText, int argc, char* argv[])
-{
-    int retVal;
-    retVal = initBasicModulesAndReadOptions(appName, appHelpText, argc, argv);
-    if (retVal != EXIT_SUCCESS)
-        return retVal;
+int readOptionsAndIntialize(char *appName, char *appHelpText, int argc,
+		char *argv[]) {
+	int retVal;
+	retVal = initBasicModulesAndReadOptions(appName, appHelpText, argc, argv);
+	if (retVal != EXIT_SUCCESS)
+		return retVal;
 
-    setupPluginsFromOptions();
+	setupPluginsFromOptions();
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
-int
-shutdownApplication(void)
-{
-    INFO_LOG("shutdown plugins, logger, and memory manager");
+int shutdownApplication(void) {
+	INFO_LOG("shutdown plugins, logger, and memory manager");
 
-    if (opt_memmeasure)
-    {
-        outputMemstats(FALSE);
-        shutdownMemInstrumentation();
-    }
-    shutdownMetadataLookupPlugins();
+	if (opt_memmeasure) {
+		outputMemstats(FALSE);
+		shutdownMemInstrumentation();
+	}
+	shutdownMetadataLookupPlugins();
 
-    freeOptions();
-    destroyMemManager();
+	freeOptions();
+	destroyMemManager();
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
-void
-processInput(char *input)
-{
-    char *q = NULL;
-    Node *parse;
+void processInput(char *input) {
+	char *q = NULL;
+	Node *parse;
 
-    TRY
-    {
-        NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
-        parse = parseFromString(input);
-        q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-        execute(q);
-        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-    }
-    ON_EXCEPTION
-    {
-        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
-        RETHROW();
-    }
-    END_ON_EXCEPTION
+	TRY
+				{
+					NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+					parse = parseFromString(input);
+					q = rewriteParserOutput(parse,
+							isRewriteOptionActivated(
+									OPTION_OPTIMIZE_OPERATOR_MODEL));
+					execute(q);
+					FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+				}ON_EXCEPTION
+				{
+					DEBUG_LOG("allocated in memory context: %s",
+							getCurMemContext()->contextName);
+					RETHROW();
+				}
+				END_ON_EXCEPTION
 }
 
-static char *
-rewriteQueryInternal (char *input, boolean rethrowExceptions)
-{
-    Node *parse;
-    char *result = "";
+static char*
+rewriteQueryInternal(char *input, boolean rethrowExceptions) {
+	Node *parse;
+	char *result = "";
 
-    NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+	NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 
-    TRY
-    {
-        parse = parseFromString(input);
+	TRY
+				{
+					parse = parseFromString(input);
 
-        DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+					DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-        result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-        INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
-        FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
-    }
-    ON_EXCEPTION
-    {
-        if (rethrowExceptions)
-            RETHROW();
-        // if an exception is thrown then the query memory context has been
-        // destroyed and we can directly create an empty string in the callers
-        // context
-        DEBUG_LOG("curContext is: %s", getCurMemContext()->contextName);
-    }
-    END_ON_EXCEPTION
-    return strdup("");
+					result = rewriteParserOutput(parse,
+							isRewriteOptionActivated(
+									OPTION_OPTIMIZE_OPERATOR_MODEL));
+					INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input,
+							result);
+					FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+				}ON_EXCEPTION
+				{
+					if (rethrowExceptions)
+						RETHROW();
+					// if an exception is thrown then the query memory context has been
+					// destroyed and we can directly create an empty string in the callers
+					// context
+					DEBUG_LOG("curContext is: %s",
+							getCurMemContext()->contextName);
+				}
+				END_ON_EXCEPTION
+	return strdup("");
 }
 
-char *
-rewriteQuery(char *input)
-{
-    return rewriteQueryInternal(input, FALSE);
+char*
+rewriteQuery(char *input) {
+	return rewriteQueryInternal(input, FALSE);
 }
 
-char *
-rewriteQueryWithRethrow(char *input)
-{
-    return rewriteQueryInternal(input, TRUE);
+char*
+rewriteQueryWithRethrow(char *input) {
+	return rewriteQueryInternal(input, TRUE);
 }
 
-int
-costQuery (char *input)
-{
-    return getCostEstimation(input);
+int costQuery(char *input) {
+	return getCostEstimation(input);
 }
 
-char *
-rewriteQueryFromStream (FILE *stream) {
-    Node *parse;
-    char *result;
+char*
+rewriteQueryFromStream(FILE *stream) {
+	Node *parse;
+	char *result;
 
-    parse = parseStream(stream);
-    DEBUG_LOG("parser returned:\n\n%s", nodeToString(parse));
+	parse = parseStream(stream);
+	DEBUG_LOG("parser returned:\n\n%s", nodeToString(parse));
 
-    result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-    INFO_LOG("Rewritten SQL text is <%s>", result);
+	result = rewriteParserOutput(parse,
+			isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+	INFO_LOG("Rewritten SQL text is <%s>", result);
 
-    return result;
+	return result;
 }
 
-char *
-rewriteQueryWithOptimization(char *input)
-{
-    Node *parse;
-    char *result;
+char*
+rewriteQueryWithOptimization(char *input) {
+	Node *parse;
+	char *result;
 
-    parse = parseFromString(input);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+	parse = parseFromString(input);
+	DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-    result = rewriteParserOutput(parse, TRUE);
-    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+	result = rewriteParserOutput(parse, TRUE);
+	INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
-    return result;
+	return result;
 }
 
-char *
-generatePlan(Node *oModel, boolean applyOptimizations)
-{
+char*
+generatePlan(Node *oModel, boolean applyOptimizations) {
 	StringInfo result = makeStringInfo();
 	Node *rewrittenTree;
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
-    		oModel = lateralTranslateQBModel(oModel);
+	if (isRewriteOptionActivated(OPTION_LATERAL_REWRITE)
+			&& !hasProvComputation(oModel))
+		oModel = lateralTranslateQBModel(oModel);
 
-    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
-    		oModel = unnestTranslateQBModel(oModel);
+	if (isRewriteOptionActivated(OPTION_UNNEST_REWRITE)
+			&& !hasProvComputation(oModel))
+		oModel = unnestTranslateQBModel(oModel);
 
-    rewrittenTree = provRewriteQBModel(oModel);
-
-
+	rewrittenTree = provRewriteQBModel(oModel);
 
 	/*
 	 * deal with provenance sketch returned when maintaining a sketch under updates
 	 *
 	 * return the updated ps if check the return rewritten tree is a "Constant"
-     */
-
+	 */
 
 // should we use oModel or rewrittenTree? sincce rewrittenTree is the returnd from provRewriteQBModel
 //	if(isA(oModel, Constant))
 //	{
 //		return STRING_VALUE(oModel);
 //	}
+	if (isA(rewrittenTree, Constant)) {
+		DEBUG_NODE_BEATIFY_LOG("THE UPDATED PROVENANCE SKETCH", rewrittenTree);
+		return STRING_VALUE(rewrittenTree);
+	}
 
-    if(isA(rewrittenTree, Constant)) {
-    	DEBUG_NODE_BEATIFY_LOG("THE UPDATED PROVENANCE SKETCH", rewrittenTree);
-    	return STRING_VALUE(rewrittenTree);
-    }
+	if (IS_QB(rewrittenTree)) {
+		DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);
 
+		/*******************new Add for test json import jimp table***************************/
+		if (isA(rewrittenTree,
+				List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator)) {
+			QueryOperator *q = (QueryOperator*) getHeadOfListP(
+					(List*) rewrittenTree);
+			List *taOp = NIL;
+			findTableAccessOperator(&taOp, (QueryOperator*) q);
+			int l = LIST_LENGTH(taOp);
+			DEBUG_LOG("len %d", l);
+			if (isA(getHeadOfListP(taOp), TableAccessOperator)) {
+				TableAccessOperator *ta = (TableAccessOperator*) getHeadOfListP(
+						taOp);
+				DEBUG_LOG("test %s", ta->tableName);
+				if (streq(ta->tableName,
+						"JIMP2") || streq(ta->tableName, "JSDOC1")) {
+					q = rewriteTransformationProvenanceImport(q);
+					DEBUG_LOG("Table: %s", nodeToString(ta));
+					rewrittenTree = (Node*) singleton(q);
+				}
+			}
+		}
+		/*******************new Add for test json import jimp table***************************/
 
+		DEBUG_NODE_BEATIFY_LOG("provenance rewriter returned:", rewrittenTree);
+		INFO_OP_LOG("provenance rewritten query as overview:", rewrittenTree);
+		STOP_TIMER("rewrite");
 
-	if (IS_QB(rewrittenTree))
-	{
-	    DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);
+		ASSERT_BARRIER(
+				if (isA(rewrittenTree, List)) FOREACH(QueryOperator,o,(List *) rewrittenTree) TIME_ASSERT(checkModel(o)); else TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));)
 
-	    /*******************new Add for test json import jimp table***************************/
-	    if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
-	    {
-	        QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
-	        List *taOp = NIL;
-	        findTableAccessOperator(&taOp, (QueryOperator *) q);
-	        int l = LIST_LENGTH(taOp);
-	        DEBUG_LOG("len %d", l);
-	        if(isA(getHeadOfListP(taOp),TableAccessOperator))
-	        {
-	            TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
-	            DEBUG_LOG("test %s", ta->tableName);
-	            if(streq(ta->tableName,"JIMP2") || streq(ta->tableName, "JSDOC1"))
-	            {
-	                q = rewriteTransformationProvenanceImport(q);
-	                DEBUG_LOG("Table: %s", nodeToString(ta));
-	                rewrittenTree = (Node *) singleton(q);
-	            }
-	        }
-	    }
-	    /*******************new Add for test json import jimp table***************************/
-
-	    DEBUG_NODE_BEATIFY_LOG("provenance rewriter returned:", rewrittenTree);
-	    INFO_OP_LOG("provenance rewritten query as overview:", rewrittenTree);
-	    STOP_TIMER("rewrite");
-
-	    ASSERT_BARRIER(
-	            if (isA(rewrittenTree, List))
-	                FOREACH(QueryOperator,o,(List *) rewrittenTree)
-	                TIME_ASSERT(checkModel(o));
-	            else
-	                TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-	    )
-
-        // rewrite for summarization
+		// rewrite for summarization
 //		if (!LIST_EMPTY(summOpts) && qType != NULL)
 //			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
 
-	    if(applyOptimizations)
-	    {
-	        START_TIMER("OptimizeModel");
-	        rewrittenTree = optimizeOperatorModel(rewrittenTree);
-	        INFO_OP_LOG("after optimizing AGM graph:", rewrittenTree);
-	        STOP_TIMER("OptimizeModel");
-	    }
-	    else
-	    {
-	    	if(!isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
-	    	{
-	    		if (isA(rewrittenTree, List))
-	    		{
-	    			FOREACH(QueryOperator,o,(List *) rewrittenTree)
-                	{
-	    				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
-                	}
-	    		}
-	    		else
-	    		{
-	    			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
-	    		}
-	    	}
-	    }
+		if (applyOptimizations) {
+			START_TIMER("OptimizeModel");
+			rewrittenTree = optimizeOperatorModel(rewrittenTree);
+			INFO_OP_LOG("after optimizing AGM graph:", rewrittenTree);
+			STOP_TIMER("OptimizeModel");
+		} else {
+			if (!isRewriteOptionActivated(OPTION_LATERAL_REWRITE)) {
+				if (isA(rewrittenTree, List)) {
+					FOREACH(QueryOperator,o,(List *) rewrittenTree)
+					{
+						LC_P_VAL(o_his_cell) = materializeProjectionSequences(
+								o);
+					}
+				} else {
+					rewrittenTree = (Node*) materializeProjectionSequences(
+							(QueryOperator*) rewrittenTree);
+				}
+			}
+		}
 
-	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
+		DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
 
 	START_TIMER("SQLcodeGen");
@@ -556,46 +505,42 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
 }
 
-static char *
-rewriteParserOutput (Node *parse, boolean applyOptimizations)
-{
-    char *rewrittenSQL = NULL;
-    Node *oModel;
+static char*
+rewriteParserOutput(Node *parse, boolean applyOptimizations) {
+	char *rewrittenSQL = NULL;
+	Node *oModel;
 
 //    if(!getBoolOption(OPTION_INPUTDB))
 //    	summarizationPlan(parse);
 
-    START_TIMER("translation");
-    oModel = translateParse(parse);
-    DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
-    if (IS_OP(oModel))
-    {
-        INFO_OP_LOG("translator result as overview:", oModel);
-        DOT_TO_CONSOLE_WITH_MESSAGE("TRANSLATOR OUTPUT", oModel);
-    }
-    else if (IS_DL_NODE(oModel))
-    {
-        INFO_DL_LOG("translator result as overview:", oModel);
-    }
-    STOP_TIMER("translation");
+	START_TIMER("translation");
+	oModel = translateParse(parse);
+	DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
+	// shortcircuit DML and DDL statements directly translate into SQL code
+	if (isA(oModel, DLMorDDLOperator)) // check for list of DLMorDDLOperator operators
+	{
+		StringInfo result = makeStringInfo();
 
-    ASSERT_BARRIER(
-        if (IS_OP(oModel))
-        {
-            if (isA(oModel, List))
-                FOREACH(QueryOperator,o,(List *) oModel)
-                TIME_ASSERT(checkModel(o));
-            else
-                TIME_ASSERT(checkModel((QueryOperator *) oModel));
-        }
-    )
+		appendStringInfo(result, "%s\n", serializeOperatorModel(oModel));
+		return result->data;
+	}
+	if (IS_OP(oModel)) {
+		INFO_OP_LOG("translator result as overview:", oModel);
+		DOT_TO_CONSOLE_WITH_MESSAGE("TRANSLATOR OUTPUT", oModel);
+	} else if (IS_DL_NODE(oModel)) {
+		INFO_DL_LOG("translator result as overview:", oModel);
+	}
+	STOP_TIMER("translation");
 
-    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
-        rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
-    else
-    	rewrittenSQL = generatePlan(oModel, applyOptimizations);
+	ASSERT_BARRIER(
+			if (IS_OP(oModel)) { if (isA(oModel, List)) FOREACH(QueryOperator,o,(List *) oModel) TIME_ASSERT(checkModel(o)); else TIME_ASSERT(checkModel((QueryOperator *) oModel)); })
 
-    return rewrittenSQL;
+	if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+		rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
+	else
+		rewrittenSQL = generatePlan(oModel, applyOptimizations);
+
+	return rewrittenSQL;
 }
 
 //static void

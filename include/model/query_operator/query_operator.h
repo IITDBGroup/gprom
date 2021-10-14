@@ -40,6 +40,12 @@ typedef struct QueryOperator
     Node *properties; // generic node to store flexible list or map of properties (KeyValue) for query operators
 } QueryOperator; // common fields that all operators have
 
+typedef struct DLMorDDLOperator
+{
+	QueryOperator op;
+	Node *stmt;
+} DLMorDDLOperator;
+
 typedef struct TableAccessOperator
 {
     QueryOperator op;
@@ -238,7 +244,7 @@ extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
 extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
         List *parents);
 extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents);
-
+extern DLMorDDLOperator *createDMLDDLOp(Node *stmt);
 /* navigation functions */
 #define OP_LCHILD(op) \
     ((QueryOperator *) getHeadOfListP(((QueryOperator*) op)->inputs))

@@ -44,6 +44,7 @@ typedef struct ReplaceGroupByState {
 // function declarations
 static Node *translateGeneral(Node *node, List **attrsOffsetsList);
 static QueryOperator *translateQueryOracleInternal (Node *node, List **attrsOffsetsList);
+static QueryOperator *translateQueryOracleInternalReenact(Node *node, List **attrsOffsetsList);
 //static Node *translateSummary(Node *input, Node *node);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
@@ -165,7 +166,8 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
         case T_Insert:
         case T_Update:
         case T_Delete:
-            return translateUpdate(node);
+            return translateUpdateReenact(node);
+//        	return translateUpdate(node);
         case T_WithStmt:
             return translateWithStmt((WithStmt *) node, attrsOffsetsList);
         case T_CreateTable:
@@ -177,7 +179,24 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
             return NULL;
     }
 }
-
+static QueryOperator *
+translateQueryOracleInternalReenact(Node *node, List **attrsOffsetsList)
+{
+	switch(node->type)
+    {
+        case T_Insert:
+        case T_Update:
+        case T_Delete:
+            return translateUpdateReenact(node);
+        case T_CreateTable:
+            return translateCreateTableReenact((CreateTable *) node);
+        case T_AlterTable:
+            return translateAlterTableReenact((AlterTable *) node);
+	    default:
+            ASSERT(FALSE);
+            return NULL;
+	}
+}
 
 static Node *
 translateGeneral (Node *node, List **attrsOffsetsList)
@@ -675,7 +694,7 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
 
                 // translate and add update as child to provenance computation
                 START_TIMER("translation - transaction - translate update");
-                child = translateQueryOracleInternal(node, attrsOffsetsList);
+                child = translateQueryOracleInternalReenact(node, attrsOffsetsList);
                 STOP_TIMER("translation - transaction - translate update");
 
                 // mark for showing intermediate results
@@ -750,7 +769,7 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
                 tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
 
                 // translate and add update as child to provenance computation
-                child = translateQueryOracleInternal(n, attrsOffsetsList);
+                child = translateQueryOracleInternalReenact(n, attrsOffsetsList);
                 addChildOperator((QueryOperator *) result, child);
             }
         }
@@ -861,7 +880,7 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);
 
                 // translate and add update as child to provenance computation
-                child = translateQueryOracleInternal(n, attrsOffsetsList);
+                child = translateQueryOracleInternalReenact(n, attrsOffsetsList);
                 MAP_ADD_STRING_KEY(tableToTranslation, tableName, child);
 
                 addChildOperator((QueryOperator *) result, child);

@@ -145,6 +145,7 @@
 
 // functions
 static void execStmt (char *stmt);
+
 static PGresult *execQuery(char *query);
 static void execCommit(void);
 static PGresult *execPrepared(char *qName, List *values);
@@ -162,6 +163,7 @@ static List *oidVecToOidList (char *oidVec);
 static DataType postgresOidToDT(char *Oid);
 static DataType postgresOidIntToDT(int oid);
 static DataType postgresTypenameToDT (char *typName);
+
 
 
 
@@ -1342,6 +1344,10 @@ postgresExecuteQueryIgnoreResult (char *query)
             done = TRUE;
     }
     execCommit();
+}
+
+void postgresExecuteStatement(char* sql) {
+	execStmt(sql);
 }
 
 // NO libpq present. Provide dummy methods to keep compiler quiet
