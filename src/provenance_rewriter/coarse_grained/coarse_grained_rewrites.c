@@ -29,7 +29,7 @@
 #include "sql_serializer/sql_serializer_postgres.h"
 
 #define MAX_NUM_RANGE 10000
-#define COMMA "-"
+#define COMMA "||"
 #define PSCELLS_TABLE_NAME "psinfo"
 #define TEMPLATES_TABLE_NAME "template"
 #define HIST_TABLE_NAME "hist"
