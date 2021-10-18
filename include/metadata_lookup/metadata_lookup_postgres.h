@@ -42,7 +42,7 @@ extern HashMap *postgresGetPSTemplateFromTable();
 extern HashMap *postgresGetPSHistogramFromTable ();
 extern void postgresStorePsInfo (int tNo, char *paras, psInfoCell *psc);
 extern void postgresStorePsTemplate(KeyValue *kv);
-extern void postgresStorePsHist(KeyValue *kv);
+extern void postgresStorePsHist(KeyValue *kv, int n);
 extern void postgresCreatePSTemplateTable();
 extern void postgresCreatePSInfoTable();
 extern void postgresCreatePSHistTable();

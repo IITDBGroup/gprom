@@ -91,15 +91,16 @@ extern int getPsSize(BitSet* psBitVector);
 extern void loadPSInfoFromTable();
 //extern void storePSInfoToTable();
 extern void storePS();
+extern HashMap *getPSFromCache(QueryOperator *op);
 
 extern char *getPSCellsTableName();
 extern char *getTemplatesTableName();
 extern char *getHistTableName();
 extern List *splitHistMapKey(char *k);
-extern HashMap *getLtempNoMap();
-extern HashMap *getpsCellMap();
-extern HashMap *setLtempNoMap(HashMap *map);
-extern HashMap *setpsCellMap(HashMap *map);
+//extern HashMap *getLtempNoMap();
+//extern HashMap *getpsCellMap();
+//extern HashMap *setLtempNoMap(HashMap *map);
+//extern HashMap *setpsCellMap(HashMap *map);
 extern char *getHistMapKey(char *table, char *attr, char *numRanges);
 
 

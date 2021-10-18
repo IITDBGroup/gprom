@@ -1110,10 +1110,10 @@ postgresGetPSHistogramFromTable ()
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++) {
-    	char *tableName = strdup(PQgetvalue(res,i,0));
-    	char *attrName  = strdup(PQgetvalue(res,i,1));
-    	char *numRanges = strdup(PQgetvalue(res,i,2));
-    	char *hist 		= strdup(PQgetvalue(res,i,3));
+    	char *tableName = strdup(PQgetvalue(res,i,1));
+    	char *attrName  = strdup(PQgetvalue(res,i,2));
+    	char *numRanges = strdup(PQgetvalue(res,i,3));
+    	char *hist 		= strdup(PQgetvalue(res,i,4));
 		char *histMapKey = getHistMapKey(tableName,attrName, numRanges);
     	MAP_ADD_STRING_KEY(tmap,histMapKey,createConstString(hist));
     }
@@ -1150,7 +1150,7 @@ postgresCreatePSTemplateTable()
 			tplTable);
 //	appendStringInfo(createSql,"create table %s (tid int,parameters VARCHAR(255),tableName VARCHAR(50),attribte VARCHAR(50),tableAttr VARCHAR(50),numPartitions int,psSize int,ps text);",
 //			psTable);
-//	appendStringInfo(createSql,"create table %s (tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
+//	appendStringInfo(createSql,"create table %s (hid int, tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
 //			histTable);
 
 	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
@@ -1181,7 +1181,7 @@ postgresCreatePSInfoTable()
 //			tplTable);
 	appendStringInfo(createSql,"create table %s (tid int,parameters VARCHAR(255),tableName VARCHAR(50),attribte VARCHAR(50),tableAttr VARCHAR(50),numPartitions int,psSize int,ps text);",
 			psTable);
-//	appendStringInfo(createSql,"create table %s (tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
+//	appendStringInfo(createSql,"create table %s (hid int, tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
 //			histTable);
 
 	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
@@ -1212,7 +1212,7 @@ postgresCreatePSHistTable()
 //			histTable);
 //	appendStringInfo(createSql,"create table %s (tid int,parameters VARCHAR(255),tableName VARCHAR(50),attribte VARCHAR(50),tableAttr VARCHAR(50),numPartitions int,psSize int,ps text);",
 //			psTable);
-	appendStringInfo(createSql,"create table %s (tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
+	appendStringInfo(createSql,"create table %s (hid int, tablename VARCHAR(50),attribte VARCHAR(50),numPartitions int,hist text); commit;",
 			histTable);
 
 	//appendStringInfo(insertInfo,"create table %s (a int,b int); commit;",
@@ -1225,7 +1225,7 @@ postgresCreatePSHistTable()
 
 
 void
-postgresStorePsHist(KeyValue *kv)
+postgresStorePsHist(KeyValue *kv, int n)
 {
 	char *tableName = getHistTableName();
 
@@ -1234,15 +1234,16 @@ postgresStorePsHist(KeyValue *kv)
 	StringInfo insertInfo = makeStringInfo();
 
 	/*
-	 *  tableName | attribute | numPartitions  |  ranges
-	 *  |     R     |    a      |   10000      |  1,10,..
-	 *  |     R     |    b      |   10000      |  1,10,..
+	 * hid| tableName | attribute | numPartitions  |  ranges
+	 *  1 |     R     |    a      |   10000      |  1,10,..
+	 *  2 |     R     |    b      |   10000      |  1,10,..
 	 *   ...
 	 */
 
 	List *keyList = splitHistMapKey(STRING_VALUE(kv->key));
-    appendStringInfo(insertInfo,"insert into %s values ('%s','%s',%d,'%s');",
+    appendStringInfo(insertInfo,"insert into %s values (%d,'%s','%s',%d,'%s');",
     			tableName,
+    			n, //id
 				STRING_VALUE(getNthOfListP(keyList,0)),
 				STRING_VALUE(getNthOfListP(keyList,1)),
 				atoi(STRING_VALUE(getNthOfListP(keyList,2))),

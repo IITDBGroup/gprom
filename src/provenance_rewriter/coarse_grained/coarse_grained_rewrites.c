@@ -63,31 +63,52 @@ static void storePSInfoToTable();
 static void storeHist();
 static void initStoredTable();
 static int getTemplateNo();
+static List *getPSIfExists(QueryOperator *op);
 
+// Mem context
+#define PS_MEM_CONTEXT_NAME "PSMemContext"
+static MemContext *psMemContext = NULL;
 
-HashMap *
-setLtempNoMap(HashMap *map)
-{
-	return tempNoMap = map;
-}
+//void
+//initPSmem()
+//{
+//	psMemContext = NEW_LONGLIVED_MEMCONTEXT(PS_MEM_CONTEXT_NAME);
+//	//NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
+//    ACQUIRE_MEM_CONTEXT(psMemContext);
+//	//RELEASE_MEM_CONTEXT();
+//	//ACQUIRE_LONGLIVED_MEMCONTEXT(PS_MEM_CONTEXT_NAME);
+//	//memContext = getCurMemContext();
+//}
+//
+//void
+//releasePSmem()
+//{
+//	RELEASE_MEM_CONTEXT();
+//}
 
-HashMap *
-setpsCellMap(HashMap *map)
-{
-	return psCellMap = map;
-}
-
-HashMap *
-getLtempNoMap()
-{
-	return tempNoMap;
-}
-
-HashMap *
-getpsCellMap()
-{
-	return psCellMap;
-}
+//HashMap *
+//setLtempNoMap(HashMap *map)
+//{
+//	return tempNoMap = map;
+//}
+//
+//HashMap *
+//setpsCellMap(HashMap *map)
+//{
+//	return psCellMap = map;
+//}
+//
+//HashMap *
+//getLtempNoMap()
+//{
+//	return tempNoMap;
+//}
+//
+//HashMap *
+//getpsCellMap()
+//{
+//	return psCellMap;
+//}
 
 static void
 initStoredTable()
@@ -102,9 +123,66 @@ initStoredTable()
 		createPSHistTable();
 }
 
+static List *
+getPSIfExists(QueryOperator *op)
+{
+	List *l = NIL;
+
+	// get template SQL and parameters separated by comma (string)
+	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
+	char *pqSql = serializeOperatorModel((Node *) pq->q);
+	char *cparas = parameterToCharsSepByComma(pq->parameters);
+	DEBUG_LOG("parameters to chars seperated by comma: %s", cparas);
+
+	if(tempNoMap != NULL && MAP_HAS_STRING_KEY(tempNoMap,pqSql))
+	{
+		int tNo = INT_VALUE(MAP_GET_STRING(tempNoMap,pqSql));
+		if(psCellMap != NULL && MAP_HAS_INT_KEY(psCellMap, tNo))
+		{
+			HashMap *hm = (HashMap *) MAP_GET_INT(psCellMap,tNo);
+			if(MAP_HAS_STRING_KEY(hm,cparas))
+				l = (List *) MAP_GET_STRING(hm,cparas);
+		}
+	}
+
+	if(ltempNoMap != NULL && MAP_HAS_STRING_KEY(ltempNoMap,pqSql))
+	{
+		int tNo = INT_VALUE(MAP_GET_STRING(ltempNoMap,pqSql));
+		if(lpsCellMap != NULL && MAP_HAS_INT_KEY(lpsCellMap, tNo))
+		{
+			HashMap *hm = (HashMap *) MAP_GET_INT(lpsCellMap,tNo);
+			if(MAP_HAS_STRING_KEY(hm,cparas))
+				l = (List *) MAP_GET_STRING(hm,cparas);
+		}
+	}
+
+	return l;
+}
+
+HashMap *
+getPSFromCache(QueryOperator *op)
+{
+	HashMap *hm = NULL;
+
+	List *l = getPSIfExists(op);
+
+	if(l != NIL)
+	{
+		hm = NEW_MAP(Constant,Constant);
+		FOREACH(psInfoCell,p, l)
+		{
+			char *ps = bitSetToString(p->ps);
+			MAP_ADD_STRING_KEY(hm, strdup(p->provTableAttr), createConstString(ps));
+		}
+	}
+	return hm;
+}
+
 void
 loadPSInfoFromTable()
 {
+	psMemContext = NEW_LONGLIVED_MEMCONTEXT(PS_MEM_CONTEXT_NAME);
+    ACQUIRE_MEM_CONTEXT(psMemContext);
 
 	initStoredTable();
 
@@ -114,6 +192,8 @@ loadPSInfoFromTable()
 	DEBUG_NODE_BEATIFY_LOG("ltempNoMap: ", ltempNoMap);
 	DEBUG_NODE_BEATIFY_LOG("lpsCellMap: ", lpsCellMap);
 	DEBUG_NODE_BEATIFY_LOG("lhistMap: ", lhistMap);
+
+	RELEASE_MEM_CONTEXT();
 }
 
 static void
@@ -134,6 +214,10 @@ storeTemplates()
 static void
 storeHist()
 {
+	//hist id
+	int len = mapSize(lhistMap);
+	DEBUG_LOG("storeHist len: %d", len );
+
 //	DEBUG_NODE_BEATIFY_LOG("histMap: ", histMap);
 	FOREACH_HASH_ENTRY(kv, histMap)
 	{
@@ -142,7 +226,8 @@ storeHist()
 		//check the loaded histogram
 		if(!MAP_HAS_STRING_KEY(lhistMap, k))
 		{
-			storePsHist(kv);
+			len++;
+			storePsHist(kv, len);
 		}
 	}
 }
@@ -178,9 +263,11 @@ storePSInfoToTable()
 void
 storePS()
 {
+	ACQUIRE_MEM_CONTEXT(psMemContext);
 	storeTemplates();
 	storePSInfoToTable();
 	storeHist();
+	RELEASE_MEM_CONTEXT();
 }
 
 QueryOperator *
@@ -786,7 +873,6 @@ splitHistMapKey(char *k)
 	List *res = NIL;
 	char * token = strtok(k, HIST_KEY_DELI);
 	   while( token != NULL ) {
-	      //DEBUG_LOG( " %s\n", token );
 	      res = appendToTailOfList(res,createConstString(token));
 	      DEBUG_LOG("token: %s", token);
 	      token = strtok(NULL, HIST_KEY_DELI);
@@ -841,6 +927,7 @@ getTemplateNo()
 void
 cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 {
+	ACQUIRE_MEM_CONTEXT(psMemContext);
 	// get template SQL and parameters separated by comma (string)
 	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
 	char *pqSql = serializeOperatorModel((Node *) pq->q);
@@ -938,6 +1025,8 @@ cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 
 		MAP_ADD_STRING_KEY(paraMap,cparas,psCellList);
 	}
+
+	RELEASE_MEM_CONTEXT();
 }
 
 

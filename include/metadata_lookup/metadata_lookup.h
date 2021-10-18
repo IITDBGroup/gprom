@@ -116,7 +116,7 @@ typedef struct MetadataLookupPlugin
     HashMap *(*getProvenanceSketchHistogramFromTable) ();
     void (*storePsInformation) (int tNo, char *paras, psInfoCell *psc);
     void (*storePsTemplates) (KeyValue *kv);
-    void (*storePsHistogram) (KeyValue *kv);
+    void (*storePsHistogram) (KeyValue *kv, int n);
     void (*createProvenanceSketchTemplateTable) ();
     void (*createProvenanceSketchInfoTable) ();
     void (*createProvenanceSketchHistTable) ();
@@ -160,7 +160,7 @@ extern void createPSHistTable();
 
 extern void storePsInfo (int tNo, char *paras, psInfoCell *psc);
 extern void storePsTemplate (KeyValue *kv);
-extern void storePsHist (KeyValue *kv);
+extern void storePsHist (KeyValue *kv, int n);
 extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);

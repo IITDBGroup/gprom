@@ -532,11 +532,11 @@ storePsTemplate (KeyValue *kv)
 }
 
 void
-storePsHist (KeyValue *kv)
+storePsHist (KeyValue *kv, int n)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    activePlugin->storePsHistogram(kv);
+    activePlugin->storePsHistogram(kv,n);
     RELEASE_MEM_CONTEXT();
 }
 

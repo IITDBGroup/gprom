@@ -51,10 +51,6 @@
 
 #include "utility/string_utils.h"
 
-// Mem context
-#define CONTEXT_NAME "PSMemContext"
-static MemContext *memContext = NULL;
-
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
@@ -241,7 +237,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 			/* copy op for use ps */
 			ProvenanceComputation *useOp = (ProvenanceComputation *) copyObject(op);
 
-			/* capture provenance sketch */
+			/* prepare capture provenance sketch */
 			QueryOperator *capOp = rewritePI_CS(op);
 			capOp = addTopAggForCoarse(capOp);
 
@@ -253,19 +249,61 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 			char *capSql = serializeOperatorModel((Node *)capOp);
 			DEBUG_LOG("Capture Provenance Sketch Sql : %s", capSql);
 
-			/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
-			HashMap *psMap = getPS(capSql,attrNames);
+			HashMap *psMap = NULL;
 
+			/* if in self-turning mode
+			 * 1) check whether need to capture ps: if no, load ps, if yes, capture
+			 * 2) cache the ps
+			 * if not in self-turning mode, we don't need to cache ps
+			 *
+			 * For 1) check strategy:
+			 * if already exists ps in the cache (from load or just cached), then load directly and without recapture
+			 * ps is decided by query template and parameters
+			 * future: maybe also check ps created on different columns and different number of ranges?
+			 * e.g., given query q: first time  q -> a 1,4,7,10
+			 * 						second time q -> a 1,5,10
+			 * 						third time  q -> b 1,30,60,90
+			 */
 
-			//cache ps information if in self-turning model
 			if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
 			{
-			    //NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
-			    memContext = getCurMemContext();
+				DEBUG_LOG("Now in self-turning mode. ");
 				QueryOperator *rootParaSql = OP_LCHILD(op);
+				psMap = getPSFromCache(rootParaSql);
+				if(psMap == NULL) //if not find ps from cache, then capture first
+				{
+					DEBUG_LOG("Not find ps. ");
+					/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
+					psMap = getPS(capSql,attrNames);
+				}
+				else
+					DEBUG_LOG("Find ps. ");
+
+				DEBUG_NODE_BEATIFY_LOG("Current psMap: ", psMap);
+				//cache ps information
+				//ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
+				//memContext = getCurMemContext();
+				//QueryOperator *rootParaSql = OP_LCHILD(op);
 				cachePsInfo(rootParaSql,psPara,psMap);
 				//RELEASE_MEM_CONTEXT();
 			}
+			else
+			{
+				/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
+				//HashMap *psMap = getPS(capSql,attrNames);
+				psMap = getPS(capSql,attrNames);
+				DEBUG_NODE_BEATIFY_LOG("print psMap: ", psMap);
+			}
+
+//			//cache ps information if in self-turning model
+//			if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+//			{
+//			    //ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
+//			    memContext = getCurMemContext();
+//				QueryOperator *rootParaSql = OP_LCHILD(op);
+//				cachePsInfo(rootParaSql,psPara,psMap);
+//				//RELEASE_MEM_CONTEXT();
+//			}
 
 			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
 			{
