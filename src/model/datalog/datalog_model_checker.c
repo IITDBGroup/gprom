@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * datalog_model_checker.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -25,7 +25,7 @@ static boolean checkDLProgram (DLProgram *p);
 static boolean checkDLRule (DLRule *r);
 
 boolean
-checkDLModel (Node *dlModel)
+checkDLModel(Node *dlModel)
 {
     // check for specific DL node types
     if (isA(dlModel, DLProgram))
@@ -40,7 +40,7 @@ checkDLModel (Node *dlModel)
 }
 
 static boolean
-checkDLProgram (DLProgram *p)
+checkDLProgram(DLProgram *p)
 {
     HashMap *relArities = NEW_MAP(Constant,Constant);
     Set *idbRels = STRSET();

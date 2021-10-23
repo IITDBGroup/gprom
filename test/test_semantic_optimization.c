@@ -20,7 +20,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/graph/graph.h"
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
-
+#include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
 
 static rc testOptimization(void);
 static rc testRewriting(void);

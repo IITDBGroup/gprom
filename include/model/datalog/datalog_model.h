@@ -130,6 +130,8 @@ extern DLAtom *getNormalizedAtom(DLAtom *a);
 extern void makeVarNamesUnique(List *nodes);
 extern char *getUnificationString(DLAtom *a);
 
+// rewrites by substituting rule bodies for rule heads
+extern DLProgram *mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease);
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);
@@ -172,6 +174,7 @@ extern void delDLProp(DLNode *n, char *key);
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
+#define DL_REL_TO_REL_GRAPH "REL_TO_REL_G"
 #define DL_MAP_UN_PREDS_TO_RULES "UN_PREDS_TO_RULES"
 #define DL_MAP_ADORNED_PREDS_TO_RULES "ADORNED_PREDS_TO_RULES"
 #define DL_IDB_RELS "IDB_RELS"

@@ -15,6 +15,7 @@
 #include "log/logger.h"
 #include "analysis_and_translate/analyze_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "model/graph/graph.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
@@ -36,7 +37,7 @@ static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
 
 
 Node *
-analyzeDLModel (Node *stmt)
+analyzeDLModel(Node *stmt)
 {
     //TODO implement checks, e.g., edb relation arity, variable data types, which relations edb which are idb
     if (isA(stmt, DLProgram))
@@ -76,8 +77,57 @@ createRelToRuleMap (Node *stmt)
     setDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES, (Node *) relToRule);
 }
 
+#define ADD_NONEXISTS_NODE(_g,_n)				\
+	if(!HAS_NODE(_g,_n))						\
+	{											\
+		ADD_NODE(_g, _n);						\
+	}
+
+
+void
+createRelToRelGraph(Node *stmt)
+{
+	Graph *g;
+	DLProgram *p;
+
+    if (!isA(stmt,DLProgram))
+	{
+        return;
+	}
+
+	p = (DLProgram *) stmt;
+	g = createEmptyGraph();
+
+	FOREACH(Node,nr,p->rules)
+	{
+		if(isA(nr,DLRule))
+		{
+			DLRule *r = (DLRule *) nr;
+			Constant *headPred = createConstString(getHeadPredName((DLRule *) r));
+
+			// add predicate as node if it is new
+			ADD_NONEXISTS_NODE(g, headPred);
+
+			FOREACH(DLNode,n,r->body)
+			{
+				if(isA(n,DLAtom))
+				{
+					DLAtom *a = (DLAtom *) n;
+					Constant *pred = createConstString(a->rel);
+					ADD_NONEXISTS_NODE(g, pred);
+
+					ADD_EDGE(g, headPred, pred);
+				}
+			}
+		}
+	}
+
+	p = (DLProgram *) stmt;
+	setDLProp((DLNode *) p, DL_REL_TO_REL_GRAPH, (Node *) g);
+}
+
 static void
-analyzeDLProgram (DLProgram *p)
+analyzeDLProgram(DLProgram *p)
 {
     Set *idbRels = STRSET();
 //    Set *edbRels = STRSET();

@@ -16,6 +16,7 @@
 #include "common.h"
 #include "log/logger.h"
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/graph/graph.h"
@@ -46,6 +47,15 @@ createEmptyGraph(void)
 	result->edges = NEW_MAP(Node,Set);
 
 	return result;
+}
+
+void
+addNode(Graph *g, Node *n)
+{
+	if(!hasSetElem(g->nodes, n))
+	{
+		addToSet(g->nodes, n);
+	}
 }
 
 void
@@ -193,4 +203,64 @@ Graph *
 transitiveClosure(Graph *g)
 {
 	return g; //TODO
+}
+
+Graph *
+invertEdges(Graph *g)
+{
+	Graph *result = createEmptyGraph();
+
+	result->nodes = copyObject(g->nodes);
+
+	FOREACH_HASH_ENTRY(e, g->edges)
+	{
+		Node *start = e->key;
+		Set *adj = (Set *) e->value;
+
+		FOREACH_SET(Node,end,adj)
+		{
+			addEdge(result, end, start);
+		}
+	}
+
+	return result;
+}
+
+Set *
+sourceNodes(Graph *g)
+{
+	Set *result = copyObject(g->nodes);
+
+	FOREACH_HASH_ENTRY(kv, g->edges)
+	{
+		Set *ends = (Set *) kv->value;
+
+		result = setDifference(result, ends);
+	}
+
+	return result;
+}
+
+Set *
+sinkNodes(Graph *g)
+{
+	Set *result = NODESET();
+
+	FOREACH_SET(Node,n,g->nodes)
+	{
+		if(!hasMapKey(g->edges, n))
+		{
+			addToSet(result, n);
+		}
+		else
+		{
+			Set *ends = (Set *) getMap(g->edges, n);
+			if (EMPTY_SET(ends))
+			{
+				addToSet(result, n);
+			}
+		}
+	}
+
+	return result;
 }

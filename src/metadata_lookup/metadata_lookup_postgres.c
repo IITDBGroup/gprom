@@ -727,6 +727,7 @@ postgresCatalogTableExists (char * tableName)
     {
         addToSet(plugin->plugin.cache->tableNames, tableName);
         PQclear(res);
+		RELEASE_MEM_CONTEXT();
         return TRUE;
     }
     PQclear(res);
@@ -751,6 +752,7 @@ postgresCatalogViewExists (char * viewName)
     {
         addToSet(plugin->plugin.cache->viewNames, viewName);
         PQclear(res);
+		RELEASE_MEM_CONTEXT();
         return TRUE;
     }
     PQclear(res);

@@ -41,7 +41,7 @@ parseStream (FILE *stream)
 }
 
 Node *
-parseFromString (char *input)
+parseFromString(char *input)
 {
     ASSERT(plugin);
 

@@ -26,6 +26,7 @@
 static rc testConstGraph(void);
 static rc testGraphReachability(void);
 static rc testGraphUpdates(void);
+static rc testGraphIversion(void);
 static Set *constSetToStringSet(Set *constSet);
 
 rc
@@ -34,6 +35,7 @@ testGraph(void)
     RUN_TEST(testConstGraph(), "test const graphs");
 	RUN_TEST(testGraphReachability(), "test reachability in graphs");
 	RUN_TEST(testGraphUpdates(), "test updates of graphs");
+	RUN_TEST(testGraphIversion(), "test inversion og graph edges");
 
     return PASS;
 }
@@ -143,6 +145,21 @@ testGraphReachability(void)
 	ASSERT_DIRECTLY_REACHABLE_FROM(g,"a","b");
 	ASSERT_DIRECTLY_REACHABLE_FROM(g,"c","d","a");
 
+	// sources and sinks
+	g = createEmptyGraph();
+	ADD_STR_E(g,"a","b");
+	ADD_STR_E(g,"a","c");
+	ADD_STR_E(g,"c","d");
+	ADD_STR_E(g,"d","e");
+
+	ASSERT_EQUALS_NODE(MAKE_STR_SET("a"),
+					   constSetToStringSet(sourceNodes(g)),
+					   "sources: {a}");
+
+	ASSERT_EQUALS_NODE(MAKE_STR_SET("b", "e"),
+					   constSetToStringSet(sinkNodes(g)),
+					   "sources: {b, e}");
+
 	return PASS;
 }
 
@@ -172,6 +189,30 @@ testGraphUpdates(void)
 	ASSERT_EQUALS_INT(numNodes(g), 4, "graph has 4 nodes");
 	ASSERT_EQUALS_INT(numEdges(g), 1, "graph has 1 edge");
 	ASSERT_NO_EDGE(g,"c","e");
+
+	return PASS;
+}
+
+static rc
+testGraphIversion(void)
+{
+	Graph *g, *expected;
+
+	g = createEmptyGraph();
+	ADD_STR_E(g,"a","b");
+	ADD_STR_E(g,"a","c");
+	ADD_STR_E(g,"c","d");
+	ADD_STR_E(g,"c","e");
+
+	expected = createEmptyGraph();
+	ADD_STR_E(expected,"b","a");
+	ADD_STR_E(expected,"c","a");
+	ADD_STR_E(expected,"d","c");
+	ADD_STR_E(expected,"e","c");
+
+	g = invertEdges(g);
+
+	ASSERT_EQUALS_NODE(expected, g, "Inverted edge graph.");
 
 	return PASS;
 }

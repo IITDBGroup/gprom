@@ -141,6 +141,19 @@ makeSetLong(gprom_long_t elem, ...)
 }
 
 Set *
+makeStringSetFromConstSet(Set *s)
+{
+	Set *result = STRSET();
+
+	FOREACH_SET(char,str,s)
+	{
+		addToSet(result, STRING_VALUE(str));
+	}
+
+	return result;
+}
+
+Set *
 makeStrSetFromList(List *strList)
 {
     Set *result = STRSET();

@@ -179,7 +179,8 @@ provStatement:
 		| LINEAGE FOR name '.'
 		{
 			RULELOG("provStatement::LINEAGE-FOR-table");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(DL_PROV_LINEAGE), createConstString($3));
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(DL_PROV_LINEAGE),
+											 (Node *) createConstString($3));
 		}
 	;
 

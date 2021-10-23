@@ -1,26 +1,28 @@
 /*-----------------------------------------------------------------------------
  *
  * test_dl.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
 
+#include "parser/parser_dl.h"
 #include "test_main.h"
 #include "model/list/list.h"
+#include "analysis_and_translate/analyze_dl.h"
 #include "model/datalog/datalog_model.h"
 
-static rc testMakeVarsUnique (void);
-
+static rc testMakeVarsUnique(void);
+static rc testRuleMerging(void);
 rc
 testDatalogModel(void)
 {
     RUN_TEST(testMakeVarsUnique(), "test replacing vars with unique vars");
-
+	RUN_TEST(testRuleMerging(), "test merging of subqueries");
     return PASS;
 }
 
@@ -55,4 +57,27 @@ testMakeVarsUnique (void)
     ASSERT_EQUALS_NODE(er1, r1, "R(A,B) :- S(B,C);");
 
     return PASS;
+}
+
+static rc
+testRuleMerging(void)
+{
+	DLProgram *p = (DLProgram *) parseFromStringdl(
+		"R(1,1).\nS(1,1).\n"
+		"T(1).\nU(1,1).\n"
+		"Q(X) :- G(X,Y), H(Y,Z).\n"
+		"G(Y,Z) :- R(Y,Z), S(Z,X).\n"
+		"H(Z,X) :- T(X), U(Z,Z).");
+	DLProgram *expected = (DLProgram *) parseFromStringdl(
+		"R(1,1).\nS(1,1).\n"
+		"T(1).\nU(1,1).\n"
+		"Q(V3) :- R(V3,V4),S(V4,V6),T(V7),U(V4,V4).");
+
+	analyzeDLModel((Node *) p);
+	analyzeDLModel((Node *) expected);
+
+	p = mergeSubqueries(p, TRUE);
+	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
+
+	return PASS;
 }

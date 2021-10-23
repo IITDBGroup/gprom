@@ -179,6 +179,7 @@ extern ListCell *getNthOfList(List *list, int n);
 extern void newListTail(List *list);
 extern List *appendToTailOfList(List *list, void *value);
 extern List *appendToTailOfListInt(List *list, int value);
+extern List *appendAllToTail(List *l, List *new);
 
 extern void newListHead(List *list);
 extern List *appendToHeadOfList(List *list, void *value);

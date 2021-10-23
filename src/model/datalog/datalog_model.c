@@ -18,8 +18,13 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
+#include "model/graph/graph.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
+#include "model/datalog/datalog_model_checker.h"
+#include "analysis_and_translate/analyze_dl.h"
+#include "ocilib.h"
+#include <assert.h>
 
 static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames);
 static boolean findVarsVisitor (Node *node, List **context);
@@ -27,6 +32,9 @@ static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator (Node *node, HashMap *context);
+static List *mergeRule(DLRule *super, List *replacements);
+static char *getFirstIDBAtom(DLRule *r, Set *idbPreds);
+static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds);
 
 DLAtom *
 createDLAtom (char *rel, List *args, boolean negated)
@@ -218,7 +226,7 @@ getVarNames (List *vars)
 }
 
 DLRule *
-unifyRule (DLRule *r, List *headBinds)
+unifyRule(DLRule *r, List *headBinds)
 {
     DLRule *result = copyObject(r);
     List *hVars = getHeadVars(r);
@@ -275,6 +283,171 @@ getUnificationString(DLAtom *a)
 
     return result->data;
 }
+
+DLProgram *
+mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
+{
+	DLProgram *result;
+	Graph *relGraph;
+	HashMap *predToRule;
+	Set *idbRels;
+	Set *todo;
+	List *newRules = NIL;
+
+	ENSURE_REL_TO_REL_GRAPH(p);
+	checkDLModel((Node *) p);
+	result = copyObject(p);
+
+	idbRels = (Set *) getDLProp((DLNode *) result, DL_IDB_RELS);
+	relGraph = (Graph *) getDLProp((DLNode *) result, DL_REL_TO_REL_GRAPH);
+	predToRule = (HashMap *) getDLProp((DLNode *) result, DL_MAP_RELNAME_TO_RULES);
+    todo = sourceNodes(relGraph);
+
+	// iterate until all non-negated IDB predicates have been replaced with the bodies of the rules that defines them
+	while(!EMPTY_SET(todo))
+	{
+		char *cur = STRING_VALUE(popSet(todo));
+		List *pRules = (List *) MAP_GET_STRING(predToRule, cur);
+
+		DEBUG_LOG("Process predicate %s", cur);
+
+		FOREACH(DLRule,r,pRules)
+		{
+			List *todoR = LIST_MAKE(copyObject(r));
+
+			while(!LIST_EMPTY(todoR))
+			{
+				DLRule *curR = popHeadOfListP(todoR);
+				DEBUG_DL_LOG("Substitute first IDB atom in", curR);
+
+				if(ruleHasPosIDBAtom(curR, idbRels))
+				{
+					char *firstIDB = getFirstIDBAtom(curR, idbRels);
+					List *iRules = (List *) MAP_GET_STRING(predToRule, firstIDB);
+
+					DEBUG_LOG("Replace atom %s", firstIDB);
+
+					if(LIST_LENGTH(iRules) < 2 || allowRuleNumberIncrease)
+					{
+						List *newRules;
+						newRules = mergeRule(curR, copyObject(iRules));
+						todoR = appendAllToTail(todoR, newRules);
+					}
+				}
+				else
+				{
+					newRules = appendToTailOfList(newRules, curR);
+				}
+			}
+		}
+	}
+
+	result = copyObject(p);
+	result->rules = newRules;
+
+	DEBUG_DL_LOG("After merging subqueries we get", result);
+	return result;
+}
+
+static char *
+getFirstIDBAtom(DLRule *r, Set *idbPreds)
+{
+	FOREACH(DLNode,n,r->body)
+	{
+		if(isA(n,DLAtom))
+		{
+			DLAtom *a = (DLAtom *) n;
+
+			if(!a->negated && hasSetElem(idbPreds, a->rel))
+			{
+				return a->rel;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+static boolean
+ruleHasPosIDBAtom(DLRule *r, Set *idbPreds)
+{
+	return getFirstIDBAtom(r, idbPreds) != NULL;
+}
+
+static List *
+mergeRule(DLRule *super, List *replacements)
+{
+	List *results = NIL;
+	char *pred = getHeadPredName(getHeadOfListP(replacements));
+
+	DEBUG_LOG("Replace %s in %s with\n\n%s",
+			  pred,
+			  datalogToOverviewString(super),
+			  datalogToOverviewString(replacements));
+
+	// for every replacement we need to create a copy of the input rule
+	FOREACH(DLRule,repl,replacements)
+	{
+		DLRule *newR = copyObject(super);
+		List *newBody = NIL;
+		List *subst = NIL;
+
+		DEBUG_DL_LOG("substitute", repl);
+
+		// create one copy of repl for each atom with repl's head predicate
+		FOREACH(DLNode,a,super->body)
+		{
+			if(isA(a,DLAtom))
+			{
+				DLAtom *at = (DLAtom *) a;
+				if(streq(pred,at->rel) && !at->negated)
+				{
+					subst = appendToTailOfList(subst, copyObject(repl));
+				}
+			}
+		}
+
+		// make sure that the rule and all replacement rule copies have unique variable names
+		subst = appendToHeadOfList(subst, newR);
+		makeVarNamesUnique(subst);
+		DEBUG_DL_LOG("after making variable name unique", subst);
+		popHeadOfListP(subst);
+
+
+		// replace atoms with rule bodies
+		FOREACH(DLNode,a,newR->body)
+		{
+			if(isA(a,DLAtom))
+			{
+				DLAtom *at = (DLAtom *) a;
+				if(streq(pred,at->rel) && !at->negated)
+				{
+					DLRule *unRule = popHeadOfListP(subst);
+
+					// unify rule head with bindings from body atom
+					unRule = unifyRule(unRule, at->args);
+
+					// insert body atoms of unified rule
+					newBody = appendAllToTail(newBody, unRule->body);
+				}
+				else
+				{
+					newBody = appendToTailOfList(newBody, copyObject(a));
+				}
+			}
+			else
+			{
+				newBody = appendToTailOfList(newBody, copyObject(a));
+			}
+		}
+
+		newR->body = newBody;
+		results = appendToTailOfList(results, newR);
+	}
+
+	return results;
+}
+
 
 /*
  *  Takes an atom and replaces variables with standardized names (V1, V2, ...). This
@@ -423,7 +596,7 @@ applyVarMapAsLists(Node *input, List *vars, List *replacements)
 }
 
 static Node *
-unificationMutator (Node *node, HashMap *context)
+unificationMutator(Node *node, HashMap *context)
 {
     if (node == NULL)
         return NULL;

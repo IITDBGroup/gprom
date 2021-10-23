@@ -57,6 +57,7 @@ extern Set *makeSetLong(gprom_long_t elem, ...);
 #define MAKE_INT_SET(...) makeSetInt(__VA_ARGS__, -1)
 #define MAKE_STR_SET(...) makeSet(SET_TYPE_STRING, -1, NULL, NULL, __VA_ARGS__, NULL)
 
+extern Set *makeStringSetFromConstSet(Set *s);
 
 // turn lists into sets
 extern Set *makeStrSetFromList(List *strList);
