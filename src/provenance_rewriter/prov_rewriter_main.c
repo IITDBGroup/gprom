@@ -249,8 +249,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 			char *capSql = serializeOperatorModel((Node *)capOp);
 			DEBUG_LOG("Capture Provenance Sketch Sql : %s", capSql);
 
-			HashMap *psMap = NULL;
-
 			/* if in self-turning mode
 			 * 1) check whether need to capture ps: if no, load ps, if yes, capture
 			 * 2) cache the ps
@@ -265,6 +263,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 			 * 						third time  q -> b 1,30,60,90
 			 */
 
+			HashMap *psMap = NULL;
 			if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
 			{
 				DEBUG_LOG("Now in self-turning mode. ");
@@ -275,6 +274,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 					DEBUG_LOG("Not find ps. ");
 					/* run capture sql and return a hashmap: (attrName, ps bit vector) key: PROV_nation1  value: "11111111111111" */
 					psMap = getPS(capSql,attrNames);
+					/* only cache ps after capture */
+					cachePsInfo(rootParaSql,psPara,psMap);
 				}
 				else
 					DEBUG_LOG("Find ps. ");
@@ -284,7 +285,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 				//ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
 				//memContext = getCurMemContext();
 				//QueryOperator *rootParaSql = OP_LCHILD(op);
-				cachePsInfo(rootParaSql,psPara,psMap);
+//				cachePsInfo(rootParaSql,psPara,psMap);
 				//RELEASE_MEM_CONTEXT();
 			}
 			else

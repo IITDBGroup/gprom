@@ -102,6 +102,7 @@ extern List *splitHistMapKey(char *k);
 //extern HashMap *setLtempNoMap(HashMap *map);
 //extern HashMap *setpsCellMap(HashMap *map);
 extern char *getHistMapKey(char *table, char *attr, char *numRanges);
+extern void emptyPSProperty(QueryOperator *root);
 
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_COARSE_GRAINED_REWRITE_H_ */

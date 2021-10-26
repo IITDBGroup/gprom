@@ -20,6 +20,10 @@
 #include "model/expression/expression.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "provenance_rewriter/coarse_grained/common_prop_inference.h"
+#include "provenance_rewriter/coarse_grained/gc_prop_inference.h"
+#include "provenance_rewriter/coarse_grained/ge_prop_inference.h"
+#include "provenance_rewriter/coarse_grained/prop_inference.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
@@ -27,6 +31,8 @@
 #include "parameterized_query/parameterized_queries.h"
 #include "sql_serializer/sql_serializer.h"
 #include "sql_serializer/sql_serializer_postgres.h"
+
+
 
 #define MAX_NUM_RANGE 10000
 #define COMMA "||"
@@ -64,6 +70,13 @@ static void storeHist();
 static void initStoredTable();
 static int getTemplateNo();
 static List *getPSIfExists(QueryOperator *op);
+static List *getPSBasedOnTemplate(HashMap *map,HashMap *tnomap, char *pqSql, char *cparas);
+static boolean isExistTemplate(HashMap *map, char *pqSql);
+static boolean isExistTemplateNo(HashMap *cellMap, int tNo);
+static HashMap *getParasMap(HashMap *tmap, HashMap* tnomap, char *pqSql);
+static List *charToParameters(char *cparas);
+static boolean removePSPropsVisitor(QueryOperator *op, void *context);
+static List *reuseCheckCachedPS(HashMap *tmap, HashMap *tnomap, char *pqSql, QueryOperator *q, HashMap *rmap);
 
 // Mem context
 #define PS_MEM_CONTEXT_NAME "PSMemContext"
@@ -123,6 +136,63 @@ initStoredTable()
 		createPSHistTable();
 }
 
+
+static boolean
+isExistTemplate(HashMap *tmap, char *pqSql)
+{
+	if(tmap != NULL && MAP_HAS_STRING_KEY(tmap,pqSql))
+		return TRUE;
+
+	return FALSE;
+}
+
+static boolean
+isExistTemplateNo(HashMap *cellMap, int tNo)
+{
+	if(cellMap != NULL && MAP_HAS_INT_KEY(cellMap, tNo))
+		return TRUE;
+
+	return FALSE;
+}
+
+
+
+static List *
+getPSBasedOnTemplate(HashMap *tmap, HashMap *tnomap, char *pqSql, char *cparas)
+{
+	List *l = NIL;
+
+	//if(tmap != NULL && MAP_HAS_STRING_KEY(tmap,pqSql))
+	if(isExistTemplate(tmap,pqSql))
+	{
+		int tNo = INT_VALUE(MAP_GET_STRING(tmap,pqSql));
+		//if(tnomap != NULL && MAP_HAS_INT_KEY(tnomap, tNo))
+		if(isExistTemplateNo(tnomap, tNo))
+		{
+			HashMap *hm = (HashMap *) MAP_GET_INT(tnomap,tNo);
+			if(MAP_HAS_STRING_KEY(hm,cparas))
+				l = (List *) MAP_GET_STRING(hm,cparas);
+		}
+	}
+
+	return l;
+}
+
+static HashMap *
+getParasMap(HashMap *tmap, HashMap* tnomap, char *pqSql)
+{
+	HashMap *map = NULL;
+
+	if(isExistTemplate(tmap,pqSql))
+	{
+		int tNo = INT_VALUE(MAP_GET_STRING(tmap,pqSql));
+		if(isExistTemplateNo(tnomap, tNo))
+			map = (HashMap *) MAP_GET_INT(tnomap,tNo);
+	}
+
+	return map;
+}
+
 static List *
 getPSIfExists(QueryOperator *op)
 {
@@ -132,42 +202,197 @@ getPSIfExists(QueryOperator *op)
 	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
 	char *pqSql = serializeOperatorModel((Node *) pq->q);
 	char *cparas = parameterToCharsSepByComma(pq->parameters);
-	DEBUG_LOG("parameters to chars seperated by comma: %s", cparas);
 
-	if(tempNoMap != NULL && MAP_HAS_STRING_KEY(tempNoMap,pqSql))
+	l = getPSBasedOnTemplate(tempNoMap, psCellMap, pqSql, cparas);
+
+	//since on duplicate template + parameters, if could be removed
+	if(l == NIL)
+		l = getPSBasedOnTemplate(ltempNoMap, lpsCellMap, pqSql, cparas);
+
+//	char *pqSql = serializeOperatorModel((Node *) pq->q);
+//	char *cparas = parameterToCharsSepByComma(pq->parameters);
+//	DEBUG_LOG("parameters to chars seperated by comma: %s", cparas);
+//
+//	if(tempNoMap != NULL && MAP_HAS_STRING_KEY(tempNoMap,pqSql))
+//	{
+//		int tNo = INT_VALUE(MAP_GET_STRING(tempNoMap,pqSql));
+//		if(psCellMap != NULL && MAP_HAS_INT_KEY(psCellMap, tNo))
+//		{
+//			HashMap *hm = (HashMap *) MAP_GET_INT(psCellMap,tNo);
+//			if(MAP_HAS_STRING_KEY(hm,cparas))
+//				l = (List *) MAP_GET_STRING(hm,cparas);
+//		}
+//	}
+//
+//	if(ltempNoMap != NULL && MAP_HAS_STRING_KEY(ltempNoMap,pqSql))
+//	{
+//		int tNo = INT_VALUE(MAP_GET_STRING(ltempNoMap,pqSql));
+//		if(lpsCellMap != NULL && MAP_HAS_INT_KEY(lpsCellMap, tNo))
+//		{
+//			HashMap *hm = (HashMap *) MAP_GET_INT(lpsCellMap,tNo);
+//			if(MAP_HAS_STRING_KEY(hm,cparas))
+//				l = (List *) MAP_GET_STRING(hm,cparas);
+//		}
+//	}
+
+	return l;
+}
+
+
+HashMap *
+bindsParas(List *values)
+{
+	HashMap *map = NEW_MAP(Constant,Constant);
+	int pos = 1;
+	FOREACH(Constant, v, values)
 	{
-		int tNo = INT_VALUE(MAP_GET_STRING(tempNoMap,pqSql));
-		if(psCellMap != NULL && MAP_HAS_INT_KEY(psCellMap, tNo))
-		{
-			HashMap *hm = (HashMap *) MAP_GET_INT(psCellMap,tNo);
-			if(MAP_HAS_STRING_KEY(hm,cparas))
-				l = (List *) MAP_GET_STRING(hm,cparas);
-		}
+		MAP_ADD_STRING_KEY(map, gprom_itoa(pos++), v);
 	}
+	return map;
+}
 
-	if(ltempNoMap != NULL && MAP_HAS_STRING_KEY(ltempNoMap,pqSql))
+static List *
+charToParameters(char *cparas)
+{
+	DEBUG_LOG("charToParameters!");
+	List *res = NIL;
+	char * token = strtok(strdup(cparas), COMMA);
+	   while( token != NULL ) {
+	      res = appendToTailOfList(res,createConstInt(atoi(token)));
+	      DEBUG_LOG("token: %s", token);
+	      token = strtok(NULL, COMMA);
+	   }
+
+	return res;
+}
+
+void
+emptyPSProperty(QueryOperator *root)
+{
+    visitQOGraph(root, TRAVERSAL_PRE, removePSPropsVisitor, NULL);
+}
+
+static boolean
+removePSPropsVisitor(QueryOperator *op, void *context)
+{
+    /* remove ge and comp property for this operator */
+    removeStringProperty(op, PROP_STORE_SET_GE);
+    removeStringProperty(op, PROP_STORE_SET_GE_COMP);
+    //removeStringProperty(op, PROP_STORE_SET_PRED);
+    //removeStringProperty(op, PROP_STORE_SET_EXPR);
+
+    return TRUE;
+}
+
+
+static List *
+reuseCheckCachedPS(HashMap *tmap, HashMap *tnomap, char *pqSql, QueryOperator *q, HashMap *rmap)
+{
+	List *l = NIL;
+	HashMap *parasMap = getParasMap(tmap, tnomap, pqSql);
+	if(parasMap != NULL)
 	{
-		int tNo = INT_VALUE(MAP_GET_STRING(ltempNoMap,pqSql));
-		if(lpsCellMap != NULL && MAP_HAS_INT_KEY(lpsCellMap, tNo))
+		FOREACH_HASH_ENTRY(kv, parasMap)
 		{
-			HashMap *hm = (HashMap *) MAP_GET_INT(lpsCellMap,tNo);
-			if(MAP_HAS_STRING_KEY(hm,cparas))
-				l = (List *) MAP_GET_STRING(hm,cparas);
+			char *cparas = STRING_VALUE(kv->key);
+			List *paras = charToParameters(cparas);
+			HashMap *lmap = bindsParas(paras); //this one is cached
+			DEBUG_NODE_BEATIFY_LOG("lmap: ", lmap);
+
+			geBottomUp(q, lmap, rmap);
+			boolean isReuse = isReusable(q, lmap, rmap);
+			//boolean ge = GET_BOOL_STRING_PROP(q, PROP_STORE_SET_GE);
+			//Node *comp = getStringProperty(q, PROP_STORE_SET_GE_COMP);
+			//DEBUG_NODE_BEATIFY_LOG("comp: ", comp);
+
+			if(isReuse)
+			{
+				DEBUG_LOG("Find ps can be used!");
+				l = (List *) MAP_GET_STRING(parasMap,cparas);
+				DEBUG_NODE_BEATIFY_LOG("ps cell list: ", l);
+				break;
+			}
+
+			emptyPSProperty(q);
 		}
 	}
 
 	return l;
 }
 
+List *
+getPSByReuseCheck(QueryOperator *op)
+{
+	DEBUG_LOG("getPSByReuseCheck!");
+	List *l = NIL;
+	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
+	char *pqSql = serializeOperatorModel((Node *) pq->q);
+	List *curParas = pq->parameters;
+	HashMap *rmap = bindsParas(curParas);
+	DEBUG_NODE_BEATIFY_LOG("rmap: ", rmap);
+
+	//bottom up pred and expr based on the parameterized query
+	//afterwards replace parameters with values
+	QueryOperator *q = (QueryOperator *) pq->q;
+	exprBottomUp(q);
+	predBottomUp(q);
+	//printEXPRPro(q);
+	//printPREDPro(q);
+
+	//check for just cached (also need to check ps loaded from table)
+	//check template first, if exist, then loop parameter list; else, need to capture
+	//rmap is current, lmap is cached, we check whether exists lmap can be used to answer rmap
+
+	//check just cached
+	l = reuseCheckCachedPS(tempNoMap, psCellMap, pqSql, q, rmap);
+
+	//check loaded from table
+	if(l == NIL)
+		l = reuseCheckCachedPS(ltempNoMap, lpsCellMap, pqSql, q, rmap);
+//	HashMap *parasMap = getParasMap(tempNoMap, psCellMap, pqSql);
+//	if(parasMap != NULL)
+//	{
+//		FOREACH_HASH_ENTRY(kv, parasMap)
+//		{
+//			char *cparas = STRING_VALUE(kv->key);
+//			List *paras = charToParameters(cparas);
+//			HashMap *lmap = bindsParas(paras); //this one is cached
+//			DEBUG_NODE_BEATIFY_LOG("lmap: ", lmap);
+//
+//			geBottomUp(q, lmap, rmap);
+//			boolean isReuse = isReusable(q, lmap, rmap);
+//
+//			if(isReuse)
+//			{
+//				DEBUG_LOG("Find ps can be used!");
+//				l = (List *) MAP_GET_STRING(parasMap,cparas);
+//				DEBUG_NODE_BEATIFY_LOG("ps cell list: ", l);
+//				break;
+//			}
+//
+//			emptyPSProperty(q);
+//		}
+//	}
+
+	return l;
+}
+
+
 HashMap *
 getPSFromCache(QueryOperator *op)
 {
 	HashMap *hm = NULL;
 
+	//try to get PS directly (check for same query)
 	List *l = getPSIfExists(op);
+
+	//try to get PS by reuse check
+	if(l == NIL)
+		l = getPSByReuseCheck(op);
 
 	if(l != NIL)
 	{
+		DEBUG_LOG("find in getPSFromCache!");
 		hm = NEW_MAP(Constant,Constant);
 		FOREACH(psInfoCell,p, l)
 		{
@@ -602,7 +827,7 @@ createPSInfo(Node *coarsePara)
 
 psAttrInfo*
 createPSAttrInfo(List *l, char *tableName)
-{DEBUG_LOG("!!!now in createPSAttrInfo!!!");
+{
 	psAttrInfo *result = makeNode(psAttrInfo);
 
 	Constant *attrName = (Constant *) getNthOfListP(l, 0);
@@ -614,14 +839,14 @@ createPSAttrInfo(List *l, char *tableName)
 	//DEBUG_NODE_BEATIFY_LOG("result->rangeList: ", rangeList);
 
 	if(LIST_LENGTH(result->rangeList) == 1)
-	{DEBUG_LOG("!!!1!!!");
+	{
 		int numRanges = INT_VALUE((Constant *) getNthOfListP(result->rangeList, 0));
 		DEBUG_LOG("Number of ranges: %d", numRanges);
 		result->rangeList = getRangeList(numRanges, result->attrName, tableName);
 	}
 
 	if(LIST_LENGTH(l) == 3)
-	{DEBUG_LOG("!!!2!!!");
+	{
 		Constant *ps = (Constant *) getNthOfListP(l, 2);
 		if(typeOf((Node *)ps) == DT_INT)
 		{
@@ -643,14 +868,14 @@ createPSAttrInfo(List *l, char *tableName)
 			}
 		}
 		else
-		{DEBUG_LOG("!!!3!!!");
+		{
 			char *bitVectorStr = STRING_VALUE(ps);
 			result->BitVector = stringToBitset(bitVectorStr);
 			result->psIndexList = NIL;
 		}
 	}
 	else
-	{DEBUG_LOG("!!!4!!!");
+	{
 		result->BitVector = NULL;
 		result->psIndexList = NIL;
 	}
@@ -871,7 +1096,7 @@ splitHistMapKey(char *k)
 {
 	DEBUG_LOG("splitHistMapKey!");
 	List *res = NIL;
-	char * token = strtok(k, HIST_KEY_DELI);
+	char * token = strtok(strdup(k), HIST_KEY_DELI);
 	   while( token != NULL ) {
 	      res = appendToTailOfList(res,createConstString(token));
 	      DEBUG_LOG("token: %s", token);
@@ -932,6 +1157,8 @@ cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap)
 	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
 	char *pqSql = serializeOperatorModel((Node *) pq->q);
 	char *cparas = parameterToCharsSepByComma(pq->parameters);
+	//DEBUG_NODE_BEATIFY_LOG("pqSql: ", pqSql);
+	DEBUG_LOG("pqSql: %s", pqSql);
 	DEBUG_LOG("parameters to chars seperated by comma: %s", cparas);
 	//char *storeTable = getStringOption(OPTION_PS_STORE_TABLE);
 

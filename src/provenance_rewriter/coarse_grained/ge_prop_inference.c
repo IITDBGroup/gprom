@@ -92,6 +92,24 @@ bindsToHashMap(List *names, List *values)
 	return map;
 }
 
+//void
+//selfTurnDoGeBottomUp(QueryOperator *op, List *paras, List *curParas)
+//{
+//	ParameterizedQuery *pq = queryToTemplate((QueryOperator *) op);
+//	char *pqSql = serializeOperatorModel((Node *) pq->q);
+//	List *curParas = pq->parameters;
+//	List *paras = charToParameters(cparas);
+//	//char *curParas = parameterToCharsSepByComma(pq->parameters);
+//	DEBUG_LOG("pqSql: %s", pqSql);
+//	//DEBUG_LOG("parameters to chars seperated by comma: %s", cparas);
+//
+//	//map values to variable, e.g., a -> 10
+//	HashMap *lmap = bindsToHashMap(b1, b2);
+//	HashMap *rmap = bindsToHashMap(b1, b3);
+//
+//	geBottomUp(OP_LCHILD(op), lmap, rmap);
+//}
+
 void
 doGeBottomUp(QueryOperator *op)
 {
@@ -529,6 +547,56 @@ checkSumNegative(FunctionCall *fc, QueryOperator *op, HashMap *lmap, HashMap *rm
 
 	DEBUG_LOG("checkSumNegative is valid? 0 is invalid, 1 is valid: %d", isValid);
 	return isValid;
+}
+
+boolean
+isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
+{
+	/*
+	 * ge(Q′,Q) ∧ uconds(Q′,Q) ⇒ PS is safe for Q′ and D
+	 * uconds(Q′,Q) = ΨQ′,Q∧pred(Q′)∧expr(Q′)∧expr(Q) →pred(Q)
+	 */
+
+	boolean ge = GET_BOOL_STRING_PROP(op, PROP_STORE_SET_GE);
+	//Node *comp = copyObject(GET_STRING_PROP(op, PROP_STORE_SET_GE_COMP));
+	Node *expr = copyObject(getStringProperty(op, PROP_STORE_SET_EXPR));
+	Node *pred = copyObject(getStringProperty(op, PROP_STORE_SET_PRED));
+
+	// pred2 ∧ expr2 ∧ expr1 -> pred1 (check whether ps of 1 (lmap) can be used for 2 (rmap))
+    //replace the variables in the pred with values
+    Node *pred1 = copyObject(pred);
+    Node *pred2 = copyObject(pred);
+    replaceParaWithValues(pred1, lmap); //this one is cached
+    replaceParaWithValues(pred2, rmap);
+    Node *npred1 = (Node *) createOpExpr("NOT", singleton(copyObject(pred1)));
+
+    Node *expr1 = copyObject(expr);
+    Node *expr2 = copyObject(expr);
+
+    Node *uconds = NULL;
+    if(expr1 == NULL)
+    	uconds = andExprList(LIST_MAKE(pred2, npred1));
+    else
+    	uconds = andExprList(LIST_MAKE(pred2, expr2, expr1, npred1));
+    DEBUG_NODE_BEATIFY_LOG("pred1: ", pred1);
+    DEBUG_NODE_BEATIFY_LOG("pred2: ", pred2);
+    DEBUG_NODE_BEATIFY_LOG("expr1: ", expr1);
+    DEBUG_NODE_BEATIFY_LOG("expr1: ", expr2);
+    DEBUG_NODE_BEATIFY_LOG("uconds: ", uconds);
+
+	//unSatisfiable is valid
+	boolean ucondsIsValid = !z3ExprIsSatisfiable((Node *) uconds, TRUE);
+	DEBUG_LOG("isReusable: %d", ucondsIsValid);
+
+	return ge && ucondsIsValid;
+	//test z3ExprIsValid looks uncorrect
+	//boolean gcValid = z3ExprIsValid((Node *) uconds, TRUE);
+
+    //add prime "'" to left side pred and expr
+//    addPrimeOnAttrsInOperator(childPred1,"dummy");
+//    addPrimeOnAttrsInOperator(childExpr1,"dummy");
+//    Node *notChildPred1 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred1)));
+//    Node *notChildPred2 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred2)));
 }
 
 //static boolean
