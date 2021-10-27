@@ -35,31 +35,43 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
-static void createAPI(void);
-static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
-static char* serializeDMLandDDLPostgres(QueryOperator *q);
-static void serializeJoinOperator(StringInfo from, QueryOperator *fromRoot,
-		JoinOperator *j, int *curFromItem, int *attrOffset,
-		FromAttrsContext *fac, SerializeClausesAPI *api);
-static List* serializeProjectionAndAggregation(QueryBlockMatch *m,
-		StringInfo select, StringInfo having, StringInfo groupBy,
-		FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
-static void serializeConstRel(StringInfo from, ConstRelOperator *t,
-		FromAttrsContext *fac, int *curFromItem, SerializeClausesAPI *api);
-static void serializeTableAccess(StringInfo from, TableAccessOperator *t,
-		int *curFromItem, FromAttrsContext *fac, int *attrOffset,
+static void
+createAPI(void);
+static boolean
+addNullCasts(Node *n, Set *visited, void **parentPointer);
+static char*
+serializeDMLandDDLPostgres(QueryOperator *q);
+static void
+serializeJoinOperator(StringInfo from, QueryOperator *fromRoot, JoinOperator *j,
+		int *curFromItem, int *attrOffset, FromAttrsContext *fac,
 		SerializeClausesAPI *api);
-static List* serializeSetOperator(QueryOperator *q, StringInfo str,
-		FromAttrsContext *fac, SerializeClausesAPI *api);
+static List*
+serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
+		StringInfo having, StringInfo groupBy, FromAttrsContext *fac,
+		boolean materialize, SerializeClausesAPI *api);
+static void
+serializeConstRel(StringInfo from, ConstRelOperator *t, FromAttrsContext *fac,
+		int *curFromItem, SerializeClausesAPI *api);
+static void
+serializeTableAccess(StringInfo from, TableAccessOperator *t, int *curFromItem,
+		FromAttrsContext *fac, int *attrOffset, SerializeClausesAPI *api);
+static List*
+serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac,
+		SerializeClausesAPI *api);
 
 /* serialize functions for create table, delete, insert and update*/
-static void serializeCreateTable(StringInfo str, CreateTable* c);
-static void serializeDelete(StringInfo str, Delete* d);
-static void serializeInsert(StringInfo str, Insert* i);
-static void serializeUpdate(StringInfo str, Update* u);
+static void
+serializeCreateTable(StringInfo str, CreateTable *c);
+static void
+serializeDelete(StringInfo str, Delete *d);
+static void
+serializeInsert(StringInfo str, Insert *i);
+static void
+serializeUpdate(StringInfo str, Update *u);
 
 char*
-serializeOperatorModelPostgres(Node *q) {
+serializeOperatorModelPostgres(Node *q)
+{
 	StringInfo str = makeStringInfo();
 	char *result = NULL;
 
@@ -95,7 +107,9 @@ serializeOperatorModelPostgres(Node *q) {
 	return result;
 }
 
-static boolean addNullCasts(Node *n, Set *visited, void **parentPointer) {
+static boolean
+addNullCasts(Node *n, Set *visited, void **parentPointer)
+{
 	if (n == NULL)
 		return TRUE;
 
@@ -120,7 +134,8 @@ static boolean addNullCasts(Node *n, Set *visited, void **parentPointer) {
 }
 
 char*
-serializeQueryPostgres(QueryOperator *q) {
+serializeQueryPostgres(QueryOperator *q)
+{
 	StringInfo str;
 	StringInfo viewDef;
 	char *result;
@@ -132,7 +147,9 @@ serializeQueryPostgres(QueryOperator *q) {
 
 	// DML and DDL statements
 	if (isA(q, DLMorDDLOperator)) {
-		return serializeDMLandDDLPostgres(q);
+		result = serializeDMLandDDLPostgres(q);
+		FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+//		return serializeDMLandDDLPostgres(q);
 	}
 
 	// initialize basic structures and then call the worker
@@ -171,7 +188,8 @@ serializeQueryPostgres(QueryOperator *q) {
 }
 
 char*
-quoteIdentifierPostgres(char *ident) {
+quoteIdentifierPostgres(char *ident)
+{
 	int i = 0;
 	boolean needsQuotes = FALSE;
 	boolean containsQuotes = FALSE;
@@ -215,7 +233,9 @@ quoteIdentifierPostgres(char *ident) {
 	return ident;
 }
 
-static void createAPI(void) {
+static void
+createAPI(void)
+{
 	if (api == NULL) {
 		api = createAPIStub();
 		api->serializeProjectionAndAggregation =
@@ -227,24 +247,20 @@ static void createAPI(void) {
 	}
 }
 
-static char *
+static char*
 serializeDMLandDDLPostgres(QueryOperator *q)
 {
-	DLMorDDLOperator *o = (DLMorDDLOperator *) q;
+	DLMorDDLOperator *o = (DLMorDDLOperator*) q;
 	StringInfo str = makeStringInfo();
 	Node *stmt = o->stmt;
 
-	switch(stmt->type)
-	{
-	case T_Update:
-	{
+	switch (stmt->type) {
+	case T_Update: {
 		serializeUpdate(str, (Update*) stmt);
 		break;
-		/* Update *u = (Update *) stmt; */
 	}
-	break;
-	case T_Insert:
-	{
+		break;
+	case T_Insert: {
 		// this is current to support: insert into r values(xxxx);
 		serializeInsert(str, (Insert*) stmt);
 		// TODO need to support insert into r select xxxx;
@@ -258,61 +274,75 @@ serializeDMLandDDLPostgres(QueryOperator *q)
 		break;
 	case T_AlterTable:
 		break;
-//	case T_List:
-//	{
-//		FOREACH(Node,arg,(List *) stmt){
-//		appendStringInfo(str, serializeDMLandDDLPostgres((QueryOperator*) getNthOfListP((List*) stmt, 0)));
-//		}
-//	}
-//		break;
 	default:
 		FATAL_LOG("should only pass DML and DDL nodes to this function.");
 	}
 
-
 	return str->data;
 }
 
-static void serializeCreateTable(StringInfo str, CreateTable* c) {
-		appendStringInfo(str, "create table %s", c->tableName);
-		appendStringInfo(str, "%s;", exprToSQL((Node*) c->tableElems, NULL));
+static void
+serializeCreateTable(StringInfo str, CreateTable *c)
+{
+	appendStringInfo(str, "create table %s", c->tableName);
+	appendStringInfo(str, "%s;", exprToSQL((Node*) c->tableElems, NULL));
 }
 
-static void serializeDelete(StringInfo str, Delete* d) {
-	appendStringInfo(str, "DELETE FROM %s %s",
-			d->deleteTableName,
-			d->cond ? "" : CONCAT_STRINGS("WHERE ", exprToSQL(d->cond, NULL)));
+static void
+serializeDelete(StringInfo str, Delete *d)
+{
+	appendStringInfo(str, "delete from %s %s;", d->deleteTableName,
+			(d->cond ? CONCAT_STRINGS("where ", exprToSQL(d->cond, NULL)) : ""));
 }
 
-
-
-static void serializeInsert(StringInfo str, Insert* i){
-	if(isA(i->query, QueryBlock)){
+static void
+serializeInsert(StringInfo str, Insert *i)
+{
+	if (isA(i->query, QueryBlock)) {
 		// TODO this is for insert into tbl (a query);
 //		appendStringInfo(str, "insert into %s ", i->insertTableName);
 //		appendStringInfo(str, "select %s", exprToSQL((Node*) (((QueryBlock* )(i->query))->selectClause), NULL ));
 //		appendStringInfoString(str, "from (");
 
-
-
 	} else {
-		appendStringInfo(str, "INSERT INTO %s values( %s )",
-			i->insertTableName,
-			exprToSQL(i->query, NULL));
+		appendStringInfo(str, "insert into %s values %s ;", i->insertTableName,
+				exprToSQL(i->query, NULL));
 	}
 }
 
-static void serializeUpdate(StringInfo str, Update* u) {
-	appendStringInfo(str, "update %s set %s %s",
-			u->updateTableName,
-			exprToSQL((Node*) u->selectClause, NULL),
-			u->cond ? "" : CONCAT_STRINGS(exprToSQL(u->cond, NULL)));
+static void
+serializeUpdate(StringInfo str, Update *u)
+{
+	INFO_LOG("SERIALIZE UPDATE\n");
+
+	appendStringInfo(str, "update %s set", u->updateTableName);
+	//Since exprToSQL add () for each time called, and this cause "update xxx set ((xx = xx), (xx = xx))..." error
+	//iterate the selectClause list and exprToSQL() each item.
+	// serialize left
+	// =
+	// serialize right
+	int len = getListLength(u->selectClause);
+	for (int i = 0; i < len; i++) {
+		Operator *op = (Operator*) getNthOfListP(u->selectClause, i);
+		appendStringInfo(str, " %s",
+				exprToSQL((Node*) getNthOfListP(op->args, 0), NULL));
+		appendStringInfo(str, " =");
+		appendStringInfo(str, " %s",
+				exprToSQL((Node*) getNthOfListP(op->args, 1), NULL));
+		if (i != len - 1) {
+			appendStringInfo(str, " ,");
+		}
+	}
+
+	appendStringInfo(str, " %s;",
+			u->cond ? CONCAT_STRINGS("where ", exprToSQL(u->cond, NULL)) : "");
 }
 
-
-static void serializeJoinOperator(StringInfo from, QueryOperator *fromRoot,
-		JoinOperator *j, int *curFromItem, int *attrOffset,
-		FromAttrsContext *fac, SerializeClausesAPI *api) {
+static void
+serializeJoinOperator(StringInfo from, QueryOperator *fromRoot, JoinOperator *j,
+		int *curFromItem, int *attrOffset, FromAttrsContext *fac,
+		SerializeClausesAPI *api)
+{
 	int rOffset;
 	appendStringInfoString(from, "(");
 	//left child
@@ -356,7 +386,8 @@ static void serializeJoinOperator(StringInfo from, QueryOperator *fromRoot,
 static List*
 serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 		StringInfo having, StringInfo groupBy, FromAttrsContext *fac,
-		boolean materialize, SerializeClausesAPI *api) {
+		boolean materialize, SerializeClausesAPI *api)
+{
 	int pos = 0;
 	List *firstProjs = NIL;
 	List *aggs = NIL;
@@ -462,7 +493,7 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 
 			windowFs = appendToHeadOfList(windowFs,
 					exprToSQL((Node*) winOpGetFunc((WindowOperator*) curOp),
-							NULL));
+					NULL));
 
 			DEBUG_LOG("AFTER: window function = %s",
 					exprToSQL((Node *) winOpGetFunc( (WindowOperator *) curOp), NULL));
@@ -606,8 +637,10 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 	return resultAttrs;
 }
 
-static void serializeConstRel(StringInfo from, ConstRelOperator *t,
-		FromAttrsContext *fac, int *curFromItem, SerializeClausesAPI *api) {
+static void
+serializeConstRel(StringInfo from, ConstRelOperator *t, FromAttrsContext *fac,
+		int *curFromItem, SerializeClausesAPI *api)
+{
 	int pos = 0;
 	List *attrNames = getAttrNames(((QueryOperator*) t)->schema);
 	//*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
@@ -626,15 +659,16 @@ static void serializeConstRel(StringInfo from, ConstRelOperator *t,
 	}
 
 	appendStringInfo(from, ") F%u_%u", (*curFromItem)++,
-			LIST_LENGTH(fac->fromAttrsList) - 1);
+	LIST_LENGTH(fac->fromAttrsList) - 1);
 }
 
 //static void
 //serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 //        List** fromAttrs, int* attrOffset, SerializeClausesAPI *api)
-static void serializeTableAccess(StringInfo from, TableAccessOperator *t,
-		int *curFromItem, FromAttrsContext *fac, int *attrOffset,
-		SerializeClausesAPI *api) {
+static void
+serializeTableAccess(StringInfo from, TableAccessOperator *t, int *curFromItem,
+		FromAttrsContext *fac, int *attrOffset, SerializeClausesAPI *api)
+{
 	char *asOf = NULL;
 
 	// use history join to prefilter updated rows
@@ -755,7 +789,8 @@ static void serializeTableAccess(StringInfo from, TableAccessOperator *t,
  */
 static List*
 serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac,
-		SerializeClausesAPI *api) {
+		SerializeClausesAPI *api)
+{
 	SetOperator *setOp = (SetOperator*) q;
 	List *resultAttrs;
 

@@ -126,6 +126,7 @@ static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
 static CreateTable *copyCreateTable(CreateTable *from, OperatorMap **opMap);
 static AlterTable *copyAlterTable(AlterTable *from, OperatorMap **opMap);
+static DLMorDDLOperator *copyDLMorDDLOperator(DLMorDDLOperator* from, OperatorMap** opMap);
 
 /* functions to copy datalog model elements */
 static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
@@ -595,6 +596,9 @@ copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap)
 }
 
 /*functions to copy query_operator*/
+
+
+
 static QueryOperator *
 copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
 {
@@ -628,7 +632,18 @@ copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
     return new;
 }
 
+
+
 #define COPY_OPERATOR() copyQueryOperator((QueryOperator *) from, (QueryOperator *) new, opMap)
+
+static DLMorDDLOperator *
+copyDLMorDDLOperator(DLMorDDLOperator* from, OperatorMap** opMap){
+	COPY_INIT(DLMorDDLOperator);
+	COPY_OPERATOR();
+	COPY_NODE_FIELD(stmt);
+	return new;
+}
+
 
 static TableAccessOperator *
 copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap)
@@ -1312,6 +1327,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_JsonColInfoItem:
 			retval = copyJsonColInfoItem(from, opMap);
 			break;
+        case T_DLMorDDLOperator:
+            retval = copyDLMorDDLOperator(from, opMap);
+            break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);
@@ -1351,6 +1369,7 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_psAttrInfo:
             retval = copyPSAttrInfo(from, opMap);
             break;
+
         default:
             retval = NULL;
             break;

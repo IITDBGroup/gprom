@@ -165,6 +165,11 @@ memManagerUsable(void)
 void
 setCurMemContext(MemContext *mc, const char *file, unsigned line)
 {
+
+//	if(strcmp("PostgresMemContext", mc->contextName) == 0) {
+//		ERROR_LOG("ACRUIRE\n FILE: %s\n %ud", file, line);
+//	}
+
     if (topContextNode != NULL && mc == topContextNode->mc)
         return;
 
@@ -220,6 +225,10 @@ getCurMemContext(void)
 MemContext *
 releaseCurMemContext(const char *file, unsigned line)
 {
+//	if(strcmp("PostgresMemContext", topContextNode->mc->contextName) == 0) {
+//			ERROR_LOG("RELEASE\n FILE: %s\n %ud", file, line);
+//	}
+
     if (topContextNode->next) // does not free the bottom node holding default context
     {
         MemContextNode *oldTop = topContextNode;

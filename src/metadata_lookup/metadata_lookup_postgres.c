@@ -263,6 +263,7 @@ postgresInitMetadataLookupPlugin (void)
     }
 
     NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
+
     memContext = getCurMemContext();
 
     // create cache
@@ -286,7 +287,7 @@ postgresShutdownMetadataLookupPlugin (void)
     ACQUIRE_MEM_CONTEXT(memContext);
 
     // clear cache and postgres cache
-
+//    ERROR_LOG("SHUTDOWN NOW!");// TODO
     FREE_AND_RELEASE_CUR_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
@@ -719,6 +720,7 @@ postgresCatalogTableExists (char * tableName)
     {
         addToSet(plugin->plugin.cache->tableNames, tableName);
         PQclear(res);
+        RELEASE_MEM_CONTEXT();
         return TRUE;
     }
     PQclear(res);
@@ -743,6 +745,7 @@ postgresCatalogViewExists (char * viewName)
     {
         addToSet(plugin->plugin.cache->viewNames, viewName);
         PQclear(res);
+        RELEASE_MEM_CONTEXT();
         return TRUE;
     }
     PQclear(res);
@@ -1347,6 +1350,7 @@ postgresExecuteQueryIgnoreResult (char *query)
 }
 
 void postgresExecuteStatement(char* sql) {
+	INFO_LOG("EXECUTE FOR UPDATEPS");
 	execStmt(sql);
 }
 

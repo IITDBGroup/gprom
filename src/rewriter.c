@@ -311,6 +311,8 @@ void processInput(char *input) {
 				{
 					NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 					parse = parseFromString(input);
+					INFO_LOG("AFTER PARSER");
+					DEBUG_NODE_BEATIFY_LOG("WHAT IS THE RES:\n", parse);
 					q = rewriteParserOutput(parse,
 							isRewriteOptionActivated(
 									OPTION_OPTIMIZE_OPERATOR_MODEL));
@@ -514,11 +516,14 @@ rewriteParserOutput(Node *parse, boolean applyOptimizations) {
 //    	summarizationPlan(parse);
 
 	START_TIMER("translation");
+	INFO_LOG("IN rewriteParserOutput");
 	oModel = translateParse(parse);
 	DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
 	// shortcircuit DML and DDL statements directly translate into SQL code
+
 	if (isA(oModel, DLMorDDLOperator)) // check for list of DLMorDDLOperator operators
 	{
+		INFO_LOG("it is an dmlddl op\n");
 		StringInfo result = makeStringInfo();
 
 		appendStringInfo(result, "%s\n", serializeOperatorModel(oModel));

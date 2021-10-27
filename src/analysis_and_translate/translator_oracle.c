@@ -131,13 +131,15 @@ translateParseOracle (Node *q)
 
     List *attrsOffsetsList = NIL;
 
-    INFO_NODE_BEATIFY_LOG("translate QB model", q);
+    INFO_NODE_BEATIFY_LOG("translate QB model---", q);
 
     result = translateGeneral(q, &attrsOffsetsList);
 
     DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
-    INFO_OP_LOG("result of translation overview is", result);
+//    INFO_OP_LOG("result of translation overview is", result);
     ASSERT(equal(result, copyObject(result)));
+
+    INFO_LOG("FINISH TRANSLATE PARSER\n");
 
     return result;
 }
@@ -162,12 +164,14 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
         case T_SetQuery:
             return translateSetQuery((SetQuery *) node, attrsOffsetsList);
         case T_ProvenanceStmt:
+        	INFO_LOG("IT IS A T_PROVENANCESTMT\n");
             return translateProvenanceStmt((ProvenanceStmt *) node, attrsOffsetsList);
         case T_Insert:
         case T_Update:
         case T_Delete:
-            return translateUpdateReenact(node);
-//        	return translateUpdate(node);
+           // return translateUpdateReenact(node);
+        	INFO_LOG("TRANSLATE UPDATES FOR UPDATEPS:\n");
+            return translateUpdate(node);
         case T_WithStmt:
             return translateWithStmt((WithStmt *) node, attrsOffsetsList);
         case T_CreateTable:
@@ -225,9 +229,10 @@ translateGeneral (Node *node, List **attrsOffsetsList)
                     }
                 }
 
-                if(summaryType == NULL)
-                    stmt_his_cell->data.ptr_value = (Node *) translateQueryOracleInternal(stmt, attrsOffsetsList);
-                else
+                if(summaryType == NULL){
+                	INFO_LOG("SUMTYPE IS NULL\n");
+                	stmt_his_cell->data.ptr_value = (Node *) translateQueryOracleInternal(stmt, attrsOffsetsList);
+                }else
                 {
                     r = translateQueryOracleInternal(stmt, attrsOffsetsList);
                     r->properties = copyObject(prop);
@@ -605,6 +610,7 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
     	case PROV_INPUT_UPDATEPS:
     	{
     		int index = 1;
+    		INFO_LOG("THE LENGTH OF UPDATEPS_PROV_STME:%d\n", getListLength((List*) prov->query));
     		FOREACH(Node,n,(List *) prov->query)
     		{
     		  // translate and add update as child to provenance computation

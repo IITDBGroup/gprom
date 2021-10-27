@@ -52,6 +52,6 @@ extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sql
 extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern Relation *postgresExecuteQuery(char *query);
 extern void postgresExecuteQueryIgnoreResult (char *query);
-extern void postgresExecuteStatement(char* query);
+extern void postgresExecuteStatement(char* query);// added for update ps
 
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

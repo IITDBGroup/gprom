@@ -32,63 +32,67 @@
 /*
  * Local functions;
  */
-static void updateCDBInsertion(QueryOperator *insertQ, char *tablename,
-		psAttrInfo *attrInfo);
-static void updateCDBDeletion(QueryOperator *deleteQ, char *tablename,
-		psAttrInfo *attrInfo);
-static void createAndInitValOfCompressedTable(char *tablename, List *ranges,
-		char *psAttr);
+static void updateCDBInsertion(QueryOperator *insertQ, char *tablename, psAttrInfo *attrInfo, boolean isForUpdate);
+static void updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo);
+static void updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo);
+static void createAndInitValOfCompressedTable(char *tablename, List *ranges, char *psAttr);
 static void createCompressedTable(char *tablename, List *attrDefs);
-static void initValToCompressedTable(char *tablename, List *attrDefs,
-		List *ranges, char *psAttr);
+static void initValToCompressedTable(char *tablename, List *attrDefs, List *ranges, char *psAttr);
 static int binarySearchToFindFragNo(Constant *value, List *ranges);
 static int isInRange(Constant *val, Constant *lower, Constant *upper);
-static void getCDBInsertUpdateUsingRule(StringInfo str, int dataType,
-		Constant *insertV, int index, List *tuples, List *schema);
+static void getCDBInsertUpdateUsingRule(StringInfo str, int dataType, Constant *insertV, int index, List *tuples, List *schema);
+static void updateBaseTable(QueryOperator *stmt);
+static Relation* executeQueryLocal(char *query);
+static void executeStatementLocal(char *query);
+static void getCDBDeleteUsingRules(StringInfo str, int dataType, List *cdbTupleList, int cdbAttrIndex, List *delTuples, int delAttrIndex, List *schema);
+
 /*
  * Functions Implementation;
  */
 
-void tableCompress(char *tablename, char *psAttr, List *ranges) {
-	//	Check the existance of required compress table;
-	boolean compressedTableExist = FALSE;
+/*
+ *	The method check whether it needs to create and initialize the corresponding compressed table. 
+ */
+void
+tableCompress(char *tablename, char *psAttr, List *ranges)
+{
 
+	// check existence of required compressed table;
+	boolean compressedTableExist = FALSE;
 	StringInfo cmprTable = makeStringInfo();
 	appendStringInfo(cmprTable, "compressedtable_%s", tablename);
 
-	if (getBackend() == BACKEND_POSTGRES) {
-		compressedTableExist = (postgresCatalogTableExists(cmprTable->data)
-				|| postgresCatalogViewExists(cmprTable->data));
-	} else if (getBackend() == BACKEND_ORACLE) {
-		compressedTableExist = (oracleCatalogTableExists(cmprTable->data)
-				|| oracleCatalogViewExists(cmprTable->data));
-	}
+	compressedTableExist = (catalogTableExists(cmprTable->data)
+			|| catalogViewExists(cmprTable->data));
 
 	// if not exist, create and initial value
 	if (!compressedTableExist) {
 		createAndInitValOfCompressedTable(tablename, ranges, psAttr);
-		return;
 	}
 }
 
-static void createAndInitValOfCompressedTable(char *tablename, List *ranges,
-		char *psAttr) {
-	List *attrDefs = NIL;
+static void
+createAndInitValOfCompressedTable(char *tablename, List *ranges, char *psAttr)
+{
+	List *attrDefs = getAttributes(tablename);
 
-	if (getBackend() == BACKEND_POSTGRES) {
-		attrDefs = postgresGetAttributes(tablename);
-	} else if (getBackend() == BACKEND_ORACLE) {
+	// if (getBackend() == BACKEND_POSTGRES) {
+	//     attrDefs = postgresGetAttributes(tablename);
+	// } else if (getBackend() == BACKEND_ORACLE) {
+	//
+	// }
 
-	}
-
+	INFO_LOG("START CREATING AND INITIALIZING CDB\n");
 	createCompressedTable(tablename, attrDefs);
-	INFO_LOG("START TO BUILD\n");
 	initValToCompressedTable(tablename, attrDefs, ranges, psAttr);
-
+	INFO_LOG("FINISH CREATING AND INITIALIZING CDB\n");
 }
 
-static void initValToCompressedTable(char *tablename, List *attrDefs,
-		List *ranges, char *psAttr) {
+// TODO Further research to initialize the compressed table based on how it is created.
+static void
+initValToCompressedTable(char *tablename, List *attrDefs, List *ranges,
+		char *psAttr)
+{
 	StringInfo dmlQuery = makeStringInfo();
 	appendStringInfo(dmlQuery,
 			"insert into compressedtable_%s select cid, count(*) as cnt, ",
@@ -133,15 +137,13 @@ static void initValToCompressedTable(char *tablename, List *attrDefs,
 
 	DEBUG_LOG("WHAT IS THE DML:\n%s\n", dmlQuery->data);
 
-	if (getBackend() == BACKEND_POSTGRES) {
-		postgresExecuteStatement(dmlQuery->data);
-	} else if (getBackend() == BACKEND_ORACLE) {
-
-	}
-
+	executeStatementLocal(dmlQuery->data);
 }
 
-static void createCompressedTable(char *tablename, List *attrDefs) {
+// TODO Further research to create the compressed table based on different mechanism.
+static void
+createCompressedTable(char *tablename, List *attrDefs)
+{
 	INFO_LOG("START TO REWRITE COMPRESSED TABLE\n");
 
 	// set the name of compressed table
@@ -194,25 +196,60 @@ static void createCompressedTable(char *tablename, List *attrDefs) {
 	QueryOperator *createTableOp = translateCreateTable(createTable);
 	char *ddlQuery = serializeQuery(createTableOp);
 
-	if (getBackend() == BACKEND_POSTGRES) {
-		postgresExecuteStatement(ddlQuery);
-	} else if (getBackend() == BACKEND_ORACLE) {
+	executeStatementLocal(ddlQuery);
+}
+
+/*
+ * This method supports maintaining and updating the compressed table.
+ */
+//TODO Further research to use database low level mechanism to do updating.
+void
+updateCompressedTable(QueryOperator *updateQuery, char *tablename,
+		psAttrInfo *attrInfo)
+{
+	// 1. update compressed table;
+	switch (nodeTag(((DLMorDDLOperator* )updateQuery)->stmt)) {
+	case T_Insert: {
+		INFO_LOG("CDB: INSERT\n");
+		updateCDBInsertion(updateQuery, tablename, attrInfo, FALSE);
+	}
+		break;
+	case T_Delete: {
+		INFO_LOG("CDB: DELETE\n");
+		updateCDBDeletion(updateQuery, tablename, attrInfo);
 
 	}
+		break;
+	case T_Update:
+		INFO_LOG("CDB: UPDATE\n");
+		updateCDBUpdate(updateQuery, tablename, attrInfo);
+		break;
+	default:
+		break;
+	}
 
+	// 2. derictly execute the updateQuery to original table;
+	updateBaseTable(updateQuery);
 }
 
-void updateCompressedTable(QueryOperator *updateQuery, char *tablename,
-		psAttrInfo *attrInfo) {
-	//1. derictly execute the updateQuery to original table;
-	//2. update compressed table;
-	updateCDBInsertion(updateQuery, tablename, attrInfo);
-	updateCDBDeletion(updateQuery, tablename, attrInfo);
-
+static void
+updateBaseTable(QueryOperator *updateQuery)
+{
+	// update the base tables;
+	// support: insert, delete and update queries;
+	char *dmlQuery = serializeQuery(updateQuery);
+	executeStatementLocal(dmlQuery);
 }
 
-static void updateCDBInsertion(QueryOperator *insertQ, char *tablename,
-		psAttrInfo *attrInfo) {
+static void
+updateCDBInsertion(QueryOperator *insertQ, char *tablename,
+		psAttrInfo *attrInfo, boolean isForUpdate)
+{
+	if (1 == 2)
+		return;
+	if (isForUpdate) {
+
+	}
 	ConstRelOperator *csr = (ConstRelOperator*) getNthOfListP(insertQ->inputs,
 			1);
 	DEBUG_NODE_BEATIFY_LOG("tba:\n", csr);
@@ -237,20 +274,11 @@ static void updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 	StringInfo query = makeStringInfo();
 	appendStringInfo(query, "select * from compressedtable_%s where cid=%d;",
 			tablename, rangeIndex);
-//	INFO_LOG("\n query: \n %s\n", query->data);
-	Relation *rel = NULL;
-	if (getBackend() == BACKEND_POSTGRES) {
-		rel = postgresExecuteQuery(query->data);
-	} else if (getBackend() == BACKEND_ORACLE) {
-
-	}
-	printf("tuple list length: %d\n", getListLength(rel->tuples));
-	printf("schema list length: %d\n", getListLength(rel->schema));
+	Relation *rel = executeQueryLocal(query->data);
 
 	for (int i = 0; i < getListLength(rel->tuples); i++) {
 		StringInfo updQ = makeStringInfo();
-		appendStringInfo(updQ, "update compressedtable_%s set ",
-				tablename);
+		appendStringInfo(updQ, "update compressedtable_%s set ", tablename);
 
 		// set cid
 		appendStringInfo(updQ, "%s = %s ", "cid", "cid");
@@ -263,31 +291,27 @@ static void updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 		while (attIndex < schemaLen) {
 			int type = ((AttributeDef*) getNthOfListP(csr->op.schema->attrDefs,
 					oriTblIdx))->dataType;
+			//update rule based on updType;
 			getCDBInsertUpdateUsingRule(updQ, type,
 					getNthOfListP(csr->values, oriTblIdx), attIndex,
 					getNthOfListP(rel->tuples, i), rel->schema);
-
-			//update rule based on updType;
 
 			attIndex += 5;
 			oriTblIdx += 1;
 		}
 
 		appendStringInfo(updQ, " where %s = %d;", "cid", rangeIndex);
-		printf("\n %s\n", updQ->data);
-		if (getBackend() == BACKEND_POSTGRES) {
-			postgresExecuteStatement(updQ->data);
-		} else if (getBackend() == BACKEND_ORACLE) {
-
-		}
+		INFO_LOG("UPDATE CDB INSERT QUERY:\n%s \n", updQ->data);
+		executeStatementLocal(updQ->data);
 	}
-
 }
 
-static void getCDBInsertUpdateUsingRule(StringInfo str, int dataType,
-		Constant *insertV, int index, List *tuples, List *schema) {
-//	DataType
-//	DT_INT, DT_LONG, DT_STRING, DT_FLOAT, DT_BOOL, DT_VARCHAR2
+static void
+getCDBInsertUpdateUsingRule(StringInfo str, int dataType, Constant *insertV,
+		int index, List *tuples, List *schema)
+{
+	// DataType
+	// DT_INT, DT_LONG, DT_STRING, DT_FLOAT, DT_BOOL, DT_VARCHAR2
 	if (dataType == 0) { //int
 		int val = INT_VALUE(insertV);
 		int currMin = (int) atoi(getNthOfListP(tuples, index));
@@ -470,12 +494,268 @@ static void getCDBInsertUpdateUsingRule(StringInfo str, int dataType,
 
 }
 
-static void updateCDBDeletion(QueryOperator *deleteQ, char *tablename,
-		psAttrInfo *attrInfo) {
-	return;
+static void
+updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo)
+{
+	/*
+	 * this method supports two cases:
+	 * 1. 'delete from table;'
+	 * 2. 'delete from table where conditions'
+	 */
+	INFO_LOG("Start To Update CDB::Deletion\n");
+	Delete *delete = (Delete*) ((DLMorDDLOperator*) deleteQ)->stmt;
+
+	// for case 1: no delete conditions, so truncate all table;
+	if (!(delete->cond)) {
+		INFO_LOG("\n Deletion Without Conditions\n");
+		StringInfo dmlQ = makeStringInfo();
+		appendStringInfo(dmlQ, "delete from compressedtable_%s;",
+				delete->deleteTableName);
+
+		char *dmlQ_origT = serializeQuery(deleteQ);
+		executeStatementLocal(dmlQ->data);
+		executeStatementLocal(dmlQ_origT);
+		return;
+	}
+
+	// for case 2: delete query containing conditions;
+	StringInfo query = makeStringInfo();
+	appendStringInfo(query, "select * from %s where %s;",
+			delete->deleteTableName, exprToSQL(delete->cond, NULL));
+
+	Relation *rel = executeQueryLocal(query->data);
+	INFO_LOG("LENGTH OF DELETED TUPLES: %d\n", getListLength(rel->tuples));
+
+	int psAttrIndex = 0;
+	for (int i = 0; i < getListLength(rel->schema); i++) {
+		if (strcmp(attrInfo->attrName, getNthOfListP(rel->schema, i)) == 0) {
+			psAttrIndex = i;
+			break;
+		}
+	}
+	INFO_LOG("psattrindex = %d\n", psAttrIndex);
+	// iterate each tuple, to update the compressed table;
+	int delTupleListLength = getListLength(rel->tuples);
+
+	for (int i = 0; i < delTupleListLength; i++) {
+		List *nthOfDelTupList = (List*) getNthOfListP(rel->tuples, i);
+		int rangeIndex = binarySearchToFindFragNo(
+				createConstInt(
+						atoi(getNthOfListP(nthOfDelTupList, psAttrIndex))),
+				attrInfo->rangeList) + 1;
+
+		//get current cdb value;
+		StringInfo query_cdb = makeStringInfo();
+		appendStringInfo(query_cdb,
+				"select * from compressedtable_%s where cid = %d",
+				delete->deleteTableName, rangeIndex);
+		Relation *updT = executeQueryLocal(query_cdb->data);
+		StringInfo updCDBQ = makeStringInfo();
+
+		appendStringInfo(updCDBQ, "update compressedtable_%s set ",
+				delete->deleteTableName);
+
+		// set cid;
+		appendStringInfo(updCDBQ, "%s = %s", "cid", "cid");
+
+		// set cnt;
+		appendStringInfo(updCDBQ, ", %s = %s - 1 ", "cnt", "cnt");
+		// for each attribute;
+		int attrIndex = 2;
+		int oriTblIdx = 0;
+		int schemaLen = getListLength(rel->schema);
+		while (oriTblIdx < schemaLen) {
+			int dataType = ((AttributeDef*) getNthOfListP(delete->schema,
+					oriTblIdx))->dataType;
+			getCDBDeleteUsingRules(updCDBQ, dataType,
+					(List*) getNthOfListP(updT->tuples, 0), attrIndex,
+					nthOfDelTupList, oriTblIdx, rel->schema);
+			oriTblIdx += 1;
+			attrIndex += 5;
+		}
+
+		appendStringInfo(updCDBQ, " where cid = %d;", rangeIndex);
+		INFO_LOG("\nwhat is the query:\n%s \n", updCDBQ->data);
+		executeStatementLocal(updCDBQ->data);
+	}
+
+	// check compressed table's tuple 'cnt' field, if 0, delete this tuple;
+	StringInfo dml_remove_tuples = makeStringInfo();
+	appendStringInfo(dml_remove_tuples,
+			"delete from compressedtable_%s where cnt = 0;", tablename);
+	executeStatementLocal(dml_remove_tuples->data);
 }
 
-static int binarySearchToFindFragNo(Constant *value, List *ranges) {
+static void
+getCDBDeleteUsingRules(StringInfo str, int dataType, List *cdbTupleList,
+		int cdbAttrIndex, List *delTuples, int delAttrIndex, List *schema)
+{
+	// DataType
+	// DT_INT, DT_LONG, DT_STRING, DT_FLOAT, DT_BOOL, DT_VARCHAR2
+	int cnt = atoi(getNthOfListP(cdbTupleList, 1));
+	char *attrName = getNthOfListP(schema, delAttrIndex);
+	if (dataType == 0) {
+		int deleteVal = atoi(getNthOfListP(delTuples, delAttrIndex));
+		int sumVal = atoi(getNthOfListP(cdbTupleList, cdbAttrIndex + 4));
+		int upperBound = atoi(getNthOfListP(cdbTupleList, cdbAttrIndex + 1));
+		int lowerBound = atoi(getNthOfListP(cdbTupleList, cdbAttrIndex));
+		int distUpperBound = atoi(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 3));
+		int distlowerBound = atoi(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 2));
+		if (upperBound * (cnt - 1) == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 1", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %d", attrName, attrName,
+					deleteVal);
+		} else if (lowerBound * (cnt - 1) == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 1", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %d", attrName, attrName,
+					deleteVal);
+		} else if (lowerBound + upperBound == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 2", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 2", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %d", attrName, attrName,
+					deleteVal);
+		} else if (distUpperBound > (cnt - 1)) {
+			if (distlowerBound < cnt - 1) {
+				appendStringInfo(str, ", lb_%s = %d", attrName, distlowerBound);
+			} else {
+				appendStringInfo(str, ", lb_%s = %d", attrName, cnt - 1);
+			}
+			appendStringInfo(str, ", ub_%s = cnt - 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %d", attrName, attrName,
+					deleteVal);
+		} else {
+			appendStringInfo(str, ", sum_%s = sum_%s - %d", attrName, attrName,
+					deleteVal);
+		}
+	} else if (dataType == 1) {
+		char *aux;
+		long deleteVal = (long) strtol(getNthOfListP(delTuples, delAttrIndex),
+				&aux, 10);
+		long sumVal = (long) strtol(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 4), &aux, 10);
+		long upperBound = (long) strtol(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 1), &aux, 10);
+		long lowerBound = (long) strtol(
+				getNthOfListP(cdbTupleList, cdbAttrIndex), &aux, 10);
+		int distUpperBound = atoi(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 3));
+		int distlowerBound = atoi(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 2));
+		//TODO think about the following two conditional cases that if long will exceed the bounds.
+		if (upperBound * (cnt - 1) == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 1", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %ld", attrName, attrName,
+					deleteVal);
+		} else if (lowerBound * (cnt - 1) == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 1", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %ld", attrName, attrName,
+					deleteVal);
+		} else if (lowerBound + upperBound == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 2", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 2", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %ld", attrName, attrName,
+					deleteVal);
+		} else if (distUpperBound > (cnt - 1)) {
+			if (distlowerBound < cnt - 1) {
+				appendStringInfo(str, ", lb_%s = %d", attrName, distlowerBound);
+			} else {
+				appendStringInfo(str, ", lb_%s = %d", attrName, cnt - 1);
+			}
+			appendStringInfo(str, ", ub_%s = cnt - 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %ld", attrName, attrName,
+					deleteVal);
+		} else {
+			appendStringInfo(str, ", sum_%s = sum_%s - %ld", attrName, attrName,
+					deleteVal);
+		}
+	} else if (dataType == 2 || dataType == 5) {
+		return;
+	} else if (dataType == 3) {
+		char *aux;
+		double deleteVal = (double) strtod(
+				getNthOfListP(delTuples, delAttrIndex), &aux);
+		double sumVal = (double) strtod(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 4), &aux);
+		double upperBound = (double) strtod(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 1), &aux);
+		double lowerBound = (double) strtod(
+				getNthOfListP(cdbTupleList, cdbAttrIndex), &aux);
+		int distUpperBound = atoi(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 3));
+		int distlowerBound = atoi(
+				getNthOfListP(cdbTupleList, cdbAttrIndex + 2));
+		//TODO think about the following two conditional cases that if long will exceed the bounds.
+		if (upperBound * (cnt - 1) == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 1", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %lf", attrName, attrName,
+					deleteVal);
+		} else if (lowerBound * (cnt - 1) == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 1", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %lf", attrName, attrName,
+					deleteVal);
+		} else if (lowerBound + upperBound == sumVal - deleteVal) {
+			appendStringInfo(str, ", lb_%s = lb_%s", attrName, attrName);
+			appendStringInfo(str, ", ub_%s = ub_%s", attrName, attrName);
+			appendStringInfo(str, ", lb_dist_%s = 2", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 2", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %lf", attrName, attrName,
+					deleteVal);
+		} else if (distUpperBound > (cnt - 1)) {
+			if (distlowerBound < cnt - 1) {
+				appendStringInfo(str, ", lb_%s = %d", attrName, distlowerBound);
+			} else {
+				appendStringInfo(str, ", lb_%s = %d", attrName, cnt - 1);
+			}
+			appendStringInfo(str, ", ub_%s = cnt - 1", attrName);
+			appendStringInfo(str, ", sum_%s = sum_%s - %lf", attrName, attrName,
+					deleteVal);
+		} else {
+			appendStringInfo(str, ", sum_%s = sum_%s - %lf", attrName, attrName,
+					deleteVal);
+		}
+
+	} else if (dataType == 4) {
+		return;
+	}
+
+}
+
+static void
+updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo)
+{
+
+}
+
+/*
+ * This method uses binary search to find which fragment it locate for given value.
+ */
+static int
+binarySearchToFindFragNo(Constant *value, List *ranges)
+{
 	int index = -1;
 	int start = 0;
 	int end = getListLength(ranges) - 2;
@@ -504,7 +784,9 @@ static int binarySearchToFindFragNo(Constant *value, List *ranges) {
 	return index;
 }
 
-static int isInRange(Constant *val, Constant *lower, Constant *upper) {
+static int
+isInRange(Constant *val, Constant *lower, Constant *upper)
+{
 	int res = 0;
 	switch (val->constType) {
 	case DT_INT: {
@@ -555,370 +837,26 @@ static int isInRange(Constant *val, Constant *lower, Constant *upper) {
 	}
 	return res;
 }
-/*
 
+static Relation*
+executeQueryLocal(char *query)
+{
+	Relation *relation = NULL;
+	if (getBackend() == BACKEND_POSTGRES) {
+		relation = postgresExecuteQuery(query);
+	} else if (getBackend() == BACKEND_ORACLE) {
 
- create cdb code backup
+	}
 
+	return relation;
+}
 
+static void
+executeStatementLocal(char *stmt)
+{
+	if (getBackend() == BACKEND_POSTGRES) {
+		postgresExecuteStatement(stmt);
+	} else if (getBackend() == BACKEND_ORACLE) {
 
- StringInfo ddlQuery = makeStringInfo();
- appendStringInfo(ddlQuery,
- "create table compressedtable_%s(cid int, ccnt int, ",
- oriTablename);
-
- List *attributes = NIL;
-
- INFO_LOG("SUCCESS\n");
- if (getBackend() == BACKEND_POSTGRES) {
- //	Get all attributes of table 'tablename'
- attributes = postgresGetAttributes(oriTablename);
- } else if (getBackend() == BACKEND_ORACLE) {
-
- }
- INFO_LOG("SUCCESS2\n");
- // here should go to tableCompressRewrite();
- if (1 == 2) {
- tableCompressRewrite(cprTablename, attributes, ranges, psAttr);
- }
-
- //		if (1 == 1) {
- //			tableCompressRewrite(tablename, attributes, ranges, psAttr);
- //			return;
- //		}
-
-
- //	 Append to the 'ddlQuery' and then create this compressed table "compressedtable_'tablename' "
-
- for (int i = 0; i < LIST_LENGTH(attributes); i++) {
- AttributeDef *attribute = (AttributeDef*) getNthOfListP(attributes, i);
-
- char *type = NULL;
- switch (attribute->dataType) {
- case DT_INT:
- type = "int";
- break;
- case DT_LONG:
- type = "long";
- break;
- case DT_STRING:
- type = "varchar2";
- break;
- case DT_FLOAT:
- type = "float";
- break;
- case DT_VARCHAR2:
- type = "varchar2";
- break;
- default:
- break;
- }
-
- char *attname = attribute->attrName;
-
- appendStringInfo(ddlQuery,
- "lb_%s int, ub_%s int, lb_dist_%s int, ub_dist_%s int, sum_%s %s ",
- attname, attname, attname, attname, attname, type);
- if (i != LIST_LENGTH(attributes) - 1) {
- appendStringInfo(ddlQuery, ", ");
- }
-
- }
- appendStringInfo(ddlQuery, ");");
- DEBUG_LOG("DDL STATEMENT:\n%s\n", ddlQuery->data);
- //		executeQuery("select * from r");
- //		postgresExecuteQuery(ddlQuery->data);
-
- if(getBackend() == BACKEND_POSTGRES) {
- postgresExecuteStatement(ddlQuery->data);
- } else if(getBackend() == BACKEND_ORACLE) {
-
- }
- */
-
-/*
- * insert into cdb code backup
- * */
-// * /*
-//	 *  build dml query and fill data into compressedtable
-//	 */
-//	/*
-//	 StringInfo dmlQuery = makeStringInfo();
-//	 appendStringInfo(dmlQuery,
-//	 "insert into compressedtable_%s select cid, count(*) as ccnt, ",
-//	 tablename);
-//
-//	 StringInfo caseWhens = makeStringInfo();
-//	 for (int i = 0; i < LIST_LENGTH(ranges) - 1; i++) {
-//	 if (i == LIST_LENGTH(ranges) - 2) {
-//	 appendStringInfo(caseWhens, "else %d ", (i + 1));
-//	 } else {
-//	 appendStringInfo(caseWhens,
-//	 " when %s >= %d and %s < %d then %d ", psAttr,
-//	 *((int*) ((Constant*) getNthOfListP(ranges, i))->value),
-//	 psAttr,
-//	 *((int*) ((Constant*) getNthOfListP(ranges, (i + 1)))->value),
-//	 (i + 1));
-//	 }
-//	 }
-//	 appendStringInfo(caseWhens, "end as cid, ");
-//
-//	 for (int i = 0; i < LIST_LENGTH(attributes); i++) {
-//	 AttributeDef *attribute = (AttributeDef*) getNthOfListP(attributes,
-//	 i);
-//	 char *attname = attribute->attrName;
-//	 appendStringInfo(dmlQuery,
-//	 "min(%s) as lb_%s, max(%s) as ub_%s, count(distinct %s) as lb_dist_%s, count(distinct %s) as ub_dist_%s, sum(%s) as sum_%s ",
-//	 attname, attname, attname, attname, attname, attname,
-//	 attname, attname, attname, attname);
-//	 if (i != LIST_LENGTH(attributes) - 1) {
-//	 appendStringInfo(dmlQuery, ",");
-//	 }
-//
-//	 if (i == LIST_LENGTH(attributes) - 1) {
-//	 appendStringInfo(caseWhens, "%s ", attname);
-//	 } else {
-//	 appendStringInfo(caseWhens, "%s, ", attname);
-//	 }
-//	 }
-//
-//	 appendStringInfo(dmlQuery, " from( select case ");
-//	 appendStringInfo(dmlQuery, "%s from %s) a_name group by cid;",
-//	 caseWhens->data, tablename);
-//
-//	 DEBUG_LOG("WHAT IS THE DML:\n%s\n", dmlQuery->data);
-//	 */
-//	/*
-//	 * ddlQuery : create compressed table
-//	 * dmlQuery : fill compressed table with data;
-//	 */
-////	postgresExecuteStatement(ddlQuery->data);
-////	postgresExecuteStatement(dmlQuery->data);
-// CREATE INSERT OPERATOR;
-//	char* q = rewriteParserOutput(node);
-//	processInput(dmlQuery->data);
-//	printf("\n what is q \n %s\n", q);
-/*
- INFO_LOG("START TO INITIALIZE THE COMPRESSED TABLE\n");
- // STEP 1.1 build the query block;
- QueryBlock *innerQB = createQueryBlock();
-
- //
- // STEP 1.2 build select clause
- List *innerQBSelectClauseList = NIL;
-
- //
- // STEP 1.2.1 build first select item "case when"
- CaseExpr *caseExpr = createCaseExpr(NULL, NIL, NULL);
- List *caseExprWhenClauseList = NIL;
-
- // STEP 1.2.1.1 find psAttr DT and attrPos;
- int attPos = 0;
- int dataType = 0;
- for (int i = 0; i < getListLength(attrDefs); i++) {
- AttributeDef *ad = (AttributeDef*) getNthOfListP(attrDefs, i);
- if (0 == strcmp(ad->attrName, psAttr)) {
- attPos = i;
- dataType = ad->dataType;
- }
-
- //ref_1
- innerQBSelectClauseList = appendToTailOfList(innerQBSelectClauseList,
- createSelectItem(ad->attrName,
- (Node*) createFullAttrReference(ad->attrName, 0, i, 0,
- ad->dataType)));
- }
-
- //
- // STEP 1.2.1.2 build attribute reference for psAttr;
- AttributeReference *psAttrRef = createFullAttrReference(psAttr, 0, attPos,
- 0, dataType);
- for (int i = 0; i < getListLength(ranges) - 2; i++) {
- // build psAttr >= x and psAttr < y
- Constant *left = getNthOfListP(ranges, i);
- Constant *right = getNthOfListP(ranges, i + 1);
- Operator *leftOp = createOpExpr(">=", LIST_MAKE(psAttrRef, left));
- Operator *rightOp = createOpExpr("<", LIST_MAKE(psAttrRef, right));
- List *exprs = LIST_MAKE(leftOp, rightOp);
-
- // and expr list;
- Node *when = andExprList(exprs);
- Node *then = (Node*) (createConstInt(i + 1));
- CaseWhen *caseWhen = createCaseWhen(when, then);
-
- caseExprWhenClauseList = appendToTailOfList(caseExprWhenClauseList,
- caseWhen);
- }
-
- //
- // STEP 1.2.1.3 set caseExpr->when: case when list caseExpr;
- caseExpr->whenClauses = caseExprWhenClauseList;
- caseExpr->elseRes = (Node*) createConstInt(getListLength(ranges) - 1);
-
- //
- // STEP 1.2.1.4 build the first SELECT_ITEM
- // 				append to first, since the other items are already in the list;
- innerQBSelectClauseList = appendToHeadOfList(innerQBSelectClauseList,
- createSelectItem("cid", (Node*) caseExpr));
-
- //
- // STEP 1.2.2 loop through "attDefs", add all of the to select clause list;
- // 			 This step is finished in 1.2.1.1: in ref_1
-
- //
- // STEP 1.3 build "fromClause" for innerQB;
- // 			only one table for fromClause list;
- FromTableRef *fromTableRef = (FromTableRef*) createFromTableRef(tablename,
- getAttrDefNames(attrDefs), tablename, getAttrDataTypes(attrDefs));
- //	fromTableRef->from = *((FromItem*) fromTableRef);
- fromTableRef->tableId = tablename;
- innerQB->fromClause = LIST_MAKE(fromTableRef);
- innerQB->selectClause = innerQBSelectClauseList;
- DEBUG_NODE_BEATIFY_LOG("INNER BOLCK:\n", innerQB);
-
- //
- // STEP 2, build outer query block
- QueryBlock *outerQB = createQueryBlock();
-
- //
- // STEP 2.1 build outerQB's from Clause
- //			this fromClause is built from innerQB
- List *outerQBFromClauseList = NIL;
-
- //
- // STEP 2.1.2 build "FromSubquery"
- //			two components: FromItem, Node* subquery
- FromSubquery *fromSubquery = (FromSubquery*) createFromSubquery("a_name",
- getQBAttrNames((Node*) innerQB), (Node*) innerQB);
- fromSubquery->from.dataTypes = getQBAttrDTs((Node*) innerQB);
-
- // STEP 2.1.2.1 build FromItem for fromSubquery
- //	FromItem * fromItem = createFromItem("a_name", getQBAttrNames((Node*) innerQB));
- //	DEBUG_NODE_BEATIFY_LOG("fromitem:\n", (FromItem*) fromItem);
-
- //
- // STEP 2.1.2.3 build subquery for fromSubquery
- //				it is QueryBlock innerQB;
-
- // STEP 2.1.2.4 build fromSubquery
- //	fromSubquery->from = *fromItem;
- //	fromSubquery->subquery = (Node*) innerQB;
- //	DEBUG_NODE_BEATIFY_LOG("WHAT IS THE FROMSUBQUERY:\n", fromSubquery);
-
- //
- // STEP 2.1.2.5: make fromClause list;
- outerQBFromClauseList = appendToTailOfList(outerQBFromClauseList,
- fromSubquery);
- outerQB->fromClause = outerQBFromClauseList;
- //	outerQB->fromClause = LIST_MAKE(fromSubquery);
-
- //
- // STEP 2.2 build outerQB's selectClause;
- List *outerQBSelectClauseList = NIL;
-
- //
- // STEP 2.2.1 build first 2 items cid, and cnt;
- AttributeReference *cidRef = createFullAttrReference("cid", 0, 0, 0,
- (DataType) DT_INT);
- outerQBSelectClauseList = appendToTailOfList(outerQBSelectClauseList,
- createSelectItem("cid", (Node*) cidRef));
-
- FunctionCall *fc = createFunctionCall("count",
- LIST_MAKE(createConstInt(1)));
- fc->isAgg = TRUE;
- outerQBSelectClauseList = appendToTailOfList(outerQBSelectClauseList,
- createSelectItem("cnt", (Node*) fc));
-
- List *cmprTblAttrDefs = NIL;
- if (getBackend() == BACKEND_POSTGRES) {
- cmprTblAttrDefs = postgresGetAttributes(tablename);
- } else if (getBackend() == BACKEND_ORACLE) {
-
- }
-
- //
- // STEP 2.2.2 LOOP through to build other SelectItem s
- int nameIndex = 2; // need to use attrname from cmprTblAttrDefs
-
- for (int i = 0; i < getListLength(attrDefs); i++) {
- AttributeDef *ad = (AttributeDef*) getNthOfListP(attrDefs, i);
- AttributeReference *ar = createFullAttrReference(ad->attrName, 0,
- (i + 1), 0, ad->dataType);
- List *args = LIST_MAKE(ar);
-
- // for lb_xx
- fc = createFunctionCall("min", args);
- fc->isAgg = TRUE;
- outerQBSelectClauseList = appendToTailOfList(outerQBSelectClauseList,
- createSelectItem(
- ((AttributeDef*) getNthOfListP(cmprTblAttrDefs,
- nameIndex++))->attrName, (Node*) fc));
-
- //for ub_xx
- fc = createFunctionCall("max", args);
- fc->isAgg = TRUE;
- outerQBSelectClauseList = appendToTailOfList(outerQBSelectClauseList,
- createSelectItem(
- ((AttributeDef*) getNthOfListP(cmprTblAttrDefs,
- nameIndex++))->attrName, (Node*) fc));
-
- //for dist_xxx_lb
- fc = createFunctionCall("count", args);
- fc->isAgg = TRUE;
- fc->isDistinct = TRUE;
- outerQBSelectClauseList = appendToTailOfList(outerQBSelectClauseList,
- createSelectItem(
- ((AttributeDef*) getNthOfListP(cmprTblAttrDefs,
- nameIndex++))->attrName, (Node*) fc));
-
- //for dist_xxx_ub
- fc = createFunctionCall("count", args);
- fc->isAgg = TRUE;
- fc->isDistinct = TRUE;
- outerQBSelectClauseList = appendToTailOfList(outerQBSelectClauseList,
- createSelectItem(
- ((AttributeDef*) getNthOfListP(cmprTblAttrDefs,
- nameIndex++))->attrName, (Node*) fc));
-
- fc = createFunctionCall("sum", args);
- fc->isAgg = TRUE;
- fc->isDistinct = FALSE;
- outerQBSelectClauseList = appendToTailOfList(outerQBSelectClauseList,
- createSelectItem(
- ((AttributeDef*) getNthOfListP(cmprTblAttrDefs,
- nameIndex++))->attrName, (Node*) fc));
- }
-
- //
- // STEP 2.2.3 set outerQB selectClause;
- outerQB->selectClause = outerQBSelectClauseList;
- outerQB->groupByClause = LIST_MAKE(cidRef);
-
- DEBUG_NODE_BEATIFY_LOG("OUTTER BLOCK:\n", outerQB);
-
- // STEP 3, build "Insert"
- StringInfo cmprTbl = makeStringInfo();
- appendStringInfo(cmprTbl, "compressedtable_%s", tablename);
- Insert *insert = createInsert(cmprTbl->data, (Node*) outerQB, NIL);
- insert->insertTableName = cmprTbl->data;
- //	insert->schema = LIST_MAKE(createSchema(NULL, cmprTblAttrDefs));
- insert->attrList = NIL;
- List *schemas = NIL;
- for (int i = 0; i < getListLength(cmprTblAttrDefs); i++) {
- AttributeDef *ad = getNthOfListP(cmprTblAttrDefs, i);
- schemas = appendToTailOfList(schemas, ad);
- insert->attrList = appendToTailOfList(insert->attrList,
- ((AttributeDef*) getNthOfListP(cmprTblAttrDefs, i))->attrName);
- }
- insert->schema = schemas;
- INFO_NODE_BEATIFY_LOG("INSERT QUERY:\n", insert);
-
- //		QueryOperator *insertOp = translateUpdate((Node*) insert);
- //		char *dmlQuery = serializeQuery(insertOp);
- //		printf("insert query: %s\n", dmlQuery);
- if (getBackend() == BACKEND_POSTGRES) {
- //		postgresExecuteStatement(dmlQuery);
- } else if (getBackend() == BACKEND_ORACLE) {
-
- }
- */
+	}
+}

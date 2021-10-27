@@ -29,78 +29,125 @@
 #include "temporal_queries/temporal_rewriter.h"
 #include "utility/string_utils.h"
 
-static void analyzeStmtList(List *l, List *parentFroms);
-static void analyzeQueryBlock(QueryBlock *qb, List *parentFroms);
-static void analyzeSetQuery(SetQuery *q, List *parentFroms);
-static void analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms);
-static void analyzeProvenanceOptions(ProvenanceStmt *prov);
-static boolean reenactOptionHasTimes(List *opts);
-static void analyzeWithStmt(WithStmt *w);
-static void analyzeCreateTable(CreateTable *c);
-static void analyzeAlterTable(AlterTable *a);
+static void
+analyzeStmtList(List *l, List *parentFroms);
+static void
+analyzeQueryBlock(QueryBlock *qb, List *parentFroms);
+static void
+analyzeSetQuery(SetQuery *q, List *parentFroms);
+static void
+analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms);
+static void
+analyzeProvenanceOptions(ProvenanceStmt *prov);
+static boolean
+reenactOptionHasTimes(List *opts);
+static void
+analyzeWithStmt(WithStmt *w);
+static void
+analyzeCreateTable(CreateTable *c);
+static void
+analyzeAlterTable(AlterTable *a);
 
-static void analyzeJoin(FromJoinExpr *j, List *parentFroms);
-static void analyzeWhere(QueryBlock *qb, List *parentFroms);
-static void analyzeLimitAndOffset(QueryBlock *qb);
+static void
+analyzeJoin(FromJoinExpr *j, List *parentFroms);
+static void
+analyzeWhere(QueryBlock *qb, List *parentFroms);
+static void
+analyzeLimitAndOffset(QueryBlock *qb);
 
 // adapt identifiers and quoted identifiers based on backend
-static void adaptIdentifiers(Node *stmt);
-static boolean visitAdaptIdents(Node *node, Set *context);
+static void
+adaptIdentifiers(Node *stmt);
+static boolean
+visitAdaptIdents(Node *node, Set *context);
 
 // search for attributes and other relevant node types
-static void analyzeFromProvInfo(FromItem *f);
-static void adaptAttrPosOffset(FromItem *f, FromItem *decendent,
-		AttributeReference *a);
-static void adaptAttributeRefs(List *attrRefs, List *parentFroms);
-static boolean findAttrReferences(Node *node, List **state);
-static void enumerateParameters(Node *stmt);
-static boolean findFunctionCall(Node *node, List **state);
-static boolean findAttrRefInFrom(AttributeReference *a, List *fromClauses);
-static FromItem* findNamedFromItem(FromItem *fromItem, char *name);
-static int findAttrInFromItem(FromItem *fromItem, AttributeReference *attr);
-static boolean findQualifiedAttrRefInFrom(List *nameParts,
-		AttributeReference *a, List *fromClauses);
+static void
+analyzeFromProvInfo(FromItem *f);
+static void
+adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a);
+static void
+adaptAttributeRefs(List *attrRefs, List *parentFroms);
+static boolean
+findAttrReferences(Node *node, List **state);
+static void
+enumerateParameters(Node *stmt);
+static boolean
+findFunctionCall(Node *node, List **state);
+static boolean
+findAttrRefInFrom(AttributeReference *a, List *fromClauses);
+static FromItem*
+findNamedFromItem(FromItem *fromItem, char *name);
+static int
+findAttrInFromItem(FromItem *fromItem, AttributeReference *attr);
+static boolean
+findQualifiedAttrRefInFrom(List *nameParts, AttributeReference *a,
+		List *fromClauses);
 
 // analyze from item types
-static void analyzeFromTableRef(FromTableRef *f);
-static void analyzeInsert(Insert *f);
-static void analyzeDelete(Delete *f);
-static void analyzeUpdate(Update *f);
-static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
-static List* analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
-static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
-static boolean correctFromTableVisitor(Node *node, void *context);
-static boolean checkTemporalAttributesVisitor(Node *node, DataType **context);
+static void
+analyzeFromTableRef(FromTableRef *f);
+static void
+analyzeInsert(Insert *f);
+static void
+analyzeDelete(Delete *f);
+static void
+analyzeUpdate(Update *f);
+static void
+analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
+static List*
+analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
+static void
+analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
+static boolean
+correctFromTableVisitor(Node *node, void *context);
+static boolean
+checkTemporalAttributesVisitor(Node *node, DataType **context);
 
 // analyze function calls and nested subqueries
-static void analyzeFunctionCall(QueryBlock *qb);
-static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
+static void
+analyzeFunctionCall(QueryBlock *qb);
+static void
+analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
 
 // analyze FromJsonTable Item
-static void analyzeFromJsonTable(FromJsonTable *f, List **state);
+static void
+analyzeFromJsonTable(FromJsonTable *f, List **state);
 
 // real attribute name fetching
-static List* expandStarExpression(SelectItem *s, List *fromClause);
-static List* splitAttrOnDot(char *dotName);
+static List*
+expandStarExpression(SelectItem *s, List *fromClause);
+static List*
+splitAttrOnDot(char *dotName);
 
 //static char *getAttrNameFromNameWithBlank(char *blankName);
-static List* getFromTreeLeafs(List *from);
-static char* generateAttrNameFromExpr(SelectItem *s);
-static List* splitTableName(char *tableName);
-static void getTableSchema(char *tableName, List **attrDefs, List **attrNames,
-		List **dts);
-static boolean compareAttrDefName(AttributeDef *a, AttributeDef *b);
-static boolean setViewFromTableRefAttrs(Node *node, List *views);
-static boolean schemaInfoHasTable(char *tableName);
-static List* schemaInfoGetSchema(char *tableName);
-static List* schemaInfoGetAttributeNames(char *tableName);
-static List* schemaInfoGetAttributeDataTypes(char *tableName);
+static List*
+getFromTreeLeafs(List *from);
+static char*
+generateAttrNameFromExpr(SelectItem *s);
+static List*
+splitTableName(char *tableName);
+static void
+getTableSchema(char *tableName, List **attrDefs, List **attrNames, List **dts);
+static boolean
+compareAttrDefName(AttributeDef *a, AttributeDef *b);
+static boolean
+setViewFromTableRefAttrs(Node *node, List *views);
+static boolean
+schemaInfoHasTable(char *tableName);
+static List*
+schemaInfoGetSchema(char *tableName);
+static List*
+schemaInfoGetAttributeNames(char *tableName);
+static List*
+schemaInfoGetAttributeDataTypes(char *tableName);
 
 /* holder for schema information when analyzing reenactment with potential DDL */
 static HashMap *schemaInfo = NULL;
 
 Node*
-analyzeOracleModel(Node *stmt) {
+analyzeOracleModel(Node *stmt)
+{
 	DEBUG_NODE_BEATIFY_LOG(
 			"\n ###########################\n \t WHAT IS THE NODE* STMT?\n ###########################\n",
 			stmt);
@@ -108,10 +155,14 @@ analyzeOracleModel(Node *stmt) {
 
 	analyzeQueryBlockStmt(stmt, NULL);
 
+	INFO_LOG("END ANALYZEORACLEMODEL\n");
+
 	return stmt;
 }
 
-static void adaptIdentifiers(Node *stmt) {
+static void
+adaptIdentifiers(Node *stmt)
+{
 	Set *haveSeen = PSET();
 
 	visit(stmt, visitAdaptIdents, haveSeen);
@@ -124,7 +175,9 @@ static void adaptIdentifiers(Node *stmt) {
  * - names of functions FunctionCall nodes
  *
  */
-static boolean visitAdaptIdents(Node *node, Set *context) {
+static boolean
+visitAdaptIdents(Node *node, Set *context)
+{
 	if (node == NULL)
 		return TRUE;
 
@@ -139,7 +192,9 @@ static boolean visitAdaptIdents(Node *node, Set *context) {
 	return visit(node, visitAdaptIdents, context);
 }
 
-void analyzeQueryBlockStmt(Node *stmt, List *parentFroms) {
+void
+analyzeQueryBlockStmt(Node *stmt, List *parentFroms)
+{
 	switch (stmt->type) {
 	case T_QueryBlock:
 		DEBUG_LOG(
@@ -168,6 +223,8 @@ void analyzeQueryBlockStmt(Node *stmt, List *parentFroms) {
 				"\n ###########################\n \t END analyzeQueryBolckStmt() IN T_List: END \n ###########################\n");
 		break;
 	case T_Insert:
+		DEBUG_LOG(
+				"\n ###########################\n \t analyzeQueryBolckStmt() IN T_INSERT: \n ###########################\n");
 		analyzeInsert((Insert*) stmt);
 		break;
 	case T_Delete:
@@ -197,7 +254,9 @@ void analyzeQueryBlockStmt(Node *stmt, List *parentFroms) {
 	DEBUG_NODE_BEATIFY_LOG("RESULT OF ANALYSIS IS:", stmt);
 }
 
-static void enumerateParameters(Node *stmt) {
+static void
+enumerateParameters(Node *stmt)
+{
 	List *params = findParameters(stmt);
 	int i = 1;
 
@@ -205,7 +264,9 @@ static void enumerateParameters(Node *stmt) {
 		p->position = i++;
 }
 
-static void analyzeStmtList(List *l, List *parentFroms) {
+static void
+analyzeStmtList(List *l, List *parentFroms)
+{
 	static int index = 0;
 
 	FOREACH(Node,n,l)
@@ -222,7 +283,9 @@ static void analyzeStmtList(List *l, List *parentFroms) {
 	}
 }
 
-static void adaptAttributeRefs(List *attrRefs, List *parentFroms) {
+static void
+adaptAttributeRefs(List *attrRefs, List *parentFroms)
+{
 	// adapt attribute references
 	FOREACH(AttributeReference,a,attrRefs)
 	{
@@ -245,7 +308,9 @@ static void adaptAttributeRefs(List *attrRefs, List *parentFroms) {
 	}
 }
 
-static void analyzeQueryBlock(QueryBlock *qb, List *parentFroms) {
+static void
+analyzeQueryBlock(QueryBlock *qb, List *parentFroms)
+{
 	DEBUG_LOG(
 			"\n ###########################\n \t analyzeQueryBolck(): \n ###########################\n");
 	List *attrRefs = NIL;
@@ -387,7 +452,9 @@ static void analyzeQueryBlock(QueryBlock *qb, List *parentFroms) {
 	INFO_LOG("Analysis done");
 }
 
-static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms) {
+static void
+analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
+{
 	List *nestedSubqueries = NIL;
 
 	// find nested subqueries
@@ -407,7 +474,9 @@ static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms) {
 		analyzeQueryBlockStmt(q->query, parentFroms);
 }
 
-static void analyzeFromProvInfo(FromItem *f) {
+static void
+analyzeFromProvInfo(FromItem *f)
+{
 	// analyze FromProvInfo if exists
 	if (f->provInfo) {
 		FromProvInfo *fp = f->provInfo;
@@ -499,7 +568,9 @@ static void analyzeFromProvInfo(FromItem *f) {
 	}
 }
 
-static void analyzeFunctionCall(QueryBlock *qb) {
+static void
+analyzeFunctionCall(QueryBlock *qb)
+{
 	List *functionCallList = NIL;
 
 	// collect function call
@@ -528,7 +599,9 @@ static void analyzeFunctionCall(QueryBlock *qb) {
 	}
 }
 
-static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms) {
+static void
+analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
+{
 	List *stack = copyList(fromClause);
 
 	while (!LIST_EMPTY(stack)) {
@@ -642,7 +715,9 @@ static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms) {
 			fromClause);
 }
 
-static boolean findAttrRefInFrom(AttributeReference *a, List *fromClauses) {
+static boolean
+findAttrRefInFrom(AttributeReference *a, List *fromClauses)
+{
 	boolean isFound = FALSE;
 	int fromPos = 0, attrPos, levelsUp = 0;
 
@@ -673,7 +748,8 @@ static boolean findAttrRefInFrom(AttributeReference *a, List *fromClauses) {
 }
 
 static FromItem*
-findNamedFromItem(FromItem *fromItem, char *name) {
+findNamedFromItem(FromItem *fromItem, char *name)
+{
 	if (isA(fromItem, FromJoinExpr)) {
 		FromJoinExpr *join = (FromJoinExpr*) fromItem;
 		FromItem *result;
@@ -699,7 +775,9 @@ findNamedFromItem(FromItem *fromItem, char *name) {
 	return NULL;
 }
 
-static int findAttrInFromItem(FromItem *fromItem, AttributeReference *attr) {
+static int
+findAttrInFromItem(FromItem *fromItem, AttributeReference *attr)
+{
 	boolean isFound = FALSE;
 	int attrPos = 0, foundAttr = INVALID_ATTR;
 
@@ -734,8 +812,10 @@ static int findAttrInFromItem(FromItem *fromItem, AttributeReference *attr) {
 	return foundAttr;
 }
 
-static boolean findQualifiedAttrRefInFrom(List *nameParts,
-		AttributeReference *a, List *fromClauses) {
+static boolean
+findQualifiedAttrRefInFrom(List *nameParts, AttributeReference *a,
+		List *fromClauses)
+{
 	boolean foundFrom = FALSE;
 	boolean foundAttr = FALSE;
 	int fromClauseItem = 0;
@@ -811,8 +891,9 @@ static boolean findQualifiedAttrRefInFrom(List *nameParts,
 	return foundAttr;
 }
 
-static void adaptAttrPosOffset(FromItem *f, FromItem *decendent,
-		AttributeReference *a) {
+static void
+adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a)
+{
 	List *leafs = getFromTreeLeafs(singleton(f));
 	int offset = 0;
 
@@ -826,7 +907,9 @@ static void adaptAttrPosOffset(FromItem *f, FromItem *decendent,
 	}
 }
 
-boolean hasNestedSubqueries(Node *node) {
+boolean
+hasNestedSubqueries(Node *node)
+{
 	List *nested = NIL;
 	boolean result;
 
@@ -837,7 +920,9 @@ boolean hasNestedSubqueries(Node *node) {
 	return result;
 }
 
-boolean findNestedSubqueries(Node *node, List **state) {
+boolean
+findNestedSubqueries(Node *node, List **state)
+{
 	if (node == NULL)
 		return TRUE;
 
@@ -853,7 +938,9 @@ boolean findNestedSubqueries(Node *node, List **state) {
 	return visit(node, findNestedSubqueries, state);
 }
 
-static boolean findFunctionCall(Node *node, List **state) {
+static boolean
+findFunctionCall(Node *node, List **state)
+{
 	if (node == NULL)
 		return TRUE;
 
@@ -870,7 +957,9 @@ static boolean findFunctionCall(Node *node, List **state) {
 	return visit(node, findFunctionCall, state);
 }
 
-static void analyzeJoin(FromJoinExpr *j, List *parentFroms) {
+static void
+analyzeJoin(FromJoinExpr *j, List *parentFroms)
+{
 	FromItem *left = j->left;
 	FromItem *right = j->right;
 
@@ -935,7 +1024,9 @@ static void analyzeJoin(FromJoinExpr *j, List *parentFroms) {
 	DEBUG_NODE_BEATIFY_LOG("join analysis:", j);
 }
 
-static void analyzeWhere(QueryBlock *qb, List *parentFroms) {
+static void
+analyzeWhere(QueryBlock *qb, List *parentFroms)
+{
 	DataType returnType = typeOf(qb->whereClause);
 
 	if (returnType != DT_BOOL)
@@ -945,7 +1036,9 @@ static void analyzeWhere(QueryBlock *qb, List *parentFroms) {
 				beatify(nodeToString(qb->whereClause)));
 }
 
-static void analyzeLimitAndOffset(QueryBlock *qb) {
+static void
+analyzeLimitAndOffset(QueryBlock *qb)
+{
 	List *attrRefs = NIL;
 	List *nestedQs = NIL;
 
@@ -972,7 +1065,9 @@ static void analyzeLimitAndOffset(QueryBlock *qb) {
 	//TODO check that limit and offset are expressions without subqueries and attribute references
 }
 
-static void analyzeFromTableRef(FromTableRef *f) {
+static void
+analyzeFromTableRef(FromTableRef *f)
+{
 	// attribute names already set (view or temporary view for now)
 	// if we have schema information based on reenacting DDL then this overrides actual catalog information
 	if (schemaInfoHasTable(f->tableId)) {
@@ -998,8 +1093,10 @@ static void analyzeFromTableRef(FromTableRef *f) {
 		f->from.name = f->tableId;
 }
 
-static void recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames,
-		List **attrTypes) {
+static void
+recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames,
+		List **attrTypes)
+{
 	if (attr->nested) {
 		FOREACH(JsonColInfoItem, attr1, attr->nested)
 		{
@@ -1016,7 +1113,9 @@ static void recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames,
 	}
 }
 
-static void analyzeFromJsonTable(FromJsonTable *f, List **state) {
+static void
+analyzeFromJsonTable(FromJsonTable *f, List **state)
+{
 	// Populate the attrnames, datatypes from columnlist
 	List *attrNames = NIL;
 	List *attrTypes = NIL;
@@ -1040,7 +1139,9 @@ static void analyzeFromJsonTable(FromJsonTable *f, List **state) {
 	*state = appendToTailOfList(*state, f->jsonColumn);
 }
 
-static void analyzeInsert(Insert *f) {
+static void
+analyzeInsert(Insert *f)
+{
 	List *attrNames = NIL;
 	List *dataTypes = NIL;
 	List *attrDefs = NIL;
@@ -1152,7 +1253,9 @@ static void analyzeInsert(Insert *f) {
 	}
 }
 
-static void analyzeDelete(Delete *f) {
+static void
+analyzeDelete(Delete *f)
+{
 	List *attrRefs = NIL;
 	List *subqueries = NIL;
 	List *attrDefs = NIL;
@@ -1204,7 +1307,9 @@ static void analyzeDelete(Delete *f) {
 
 }
 
-static void analyzeUpdate(Update *f) {
+static void
+analyzeUpdate(Update *f)
+{
 	List *attrRefs = NIL;
 	List *attrDefs = NIL;
 	List *dataTypes = NIL;
@@ -1260,7 +1365,9 @@ static void analyzeUpdate(Update *f) {
 		analyzeQueryBlockStmt(nq->query, fakeFrom);
 }
 
-static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms) {
+static void
+analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
+{
 	List *expectedAttrs;
 
 	analyzeQueryBlockStmt(sq->subquery, parentFroms);
@@ -1274,8 +1381,9 @@ static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms) {
 	ASSERT(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
 }
 
-static void getTableSchema(char *tableName, List **attrDefs, List **attrNames,
-		List **dts) {
+static void
+getTableSchema(char *tableName, List **attrDefs, List **attrNames, List **dts)
+{
 	if (schemaInfoHasTable(tableName)) {
 		*attrDefs = schemaInfoGetSchema(tableName);
 		*attrNames = schemaInfoGetAttributeNames(tableName);
@@ -1288,7 +1396,8 @@ static void getTableSchema(char *tableName, List **attrDefs, List **attrNames,
 }
 
 static List*
-analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right) {
+analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
+{
 	List *lList = left->from.attrNames;
 	List *rList = right->from.attrNames;
 	List *result = deepCopyStringList(left->from.attrNames);
@@ -1310,7 +1419,8 @@ analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right) {
 }
 
 static List*
-splitAttrOnDot(char *dotName) {
+splitAttrOnDot(char *dotName)
+{
 	List *result = NIL;
 
 	result = splitString(strdup(dotName), ".");
@@ -1330,7 +1440,8 @@ splitAttrOnDot(char *dotName) {
 #define DUMMY_FROM_IDENT_PREFIX backendifyIdentifier("dummyFrom")
 
 static List*
-expandStarExpression(SelectItem *s, List *fromClause) {
+expandStarExpression(SelectItem *s, List *fromClause)
+{
 	List *nameParts = splitAttrOnDot(s->alias);
 	List *newSelectItems = NIL;
 	List *leafItems = getFromTreeLeafs(fromClause);
@@ -1406,7 +1517,8 @@ expandStarExpression(SelectItem *s, List *fromClause) {
 }
 
 static List*
-getFromTreeLeafs(List *from) {
+getFromTreeLeafs(List *from)
+{
 	List *result = NIL;
 
 	FOREACH(FromItem,f,from)
@@ -1437,7 +1549,8 @@ getFromTreeLeafs(List *from) {
 }
 
 static char*
-generateAttrNameFromExpr(SelectItem *s) {
+generateAttrNameFromExpr(SelectItem *s)
+{
 	char *name = exprToSQL(s->expr, NULL);
 	char c;
 	StringInfo str = makeStringInfo();
@@ -1456,7 +1569,8 @@ generateAttrNameFromExpr(SelectItem *s) {
 }
 
 static List*
-splitTableName(char *tableName) {
+splitTableName(char *tableName)
+{
 	List *result = NIL;
 	StringInfo split = makeStringInfo();
 	char *pos = tableName - 1;
@@ -1499,7 +1613,9 @@ splitTableName(char *tableName) {
 	return result;
 }
 
-static void analyzeSetQuery(SetQuery *q, List *parentFroms) {
+static void
+analyzeSetQuery(SetQuery *q, List *parentFroms)
+{
 	analyzeQueryBlockStmt(q->lChild, parentFroms);
 	analyzeQueryBlockStmt(q->rChild, parentFroms);
 
@@ -1531,7 +1647,9 @@ static void analyzeSetQuery(SetQuery *q, List *parentFroms) {
  * Analyze a provenance computation. The main part is to figure out the attributes
  */
 
-static void analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms) {
+static void
+analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms)
+{
 	switch (q->inputType) {
 
 	case PROV_INPUT_TRANSACTION: {
@@ -1675,7 +1793,9 @@ static void analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms) {
 	analyzeProvenanceOptions(q);
 }
 
-static boolean checkTemporalAttributesVisitor(Node *node, DataType **context) {
+static boolean
+checkTemporalAttributesVisitor(Node *node, DataType **context)
+{
 	if (node == NULL)
 		return TRUE;
 
@@ -1742,7 +1862,9 @@ static boolean checkTemporalAttributesVisitor(Node *node, DataType **context) {
 	return visit(node, checkTemporalAttributesVisitor, context);
 }
 
-static boolean correctFromTableVisitor(Node *node, void *context) {
+static boolean
+correctFromTableVisitor(Node *node, void *context)
+{
 	if (node == NULL)
 		return TRUE;
 
@@ -1769,7 +1891,9 @@ static boolean correctFromTableVisitor(Node *node, void *context) {
 	return visit(node, correctFromTableVisitor, context);
 }
 
-static boolean reenactOptionHasTimes(List *opts) {
+static boolean
+reenactOptionHasTimes(List *opts)
+{
 	FOREACH(KeyValue,kv,opts)
 	{
 		if (streq(STRING_VALUE(kv->key), PROP_REENACT_ASOF))
@@ -1778,7 +1902,9 @@ static boolean reenactOptionHasTimes(List *opts) {
 	return FALSE;
 }
 
-static void analyzeProvenanceOptions(ProvenanceStmt *prov) {
+static void
+analyzeProvenanceOptions(ProvenanceStmt *prov)
+{
 	/* loop through options */
 	FOREACH(KeyValue,kv,prov->options)
 	{
@@ -1804,7 +1930,9 @@ static void analyzeProvenanceOptions(ProvenanceStmt *prov) {
 	}
 }
 
-static void analyzeWithStmt(WithStmt *w) {
+static void
+analyzeWithStmt(WithStmt *w)
+{
 	Set *viewNames = STRSET();
 	List *analyzedViews = NIL;
 
@@ -1835,7 +1963,9 @@ static void analyzeWithStmt(WithStmt *w) {
 	DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
 }
 
-static void analyzeCreateTable(CreateTable *c) {
+static void
+analyzeCreateTable(CreateTable *c)
+{
 
 	/*TODO support context */
 	boolean tableExists;
@@ -1871,7 +2001,9 @@ static void analyzeCreateTable(CreateTable *c) {
 	DEBUG_NODE_BEATIFY_LOG("analyzed create table is:", c);
 }
 
-static void analyzeAlterTable(AlterTable *a) {
+static void
+analyzeAlterTable(AlterTable *a)
+{
 	List *schema;
 
 	if (!catalogTableExists(a->tableName) && !schemaInfoHasTable(a->tableName))
@@ -1889,8 +2021,8 @@ static void analyzeAlterTable(AlterTable *a) {
 	case ALTER_TABLE_ADD_COLUMN: {
 		AttributeDef *newA = createAttributeDef(strdup(a->columnName),
 				a->newColDT);
-		if (genericSearchList(schema,
-				(int (*)(void*, void*)) compareAttrDefName, newA))
+		if (genericSearchList(schema, (int
+		(*)(void*, void*)) compareAttrDefName, newA))
 			FATAL_LOG("cannot add already existing column %s to table %s",
 					a->columnName, a->tableName);
 		schema = appendToTailOfList(schema, newA);
@@ -1898,12 +2030,12 @@ static void analyzeAlterTable(AlterTable *a) {
 		break;
 	case ALTER_TABLE_REMOVE_COLUMN: {
 		AttributeDef *rmA = createAttributeDef(strdup(a->columnName), DT_INT);
-		if (!genericSearchList(schema,
-				(int (*)(void*, void*)) compareAttrDefName, rmA))
+		if (!genericSearchList(schema, (int
+		(*)(void*, void*)) compareAttrDefName, rmA))
 			FATAL_LOG("cannot remove non-existing column %s from table %s",
 					a->columnName, a->tableName);
-		schema = genericRemoveFromList(schema,
-				(int (*)(void*, void*)) compareAttrDefName, rmA);
+		schema = genericRemoveFromList(schema, (int
+		(*)(void*, void*)) compareAttrDefName, rmA);
 	}
 		break;
 	}
@@ -1915,11 +2047,15 @@ static void analyzeAlterTable(AlterTable *a) {
 	DEBUG_NODE_BEATIFY_LOG("analyzed alter table is:", a);
 }
 
-static boolean compareAttrDefName(AttributeDef *a, AttributeDef *b) {
+static boolean
+compareAttrDefName(AttributeDef *a, AttributeDef *b)
+{
 	return (streq(a->attrName, b->attrName));
 }
 
-static boolean setViewFromTableRefAttrs(Node *node, List *views) {
+static boolean
+setViewFromTableRefAttrs(Node *node, List *views)
+{
 	if (node == NULL)
 		return TRUE;
 
@@ -1944,14 +2080,17 @@ static boolean setViewFromTableRefAttrs(Node *node, List *views) {
 	return visit(node, setViewFromTableRefAttrs, views);
 }
 
-static boolean schemaInfoHasTable(char *tableName) {
+static boolean
+schemaInfoHasTable(char *tableName)
+{
 	if (!schemaInfo)
 		return FALSE;
 	return MAP_HAS_STRING_KEY(schemaInfo, tableName);
 }
 
 static List*
-schemaInfoGetSchema(char *tableName) {
+schemaInfoGetSchema(char *tableName)
+{
 	if (!schemaInfo) {
 		FATAL_LOG(
 				"request table information, but no schema information has been cached yet");
@@ -1961,7 +2100,8 @@ schemaInfoGetSchema(char *tableName) {
 }
 
 static List*
-schemaInfoGetAttributeNames(char *tableName) {
+schemaInfoGetAttributeNames(char *tableName)
+{
 	List *attrDefs = schemaInfoGetSchema(tableName);
 	List *result = NIL;
 
@@ -1972,7 +2112,8 @@ schemaInfoGetAttributeNames(char *tableName) {
 }
 
 static List*
-schemaInfoGetAttributeDataTypes(char *tableName) {
+schemaInfoGetAttributeDataTypes(char *tableName)
+{
 	List *attrDefs = schemaInfoGetSchema(tableName);
 	List *result = NIL;
 
@@ -1982,7 +2123,9 @@ schemaInfoGetAttributeDataTypes(char *tableName) {
 	return result;
 }
 
-static boolean findAttrReferences(Node *node, List **state) {
+static boolean
+findAttrReferences(Node *node, List **state)
+{
 	if (node == NULL)
 		return TRUE;
 

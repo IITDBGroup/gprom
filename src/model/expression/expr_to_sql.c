@@ -38,7 +38,7 @@ static void orderExprToSQL (StringInfo str, OrderExpr *o, HashMap *map);
 static void quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o, HashMap *map);
 static void dataTypeToSQL (StringInfo str, DataType dt);
 static void attributeDefToSQL(StringInfo str, AttributeDef* expr, HashMap* map); // update provenance sketch
-static void selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map); // update provenance sketch
+//static void selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map); // update provenance sketch
 static void functionCallToLatex (StringInfo str, FunctionCall *node);
 static void operatorToLatex (StringInfo str, Operator *node);
 static void constantToLatex (StringInfo str, Constant *node);
@@ -122,10 +122,10 @@ attributeDefToSQL(StringInfo str, AttributeDef* expr, HashMap* map){
 	appendStringInfo(str, "%s", type);
 }
 
-static void
-selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map) {
-	appendStringInfo(str, "%s", expr->alias);
-}
+//static void
+//selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map) {
+//	appendStringInfo(str, "%s", expr->alias);
+//}
 static void
 xmlConstantToSQL (StringInfo str, Node *node)
 {
@@ -535,9 +535,10 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *map)
         case T_AttributeDef: // used for update provenancesketch
         	attributeDefToSQL(str, (AttributeDef*) expr, map);
         break;
-        case T_SelectItem: // used for update provenance sketch
-        	selectItemToSQL(str, (SelectItem*) expr, map);
-        break;
+//        case T_SelectItem: // used for update provenance sketch
+//        	INFO_LOG("T_SELECTITEM IN EXPR T_ SQL\n");
+//        	selectItemToSQL(str, (SelectItem*) expr, map);
+//        break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
     }
