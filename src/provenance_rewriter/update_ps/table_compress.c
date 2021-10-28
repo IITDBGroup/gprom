@@ -32,9 +32,9 @@
 /*
  * Local functions;
  */
-static void updateCDBInsertion(QueryOperator *insertQ, char *tablename, psAttrInfo *attrInfo, boolean isForUpdate);
-static void updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo);
-static void updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo);
+static void updateCDBInsertion(QueryOperator *insertQ, char *tablename, psAttrInfo *attrInfo);
+static void updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo, Relation** relFroUpdateUse, boolean isFromUpdate);
+static void updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, boolean* hasUpdated);
 static void createAndInitValOfCompressedTable(char *tablename, List *ranges, char *psAttr);
 static void createCompressedTable(char *tablename, List *attrDefs);
 static void initValToCompressedTable(char *tablename, List *attrDefs, List *ranges, char *psAttr);
@@ -208,27 +208,35 @@ updateCompressedTable(QueryOperator *updateQuery, char *tablename,
 		psAttrInfo *attrInfo)
 {
 	// 1. update compressed table;
+	
+	boolean hasUpdatedBaseTable = FALSE; // only for update;
+
 	switch (nodeTag(((DLMorDDLOperator* )updateQuery)->stmt)) {
 	case T_Insert: {
 		INFO_LOG("CDB: INSERT\n");
-		updateCDBInsertion(updateQuery, tablename, attrInfo, FALSE);
+		updateCDBInsertion(updateQuery, tablename, attrInfo);
 	}
 		break;
 	case T_Delete: {
 		INFO_LOG("CDB: DELETE\n");
-		updateCDBDeletion(updateQuery, tablename, attrInfo);
+		updateCDBDeletion(updateQuery, tablename, attrInfo, NULL, FALSE);
 
 	}
 		break;
 	case T_Update:
 		INFO_LOG("CDB: UPDATE\n");
-		updateCDBUpdate(updateQuery, tablename, attrInfo);
+		updateCDBUpdate(updateQuery, tablename, attrInfo, &hasUpdatedBaseTable);
 		break;
 	default:
 		break;
 	}
 
 	// 2. derictly execute the updateQuery to original table;
+
+	// this special check is for update, since somethins will update base table ahead;
+	if((nodeTag(((DLMorDDLOperator* )updateQuery)->stmt) == T_Update) && hasUpdatedBaseTable){
+		return;
+	}
 	updateBaseTable(updateQuery);
 }
 
@@ -243,38 +251,52 @@ updateBaseTable(QueryOperator *updateQuery)
 
 static void
 updateCDBInsertion(QueryOperator *insertQ, char *tablename,
-		psAttrInfo *attrInfo, boolean isForUpdate)
+		psAttrInfo *attrInfo)
 {
-	if (1 == 2)
-		return;
-	if (isForUpdate) {
+	Insert* insert = (Insert*)((DLMorDDLOperator*)insertQ)->stmt;
+	List *insertValList = (List*) insert->query;
 
+	for(int i = 0; i < getListLength(insertValList); i++) {
+		INFO_LOG("insertval: %d\n", ((Constant*)(getNthOfListP(insertValList, i)))->value);
 	}
-	ConstRelOperator *csr = (ConstRelOperator*) getNthOfListP(insertQ->inputs,
-			1);
-	DEBUG_NODE_BEATIFY_LOG("tba:\n", csr);
 
 	Constant *psAttrValue = NULL;
-	for (int i = 0; i < getListLength((List*) csr->op.schema->attrDefs); i++) {
-		AttributeDef *ad = (AttributeDef*) getNthOfListP(
-				csr->op.schema->attrDefs, i);
-		if (strcmp(attrInfo->attrName, ad->attrName) == 0) {
-			psAttrValue = (Constant*) getNthOfListP(csr->values, i);
+	for(int i = 0; i < getListLength(insert->schema); i++) {
+		AttributeDef* ad = (AttributeDef*) getNthOfListP(insert->schema, i);
+		if(strcmp(ad->attrName, attrInfo->attrName) == 0) {
+			psAttrValue = (Constant*) getNthOfListP((List*) insert->query, i);
 			break;
 		}
 	}
 
-	int rangeIndex = binarySearchToFindFragNo(psAttrValue, attrInfo->rangeList)
-			+ 1;
+	int rangeIndex = binarySearchToFindFragNo(psAttrValue, attrInfo->rangeList) + 1;
 	if (rangeIndex < 1) {
+		ERROR_LOG("RANGE INDEX IS NOT IN CURRENT PS, NEED TO COME UP WITH SOLUTION");
 		// TODO
 		// this means that the insert tuple does not locate in any frag, need add a new one
 	}
 
 	StringInfo query = makeStringInfo();
 	appendStringInfo(query, "select * from compressedtable_%s where cid=%d;",
-			tablename, rangeIndex);
+			insert->insertTableName, rangeIndex);
 	Relation *rel = executeQueryLocal(query->data);
+	
+	// no tuples, it is deleted previouse
+	if(getListLength(rel->tuples) == 0) {
+		// compressed the insert tuple locally;
+		StringInfo updQ = makeStringInfo();
+		appendStringInfo(updQ, "insert into compressedtable_%s values(", insert->insertTableName);
+		appendStringInfo(updQ, "%d, 1", rangeIndex);
+		for(int i = 0; i < getListLength((List*) insert->query); i++) {
+			Constant* constVal = (Constant*) getNthOfListP((List*) insert->query, i);
+			appendStringInfo(updQ, ", %s, %s, 1, 1, %s", exprToSQL((Node*) constVal, NULL), exprToSQL((Node*) constVal, NULL), exprToSQL((Node*) constVal, NULL));
+		}
+		
+		appendStringInfo(updQ, ");");
+		// INFO_LOG("WHAT IS THE SQL: %s\n", updQ->data);
+		executeStatementLocal(updQ->data);
+		return;
+	}
 
 	for (int i = 0; i < getListLength(rel->tuples); i++) {
 		StringInfo updQ = makeStringInfo();
@@ -289,13 +311,10 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 		int oriTblIdx = 0;
 		int schemaLen = getListLength(rel->schema);
 		while (attIndex < schemaLen) {
-			int type = ((AttributeDef*) getNthOfListP(csr->op.schema->attrDefs,
-					oriTblIdx))->dataType;
-			//update rule based on updType;
+			int type = ((AttributeDef*) getNthOfListP(insert->schema, oriTblIdx))->dataType;
 			getCDBInsertUpdateUsingRule(updQ, type,
-					getNthOfListP(csr->values, oriTblIdx), attIndex,
+					getNthOfListP((List*) insert->query, oriTblIdx), attIndex, 
 					getNthOfListP(rel->tuples, i), rel->schema);
-
 			attIndex += 5;
 			oriTblIdx += 1;
 		}
@@ -495,11 +514,11 @@ getCDBInsertUpdateUsingRule(StringInfo str, int dataType, Constant *insertV,
 }
 
 static void
-updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo)
+updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo, Relation** relForUpdateUse, boolean isFromUpdate)
 {
 	/*
 	 * this method supports two cases:
-	 * 1. 'delete from table;'
+	 * 1. 'delete from table;' -> for this case, in GProM use 'delete from tbl where 1 = 1'
 	 * 2. 'delete from table where conditions'
 	 */
 	INFO_LOG("Start To Update CDB::Deletion\n");
@@ -524,6 +543,11 @@ updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo)
 			delete->deleteTableName, exprToSQL(delete->cond, NULL));
 
 	Relation *rel = executeQueryLocal(query->data);
+
+	if(isFromUpdate) {
+		*relForUpdateUse = rel;
+	}
+
 	INFO_LOG("LENGTH OF DELETED TUPLES: %d\n", getListLength(rel->tuples));
 
 	int psAttrIndex = 0;
@@ -745,9 +769,106 @@ getCDBDeleteUsingRules(StringInfo str, int dataType, List *cdbTupleList,
 }
 
 static void
-updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo)
+updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, boolean* hasUpdatedBaseTable)
 {
+	Update* update = (Update*) ((DLMorDDLOperator*) updateQ)->stmt;
+	// no conditions, all table will be updated,
+	// for easy, rebuild this compressed table.
+	if(!(update->cond)) {
+		// update base, drop compressed, rebuild,
+		char* dmlQuery = serializeQuery(updateQ);
+		executeStatementLocal(dmlQuery);
+		StringInfo dropQuery = makeStringInfo();
+		appendStringInfo(dropQuery, "drop table compressedtable_%s", update->updateTableName);
+		executeStatementLocal(dropQuery->data);
+		initValToCompressedTable(update->updateTableName, update->schema, attrInfo->rangeList, attrInfo->attrName);
+		*hasUpdatedBaseTable = TRUE;
+		return;
+	}
+	
+	// Build a del for update	
+	Delete* delete = createDelete(update->updateTableName, update->cond);
+	delete->schema = copyList(update->schema);
+	DLMorDDLOperator* dmlOp = createDMLDDLOp((Node*) delete);
+	Relation* rel = NULL;
+	DEBUG_NODE_BEATIFY_LOG("WHAT IS CREATE DELETE: \n", dmlOp)	;
+	updateCDBDeletion((QueryOperator*) dmlOp, update->updateTableName, attrInfo, &rel, TRUE);
+	INFO_LOG("REL:LEN:\n%d", getListLength(rel->tuples));
 
+	int psAttrIndex = 0;
+	for (int i = 0; i < getListLength(rel->schema); i++) {
+		if (strcmp(attrInfo->attrName, getNthOfListP(rel->schema, i)) == 0) {
+			psAttrIndex = i;
+			break;
+		}
+	}
+
+	HashMap * updateAttrMap = NEW_MAP(Constant, Constant);
+
+	for(int i = 0; i < getListLength(update->selectClause); i++) {
+		Operator* op = (Operator*) getNthOfListP(update->selectClause, i);
+		AttributeReference* ar = (AttributeReference*) getNthOfListP(op->args, 0);
+		Constant* c = (Constant*) getNthOfListP(op->args, 1);
+
+		Constant* key = createConstString(ar->name);
+		addToMap(updateAttrMap, (Node*) key, (Node*) c);
+
+	}
+
+	// insert:
+	List* schemas = rel->schema;
+	for(int i = 0; i < LIST_LENGTH(rel->tuples); i++) {
+		List* tuple = getNthOfListP(rel->tuples, i);
+		List* constList = NIL;
+		for(int j = 0; j < LIST_LENGTH(tuple); j++) {
+			if(hasMapStringKey(updateAttrMap, (char*)getNthOfListP(schemas, j))) {
+				INFO_LOG("FIND KEY IN MAP: %s\n", (char*)getNthOfListP(schemas, j));
+				INFO_LOG("FIND VALUE: %d\n,", INT_VALUE(getMapString(updateAttrMap, (char*) getNthOfListP(schemas, j))));
+				constList = appendToTailOfList(constList, (Constant*) getMapString(updateAttrMap, (char*) getNthOfListP(schemas, j)));
+			} else {
+				INFO_LOG("NOT IN MAP");
+				Constant* c = NULL;
+				char* val = getNthOfListP(tuple, j);
+				// AttributeDef* ad = (AttributeDef*) getNthOfListP(update->schema, j);
+				switch(((AttributeDef*) getNthOfList(update->schema, j))->dataType) {
+
+					// case DT_INT:
+					case 0:
+						INFO_LOG("INT");
+						c = createConstInt((int) atoi(val));
+						INFO_LOG("what is the insertval: %d", INT_VALUE(c));
+						break;
+					// case DT_LONG:
+					case 1:
+						INFO_LOG("LONG");
+						c = createConstLong((long) strtol(val, NULL, 10));
+						break;
+					case DT_FLOAT:
+						c = createConstFloat((double) strtod(val, NULL));
+						break;
+					case DT_BOOL:
+						c = createConstBoolFromString(val);
+						break;
+					case DT_STRING:
+					case DT_VARCHAR2:
+						c = createConstString(val);
+						break;
+					default:
+						break;
+
+				}
+				constList = appendToTailOfList(constList, c);
+			}
+		}
+		INFO_LOG("LISTLENGTH: %d\n", LIST_LENGTH(constList));
+		// for(int j = 0; j < LIST_LENGTH(constList); j++) {
+		//     INFO_LOG("LISTCELL: %s", exprToSQL(getNthOfListP(constList, j), NULL));
+		// }
+		Insert* insert = (Insert*) createInsert(update->updateTableName, (Node*) copyList(constList), copyList(schemas));
+		DLMorDDLOperator* dmlOp = createDMLDDLOp((Node*) insert);
+		DEBUG_NODE_BEATIFY_LOG("what is the created insert\n", dmlOp);
+		updateCDBInsertion((QueryOperator*) dmlOp, update->updateTableName,attrInfo);
+	}
 }
 
 /*
