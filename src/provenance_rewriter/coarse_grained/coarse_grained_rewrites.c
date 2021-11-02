@@ -278,6 +278,7 @@ removePSPropsVisitor(QueryOperator *op, void *context)
     /* remove ge and comp property for this operator */
     removeStringProperty(op, PROP_STORE_SET_GE);
     removeStringProperty(op, PROP_STORE_SET_GE_COMP);
+    removeStringProperty(op,PROP_STORE_SET_GE_DONE_BU);
     //removeStringProperty(op, PROP_STORE_SET_PRED);
     //removeStringProperty(op, PROP_STORE_SET_EXPR);
 
@@ -288,6 +289,7 @@ removePSPropsVisitor(QueryOperator *op, void *context)
 static List *
 reuseCheckCachedPS(HashMap *tmap, HashMap *tnomap, char *pqSql, QueryOperator *q, HashMap *rmap)
 {
+	DEBUG_LOG("reuseCheckCachedPS!");
 	List *l = NIL;
 	HashMap *parasMap = getParasMap(tmap, tnomap, pqSql);
 	if(parasMap != NULL)
@@ -299,6 +301,7 @@ reuseCheckCachedPS(HashMap *tmap, HashMap *tnomap, char *pqSql, QueryOperator *q
 			HashMap *lmap = bindsParas(paras); //this one is cached
 			DEBUG_NODE_BEATIFY_LOG("lmap: ", lmap);
 
+			DEBUG_LOG("reuseCheckCachedPS - start geBottomUp!");
 			geBottomUp(q, lmap, rmap);
 			boolean isReuse = isReusable(q, lmap, rmap);
 			//boolean ge = GET_BOOL_STRING_PROP(q, PROP_STORE_SET_GE);
@@ -397,6 +400,7 @@ getPSFromCache(QueryOperator *op)
 		FOREACH(psInfoCell,p, l)
 		{
 			char *ps = bitSetToString(p->ps);
+			DEBUG_LOG("Find usable PS %s: ", ps);
 			MAP_ADD_STRING_KEY(hm, strdup(p->provTableAttr), createConstString(ps));
 		}
 	}

@@ -175,7 +175,7 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 		        cnt++;
 		    }
 
-		    SET_BOOL_STRING_PROP((QueryOperator *)root,PROP_STORE_SET_GE);
+		    SET_BOOL_STRING_PROP((QueryOperator *)root, PROP_STORE_SET_GE);
 		    SET_STRING_PROP(root, PROP_STORE_SET_GE_COMP, comp);
 		    DEBUG_LOG("op(%s) ge(%d) - expr:%s\n ",root->schema->name, TRUE, nodeToString(comp));
 		}
@@ -558,6 +558,8 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
 	 */
 
 	boolean ge = GET_BOOL_STRING_PROP(op, PROP_STORE_SET_GE);
+	DEBUG_LOG("isReusable ge: %d", ge);
+	DEBUG_NODE_BEATIFY_LOG("cur op: ", op);
 	//Node *comp = copyObject(GET_STRING_PROP(op, PROP_STORE_SET_GE_COMP));
 	Node *expr = copyObject(getStringProperty(op, PROP_STORE_SET_EXPR));
 	Node *pred = copyObject(getStringProperty(op, PROP_STORE_SET_PRED));
@@ -585,10 +587,17 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
     DEBUG_NODE_BEATIFY_LOG("uconds: ", uconds);
 
 	//unSatisfiable is valid
-	boolean ucondsIsValid = !z3ExprIsSatisfiable((Node *) uconds, TRUE);
-	DEBUG_LOG("isReusable: %d", ucondsIsValid);
+    boolean sat = z3ExprIsSatisfiable((Node *) uconds, TRUE);
+	boolean ucondsIsValid = !sat;
+	boolean isReusable = ucondsIsValid && ge;
 
-	return ge && ucondsIsValid;
+	DEBUG_LOG("sat: %d", sat);
+	DEBUG_LOG("ge: %d", ge);
+	DEBUG_LOG("ucondsIsValid: %d", ucondsIsValid);
+	DEBUG_LOG("isReusable: %d", isReusable);
+
+	//return ucondsIsValid;
+	return isReusable;
 	//test z3ExprIsValid looks uncorrect
 	//boolean gcValid = z3ExprIsValid((Node *) uconds, TRUE);
 
