@@ -41,6 +41,96 @@ static Node *generateFunCompExpr(AttributeReference *a, char *op);
 static boolean checkSumNegative(FunctionCall *fc, QueryOperator *op,HashMap *lmap, HashMap *rmap);
 static boolean checkEqCompForListAttrRefsOfOp(QueryOperator *root, List *l, HashMap *lmap, HashMap *rmap);
 static Node *getAllConds(QueryOperator *op,HashMap *lmp, HashMap *rmap);
+static boolean isExistGBAttr(Node *n, List *l);
+static boolean isContainAttrName(List *l, char *name);
+static Node *removeGBPreds(Node *node, List *gbs);
+static boolean isContainOr(Node *node, boolean *found);
+
+static boolean
+isExistGBAttr(Node *n, List *l)
+{
+	boolean res = FALSE;
+	if(isA(n,AttributeReference))
+	{
+		AttributeReference *a = (AttributeReference *) n;
+		char *aname = strdup(a->name);
+		DEBUG_LOG("isExistGBAttr - checking %s .", aname);
+		if(isContainAttrName(l, aname))
+		{
+			res = TRUE;
+		}
+	}
+	return res;
+}
+
+static boolean
+isContainAttrName( List *l, char *name)
+{
+	boolean res = FALSE;
+	FOREACH(Node, n, l)
+	{
+		if(isA(n, AttributeReference))
+		{
+			AttributeReference *a = (AttributeReference *) n;
+			if(streq(name, a->name))
+			{
+				DEBUG_LOG("isContainAttrName - contain %s = %s.", name, a->name);
+				res = TRUE;
+				break;
+			}
+		}
+	}
+
+	return res;
+}
+
+static boolean
+isContainOr(Node *node, boolean *found)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if(isA(node, Operator))
+    {
+    	Operator *oper = (Operator *) node;
+    	char *name = oper->name;
+    	DEBUG_LOG("oper name: %s", name);
+    	if(streq(name, OPNAME_OR) || streq(name, "or"))
+    	{
+			DEBUG_LOG("find OR (or) clause!");
+			*found = TRUE;
+			return FALSE;
+    	}
+    }
+
+    return visit(node, isContainOr, found);
+}
+
+
+
+static Node *
+removeGBPreds(Node *node, List *gbs)
+{
+	List *l = NIL;
+	List *resl = NIL;
+	getSelectionCondOperatorList(node, &l);
+	DEBUG_NODE_BEATIFY_LOG("getSelectionCondOperatorList: ", l);
+
+	FOREACH(Operator, o, l)
+	{
+		Node *arg1 = getHeadOfListP(o->args);
+		Node *arg2 = getTailOfListP(o->args);
+		if(isExistGBAttr(arg1, gbs) || isExistGBAttr(arg2, gbs))
+			continue;
+		resl = appendToTailOfList(resl, o);
+	}
+	DEBUG_NODE_BEATIFY_LOG("getSelectionCondOperatorList: ", resl);
+
+	Node *res = changeListOpToAnOpNode(resl);
+	DEBUG_NODE_BEATIFY_LOG("changeListOpToAnOpNode: ", res);
+
+	return res;
+}
 
 
 static boolean
@@ -233,6 +323,23 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 
 				if(childPred != NULL)
 				{
+					DEBUG_NODE_BEATIFY_LOG("groupBy: ", agg->groupBy);
+					//List *rpGroupBy = removePrefixOfAttrs(agg->groupBy);
+					List *rpGroupBy = agg->groupBy;
+					DEBUG_NODE_BEATIFY_LOG("rpGroupBy: ", rpGroupBy);
+
+					DEBUG_LOG("-- test!");
+					DEBUG_LOG("-- childPred before: %s",nodeToString(childPred));
+
+					//if contains or clause, just keep pred, else remove pred contains group by attrs
+					boolean foundOr = FALSE;
+					isContainOr(childPred, &foundOr);
+					DEBUG_LOG("is Contains Or: %d", foundOr);
+					if(!foundOr)
+						childPred = removeGBPreds(childPred, rpGroupBy);
+
+					DEBUG_LOG("-- childPred after: %s",nodeToString(childPred));
+
 					DEBUG_LOG("-- childPred is not NULL!");
 					childPred1 = copyObject(childPred);
 					childPred2 = copyObject(childPred);
@@ -701,6 +808,7 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
     replaceParaWithValues(pred1, lmap); //this one is cached
     replaceParaWithValues(pred2, rmap);
     Node *npred1 = (Node *) createOpExpr("NOT", singleton(copyObject(pred1)));
+    addPrimeOnAttrsInOperator(pred2,"dummy");
 
     Node *expr1 = copyObject(expr);
     Node *expr2 = copyObject(expr);
@@ -710,7 +818,10 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
     if(expr1 == NULL)
     	uconds = andExprList(LIST_MAKE(comp, pred2, npred1));
     else
+    {
+    	addPrimeOnAttrsInOperator(expr2,"dummy");
     	uconds = andExprList(LIST_MAKE(comp, pred2, expr2, expr1, npred1));
+    }
     DEBUG_NODE_BEATIFY_LOG("pred1: ", pred1);
     DEBUG_NODE_BEATIFY_LOG("pred2: ", pred2);
     DEBUG_NODE_BEATIFY_LOG("expr1: ", expr1);
