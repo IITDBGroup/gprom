@@ -191,64 +191,98 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 
 			// check ge
 			boolean ge = checkEqCompForListAttrRefsOfOp(root, agg->groupBy, lmap, rmap) && childGe;
-
 		    DEBUG_LOG(" -- current ge: %d",ge);
 
 		    /* compute comp for function attrs b and b'*/
+
 		    DEBUG_LOG("-- compute comp: ");
 		    Node *funComp = NULL;
 
-		    /* prepare */
+			boolean cond1IsValid = FALSE;
+			boolean cond2IsValid = FALSE;
 
-		    //replace the variables in the pred with values
-		    Node *childPred1 = copyObject(childPred);
-		    Node *childPred2 = copyObject(childPred);
-		    replaceParaWithValues(childPred1, lmap);
-		    replaceParaWithValues(childPred2, rmap);
+			if(childPred == NULL)
+			{
+				cond1IsValid = TRUE;
+				cond2IsValid = TRUE;
+			}
+			else
+			{
 
-		    Node *childExpr1 = copyObject(childExpr);
-		    Node *childExpr2 = copyObject(childExpr);
+				/* prepare */
 
-		    //add prime "'" to left side pred and expr
-		    addPrimeOnAttrsInOperator(childPred1,"dummy");
-		    addPrimeOnAttrsInOperator(childExpr1,"dummy");
+				//replace the variables in the pred with values
+				Node *childPred1 = NULL;
+				Node *childPred2 = NULL;
+				Node *childExpr1 = NULL;
+				Node *childExpr2 = NULL;
+				Node *notChildPred1 = NULL;
+				Node *notChildPred2 = NULL;
 
-		    Node *notChildPred1 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred1)));
-		    Node *notChildPred2 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred2)));
+				if(childPred != NULL)
+				{
+					childPred1 = copyObject(childPred);
+					childPred2 = copyObject(childPred);
+					replaceParaWithValues(childPred1, lmap);
+					replaceParaWithValues(childPred2, rmap);
+					notChildPred1 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred1)));
+					notChildPred2 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred2)));
+				}
 
-			DEBUG_LOG(" -- childPred1: %s",nodeToString(childPred1));
-			DEBUG_LOG(" -- childPred2: %s",nodeToString(childPred2));
-			DEBUG_LOG(" -- childExpr1: %s",nodeToString(childExpr1));
-			DEBUG_LOG(" -- childExpr2: %s",nodeToString(childExpr2));
-			DEBUG_LOG(" -- notChildPred1: %s",nodeToString(notChildPred1));
-			DEBUG_LOG(" -- notChildPred2: %s",nodeToString(notChildPred2));
+				if(childExpr != NULL)
+				{
+					childExpr1 = copyObject(childExpr);
+					childExpr2 = copyObject(childExpr);
 
-		    //1. ΨQ1′,Q1 ∧non-grp-pred(Q1)∧expr(Q1)∧expr(Q1′)→non-grp-pred(Q1′)
-		    Node *cond1 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred2,notChildPred1));
+					//add prime "'" to left side pred and expr
+					addPrimeOnAttrsInOperator(childPred1,"dummy");
+					addPrimeOnAttrsInOperator(childExpr1,"dummy");
+				}
 
-		    //2. ΨQ1′,Q1 ∧non-grp-pred(Q1′)∧expr(Q1′)∧expr(Q1)→non-grp-pred(Q1)
-		    Node *cond2 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred1,notChildPred2));
+				DEBUG_LOG(" -- childPred1: %s",nodeToString(childPred1));
+				DEBUG_LOG(" -- childPred2: %s",nodeToString(childPred2));
+				DEBUG_LOG(" -- childExpr1: %s",nodeToString(childExpr1));
+				DEBUG_LOG(" -- childExpr2: %s",nodeToString(childExpr2));
+				DEBUG_LOG(" -- notChildPred1: %s",nodeToString(notChildPred1));
+				DEBUG_LOG(" -- notChildPred2: %s",nodeToString(notChildPred2));
 
-			//unSatisfiable is valid
-			boolean cond1IsValid = !z3ExprIsSatisfiable((Node *) cond1, TRUE);
-			boolean cond2IsValid = !z3ExprIsSatisfiable((Node *) cond2, TRUE);
+				//1. ΨQ1′,Q1 ∧non-grp-pred(Q1)∧expr(Q1)∧expr(Q1′)→non-grp-pred(Q1′)
+				//2. ΨQ1′,Q1 ∧non-grp-pred(Q1′)∧expr(Q1′)∧expr(Q1)→non-grp-pred(Q1)
+				Node *cond1 = NULL;
+				Node *cond2 = NULL;
+				if(childExpr1 != NULL)
+				{
+					cond1 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred2,notChildPred1));
+					cond2 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred1,notChildPred2));
+				}
+				else
+				{
+					cond1 = andExprList(LIST_MAKE(copyObject(childComp),childPred2,notChildPred1));
+					cond2 = andExprList(LIST_MAKE(copyObject(childComp),childPred1,notChildPred2));
+				}
 
-		    /* get function names from its parent operator and store in funAttrs */
-	    	QueryOperator *p = OP_FIRST_PARENT(root);
-	    	ProjectionOperator *pproj = (ProjectionOperator *) p;
-	    	List *funAttrs = NIL;
-	    	int cnt = 0;
-	    	FOREACH(AttributeReference,arf,pproj->projExprs)
-	    	{	DEBUG_LOG("-- pproj->projExprs:  %s", arf->name);
-	    		if(isStartAsAGG(arf->name))
-	    		{
-	    			DEBUG_LOG("-- isStartAsAGG:  %s", arf->name);
-	    			AttributeDef *ad = getAttrDef(p,cnt);
-	    			AttributeReference *attr = createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType);
-	    			funAttrs = appendToTailOfList(funAttrs, attr);
-	    		}
+				//unSatisfiable is valid
+				cond1IsValid = !z3ExprIsSatisfiable((Node *) cond1, TRUE);
+				cond2IsValid = !z3ExprIsSatisfiable((Node *) cond2, TRUE);
+
+			}
+
+			/* get function names from its parent operator and store in funAttrs */
+			QueryOperator *p = OP_FIRST_PARENT(root);
+			ProjectionOperator *pproj = (ProjectionOperator *) p;
+			List *funAttrs = NIL;
+			int cnt = 0;
+			FOREACH(AttributeReference,arf,pproj->projExprs)
+			{	DEBUG_LOG("-- pproj->projExprs:  %s", arf->name);
+				if(isStartAsAGG(arf->name))
+				{
+					DEBUG_LOG("-- isStartAsAGG:  %s", arf->name);
+					AttributeDef *ad = getAttrDef(p,cnt);
+					AttributeReference *attr = createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType);
+					funAttrs = appendToTailOfList(funAttrs, attr);
+				}
 				cnt++;
-	    	}
+			}
 
 	    	List *funCompList = NIL;
 		    /* case 1: 1 ∧ 2 then f = f'*/
@@ -560,7 +594,7 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
 	boolean ge = GET_BOOL_STRING_PROP(op, PROP_STORE_SET_GE);
 	DEBUG_LOG("isReusable ge: %d", ge);
 	DEBUG_NODE_BEATIFY_LOG("cur op: ", op);
-	//Node *comp = copyObject(GET_STRING_PROP(op, PROP_STORE_SET_GE_COMP));
+	Node *comp = copyObject(GET_STRING_PROP(op, PROP_STORE_SET_GE_COMP));
 	Node *expr = copyObject(getStringProperty(op, PROP_STORE_SET_EXPR));
 	Node *pred = copyObject(getStringProperty(op, PROP_STORE_SET_PRED));
 
@@ -576,14 +610,16 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
     Node *expr2 = copyObject(expr);
 
     Node *uconds = NULL;
+    //TODO: if no predicates
     if(expr1 == NULL)
-    	uconds = andExprList(LIST_MAKE(pred2, npred1));
+    	uconds = andExprList(LIST_MAKE(comp, pred2, npred1));
     else
-    	uconds = andExprList(LIST_MAKE(pred2, expr2, expr1, npred1));
+    	uconds = andExprList(LIST_MAKE(comp, pred2, expr2, expr1, npred1));
     DEBUG_NODE_BEATIFY_LOG("pred1: ", pred1);
     DEBUG_NODE_BEATIFY_LOG("pred2: ", pred2);
     DEBUG_NODE_BEATIFY_LOG("expr1: ", expr1);
     DEBUG_NODE_BEATIFY_LOG("expr1: ", expr2);
+    DEBUG_NODE_BEATIFY_LOG("psi: ", comp);
     DEBUG_NODE_BEATIFY_LOG("uconds: ", uconds);
 
 	//unSatisfiable is valid
