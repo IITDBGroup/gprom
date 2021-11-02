@@ -58,6 +58,17 @@ replaceParaWithValues(Node *node, HashMap *map)
     		{
     			Node *arg1 = getHeadOfListP(oper->args);
     			Node *arg2 = getTailOfListP(oper->args);
+    			if(isA(arg1, AttributeReference))
+    			{
+    				//TODO:need to check first
+    				AttributeReference *a = (AttributeReference *) arg1;
+    				char *aname = strdup(a->name);
+    				char * token = strtok(aname, "\"");
+    				token = strtok(NULL, " ");
+    				DEBUG_LOG("token: %s", token);
+    				a->name = CONCAT_STRINGS("\"",token);
+    			}
+
     			if(isA(arg2, SQLParameter))
     			{
     				SQLParameter *para = (SQLParameter *) arg2;
@@ -191,6 +202,7 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 
 			// check ge
 			boolean ge = checkEqCompForListAttrRefsOfOp(root, agg->groupBy, lmap, rmap) && childGe;
+			DEBUG_LOG(" -- child ge: %d",childGe);
 		    DEBUG_LOG(" -- current ge: %d",ge);
 
 		    /* compute comp for function attrs b and b'*/
@@ -203,12 +215,12 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 
 			if(childPred == NULL)
 			{
+				DEBUG_LOG("-- childPred is NULL!");
 				cond1IsValid = TRUE;
 				cond2IsValid = TRUE;
 			}
 			else
 			{
-
 				/* prepare */
 
 				//replace the variables in the pred with values
@@ -221,22 +233,26 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 
 				if(childPred != NULL)
 				{
+					DEBUG_LOG("-- childPred is not NULL!");
 					childPred1 = copyObject(childPred);
 					childPred2 = copyObject(childPred);
-					replaceParaWithValues(childPred1, lmap);
-					replaceParaWithValues(childPred2, rmap);
+					replaceParaWithValues(childPred1, lmap); //Q
+					replaceParaWithValues(childPred2, rmap); //Q' (current one)
+
+					//add prime "'" to left side pred (Q')
+					addPrimeOnAttrsInOperator(childPred2,"dummy");
 					notChildPred1 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred1)));
 					notChildPred2 = (Node *) createOpExpr("NOT", singleton(copyObject(childPred2)));
 				}
 
 				if(childExpr != NULL)
 				{
+					DEBUG_LOG("-- childExpr is not NULL!");
 					childExpr1 = copyObject(childExpr);
 					childExpr2 = copyObject(childExpr);
 
-					//add prime "'" to left side pred and expr
-					addPrimeOnAttrsInOperator(childPred1,"dummy");
-					addPrimeOnAttrsInOperator(childExpr1,"dummy");
+					//add prime "'" to left side expr (Q')
+					addPrimeOnAttrsInOperator(childExpr2,"dummy");
 				}
 
 				DEBUG_LOG(" -- childPred1: %s",nodeToString(childPred1));
@@ -252,19 +268,19 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 				Node *cond2 = NULL;
 				if(childExpr1 != NULL)
 				{
-					cond1 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred2,notChildPred1));
-					cond2 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred1,notChildPred2));
+					cond2 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred2,notChildPred1));
+					cond1 = andExprList(LIST_MAKE(copyObject(childComp),childExpr1,childExpr2,childPred1,notChildPred2));
 				}
 				else
 				{
-					cond1 = andExprList(LIST_MAKE(copyObject(childComp),childPred2,notChildPred1));
-					cond2 = andExprList(LIST_MAKE(copyObject(childComp),childPred1,notChildPred2));
+					cond2 = andExprList(LIST_MAKE(copyObject(childComp),childPred2,notChildPred1));
+					cond1 = andExprList(LIST_MAKE(copyObject(childComp),childPred1,notChildPred2));
 				}
 
 				//unSatisfiable is valid
 				cond1IsValid = !z3ExprIsSatisfiable((Node *) cond1, TRUE);
 				cond2IsValid = !z3ExprIsSatisfiable((Node *) cond2, TRUE);
-
+				DEBUG_LOG("-- cond1IsValid:  %d, cond2IsValid: %d", cond1IsValid, cond2IsValid);
 			}
 
 			/* get function names from its parent operator and store in funAttrs */
@@ -272,23 +288,47 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 			ProjectionOperator *pproj = (ProjectionOperator *) p;
 			List *funAttrs = NIL;
 			int cnt = 0;
+
+			INFO_OP_LOG("pproj: ", pproj);
+			/*
+			Projection [count(1) F0_0."beat" ] ("cnt": DT_LONG, "beat": DT_LONG) [0x1107f6fa8](0x1107f67f7)
+			  Aggregation [(count(1))] GROUP BY [(F0_0."beat")] ("AGGR_0": DT_LONG, "GROUP_0": DT_LONG) [0x1107f775d](0x1107f6fa8)
+			    Projection [1 F0_0."beat" ] ("AGG_GB_ARG0": DT_INT, "AGG_GB_ARG1": DT_LONG) [0x1107f7fe0](0x1107f775d)
+			 */
+//			DEBUG_NODE_BEATIFY_LOG("pproj->projExprs: ", pproj->projExprs);
+//			FOREACH(AttributeReference,arf,removePrefixOfAttrs(pproj->projExprs))
+//			{	DEBUG_LOG("-- pproj->projExprs:  %s", arf->name);
+//				if(isStartAsAGG(arf->name))
+//				{
+//					DEBUG_LOG("-- isStartAsAGG:  %s", arf->name);
+//					AttributeDef *ad = getAttrDef(p,cnt);
+//					AttributeReference *attr = createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType);
+//					funAttrs = appendToTailOfList(funAttrs, attr);
+//				}
+//				cnt++;
+//			}
+
+			List *projDefs = p->schema->attrDefs;
 			FOREACH(AttributeReference,arf,pproj->projExprs)
-			{	DEBUG_LOG("-- pproj->projExprs:  %s", arf->name);
-				if(isStartAsAGG(arf->name))
+			{
+				char *arfName = arf->name;
+				if(arfName[0] != 'F') //F0_0."beat"
 				{
-					DEBUG_LOG("-- isStartAsAGG:  %s", arf->name);
-					AttributeDef *ad = getAttrDef(p,cnt);
-					AttributeReference *attr = createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType);
-					funAttrs = appendToTailOfList(funAttrs, attr);
+					AttributeDef *ad = (AttributeDef *) getNthOfListP(projDefs, cnt);
+					AttributeReference *newAttr = copyObject(arf);
+					newAttr->name = strdup(ad->attrName);
+					funAttrs = appendToTailOfList(funAttrs,newAttr); //count(1) -> cnt, add "cnt"
 				}
-				cnt++;
+				cnt ++;
 			}
 
 	    	List *funCompList = NIL;
+	    	DEBUG_LOG("-- cond1IsValid:  %d, cond2IsValid: %d", cond1IsValid, cond2IsValid);
 		    /* case 1: 1 ∧ 2 then f = f'*/
 			if(cond1IsValid && cond2IsValid)
 			{
 				funComp = generateAttrAndPrimeEq(funAttrs);
+				//DEBUG_NODE_BEATIFY_LOG("funComp: ", funComp);
 			}
 			else if(cond2IsValid) // case 2 & 3
 			{
@@ -298,8 +338,8 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 	    			AttributeReference *curAttr = (AttributeReference *) getNthOfListP(funAttrs, pos);
 	    			if(checkCountAndSumPositive(fc, (QueryOperator *) agg, lmap, rmap)) //case 3
 	    			{
-	    				Node *leq = generateFunCompExpr(curAttr, ">=");
-	    				funCompList = appendToTailOfList(funCompList, leq);
+	    				Node *geq = generateFunCompExpr(curAttr, ">=");
+	    				funCompList = appendToTailOfList(funCompList, geq);
 	    			}
 	    			else if(checkSumNegative(fc, (QueryOperator *) agg, lmap, rmap)) //case 2
 	    			{
@@ -311,7 +351,15 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 	    		if(funCompList != NIL)
 	    			funComp = andExprList(funCompList);
 			}
-			Node *curComp = AND_EXPRS(childComp, funComp);
+
+			Node *curComp = NULL;
+			if(funComp != NULL)
+			{
+				DEBUG_NODE_BEATIFY_LOG("funComp: ", funComp);
+				curComp = AND_EXPRS(childComp, funComp);
+			}
+			else
+				curComp = childComp;
 
 			setStringProperty((QueryOperator *) root, PROP_STORE_SET_GE, (Node *) createConstBool(ge));
 		    SET_STRING_PROP(root, PROP_STORE_SET_GE_COMP, curComp);
@@ -418,6 +466,28 @@ geBottomUp (QueryOperator *root, HashMap *lmap, HashMap *rmap)
 	}
 }
 
+
+List *
+removePrefixOfAttrs(List *l)
+{
+	// l is a list of attributeReference
+	// remove F0_0. from F0_0."beat" for each attr name
+	List *res = NIL;
+	FOREACH(AttributeReference, a, l)
+	{
+		AttributeReference *newa = (AttributeReference *) copyObject(a);
+		char *aname = strdup(newa->name);
+		char * token = strtok(aname, "\"");
+		token = strtok(NULL, " ");
+		DEBUG_LOG("token: %s", token);
+		newa->name = CONCAT_STRINGS("\"",token);
+		res = appendToTailOfList(res, newa);
+		DEBUG_LOG("new name: %s", newa->name);
+	}
+
+	return res;
+}
+
 /*
  * Used for check something like ∀𝑔 ∈ 𝐺 : Ψ𝑄1,𝑋1 ∧ 𝑐𝑜𝑛𝑑𝑠(𝑄1) ∧ 𝑐𝑜𝑛𝑑𝑠(𝑄1) → 𝑔 = 𝑔′
  * Used in aggregation, duplicate removal and join
@@ -429,8 +499,16 @@ checkEqCompForListAttrRefsOfOp(QueryOperator *root, List *l, HashMap *lmap, Hash
 	Node *allconds = getAllConds(childOp,lmap,rmap);
 	//boolean childGe = GET_BOOL_STRING_PROP(childOp, PROP_STORE_SET_GE);
 	Node *childComp = copyObject(getStringProperty(childOp, PROP_STORE_SET_GE_COMP));
+	DEBUG_NODE_BEATIFY_LOG("childComp: ", childComp);
 
+
+	l = removePrefixOfAttrs(l);
+	DEBUG_NODE_BEATIFY_LOG("group by lists: ", l);
 	Node *gbEqs = ListAttrRefsToEqCondsForAgg(root, l);
+	DEBUG_NODE_BEATIFY_LOG("group by equivalent conditions: ", gbEqs);
+	//(F0_0."beat" = r_F0__0."beat"): if translate to template, then attr name with F0_0
+	//("beat" = r_"beat") should be this
+
 	Node *notGbEqs = NULL;
 	if(gbEqs != NULL)
 		notGbEqs = (Node *) createOpExpr("NOT", singleton(gbEqs));
@@ -447,6 +525,7 @@ checkEqCompForListAttrRefsOfOp(QueryOperator *root, List *l, HashMap *lmap, Hash
 			finalCond = andExprList(LIST_MAKE(childComp, notGbEqs));
 
 		INFO_NODE_BEATIFY_LOG(" -- finalCond: ", finalCond);
+
 		ge = !z3ExprIsSatisfiable((Node *) finalCond, TRUE);
 	}
 	else //no group by is true since full provenance
@@ -473,25 +552,42 @@ generateFunCompExpr(AttributeReference *a, char *op)
 static Node *
 getAllConds(QueryOperator *op, HashMap *lmap, HashMap *rmap)
 {
+	Node *allconds = NULL;
 	//Node *childComp = copyObject(getStringProperty(op, PROP_STORE_SET_GE_COMP));
 	Node *childExpr = copyObject(getStringProperty(op, PROP_STORE_SET_EXPR));
 	Node *childPred = copyObject(getStringProperty(op, PROP_STORE_SET_PRED));
 
-    Node *childPred1 = copyObject(childPred);
-    Node *childPred2 = copyObject(childPred);
-    INFO_NODE_BEATIFY_LOG(" -- childPred1: ", childPred1);
+	Node *childPred1 = NULL;
+	Node *childPred2 = NULL;
 
-    replaceParaWithValues(childPred1, lmap);
-    replaceParaWithValues(childPred2, rmap);
+	if(childPred != NULL)
+	{
+		childPred1 = copyObject(childPred);
+		childPred2 = copyObject(childPred);
+		INFO_NODE_BEATIFY_LOG(" -- childPred1: ", childPred1);
+	    replaceParaWithValues(childPred1, lmap);
+	    replaceParaWithValues(childPred2, rmap);
+	    //add prime "'" to left side pred and expr
+	    addPrimeOnAttrsInOperator(childPred1,"dummy");
+	}
 
-    Node *childExpr1 = copyObject(childExpr);
-    Node *childExpr2 = copyObject(childExpr);
+	Node *childExpr1 = NULL;
+	Node *childExpr2 = NULL;
+	if(childExpr != NULL)
+	{
+		childExpr1 = copyObject(childExpr);
+		childExpr2 = copyObject(childExpr);
+	    //add prime "'" to left side pred and expr
+	    addPrimeOnAttrsInOperator(childExpr1,"dummy");
+	}
 
-    //add prime "'" to left side pred and expr
-    addPrimeOnAttrsInOperator(childPred1,"dummy");
-    addPrimeOnAttrsInOperator(childExpr1,"dummy");
 
-    Node *allconds = andExprList(LIST_MAKE(childPred1, childPred2, childExpr1, childExpr2));
+	if(childPred != NULL && childExpr != NULL)
+		allconds = andExprList(LIST_MAKE(childPred1, childPred2, childExpr1, childExpr2));
+	else if(childPred != NULL && childExpr == NULL)
+		allconds = andExprList(LIST_MAKE(childPred1, childPred2));
+	else if(childPred == NULL && childExpr != NULL)
+		allconds = andExprList(LIST_MAKE(childExpr1, childExpr2));
 
     return allconds;
 }
