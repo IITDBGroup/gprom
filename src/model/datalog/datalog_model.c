@@ -35,6 +35,8 @@ static Node *unificationMutator (Node *node, HashMap *context);
 static List *mergeRule(DLRule *super, List *replacements);
 static char *getFirstIDBAtom(DLRule *r, Set *idbPreds);
 static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds);
+static boolean delPropsVisitor(Node *n, void *context);
+
 
 DLAtom *
 createDLAtom (char *rel, List *args, boolean negated)
@@ -712,4 +714,25 @@ delDLProp(DLNode *n, char *key)
 {
     if (n->properties != NULL)
         removeMapElem(n->properties, (Node *) createConstString(key));
+}
+
+void
+delAllProps(DLNode *n)
+{
+	delPropsVisitor((Node *) n, NULL);
+}
+
+static boolean
+delPropsVisitor(Node *n, void *context)
+{
+	if (n == NULL)
+		return TRUE;
+
+	if(IS_DL_NODE(n))
+	{
+		DLNode *dl = (DLNode *) n;
+		dl->properties = NEW_MAP(Constant,Node);
+	}
+
+	return visit(n, delPropsVisitor, context);
 }

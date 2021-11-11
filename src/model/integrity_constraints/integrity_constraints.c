@@ -26,6 +26,8 @@
 #include "model/set/vector.h"
 
 static void addIntToSetValue(HashMap *map, char *a, int val);
+static void icToStringInternal(Node *n, StringInfo str);
+static char *FDtoStr(FD *f);
 
 FD *
 createFD(char *table, Set *lhs, Set *rhs)
@@ -219,4 +221,61 @@ normalizeFDs(List *fds)
 	}
 
 	return result;
+}
+
+char *
+icToString(Node *ics)
+{
+	StringInfo str = makeStringInfo();
+
+	icToStringInternal(ics, str);
+
+	return str->data;
+}
+
+static void
+icToStringInternal(Node *n, StringInfo str)
+{
+	if(isA(n,List))
+	{
+		List *l = (List *) n;
+
+		FOREACH(Node,e,l)
+		{
+			icToStringInternal(e, str);
+			if(FOREACH_HAS_MORE(e))
+			{
+				appendStringInfoString(str, "\n");
+			}
+		}
+	}
+	else if(isA(n,FD))
+	{
+		appendStringInfoString(str, FDtoStr((FD *) n));
+	}
+}
+
+static char *
+FDtoStr(FD *f)
+{
+	StringInfo str = makeStringInfo();
+
+	if(f->table)
+	{
+		appendStringInfo(str,"%s: ",f->table);
+	}
+
+	FOREACH_SET(char,a,f->lhs)
+	{
+		appendStringInfo(str,"%s%s",a,FOREACH_SET_HAS_MORE(a) ? ", " : "");
+	}
+
+	appendStringInfoString(str, "->");
+
+	FOREACH_SET(char,a,f->rhs)
+	{
+		appendStringInfo(str,"%s%s",a,FOREACH_SET_HAS_MORE(a) ? ", " : "");
+	}
+
+	return str->data;
 }

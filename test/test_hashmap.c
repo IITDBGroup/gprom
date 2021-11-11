@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_hashmap.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -19,6 +19,7 @@
 
 static rc testIntKeyHashMap(void);
 static rc testHashMapToStringSortOrder(void);
+static rc testHashListValue(void);
 
 rc
 testHashMap()
@@ -26,11 +27,13 @@ testHashMap()
     RUN_TEST(testIntKeyHashMap(), "test integer key hashmap");
     RUN_TEST(testHashMapToStringSortOrder(),
             "test determinisim of toString for hashmap");
+	RUN_TEST(testHashListValue(), "test list appending in hashmaps");
 
     return PASS;
 }
 
 #define _I(val) ((Node *) createConstInt(val))
+#define _S(val) ((Node *) createConstString(val))
 
 static rc
 testIntKeyHashMap(void)
@@ -76,4 +79,21 @@ testHashMapToStringSortOrder(void)
             "insertion order does not effect toString result for hashmaps");
 
     return PASS;
+}
+
+static rc
+testHashListValue(void)
+{
+	HashMap *a = NEW_MAP(Constant, List);
+
+    addToMapValueList(a, _S("A"), _S("A"));
+    addToMapValueList(a, _S("A"), _S("B"));
+	addToMapValueList(a, _S("A"), _S("C"));
+
+	addToMapValueList(a, _S("B"), _S("A"));
+
+	ASSERT_EQUALS_NODE(LIST_MAKE(_S("A"), _S("B"), _S("C")), getMapString(a, "A"), "a -> (a,b,c)");
+	ASSERT_EQUALS_NODE(LIST_MAKE(_S("A")), getMapString(a, "B"), "b -> (a)");
+
+	return PASS;
 }

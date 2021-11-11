@@ -21,7 +21,7 @@
 #include "model/datalog/datalog_model.h"
 
 extern DLProgram *rewriteDLForLinageCapture(DLProgram *p);
-extern DLRule *createCaptureRule(DLRule *r, DLAtom *targetAtom);
-extern DLRule *createCaptureRuleForTable(DLRule *r, char *table);
+extern DLRule *createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred);
+extern DLRule *createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred);
 
 #endif /* _DATALOG_LINEAGE_H_ */

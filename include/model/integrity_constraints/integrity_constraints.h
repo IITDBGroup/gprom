@@ -48,6 +48,6 @@ extern Set *attributeClosure(List *fds, Set *attrs, char *table);
 extern FOdep *createFODep(List *lhs, List *rhs);
 extern List *getFDsForAttributes(List *fds, Set *attrs);
 extern List *normalizeFDs(List *fds);
-
+extern char *icToString(Node *ics);
 
 #endif /* _INTEGRITY_CONSTRAINTS_H_ */

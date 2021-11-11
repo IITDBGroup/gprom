@@ -16,8 +16,10 @@
 #include "analysis_and_translate/analyze_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/graph/graph.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
@@ -84,7 +86,7 @@ createRelToRuleMap (Node *stmt)
 	}
 
 
-void
+Graph *
 createRelToRelGraph(Node *stmt)
 {
 	Graph *g;
@@ -92,7 +94,7 @@ createRelToRelGraph(Node *stmt)
 
     if (!isA(stmt,DLProgram))
 	{
-        return;
+        return NULL;
 	}
 
 	p = (DLProgram *) stmt;
@@ -124,6 +126,32 @@ createRelToRelGraph(Node *stmt)
 
 	p = (DLProgram *) stmt;
 	setDLProp((DLNode *) p, DL_REL_TO_REL_GRAPH, (Node *) g);
+
+	return g;
+}
+
+HashMap *
+createBodyPredToRuleMap(DLProgram *p)
+{
+	HashMap *map = NEW_MAP(Constant,List);
+
+	FOREACH(DLRule, r, p->rules)
+	{
+		FOREACH(DLNode, n, r->body)
+		{
+			if(isA(n,DLAtom))
+			{
+				DLAtom *a = (DLAtom *) n;
+				addToMapValueList(map,
+								  (Node *) createConstString(strdup(a->rel)),
+								  (Node *) r);
+			}
+		}
+	}
+
+	DL_SET_PROP(p, DL_MAP_BODYPRED_TO_RULES, map);
+
+	return map;
 }
 
 static void
@@ -136,6 +164,7 @@ analyzeDLProgram(DLProgram *p)
     List *facts = NIL;
     List *rpqRules = NIL;
     List *doms = NIL;
+	List *fds = NIL;
 
     // extract summarization options
     analyzeSummerizationBasics(p);
@@ -168,6 +197,10 @@ analyzeDLProgram(DLProgram *p)
             rules = appendToTailOfList(rules, r);
             addToSet(idbRels, headPred);
         }
+        else if(isA(r,FD))
+        {
+            fds = appendToTailOfList(fds, r);
+        }
         // answer relation specification
         else if(isA(r,Constant))
         {
@@ -183,19 +216,28 @@ analyzeDLProgram(DLProgram *p)
         }
         // associate domain
         else if(isA(r,DLDomain))
-        	doms = appendToTailOfList(doms,r);
+        {
+            doms = appendToTailOfList(doms,r);
+        }
         // provenance question
         else if(isA(r,KeyValue))
+        {
             analyzeProv(p, (KeyValue *) r);
+        }
         else
+        {
             FATAL_LOG("datalog programs can consists of rules, constants, an "
                     "answer relation specification, facts, associate domain specification, "
-            		"and provenance computations");
+                    "and provenance computations");
+        }
     }
 
     // analyze all rules
     FOREACH(DLRule,r,rules)
         analyzeRule((DLRule *) r, idbRels, p); //, edbRels, factRels);
+
+    //TODO analyze FDs to check that tables and attributes exist
+    setDLProp((DLNode *) p, DL_PROG_FDS, (Node *) fds);
 
     p->rules = rules;
     p->facts = facts;
@@ -205,7 +247,7 @@ analyzeDLProgram(DLProgram *p)
      * 1) the length of failure pattern is equal to the number of rule body atom
      * 2) the failure pattern is assigned with why question
      */
-	analyzeSummarizationAdvanced(p);
+    analyzeSummarizationAdvanced(p);
 
 //    // check that answer relation exists
 //    if (p->ans)
@@ -226,7 +268,7 @@ analyzeSummerizationBasics (DLProgram *p)
     if (p->sumOpts == NIL)
         return;
 
-	DEBUG_LOG("user asked for summarization");
+    DEBUG_LOG("user asked for summarization");
 
     // either why or why-not
     FOREACH(Node,n,p->rules)
@@ -243,7 +285,7 @@ analyzeSummerizationBasics (DLProgram *p)
         }
     }
 
-	// set the summarization type
+    // set the summarization type
     DL_SET_PROP(p, PROP_SUMMARIZATION_QTYPE, createConstInt(qType));
 
     // mark as summarization
@@ -332,105 +374,105 @@ analyzeSummerizationBasics (DLProgram *p)
 static void
 analyzeSummarizationAdvanced (DLProgram *p)
 {
-	//TODO check this analyze code from main function
-	int fpLeng = 0;
-	boolean isFpattern = FALSE;
-	HashMap *hm = p->n.properties;
-	List *measureElemList = NIL;
+    //TODO check this analyze code from main function
+    int fpLeng = 0;
+    boolean isFpattern = FALSE;
+    HashMap *hm = p->n.properties;
+    List *measureElemList = NIL;
 
-	// check failure pattern assigned and if so then capture the length of the pattern
-	FOREACH(KeyValue,kv,p->sumOpts)
-	{
-		char *key = STRING_VALUE(kv->key);
+    // check failure pattern assigned and if so then capture the length of the pattern
+    FOREACH(KeyValue,kv,p->sumOpts)
+    {
+        char *key = STRING_VALUE(kv->key);
 
-		if(streq(key,"fpattern"))
-		{
-			isFpattern = TRUE;
-			fpLeng = LIST_LENGTH((List *) kv->value);
-		}
+        if(streq(key,"fpattern"))
+        {
+            isFpattern = TRUE;
+            fpLeng = LIST_LENGTH((List *) kv->value);
+        }
 
-		// for user defined score,
-		// currenlty support 3 elements for measure: precision, recall, and informativeness
-		char *measureElem = NULL;
+        // for user defined score,
+        // currenlty support 3 elements for measure: precision, recall, and informativeness
+        char *measureElem = NULL;
 
-		if(isPrefix(key,"sc_"))
-		{
-			measureElem = (char *) MALLOC(strlen(key) + 1);
-			strcpy(measureElem,key);
+        if(isPrefix(key,"sc_"))
+        {
+            measureElem = (char *) MALLOC(strlen(key) + 1);
+            strcpy(measureElem,key);
 
-			measureElem = strEndTok(measureElem,"_");
-			measureElemList = appendToTailOfList(measureElemList,measureElem);
+            measureElem = strEndTok(measureElem,"_");
+            measureElemList = appendToTailOfList(measureElemList,measureElem);
 
-			if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
-				FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
-		}
+            if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+                FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+        }
 
-//			if(isSubstr(key,"score"))
-//			{
-//				measureElem = replaceSubstr(measureElem,"score_","");
-//				measureElemList = splitString(measureElem,"_");
+//            if(isSubstr(key,"score"))
+//            {
+//                measureElem = replaceSubstr(measureElem,"score_","");
+//                measureElemList = splitString(measureElem,"_");
 //
-//				FOREACH(char,c,measureElemList)
-//					if(!(streq(c,"PRECISION") || streq(c,"RECALL") || streq(c,"INFORMATIVENESS")))
-//						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
-//			}
+//                FOREACH(char,c,measureElemList)
+//                    if(!(streq(c,"PRECISION") || streq(c,"RECALL") || streq(c,"INFORMATIVENESS")))
+//                        FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//            }
 
-		// the elements in the thresholds must be same as in the score
-		if(isPrefix(key,"th_"))
-		{
-			measureElem = (char *) MALLOC(strlen(key) + 1);
-			strcpy(measureElem,key);
+        // the elements in the thresholds must be same as in the score
+        if(isPrefix(key,"th_"))
+        {
+            measureElem = (char *) MALLOC(strlen(key) + 1);
+            strcpy(measureElem,key);
 
-			measureElem = strEndTok(measureElem,"_");
+            measureElem = strEndTok(measureElem,"_");
 
-//				if(measureElemList != NIL)
-//				{
-//					if(!searchListString(measureElemList, measureElem))
-//						FATAL_LOG("the element for thresholds must be consistent with those in the defined score");
-//				}
-//				else
-//				{
-			if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
-				FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
-//				}
-		}
-	}
+//                if(measureElemList != NIL)
+//                {
+//                    if(!searchListString(measureElemList, measureElem))
+//                        FATAL_LOG("the element for thresholds must be consistent with those in the defined score");
+//                }
+//                else
+//                {
+            if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+                FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//                }
+        }
+    }
 
-	// failure pattern assigned with why question
-	if(isFpattern && MAP_HAS_STRING_KEY(hm,"WHY_PROV"))
-		FATAL_LOG("no failure can happen with WHY question");
+    // failure pattern assigned with why question
+    if(isFpattern && MAP_HAS_STRING_KEY(hm,"WHY_PROV"))
+        FATAL_LOG("no failure can happen with WHY question");
 
 //        // no failure pattern assigned with whynot question
 //        if(!isFpattern && MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV"))
-//        	FATAL_LOG("failure pattern must be assigned with WHYNOT question for summarization");
+//            FATAL_LOG("failure pattern must be assigned with WHYNOT question for summarization");
 
-	// the length of failure pattern must be equal to the number of body atoms
-	char *ansPred = NULL;
-	int bodyLeng = 0;
+    // the length of failure pattern must be equal to the number of body atoms
+    char *ansPred = NULL;
+    int bodyLeng = 0;
 
-	if(MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV") && isFpattern)
-	{
-		DLAtom *ansAtom = (DLAtom *) getMapString(hm,"WHYNOT_PROV");
-		ansPred = (char *) ansAtom->rel;
+    if(MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV") && isFpattern)
+    {
+        DLAtom *ansAtom = (DLAtom *) getMapString(hm,"WHYNOT_PROV");
+        ansPred = (char *) ansAtom->rel;
 
-		FOREACH(Node,r,p->rules)
-		{
-			if(isA(r,DLRule))
-			{
-				DLRule *eachR = (DLRule *) r;
-				char *headPred = getHeadPredName(eachR);
+        FOREACH(Node,r,p->rules)
+        {
+            if(isA(r,DLRule))
+            {
+                DLRule *eachR = (DLRule *) r;
+                char *headPred = getHeadPredName(eachR);
 
-				if(streq(headPred,ansPred))
-					bodyLeng = LIST_LENGTH(eachR->body);
-			}
-		}
+                if(streq(headPred,ansPred))
+                    bodyLeng = LIST_LENGTH(eachR->body);
+            }
+        }
 
-		if(fpLeng > bodyLeng)
-			FATAL_LOG("the failure pattern is longer than the rule body");
+        if(fpLeng > bodyLeng)
+            FATAL_LOG("the failure pattern is longer than the rule body");
 
-		if(fpLeng < bodyLeng)
-			FATAL_LOG("the failure pattern is less than the rule body");
-	}
+        if(fpLeng < bodyLeng)
+            FATAL_LOG("the failure pattern is less than the rule body");
+    }
 }
 
 static void
@@ -454,16 +496,25 @@ analyzeProv (DLProgram *p, KeyValue *kv)
     {
         DL_SET_BOOL_PROP(p,DL_PROV_FULL_GP);
     }
-	// capture lineage, store target table
-	if (streq(type, DL_PROV_LINEAGE))
-	{
-		DL_SET_BOOL_PROP(p, DL_PROV_LINEAGE);
-		if(kv->value)
-		{
-			DL_SET_STRING_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE, copyObject(kv->value));
-		}
-		return;
-	}
+    // capture lineage, store target table
+    if (streq(type, DL_PROV_LINEAGE))
+    {
+        DL_SET_BOOL_PROP(p, DL_PROV_LINEAGE);
+        if(kv->value)
+        {
+            KeyValue *opts = (KeyValue *) kv->value;
+
+            if(opts->key)
+            {
+                DL_SET_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE, copyObject(opts->key));
+            }
+            if(opts->value)
+            {
+                DL_SET_PROP(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE, copyObject(opts->value));
+            }
+        }
+        return;
+    }
 
     // check if format is given
     if (!streq(type,DL_PROV_WHY) && !streq(type,DL_PROV_WHYNOT) && !streq(type,DL_PROV_FULL_GP))
@@ -485,9 +536,9 @@ analyzeProv (DLProgram *p, KeyValue *kv)
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE);
         }
         else if (isSuffix(type, DL_PROV_FORMAT_HEAD_RULE_EDB))
-		{
-			DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_HEAD_RULE_EDB);
-		}
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_HEAD_RULE_EDB);
+        }
         else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE))
         {
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE);
@@ -497,9 +548,9 @@ analyzeProv (DLProgram *p, KeyValue *kv)
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED);
         }
         else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED))
-		{
-			DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED);
-		}
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED);
+        }
         else
         {
             FATAL_LOG("unkown provenance return format: %s", type);
@@ -547,17 +598,17 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
 
         if (isA(a,DLComparison))
         {
-        	p->comp = appendToTailOfList(p->comp, a);
+            p->comp = appendToTailOfList(p->comp, a);
 
-        	INFO_DL_LOG("comparison expression:", p->comp);
-			DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp));
+            INFO_DL_LOG("comparison expression:", p->comp);
+            DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp));
         }
     }
 
     // check head if agg functions exist
     FOREACH(Node,ha,r->head->args)
-    	if (isA(ha,FunctionCall))
-    		p->func = appendToTailOfList(p->func, ha);
+        if (isA(ha,FunctionCall))
+            p->func = appendToTailOfList(p->func, ha);
 }
 
 /*
@@ -570,6 +621,34 @@ analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules)
     return rpqP->rules;
 }
 
+List *
+getEDBFDs(DLProgram *p)
+{
+	Set *edbOnly;
+	List *fds = NIL;
+
+	checkDLModel((Node *) p);
+	edbOnly = (Set *) DL_GET_PROP(p, DL_EDB_RELS);
+
+	FOREACH_SET(char,e,edbOnly)
+	{
+		Set *attrs = makeStrSetFromList(getAttributeNames(e));
+		List *keys = getKeyInformation(e);
+
+		FOREACH(Set,k,keys)
+		{
+			Set *rhs = setDifference(attrs, k);
+			Set *lhs = copyObject(k);
+
+			fds = appendToTailOfList(fds, createFD(strdup(e), lhs, rhs));
+		}
+	}
+
+    DEBUG_LOG("FDs for EDB rels are: ", icToString((Node *) fds));
+
+	return fds;
+}
+
 
 //static void
 //summarizationPlan (Node *parse)
@@ -579,103 +658,103 @@ analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules)
 //    {
 //        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 //
-//    	if (!LIST_EMPTY(ps->sumOpts))
-//    		FOREACH(Node,n,ps->sumOpts)
-//    			summOpts = appendToTailOfList(summOpts,n);
+//        if (!LIST_EMPTY(ps->sumOpts))
+//            FOREACH(Node,n,ps->sumOpts)
+//                summOpts = appendToTailOfList(summOpts,n);
 //
-//    	qType = "WHY";
+//        qType = "WHY";
 //    }
 //    else // summarization options for DL input
 //    {
-//    	DLProgram *p = (DLProgram *) parse;
+//        DLProgram *p = (DLProgram *) parse;
 //
-//    	// either why or why-not
-//    	FOREACH(Node,n,p->rules)
-//    	{
-//    		if(isA(n,KeyValue))
-//    		{
-//    			KeyValue *kv = (KeyValue *) n;
-//    			qType = STRING_VALUE(kv->key);
+//        // either why or why-not
+//        FOREACH(Node,n,p->rules)
+//        {
+//            if(isA(n,KeyValue))
+//            {
+//                KeyValue *kv = (KeyValue *) n;
+//                qType = STRING_VALUE(kv->key);
 //
-//    			if(isPrefix(qType,"WHYNOT_"))
-//    				qType = "WHYNOT";
-//    			else
-//    				qType = "WHY";
-//    		}
-//    	}
+//                if(isPrefix(qType,"WHYNOT_"))
+//                    qType = "WHYNOT";
+//                else
+//                    qType = "WHY";
+//            }
+//        }
 //
-//    	if (p->sumOpts != NIL)
-//    	{
-//    		FOREACH(Node,n,p->sumOpts)
-//				summOpts = appendToTailOfList(summOpts,n);
+//        if (p->sumOpts != NIL)
+//        {
+//            FOREACH(Node,n,p->sumOpts)
+//                summOpts = appendToTailOfList(summOpts,n);
 //
-//    		// keep track of (var,rel) and (negidb,edb)
-//    		HashMap *varRelPair = NEW_MAP(Constant,Constant);
-//    		HashMap *headEdbPair = NEW_MAP(Constant,List);
-//    		List *negAtoms = NIL;
+//            // keep track of (var,rel) and (negidb,edb)
+//            HashMap *varRelPair = NEW_MAP(Constant,Constant);
+//            HashMap *headEdbPair = NEW_MAP(Constant,List);
+//            List *negAtoms = NIL;
 //
-//    		FOREACH(Node,n,p->rules)
-//    		{
-//    			if(isA(n,DLRule))
-//    			{
-//    				DLRule *r = (DLRule *) n;
-//            		List *edbList = NIL;
+//            FOREACH(Node,n,p->rules)
+//            {
+//                if(isA(n,DLRule))
+//                {
+//                    DLRule *r = (DLRule *) n;
+//                    List *edbList = NIL;
 //
-//    				FOREACH(Node,b,r->body)
-//    				{
-//    					if(isA(b,DLAtom))
-//    					{
-//    						DLAtom *a = (DLAtom *) b;
+//                    FOREACH(Node,b,r->body)
+//                    {
+//                        if(isA(b,DLAtom))
+//                        {
+//                            DLAtom *a = (DLAtom *) b;
 //
-//    						// keep track of which negated atom needs domains from which edb atom
-//    						if(a->negated)
-//    							negAtoms = appendToTailOfList(negAtoms,a->rel);
-//    						else
-//           						edbList = appendToTailOfList(edbList,a->rel);
+//                            // keep track of which negated atom needs domains from which edb atom
+//                            if(a->negated)
+//                                negAtoms = appendToTailOfList(negAtoms,a->rel);
+//                            else
+//                                   edbList = appendToTailOfList(edbList,a->rel);
 //
-//    						// keep track of which variable belongs to which edb
-//    						FOREACH(Node,n,a->args)
-//    						{
-//    							if(isA(n,DLVar))
-//    							{
-//    								DLVar *v = (DLVar *) n;
-//    								MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
-//    							}
-//    						}
-//    					}
-//    				}
+//                            // keep track of which variable belongs to which edb
+//                            FOREACH(Node,n,a->args)
+//                            {
+//                                if(isA(n,DLVar))
+//                                {
+//                                    DLVar *v = (DLVar *) n;
+//                                    MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
+//                                }
+//                            }
+//                        }
+//                    }
 //
-//        			char *headPred = getHeadPredName(r);
-//    				MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
-//    			}
-//    		}
+//                    char *headPred = getHeadPredName(r);
+//                    MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
+//                }
+//            }
 //
-//    		// store edb information for negated atoms and why-not questions
-//    		if(!LIST_EMPTY(negAtoms))
-//    		{
-//        		FOREACH(char,c,negAtoms)
-//        		{
-//        			if(!MAP_HAS_STRING_KEY(headEdbPair,c))
-//        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
-//        			else
-//        			{
-//        				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
+//            // store edb information for negated atoms and why-not questions
+//            if(!LIST_EMPTY(negAtoms))
+//            {
+//                FOREACH(char,c,negAtoms)
+//                {
+//                    if(!MAP_HAS_STRING_KEY(headEdbPair,c))
+//                        MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
+//                    else
+//                    {
+//                        List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
 //
-//        				FOREACH(char,e,edbs)
-//        					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
-//        			}
-//        		}
-//    		}
+//                        FOREACH(char,e,edbs)
+//                            MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+//                    }
+//                }
+//            }
 //
-//    		if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
-//    		{
-//				FOREACH_HASH(List,edbs,headEdbPair)
-//					FOREACH(char,e,edbs)
-//						MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
-//    		}
+//            if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
+//            {
+//                FOREACH_HASH(List,edbs,headEdbPair)
+//                    FOREACH(char,e,edbs)
+//                        MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+//            }
 //
-//    		// store into the list of the summarization options
-//    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
-//    	}
+//            // store into the list of the summarization options
+//            summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
+//        }
 //    }
 //}

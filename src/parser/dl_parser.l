@@ -102,28 +102,32 @@ MOD						'%'
 STRCONCAT				"||"
 
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+LOG_IMPLIES             "->"
 
 /* KEYWORDS */
 ANS					"ANS"
-WHY					"WHY"
-WHYNOT				"WHYNOT"
-GP					"GP"
-RPQ					"RPQ"
-FORMAT				"FORMAT"
-OF					"OF"
-IS					"IS"
-USERDOMAIN			"USERDOMAIN"
-TOP					"TOP"
-FOR					"FOR"
-LINEAGE             "LINEAGE"
-FAILURE				"FAILURE"
-SUMMARIZED			"SUMMARIZED"
+AS					"AS"
 BY					"BY"
-WITH				"WITH"
+FAILURE				"FAILURE"
+FD                  "FD"
+FOR					"FOR"
+FORMAT				"FORMAT"
+GP					"GP"
+IS					"IS"
+LINEAGE             "LINEAGE"
+OF					"OF"
+RPQ					"RPQ"
 SAMPLE				"SAMPLE"
 SCORE				"SCORE"
-AS					"AS"
+SUMMARIZED			"SUMMARIZED"
 THRESHOLDS			"THRESHOLDS"
+TOP					"TOP"
+USERDOMAIN			"USERDOMAIN"
+WHY					"WHY"
+WHYNOT				"WHYNOT"
+WITH				"WITH"
+RESULTS             "RESULTS"
+FROM                "FROM"
 
 /* LITERAL ONES */
 
@@ -138,6 +142,8 @@ THRESHOLDS			"THRESHOLDS"
 	/* literal keyword tokens */
 (?i:not)			TOK(NEGATION)
 {IMPLIES}			TOK(RULE_IMPLICATION)
+{LOG_IMPLIES}       TOK(IMPLIES)
+{FD}                TOK(KEYWORD_FD)
 {ANS}				TOK(ANS)
 {GP}				TOK(GP)
 {WHY}				TOK(WHYPROV)
@@ -159,7 +165,8 @@ THRESHOLDS			"THRESHOLDS"
 {SCORE}				TOK(SCORE)
 {AS}				TOK(AS)
 {THRESHOLDS}		TOK(THRESHOLDS)
-
+{RESULTS}           TOK(RESULTS)
+{FROM}              TOK(FROM)
 
 	/* aggregation functions */
 (?i:AVG)	TOK(AMMSC)

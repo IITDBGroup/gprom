@@ -10,6 +10,7 @@
 #include "parser/parse_internal_dl.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 
 #define RULELOG(grule) \
     { \
@@ -56,8 +57,8 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS
-%token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE LINEAGE
+%token <stringVal> NEGATION RULE_IMPLICATION IMPLIES ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS
+%token <stringVal> SCORE AS THRESHOLDS TOP FOR RESULTS FROM FAILURE SUMMARIZED BY WITH SAMPLE LINEAGE KEYWORD_FD
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -87,9 +88,10 @@ Node *dlParseResult = NULL;
 %type <node> statement program
 
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
-%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType
+%type <node> functional_dependency
+%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions
 %type <node> optionalFPattern
-%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds
+%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds nameList
 %type <stringVal> optProvFormat
 
 /* start symbol */
@@ -142,7 +144,8 @@ statement:
 		| associateDomain { RULELOG("statement::associateDomain"); $$ = $1; }
 		| provStatement { RULELOG("statement::prov"); $$ = $1; }
 		| rpqStatement { RULELOG("statement::rpq"); $$ = $1; }
-	;
+		| functional_dependency { RULELOG("statement::fd"); $$ = $1; }
+    ;
 
 rpqStatement:
 		RPQ '(' stringConst ',' IDENT ',' IDENT ',' IDENT ')' '.'
@@ -171,18 +174,31 @@ provStatement:
 			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "GP";
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), NULL);
 		}
-		| LINEAGE '.'
+		| LINEAGE optLineageOptions '.'
 		{
 			RULELOG("provStatement::LINEAGE");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(DL_PROV_LINEAGE), NULL);
-		}
-		| LINEAGE FOR name '.'
-		{
-			RULELOG("provStatement::LINEAGE-FOR-table");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(DL_PROV_LINEAGE),
-											 (Node *) createConstString($3));
+			$$ = (Node *) createNodeKeyValue(
+				(Node *) createConstString(DL_PROV_LINEAGE),
+				(Node *) $2);
 		}
 	;
+
+optLineageOptions:
+				/* EMPTY */ { $$ = NULL; }
+		|		FOR name
+				{
+					$$ = (Node *) createNodeKeyValue((Node *) createConstString($2), NULL);
+				}
+		|		FOR name FOR RESULTS FROM name
+				{
+					$$ = (Node *) createNodeKeyValue((Node *) createConstString($2),
+													 (Node *) createConstString($6));
+				}
+		|		OF name
+				{
+					$$ = (Node *) createNodeKeyValue(NULL, (Node *) createConstString($2));
+				}
+		;
 
 /* optProv:
 		optProvFormat optProvSummarize
@@ -386,6 +402,19 @@ optProvFormat:
 		| FORMAT name { $$ = $2; }
 	;
 
+/* ******************************************************************************** */
+// Integrity contrainsts
+functional_dependency:
+		KEYWORD_FD name ':' nameList IMPLIES nameList '.'
+		{
+			RULELOG("rule::FD");
+			$$ = (Node *) createFD($2, makeStrSetFromList($4), makeStrSetFromList($6));
+		}
+   ;
+
+
+/* ******************************************************************************** */
+// rules and facts
 rule:
 		rulehead RULE_IMPLICATION rulebody '.'
 		{
@@ -664,6 +693,11 @@ constant:
 				$$ = (Node *) createConstString($1);
 			}
 	;
+
+nameList:
+			    name { $$ = singleton($1); }
+		|  		nameList ',' name { $$ = appendToTailOfList($1,$3); }
+		;
 
 name:
 		IDENT { RULELOG("name::IDENT"); $$ = $1; }

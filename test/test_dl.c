@@ -10,19 +10,25 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "model/graph/graph.h"
 #include "parser/parser_dl.h"
 #include "test_main.h"
 #include "model/list/list.h"
 #include "analysis_and_translate/analyze_dl.h"
 #include "model/datalog/datalog_model.h"
+#include "model/graph/graph.h"
 
 static rc testMakeVarsUnique(void);
 static rc testRuleMerging(void);
+static rc testRuleGraph(void);
+
 rc
 testDatalogModel(void)
 {
     RUN_TEST(testMakeVarsUnique(), "test replacing vars with unique vars");
 	RUN_TEST(testRuleMerging(), "test merging of subqueries");
+	RUN_TEST(testRuleGraph(), "test creation of rule graph");
+
     return PASS;
 }
 
@@ -78,6 +84,53 @@ testRuleMerging(void)
 
 	p = mergeSubqueries(p, TRUE);
 	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
+
+	p = (DLProgram *) parseFromStringdl(
+		"R(1,1).\nS(1,1).\n"
+		"T(1).\nU(1,1).\n"
+		"Q(X) :- G(X,Y), G(Y,Z).\n"
+		"G(Z,X) :- R(X,X), R(Z,Z).");
+	expected = (DLProgram *) parseFromStringdl(
+		"R(1,1).\nS(1,1).\n"
+		"T(1).\nU(1,1).\n"
+		"Q(V0) :- R(V1,V1),R(V0,V0),R(V2,V2),R(V1,V1).");
+
+	analyzeDLModel((Node *) p);
+	analyzeDLModel((Node *) expected);
+
+	p = mergeSubqueries(p, TRUE);
+	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
+
+	return PASS;
+}
+
+#define ADD_STR_EDGE(_g,_s,_e) ADD_EDGE(_g, createConstString(_s), createConstString(_e))
+
+static rc
+testRuleGraph(void)
+{
+	DLProgram *p = (DLProgram *) parseFromStringdl("Q(X) :- R(X,Y), S(Y,Z).");
+	Graph *g, *exp;
+
+	analyzeDLModel((Node *) p);
+	g = createRelToRelGraph((Node *) p);
+	exp = createEmptyGraph();
+	ADD_STR_EDGE(exp,"Q","R");
+	ADD_STR_EDGE(exp,"Q","S");
+
+	ASSERT_EQUALS_NODE(exp, g, "rel to rel graph");
+
+	p = (DLProgram *) parseFromStringdl("Q(X) :- R(X,Y), S(Y,Z). Q2(X) :- Q(X), Q(X). Q3(X) :- R(X,Z), Q2(X).");
+	analyzeDLModel((Node *) p);
+	g = createRelToRelGraph((Node *) p);
+	exp = createEmptyGraph();
+	ADD_STR_EDGE(exp,"Q","R");
+	ADD_STR_EDGE(exp,"Q","S");
+	ADD_STR_EDGE(exp,"Q2","Q");
+	ADD_STR_EDGE(exp,"Q3","R");
+	ADD_STR_EDGE(exp,"Q3","Q2");
+
+	ASSERT_EQUALS_NODE(exp, g, "rel to rel graph");
 
 	return PASS;
 }

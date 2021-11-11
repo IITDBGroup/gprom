@@ -89,7 +89,7 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
 #define IS_LINEAGE_PROV(prog) DL_HAS_PROP(prog,DL_PROV_LINEAGE)
 
 #define IS_DL_NODE(n) (isA(n,DLNode) || isA(n,DLAtom) || isA(n,DLVar) \
-        || isA(n,DLComparison) || isA(n,DLRule) || isA(n,DLProgram))
+					   || isA(n,DLComparison) || isA(n,DLRule) || isA(n,DLProgram))
 
 // convenience functions
 extern DLAtom *createDLAtom(char *rel, List *args, boolean negated);
@@ -137,6 +137,7 @@ extern DLProgram *mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 extern Node *getDLProp(DLNode *n, char *key);
 extern void setDLProp(DLNode *n, char *key, Node *value);
 extern void delDLProp(DLNode *n, char *key);
+extern void delAllProps(DLNode *n);
 
 #define DL_HAS_PROP(node,key) (getDLProp((DLNode *) node, key) != NULL)
 #define DL_SET_PROP(node,key,value) (setDLProp((DLNode *) node, key, (Node *) value));
@@ -144,6 +145,8 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_SET_BOOL_PROP(node,key) setDLProp((DLNode *) node, key, (Node *) createConstBool(TRUE));
 #define DL_SET_STRING_PROP(node,key,value) setDLProp((DLNode *) node, key, (Node *) createConstString(value));
 #define DL_GET_STRING_PROP(node,key) STRING_VALUE(getDLProp((DLNode *) node, key))
+#define DL_GET_PROP_DEFAULT(node,key,_default) (DL_HAS_PROP(node,key) ? DL_GET_PROP(node,key) : _default)
+#define DL_GET_STRING_PROP_DEFAULT(node,key,_default) (DL_HAS_PROP(node,key) ? STRING_VALUE(DL_GET_PROP(node,key)) : _default)
 #define DL_DEL_PROP(node,key) (delDLProp((DLNode *) node, key))
 #define DL_COPY_PROP(node1,node2,key) (setDLProp((DLNode *) node2, key, getDLProp((DLNode *) node1,key)))
 
@@ -152,6 +155,8 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_IS_EDB_REL "IS_EDB_REL"
 #define DL_IS_FACT_REL "IS_FACT_REL"
 #define DL_IS_DOMAIN_REL "IS_DOMAIN_REL"
+
+#define DL_PROG_FDS "PROGRAM_FDS"
 
 #define DL_PROV_WHY "WHY_PROV"
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
@@ -169,11 +174,13 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_FORMAT_HEAD_RULE_EDB "HEAD_RULE_EDB"
 #define DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED "TUPLE_RULE_TUPLE_REDUCED"
 #define DL_PROV_LINEAGE_TARGET_TABLE "LINEAGE_TARGET_TABLE"
+#define DL_PROV_LINEAGE_RESULT_FILTER_TABLE "LINEAGE_Q_FILTER"
 
 #define DL_PROV_IS_REWRITTEN_PROG "DL_IS_REWRITTEN_PROP"
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
+#define DL_MAP_BODYPRED_TO_RULES "GOAL_TO_RULES"
 #define DL_REL_TO_REL_GRAPH "REL_TO_REL_G"
 #define DL_MAP_UN_PREDS_TO_RULES "UN_PREDS_TO_RULES"
 #define DL_MAP_ADORNED_PREDS_TO_RULES "ADORNED_PREDS_TO_RULES"

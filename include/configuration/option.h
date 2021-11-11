@@ -119,6 +119,11 @@ NEW_ENUM_WITH_TO_STRING(
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"
 #define RANGE_COMPRESSION_RATE "range_compression_rate"
 
+/* dl rewrite options */
+#define OPTION_WHYNOT_ADV "whynot_adv"
+#define OPTION_DL_SEMANTIC_OPT "dl_semantic_opt"
+#define OPTION_DL_MERGE_RULES "dl_merge_rules"
+
 // backend types
 NEW_ENUM_WITH_TO_STRING(
     BackendType,
@@ -132,8 +137,6 @@ NEW_ENUM_WITH_TO_STRING(
 // encapsulates option state
 typedef struct option_state OptionState;
 
-/* dl rewrite options */
-#define OPTION_WHYNOT_ADV "whynot_adv"
 
 // declare option fields
 // show help only

@@ -81,6 +81,8 @@ extern List *makeNodeListFromSet(Set *s);
             		   DUMMY_SETEL(_elem_)->hh.next) != NULL) ? \
             				   DUMMY_SETEL(_elem_)->data : NULL))
 
+#define FOREACH_SET_HAS_MORE(_elem_) (DUMMY_SETEL(_elem_)->hh.next != NULL)
+
 #define FOREACH_SET_INT(_elem_,_set) \
         INJECT_VAR_SET(SetElem*,DUMMY_SETEL(_elem_)) \
         for(int _elem_ = (((DUMMY_SETEL(_elem_) = \

@@ -87,7 +87,7 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	if(!seeds) //TODO
 	{
 		min =  createDLRule(copyObject(r->head), NIL);
-		return createCaptureRule(min, target);
+		return createCaptureRule(min, target, NULL); //TODO
 	}
 
 	Set *bodyAts = makeNodeSetFromList(r->body);
@@ -171,7 +171,7 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	}
 
 	min = createDLRule(copyObject(r->head), body);
-	opt = createCaptureRule(min, target);
+	opt = createCaptureRule(min, target, NULL);
 
 	return opt;
 }

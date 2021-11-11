@@ -1666,6 +1666,17 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
                 appendStringInfo(str, "%s (%s):\n\t", prop, format);
                 datalogToStrInternal(str,(Node *) question, 4);
             }
+			if (DL_HAS_PROP(p,DL_PROV_LINEAGE))
+			{
+				char *lin = CONCAT_STRINGS("COMPUTING LINEAGE OF: ", (p->ans ? p->ans : " ALL IDB PREDICATES "), "\n");
+				char *forstr = DL_HAS_PROP(p,DL_PROV_LINEAGE_RESULT_FILTER_TABLE) ?
+					CONCAT_STRINGS("ONLY FOR RESULTS STORED IN PREDICATE: ", STRING_VALUE(DL_GET_PROP(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE)), "\n") :
+					"";
+				char *target = DL_HAS_PROP(p,DL_PROV_LINEAGE_TARGET_TABLE) ?
+					CONCAT_STRINGS("SHOW LINEAGE FOR EDB RELATION: ", STRING_VALUE(DL_GET_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE)), "\n") :
+					"";
+				appendStringInfo(str, "%s%s%s\n\t", lin, forstr, target);
+			}
         }
         break;
         case T_Constant:

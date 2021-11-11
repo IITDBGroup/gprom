@@ -192,6 +192,8 @@ struct option_state {
 
 // dl rewrite options
 boolean opt_whynot_adv = FALSE;
+boolean opt_dl_min_with_fds = FALSE;
+boolean opt_merge_dl = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -827,6 +829,22 @@ OptionInfo opts[] =
 				OPTION_BOOL,
 				wrapOptionBool(&opt_whynot_adv),
 				defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_SEMANTIC_OPT,
+			"-Osemantic_opt",
+			"Use functional dependencies to minimizing a provenance capture datalog query.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_dl_min_with_fds),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_MERGE_RULES,
+			"-Oflatten_dl",
+			"Merge Datalog rules by substituting idb predicates in bodies with the rules that define them.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_merge_dl),
+			defOptionBool(FALSE)
 		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
                 "-Cdata_structure_consistency",
