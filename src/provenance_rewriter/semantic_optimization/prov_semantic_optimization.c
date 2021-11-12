@@ -17,6 +17,7 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/graph/graph.h"
@@ -57,7 +58,7 @@ static boolean removeOneEdgeBasedOnFDs(Set *dreach, RewriteSearchState *state);
 static Set *computeFrontier(Graph *g, Set *nodes);
 
 DLRule *
-optimizeDLRule(DLRule *r, List *fds, char *targetTable)
+optimizeDLRule(DLRule *r, List *inFDs, char *targetTable, char *filterPred)
 {
 	/* Set *headVars = varListToNameSet(getHeadVars(r)); */
 	Set *seeds;
@@ -65,6 +66,9 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	Graph *joinG = createJoinGraph(r);
 	List *todo = NIL;
 	DLRule *opt, *min;
+	List *fds = adaptFDsToRules(r, inFDs);
+
+	DEBUG_LOG("adapted FDs: %s", icToString((Node *) fds));
 
 	// determine target goal
 	FOREACH(DLAtom,a,r->body)
@@ -87,7 +91,7 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	if(!seeds) //TODO
 	{
 		min =  createDLRule(copyObject(r->head), NIL);
-		return createCaptureRule(min, target, NULL); //TODO
+		return createCaptureRule(min, target, filterPred); //TODO
 	}
 
 	Set *bodyAts = makeNodeSetFromList(r->body);
@@ -171,7 +175,7 @@ optimizeDLRule(DLRule *r, List *fds, char *targetTable)
 	}
 
 	min = createDLRule(copyObject(r->head), body);
-	opt = createCaptureRule(min, target, NULL);
+	opt = createCaptureRule(min, target, filterPred);
 
 	return opt;
 }
@@ -368,6 +372,66 @@ varListToNameSet(List *vars)
 	FOREACH(DLVar,v,vars)
 	{
 		addToSet(result, strdup(v->name));
+	}
+
+	return result;
+}
+
+List *
+adaptFDsToRules(DLRule *r, List *fds)
+{
+	List *result = NIL;
+	HashMap *predToGoals = NEW_MAP(Constant,List);
+
+	// map pred to goals for preds
+	FOREACH(DLNode,n,r->body)
+	{
+		if(isA(n,DLAtom))
+		{
+			DLAtom *a = (DLAtom *) n;
+		    MAP_ADD_STRING_KEY_TO_VALUE_LIST(predToGoals, a->rel, a);
+		}
+	}
+
+	FOREACH(FD,f,fds)
+	{
+		List *goals = (List *) MAP_GET_STRING(predToGoals, f->table);
+		List *attrNames = getAttributeNames(f->table);
+
+		FOREACH(DLAtom,g,goals)
+		{
+			Set *newLHS = STRSET();
+			Set *newRHS = STRSET();
+			FD *newF;
+
+			FOREACH_SET(char,a,f->lhs)
+			{
+				int pos = listPosString(attrNames, a);
+				DLNode *n = getNthOfListP(g->args, pos);
+				if(isA(n,DLVar))
+				{
+					DLVar *v = (DLVar *) n;
+					addToSet(newLHS, strdup(v->name));
+				}
+			}
+
+			FOREACH_SET(char,a,f->rhs)
+			{
+				int pos = listPosString(attrNames, a);
+				DLNode *n = getNthOfListP(g->args, pos);
+				if(isA(n,DLVar))
+				{
+					DLVar *v = (DLVar *) n;
+					addToSet(newRHS, strdup(v->name));
+				}
+			}
+
+			newF = createFD(strdup(f->table), newLHS, newRHS);
+
+			DEBUG_LOG("FD adapted to rule: %s", icToString((Node *) newF));
+
+			result = appendToTailOfList(result, newF);
+		}
 	}
 
 	return result;

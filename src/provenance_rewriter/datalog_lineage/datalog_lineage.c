@@ -28,6 +28,7 @@
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
+#include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 
 #define PROV_PRED(_p) CONCAT_STRINGS("PROV_", _p);
 
@@ -84,17 +85,25 @@ rewriteDLForLinageCapture(DLProgram *p)
 			FOREACH(DLRule,r,rs)
 			{
 				char *filter = filterPred && streq(getHeadPredName(r), answerPred) ? filterPred : NULL;
+				DLRule *captureRule;
+
+				if(getBoolOption(OPTION_DL_SEMANTIC_OPT))
+				{
+					List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
+
+					captureRule = optimizeDLRule(r, fds, pred, filter);
+				}
+				else
+				{
+					captureRule = createCaptureRuleForTable(r, pred, filter);
+				}
+
 				provRules = appendToTailOfList(
 					provRules,
-					createCaptureRuleForTable(r, pred, filter));
+					captureRule);
 			}
 		}
 
-		if(getBoolOption(OPTION_DL_SEMANTIC_OPT))
-		{
-			/* List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS); */
-
-		}
 	}
 	// no target, just rewrite the whole program
 	else

@@ -25,6 +25,8 @@
 static rc testOptimization(void);
 static rc testRewriting(void);
 static rc testJoinGraph(void);
+static rc testAdaptFDsForRule(void);
+
 
 rc
 testSemanticOptimization(void)
@@ -32,6 +34,7 @@ testSemanticOptimization(void)
     RUN_TEST(testJoinGraph(), "testing creation of join graphs for datalog rules.");
 	RUN_TEST(testRewriting(), "testing creation of capture rules.");
     RUN_TEST(testOptimization(), "testing optimizing a DL rule for provenance capture using semantic query optimization.");
+	RUN_TEST(testAdaptFDsForRule(), "test adapting FDs to a FL rule by replacing attributes with variables.");
 
 	return PASS;
 }
@@ -133,7 +136,7 @@ testOptimization(void)
 	fds = LIST_MAKE(createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y")));
 
 	exp = createDLRule(pr,LIST_MAKE(headxy));
-	opt = optimizeDLRule(r, fds, "R");
+	opt = optimizeDLRule(r, fds, "R", NULL);
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
@@ -144,7 +147,7 @@ testOptimization(void)
 	fds = LIST_MAKE(createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y")));
 
 	exp = createDLRule(pr,LIST_MAKE(gr,headx));
-	opt = optimizeDLRule(r, fds, "R");
+	opt = optimizeDLRule(r, fds, "R", NULL);
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
@@ -155,7 +158,7 @@ testOptimization(void)
 	fds = LIST_MAKE(createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y")));
 
 	exp = createDLRule(plr,LIST_MAKE(glr,gt,gu,headx));
-	opt = optimizeDLRule(r, fds, "R");
+	opt = optimizeDLRule(r, fds, "R", NULL);
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
@@ -167,10 +170,46 @@ testOptimization(void)
 					createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("A")));
 
 	exp = createDLRule(plr,LIST_MAKE(glr,headx));
-	opt = optimizeDLRule(r, fds, "R");
+	opt = optimizeDLRule(r, fds, "R", NULL);
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
+
+	return PASS;
+}
+
+static rc
+testAdaptFDsForRule(void)
+{
+	List *in, *exp, *out;
+	DLRule *r;
+	DLAtom *headx, *gr,*gs, *grt;
+
+	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
+	grt = DLATOM_FROM_STRS("R",FALSE,"X","Z");
+
+	/* glr = DLATOM_FROM_STRS("R",FALSE,"X","Y","A"); */
+
+	/* pr = DLATOM_FROM_STRS("PROV_R",FALSE,"X","Y"); */
+	/* plr = DLATOM_FROM_STRS("PROV_R",FALSE,"X","Y","A"); */
+
+	gs = DLATOM_FROM_STRS("S",FALSE,"Y","Z");
+	/* gt = DLATOM_FROM_STRS("T",FALSE,"A","B"); */
+	/* gu = DLATOM_FROM_STRS("U",FALSE,"B","C"); */
+	headx = DLATOM_FROM_STRS("Q", FALSE, "X");
+	/* headxy = DLATOM_FROM_STRS("Q", FALSE, "X", "Y"); */
+
+
+	r = createDLRule(headx, LIST_MAKE(gr,gs,grt));
+    in = LIST_MAKE(createFD("R", MAKE_STR_SET("A"), MAKE_STR_SET("B")),
+					createFD("S", MAKE_STR_SET("C"), MAKE_STR_SET("D")));
+
+	out = adaptFDsToRules(r, in);
+	exp = LIST_MAKE(createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y")),
+					createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Z")),
+					createFD("S", MAKE_STR_SET("Y"), MAKE_STR_SET("Z")));
+
+	ASSERT_EQUALS_NODE(exp,out, "x->y");
 
 	return PASS;
 }
