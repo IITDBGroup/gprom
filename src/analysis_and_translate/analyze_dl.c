@@ -243,6 +243,9 @@ analyzeDLProgram(DLProgram *p)
     p->facts = facts;
     p->doms = doms;
 
+	// add fds for tables
+	fds = CONCAT_LISTS(fds, getEDBFDs(p));
+
     /* for summarization, check whether
      * 1) the length of failure pattern is equal to the number of rule body atom
      * 2) the failure pattern is assigned with why question
@@ -644,7 +647,7 @@ getEDBFDs(DLProgram *p)
 		}
 	}
 
-    DEBUG_LOG("FDs for EDB rels are: ", icToString((Node *) fds));
+    DEBUG_LOG("FDs for EDB rels are: %s", icToString((Node *) fds));
 
 	return fds;
 }

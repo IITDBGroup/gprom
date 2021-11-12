@@ -224,8 +224,7 @@ sqliteGetAttributes (char *tableName)
 
         AttributeDef *a = createAttributeDef(
 			strToUpper(strdup((char *) colName)),
-                         ourDT
-                         );
+			ourDT);
         result = appendToTailOfList(result, a);
     }
 
@@ -330,8 +329,37 @@ sqliteGetCostEstimation(char *query)
 List *
 sqliteGetKeyInformation(char *tableName)
 {
-    THROW(SEVERITY_RECOVERABLE,"%s","not supported yet");
-    return NIL;
+    sqlite3_stmt *rs;
+    StringInfo q;
+    Set *key = STRSET();
+	List *keys = NIL;
+    int rc;
+
+    q = makeStringInfo();
+    appendStringInfo(q, QUERY_TABLE_COL_COUNT, tableName);
+    rs = runQuery(q->data);
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
+    {
+        boolean pk = sqlite3_column_int(rs,5) > 0;
+        const unsigned char *colname = sqlite3_column_text(rs,1);
+
+		if(pk)
+		{
+			addToSet(key, strToUpper(strdup((char *) colname)));
+		}
+    }
+
+    HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting attributes of table <%s>", tableName);
+
+    DEBUG_LOG("Key for %s are: %s", tableName, beatify(nodeToString(key)));
+
+	if(!EMPTY_SET(key))
+	{
+		keys = singleton(key);
+	}
+
+    return keys;
 }
 
 DataType
