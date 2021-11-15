@@ -54,12 +54,6 @@ rewriteDLForLinageCapture(DLProgram *p)
 
 	DEBUG_NODE_BEATIFY_LOG("body predicate to rule map:\n", predToRules);
 
-	// if requested, first merge rules
-	if(getBoolOption(OPTION_DL_MERGE_RULES))
-	{
-		p = mergeSubqueries(p, TRUE);
-	}
-
 	// get target table if specified
 	if(DL_HAS_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE))
 	{

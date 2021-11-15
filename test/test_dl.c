@@ -69,15 +69,15 @@ static rc
 testRuleMerging(void)
 {
 	DLProgram *p = (DLProgram *) parseFromStringdl(
-		"R(1,1).\nS(1,1).\n"
-		"T(1).\nU(1,1).\n"
-		"Q(X) :- G(X,Y), H(Y,Z).\n"
-		"G(Y,Z) :- R(Y,Z), S(Z,X).\n"
-		"H(Z,X) :- T(X), U(Z,Z).");
+		"RP(1,1).\nSP(1,1).\n"
+		"TP(1).\nUP(1,1).\n"
+		"Q(X) :- Q2(X,Y), Q3(Y,Z).\n"
+		"Q2(Y,Z) :- RP(Y,Z), SP(Z,X).\n"
+		"Q3(Z,X) :- TP(X), UP(Z,Z).");
 	DLProgram *expected = (DLProgram *) parseFromStringdl(
-		"R(1,1).\nS(1,1).\n"
-		"T(1).\nU(1,1).\n"
-		"Q(V3) :- R(V3,V4),S(V4,V6),T(V7),U(V4,V4).");
+		"RP(1,1).\nSP(1,1).\n"
+		"TP(1).\nUP(1,1).\n"
+		"Q(V3) :- RP(V3,V4),SP(V4,V6),TP(V7),UP(V4,V4).");
 
 	analyzeDLModel((Node *) p);
 	analyzeDLModel((Node *) expected);
@@ -86,14 +86,14 @@ testRuleMerging(void)
 	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
 
 	p = (DLProgram *) parseFromStringdl(
-		"R(1,1).\nS(1,1).\n"
-		"T(1).\nU(1,1).\n"
-		"Q(X) :- G(X,Y), G(Y,Z).\n"
-		"G(Z,X) :- R(X,X), R(Z,Z).");
+		"RP(1,1).\nSP(1,1).\n"
+		"TP(1).\nUP(1,1).\n"
+		"Q(X) :- Q2(X,Y), Q2(Y,Z).\n"
+		"Q2(Z,X) :- RP(X,X), RP(Z,Z).");
 	expected = (DLProgram *) parseFromStringdl(
-		"R(1,1).\nS(1,1).\n"
-		"T(1).\nU(1,1).\n"
-		"Q(V0) :- R(V1,V1),R(V0,V0),R(V2,V2),R(V1,V1).");
+		"RP(1,1).\nSP(1,1).\n"
+		"TP(1).\nUP(1,1).\n"
+		"Q(V0) :- RP(V1,V1),RP(V0,V0),RP(V2,V2),RP(V1,V1).");
 
 	analyzeDLModel((Node *) p);
 	analyzeDLModel((Node *) expected);

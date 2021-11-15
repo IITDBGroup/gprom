@@ -17,6 +17,7 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
@@ -28,6 +29,7 @@
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 #include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
 #include "src/parser/oracle_parser.tab.h"
+
 
 typedef struct RewriteSearchState {
 	Set *in;
@@ -60,13 +62,17 @@ static Set *computeFrontier(Graph *g, Set *nodes);
 DLRule *
 optimizeDLRule(DLRule *r, List *inFDs, char *targetTable, char *filterPred)
 {
-	/* Set *headVars = varListToNameSet(getHeadVars(r)); */
 	Set *seeds;
-	DLAtom *target;
-	Graph *joinG = createJoinGraph(r);
+	DLAtom *target = NULL;
+	Graph *joinG;
 	List *todo = NIL;
 	DLRule *opt, *min;
-	List *fds = adaptFDsToRules(r, inFDs);
+	List *fds;
+
+	START_TIMER("semantic optimization");
+
+	joinG = createJoinGraph(r);
+	fds = adaptFDsToRules(r, inFDs);
 
 	DEBUG_LOG("adapted FDs: %s", icToString((Node *) fds));
 
@@ -90,8 +96,11 @@ optimizeDLRule(DLRule *r, List *inFDs, char *targetTable, char *filterPred)
 	// no seeds, head of the query provides all variables we need
 	if(!seeds) //TODO
 	{
+		DLRule *res;
 		min =  createDLRule(copyObject(r->head), NIL);
-		return createCaptureRule(min, target, filterPred); //TODO
+		res = createCaptureRule(min, target, filterPred); //TODO
+		STOP_TIMER("semantic optimization");
+		return res;
 	}
 
 	Set *bodyAts = makeNodeSetFromList(r->body);
@@ -176,6 +185,8 @@ optimizeDLRule(DLRule *r, List *inFDs, char *targetTable, char *filterPred)
 
 	min = createDLRule(copyObject(r->head), body);
 	opt = createCaptureRule(min, target, filterPred);
+
+    STOP_TIMER("semantic optimization");
 
 	return opt;
 }
@@ -407,7 +418,19 @@ adaptFDsToRules(DLRule *r, List *fds)
 			FOREACH_SET(char,a,f->lhs)
 			{
 				int pos = listPosString(attrNames, a);
-				DLNode *n = getNthOfListP(g->args, pos);
+				DLNode *n;
+
+				if(pos < 0)
+				{
+					THROW(SEVERITY_RECOVERABLE,
+						  "did not find attribute %s of FD %s in schema of relation %s",
+						  a,
+						  icToString((Node *) f),
+						  stringListToString(attrNames)
+						);
+				}
+
+				n = getNthOfListP(g->args, pos);
 				if(isA(n,DLVar))
 				{
 					DLVar *v = (DLVar *) n;
@@ -464,41 +487,51 @@ createJoinGraph(DLRule *r)
 	HashMap *atomVars = NEW_MAP(DLVar,Set);
 	List *edges = NIL;
 
-	FOREACH(DLAtom,a,r->body)
+	FOREACH(DLNode,g,r->body)
 	{
-		addToSet(nodes, a);
-		FOREACH(DLNode,arg,a->args)
+		if(isA(g,DLAtom))
 		{
-			if(isA(arg,DLVar))
+			DLAtom *a = (DLAtom *) g;
+
+			addToSet(nodes, a);
+			FOREACH(DLNode,arg,a->args)
 			{
-				if(hasMapKey(atomVars, (Node *) arg))
+				if(isA(arg,DLVar))
 				{
-					Set *ats = (Set *) getMap(atomVars, (Node *) arg);
-					addToSet(ats, a);
-				}
-				else {
-					addToMap(atomVars,
-							 (Node *) arg,
-							 (Node *) MAKE_NODE_SET(a));
+					if(hasMapKey(atomVars, (Node *) arg))
+					{
+						Set *ats = (Set *) getMap(atomVars, (Node *) arg);
+						addToSet(ats, a);
+					}
+					else {
+						addToMap(atomVars,
+								 (Node *) arg,
+								 (Node *) MAKE_NODE_SET(a));
+					}
 				}
 			}
 		}
 	}
 
 	// create edges between atoms that share variables
-	FOREACH(DLAtom,a,r->body)
+	FOREACH(DLNode,g,r->body)
 	{
-		FOREACH(Node,arg,a->args)
+		if(isA(g,DLAtom))
 		{
-			if(isA(arg,DLVar))
+			DLAtom *a = (DLAtom *) g;
+
+			FOREACH(Node,arg,a->args)
 			{
-				Set *atomsForVar = (Set *) getMap(atomVars, (Node *) arg);
-				FOREACH_SET(DLAtom,end,atomsForVar)
+				if(isA(arg,DLVar))
 				{
-					if(!equal(a, end))
+					Set *atomsForVar = (Set *) getMap(atomVars, (Node *) arg);
+					FOREACH_SET(DLAtom,end,atomsForVar)
 					{
-						edges = appendToTailOfList(edges,
-												   createNodeKeyValue((Node *) a, (Node *) end));
+						if(!equal(a, end))
+						{
+							edges = appendToTailOfList(edges,
+													   createNodeKeyValue((Node *) a, (Node *) end));
+						}
 					}
 				}
 			}

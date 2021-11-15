@@ -33,8 +33,8 @@ static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator (Node *node, HashMap *context);
 static List *mergeRule(DLRule *super, List *replacements);
-static char *getFirstIDBAtom(DLRule *r, Set *idbPreds);
-static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds);
+static char *getFirstIDBAtom(DLRule *r, Set *idbPreds, char *ansPred);
+static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, char *ansPred);
 static boolean delPropsVisitor(Node *n, void *context);
 
 
@@ -295,7 +295,6 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	Set *idbRels;
 	Set *todo;
 	List *newRules = NIL;
-
 	ENSURE_REL_TO_REL_GRAPH(p);
 	checkDLModel((Node *) p);
 	result = copyObject(p);
@@ -304,6 +303,12 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	relGraph = (Graph *) getDLProp((DLNode *) result, DL_REL_TO_REL_GRAPH);
 	predToRule = (HashMap *) getDLProp((DLNode *) result, DL_MAP_RELNAME_TO_RULES);
     todo = sourceNodes(relGraph);
+
+	// need to preserve answer relation
+	if(p->ans)
+	{
+		addToSet(todo, createConstString(p->ans));
+	}
 
 	// iterate until all non-negated IDB predicates have been replaced with the bodies of the rules that defines them
 	while(!EMPTY_SET(todo))
@@ -322,9 +327,9 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 				DLRule *curR = popHeadOfListP(todoR);
 				DEBUG_DL_LOG("Substitute first IDB atom in", curR);
 
-				if(ruleHasPosIDBAtom(curR, idbRels))
+				if(ruleHasPosIDBAtom(curR, idbRels, p->ans))
 				{
-					char *firstIDB = getFirstIDBAtom(curR, idbRels);
+					char *firstIDB = getFirstIDBAtom(curR, idbRels, p->ans);
 					List *iRules = (List *) MAP_GET_STRING(predToRule, firstIDB);
 
 					DEBUG_LOG("Replace atom %s", firstIDB);
@@ -347,12 +352,13 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	result = copyObject(p);
 	result->rules = newRules;
 
-	DEBUG_DL_LOG("After merging subqueries we get", result);
+	INFO_DL_LOG("Program after merging subqueries:", result);
+
 	return result;
 }
 
 static char *
-getFirstIDBAtom(DLRule *r, Set *idbPreds)
+getFirstIDBAtom(DLRule *r, Set *idbPreds, char *ansPred)
 {
 	FOREACH(DLNode,n,r->body)
 	{
@@ -360,7 +366,7 @@ getFirstIDBAtom(DLRule *r, Set *idbPreds)
 		{
 			DLAtom *a = (DLAtom *) n;
 
-			if(!a->negated && hasSetElem(idbPreds, a->rel))
+			if(!a->negated && hasSetElem(idbPreds, a->rel) && !strpeq(a->rel, ansPred))
 			{
 				return a->rel;
 			}
@@ -371,9 +377,9 @@ getFirstIDBAtom(DLRule *r, Set *idbPreds)
 }
 
 static boolean
-ruleHasPosIDBAtom(DLRule *r, Set *idbPreds)
+ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, char *ansPred)
 {
-	return getFirstIDBAtom(r, idbPreds) != NULL;
+	return getFirstIDBAtom(r, idbPreds, ansPred) != NULL;
 }
 
 static List *

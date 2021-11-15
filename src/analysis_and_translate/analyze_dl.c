@@ -13,6 +13,7 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "configuration/option.h"
 #include "analysis_and_translate/analyze_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/graph/graph.h"
@@ -30,7 +31,7 @@
 #include "rpq/rpq_to_datalog.h"
 #include "utility/string_utils.h"
 
-static void analyzeDLProgram (DLProgram *p);
+static DLProgram *analyzeDLProgram (DLProgram *p);
 static void analyzeSummerizationBasics (DLProgram *p);
 static void analyzeSummarizationAdvanced (DLProgram *p);
 static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
@@ -43,7 +44,7 @@ analyzeDLModel(Node *stmt)
 {
     //TODO implement checks, e.g., edb relation arity, variable data types, which relations edb which are idb
     if (isA(stmt, DLProgram))
-        analyzeDLProgram((DLProgram *) stmt);
+        stmt = (Node *) analyzeDLProgram((DLProgram *) stmt);
 
     if (!checkDLModel(stmt))
         FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(stmt));
@@ -154,12 +155,10 @@ createBodyPredToRuleMap(DLProgram *p)
 	return map;
 }
 
-static void
+static DLProgram *
 analyzeDLProgram(DLProgram *p)
 {
     Set *idbRels = STRSET();
-//    Set *edbRels = STRSET();
-//    Set *factRels = STRSET();
     List *rules = NIL;
     List *facts = NIL;
     List *rpqRules = NIL;
@@ -246,6 +245,12 @@ analyzeDLProgram(DLProgram *p)
 	// add fds for tables
 	fds = CONCAT_LISTS(fds, getEDBFDs(p));
 
+	// if requested, first merge rules (replace IDB goals with the rules that define them)
+	if(getBoolOption(OPTION_DL_MERGE_RULES))
+	{
+		p = mergeSubqueries(p, TRUE);
+	}
+
     /* for summarization, check whether
      * 1) the length of failure pattern is equal to the number of rule body atom
      * 2) the failure pattern is assigned with why question
@@ -260,6 +265,8 @@ analyzeDLProgram(DLProgram *p)
 //                    " %s in program:\n\n%s",
 //                    p->ans, datalogToOverviewString((Node *) p));
 //    }
+
+	return p;
 }
 
 static void

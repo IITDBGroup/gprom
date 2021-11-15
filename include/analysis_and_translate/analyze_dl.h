@@ -15,8 +15,8 @@
 #include "model/datalog/datalog_model.h"
 #include "model/graph/graph.h"
 
-extern Node *analyzeDLModel (Node *stmt);
-extern void createRelToRuleMap (Node *stmt);
+extern Node *analyzeDLModel(Node *stmt);
+extern void createRelToRuleMap(Node *stmt);
 extern Graph *createRelToRelGraph(Node *stmt);
 HashMap *createBodyPredToRuleMap(DLProgram *p);
 extern List *getEDBFDs(DLProgram *p);
