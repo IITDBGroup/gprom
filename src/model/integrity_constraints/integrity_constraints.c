@@ -193,6 +193,23 @@ getFDsForAttributes(List *fds, Set *attrs)
 }
 
 List *
+getFDsForAttributesOnRels(List *fds, Set *attrs, Set *rels)
+{
+	List *attrFDs = getFDsForAttributes(fds, attrs);
+	List *results = NIL;
+
+	FOREACH(FD,f,attrFDs)
+	{
+		if(hasSetElem(rels, f->table))
+		{
+			results = appendToTailOfList(results, f);
+		}
+	}
+
+	return results;
+}
+
+List *
 normalizeFDs(List *fds)
 {
 	List *result = NIL;

@@ -14,6 +14,7 @@
  */
 
 #include "model/node/nodetype.h"
+#include "model/set/set.h"
 #include "test_main.h"
 #include "log/logger.h"
 
@@ -26,13 +27,14 @@ static rc testOptimization(void);
 static rc testRewriting(void);
 static rc testJoinGraph(void);
 static rc testAdaptFDsForRule(void);
-
+static rc testFDchecking(void);
 
 rc
 testSemanticOptimization(void)
 {
     RUN_TEST(testJoinGraph(), "testing creation of join graphs for datalog rules.");
 	RUN_TEST(testRewriting(), "testing creation of capture rules.");
+	RUN_TEST(testFDchecking(), "testing checking validty of FDs over body atoms.");
     RUN_TEST(testOptimization(), "testing optimizing a DL rule for provenance capture using semantic query optimization.");
 	RUN_TEST(testAdaptFDsForRule(), "test adapting FDs to a FL rule by replacing attributes with variables.");
 
@@ -225,6 +227,43 @@ testAdaptFDsForRule(void)
 					createFD("S", MAKE_STR_SET("Y"), MAKE_STR_SET("Z")));
 
 	ASSERT_EQUALS_NODE(exp,out, "x->y");
+
+	return PASS;
+}
+
+static rc
+testFDchecking(void)
+{
+	List *fds;
+	Set *in;
+	DLAtom *gr, *gs, *gt;
+	FD *fd1, *fd2, *fd3, *fd4;
+
+	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
+	gs = DLATOM_FROM_STRS("S",FALSE,"Y","Z");
+	gt = DLATOM_FROM_STRS("T",FALSE,"X","A");
+
+	fd1 = createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y"));
+	fd2 = createFD("S", MAKE_STR_SET("Y"), MAKE_STR_SET("Z"));
+	fd3 = createFD("T", MAKE_STR_SET("X"), MAKE_STR_SET("A"));
+	fd4 = createFD(NULL, MAKE_STR_SET("X"), MAKE_STR_SET("Z"));
+
+    fds = LIST_MAKE(fd1,fd2,fd3);
+
+	in = MAKE_NODE_SET(gr);
+	ASSERT_TRUE(checkFDonAtoms(in, fds, fd1), "X->Y on R");
+
+	in = MAKE_NODE_SET(gs);
+	ASSERT_FALSE(checkFDonAtoms(in, fds, fd1), "not X->Y on S");
+
+	in = MAKE_NODE_SET(gr,gs);
+	ASSERT_TRUE(checkFDonAtoms(in, fds, fd2), "Y->Z on R,S");
+
+	in = MAKE_NODE_SET(gt);
+	ASSERT_TRUE(checkFDonAtoms(in, fds, fd3), "X->Z on T");
+
+	in = MAKE_NODE_SET(gr,gs);
+	ASSERT_TRUE(checkFDonAtoms(in, fds, fd4), "X->Z on R,S");
 
 	return PASS;
 }

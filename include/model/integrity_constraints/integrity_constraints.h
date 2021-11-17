@@ -47,6 +47,7 @@ extern Set *attrListToSet(List *attrs);
 extern Set *attributeClosure(List *fds, Set *attrs, char *table);
 extern FOdep *createFODep(List *lhs, List *rhs);
 extern List *getFDsForAttributes(List *fds, Set *attrs);
+extern List *getFDsForAttributesOnRels(List *fds, Set *attrs, Set *rels);
 extern List *normalizeFDs(List *fds);
 extern char *icToString(Node *ics);
 

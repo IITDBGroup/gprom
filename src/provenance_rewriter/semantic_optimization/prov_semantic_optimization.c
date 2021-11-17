@@ -465,15 +465,17 @@ checkFDonAtoms(Set *atoms, List *fds, FD *fd) //FIXME does ignore on which relat
 {
 	Set *attrs = STRSET();
 	Set *closure;
+	Set *rels = STRSET();
 	List *aFds;
 
 	FOREACH_SET(DLAtom,a,atoms)
 	{
 		Set *vars = attrListToSet(getVarNames(getExprVars((Node *) a)));
 		attrs = unionSets(attrs, vars);
+		addToSet(rels, a->rel);
 	}
 
-	aFds = getFDsForAttributes(fds, attrs);
+	aFds = getFDsForAttributesOnRels(fds, attrs, rels);
 	closure = attributeClosure(aFds, fd->lhs, NULL);
 
     return containsSet(fd->rhs, closure);
