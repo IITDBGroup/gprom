@@ -113,6 +113,7 @@ extern List *getBodyPredVars(DLRule *r);
 extern List *getHeadVars(DLRule *r);
 extern List *getHeadExprVars(DLRule *r);
 extern List *getAtomExprVars(DLAtom *a);
+extern List *getAtomTopLevelVars(DLAtom *a);
 extern List *getExprVars(Node *expr);
 
 //extern List *getAtomVars(DLAtom *r);
@@ -128,6 +129,7 @@ extern boolean argListsUnifyable(List *argsL, List *argsR);
 extern Node *applyVarMapAsLists(Node *input, List *vars, List *replacements);
 extern DLAtom *getNormalizedAtom(DLAtom *a);
 extern void makeVarNamesUnique(List *nodes);
+extern DLVar *createUniqueVar(Node *n, DataType dt);
 extern char *getUnificationString(DLAtom *a);
 
 // rewrites by substituting rule bodies for rule heads
@@ -155,6 +157,7 @@ extern void delAllProps(DLNode *n);
 #define DL_IS_EDB_REL "IS_EDB_REL"
 #define DL_IS_FACT_REL "IS_FACT_REL"
 #define DL_IS_DOMAIN_REL "IS_DOMAIN_REL"
+#define DL_HAS_AGG "HAS_AGGR"
 
 #define DL_PROG_FDS "PROGRAM_FDS"
 

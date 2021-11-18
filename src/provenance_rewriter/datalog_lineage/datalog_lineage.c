@@ -100,7 +100,7 @@ rewriteDLForLinageCapture(DLProgram *p)
 
 	}
 	// no target, just rewrite the whole program
-	else
+	else //TODO not tested, probably needs to be revised
 	{
 		DEBUG_LOG("compute lineage for all edb predicates for answer predicate");
 
@@ -137,26 +137,45 @@ computePredsToRewrite(char *targetTable, DLProgram *p)
 	return makeStringSetFromConstSet(reach);
 }
 
+//TODO this does not support arithmetic expressions
 DLRule *
 createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred)
 {
 	List *body = copyObject(r->body);
 	DLAtom *newHead = copyObject(targetAtom);
 	DLRule *result;
+	DLAtom *headOrFilterAtom;
 
 	newHead->rel = PROV_PRED(newHead->rel);
 
+	headOrFilterAtom = copyObject(r->head);
+
 	if(filterAnswerPred)
 	{
-		DLAtom *filterQ = copyObject(r->head);
+		headOrFilterAtom->rel = filterAnswerPred;
+	}
 
-		filterQ->rel = filterAnswerPred;
-		body = appendToTailOfList(body, filterQ);
-	}
-	else
+	if(hasAggFunction((Node *) r->head->args))
 	{
-		body = appendToTailOfList(body, copyObject(r->head));
+		List *newArgs = NIL;
+
+		FOREACH(Node,arg,r->head->args)
+		{
+			if(isA(arg,DLVar))
+			{
+				newArgs = appendToTailOfList(newArgs, arg);
+			}
+			else //create fresh var for aggregation functions
+			{
+				DLVar *v = createUniqueVar((Node *) LIST_MAKE(newArgs,headOrFilterAtom), typeOf(arg));
+				newArgs = appendToTailOfList(newArgs,v);
+			}
+		}
+
+		headOrFilterAtom->args = newArgs;
 	}
+
+	body = appendToTailOfList(body, headOrFilterAtom);
 
 	result = createDLRule(newHead, body);
 

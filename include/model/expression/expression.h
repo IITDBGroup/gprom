@@ -254,6 +254,7 @@ extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
+extern boolean isAggFunction(Node *expr);
 
 /* expression node type accessors */
 extern char *getAttributeReferenceName(AttributeReference *a);

@@ -41,27 +41,22 @@ static QueryOperator *translateSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeGoal(DLAtom *r, int goalPos);
 static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
+static QueryOperator *translateHeadAggregation(QueryOperator *joinedGoals, List *headArgs);
+
 //static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
-static void analyzeFactDTs (DLAtom *f, HashMap *predToDTs);
-static void analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules);
-static void setVarDTs (Node *expr, HashMap *varToDT);
-static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
-static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
-static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
-static Node *replaceDLVarMutator (Node *node, HashMap *vToA);
-static Node *createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTmap);
+static void analyzeFactDTs(DLAtom *f, HashMap *predToDTs);
+static void analyzeRuleDTs(DLRule *r, HashMap *predToDTs, HashMap *predToRules);
+static void setVarDTs(Node *expr, HashMap *varToDT);
+static QueryOperator *joinGoalTranslations(DLRule *r, List *goalTrans);
+static Node *createJoinCondOnCommonAttrs(QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
+static List *getHeadProjectionExprs(DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
+static Node *replaceDLVarMutator(Node *node, HashMap *vToA);
+static Node *createCondFromComparisons(List *comparisons, QueryOperator *in, HashMap *varDTmap);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
-static boolean adaptProjectionAttrRef (QueryOperator *o, void *context);
+static boolean adaptProjectionAttrRef(QueryOperator *o, void *context);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
-//static boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
-//static boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
-//static char *goalRel = NULL;
-//List *goalVars = NIL;
-//boolean associateDomain = FALSE; // check if associate domain exists
-//List *dlDom = NIL;
-//List *dRules = NIL;
-//List *origProg = NIL;
+
 boolean provQ = FALSE;
 static List *negBoolDone = NIL;
 
@@ -673,6 +668,7 @@ translateUnSafeRule(DLRule *r)
  *  1) natural joins between goal translations
  *  2) comparison atoms are translated into a selection on top of that
  *  3) the rule head will be a projection followed by duplicate removal (it's bag semantics, baby!)
+ *  4) if aggregation functions are menionted in one of the head expressions, then we grouping on the other expressions (no dup rem required)
  */
 static QueryOperator *
 translateSafeRule(DLRule *r)
@@ -680,6 +676,7 @@ translateSafeRule(DLRule *r)
     ProjectionOperator *headP;
     DuplicateRemoval *dupRem;
     QueryOperator *joinedGoals;
+	QueryOperator *ruleRoot;
     SelectionOperator *sel = NULL;
     List *goalTrans = NIL;
     List *posGoals = NIL;
@@ -687,12 +684,13 @@ translateSafeRule(DLRule *r)
     QueryOperator *posPart = NULL;
     int goalPos;
     HashMap *varDTmap;
+	boolean hasAgg;
 
     DEBUG_LOG("translate rules: %s", datalogToOverviewString((Node *) r));
 
     varDTmap = (HashMap *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
-    // translate positive goals
+    // translate positive goals and comparisons
     goalPos = 0;
     FOREACH(Node,a,r->body)
     {
@@ -749,161 +747,163 @@ translateSafeRule(DLRule *r)
     List *projExprs = NIL;
     List *headNames = NIL;
 
-//    if (getBoolOption(OPTION_WHYNOT_ADV))
-//    {
-//        // gather body args from positive goals first, then negated
-//        List *bodyArgs = NIL;
-//
-//        FOREACH(DLAtom,a,r->body)
-//        	if(!a->negated)
-//        		bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
-//
-//        FOREACH(DLAtom,a,r->body)
-//    		if(a->negated)
-//    			bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
-//
-//        projExprs = getHeadProjectionExprs(r->head, joinedGoals, bodyArgs);
-//    }
-//    else
-//    {
-        projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
-//    }
-
-    int i = 0;
-
-////    FOREACH(Node,p,projExprs)
-//    for (; i < LIST_LENGTH(projExprs); i++)
-//        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
-//
-//    List *headVars = getVarNames(getHeadVars(r));
-//    List *headArgs = r->head->args;
-//
-//    FOREACH(char,hV,headVars)
-//    {
-//        AttributeReference *a;
-//        int pos = getAttrPos(joinedGoals, hV);
-//        DataType dt = getAttrDefByPos(joinedGoals, pos)->dataType;
-//
-//        a = createFullAttrReference(hV,0,pos,INVALID_ATTR, dt);
-//        projExprs = appendToTailOfList(projExprs, a);
-//    }
+	projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
 
     // check whether agg functions exist
-    AggregationOperator *ao;
-    List *newProjExprs = NIL;
-    boolean hasAgg = FALSE;
-
     // check if there exist aggr functions
-    FOREACH(Node,a,r->head->args)
-    	if(isA(a,FunctionCall))
-    		hasAgg = TRUE;
+	hasAgg = hasAggFunction((Node *) r->head->args);
 
     // translate agg functions
     if(hasAgg)
     {
-    	List *groupByClause = NIL;
-        List *attrNames = NIL;
-        List *groupbyNames = NIL;
-        List *funcNames = NIL;
-        List *aggrFuncs = NIL;
-
-        int aggri = -1;
-        int groupbyi = -1;
-
-        // gather group by expressions
-        FOREACH(Node,e,projExprs)
-        {
-        	if(!isA(e,FunctionCall))
-        	{
-        		groupByClause = appendToTailOfList(groupByClause, copyObject(e));
-
-        		char *groupbyName = CONCAT_STRINGS("GROUP_", gprom_itoa(groupbyi + 1));
-        		groupbyNames = appendToTailOfList(groupbyNames, groupbyName);
-        	}
-        }
-
-        // gather aggr function expressions
-    	FOREACH(Node,e,projExprs)
-        {
-        	if(isA(e,FunctionCall))
-        	{
-        		FunctionCall *f = (FunctionCall *) e;
-
-        		if(f->isAgg)
-        		{
-        			aggrFuncs = appendToTailOfList(aggrFuncs, copyObject(f));
-
-        			char *aggrName = CONCAT_STRINGS("AGGR_", gprom_itoa(aggri + 1));
-        			funcNames = appendToTailOfList(funcNames, aggrName);
-        		}
-        	}
-        }
-
-    	// create aggregation operator
-    	attrNames = CONCAT_LISTS(copyList(funcNames), copyList(groupbyNames));
-		ao = createAggregationOp(aggrFuncs, groupByClause, joinedGoals, NIL, attrNames);
-		OP_LCHILD(ao)->parents = singleton(ao);
-//		addParent(joinedGoals, (QueryOperator *) ao);
-
-		// create new projExprs for projection operator
-		AttributeReference *a;
-		groupbyi = 0;
-		aggri = 0;
-
-		// To re-order the attributes, create expressions with group by first
-		FOREACH(AttributeDef,n,ao->op.schema->attrDefs)
-		{
-			if(isPrefix(n->attrName,"GROUP_"))
-			{
-				a = createFullAttrReference(strdup(n->attrName), 0, groupbyi, -1, n->dataType);
-				newProjExprs = appendToTailOfList(newProjExprs, a);
-			}
-			groupbyi++;
-		}
-
-		// Then, create aggr function expressions
-		FOREACH(AttributeDef,n,ao->op.schema->attrDefs)
-		{
-			if(isPrefix(n->attrName,"AGGR_"))
-			{
-				a = createFullAttrReference(strdup(n->attrName), 0, aggri, -1, n->dataType);
-				newProjExprs = appendToTailOfList(newProjExprs, a);
-			}
-			aggri++;
-		}
-
-		// Re-order attribute names according to the expressions
-		headNames = CONCAT_LISTS(copyList(groupbyNames),copyList(funcNames));
+		ruleRoot = translateHeadAggregation(joinedGoals, projExprs);
     }
+	// no aggregation, create projection and duplicate removal
     else
     {
-        // FOREACH(Node,p,projExprs)
-		for (; i < LIST_LENGTH(projExprs); i++)
+		for(int i = 0; i < LIST_LENGTH(projExprs); i++)
 			headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
+
+		headP = createProjectionOp(projExprs,
+								   joinedGoals,
+								   NIL,
+								   headNames);
+		addParent(joinedGoals, (QueryOperator *) headP);
+
+		// add duplicate removal operator
+		dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,
+										  getQueryOperatorAttrNames((QueryOperator *) headP));
+		addParent((QueryOperator *) headP, (QueryOperator *) dupRem);
+
+		ruleRoot = (QueryOperator *) dupRem;
     }
-
-    headP = createProjectionOp(hasAgg ? newProjExprs : projExprs,
-//            sel ? (QueryOperator *) sel : joinedGoals,
-    		hasAgg ? (QueryOperator *) ao : joinedGoals,
-            NIL,
-            headNames);
-//    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
-    addParent(hasAgg ? (QueryOperator *) ao : joinedGoals, (QueryOperator *) headP);
-
-    // add duplicate removal operator
-    dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,
-            getQueryOperatorAttrNames((QueryOperator *) headP));
-    addParent((QueryOperator *) headP, (QueryOperator *) dupRem);
 
     DEBUG_LOG("translated rule:\n%s\n\ninto\n\n%s",
             datalogToOverviewString((Node *) r),
-            operatorToOverviewString((Node *) dupRem));
+            operatorToOverviewString((Node *) ruleRoot));
 
-    return (QueryOperator *) dupRem;
+    return (QueryOperator *) ruleRoot;
+}
+
+
+static QueryOperator *
+translateHeadAggregation(QueryOperator *joinedGoals, List *headProj)
+{
+    	List *groupByClause = NIL;
+        List *attrNames = NIL;
+		List *headNames = NIL;
+        List *groupbyNames = NIL;
+        List *funcNames = NIL;
+		List *aggExprs = NIL;
+		AggregationOperator *ao;
+		QueryOperator *finalProjection;
+		/* List *newProjExprs = NIL; */
+        int aggri = -1;
+        int groupbyi = -1;
+
+        // gather group by expressions and aggregation function expression and anmes
+        FOREACH(Node,e,headProj) //TODO support expressions in head mixed with agg in the future, e.g., sum(X+1) * 2, Y + Z
+        {
+        	if(isA(e,AttributeReference))
+        	{
+				char *groupbyName = CONCAT_STRINGS("GROUP_", gprom_itoa(groupbyi + 1));
+
+        		groupByClause = appendToTailOfList(groupByClause, copyObject(e));
+        		groupbyNames = appendToTailOfList(groupbyNames, groupbyName);
+				attrNames = appendToTailOfList(attrNames, groupbyName);
+				groupbyi++;
+        	}
+			else if (isAggFunction(e))
+			{
+				char *aggrName = CONCAT_STRINGS("AGGR_", gprom_itoa(aggri + 1));
+
+				aggExprs = appendToTailOfList(aggExprs, e);
+				funcNames = appendToTailOfList(funcNames, aggrName);
+				attrNames = appendToTailOfList(attrNames, aggrName);
+				aggri++;
+			}
+			else
+			{
+				THROW(SEVERITY_RECOVERABLE,
+					  "currently only aggregation function calls applied to variables and variables (GROUP-BY) are allowed in head predicates of rules that use aggregation:\n%s",
+					  beatify(nodeToString(headProj)));
+			}
+        }
+
+        // gather aggr function expressions
+    	/* FOREACH(Node,e,projExprs) */
+        /* { */
+        /* 	if(isA(e,FunctionCall)) */
+        /* 	{ */
+        /* 		FunctionCall *f = (FunctionCall *) e; */
+
+        /* 		if(f->isAgg) */
+        /* 		{ */
+        /* 			aggrFuncs = appendToTailOfList(aggrFuncs, copyObject(f)); */
+
+        /* 			char *aggrName = CONCAT_STRINGS("AGGR_", gprom_itoa(aggri + 1)); */
+        /* 			funcNames = appendToTailOfList(funcNames, aggrName); */
+        /* 		} */
+        /* 	} */
+        /* } */
+
+    	// create aggregation operator
+		ao = createAggregationOp(aggExprs, groupByClause, joinedGoals, NIL, CONCAT_LISTS(funcNames,groupbyNames));
+		OP_LCHILD(ao)->parents = singleton(ao);
+//		addParent(joinedGoals, (QueryOperator *) ao);
+
+		DEBUG_NODE_BEATIFY_LOG("agg operator", ao);
+
+		// create new projExprs for projection operator
+		/* AttributeReference *a; */
+		/* groupbyi = 0; */
+		/* aggri = 0; */
+
+		for(int i = 0; i < LIST_LENGTH(attrNames); i++)
+			headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
+
+		finalProjection = createProjOnAttrsByName((QueryOperator *) ao,
+												  attrNames,
+												  headNames);
+		addChildOperator(finalProjection, (QueryOperator *) ao);
+
+		DEBUG_NODE_BEATIFY_LOG("agg operator", ao);
+
+		/* FOREACH(char,aname,attrNames) */
+		/* { */
+
+		/* } */
+
+		/* // To re-order the attributes, create expressions with group by first */
+		/* FOREACH(AttributeDef,n,ao->op.schema->attrDefs) */
+		/* { */
+		/* 	if(isPrefix(n->attrName,"GROUP_")) */
+		/* 	{ */
+		/* 		a = createFullAttrReference(strdup(n->attrName), 0, groupbyi, -1, n->dataType); */
+		/* 		newProjExprs = appendToTailOfList(newProjExprs, a); */
+		/* 	} */
+		/* 	groupbyi++; */
+		/* } */
+
+		/* // Then, create aggr function expressions */
+		/* FOREACH(AttributeDef,n,ao->op.schema->attrDefs) */
+		/* { */
+		/* 	if(isPrefix(n->attrName,"AGGR_")) */
+		/* 	{ */
+		/* 		a = createFullAttrReference(strdup(n->attrName), 0, aggri, -1, n->dataType); */
+		/* 		newProjExprs = appendToTailOfList(newProjExprs, a); */
+		/* 	} */
+		/* 	aggri++; */
+		/* } */
+
+		/* // Re-order attribute names according to the expressions */
+		/* headNames = CONCAT_LISTS(copyList(groupbyNames),copyList(funcNames)); */
+
+		return finalProjection;
 }
 
 static List *
-getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs)
+getHeadProjectionExprs(DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs)
 {
     List *headArgs = head->args;
     List *projExprs = NIL;
@@ -959,20 +959,19 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
             }
 
             ASSERT(isA(bA, DLVar));
-    //        if (isA(bA, DLVar))
-    //        {
-                DLVar *v = (DLVar *) bA;
-                AttributeDef *d = (AttributeDef *) a;
-                MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
-                                    createConstString(d->attrName),
-                                    createConstInt(pos),
-                                    createConstInt(d->dataType)));
-    //        }
+
+			DLVar *v = (DLVar *) bA;
+			AttributeDef *d = (AttributeDef *) a;
+			MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+								   createConstString(d->attrName),
+								   createConstInt(pos),
+								   createConstInt(d->dataType)));
 
             pos++;
         }
     }
 
+	// translate head args
     FOREACH(Node,a,headArgs)
     {
     	boolean isNegBool = FALSE;
@@ -982,6 +981,7 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
 
         Node *newA = replaceDLVarMutator(a, vToA);
 
+		//TODO check what this is used for and remove if not needed
         if(isNegBool)
         {
         	AttributeReference *ar = (AttributeReference *) newA;
@@ -1008,39 +1008,53 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
 }
 
 static Node *
-replaceDLVarMutator (Node *node, HashMap *vToA)
+replaceDLVarMutator(Node *node, HashMap *vToA)
 {
     if (node == NULL)
         return node;
 
-    if (isA(node, DLVar) || isA(node, Operator))
-    {
-        AttributeReference *a;
-        char *hV = NULL;
+    if(isA(node, DLVar))
+	{
+		DLVar *v = (DLVar *) node;
+		AttributeReference *a;
+		List *l = (List *) MAP_GET_STRING(vToA, v->name);
+		char *name = STRING_VALUE(getNthOfListP(l,0));
+		int pos = INT_VALUE(getNthOfListP(l,1));
+		DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
 
-        if(isA(node, DLVar))
-        	hV = ((DLVar *) node)->name;
+		a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
 
-        if(isA(node, Operator))
-        {
-        	Operator *o = (Operator *) node;
-			Node *n = (Node *) getHeadOfListP(o->args);
+		return (Node *) a;
+	}
 
-			if(isA(n, DLVar))
-				hV = ((DLVar *) n)->name;
-        }
+    /* if (isA(node, DLVar) || isA(node, Operator)) */
+    /* { */
+    /*     AttributeReference *a; */
+    /*     char *hV = NULL; */
 
-        if(hV != NULL)
-        {
-            List *l = (List *) MAP_GET_STRING(vToA, hV);
-            char *name = STRING_VALUE(getNthOfListP(l,0));
-            int pos = INT_VALUE(getNthOfListP(l,1));
-            DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
+    /*     if(isA(node, DLVar)) */
+    /*     	hV = ((DLVar *) node)->name; */
 
-            a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
-            return (Node *) a;
-        }
-    }
+    /*     if(isA(node, Operator)) */
+    /*     { */
+    /*     	Operator *o = (Operator *) node; */
+	/* 		Node *n = (Node *) getHeadOfListP(o->args); */
+
+	/* 		if(isA(n, DLVar)) */
+	/* 			hV = ((DLVar *) n)->name; */
+    /*     } */
+
+    /*     if(hV != NULL) */
+    /*     { */
+    /*         List *l = (List *) MAP_GET_STRING(vToA, hV); */
+    /*         char *name = STRING_VALUE(getNthOfListP(l,0)); */
+    /*         int pos = INT_VALUE(getNthOfListP(l,1)); */
+    /*         DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2)); */
+
+    /*         a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt); */
+    /*         return (Node *) a; */
+    /*     } */
+    /* } */
 
     return mutate(node, replaceDLVarMutator, vToA);
 }

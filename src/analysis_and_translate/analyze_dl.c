@@ -15,6 +15,7 @@
 #include "log/logger.h"
 #include "configuration/option.h"
 #include "analysis_and_translate/analyze_dl.h"
+#include "analysis_and_translate/analyze_oracle.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/graph/graph.h"
 #include "model/integrity_constraints/integrity_constraints.h"
@@ -26,6 +27,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
 #include "model/query_operator/operator_property.h"
+#include "ocilib.h"
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "model/rpq/rpq_model.h"
 #include "rpq/rpq_to_datalog.h"
@@ -35,9 +37,10 @@ static DLProgram *analyzeDLProgram (DLProgram *p);
 static void analyzeSummerizationBasics (DLProgram *p);
 static void analyzeSummarizationAdvanced (DLProgram *p);
 static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
+static void analyzeExpression(Node *expr);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
-
+static boolean hasAggFunctionVisitor(Node *n, boolean *context);
 
 Node *
 analyzeDLModel(Node *stmt)
@@ -486,7 +489,7 @@ analyzeSummarizationAdvanced (DLProgram *p)
 }
 
 static void
-analyzeProv (DLProgram *p, KeyValue *kv)
+analyzeProv(DLProgram *p, KeyValue *kv)
 {
     char *type;
     ASSERT(isA(kv->key, Constant));
@@ -592,18 +595,6 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
             {
                 DL_SET_BOOL_PROP(atom,DL_IS_IDB_REL);
             }
-//            // else edb, check that exists and has right arity
-//            else
-//            {
-//                boolean isFactRel = hasSetElem (factRels,atom->rel);
-//                boolean isEdbRel = catalogTableExists(atom->rel);
-//                if (isEdbRel)
-//                {
-//                    addToSet(edbRels,atom->rel);
-//                }
-//                if(!(isFactRel || isEdbRel))
-//                    FATAL_LOG("Atom uses predicate %s that is neither IDB nor EDB", atom->rel);
-//            }
         }
 
         if (isA(a,DLComparison))
@@ -617,8 +608,86 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
 
     // check head if agg functions exist
     FOREACH(Node,ha,r->head->args)
-        if (isA(ha,FunctionCall))
-            p->func = appendToTailOfList(p->func, ha);
+	{
+		List *fcs = NIL;
+		analyzeExpression(ha);
+		findFunctionCall(ha, &fcs);
+
+		FOREACH(FunctionCall,f,fcs)
+		{
+            p->func = appendToTailOfList(p->func, f);
+			if(f->isAgg)
+			{
+				DL_SET_BOOL_PROP((DLNode *) r, DL_HAS_AGG);
+			}
+		}
+	}
+}
+
+static boolean
+hasAggFunctionVisitor(Node *n, boolean *context)
+{
+	if (n == NULL)
+		return TRUE;
+
+	if(isAggFunction(n))
+	{
+		*context = TRUE;
+		return FALSE;
+	}
+
+	return visit(n, hasAggFunctionVisitor, context);
+}
+
+boolean
+hasAggFunction(Node *n)
+{
+	boolean result = FALSE;
+
+	hasAggFunctionVisitor(n, &result);
+
+	return result;
+}
+
+boolean
+atomHasExprs(DLAtom *a)
+{
+	FOREACH(Node,arg,a->args)
+	{
+		if(!isA(arg,DLVar))
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+static void
+analyzeExpression(Node *expr)
+{
+	if(isA(expr,DLVar) || isA(expr,Constant))
+	{
+		return;
+	}
+
+	if(isA(expr,FunctionCall))
+	{
+		FunctionCall *f = (FunctionCall *) expr;
+		FOREACH(Node,arg,f->args)
+		{
+			analyzeExpression(arg);
+		}
+	}
+	else if(isA(expr,Operator))
+	{
+		Operator *o = (Operator *) expr;
+		FOREACH(Node,arg,o->args)
+		{
+			analyzeExpression(arg);
+		}
+
+	}
 }
 
 /*

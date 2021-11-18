@@ -52,6 +52,7 @@ typedef struct RewriteSearchState {
 #define LOG_STATE(_st) DEBUG_NODE_BEATIFY_LOG("RewriteSearchState: \n", _st->in, _st->todo, _st->jg)
 
 static Set *varNamesForAtom(DLAtom *atom);
+static Set *topLevelVarNamesForAtom(DLAtom *atom);
 static Set *varNamesForAtoms(Set *atoms);
 static Set *varListToNameSet(List *vars);
 static Set *computeSeeds(DLRule *r, List *fds, DLAtom *target);
@@ -301,7 +302,7 @@ computeSeeds(DLRule *r, List *fds, DLAtom *target)
 {
 	Set *seeds = NODESET();
 	Set *targetVars = varNamesForAtom(target);
-	Set *headVars = varNamesForAtom(r->head);
+	Set *headVars = topLevelVarNamesForAtom(r->head);
 	List *candidates = NIL;
 //	Set *headAndTargetVars = intersectSets(copyObject(headVars), copyObject(targetVars));
 
@@ -360,6 +361,12 @@ static Set *
 varNamesForAtom(DLAtom *atom)
 {
 	return varListToNameSet(getAtomExprVars(atom));
+}
+
+static Set *
+topLevelVarNamesForAtom(DLAtom *atom)
+{
+	return varListToNameSet(getAtomTopLevelVars(atom));
 }
 
 static Set *

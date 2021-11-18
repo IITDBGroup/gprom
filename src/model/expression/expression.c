@@ -815,6 +815,18 @@ isCondition(Node *expr)
     return FALSE;
 }
 
+boolean
+isAggFunction(Node *expr)
+{
+	if(isA(expr,FunctionCall))
+	{
+		FunctionCall *f = (FunctionCall *) expr;
+		return f->isAgg;
+	}
+
+	return FALSE;
+}
+
 char *
 getAttributeReferenceName(AttributeReference *a)
 {

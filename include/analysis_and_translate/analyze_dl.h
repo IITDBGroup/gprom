@@ -18,7 +18,9 @@
 extern Node *analyzeDLModel(Node *stmt);
 extern void createRelToRuleMap(Node *stmt);
 extern Graph *createRelToRelGraph(Node *stmt);
-HashMap *createBodyPredToRuleMap(DLProgram *p);
+extern HashMap *createBodyPredToRuleMap(DLProgram *p);
+extern boolean hasAggFunction(Node *n);
+extern boolean atomHasExprs(DLAtom *a);
 extern List *getEDBFDs(DLProgram *p);
 
 #define ENSURE_REL_TO_REL_GRAPH(_s) \

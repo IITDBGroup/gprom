@@ -107,7 +107,7 @@ createDLRule (DLAtom *head, List *body)
 
 
 DLProgram *
-createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts)
+createDLProgram(List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts)
 {
     DLProgram *result = makeNode(DLProgram);
 
@@ -151,7 +151,7 @@ getHeadPredName(DLRule *r)
 }
 
 List *
-getRuleVars (DLRule *r)
+getRuleVars(DLRule *r)
 {
     List *result = NIL;
 
@@ -162,7 +162,7 @@ getRuleVars (DLRule *r)
 }
 
 List *
-getBodyArgs (DLRule *r)
+getBodyArgs(DLRule *r)
 {
     List *result = NIL;
 
@@ -177,7 +177,7 @@ getBodyArgs (DLRule *r)
 }
 
 List *
-getBodyVars (DLRule *r)
+getBodyVars(DLRule *r)
 {
     List *result = NIL;
 
@@ -195,7 +195,7 @@ getBodyVars (DLRule *r)
 }
 
 List *
-getBodyPredVars (DLRule *r)
+getBodyPredVars(DLRule *r)
 {
     List *result = NIL;
 
@@ -518,7 +518,7 @@ makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
     {
         char *stringArg = NULL;
 
-        if (isA(arg,DLVar))
+        if(isA(arg,DLVar))
         {
             DLVar *d = (DLVar *) arg;
             void *entry = MAP_GET_STRING(varToNewVar,d->name);
@@ -542,6 +542,26 @@ makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
     }
 
     return args;
+}
+
+DLVar *
+createUniqueVar(Node *n, DataType dt)
+{
+	List *varList = getExprVars(n);
+	Set *vars = STRSET();
+	int i = 0;
+	char *varName;
+
+	FOREACH(DLVar,v,varList)
+	{
+		addToSet(vars, v->name);
+	}
+
+	do {
+		varName = CONCAT_STRINGS("V", gprom_itoa(i));
+	} while (hasSetElem(vars, varName));
+
+	return createDLVar(varName, dt);
 }
 
 Node *
@@ -640,6 +660,22 @@ List *
 getAtomExprVars (DLAtom *a)
 {
     return getExprVars((Node *) a);
+}
+
+List *
+getAtomTopLevelVars(DLAtom *a)
+{
+	List *result = NIL;
+
+	FOREACH(DLNode,arg,a->args)
+	{
+		if(isA(arg,DLVar))
+		{
+			result = appendToTailOfList(result, arg);
+		}
+	}
+
+	return result;
 }
 
 List *
