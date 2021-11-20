@@ -190,6 +190,7 @@ extern void delAllProps(DLNode *n);
 #define DL_IDB_RELS "IDB_RELS"
 #define DL_EDB_RELS "EDB_RELS"
 #define DL_FACT_RELS "FACT_RELS"
+#define DL_AGGR_RELS "AGGR_DEF_RELS"
 
 #define DL_WON "WON"
 #define DL_LOST "LOST"

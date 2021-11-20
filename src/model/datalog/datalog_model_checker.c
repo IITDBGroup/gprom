@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "analysis_and_translate/analyze_dl.h"
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
@@ -44,6 +45,7 @@ checkDLProgram(DLProgram *p)
 {
     HashMap *relArities = NEW_MAP(Constant,Constant);
     Set *idbRels = STRSET();
+	Set *aggrRels = STRSET();
     Set *edbRels = STRSET();
     Set *factRels = STRSET();
     Set *edbOrFactRels = STRSET();
@@ -71,6 +73,10 @@ checkDLProgram(DLProgram *p)
         if (!MAP_HAS_STRING_KEY(relArities, r->head->rel))
             MAP_ADD_STRING_KEY(relArities, strdup(r->head->rel),
                     createConstInt(LIST_LENGTH(r->head->args)));
+		if(hasAggFunction((Node *) r->head->args))
+		{
+			addToSet(aggrRels,strdup(r->head->rel));
+		}
 
         FOREACH(DLNode,a,r->body)
         {
@@ -214,7 +220,7 @@ checkDLProgram(DLProgram *p)
     setDLProp((DLNode *) p, DL_IDB_RELS, (Node *) idbRels);
     setDLProp((DLNode *) p, DL_EDB_RELS, (Node *) edbRels);
     setDLProp((DLNode *) p, DL_FACT_RELS, (Node *) factRels);
-
+	setDLProp((DLNode *) p, DL_AGGR_RELS, (Node *) aggrRels);
     return TRUE;
 }
 

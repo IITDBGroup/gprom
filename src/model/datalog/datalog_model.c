@@ -33,8 +33,9 @@ static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator (Node *node, HashMap *context);
 static List *mergeRule(DLRule *super, List *replacements);
-static char *getFirstIDBAtom(DLRule *r, Set *idbPreds, char *ansPred);
-static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, char *ansPred);
+static char *getFirstIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred);
+static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred);
+static List *ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds);
 static boolean delPropsVisitor(Node *n, void *context);
 
 
@@ -293,6 +294,8 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	Graph *relGraph;
 	HashMap *predToRule;
 	Set *idbRels;
+	Set *aggRels;
+	Set *requiredAggRels = STRSET();
 	Set *todo;
 	List *newRules = NIL;
 	ENSURE_REL_TO_REL_GRAPH(p);
@@ -302,6 +305,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	idbRels = (Set *) getDLProp((DLNode *) result, DL_IDB_RELS);
 	relGraph = (Graph *) getDLProp((DLNode *) result, DL_REL_TO_REL_GRAPH);
 	predToRule = (HashMap *) getDLProp((DLNode *) result, DL_MAP_RELNAME_TO_RULES);
+	aggRels = (Set *) getDLProp((DLNode *) result, DL_AGGR_RELS);
     todo = sourceNodes(relGraph);
 
 	// need to preserve answer relation
@@ -325,11 +329,12 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 			while(!LIST_EMPTY(todoR))
 			{
 				DLRule *curR = popHeadOfListP(todoR);
+				List *aggPredNames = NIL;
 				DEBUG_DL_LOG("Substitute first IDB atom in", curR);
 
-				if(ruleHasPosIDBAtom(curR, idbRels, p->ans))
+				if(ruleHasPosIDBAtom(curR, idbRels, aggRels, p->ans))
 				{
-					char *firstIDB = getFirstIDBAtom(curR, idbRels, p->ans);
+					char *firstIDB = getFirstIDBAtom(curR, idbRels, aggRels, p->ans);
 					List *iRules = (List *) MAP_GET_STRING(predToRule, firstIDB);
 
 					DEBUG_LOG("Replace atom %s", firstIDB);
@@ -345,6 +350,18 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 				{
 					newRules = appendToTailOfList(newRules, curR);
 				}
+
+				// predicates that are computed by aggregation rules mentioned in the body need to be included
+				aggPredNames = ruleGetAggIDBAtoms(r, aggRels);
+				FOREACH(char,relname,aggPredNames)
+				{
+					if(!hasSetElem(requiredAggRels, relname))
+					{
+						DEBUG_LOG("Put agg-predicate %s onto todo list", relname);
+						addToSet(requiredAggRels, strdup(relname));
+						addToSet(todo, createConstString(relname));
+					}
+				}
 			}
 		}
 	}
@@ -358,7 +375,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 }
 
 static char *
-getFirstIDBAtom(DLRule *r, Set *idbPreds, char *ansPred)
+getFirstIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred)
 {
 	FOREACH(DLNode,n,r->body)
 	{
@@ -366,7 +383,7 @@ getFirstIDBAtom(DLRule *r, Set *idbPreds, char *ansPred)
 		{
 			DLAtom *a = (DLAtom *) n;
 
-			if(!a->negated && hasSetElem(idbPreds, a->rel) && !strpeq(a->rel, ansPred))
+			if(!a->negated && hasSetElem(idbPreds, a->rel) && !strpeq(a->rel, ansPred) && !hasSetElem(aggPreds, a->rel))
 			{
 				return a->rel;
 			}
@@ -377,9 +394,32 @@ getFirstIDBAtom(DLRule *r, Set *idbPreds, char *ansPred)
 }
 
 static boolean
-ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, char *ansPred)
+ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred)
 {
-	return getFirstIDBAtom(r, idbPreds, ansPred) != NULL;
+	return getFirstIDBAtom(r, idbPreds, aggPreds, ansPred) != NULL;
+}
+
+
+static List *
+ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds)
+{
+	List *result = NIL;
+
+	FOREACH(DLNode,n,r->body)
+	{
+		if(isA(n,DLAtom))
+		{
+			DLAtom *a = (DLAtom *) n;
+
+			if(hasSetElem(aggPreds, a->rel))
+			{
+				result = appendToTailOfList(result, a->rel);
+			}
+
+		}
+	}
+
+	return result;
 }
 
 static List *
@@ -505,23 +545,29 @@ makeVarNamesUnique(List *nodes)
 }
 
 static List *
-makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
+makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames)
 {
     HashMap *varToNewVar = NEW_MAP(Constant,Constant);
     Set *names = STRSET();
 
     FOREACH(Node,arg,args)
-        if (isA(arg,DLVar))
-            addToSet(names, ((DLVar *) arg)->name);
+	{
+		List *vars = getExprVars(arg);
+
+		FOREACH(DLVar,v,vars)
+		{
+            addToSet(names, v->name);
+		}
+	}
 
     FOREACH(Node,arg, args)
     {
-        char *stringArg = NULL;
+		List *vars = getExprVars(arg);
 
-        if(isA(arg,DLVar))
-        {
-            DLVar *d = (DLVar *) arg;
-            void *entry = MAP_GET_STRING(varToNewVar,d->name);
+		FOREACH(DLVar,v,vars)
+		{
+			char *stringArg = NULL;
+			void *entry = MAP_GET_STRING(varToNewVar,v->name);
 
             if (entry == NULL)
             {
@@ -532,14 +578,41 @@ makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
                 else
                     stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));
 
-                MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
+                MAP_ADD_STRING_KEY(varToNewVar, v->name, createConstString(stringArg));
             }
             else
                 stringArg = strdup(STRING_VALUE(entry));
 
-            d->name = stringArg;
-        }
-    }
+            v->name = stringArg;
+		}
+	}
+
+    /* FOREACH(Node,arg, args) */
+    /* { */
+    /*     char *stringArg = NULL; */
+
+    /*     if(isA(arg,DLVar)) */
+    /*     { */
+    /*         DLVar *d = (DLVar *) arg; */
+    /*         void *entry = MAP_GET_STRING(varToNewVar,d->name); */
+
+    /*         if (entry == NULL) */
+    /*         { */
+    /*             // skip varnames that already exist */
+    /*             if (doNotOrigNames) */
+    /*                 while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++)))) */
+    /*                     ; */
+    /*             else */
+    /*                 stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++)); */
+
+    /*             MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg)); */
+    /*         } */
+    /*         else */
+    /*             stringArg = strdup(STRING_VALUE(entry)); */
+
+    /*         d->name = stringArg; */
+    /*     } */
+    /* } */
 
     return args;
 }
@@ -689,7 +762,7 @@ getExprVars(Node *expr)
 }
 
 static boolean
-findVarsVisitor (Node *node, List **context)
+findVarsVisitor(Node *node, List **context)
 {
     if (node == NULL)
         return TRUE;
@@ -709,8 +782,7 @@ getAtomVars(DLAtom *a)
 
     FOREACH(Node,arg,a->args)
     {
-        if(isA(arg, DLVar))
-            result = appendToTailOfList(result, arg);
+		result = CONCAT_LISTS(result, copyObject(getExprVars(arg)));
     }
 
     return result;
