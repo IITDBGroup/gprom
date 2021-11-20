@@ -26,18 +26,17 @@
 #include "ocilib.h"
 #include <assert.h>
 
-static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames);
-static boolean findVarsVisitor (Node *node, List **context);
+static List *makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames);
+static boolean findVarsVisitor(Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
-static Node *unificationMutator (Node *node, HashMap *context);
+static Node *unificationMutator(Node *node, HashMap *context);
 static List *mergeRule(DLRule *super, List *replacements);
 static char *getFirstIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred);
 static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred);
 static List *ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds);
 static boolean delPropsVisitor(Node *n, void *context);
-
 
 DLAtom *
 createDLAtom (char *rel, List *args, boolean negated)
@@ -586,33 +585,6 @@ makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames)
             v->name = stringArg;
 		}
 	}
-
-    /* FOREACH(Node,arg, args) */
-    /* { */
-    /*     char *stringArg = NULL; */
-
-    /*     if(isA(arg,DLVar)) */
-    /*     { */
-    /*         DLVar *d = (DLVar *) arg; */
-    /*         void *entry = MAP_GET_STRING(varToNewVar,d->name); */
-
-    /*         if (entry == NULL) */
-    /*         { */
-    /*             // skip varnames that already exist */
-    /*             if (doNotOrigNames) */
-    /*                 while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++)))) */
-    /*                     ; */
-    /*             else */
-    /*                 stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++)); */
-
-    /*             MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg)); */
-    /*         } */
-    /*         else */
-    /*             stringArg = strdup(STRING_VALUE(entry)); */
-
-    /*         d->name = stringArg; */
-    /*     } */
-    /* } */
 
     return args;
 }

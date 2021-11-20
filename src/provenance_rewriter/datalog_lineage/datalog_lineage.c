@@ -34,6 +34,17 @@
 
 static Set *computePredsToRewrite(char *targetTable, DLProgram *p);
 
+/**
+ * @brief Rewrites a program to compute lineage.
+ *
+ * This rewrites the rules based on the approach from Widom et al. Optionally
+ * the user can specify for which input relation provenance should be tracked.
+ *
+ * @param p the program to be rewritten
+ * @return the rewritten program
+ */
+
+
 DLProgram *
 rewriteDLForLinageCapture(DLProgram *p)
 {
@@ -122,6 +133,15 @@ rewriteDLForLinageCapture(DLProgram *p)
 	return rewrP;
 }
 
+/**
+ * @brief Determines for which predicates we have to rewrite rules to capture
+ * provenance for the program wrt. to an EDB relation.
+ *
+ * @param targetTable The EDB relation for which we are capturing provenance
+ * @param p The program for which we are capturing provenance
+ * @return A set of Constant nodes storing the names of predicates whose rules need to be rewritten.
+ */
+
 static Set *
 computePredsToRewrite(char *targetTable, DLProgram *p)
 {
@@ -136,6 +156,8 @@ computePredsToRewrite(char *targetTable, DLProgram *p)
 
 	return makeStringSetFromConstSet(reach);
 }
+
+
 
 //TODO this does not support arithmetic expressions
 DLRule *
