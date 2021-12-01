@@ -97,9 +97,39 @@ update_ps(ProvenanceComputation *qbModel)
 	Node *coarsePara = NULL;
 	psInfo *psPara = NULL;
 
-	coarsePara = (Node*) getStringProperty((QueryOperator*) op,
-	PROP_PC_COARSE_GRAINED);
-	psPara = createPSInfo(coarsePara);
+//	coarsePara = (Node*) getStringProperty((QueryOperator*) op,
+//	PROP_PC_COARSE_GRAINED);
+//	psPara = createPSInfo(coarsePara);
+
+
+		/*
+		 * Capture
+		 *
+		 */
+		QueryOperator* result = NULL;
+		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
+		PROP_PC_COARSE_GRAINED);
+		psPara = createPSInfo(coarsePara);
+		DEBUG_LOG("coarse grained fragment parameters: %s",
+						nodeToString((Node* ) psPara));
+		markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
+
+		//mark the number of table - used in provenance scratch
+		markNumOfTableAccess((QueryOperator*) op);
+		DEBUG_LOG("finish markNumOfTableAccess!");
+		bottomUpPropagateLevelAggregation((QueryOperator*) op, psPara);
+		DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
+		result = rewritePI_CS(op);
+		result = addTopAggForCoarse(result);
+		/*
+		 * end of capture rewrite
+		 */
+
+	NODE_BEATIFY_LOG("AFTER WRITE QUERY:\n", result);
+
+
+
+
 
 //	DEBUG_LOG("use coarse grained fragment parameters: %s\n",
 //			nodeToString((Node* ) psPara));
@@ -119,6 +149,15 @@ update_ps(ProvenanceComputation *qbModel)
 		tableCompress(tableName, attInfo->attrName, attInfo->rangeList);
 
 	}
+
+
+
+
+
+
+
+
+
 
 	/*
 	 * get the left and right childred respectively;

@@ -76,12 +76,6 @@ createAndInitValOfCompressedTable(char *tablename, List *ranges, char *psAttr)
 {
 	List *attrDefs = getAttributes(tablename);
 
-	// if (getBackend() == BACKEND_POSTGRES) {
-	//     attrDefs = postgresGetAttributes(tablename);
-	// } else if (getBackend() == BACKEND_ORACLE) {
-	//
-	// }
-
 	INFO_LOG("START CREATING AND INITIALIZING CDB\n");
 	createCompressedTable(tablename, attrDefs);
 	initValToCompressedTable(tablename, attrDefs, ranges, psAttr);
@@ -256,8 +250,10 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 	Insert* insert = (Insert*)((DLMorDDLOperator*)insertQ)->stmt;
 	List *insertValList = (List*) insert->query;
 
+	DEBUG_NODE_BEATIFY_LOG("INSERT QUERY:\n", insert);
 	for(int i = 0; i < getListLength(insertValList); i++) {
-		INFO_LOG("insertval: %d\n", ((Constant*)(getNthOfListP(insertValList, i)))->value);
+//		INFO_LOG("insertval: %d\n", ((Constant*)(getNthOfListP(insertValList, i)))->value);
+//		DEBUG_NODE_BEATIFY_LOG("")
 	}
 
 	Constant *psAttrValue = NULL;
@@ -814,7 +810,7 @@ updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, bo
 		addToMap(updateAttrMap, (Node*) key, (Node*) c);
 
 	}
-
+	DEBUG_NODE_BEATIFY_LOG("Update before creating Insert\n", update);
 	// insert:
 	List* schemas = rel->schema;
 	for(int i = 0; i < LIST_LENGTH(rel->tuples); i++) {
@@ -829,17 +825,18 @@ updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, bo
 				INFO_LOG("NOT IN MAP");
 				Constant* c = NULL;
 				char* val = getNthOfListP(tuple, j);
-				// AttributeDef* ad = (AttributeDef*) getNthOfListP(update->schema, j);
-				switch(((AttributeDef*) getNthOfList(update->schema, j))->dataType) {
-
-					// case DT_INT:
-					case 0:
+				AttributeDef* ad = (AttributeDef*) getNthOfListP(update->schema, j);
+				DEBUG_NODE_BEATIFY_LOG("Attributedef: \n", ad);
+				INFO_LOG("Index: %d", j);
+				switch(ad->dataType) {
+					case DT_INT:
+//					case 0:
 						INFO_LOG("INT");
 						c = createConstInt((int) atoi(val));
 						INFO_LOG("what is the insertval: %d", INT_VALUE(c));
 						break;
-					// case DT_LONG:
-					case 1:
+					case DT_LONG:
+//					case 1:
 						INFO_LOG("LONG");
 						c = createConstLong((long) strtol(val, NULL, 10));
 						break;
@@ -861,10 +858,9 @@ updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, bo
 			}
 		}
 		INFO_LOG("LISTLENGTH: %d\n", LIST_LENGTH(constList));
-		// for(int j = 0; j < LIST_LENGTH(constList); j++) {
-		//     INFO_LOG("LISTCELL: %s", exprToSQL(getNthOfListP(constList, j), NULL));
-		// }
-		Insert* insert = (Insert*) createInsert(update->updateTableName, (Node*) copyList(constList), copyList(schemas));
+
+		Insert* insert = (Insert*) createInsert(update->updateTableName, (Node*) copyObject(constList), (List*) deepCopyStringList(schemas));
+		insert->schema = (List*) copyObject(update->schema);
 		DLMorDDLOperator* dmlOp = createDMLDDLOp((Node*) insert);
 		DEBUG_NODE_BEATIFY_LOG("what is the created insert\n", dmlOp);
 		updateCDBInsertion((QueryOperator*) dmlOp, update->updateTableName,attrInfo);
