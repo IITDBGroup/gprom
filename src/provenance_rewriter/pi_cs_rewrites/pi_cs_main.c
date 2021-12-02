@@ -234,16 +234,17 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
             rewrittenOp = rewritePI_CSProjection((ProjectionOperator *) op, state);
             break;
         case T_AggregationOperator:
+        	DEBUG_LOG("go aggregation");
         	if(combinerAggrOpt) {
         		if(coarseGrainedUseProv)
         			rewrittenOp = rewriteUseCoarseGrainedAggregation ((AggregationOperator *) op, state);
         		else
         			rewrittenOp = rewriteCoarseGrainedAggregation ((AggregationOperator *) op, state);
+
         		INFO_LOG("go SEMIRING COMBINER aggregation optimization!");
         	}
         	else
         	{
-				DEBUG_LOG("go aggregation");
 				if(isRewriteOptionActivated(OPTION_AGG_REDUCTION_MODEL_REWRITE))
             		rewrittenOp = rewritePI_CSAggregationReductionModel ((AggregationOperator *) op, state);
 				else
@@ -2278,7 +2279,11 @@ rewriteCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteState *state
 static QueryOperator *
 rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *state)
 {
+	REWR_UNARY_SETUP_COARSE(Aggregation);
+
 	ASSERT(OP_LCHILD(op));
+
+	AggregationOperator *a;
 
 	DEBUG_LOG("REWRITE - Use Coarse grained - Aggregation");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
@@ -2286,16 +2291,20 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *s
 	//add semiring options
 	addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
 
+    // rewrite child first
+	REWR_UNARY_CHILD_PI();
+	a = (AggregationOperator *) rewr;
+
 	// rewrite child first
-	rewritePI_CSOperator(((QueryOperator *)getHeadOfListP(
-							  ((QueryOperator *)op)->inputs)),
-						 state);
+//	rewritePI_CSOperator(((QueryOperator *)getHeadOfListP(
+//							  ((QueryOperator *)op)->inputs)),
+//						 state);
 
 	///addProvenanceAttrsToSchema
-	List *aggDefs = aggOpGetAggAttrDefs(op);
+	List *aggDefs = aggOpGetAggAttrDefs(a);
 	int aggDefsLen = LIST_LENGTH(aggDefs);
 
-	List *newProvAttrDefs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(op)));
+	List *newProvAttrDefs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(rewr)));
 	int newProvAttrDefsLen = LIST_LENGTH(newProvAttrDefs);
 
 	List *newProvAttrs = NIL;
@@ -2307,8 +2316,8 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *s
 	}
 
 	//proj on top
-	List *provAttrDefs = getProvenanceAttrDefs((QueryOperator *) op);
-	List *norAttrDefs = getNormalAttrs((QueryOperator *) op);
+	List *provAttrDefs = getProvenanceAttrDefs((QueryOperator *) rewr);
+	List *norAttrDefs = getNormalAttrs((QueryOperator *) rewr);
 
 	List *projExprs = NIL;
 	List *projNames = NIL;
@@ -2319,7 +2328,7 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *s
 	{
 		projNames = appendToTailOfList(projNames, strdup(ad->attrName));
 		AttributeReference *ar = NULL;
-		if(count >= LIST_LENGTH(op->aggrs) - LIST_LENGTH(provAttrDefs))
+		if(count >= LIST_LENGTH(a->aggrs) - LIST_LENGTH(provAttrDefs))
 			ar = createFullAttrReference (strdup(ad->attrName), 0, pos, 0, ad->dataType);
 		else
 			ar = createFullAttrReference (strdup(ad->attrName), 0, count, 0, ad->dataType);
@@ -2328,7 +2337,7 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *s
 		pos ++;
 	}
 
-	pos = LIST_LENGTH(op->aggrs) - LIST_LENGTH(provAttrDefs);
+	pos = LIST_LENGTH(a->aggrs) - LIST_LENGTH(provAttrDefs);
 	FOREACH(AttributeDef, ad, provAttrDefs)
 	{
 		projNames = appendToTailOfList(projNames, strdup(ad->attrName));
@@ -2341,19 +2350,22 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *s
 	}
 
 	ProjectionOperator *projOp = createProjectionOp(projExprs,
-													(QueryOperator *) op, ((QueryOperator *) op)->parents, projNames);
+													(QueryOperator *) rewr, ((QueryOperator *) rewr)->parents, projNames);
 
-	FOREACH(QueryOperator, o, ((QueryOperator *) op)->parents)
+	FOREACH(QueryOperator, o, ((QueryOperator *) rewr)->parents)
 		o->inputs = singleton(projOp);
 
-	((QueryOperator *) op)->parents = singleton(projOp);
+	((QueryOperator *) rewr)->parents = singleton(projOp);
 
 	((QueryOperator *) projOp)->provAttrs = projProvAttrs;
 
+	// return projection operator
+	rewr = (QueryOperator *) projOp;
 
-	LOG_RESULT("Rewritten Operator tree", projOp);
+	// copy prov info
+ 	COPY_PROV_INFO(rewr, rewrInput);
 
-	return (QueryOperator *) projOp;
+	LOG_RESULT_AND_RETURN(Aggregation-CoarseGrained);
 }
 
 

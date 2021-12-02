@@ -206,6 +206,11 @@ setupPluginsFromOptions(void)
         chooseOptimizerPluginFromString(pluginName);
     else
         chooseOptimizerPluginFromString("exhaustive");
+
+    // for self-turning of ps - load the stored provenance sketches from table first
+    if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    	loadPSInfoFromTable();
+
 }
 
 static void

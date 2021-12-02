@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------
  *
- * gc_prop_inference.h
+ * ge_prop_inference.h
  *
  *
  *		AUTHOR: Xing Niu
@@ -20,5 +20,7 @@ extern void geBottomUp(QueryOperator *root, HashMap *lmap, HashMap *rmap);
 //extern void printPREDPro(QueryOperator *root);
 extern HashMap *bindsToHashMap(List *names, List *values);
 extern void doGeBottomUp(QueryOperator *op);
+extern boolean isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap);
+extern List *removePrefixOfAttrs(List *l);
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_GE_PROP_INFERENCE_H_ */

@@ -22,6 +22,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/coarse_grained/common_prop_inference.h"
+#include "provenance_rewriter/coarse_grained/ge_prop_inference.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "metadata_lookup/metadata_lookup.h"
@@ -356,6 +357,9 @@ generateAttrAndPrimeEq(List *l)
         else
         	res = oper;
     }
+
+    DEBUG_NODE_BEATIFY_LOG("generateAttrAndPrimeEq: ", res);
+
 	return res;
 }
 
@@ -444,10 +448,11 @@ ListAttrRefsToEqCondsForAgg(QueryOperator *op, List *l)
 	//TODO: might use a map to store a->AGG_GB_ARG1 when do the ps rewrite of aggregation
 	ProjectionOperator *proj = (ProjectionOperator *) childOp;
 
-	List *attrRefs = proj->projExprs;
+	//List *attrRefs = proj->projExprs;
+	List *newAttrRefs = removePrefixOfAttrs(proj->projExprs);
 	FOREACH(AttributeReference, attr, l)
 	{
-		AttributeReference *a = copyObject(getNthOfListP(attrRefs, attr->attrPosition));
+		AttributeReference *a = copyObject(getNthOfListP(newAttrRefs, attr->attrPosition));
 		AttributeReference *ap = copyObject(a);
 		ap->name = getRightAttrName(a->name);
 

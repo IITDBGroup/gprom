@@ -124,6 +124,7 @@ static boolean equalRPQQuery (RPQQuery *a, RPQQuery *b, HashMap *seenOps, MemCon
 // equal structure provenance sketch
 static boolean equalPSInfo(psInfo *a, psInfo *b, HashMap *seenOps, MemContext *c);
 static boolean equalPSAttrInfo(psAttrInfo *a, psAttrInfo *b, HashMap *seenOps, MemContext *c);
+static boolean equalPSInfoCell(psInfoCell *a, psInfoCell *b, HashMap *seenOps, MemContext *c);
 
 /* use these macros to compare fields */
 
@@ -1164,6 +1165,22 @@ equalPSAttrInfo(psAttrInfo *a, psAttrInfo *b, HashMap *seenOps, MemContext *c)
 }
 
 static boolean
+equalPSInfoCell(psInfoCell *a, psInfoCell *b, HashMap *seenOps, MemContext *c)
+{
+//	COMPARE_STRING_FIELD(storeTable);
+//	COMPARE_STRING_FIELD(pqSql);
+//	COMPARE_STRING_FIELD(paraValues);
+	COMPARE_STRING_FIELD(tableName);
+	COMPARE_STRING_FIELD(attrName);
+	COMPARE_STRING_FIELD(provTableAttr);
+	COMPARE_SCALAR_FIELD(numRanges);
+	COMPARE_SCALAR_FIELD(psSize);
+	COMPARE_NODE_FIELD(ps);
+
+    return TRUE;
+}
+
+static boolean
 equalDistinctClause(DistinctClause *a,  DistinctClause *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(distinctExprs);
@@ -1453,6 +1470,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
 			break;
 	    case T_psAttrInfo:
 			retval = equalPSAttrInfo(a, b, seenOps, c);
+			break;
+	    case T_psInfoCell:
+			retval = equalPSInfoCell(a, b, seenOps, c);
 			break;
         default:
             retval = FALSE;
