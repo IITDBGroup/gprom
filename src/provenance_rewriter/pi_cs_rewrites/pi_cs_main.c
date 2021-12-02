@@ -13,6 +13,7 @@
 #include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
+#include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
@@ -89,7 +90,7 @@ static QueryOperator *addIntermediateProvenance(QueryOperator *op,
 												List *userProvAttrs, Set *ignoreProvAttrs, char *provRelName, PICSRewriteState *state);
 static QueryOperator *rewritePI_CSAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState * state);
 static QueryOperator *rewritePI_CSUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState * state);
-
+static QueryOperator * rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state);
 
 /* provenance sketch */
 static List* getCondList(AttributeReference *attr, List *rangeList);
@@ -286,6 +287,15 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
             DEBUG_LOG("go nesting operator");
             rewrittenOp = rewritePI_CSNestingOp((NestingOperator *) op, state);
             break;
+	case T_WindowOperator:
+	{
+		if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK))
+		{
+			DEBUG_LOG("go window operator PS");
+			rewrittenOp = rewriteCoarseGrainedWindow((WindowOperator *) op, state);
+		}
+	}
+	break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -1984,6 +1994,31 @@ bsCaseWhen(AttributeReference *attr, List *l, int low, int high, char *s)
 	{
 		return (Node *) createConstString(s);
 	}
+}
+
+
+static QueryOperator *
+rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
+{
+	WindowOperator *curTopWin;
+	QueryOperator *rewrChild;
+	List *orderBy = copyObject(op->orderBy);
+	List *partitioBy = copyObject(op->partitionBy);
+	WindowFrame *frame = copyObject(op->frameDef);
+	List *provAttrOnly = NIL; // provenance attributes of children
+
+	rewrChild = rewritePI_CSOperator(OP_LCHILD(op), state);
+	op->op.inputs = NIL;
+	curTopWin = (WindowOperator *) copyUnrootedSubtree((QueryOperator *) op); // only copy op and not children
+	addChildOperator((QueryOperator *) curTopWin, rewrChild);
+
+	// FOREACH(a, provAttrOnly) // add only window operator FROM
+	/* FOREACH(a, provAttrOnly) */
+	/* { */
+	/* 	curTopWin = ;;// create window operator */
+	/* } */
+
+	return (QueryOperator *) newTopWin;
 }
 
 static QueryOperator *
