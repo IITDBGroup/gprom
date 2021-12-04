@@ -288,15 +288,13 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
             DEBUG_LOG("go nesting operator");
             rewrittenOp = rewritePI_CSNestingOp((NestingOperator *) op, state);
             break;
-	case T_WindowOperator:
-	{
-		if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK))
-		{
-			DEBUG_LOG("go window operator PS");
-			rewrittenOp = rewriteCoarseGrainedWindow((WindowOperator *) op, state);
-		}
-	}
-	break;
+        case T_WindowOperator:
+        	if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_WINDOW_MARK))
+        	{
+        		DEBUG_LOG("go window operator PS");
+        		rewrittenOp = rewriteCoarseGrainedWindow((WindowOperator *) op, state);
+        	}
+        	break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -2001,25 +1999,117 @@ bsCaseWhen(AttributeReference *attr, List *l, int low, int high, char *s)
 static QueryOperator *
 rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
 {
-	WindowOperator *curTopWin;
-	QueryOperator *rewrChild;
-	List *orderBy = copyObject(op->orderBy);
-	List *partitioBy = copyObject(op->partitionBy);
-	WindowFrame *frame = copyObject(op->frameDef);
-	List *provAttrOnly = NIL; // provenance attributes of children
+	REWR_UNARY_SETUP_COARSE(Window);
 
-	rewrChild = rewritePI_CSOperator(OP_LCHILD(op), state);
-	op->op.inputs = NIL;
-	curTopWin = (WindowOperator *) copyUnrootedSubtree((QueryOperator *) op); // only copy op and not children
-	addChildOperator((QueryOperator *) curTopWin, rewrChild);
+	QueryOperator *child = OP_LCHILD(op);
+	List *childDefs = NIL;
+	FOREACH(AttributeDef, ad, child->schema->attrDefs)
+		childDefs = appendToTailOfList(childDefs, copyObject(ad));
+	int lenChildDefs = LIST_LENGTH(childDefs);
+	AttributeDef *winAd = getTailOfListP(((QueryOperator *) op)->schema->attrDefs);
+	//mapIncrPointer(state->coarseGrainedOpRefCount, op);
 
-	// FOREACH(a, provAttrOnly) // add only window operator FROM
-	/* FOREACH(a, provAttrOnly) */
-	/* { */
-	/* 	curTopWin = ;;// create window operator */
-	/* } */
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
 
-	return (QueryOperator *) newTopWin;
+    // rewrite child first
+	REWR_UNARY_CHILD_PI();
+
+    // adapt schema
+    //addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
+	List *newProvAttrs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(rewr)));
+	int lenNewProvAttrs = LIST_LENGTH(newProvAttrs);
+    rewr->schema->attrDefs = concatTwoLists(childDefs, newProvAttrs); //, singleton(winAd));
+    rewr->schema->attrDefs = appendToTailOfList(rewr->schema->attrDefs, winAd);
+    List *newProvPos = NIL;
+    for(int i=lenChildDefs; i<lenChildDefs + lenNewProvAttrs; i++)
+    	newProvPos = appendToTailOfListInt(newProvPos, i);
+    rewr->provAttrs = newProvPos;
+
+    // create new window op on top of rewr
+
+    //prepare add new aggattr
+    List *provList = getOpProvenanceAttrNames(OP_LCHILD(rewr));
+
+    //List *wFun = NIL;
+    WindowOperator *w = (WindowOperator *) rewr;
+    //int cnt = 0;
+    FOREACH(char, c, provList)
+    {
+    	AttributeReference *a = createAttrsRefByName(rewr, c);
+    	FunctionCall *f = NULL;
+
+    	if(getBackend() == BACKEND_ORACLE)
+    	{
+    		f = createFunctionCall(ORACLE_SKETCH_AGG_FUN, singleton(a));
+    	}
+    	else if(getBackend() == BACKEND_POSTGRES)
+    	{
+    		f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
+    	}
+
+    	WindowOperator *tempWin = copyObject(w);
+    	((QueryOperator *) w)->parents = singleton(tempWin);
+        ((QueryOperator *) tempWin)->inputs = singleton(w);
+
+        tempWin->f = (Node *) f;
+    	char *newName = CONCAT_STRINGS(strdup(a->name), "_1");
+    	AttributeDef *fAd = createAttributeDef(newName,a->attrType);
+    	((QueryOperator *) tempWin)->schema->attrDefs = appendToTailOfList(((QueryOperator *) tempWin)->schema->attrDefs, fAd);
+    	w = tempWin;
+    }
+
+    //add projection
+
+    //projExprs and projNames
+    List *projExprs = NIL;
+    List *projNames = NIL;
+    int cnt = 0;
+    FOREACH(AttributeDef, ad, child->schema->attrDefs)
+    {
+    	AttributeReference *a = createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType);
+    	projExprs = appendToTailOfList(projExprs, a);
+    	projNames = appendToTailOfList(projNames, strdup(ad->attrName));
+    	cnt++;
+    }
+
+    AttributeReference *winAttr = createFullAttrReference(winAd->attrName, 0, cnt+LIST_LENGTH(provList), 0, winAd->dataType);
+    projExprs = appendToTailOfList(projExprs, winAttr);
+    projNames = appendToTailOfList(projNames, strdup(winAd->attrName));
+
+    //prov_r_b1_1 -> prov_r_b1
+    List *wDefs = ((QueryOperator *) w)->schema->attrDefs;
+
+    //prov pos list
+    List *provPos = NIL;
+
+    int sNames = cnt;
+    int sAttrs = cnt+LIST_LENGTH(provList)+1;
+    FOREACH(char, c, provList)
+    {
+    	AttributeDef *adNames = getNthOfListP(wDefs,sNames);
+    	AttributeDef *adAttrs = getNthOfListP(wDefs,sAttrs);
+    	AttributeReference *a = createFullAttrReference(adAttrs->attrName, 0, sAttrs, 0, adAttrs->dataType);
+    	projExprs = appendToTailOfList(projExprs, a);
+    	projNames = appendToTailOfList(projNames, strdup(adNames->attrName));
+    	provPos = appendToTailOfListInt(provPos,cnt+1);
+    	sNames++;
+    	sAttrs++;
+    	cnt++;
+    }
+
+    ProjectionOperator *proj = createProjectionOp(projExprs,
+            (QueryOperator *) w, ((QueryOperator *) w)->parents, projNames);
+    ((QueryOperator *) w)->parents = singleton(proj);
+    ((QueryOperator *) proj)->provAttrs = provPos;
+
+	// return projection operator
+	rewr = (QueryOperator *) proj;
+
+	// copy prov info
+ 	COPY_PROV_INFO(rewr, rewrInput);
+
+	LOG_RESULT_AND_RETURN(Window-CoarseGrained);
 }
 
 static QueryOperator *

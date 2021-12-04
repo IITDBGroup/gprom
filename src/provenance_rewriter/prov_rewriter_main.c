@@ -326,21 +326,21 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         case PROV_COARSE_GRAINED:
 		{
 // only check safety if we have compiled with Z3
-#if HAVE_Z3
-        	DEBUG_LOG("Start Capture PS: ");
-        	DEBUG_LOG("Start exprBottomUp: ");
-        	exprBottomUp(OP_LCHILD(op));
-        	DEBUG_LOG("Start predBottomUp: ");
-        	predBottomUp(OP_LCHILD(op));
-        	DEBUG_LOG("print expr:");
-        	printEXPRPro(OP_LCHILD(op));
-        	DEBUG_LOG("print pred:");
-        	printPREDPro(OP_LCHILD(op));
-        	DEBUG_LOG("Start gcBottomUp: ");
-        	gcBottomUp(OP_LCHILD(op),singleton("a"));
-        	boolean isSafe = GET_BOOL_STRING_PROP(OP_LCHILD(op), PROP_STORE_SET_GC);
-        	INFO_LOG("isSaft: %d", isSafe == 1 ? "safe" : "unsafe");
-#endif
+//#if HAVE_Z3
+//        	DEBUG_LOG("Start Capture PS: ");
+//        	DEBUG_LOG("Start exprBottomUp: ");
+//        	exprBottomUp(OP_LCHILD(op));
+//        	DEBUG_LOG("Start predBottomUp: ");
+//        	predBottomUp(OP_LCHILD(op));
+//        	DEBUG_LOG("print expr:");
+//        	printEXPRPro(OP_LCHILD(op));
+//        	DEBUG_LOG("print pred:");
+//        	printPREDPro(OP_LCHILD(op));
+//        	DEBUG_LOG("Start gcBottomUp: ");
+//        	gcBottomUp(OP_LCHILD(op),singleton("a"));
+//        	boolean isSafe = GET_BOOL_STRING_PROP(OP_LCHILD(op), PROP_STORE_SET_GC);
+//        	INFO_LOG("isSaft: %d", isSafe == 1 ? "safe" : "unsafe");
+//#endif
 
         	coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
         	psPara = createPSInfo(coarsePara);
