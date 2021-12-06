@@ -600,6 +600,14 @@ autoMarkTableAccessAndAggregation(QueryOperator *op, Node *psPara)
 			SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
 			//AUTO_HISTOGRAM_TABLEACCESS_MARK
 		}
+		if(isA(o,WindowOperator))
+		{
+			DEBUG_LOG("mark WindowOperator.");
+
+			/* mark coarsePara info */
+			SET_STRING_PROP(o, PROP_COARSE_GRAINED_WINDOW_MARK, psPara);
+
+		}
 		if(isA(o,AggregationOperator))
 		{
 			DEBUG_LOG("mark aggregationOperator.");
@@ -621,6 +629,13 @@ markUseTableAccessAndAggregation(QueryOperator *op, Node *psPara)
 		{
 			DEBUG_LOG("mark use tableAccessOperator.");
 			SET_STRING_PROP(o, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK, psPara);
+		}
+		if(isA(o,WindowOperator))
+		{
+			DEBUG_LOG("mark WindowOperator.");
+
+			/* mark coarsePara info */
+			SET_STRING_PROP(o, USE_PROP_COARSE_GRAINED_WINDOW_MARK, psPara);
 		}
 		if(isA(o,AggregationOperator))
 		{

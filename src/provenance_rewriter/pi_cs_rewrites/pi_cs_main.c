@@ -90,7 +90,8 @@ static QueryOperator *addIntermediateProvenance(QueryOperator *op,
 												List *userProvAttrs, Set *ignoreProvAttrs, char *provRelName, PICSRewriteState *state);
 static QueryOperator *rewritePI_CSAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState * state);
 static QueryOperator *rewritePI_CSUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState * state);
-static QueryOperator * rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state);
+static QueryOperator *rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state);
+static QueryOperator *rewriteUseCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state);
 
 /* provenance sketch */
 static List* getCondList(AttributeReference *attr, List *rangeList);
@@ -293,6 +294,11 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
         	{
         		DEBUG_LOG("go window operator PS");
         		rewrittenOp = rewriteCoarseGrainedWindow((WindowOperator *) op, state);
+        	}
+        	else if(HAS_STRING_PROP(op, USE_PROP_COARSE_GRAINED_WINDOW_MARK))
+        	{
+        		DEBUG_LOG("go use window operator PS");
+        		rewrittenOp = rewriteUseCoarseGrainedWindow((WindowOperator *) op, state);
         	}
         	break;
         default:
@@ -1995,6 +2001,22 @@ bsCaseWhen(AttributeReference *attr, List *l, int low, int high, char *s)
 	}
 }
 
+static QueryOperator *
+rewriteUseCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
+{
+	REWR_UNARY_SETUP_PI(Window);
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
+
+    // rewrite child first
+	REWR_UNARY_CHILD_PI();
+
+    // adapt schema
+    addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
+
+	LOG_RESULT_AND_RETURN(Window);
+}
 
 static QueryOperator *
 rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
