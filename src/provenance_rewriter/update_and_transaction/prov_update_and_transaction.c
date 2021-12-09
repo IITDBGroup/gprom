@@ -1290,7 +1290,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
             if (!allTrue)
             {
                 if (LIST_LENGTH(args) > 1)
-                    cond = (Node *) createOpExpr("OR", (List *) cond);
+                    cond = (Node *) createOpExpr(OPNAME_OR, (List *) cond);
                 else
                     cond = (Node *) getHeadOfListP(args);
 

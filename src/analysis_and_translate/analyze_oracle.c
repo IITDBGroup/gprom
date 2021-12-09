@@ -1,6 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
- * analyze_qb.c
+ * analyze_qb.c - analyze a query block using schema information provided
+ *                by a metadata lookup plugin.
  *
  *
  *		AUTHOR: lord_pretzel
@@ -273,7 +274,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                     DEBUG_LOG("view: %s", view);
                     StringInfo s = makeStringInfo();
                     appendStringInfoString(s,view);
-                    appendStringInfoString(s,";");
+					if(!regExMatch(".*[;].*$", view))
+					{
+						appendStringInfoString(s,";");
+					}
                     view = s->data;
                     Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
                     FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
@@ -590,7 +594,8 @@ analyzeFunctionCall(QueryBlock *qb)
     DEBUG_LOG("Have the following function calls: <%s>", nodeToString(functionCallList));
 
     // adapt function call
-    FOREACH(Node, f, functionCallList) {
+    FOREACH(Node, f, functionCallList)
+	{
         if (isA(f, FunctionCall))
         {
             FunctionCall *c = (FunctionCall *) f;
@@ -1087,15 +1092,31 @@ static void
 analyzeGroupByAgg(QueryBlock *qb, List *parentFroms)
 {
 	boolean hasAgg = FALSE;
+	boolean hasWin = FALSE;
 	List *funcCalls = NIL;
 
 	// is there any aggregation in this query block?
 	hasAgg = qb->groupByClause != NIL || qb->havingClause != NULL;
 	findFunctionCall((Node *) qb->selectClause, &funcCalls);
-	FOREACH(FunctionCall,f,funcCalls)
+	FOREACH(Node,f,funcCalls)
 	{
-		if (f->isAgg)
-			hasAgg = TRUE;
+		if(isA(f,FunctionCall))
+		{
+			if (((FunctionCall *)f)->isAgg)
+				hasAgg = TRUE;
+		}
+		if(isA(f,WindowFunction))
+		{
+			hasWin = TRUE;
+		}
+	}
+
+	// cannot have both window funciton and aggregation in the same query block
+	if(hasAgg && hasWin)
+	{
+        THROW(SEVERITY_RECOVERABLE,
+                "Query blocks with aggregation and/or group-by are not allowed to use window functions. Offender was:\n<%s>",
+                beatify(nodeToString(qb)));
 	}
 
 	if (hasAgg)
@@ -1121,6 +1142,7 @@ searchNonGroupByRefs (Node *node, List *state)
 			return TRUE;
 		}
 	}
+
 	// is node equal to one of the group-by expressions then do not traverse further
 	FOREACH(Node,g,state)
 	{

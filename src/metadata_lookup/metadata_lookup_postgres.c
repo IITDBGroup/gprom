@@ -69,6 +69,7 @@
 		"WHERE c.oid = a.attrelid " \
 		"AND relkind = 'r' " \
 		"AND relname = $1::text " \
+	    "AND attisdropped = false " \
 		"AND attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');"
 
 #define NAME_TABLE_EXISTS "GPRoM_CheckTableExists"
