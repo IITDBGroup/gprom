@@ -233,6 +233,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 			//mark the number of table - used in provenance scratch
 			markNumOfTableAccess((QueryOperator *) op);
 			bottomUpPropagateLevelAggregation((QueryOperator *) op, psPara);
+			//bottomUpPropagateLevelWindow((QueryOperator *) op, psPara);
 
 			/* copy op for use ps */
 			ProvenanceComputation *useOp = (ProvenanceComputation *) copyObject(op);
@@ -313,6 +314,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 				//markTableAccessAndAggregation((QueryOperator *) useOp,  (Node *) psPara);
 				markNumOfTableAccess((QueryOperator *) useOp);
 				bottomUpPropagateLevelAggregation((QueryOperator *) useOp, psPara);
+				//bottomUpPropagateLevelWindow((QueryOperator *) useOp, psPara);
 			}
 
 			/* use provenance sketch */
@@ -351,6 +353,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         	markNumOfTableAccess((QueryOperator *) op);
         	DEBUG_LOG("finish markNumOfTableAccess!");
         	bottomUpPropagateLevelAggregation((QueryOperator *) op, psPara);
+        	//bottomUpPropagateLevelWindow((QueryOperator *) op, psPara);
         	DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
         	result = rewritePI_CS(op);
         	result = addTopAggForCoarse(result);

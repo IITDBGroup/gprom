@@ -83,6 +83,7 @@ extern psInfoCell* createPSInfoCell(char *tableName, char *attrName,
 		char *provTableAttr, int numRanges, int psSize, BitSet *ps);
 extern List *getRangeList(int numRanges, char* attrName, char *tableName);
 extern void bottomUpPropagateLevelAggregation(QueryOperator *op, psInfo *psPara);
+//extern void bottomUpPropagateLevelWindow(QueryOperator *op, psInfo *psPara);
 extern char *parameterToCharsSepByComma(List* paras);
 //extern psInfo *addPsIntoPsInfo(psInfo *psPara,HashMap *psMap);
 extern void cachePsInfo(QueryOperator *op, psInfo *psPara, HashMap *psMap);

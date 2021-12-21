@@ -60,8 +60,14 @@ typedef struct AggLevelContext
 	HashMap *opCnts;
 } AggLevelContext;
 
+typedef struct WinLevelContext
+{
+	HashMap *opCnts;
+} WinLevelContext;
+
 static void loopMarkNumOfTableAccess(QueryOperator *op, HashMap *map);
 static HashMap *bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, AggLevelContext *ctx);
+//static HashMap *bottomUpPropagateLevelWindowInternal(QueryOperator *op, psInfo *psPara, WinLevelContext *ctx);
 static char *rangeListToString(List *l);
 
 static void storeTemplates();
@@ -753,11 +759,109 @@ bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, Agg
 		}
 	}
 
+	if(isA(op, WindowOperator))
+	{
+		DEBUG_LOG("table-> window");
+		FOREACH_HASH_ENTRY(kv, provAttrInfo)
+		{
+			List *v = (List *) kv->value;
+			Constant *firstV = (Constant *) getNthOfListP(v, 0);
+			incrConst(firstV);
+		}
+	}
+
 	DEBUG_LOG("operator %s mark map: %s", NodeTagToString(op->type), nodeToString(provAttrInfo));
 	APPEND_STRING_PROP(op, PROP_LEVEL_AGGREGATION_MARK, provAttrInfo);
 	return provAttrInfo;
 
 }
+
+
+
+//void
+//bottomUpPropagateLevelWindow(QueryOperator *op, psInfo *psPara)
+//{
+//	WinLevelContext *ctx = NEW(WinLevelContext);
+//
+//	ctx->opCnts = NEW_MAP(Constant,Constant);
+//	bottomUpPropagateLevelWindowInternal(op, psPara, ctx);
+//}
+//
+///**
+// * @brief      propagate information about provenance sketch attributes (how many levels of aggregation and how many fragments.
+// *
+// * @details
+// *
+// * @param
+// *
+// * @return     void
+// */
+//static HashMap *
+//bottomUpPropagateLevelWindowInternal(QueryOperator *op, psInfo *psPara, WinLevelContext *ctx)
+//{
+//	HashMap *provAttrInfo = NEW_MAP(Constant,Node);
+//
+//	// table access, determine provenance sketch attributes and append to list of provInfo hash maps
+//	if(isA(op, TableAccessOperator))
+//	{
+//		int cnt = mapIncrPointer(ctx->opCnts, op);
+//		TableAccessOperator *tbOp = (TableAccessOperator *) op;
+//		DEBUG_LOG("table-> %s", tbOp->tableName);
+//		/*propagate map: prov_R_A1 -> (level of agg, num of fragments)*/
+//
+//		/*get num of table for ps attr*/
+//		int numTable = 0;
+//		if(HAS_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK))
+//			numTable = INT_VALUE(getNthOfListP((List *) GET_STRING_PROP(op, PROP_NUM_TABLEACCESS_MARK),cnt));
+//
+//		/*get psInfo -> attrName and num of fragments*/
+//		//psInfo* psPara = (psInfo*) GET_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+//		if(hasMapStringKey((HashMap *) psPara->tablePSAttrInfos, tbOp->tableName))
+//		{
+//			List *psAttrList = (List *) getMapString(psPara->tablePSAttrInfos, tbOp->tableName);
+//
+//			FOREACH(psAttrInfo,curPSAI,psAttrList)
+//			{
+//				int numFragments = LIST_LENGTH(curPSAI->rangeList);
+//				char *newAttrName = CONCAT_STRINGS(PROV_ATTR_PREFIX,
+//												   strdup(tbOp->tableName),
+//												   "_",
+//												   strdup(curPSAI->attrName),
+//												   gprom_itoa(numTable));
+//
+//				List *vl = LIST_MAKE(createConstInt(0), createConstInt(numFragments-1));
+//				MAP_ADD_STRING_KEY(provAttrInfo, newAttrName, (Node *) vl);
+//				DEBUG_LOG("tableAccess mark map: %s -> count: %d, numFragments: %d", newAttrName, 0, numFragments-1);
+//			}
+//		}
+//		APPEND_STRING_PROP(op, PROP_LEVEL_WINDOW_MARK, provAttrInfo);
+//		return provAttrInfo;
+//	}
+//
+//	// process children first (may do this multiple times for operators have multiple parents
+//	FOREACH(QueryOperator, o, op->inputs)
+//	{
+//		HashMap *childMap = bottomUpPropagateLevelWindowInternal(o, psPara, ctx);
+//		unionMap(provAttrInfo, copyObject(childMap));
+//	}
+//
+//	// if this is an window we have to adapt increment number of window levels
+//	if(isA(op, WindowOperator))
+//	{
+//		DEBUG_LOG("table-> window");
+//		FOREACH_HASH_ENTRY(kv, provAttrInfo)
+//		{
+//			List *v = (List *) kv->value;
+//			Constant *firstV = (Constant *) getNthOfListP(v, 0);
+//			incrConst(firstV);
+//		}
+//	}
+//
+//	DEBUG_LOG("operator %s mark map: %s", NodeTagToString(op->type), nodeToString(provAttrInfo));
+//	APPEND_STRING_PROP(op, PROP_LEVEL_WINDOW_MARK, provAttrInfo);
+//	return provAttrInfo;
+//
+//}
 
 
 

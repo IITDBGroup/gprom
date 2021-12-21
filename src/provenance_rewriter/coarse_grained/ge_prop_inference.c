@@ -889,8 +889,14 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
 
 #else // dummy implementations to keep compiler quiet
 
+boolean
+isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
+{
+        THROW(SEVERITY_PANIC, "%s", "cannot call inference when not compiled with Z3 support");
+}
+
 void
-geBottomUp(QueryOperator *root, List *l)
+geBottomUp(QueryOperator *root, HashMap *lmap, HashMap *rmap)
 {
 	THROW(SEVERITY_PANIC, "%s", "cannot call inference when not compiled with Z3 support");
 }

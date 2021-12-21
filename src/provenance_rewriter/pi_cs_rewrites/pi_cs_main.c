@@ -2055,11 +2055,20 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
 
     //List *wFun = NIL;
     WindowOperator *w = (WindowOperator *) rewr;
+    HashMap *map = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(rewr, PROP_LEVEL_AGGREGATION_MARK), 0);
     //int cnt = 0;
     FOREACH(char, c, provList)
     {
+		List *levelandNumFrags =  (List *) getMapString(map, c);
+		int level =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0));
+		int numFrags =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 1));
     	AttributeReference *a = createAttrsRefByName(rewr, c);
     	FunctionCall *f = NULL;
+
+
+    	WindowOperator *tempWin = copyObject(w);
+    	((QueryOperator *) w)->parents = singleton(tempWin);
+        ((QueryOperator *) tempWin)->inputs = singleton(w);
 
     	if(getBackend() == BACKEND_ORACLE)
     	{
@@ -2067,14 +2076,20 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     	}
     	else if(getBackend() == BACKEND_POSTGRES)
     	{
-    		f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
+			if(level == 1)
+			{
+				f = createFunctionCall(POSTGRES_SET_BITS_FUN, singleton(a));
+				//CastExpr *ce = createCastExprOtherDT((Node *) f, POSTGRES_BIT_DT, numFrags, DT_STRING);
+				SET_STRING_PROP(tempWin, PROP_SETBITS_CAST_NUM_WINDOW_MARK, createConstInt(numFrags));
+			}
+			else
+			{
+				f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
+			}
     	}
 
-    	WindowOperator *tempWin = copyObject(w);
-    	((QueryOperator *) w)->parents = singleton(tempWin);
-        ((QueryOperator *) tempWin)->inputs = singleton(w);
-
         tempWin->f = (Node *) f;
+
     	char *newName = CONCAT_STRINGS(strdup(a->name), "_1");
     	AttributeDef *fAd = createAttributeDef(newName,a->attrType);
     	((QueryOperator *) tempWin)->schema->attrDefs = appendToTailOfList(((QueryOperator *) tempWin)->schema->attrDefs, fAd);

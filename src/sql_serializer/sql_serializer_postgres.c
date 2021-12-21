@@ -376,8 +376,16 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fac, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
 
-            windowFs = appendToHeadOfList(windowFs,
+            if(HAS_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK))
+            {
+            	int numFrags = INT_VALUE(GET_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK));
+                windowFs = appendToHeadOfList(windowFs,
+    										  exprToSQL((Node *) createCastExprOtherDT((Node *) winOpGetFunc((WindowOperator *) curOp),"bit", numFrags, DT_STRING), NULL, FALSE));
+            }
+            else
+            	windowFs = appendToHeadOfList(windowFs,
 										  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
+
 
             DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
