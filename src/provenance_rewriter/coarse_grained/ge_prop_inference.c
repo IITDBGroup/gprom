@@ -892,7 +892,7 @@ isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
 boolean
 isReusable(QueryOperator *op, HashMap *lmap, HashMap *rmap)
 {
-        THROW(SEVERITY_PANIC, "%s", "cannot call inference when not compiled with Z3 support");
+       return TRUE;
 }
 
 void
