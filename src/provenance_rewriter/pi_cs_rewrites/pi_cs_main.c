@@ -2133,6 +2133,7 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     	sNames++;
     	sAttrs++;
     	cnt++;
+    	DEBUG_LOG("%s",c);
     }
 
     ProjectionOperator *proj = createProjectionOp(projExprs,

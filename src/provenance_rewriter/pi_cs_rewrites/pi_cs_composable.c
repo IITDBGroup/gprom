@@ -1262,7 +1262,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
     boolean groupBy = LIST_LENGTH(op->groupBy) > 0;
 	boolean hasAgg = LIST_LENGTH(op->aggrs) > 0;
     WindowOperator *curWindow = NULL;
-    QueryOperator *firstChild;
+    //QueryOperator *firstChild;
     QueryOperator *curChild;
     ProjectionOperator *proj;
     Node *provDupAttrRef;
@@ -1279,7 +1279,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
 	rewrInput = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
 //    curChild = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
 	curChild = rewrInput;
-    firstChild = curChild;
+    //firstChild = curChild;
     //removeParentFromOps(singleton(firstChild), (QueryOperator *) op);
     noDupInput = isTupleAtATimeSubtree(curChild);
 
