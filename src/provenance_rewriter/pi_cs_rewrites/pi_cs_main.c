@@ -2124,7 +2124,7 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
 
 	// add normal attributes from child
 	List *childNormalAttrs = getNormalAttrs(child);
-    FOREACH(AttributeDef, ad, childNormalAttrs)
+    FOREACH(AttributeDef, ad, childNormalAttrs) //child->schema->attrDefs
     {
     	AttributeReference *a = createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType);
     	projExprs = appendToTailOfList(projExprs, a);
@@ -2147,14 +2147,18 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     int sNames = cnt;
     int sAttrs = cnt+LIST_LENGTH(provList)+1;
 
+
+    /* comment out union current rows in below*/
     FOREACH(char, c, provList)
     {
-		List *levelandNumFrags =  (List *) getMapString(map, c);
-		int level =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0));
+/*		List *levelandNumFrags =  (List *) getMapString(map, c);
+		int level =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0)); */
     	AttributeDef *adNames = getNthOfListP(wDefs,sNames);
     	AttributeDef *adAttrs = getNthOfListP(wDefs,sAttrs);
     	AttributeReference *a = createFullAttrReference(adAttrs->attrName, 0, sAttrs, 0, adAttrs->dataType);
-		AttributeReference *childA = createFullAttrReference(adNames->attrName, 0, sNames, 0, adNames->dataType);
+
+    	projExprs = appendToTailOfList(projExprs, a);
+/*		AttributeReference *childA = createFullAttrReference(adNames->attrName, 0, sNames, 0, adNames->dataType);
 		FunctionCall *bitorProvs = NULL;
 
 
@@ -2176,7 +2180,8 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
 			}
     	}
 
-    	projExprs = appendToTailOfList(projExprs, (Node *) bitorProvs);
+    	projExprs = appendToTailOfList(projExprs, (Node *) bitorProvs);*/
+
     	projNames = appendToTailOfList(projNames, strdup(adNames->attrName));
     	provPos = appendToTailOfListInt(provPos,cnt+1);
     	sNames++;
