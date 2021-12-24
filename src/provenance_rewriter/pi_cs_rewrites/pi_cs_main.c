@@ -32,6 +32,7 @@
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "temporal_queries/temporal_rewriter.h"
 
 typedef struct PICSRewriteState {
     HashMap *opToRewrittenOp; // mapping op address to address of rewritten operator
@@ -2037,7 +2038,24 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     // rewrite child first
 	REWR_UNARY_CHILD_PI();
 
-    // adapt schema
+	// check whether window bounds do not include the current row. If that is
+	// the case, we have to extend the window for merging sketches.
+	if(op->frameDef
+	   && (op->frameDef->lower->bType == WINBOUND_EXPR_FOLLOW
+		   || op->frameDef->higher->bType == WINBOUND_EXPR_PREC))
+	{
+		WindowOperator *templateWin = (WindowOperator *) rewr;
+		if(op->frameDef->lower->bType == WINBOUND_EXPR_FOLLOW)
+		{
+			templateWin->frameDef->lower->bType = WINBOUND_CURRENT_ROW;
+		}
+		else
+		{
+			templateWin->frameDef->higher->bType = WINBOUND_CURRENT_ROW;
+		}
+	}
+
+    // adapt schema (add attributes for window bitor of all provenance (sketch attributes)
     //addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 	List *newProvAttrs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(rewr)));
 	int lenNewProvAttrs = LIST_LENGTH(newProvAttrs);
@@ -2048,10 +2066,11 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     	newProvPos = appendToTailOfListInt(newProvPos, i);
     rewr->provAttrs = newProvPos;
 
-    // create new window op on top of rewr
+    // create new window op on top of rewr to merge sketches
 
     //prepare add new aggattr
     List *provList = getOpProvenanceAttrNames(OP_LCHILD(rewr));
+	/* List *tempProvANames = NIL; */
 
     //List *wFun = NIL;
     WindowOperator *w = (WindowOperator *) rewr;
@@ -2064,7 +2083,6 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
 		int numFrags =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 1));
     	AttributeReference *a = createAttrsRefByName(rewr, c);
     	FunctionCall *f = NULL;
-
 
     	WindowOperator *tempWin = copyObject(w);
     	((QueryOperator *) w)->parents = singleton(tempWin);
@@ -2091,6 +2109,7 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
         tempWin->f = (Node *) f;
 
     	char *newName = CONCAT_STRINGS(strdup(a->name), "_1");
+		/* tempProvANames = appendToTailOfList(tempProvANames, strdup(newName)); */
     	AttributeDef *fAd = createAttributeDef(newName,a->attrType);
     	((QueryOperator *) tempWin)->schema->attrDefs = appendToTailOfList(((QueryOperator *) tempWin)->schema->attrDefs, fAd);
     	w = tempWin;
@@ -2102,7 +2121,10 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     List *projExprs = NIL;
     List *projNames = NIL;
     int cnt = 0;
-    FOREACH(AttributeDef, ad, child->schema->attrDefs)
+
+	// add normal attributes from child
+	List *childNormalAttrs = getNormalAttrs(child);
+    FOREACH(AttributeDef, ad, childNormalAttrs)
     {
     	AttributeReference *a = createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType);
     	projExprs = appendToTailOfList(projExprs, a);
@@ -2110,6 +2132,7 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     	cnt++;
     }
 
+	// add window operator attr
     AttributeReference *winAttr = createFullAttrReference(winAd->attrName, 0, cnt+LIST_LENGTH(provList), 0, winAd->dataType);
     projExprs = appendToTailOfList(projExprs, winAttr);
     projNames = appendToTailOfList(projNames, strdup(winAd->attrName));
@@ -2117,17 +2140,43 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     //prov_r_b1_1 -> prov_r_b1
     List *wDefs = ((QueryOperator *) w)->schema->attrDefs;
 
+	// add provenance attribute expressions as bit_or(origProvA,windowProvA), ...
     //prov pos list
     List *provPos = NIL;
-
+	/* List *childProvArefs = getProvenanceAttrDefs(child); */
     int sNames = cnt;
     int sAttrs = cnt+LIST_LENGTH(provList)+1;
+
     FOREACH(char, c, provList)
     {
+		List *levelandNumFrags =  (List *) getMapString(map, c);
+		int level =  INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0));
     	AttributeDef *adNames = getNthOfListP(wDefs,sNames);
     	AttributeDef *adAttrs = getNthOfListP(wDefs,sAttrs);
     	AttributeReference *a = createFullAttrReference(adAttrs->attrName, 0, sAttrs, 0, adAttrs->dataType);
-    	projExprs = appendToTailOfList(projExprs, a);
+		AttributeReference *childA = createFullAttrReference(adNames->attrName, 0, sNames, 0, adNames->dataType);
+		FunctionCall *bitorProvs = NULL;
+
+
+    	if(getBackend() == BACKEND_ORACLE)
+    	{
+			FATAL_LOG("Oracle not yet supported, implemented functions we need.");//FIXME
+    	}
+    	else if(getBackend() == BACKEND_POSTGRES)
+    	{
+			if(level == 1)
+			{
+				bitorProvs = createFunctionCall(POSTGRES_SET_BIT_FUN,
+												LIST_MAKE(a,childA));
+			}
+			else
+			{
+				bitorProvs = createFunctionCall(POSTGRES_BITOR_FUN,
+													  LIST_MAKE(childA,a));
+			}
+    	}
+
+    	projExprs = appendToTailOfList(projExprs, (Node *) bitorProvs);
     	projNames = appendToTailOfList(projNames, strdup(adNames->attrName));
     	provPos = appendToTailOfListInt(provPos,cnt+1);
     	sNames++;

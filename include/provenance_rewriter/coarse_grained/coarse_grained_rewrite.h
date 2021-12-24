@@ -55,11 +55,12 @@ typedef struct psInfoCell
     BitSet  *ps;				//provenance sketch in bitset format
 } psInfoCell;
 
-
+//TODO use the right function dependent on system
 #define ORACLE_SKETCH_AGG_FUN "dbgroup.BITORAGG"
 #define POSTGRES_SET_BITS_FUN "set_bits"
 #define POSTGRES_FAST_BITOR_FUN "fast_bit_or"
-
+#define POSTGRES_BITOR_FUN "bitor"
+#define POSTGRES_SET_BIT_FUN "set_bit_on"
 #define POSTGRES_BIT_DT "bit"
 
 #define COARSE_GRAINED_HASH "HASH"
