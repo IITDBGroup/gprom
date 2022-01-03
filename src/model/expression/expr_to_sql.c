@@ -648,7 +648,7 @@ exprToLatex (Node *expr)
     if (expr == NULL)
         return "";
 
-    exprToLatexString(str, expr, NULL); //TODO change this too?
+    exprToLatexString(str, expr, NULL); //TODO change this too? Should be ok since we only use it in dot generation?
 
     result = str->data;
     FREE(str);
