@@ -1,16 +1,17 @@
 /*-----------------------------------------------------------------------------
  *
  * parser.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
 
 #include "parser/parser.h"
+#include "common.h"
 #include "parser/parser_hive.h"
 #include "parser/parser_oracle.h"
 #include "parser/parser_postgres.h"
@@ -47,6 +48,15 @@ parseFromString (char *input)
 
     INFO_LOG("parse SQL:\n%s", input);
     return plugin->parseFromString(input);
+}
+
+Node *
+parseExprFromString (char *input)
+{
+	ASSERT(plugin);
+
+	INFO_LOG("parse expr:\n%s", input);
+	return plugin->parseExprFromString(input);
 }
 
 // plugin management
@@ -114,6 +124,7 @@ assembleOraclePlugin(void)
     p->type = PARSER_PLUGIN_ORACLE;
     p->parseStream = parseStreamOracle;
     p->parseFromString = parseFromStringOracle;
+	p->parseExprFromString = parseExprFromStringOracle;
     p->languageHelp = languageHelpOracle();
 
     return p;
@@ -127,6 +138,7 @@ assemblePostgresPlugin(void)
     p->type = PARSER_PLUGIN_POSTGRES;
     p->parseStream = parseStreamPostgres;
     p->parseFromString = parseFromStringPostgres;
+	p->parseExprFromString = NULL;
     p->languageHelp = "";
 
     return p;
@@ -139,7 +151,7 @@ assembleHivePlugin(void)
 
     //    p->parseStream = parseStreamHive;
     //    p->parseFromString = parseFromStringHive;
-    FATAL_LOG("not implemented yet");
+	TODO_IMPL;
 
     return p;
 }
@@ -168,13 +180,13 @@ chooseParserPluginFromString(char *type)
 static ParserPluginType
 getPluginTypeFromString (char *type)
 {
-    if (strpeq(type,"oracle"))
+    if (strpleq(type,"oracle"))
         return (PARSER_PLUGIN_ORACLE);
-    else if (strpeq(type,"postgres"))
+    else if (strpleq(type,"postgres"))
         return (PARSER_PLUGIN_POSTGRES);
-    else if (strpeq(type,"hive"))
+    else if (strpleq(type,"hive"))
         return (PARSER_PLUGIN_HIVE);
-    else if (strpeq(type,"dl"))
+    else if (strpleq(type,"dl"))
         return (PARSER_PLUGIN_DL);
     else
         FATAL_LOG("unkown parser plugin type: <%s>", type);

@@ -43,6 +43,8 @@
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 
+#include "provenance_rewriter/coarse_grained/ps_safety_check.h"
+
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
@@ -174,7 +176,7 @@ setupPluginsFromOptions(void)
 
     // setup metadata lookup - individual option overrides backend option
     pluginName = getStringOption("plugin.metadata");
-    if (strpeq(pluginName,"external"))
+    if (strpleq(pluginName,"external"))
     {
         //printf("\nPLUGIN******************************************\n\n");
     }
@@ -204,6 +206,11 @@ setupPluginsFromOptions(void)
         chooseOptimizerPluginFromString(pluginName);
     else
         chooseOptimizerPluginFromString("exhaustive");
+
+    // for self-turning of ps - load the stored provenance sketches from table first
+    if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    	loadPSInfoFromTable();
+
 }
 
 static void
@@ -222,7 +229,7 @@ setupPlugin(const char *pluginType)
     if (streq(pluginType,OPTION_PLUGIN_METADATA))
     {
         pluginName = getStringOption(OPTION_PLUGIN_METADATA);
-        if (strpeq(pluginName,"external"))
+        if (strpleq(pluginName,"external"))
         {
             printf("\nPLUGIN******************************************\n\n");
         }

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * operator_merge.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -55,7 +55,7 @@ mergeSelection(SelectionOperator *op)
         	break;
 
         // and condition and link child's children to root
-        op->cond = (Node *) createOpExpr("AND", LIST_MAKE(op->cond, child->cond));
+        op->cond = (Node *) createOpExpr(OPNAME_AND, LIST_MAKE(op->cond, child->cond));
         op->op.inputs = child->op.inputs;
 
         FOREACH(QueryOperator, el, op->op.inputs)
@@ -106,7 +106,8 @@ mergeProjection(ProjectionOperator *op)
         childRefCount = calculateChildAttrRefCnts(child, OP_LCHILD(child));
         DEBUG_NODE_BEATIFY_LOG("reference counts:", opRefCount, childRefCount);
 
-        if (!isMergeSafe(opRefCount, childRefCount))
+		// if merging this projections would blow up expression size, then don't do it unless -Omerge_unsafe_proj has been set
+        if (!isMergeSafe(opRefCount, childRefCount) && !opt_optimization_merge_unsafe_proj)
             break;
 
         // combine expressions and link child's children to root

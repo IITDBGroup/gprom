@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_monetdb.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -97,6 +97,7 @@ assembleMonetdbMetadataLookupPlugin (void)
     p->connectionDescription = monetdbGetConnectionDescription;
     p->sqlTypeToDT = monetdbBackendSQLTypeToDT;
     p->dataTypeToSQL = monetdbBackendDatatypeToSQL;
+	p->getMinAndMax = monetdbGetMinAndMax;
 
     plugin->dbConn = NULL;
     plugin->initialized = FALSE;
@@ -499,6 +500,13 @@ monetdbBackendDatatypeToSQL (DataType dt)
     return "TEXT";
 }
 
+HashMap *
+monetdbGetMinAndMax(char* tableName, char* colName)
+{
+	HashMap *result_map = NEW_MAP(Constant, Node);
+	return result_map;
+}
+
 
 Relation *
 monetdbExecuteQuery(char *query)
@@ -714,6 +722,12 @@ monetdbGetViewDefinition(char *viewName)
     return NULL;
 }
 
+HashMap *
+monetdbGetMinAndMax(char* tableName, char* colName)
+{
+	return NULL;
+}
+
 void
 monetdbGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -745,5 +759,3 @@ monetdbExecuteQuery(char *query)
 }
 
 #endif
-
-

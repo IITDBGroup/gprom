@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * expr_to_constraint.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: Bahareh
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -174,11 +174,11 @@ static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 
 	char *opName = ((Operator *) cond)->name;
 
-	if (strcmp(opName, "=") == 0) {
+	if (strcmp(opName, OPNAME_EQ) == 0) {
 		sense[0] = 'E';
 	} else if (strcmp(opName, ">") == 0 || strcmp(opName, ">=") == 0) {
 		sense[0] = 'G';
-	} else if (strcmp(opName, "<") == 0 || strcmp(opName, "<=") == 0) {
+	} else if (strcmp(opName, OPNAME_LT) == 0 || strcmp(opName, "<=") == 0) {
 		sense[0] = 'L';
 	}
 
@@ -229,7 +229,7 @@ static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 	}
 	/*
 	 //cond OR and AND wasn't considered
-	 else if(streq(o->name, "AND") || streq(o->name, "OR"))
+	 else if(streq(o->name, OPNAME_AND) || streq(o->name, OPNAME_OR))
 	 {
 
 	 return;

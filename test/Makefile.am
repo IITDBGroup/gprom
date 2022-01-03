@@ -11,18 +11,37 @@ bin_PROGRAMS = testexprcplex
 
 # testcplex
 
-testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
-		   test_logger.c test_mem_mgr.c test_to_string.c \
-		   test_parse.c test_list.c test_main.h \
-		   test_metadata_lookup.c test_string.c test_set.c test_hashmap.c \
-		   test_vector.c test_parameter.c test_metadata_postgres.c test_string_utils.c \
-		   test_dl.c test_hash.c test_exception.c test_rpq.c test_common.c \
-		   test_autocast.c test_bitset.c
+testmain_SOURCES = test_main.c \
+	test_autocast.c \
+	test_bitset.c \
+	test_common.c \
+	test_copy.c \
+	test_dl.c \
+	test_equal.c \
+	test_exception.c \
+	test_expr.c \
+	test_hash.c \
+	test_hashmap.c \
+	test_list.c \
+	test_logger.c \
+	test_main.h \
+	test_mem_mgr.c \
+	test_metadata_lookup.c \
+	test_metadata_postgres.c \
+	test_parameter.c \
+	test_parse.c \
+	test_rpq.c \
+	test_set.c \
+	test_string.c \
+	test_string_utils.c \
+	test_to_string.c \
+	test_vector.c \
+	test_z3.c
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
 
 testexprcplex_SOURCES = test_expr_to_cplex.c
-testexprcplex_LDADD = $(top_builddir)/src/libsrc.la 
+testexprcplex_LDADD = $(top_builddir)/src/libsrc.la
 
 # testcplex_SOURCES = test_cplex.c
 # testcplex_LDADD = $(top_builddir)/src/libsrc.la
@@ -58,7 +77,7 @@ testrpq_SOURCES = test_rpq_to_dl.c
 testrpq_LDADD = $(top_builddir)/src/libsrc.la
 
 testlibgprom_SOURCES = test_libgprom.c test_common.c
-testlibgprom_LDADD = $(top_builddir)/src/libgprom/libgprom.la $(top_builddir)/src/libsrc.la 
+testlibgprom_LDADD = $(top_builddir)/src/libgprom/libgprom.la $(top_builddir)/src/libsrc.la
 
 
 # running test cases with make check

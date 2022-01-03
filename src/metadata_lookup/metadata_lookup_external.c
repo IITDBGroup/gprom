@@ -2,10 +2,10 @@
  *
  * metadata_lookup_java.c
  *	    - metadata lookup plugin with external implementation using libgprom interface
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -214,7 +214,7 @@ externalGetAttributeDefaultVal (char *schema, char *tableName, char *attrName)
     char *expr = extP->getAttributeDefaultVal(ARG(schema), ARG(tableName), ARG(attrName));
     // parse expression
     if (expr != NULL)
-        result = parseFromString(expr);
+        result = parseExprFromString(expr);
 
     return result;
 }

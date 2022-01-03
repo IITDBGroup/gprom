@@ -163,6 +163,13 @@ typedef struct LimitOperator
 	Node *offsetExpr;
 } LimitOperator;
 
+typedef struct ExecPreparedOperator
+{
+	QueryOperator op;
+	char *name;
+	List *params;
+} ExecPreparedOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator) \
@@ -209,6 +216,9 @@ extern List *getAttrDataTypes (List *defs);
 extern List *inferOpResultDTs (QueryOperator *op);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
+/* shallow copy of a query operator (do not copy children or parents) */
+extern QueryOperator *shallowCopyQueryOperator(QueryOperator *op);
+
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
         char *alias, List *parents, List *attrNames, List *dataTypes);
@@ -253,11 +263,14 @@ extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOper
     ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
 /* deal with properties */
-extern void setProperty (QueryOperator *op, Node *key, Node *value);
-extern Node *getProperty (QueryOperator *op, Node *key);
-extern void setStringProperty (QueryOperator *op, char *key, Node *value);
-extern Node *getStringProperty (QueryOperator *op, char *key);
-extern void removeStringProperty (QueryOperator *op, char *key);
+extern void setProperty(QueryOperator *op, Node *key, Node *value);
+extern Node *getProperty(QueryOperator *op, Node *key);
+extern void setStringProperty(QueryOperator *op, char *key, Node *value);
+extern Node *getStringProperty(QueryOperator *op, char *key);
+extern void removeStringProperty(QueryOperator *op, char *key);
+extern List *appendToListProperty(QueryOperator *op, Node *key, Node *newTail);
+extern List *appendToListStringProperty(QueryOperator *op, char *key, Node *newTail);
+
 #define SET_KEYVAL_PROPERTY(op,kv) (setProperty(((QueryOperator *) op), kv->key, kv->value))
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
@@ -265,6 +278,12 @@ extern void removeStringProperty (QueryOperator *op, char *key);
         key, (Node *) value))
 #define SET_BOOL_STRING_PROP(op,key) (setStringProperty((QueryOperator *) op, \
         key, (Node *) createConstBool(TRUE)))
+#define APPEND_PROP(op,key,value) (appendToListProperty((QueryOperator *) op, \
+														key,			\
+														(Node *) value))
+#define APPEND_STRING_PROP(op,key,value) (appendToListStringProperty((QueryOperator *) op, \
+																	 key, \
+																	 (Node *) value))
 #define GET_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key))
 #define GET_STRING_PROP_STRING_VAL(op,key) (HAS_STRING_PROP(op,key) ? STRING_VALUE(getStringProperty((QueryOperator *) op, key)) : NULL)
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
@@ -312,6 +331,9 @@ extern List *aggOpGetAggAttrDefs(AggregationOperator *op);
 
 extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
+extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
+extern List *getProjExprsForAllAttrs(QueryOperator *op);
+
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
 
@@ -326,6 +348,9 @@ extern unsigned int numOpsInGraph (QueryOperator *root);
 extern unsigned int numOpsInTree (QueryOperator *root);
 
 //find NestingOperator based on levelsUp
-extern QueryOperator* findNestingOperator (QueryOperator *op, int levelsUp);
+extern QueryOperator*findNestingOperator (QueryOperator *op, int levelsUp);
+extern char *getNestingAttrPrefix();
+extern char *getNestingResultAttribute(int number);
+extern boolean isNestingAttribute(char *attr);
 
 #endif /* QUERY_OPERATOR_H_ */

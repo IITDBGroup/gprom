@@ -113,12 +113,12 @@ createCastExpr (Node *expr, DataType resultDt)
 }
 
 CastExpr *
-createCastExprOtherDT (Node *expr, char* otherDT, int num)
+createCastExprOtherDT(Node *expr, char* otherDT, int num, DataType gpromDT)
 {
     CastExpr *result = makeNode(CastExpr);
 
     result->expr = expr;
-    result->resultDT = -1;
+    result->resultDT = gpromDT;
     result->otherDT = otherDT;
     result->num = num;
 
@@ -399,7 +399,7 @@ createIsNotDistinctExpr (Node *lArg, Node *rArg)
     {
         case SQLSERIALIZER_PLUGIN_ORACLE:
         {
-            eq = (Node *) createOpExpr("=", LIST_MAKE(
+            eq = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(
                     createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
                     createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
         }
@@ -414,7 +414,7 @@ createIsNotDistinctExpr (Node *lArg, Node *rArg)
         {
             Node *nullTest, *eqTest;
 
-            eqTest = (Node *) createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+            eqTest = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(copyObject(lArg), copyObject(rArg)));
             nullTest = (Node *) createOpExpr(OPNAME_AND, LIST_MAKE(
                     createIsNullExpr(copyObject(lArg)),
                     createIsNullExpr(copyObject(rArg))));
@@ -517,6 +517,142 @@ createNullConst (DataType dt)
     return result;
 }
 
+Constant *
+makeConst(DataType dt)
+{
+	switch(dt)
+	{
+	case DT_INT:
+		return createConstInt(0);
+	case DT_FLOAT:
+		return createConstFloat(0.0);
+	case DT_BOOL:
+		return createConstBool(TRUE);
+	case DT_LONG:
+		return createConstLong(0L);
+	case DT_STRING:
+		return createConstString("");
+	case DT_VARCHAR2:
+	{
+		Constant *result = createConstString("");
+	    result->constType = DT_VARCHAR2;
+		return result;
+	}
+	}
+    return NULL;
+}
+
+Constant *
+minConsts(Constant *l, Constant *r, boolean nullIsMin)
+{
+	Constant *result;
+
+
+	if(l->isNull || r->isNull)
+	{
+		if (nullIsMin)
+		{
+			return createNullConst(l->constType);
+		}
+		if(l->isNull)
+			return copyObject(r);
+		return copyObject(l);
+	}
+
+	result = makeConst(l->constType);
+
+	switch(result->constType)
+	{
+	case DT_INT:
+	{
+		INT_VALUE(result) = INT_VALUE(l) < INT_VALUE(r) ? INT_VALUE(l) : INT_VALUE(r);
+	}
+	case DT_FLOAT:
+	{
+		FLOAT_VALUE(result) = FLOAT_VALUE(l) < FLOAT_VALUE(r) ? FLOAT_VALUE(l) : FLOAT_VALUE(r);
+	}
+	case DT_STRING:
+	case DT_VARCHAR2:
+	{
+	    result->value = strcmp(STRING_VALUE(l),STRING_VALUE(r)) < 0 ? STRING_VALUE(l) : STRING_VALUE(r);
+	}
+	case DT_BOOL:
+	{
+		BOOL_VALUE(result) = BOOL_VALUE(l) < BOOL_VALUE(r) ? BOOL_VALUE(l) : BOOL_VALUE(r);
+	}
+	case DT_LONG:
+	{
+		LONG_VALUE(result) = LONG_VALUE(l) < LONG_VALUE(r) ? LONG_VALUE(l) : LONG_VALUE(r);
+	}
+	}
+
+	return result;
+}
+
+Constant *
+maxConsts(Constant *l, Constant *r, boolean nullIsMax)
+{
+	Constant *result;
+
+	if(l->isNull || r->isNull)
+	{
+		if (nullIsMax)
+		{
+			return createNullConst(l->constType);
+		}
+		if(l->isNull)
+			return copyObject(r);
+		return copyObject(l);
+	}
+
+	result = makeConst(l->constType);
+
+	switch(result->constType)
+	{
+	case DT_INT:
+	{
+		INT_VALUE(result) = INT_VALUE(l) >= INT_VALUE(r) ? INT_VALUE(l) : INT_VALUE(r);
+	}
+	case DT_FLOAT:
+	{
+		FLOAT_VALUE(result) = FLOAT_VALUE(l) >= FLOAT_VALUE(r) ? FLOAT_VALUE(l) : FLOAT_VALUE(r);
+	}
+	case DT_STRING:
+	case DT_VARCHAR2:
+	{
+	    result->value = strcmp(STRING_VALUE(l),STRING_VALUE(r)) >= 0 ? STRING_VALUE(l) : STRING_VALUE(r);
+	}
+	case DT_BOOL:
+	{
+		BOOL_VALUE(result) = BOOL_VALUE(l) >= BOOL_VALUE(r) ? BOOL_VALUE(l) : BOOL_VALUE(r);
+	}
+	case DT_LONG:
+	{
+		LONG_VALUE(result) = LONG_VALUE(l) >= LONG_VALUE(r) ? LONG_VALUE(l) : LONG_VALUE(r);
+	}
+	}
+
+	return result;
+}
+
+void
+incrConst(Constant *c)
+{
+	ASSERT(!c->isNull && (c->constType == DT_INT || c->constType == DT_LONG));
+
+	switch(c->constType)
+	{
+	case DT_INT:
+		INT_VALUE(c) = INT_VALUE(c) + 1;
+		break;
+	case DT_LONG:
+		LONG_VALUE(c) = LONG_VALUE(c) + 1;
+		break;
+	default:
+		c = NULL;
+		// will never end up here
+	}
+}
 
 DataType
 typeOf (Node *expr)
@@ -554,8 +690,19 @@ typeOf (Node *expr)
         }
         case T_IsNullExpr:
             return DT_BOOL;
+			// Oracle has an ROWNUM pseudo attribute for that. All other systems we have to use ROW_NUMBER()
         case T_RowNumExpr:
-            return DT_INT;
+			if(getBackend() == BACKEND_ORACLE)
+			{
+				return DT_INT;
+			}
+			else
+			{
+				DataType rt;
+				boolean exists;
+				rt = getFuncReturnType(ROW_NUMBER_FUNC_NAME, NIL, &exists);
+				return rt;
+			}
         case T_SQLParameter:
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:
@@ -700,9 +847,9 @@ isCondition(Node *expr)
     if (isA(expr,Operator))
     {
         Operator *o = (Operator *) expr;
-        if (streq(o->name, "=")
-                || streq(o->name, "<")
-                || streq(o->name, ">")
+        if (streq(o->name, OPNAME_EQ)
+                || streq(o->name, OPNAME_LT)
+                || streq(o->name, OPNAME_GT)
                 || streq(o->name, "!=")
             ) //TODO what else
             return TRUE;
@@ -711,6 +858,12 @@ isCondition(Node *expr)
         return TRUE;
 
     return FALSE;
+}
+
+char *
+getAttributeReferenceName(AttributeReference *a)
+{
+    return a->name;
 }
 
 char *
@@ -740,6 +893,10 @@ backendifyIdentifier(char *name)
                 break;
 		    case BACKEND_SQLITE: // treat everything as upper case since SQLite completely ignores all cases when it comes to matching attribute names even through internally identifiers are stored case sensitive
 				result = strToUpper(name);
+				break;
+		    case BACKEND_MSSQL:
+				result = strToLower(name);
+				break;
             default:
                 result = strToUpper(name);
                 break;
@@ -1074,14 +1231,14 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 
     // logical operators
     if (streq(upCaseOpName,OPNAME_OR)
-            || streq(upCaseOpName,OPNAME_AND)
-            )
+		|| streq(upCaseOpName,OPNAME_AND)
+		)
     {
         if (dLeft == dRight && dLeft == DT_BOOL)
             return DT_BOOL;
     }
 
-    // TODO: operator name is "NOT" or "not"
+    // TODO: operator name is OPNAME_NOT or OPNAME_not
     if (streq(opName,OPNAME_NOT) || streq(opName,OPNAME_not))
     {
         if (dLeft == DT_BOOL)
@@ -1089,11 +1246,12 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     }
 
     // standard arithmetic operators
-    if (streq(opName,"+")
-            || streq(opName,"*")
-            || streq(opName,"/")
-            || streq(opName,"-")
-            )
+    if (streq(opName,OPNAME_ADD)
+		|| streq(opName,OPNAME_MULT)
+		|| streq(opName,OPNAME_DIV)
+		|| streq(opName,OPNAME_MINUS)
+		|| streq(opName,OPNAME_MOD)
+		)
     {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
@@ -1106,31 +1264,26 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     }
 
     // string ops
-    if (streq(opName,"||"))
+    if (streq(opName,OPNAME_STRING_CONCAT))
     {
         if (dLeft == dRight && dLeft == DT_STRING)
             return DT_STRING;
     }
-    // comparison operators
-    if (streq(opName,"<")
-            || streq(opName,">")
-            || streq(opName,"<=")
-            || streq(opName,">=")
-            || streq(opName,"=>")
-            || streq(opName,"<>")
-            || streq(opName,"^=")
-            || streq(opName,"=")
-            || streq(opName,"!=")
-//<<<<<<< HEAD
-//		    || streq(opName,"like")
-//=======
-			|| streq(opName,"like")
 
-		    || streq(opName,"LIKE")
-                )
+    // comparison operators
+    if (streq(opName,OPNAME_LT)
+		|| streq(opName,OPNAME_GT)
+		|| streq(opName,OPNAME_LE)
+		|| streq(opName,OPNAME_GE)
+		|| streq(opName,"=>") //TODO is this supposed ot be >=?
+		|| streq(opName,OPNAME_NEQ)
+		|| streq(opName,OPNAME_NEQ_HAT)
+		|| streq(opName,OPNAME_EQ)
+		|| streq(opName,OPNAME_NEQ_BANG)
+		|| streq(opName,OPNAME_LIKE)
+    )
     {
-        //if (dLeft == dRight)
-            return DT_BOOL;
+       return DT_BOOL;
     }
 
     *exists = FALSE;

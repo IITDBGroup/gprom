@@ -62,9 +62,6 @@ log_*.log
 GPATH
 GRTAGS
 GTAGS
-<<<<<<< HEAD
 .ccls-cache
 /src/.project
-=======
-.ccls-cache
->>>>>>> nesting
+.cache

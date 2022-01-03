@@ -147,7 +147,9 @@ typedef (void *) gprom_long_t;
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
 #define strpeq(_l,_r) (((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0)))
+#define strpleq(_l,_r) ((_l != NULL) && (strcmp(_l,_r) == 0))
 #define strneq(_l,_r,n) (strncmp(_l,_r,n) == 0)
+#define strcaseeq(_l,_r) (strcasecmp(_l,_r) == 0)
 #define strStartsWith(_str,_prefix) (strncmp(_str,_prefix,strlen(_prefix)) == 0)
 #endif
 
@@ -183,14 +185,31 @@ typedef (void *) gprom_long_t;
 #define HAVE_MONETDB_BACKEND 1
 #endif
 
+// odbc
+#if HAVE_LIBODBC && HAVE_SQL_H && HAVE_SQLEXT_H
+#define HAVE_ODBC_BACKEND 1
+#endif
+
+// mssql
+#if HAVE_MSSQL_ODBC_DRIVER && HAVE_ODBC_BACKEND
+#define HAVE_MSSQL_BACKEND 1
+#endif
+
 // any backend
-#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_SQLITE_BACKEND || HAVE_MONETDB_BACKEND
+#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_SQLITE_BACKEND || HAVE_MONETDB_BACKEND || HAVE_ODBC_BACKEND || HAVE_ODBC_BACKEND
 #define HAVE_A_BACKEND 1
 #endif
 
 /* OCI stuff */
 #if HAVE_ORACLE_BACKEND
 #include <ocilib.h>
+#endif
+
+/********************************************************************************
+ * Z3
+ */
+#if HAVE_LIBZ3 && HAVE_Z3_H
+#define HAVE_Z3 1
 #endif
 
 /********************************************************************************
@@ -249,5 +268,8 @@ typedef (void *) gprom_long_t;
 // min and max
 #define MIN(x,y) (x < y ? x : y)
 #define MAX(x,y) (x > y ? x : y)
+
+// throw error for unimplemented method
+#define TODO_IMPL FATAL_LOG("method not implemented yet!")
 
 #endif /* COMMON_H */

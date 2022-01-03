@@ -15,6 +15,8 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "configuration/option.h"
+#include "metadata_lookup/metadata_lookup.h"
+#include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
@@ -59,6 +61,8 @@ createAPIStub (void)
     api->serializeJoinOperator = NULL;
 	api->serializeLimitOperator = genSerializeLimitOperator;
 	api->serializeOrderByOperator = genSerializeOrderByOperator;
+	api->serializeExecPreparedOperator = genSerializeExecPreparedOperator;
+	api->serializePreparedStatment = genSerializePreparedStatement;
     api->createTempView = genCreateTempView;
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
@@ -208,12 +212,22 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 			{
 				Operator *cond = (Operator *) nest->cond;
 				Node *a = getHeadOfListP(cond->args);
-				char *name = exprToSQL(a, *map);
-				appendStringInfoString(s, name);
-				appendStringInfoString(s, cond->name);
-				appendStringInfoString(s, " ANY ");
+				char *name = exprToSQL(a, *map, FALSE);
+				appendStringInfo(s, "%s %s ANY ", name, cond->name);
+				/* appendStringInfoString(s, name); */
+				/* appendStringInfoString(s, cond->name); */
+				/* appendStringInfoString(s, " ANY "); */
 			}
-
+			else if(nest->nestingType == NESTQ_ALL)
+			{
+				Operator *cond = (Operator *) nest->cond;
+				Node *a = getHeadOfListP(cond->args);
+				char *name = exprToSQL(a, *map, FALSE);
+				appendStringInfo(s, "%s %s ALL ", name, cond->name);
+				/* appendStringInfoString(s, name); */
+				/* appendStringInfoString(s, cond->name); */
+				/* appendStringInfoString(s, " ALL "); */
+			}
 
 			appendStringInfoString(s, "(");
 			api->serializeQueryOperator(OP_RCHILD(op), s, NULL, fac, api);
@@ -681,33 +695,70 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
  * Translate a selection into a WHERE clause
  */
 void
-genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
+genSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
-//<<<<<<< HEAD
-//    appendStringInfoString(where, "\nWHERE ");
-//    updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
-//    appendStringInfoString(where, exprToSQL(q->cond, NULL));
-//=======
 	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api);
 
 	appendStringInfoString(where, "\nWHERE ");
 	updateAttributeNames((Node *) q->cond, fac);
-    appendStringInfoString(where, exprToSQL(q->cond, nestAttrMap));
-
+    appendStringInfoString(where, exprToSQL(q->cond, nestAttrMap, FALSE));
 }
 
 void
-genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesAPI *api)
+genSerializeLimitOperator(LimitOperator *q, StringInfo limit, SerializeClausesAPI *api)
 {
 	if (q->limitExpr != NULL)
 	{
 		appendStringInfoString(limit, "\nLIMIT ");
-		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr, NULL));
+		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr, NULL, FALSE));
 	}
 	if (q->offsetExpr != NULL)
 	{
 		appendStringInfoString(limit, "\nOFFSET ");
-		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr, NULL));
+		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr, NULL, FALSE));
+	}
+}
+
+void
+genSerializePreparedStatement(QueryOperator *q, StringInfo prep, SerializeClausesAPI *api)
+{
+	if(HAS_STRING_PROP(q, PROP_PREPARED_QUERY_NAME))
+	{
+		char *name = GET_STRING_PROP_STRING_VAL(q, PROP_PREPARED_QUERY_NAME);
+		appendStringInfo(prep, "PREPARE %s ", name);
+
+		// explicit specificed data types
+		if(HAS_STRING_PROP(q, PROP_PREPARED_QUERY_DTS))
+		{
+			List *dts = (List *) GET_STRING_PROP(q, PROP_PREPARED_QUERY_DTS);
+			appendStringInfoString(prep, "(");
+			FOREACH_INT(d,dts)
+			{
+				DataType dt = (DataType) d;
+				appendStringInfoString(prep, backendDatatypeToSQL(dt));
+				if(FOREACH_HAS_MORE(d))
+				{
+					appendStringInfoString(prep, ", ");
+				}
+			}
+			appendStringInfoString(prep, ")");
+		}
+		appendStringInfo(prep, " AS ");
+	}
+}
+
+void
+genSerializeExecPreparedOperator (ExecPreparedOperator *q, StringInfo exec)
+{
+	appendStringInfo(exec, "EXEC %s", q->name);
+	if(q->params)
+	{
+		appendStringInfoString(exec, "(");
+		FOREACH(Constant,p,q->params)
+		{
+			appendStringInfo(exec, exprToSQL((Node *) p, NULL, FALSE));
+		}
+		appendStringInfoString(exec, ")");
 	}
 }
 
@@ -718,7 +769,7 @@ genSerializeOrderByOperator (OrderOperator *q, StringInfo order, FromAttrsContex
 	appendStringInfoString(order, "\nORDER BY ");
     //updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
 
-    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL),"(","");
+    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL, FALSE),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
     ordExpr = replaceSubstr(ordExpr,"'","");
     appendStringInfoString(order, ordExpr);
@@ -793,6 +844,15 @@ List *
 genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // operator with multiple parents
+	if (HAS_STRING_PROP(q, PROP_PREPARED_QUERY_NAME))
+	{
+	    api->serializePreparedStatment(q, str, api);
+	}
+	if (isA(q,ExecPreparedOperator))
+	{
+		api->serializeExecPreparedOperator((ExecPreparedOperator *) q, str);
+		return NIL;
+	}
     if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
         return api->createTempView (q, str, parent, fac, api);
     else if (isA(q, SetOperator))
@@ -875,7 +935,7 @@ exprToSQLWithNamingScheme (Node *expr, int rOffset,FromAttrsContext *fac)
     renameAttrsVisitor(expr, state);
 
     FREE(state);
-    return exprToSQL(expr, NULL);
+    return exprToSQL(expr, NULL, FALSE);
 }
 
 static boolean

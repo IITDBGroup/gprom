@@ -2,7 +2,7 @@
  *
  * node.c
  *		Basic functions for nodes.
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
  *		Right now only implements node creation.
@@ -275,6 +275,12 @@ replaceStringInfoChar(StringInfo str, char s, char repl)
         if (str->data[i] == s)
             str->data[i] = repl;
     }
+}
+
+void
+enlargeStringInfo(StringInfo str, int needed)
+{
+	makeStringInfoSpace(str, needed);
 }
 
 /*

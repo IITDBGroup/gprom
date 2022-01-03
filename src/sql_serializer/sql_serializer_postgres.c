@@ -31,11 +31,11 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
-static void createAPI (void);
+static void createAPI(void);
 static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
-static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
 static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem,  SerializeClausesAPI *api);
@@ -172,8 +172,8 @@ quoteIdentifierPostgres (char *ident)
     if (ident[0] == '"')
         return ident;
 
-    // sqlite completely ignores case no matter whether the identifier is quoted or not
-    // so upper/lower case does not indicate whether we need to escape
+	// certain characters need to be quoted
+	// also upper case needs to be quoted to preserve the case
     for(i = 0; i < strlen(ident); i++)
     {
         switch(ident[i])
@@ -299,12 +299,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         FOREACH(Node,n,m->secondProj->projExprs)
         {
-//<<<<<<< HEAD
-//            updateAttributeNames(n, fromAttrs);
-//=======
             updateAttributeNames(n, fac);
-
-            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL));
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
@@ -324,7 +320,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL));
+            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL, FALSE));
         }
         DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
 
@@ -342,7 +338,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            g = exprToSQL(expr, NULL);
+            g = exprToSQL(expr, NULL, FALSE);
 
             groupBys = appendToTailOfList(groupBys, g);
             appendStringInfo(groupBy, "%s", strdup(g));
@@ -367,8 +363,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             WindowOperator *wOp = (WindowOperator *) curOp;
             Node *expr = wOp->f;
 
-            DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
-                                (WindowOperator *) curOp), NULL));
+            DEBUG_LOG("BEFORE: window function = %s",
+					  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
@@ -379,11 +375,18 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fac, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
 
-            windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp), NULL));
+            if(HAS_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK))
+            {
+            	int numFrags = INT_VALUE(GET_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK));
+                windowFs = appendToHeadOfList(windowFs,
+    										  exprToSQL((Node *) createCastExprOtherDT((Node *) winOpGetFunc((WindowOperator *) curOp),"bit", numFrags, DT_STRING), NULL, FALSE));
+            }
+            else
+            	windowFs = appendToHeadOfList(windowFs,
+										  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
-            DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp), NULL));
+
+            DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
             curOp = OP_LCHILD(curOp);
         }
@@ -403,7 +406,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         SelectionOperator *sel = (SelectionOperator *) m->having;
         DEBUG_LOG("having condition %s", nodeToString(sel->cond));
         updateAggsAndGroupByAttrs(sel->cond, state);
-        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL));
+        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL, FALSE));
         DEBUG_LOG("having translation %s", having->data);
     }
 
@@ -432,12 +435,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 updateAggsAndGroupByAttrs(a, state);
             // is projection in query without aggregation
             else
-//<<<<<<< HEAD
-//                updateAttributeNames(a, fromAttrs);
-//=======
                 updateAttributeNames(a, fac);
-
-            appendStringInfo(select, "%s%s", exprToSQL(a, NULL), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+            appendStringInfo(select, "%s%s", exprToSQL(a, NULL, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
         resultAttrs = attrNames;
@@ -539,7 +538,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         if (pos != 0)
             appendStringInfoString(from, ", ");
         value = getNthOfListP(t->values, pos++);
-        appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL), attrName);
+        appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName);
 
     }
 
@@ -621,10 +620,10 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             {
                 Constant* c = (Constant*) t->asOf;
                 if (c->constType == DT_LONG)
-                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf, NULL));
+                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf, NULL, FALSE));
                 else
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(",
-                            exprToSQL(t->asOf, NULL), ")");
+                            exprToSQL(t->asOf, NULL, FALSE), ")");
             }
             else
             {
@@ -632,7 +631,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                 Node* begin = (Node*) getNthOfListP(scns, 0);
                 Node* end = (Node*) getNthOfListP(scns, 1);
                 asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ",
-                        exprToSQL(begin, NULL), " AND ", exprToSQL(end, NULL));
+                        exprToSQL(begin, NULL, FALSE), " AND ", exprToSQL(end, NULL, FALSE));
             }
         }
 
@@ -688,7 +687,10 @@ serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, S
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
 
+	//TODO be smarter to use UNION / INTERSECT / EXCEPT when these are implemented in rel algebra as duplicate elimination
+
     // output left child
+	appendStringInfoString(str, "(");
     resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, fac, api);
 
     // output set operation
@@ -698,15 +700,16 @@ serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, S
             appendStringInfoString(str, " UNION ALL ");
             break;
         case SETOP_INTERSECTION:
-            appendStringInfoString(str, " INTERSECT ");
+            appendStringInfoString(str, " INTERSECT ALL ");
             break;
         case SETOP_DIFFERENCE:
-            appendStringInfoString(str, " EXCEPT ");
+            appendStringInfoString(str, " EXCEPT ALL ");
             break;
     }
 
     // output right child
     api->serializeQueryOperator(OP_RCHILD(q), str, q, fac, api);
+	appendStringInfoString(str, ")");
 
     return resultAttrs;
 }

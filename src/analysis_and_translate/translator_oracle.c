@@ -27,6 +27,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
+#include "parameterized_query/parameterized_queries.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
@@ -53,6 +54,9 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
 static QueryOperator *translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList);
+static QueryOperator *translateExecQuery(ExecQuery *q, List **attrsOffsetsList);
+static QueryOperator *translatePrepareQuery(PreparedQuery *q, List **attrsOffsetsList);
+static int compareParameters(const void **a, const void **b);
 static void markTableAccessForRowidProv (QueryOperator *o);
 static void getAffectedTableAndOperationType (Node *stmt,
         ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
@@ -130,13 +134,10 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
-//<<<<<<< HEAD
-//    //INFO_NODE_BEATIFY_LOG("translate QB model", q);
-//=======
+    //INFO_NODE_BEATIFY_LOG("translate QB model", q);
     List *attrsOffsetsList = NIL;
 
-    INFO_NODE_BEATIFY_LOG("translate QB model", q);
-
+    // INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q, &attrsOffsetsList);
 
@@ -168,6 +169,10 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
             return translateSetQuery((SetQuery *) node, attrsOffsetsList);
         case T_ProvenanceStmt:
             return translateProvenanceStmt((ProvenanceStmt *) node, attrsOffsetsList);
+	    case T_ExecQuery:
+			return translateExecQuery((ExecQuery *) node, attrsOffsetsList);
+	    case T_PreparedQuery:
+			return translatePrepareQuery((PreparedQuery *) node, attrsOffsetsList);
         case T_Insert:
         case T_Update:
         case T_Delete:
@@ -575,6 +580,61 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
 }
 
 static QueryOperator *
+translateExecQuery(ExecQuery *e, List **attrsOffsetsList)
+{
+    ExecPreparedOperator *q = (ExecPreparedOperator *) makeNode(ExecPreparedOperator);
+
+	q->name = e->name;
+	q->params = e->params;
+
+	return (QueryOperator *) q;
+}
+
+static QueryOperator *
+translatePrepareQuery(PreparedQuery *p, List **attrsOffsetsList)
+{
+	QueryOperator *q = translateQueryOracleInternal(p->q, attrsOffsetsList);
+	ParameterizedQuery *pq = makeNode(ParameterizedQuery);
+	List *parameters = findParameters((Node *) q);
+
+	// store prepared query's name and dts as property
+	setStringProperty(q,
+					  PROP_PREPARED_QUERY_NAME,
+					  (Node *) createConstString(p->name));
+
+	setStringProperty(q, PROP_PREPARED_QUERY_DTS,
+					  (Node *) p->dts);
+
+	setStringProperty(q, PROP_PREPARED_QUERY_SQLTEXT,
+					  (Node *) createConstString(p->sqlText));
+
+	pq->q = (Node *) q;
+	pq->parameters = unique(parameters, compareParameters); //TODO what to record here?
+
+	// store parameterized query
+	createParameterizedQuery(p->name, pq);
+
+	return q;
+}
+
+static int
+compareParameters(const void **a, const void **b)
+{
+	ASSERT(isA(*a,SQLParameter) && isA(*b,SQLParameter));
+	SQLParameter *p1, *p2;
+
+	p1 = (SQLParameter *) *a;
+	p2 = (SQLParameter *) *b;
+
+	if (p1->position < p2->position)
+		return -1;
+	if (p1->position > p2->position)
+		return 1;
+
+	return 0;
+}
+
+static QueryOperator *
 translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
 {
     QueryOperator *child;
@@ -762,12 +822,8 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
         }
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
-//<<<<<<< HEAD
      	case PROV_INPUT_RANGE_QUERY:
 	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
-//		{
-//            child = translateQueryOracle(prov->query);
-//=======
         {
             child = translateQueryOracleInternal(prov->query, attrsOffsetsList);
             addChildOperator((QueryOperator *) result, child);
@@ -1259,13 +1315,13 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 		{
 			setStringProperty(op, PROP_HAS_RANGE, (Node *) createConstBool(1));
 			hasProv = TRUE;
-			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_RADB_LIST);
+			from->userProvAttrs = constStringListToStringList((List *) getStringProvProperty(from, PROV_PROP_RADB_LIST));
 		}
 		if (getStringProvProperty(from, PROV_PROP_UADB_LIST))
 		{
 			setStringProperty(op, PROP_HAS_UNCERT, (Node *) createConstBool(1));
 			hasProv = TRUE;
-			from->userProvAttrs = (List *)getStringProvProperty(from, PROV_PROP_UADB_LIST);
+			from->userProvAttrs = constStringListToStringList((List *) getStringProvProperty(from, PROV_PROP_UADB_LIST));
 		}
 
 		/* table selected as INCOMPLETE */
@@ -1279,15 +1335,17 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 		{
 			if (getStringProvProperty(from, PROV_PROP_XTABLE_PROB))
 			{
-				setStringProperty(op, PROP_XTABLE_GROUPID, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))));
-				setStringProperty(op, PROP_XTABLE_PROB, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB))));
+				setStringProperty(op, PROP_XTABLE_GROUPID,
+								  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID))));
+				setStringProperty(op, PROP_XTABLE_PROB,
+								  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB))));
 				hasProv = TRUE;
-				from->userProvAttrs = LIST_MAKE(STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID)), STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB)));
+				from->userProvAttrs = LIST_MAKE(
+					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID)),
+					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB)));
 			}
 		}
     }
-
-
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
@@ -1403,7 +1461,7 @@ translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList)
                 AttributeReference *rRef = createFullAttrReference(strdup(rA), 1, rPos, 0, lDef->dataType);
 
                 commonAttrs = appendToTailOfList(commonAttrs, rA);
-                joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lRef,rRef)), joinCond);
+                joinCond = AND_EXPRS((Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(lRef,rRef)), joinCond);
             }
             else
                 uniqueRightAttrs = appendToTailOfList(uniqueRightAttrs, rA);
@@ -1465,7 +1523,7 @@ translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList)
             }
 
             // create equality condition and update global condition
-            attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+            attrCond = (Node *) createOpExpr(OPNAME_EQ,LIST_MAKE(lA,rA));
             curCond = AND_EXPRS(attrCond,curCond);
         }
 
@@ -1565,7 +1623,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *dts = getDataTypes(lChild->schema);
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
-        char *attrName = CONCAT_STRINGS("nesting_eval_", gprom_itoa(i++));
+        char *attrName = getNestingResultAttribute(i++);
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
                                             (Node *)createConstInt(LIST_LENGTH(attrNames))));
@@ -1576,7 +1634,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         else if (nsq->nestingType == NESTQ_SCALAR)
         {
-        		nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
+			nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
             dts = appendToTailOfListInt(dts, getAttrDefByPos(rChild, 0)->dataType);
         }
         else
@@ -1721,22 +1779,23 @@ static boolean
 visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 {
     if (n == NULL)
+    {
         return TRUE;
+	}
+    if (isA(n, AttributeReference))
+    {
+    	//int count = 0;
+    	AttributeReference *attrRef = (AttributeReference *) n;
 
-    	if (isA(n, AttributeReference))
+    	if(attrRef->outerLevelsUp != -1)
     	{
-    		//int count = 0;
-    		AttributeReference *attrRef = (AttributeReference *) n;
-
-    		if(attrRef->outerLevelsUp != -1)
+    		List *state = (List *)getNthOfListP(offsetsList, attrRef->outerLevelsUp);
+    		if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
     		{
-    			List *state = (List *)getNthOfListP(offsetsList, attrRef->outerLevelsUp);
-    			if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
-    			{
-    				attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
-    				attrRef->fromClauseItem = 0;
-    			}
+    			attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
+    			attrRef->fromClauseItem = 0;
     		}
+    	}
 //    		FOREACH(List, state, offsetsList)
 //    	    	{
 //    			if(attrRef->outerLevelsUp == count)
@@ -1750,7 +1809,7 @@ visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 //    			}
 //    			count ++;
 //    	    	}
-    	}
+    }
 
     return visit(n, visitAttrRefToSetNewAttrPosList, offsetsList);
 }
@@ -2156,7 +2215,7 @@ visitAggregFunctionCall(Node *n, List **aggregs)
         FunctionCall *fc = (FunctionCall *) n;
         if (fc->isAgg)
         {
-            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL));
+            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL, TRUE));
             *aggregs = appendToTailOfList(*aggregs, fc);
 
             // do not recurse into aggregation function calls
@@ -2175,7 +2234,7 @@ visitFindWindowFuncs(Node *n, List **wfs)
 
     if (isA(n, WindowFunction))
     {
-        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL));
+        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL, TRUE));
         *wfs = appendToTailOfList(*wfs, n);
         return TRUE;
     }

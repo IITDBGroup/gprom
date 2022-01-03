@@ -57,6 +57,7 @@ typedef struct List
 
 #define FOREACH_GET_LC(_node_) (DUMMY_LC(_node_))
 #define FOREACH_HAS_MORE(_node_) (DUMMY_LC(_node_)->next != NULL)
+#define FOREACH_IS_FIRST(_node_,_list_) (DUMMY_LC(_node_) == _list_->head)
 
 /*
  * Loop through integer list _list_ and access each element using name _ival_.
@@ -186,7 +187,8 @@ extern List *appendToHeadOfListInt (List *list, int value);
 
 /* sort and reverse list */
 extern void reverseList(List *list);
-extern List *sortList(List *list, int (*sm) (const void *, const void *));
+extern List *sortList(List *list, int (*sm) (const void **, const void **));
+extern List *unique(List *list, int (*cmp) (const void **, const void **));
 
 /* copy and free lists */
 extern List *copyList(List *list);
@@ -195,6 +197,7 @@ extern void freeList(List *list);
 extern void deepFreeList(List *list);
 extern void deepFreeStringList(List *list);
 extern List *stringListToConstList(List *list);
+extern List *constStringListToStringList(List *list);
 
 /* compare lists */
 extern boolean equalStringList (List *a, List *b);
@@ -227,6 +230,9 @@ extern List *concatLists (List *a, ...);
 #define CONCAT_LISTS(...) concatLists(__VA_ARGS__, NULL)
 extern List *sublist(List *l, int from, int to);
 extern List *genericSublist(List *l, boolean (*pred) (void *, void *), void *context);
+
+/* higher-order functions */
+extern List *mapList(List *, void * (*f) (void *));
 
 /* serialize to string */
 extern char *stringListToString (List *node);

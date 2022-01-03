@@ -12,6 +12,7 @@
 #define ROW_CERTAIN_TWO backendifyIdentifier("CET_R1")
 #define ROW_BESTGUESS_TWO backendifyIdentifier("BST_R1")
 #define ROW_POSSIBLE_TWO backendifyIdentifier("POS_R1")
+#define ALPHABET " !\"#$\%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 
 extern QueryOperator *rewriteUncert(QueryOperator *op);
 extern QueryOperator *rewriteUncertTuple(QueryOperator *op);

@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "log/logger.h"
+#include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
@@ -21,6 +22,7 @@
 #include "model/set/set.h"
 #include "model/query_operator/operator_property.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
+#include "utility/string_utils.h"
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
@@ -53,6 +55,25 @@ findNestingOperator (QueryOperator *op, int levelsUp)
     return result;
 }
 
+char *
+getNestingAttrPrefix()
+{
+	return backendifyIdentifier("nesting_eval_");
+}
+
+char *
+getNestingResultAttribute(int number)
+{
+	return backendifyIdentifier(CONCAT_STRINGS("nesting_eval_", gprom_itoa(number)));
+}
+
+boolean
+isNestingAttribute(char *attr)
+{
+	char *prefix = getNestingAttrPrefix();
+	return isPrefix(attr, prefix)
+		|| isPrefix(attr, CONCAT_STRINGS("\"", prefix));
+}
 
 Schema *
 createSchema(char *name, List *attrDefs)
@@ -124,12 +145,24 @@ setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2)
 }
 
 static Schema *
-schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs)
+schemaFromExpressions(char *name, List *attributeNames, List *exprs, List *inputs)
 {
     List *dataTypes = NIL;
 
+	// if attributeNames is NIL, then generate attribute names
+	if(attributeNames == NIL)
+	{
+		FOREACH(Node,n,exprs)
+		{
+			char *name = exprToSQL(n, NULL, FALSE); //TODO is that right for this usage?
+			attributeNames = appendToTailOfList(attributeNames, name);
+		}
+	}
+
     FOREACH(Node,n,exprs)
+	{
         dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
+	}
 
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
@@ -252,7 +285,7 @@ unionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
 
     FOREACH_LC(lc, listEqlOp)
     {
-        if(streq(((Operator *)LC_P_VAL(lc))->name,"="))
+        if(streq(((Operator *)LC_P_VAL(lc))->name,OPNAME_EQ))
         {
             ListCell *lc1 = getHeadOfList(((Operator *)LC_P_VAL(lc))->args);
             ListCell *lc2 = getTailOfList(((Operator *)LC_P_VAL(lc))->args);
@@ -560,6 +593,24 @@ inferOpResultDTs (QueryOperator *op)
 }
 
 
+QueryOperator *
+shallowCopyQueryOperator(QueryOperator *op)
+{
+	QueryOperator *result;
+	List *parents = op->parents;
+	List *children = op->inputs;
+
+	op->parents = NIL;
+	op->inputs = NIL;
+
+	result = copyObject(op);
+
+	op->parents = parents;
+	op->inputs = children;
+
+	return result;
+}
+
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
         List *attrNames, List *dataTypes)
@@ -637,8 +688,11 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 {
     ProjectionOperator *prj = makeNode(ProjectionOperator);
 
-    FOREACH(Node, expr, projExprs)
-    prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
+    /* FOREACH(Node, expr, projExprs) */
+	/* { */
+	/* 	prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr)); */
+	/* } */
+	prj->projExprs = copyObject(projExprs);
 
     if (input != NULL)
         prj->op.inputs = singleton(input);
@@ -906,6 +960,29 @@ removeStringProperty (QueryOperator *op, char *key)
 {
     removeMapStringElem((HashMap *) op->properties, key);
 }
+
+List *
+appendToListProperty(QueryOperator *op, Node *key, Node *newTail)
+{
+	List *cur = (List *) getProp(op, key);
+
+	cur = appendToTailOfList(cur, newTail);
+	setProperty(op, key, (Node *) cur);
+
+	return cur;
+}
+
+List *
+appendToListStringProperty(QueryOperator *op, char *key, Node *newTail)
+{
+	List *cur = (List *) getStringProperty(op, key);
+
+	cur = appendToTailOfList(cur, newTail);
+	setStringProperty(op, key, (Node *) cur);
+
+	return cur;
+}
+
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
@@ -1334,23 +1411,62 @@ winOpGetFunc (WindowOperator *op)
                     op->partitionBy, op->orderBy, op->frameDef)));
 }
 
+List *
+getProjExprsForAttrNames(QueryOperator *op, List *names)
+{
+	List *result = NIL;
+
+	FOREACH(char,name,names)
+	{
+		result = appendToTailOfList(result,
+									getAttrRefByName(op, name));
+	}
+
+	return result;
+}
+
+List *
+getProjExprsForAllAttrs(QueryOperator *op)
+{
+	List *attrNames = getQueryOperatorAttrNames(op);
+	return getProjExprsForAttrNames(op, attrNames);
+}
+
 
 void
 treeify(QueryOperator *op)
 {
     FOREACH(QueryOperator,child,op->inputs)
-                treeify(child);
+		treeify(child);
 
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
     {
         INFO_LOG("operator has more than one parent %s", operatorToOverviewString((Node *) op));
+		Set *parentSet = NODESET();
 
         FOREACH(QueryOperator,parent,op->parents)
+		{
+			addToSet(parentSet, parent);
+		}
+
+        FOREACH_SET(QueryOperator,parent,parentSet)
         {
-            QueryOperator *copy = copyUnrootedSubtree(op);
-            replaceNode(parent->inputs, op, copy);
-            copy->parents = singleton(parent);
+			// check for special case where a binary parent has the operators as both of its inputs
+			if(equal(parent->inputs,LIST_MAKE(op, op)))
+			{
+				QueryOperator *cp1 = copyUnrootedSubtree(op);
+				QueryOperator *cp2 = copyUnrootedSubtree(op);
+				cp1->parents = singleton(parent);
+				cp2->parents = singleton(parent);
+				parent->inputs = LIST_MAKE(cp1, cp2);
+			}
+			else
+			{
+				QueryOperator *copy = copyUnrootedSubtree(op);
+				replaceNode(parent->inputs, op, copy);
+				copy->parents = singleton(parent);
+			}
         }
         op->parents = NIL;
     }

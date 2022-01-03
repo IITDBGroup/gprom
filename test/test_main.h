@@ -86,16 +86,23 @@ extern char *_testStringBuf;
 	        boolean result = _equals(_aVal,_bVal); \
 	        TRACE_LOG("result was: <%s>", result ? "TRUE": "FALSE"); \
 	        if (!result) \
+			{ \
 	            sprintf(_testStringBuf, ("expected <" format ">, but was " \
                         "<" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
+			} \
 	        else \
+			{ \
 	            sprintf(_testStringBuf, ("as expected <" format "> was equal to" \
                         " <" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
+			} \
 	        CHECK_RESULT((result ? PASS : FAIL), _testStringBuf); \
 	    } while(0)
 
 #define ASSERT_EQUALS_NODE(a,b,message) \
-    ASSERT_EQUALS_INTERNAL(Node*,a,b,EQUALS_EQUALS,message,"%s",NODE)
+	do { \
+		DEBUG_LOG("expected\n\n<%s>\n\nand was:\n\n<%s>", beatify(nodeToString(a)), beatify(nodeToString(a))); \
+		ASSERT_EQUALS_INTERNAL(Node*,a,b,EQUALS_EQUALS,message,"%s",NODE); \
+	} while(0)
 
 #define ASSERT_EQUALS_INT(a,b,message) \
     ASSERT_EQUALS_INTERNAL(int,a,b,EQUALS_EQ,message,"%u",SELF);
@@ -155,5 +162,6 @@ extern rc testHash(void);
 //extern rc testLibGProM(void);
 extern rc testRPQ(void);
 extern rc testAutocast(void);
+extern rc testZ3(void);
 
 #endif
