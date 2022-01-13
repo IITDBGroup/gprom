@@ -41,7 +41,7 @@ static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static boolean reenactOptionHasTimes (List *opts);
 static void analyzeWithStmt (WithStmt *w);
-//static List *getAnalyzedViews(WithStmt *w);
+static void getAnalyzedViews(WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 static void analyzeExecQuery (ExecQuery *e);
@@ -2396,7 +2396,7 @@ static void
 analyzeWithStmt (WithStmt *w)
 {
     Set *viewNames = STRSET();
-    //List *analyzedViews = NIL;
+    /* List *analyzedViews = NIL; */
 
     // check that no two views have the same name
     FOREACH(KeyValue,v,w->withViews)
@@ -2409,15 +2409,16 @@ analyzeWithStmt (WithStmt *w)
             addToSet(viewNames, vName);
     }
 
-	//analyzedViews = getAnalyzedViews(w);
+	/* analyzedViews = */
+	getAnalyzedViews(w);
     DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
     analyzeQueryBlockStmt(w->query, NIL);
 
     DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
 }
 
-/*
-static List *
+
+static void
 getAnalyzedViews(WithStmt *w)
 {
 	List *analyzedViews = NIL;
@@ -2432,9 +2433,8 @@ getAnalyzedViews(WithStmt *w)
     }
 
 	setViewFromTableRefAttrs(w->query, analyzedViews);
-
-	return analyzedViews;
-}*/
+	/* return analyzedViews; */
+}
 
 static void
 analyzeCreateTable (CreateTable *c)
