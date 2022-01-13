@@ -68,6 +68,8 @@ static void markTemporalAttrsAsProv (QueryOperator *op);
 #define IS_E_NAME backendifyIdentifier("is_e")
 #define NUMOPEN backendifyIdentifier("numopen")
 
+#define TNTAB_DUMMY_TABLE_NAME "__TNTAB_PLACEHOLDER"
+
 #define FUNCNAME_LEAST backendifyIdentifier("least")
 #define FUNCNAME_GREATEST backendifyIdentifier("greatest")
 
@@ -1341,7 +1343,7 @@ addCoalesce (QueryOperator *input)
 
     //-----------------------------------------------------------------------------------------------------------------
     //TNTAB AS (SELECT rownum n from dual connect by level <= (SELECT max(numOpen) FROM T5))
-	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
+	TableAccessOperator *TNTAB = createTableAccessOp(TNTAB_DUMMY_TABLE_NAME, NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
 	//SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) top1));
@@ -2114,7 +2116,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     QueryOperator *intervalsProjOp = (QueryOperator *) intervalsProj;
     //-----------------------------------------------------------------------------------------------------------------
     //TNTAB AS (SELECT rownum n FROM dual connect by level <= (SELECT MAX(MULTIPLICITY) FROM INTERVALS))
-	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
+	TableAccessOperator *TNTAB = createTableAccessOp(TNTAB_DUMMY_TABLE_NAME, NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
 	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) intervalsProj));
@@ -3301,7 +3303,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      QueryOperator *intervalsProjOp = (QueryOperator *) intervalsProj;
      //-----------------------------------------------------------------------------------------------------------------
      //TNTAB AS (SELECT rownum n FROM dual connect by level <= (SELECT MAX(MULTIPLICITY) FROM INTERVALS))
-     TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
+     TableAccessOperator *TNTAB = createTableAccessOp(TNTAB_DUMMY_TABLE_NAME, NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
      //set boolean prop (when translate to SQL, translate to above SQL not this table)
      SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) intervalsProj));
