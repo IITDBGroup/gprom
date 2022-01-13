@@ -21,6 +21,8 @@
 #include "model/query_operator/operator_property.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 #include "temporal_queries/temporal_rewriter.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "utility/string_utils.h"
@@ -33,8 +35,14 @@ static QueryOperator *tempRewrGeneralAggregation (AggregationOperator *o);
 static QueryOperator *tempRewrAggregation (AggregationOperator *o);
 static QueryOperator *tempRewrTemporalSource (QueryOperator *o);
 static QueryOperator *tempRewrSetOperator (SetOperator *o);
+static QueryOperator *tempRewrNestedSubquery(NestingOperator *op);
+static QueryOperator *tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op);
 static QueryOperator *tempRewrDuplicateRemOp (DuplicateRemoval *o);
 
+static QueryOperator *temporalLateralizeAndUnnestSubqueries(QueryOperator *root);
+static QueryOperator *constructJoinIntervalIntersection(QueryOperator *op);
+static Node *constructIntervalOverlapCondition(QueryOperator *lChild, QueryOperator *rChild);
+static void rewriteJoinChildren(QueryOperator **lChild, QueryOperator **rChild, QueryOperator *o);
 static boolean isSetCoalesceSufficient(QueryOperator *q);
 static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
@@ -76,7 +84,7 @@ static void markTemporalAttrsAsProv (QueryOperator *op);
 static int T_BEtype = -1;
 
 QueryOperator *
-rewriteImplicitTemporal (QueryOperator *q)
+rewriteImplicitTemporal(QueryOperator *q)
 {
     ASSERT(LIST_LENGTH(q->inputs) == 1);
     QueryOperator *top = getHeadOfListP(q->inputs);
@@ -84,10 +92,13 @@ rewriteImplicitTemporal (QueryOperator *q)
     boolean setCoalesce = FALSE;
     T_BEtype =  INT_VALUE(GET_STRING_PROP(q, PROP_TEMP_ATTR_DT));
 
-    setCoalesce = isSetCoalesceSufficient(OP_LCHILD(q));
+	// rewrite subqueries into lateral and try to unnested them if we are asked to
+	top = temporalLateralizeAndUnnestSubqueries(top);
+
+    setCoalesce = isSetCoalesceSufficient(top);
     addCoalescingAndNormalization(top);
 
-    top = temporalRewriteOperator (top);
+    top = temporalRewriteOperator(top);
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
@@ -126,6 +137,26 @@ rewriteImplicitTemporal (QueryOperator *q)
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
     return top;
+}
+
+static QueryOperator *
+temporalLateralizeAndUnnestSubqueries(QueryOperator *root)
+{
+	Node *result = (Node *) root;
+
+    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(result))
+	{
+		result = lateralTranslateQBModel(result);
+		INFO_AND_DEBUG_OP_LOG("subqueries rewritten into lateral", result);
+	}
+
+    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(result))
+	{
+		result = unnestTranslateQBModel(result);
+	    INFO_AND_DEBUG_OP_LOG("unnested subqueries", result);
+	}
+
+	return (QueryOperator *) result;
 }
 
 static boolean
@@ -184,12 +215,13 @@ temporalRewriteOperator(QueryOperator *op)
                     rewrittenOp = tempRewrSetOperator((SetOperator *) op);
             }
                 break;
-//            case T_SetOperator:
-//            {
-//                DEBUG_LOG("go set");//TODO check whether to use SetDiff + Normalize rewrite
-//                rewrittenOp = tempRewrSetOperator((SetOperator *) op);
-//            }
-//                break;
+		case T_NestingOperator:
+		{
+
+			NestingOperator *n = (NestingOperator *) op;
+			rewrittenOp = tempRewrNestedSubquery(n);
+		}
+		break;
     //        case T_TableAccessOperator:
     //            DEBUG_LOG("go table access");
     //            rewrittenOp = tempRewrTableAccess((TableAccessOperator *) op);
@@ -280,53 +312,47 @@ tempRewrJoin (JoinOperator *op)
     QueryOperator *o = (QueryOperator *) op;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
-    List *rNormAttrs;
-    int numLAttrs, numRAttrs;
+    /* List *rNormAttrs; */
+    /* int numLAttrs, numRAttrs; */
+	Node *cond;
 
-    numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
-    numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
+	rewriteJoinChildren(&lChild, &rChild, o);
 
-    // get attributes from right input
-    rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
-    o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
+    /* numLAttrs = LIST_LENGTH(lChild->schema->attrDefs); */
+    /* numRAttrs = LIST_LENGTH(rChild->schema->attrDefs); */
 
-    // rewrite children
-    lChild = temporalRewriteOperator(lChild);
-    rChild = temporalRewriteOperator(rChild);
+    /* // get attributes from right input */
+    /* rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1); */
+    /* o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1); */
 
-    // adapt schema for join op use
-    addProvenanceAttrsToSchema(o, lChild);
-    o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
-    addProvenanceAttrsToSchema(o, rChild);
+    /* // rewrite children */
+    /* lChild = temporalRewriteOperator(lChild); */
+    /* rChild = temporalRewriteOperator(rChild); */
+
+    /* // adapt schema for join op use */
+    /* addProvenanceAttrsToSchema(o, lChild); */
+    /* o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs); */
+    /* addProvenanceAttrsToSchema(o, rChild); */
 
     // add extra condition to join to check for interval overlap
     // left.begin <= right.begin <= right.end OR right.begin <= left.begin <= right.end
-    AttributeReference *lBegin, *lEnd, *rBegin, *rEnd;
-    Node *cond;
+    /* AttributeReference *lBegin, *lEnd, *rBegin, *rEnd; */
+    /* Node *cond; */
 
-    lBegin = getTempAttrRef(lChild, TRUE);
-    lEnd = getTempAttrRef(lChild, FALSE);
-    rBegin = getTempAttrRef(rChild, TRUE);
-    rBegin->fromClauseItem = 1;
-    rEnd = getTempAttrRef(rChild, FALSE);
-    rEnd->fromClauseItem = 1;
+    /* lBegin = getTempAttrRef(lChild, TRUE); */
+    /* lEnd = getTempAttrRef(lChild, FALSE); */
+    /* rBegin = getTempAttrRef(rChild, TRUE); */
+    /* rBegin->fromClauseItem = 1; */
+    /* rEnd = getTempAttrRef(rChild, FALSE); */
+    /* rEnd->fromClauseItem = 1; */
 
-    cond = AND_EXPRS(
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
-            );
+	/* // interval overlap join condition */
+    /* cond = AND_EXPRS( */
+    /*             (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))), */
+    /*             (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd))) */
+    /*         ); */
 
-      // that is more efficient then what we had before
-//    cond = OR_EXPRS(
-//            AND_EXPRS(
-//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rBegin))),
-//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
-//            ),
-//            AND_EXPRS(
-//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lBegin))),
-//                    (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd)))
-//            )
-//    );
+	cond = constructIntervalOverlapCondition(lChild, rChild);
 
     // since we are adding a join condition this turns cross products into inner joins
     if (op->joinType == JOIN_CROSS)
@@ -341,12 +367,102 @@ tempRewrJoin (JoinOperator *op)
     DEBUG_NODE_BEATIFY_LOG("new join condition", op->cond);
 
 
-    // construct projection expressions that intersect intervals
+    // construct projection that intersect intervals
+	QueryOperator *proj = constructJoinIntervalIntersection(o);
+    /* List *temporalAttrProjs = NIL; */
+    /* Node *tBegin; */
+    /* Node *tEnd; */
+    /* List *temporalAttrRefs = getProvAttrProjectionExprs((QueryOperator *) op); */
+
+    /* lBegin = getNthOfListP(temporalAttrRefs, 0); */
+    /* lEnd = getNthOfListP(temporalAttrRefs, 1); */
+    /* rBegin = getNthOfListP(temporalAttrRefs, 2); */
+    /* rEnd = getNthOfListP(temporalAttrRefs, 3); */
+
+    /* tBegin = (Node *) createFunctionCall(FUNCNAME_GREATEST, LIST_MAKE(lBegin, rBegin)); */
+    /* tEnd = (Node *) createFunctionCall(FUNCNAME_LEAST, LIST_MAKE(lEnd, rEnd)); */
+    /* temporalAttrProjs = LIST_MAKE(tBegin, tEnd); */
+
+
+    /* // add projection to put attributes into order on top of join op and computes the interval intersection */
+    /* List *projExpr = CONCAT_LISTS( */
+    /*         getNormalAttrProjectionExprs((QueryOperator *) op), */
+    /*         temporalAttrProjs); */
+    /* ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL); */
+
+    /* addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op); */
+    /* // use left inputs provenance attributes in join output as provenance attributes to be able to reuse code from provenance rewriting */
+    /* o->provAttrs = sublist(o->provAttrs, 0, 1); */
+    /* addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op); */
+
+
+    /* // switch join with new projection */
+    /* switchSubtrees((QueryOperator *) op, (QueryOperator *) proj); */
+    /* addChildOperator((QueryOperator *) proj, (QueryOperator *) op); */
+
+    /* setTempAttrProps((QueryOperator *) proj); */
+
+    LOG_RESULT("Rewritten join", proj);
+    return (QueryOperator *) proj;
+}
+
+static void
+rewriteJoinChildren(QueryOperator **lChild, QueryOperator **rChild, QueryOperator *o)
+{
+	QueryOperator *l = *lChild;
+	QueryOperator *r = *rChild;
+	List *rNormAttrs;
+	int numLAttrs, numRAttrs;
+
+    numLAttrs = LIST_LENGTH(l->schema->attrDefs);
+    numRAttrs = LIST_LENGTH(r->schema->attrDefs);
+
+    // get attributes from right input
+    rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
+    o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
+
+    // rewrite children
+    *lChild = temporalRewriteOperator(l);
+    *rChild = temporalRewriteOperator(r);
+
+    // adapt schema for join op use
+    addProvenanceAttrsToSchema(o, l);
+    o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
+    addProvenanceAttrsToSchema(o, r);
+}
+
+static Node *
+constructIntervalOverlapCondition(QueryOperator *lChild, QueryOperator *rChild)
+{
+    AttributeReference *lBegin, *lEnd, *rBegin, *rEnd;
+    Node *cond;
+
+    lBegin = getTempAttrRef(lChild, TRUE);
+    lEnd = getTempAttrRef(lChild, FALSE);
+    rBegin = getTempAttrRef(rChild, TRUE);
+    rBegin->fromClauseItem = 1;
+    rEnd = getTempAttrRef(rChild, FALSE);
+    rEnd->fromClauseItem = 1;
+
+	// interval overlap join condition
+    cond = AND_EXPRS(
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+            );
+
+	return cond;
+}
+
+static QueryOperator *
+constructJoinIntervalIntersection(QueryOperator *op)
+{
+    AttributeReference *lBegin, *lEnd, *rBegin, *rEnd;
     List *temporalAttrProjs = NIL;
     Node *tBegin;
     Node *tEnd;
     List *temporalAttrRefs = getProvAttrProjectionExprs((QueryOperator *) op);
 
+	// construct projection expressions that intersect intervals
     lBegin = getNthOfListP(temporalAttrRefs, 0);
     lEnd = getNthOfListP(temporalAttrRefs, 1);
     rBegin = getNthOfListP(temporalAttrRefs, 2);
@@ -356,8 +472,7 @@ tempRewrJoin (JoinOperator *op)
     tEnd = (Node *) createFunctionCall(FUNCNAME_LEAST, LIST_MAKE(lEnd, rEnd));
     temporalAttrProjs = LIST_MAKE(tBegin, tEnd);
 
-
-    // add projection to put attributes into order on top of join op and computes the interval intersection
+	// add projection to put attributes into order on top of join op and computes the interval intersection
     List *projExpr = CONCAT_LISTS(
             getNormalAttrProjectionExprs((QueryOperator *) op),
             temporalAttrProjs);
@@ -365,7 +480,7 @@ tempRewrJoin (JoinOperator *op)
 
     addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
     // use left inputs provenance attributes in join output as provenance attributes to be able to reuse code from provenance rewriting
-    o->provAttrs = sublist(o->provAttrs, 0, 1);
+    op->provAttrs = sublist(op->provAttrs, 0, 1);
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
 
 
@@ -375,9 +490,9 @@ tempRewrJoin (JoinOperator *op)
 
     setTempAttrProps((QueryOperator *) proj);
 
-    LOG_RESULT("Rewritten join", proj);
     return (QueryOperator *) proj;
 }
+
 
 static QueryOperator *
 tempRewrGeneralAggregation (AggregationOperator *o)
@@ -493,6 +608,43 @@ tempRewrSetOperator (SetOperator *o)
 
     setTempAttrProps((QueryOperator *) o);
     return (QueryOperator *) o;
+}
+
+static QueryOperator *
+tempRewrNestedSubquery(NestingOperator *op)
+{
+	//TODO add other rewrite methods
+	return tempRewrNestedSubqueryLateralPostFilterTime(op);
+}
+
+static QueryOperator *
+tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op)
+{
+	QueryOperator *o = (QueryOperator *) op;
+	QueryOperator *outer = OP_LCHILD(op);
+	QueryOperator *inner = OP_RCHILD(op);
+	QueryOperator *rewritten;
+	Node *overlapCond;
+
+	// rewrite children and adapt nesting operator's schema
+	rewriteJoinChildren(&outer, &inner, o);
+
+	// add selection for interval overlap condition
+	overlapCond = constructIntervalOverlapCondition(outer, inner);
+	rewritten = (QueryOperator *) createSelectionOp(overlapCond, o, NIL, NIL);
+	o->provAttrs = copyList(o->provAttrs);
+
+    // switch nesting operator with new selection
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) rewritten);
+    //addChildOperator((QueryOperator *) rewritten, (QueryOperator *) op);
+
+    setTempAttrProps((QueryOperator *) rewritten);
+
+	// add projection to intersect intervals
+	rewritten = constructJoinIntervalIntersection(rewritten);
+
+	LOG_RESULT("nested subquery", rewritten);
+	return rewritten;
 }
 
 static QueryOperator *

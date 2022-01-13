@@ -142,21 +142,21 @@ unnestRewriteQuery(QueryOperator *op)
 	    switch(nest->nestingType)
 	    {
 	    case NESTQ_SCALAR:
-	    		DEBUG_LOG("unnest scalar:");
+	    		DEBUG_LOG("unnest scalar subquery");
 	    		unnestScalar(nestOp);
 	    		break;
 	    case NESTQ_ANY:
-	    		DEBUG_LOG("unnest in clause:");
+	    		DEBUG_LOG("unnest ANY subqery");
 	    		unnestInClause(nestOp);
 	    		break;
 	    case NESTQ_ALL:
-	    		DEBUG_LOG("unnest ALL clause:");
+	    		DEBUG_LOG("unnest ALL subquery");
 	    		if(isNotInLike(nest)) //q16
 	    			DEBUG_LOG("Special case: not in clause, subquery contains like clause and no correlation.");
 	    			unnestNotInLike(nest);
 	    		break;
 	    case NESTQ_EXISTS:
-    			DEBUG_LOG("unnest in clause:");
+    			DEBUG_LOG("unnest EXISTS subquery:");
     			if(isNotExists(nest))
     			{
     				unnestNotExists(nest);

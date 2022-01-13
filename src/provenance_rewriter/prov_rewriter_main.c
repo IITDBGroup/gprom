@@ -52,8 +52,8 @@
 #include "utility/string_utils.h"
 
 /* function declarations */
-static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
-static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
+static QueryOperator *findProvenanceComputations(QueryOperator *op, Set *haveSeen);
+static QueryOperator *rewriteProvenanceComputation(ProvenanceComputation *op);
 
 /* function definitions */
 Node *
@@ -194,7 +194,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
 	ProvenanceComputation *originalOp = copyObject(op);
 	if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE))
+	{
 		op = (ProvenanceComputation *) unnestRewriteQuery((QueryOperator *)op);
+	}
 
     // apply provenance rewriting if required
     switch(op->provType)

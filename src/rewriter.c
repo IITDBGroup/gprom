@@ -453,10 +453,16 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
-    		oModel = lateralTranslateQBModel(oModel);
+	{
+		oModel = lateralTranslateQBModel(oModel);
+		INFO_AND_DEBUG_OP_LOG("subqueries rewritten into lateral", oModel);
+	}
 
     if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
-    		oModel = unnestTranslateQBModel(oModel);
+	{
+		oModel = unnestTranslateQBModel(oModel);
+		INFO_AND_DEBUG_OP_LOG("unnested subqueries", oModel);
+	}
 
     rewrittenTree = provRewriteQBModel(oModel);
 
@@ -542,7 +548,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 }
 
 static char *
-rewriteParserOutput (Node *parse, boolean applyOptimizations)
+rewriteParserOutput(Node *parse, boolean applyOptimizations)
 {
     char *rewrittenSQL = NULL;
     Node *oModel;
