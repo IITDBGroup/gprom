@@ -757,6 +757,10 @@ analyzeFromProvInfo (FromItem *f)
             FOREACH(char,provAttr,fp->userProvAttrs)
             {
                 int pos = listPosString(f->attrNames, provAttr);
+				if (pos == -1)
+				{
+					FATAL_LOG("user declared provenance attribute %s, but this attribute does not exist in this FROM clause item: %s", provAttr, stringListToString(f->attrNames));
+				}
                 DEBUG_LOG("attribute %s at position %u", provAttr, pos);
                 f->attrNames = deepCopyStringList(f->attrNames);
                 f->dataTypes = copyObject(f->dataTypes);

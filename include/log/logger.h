@@ -176,6 +176,13 @@ extern LogLevel maxLevel;
     } while (0);
 
 
+#define INFO_AND_DEBUG_OP_LOG(_msg, _op)							\
+	do {												\
+	    DEBUG_NODE_BEATIFY_LOG(_msg " details:", _op);	\
+	    INFO_OP_LOG(_msg " overview:", _op);			\
+	} while(0)
+
+
 #endif
 /* logging activated switch */
 
