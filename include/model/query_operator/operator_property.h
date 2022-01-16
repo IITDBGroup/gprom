@@ -81,7 +81,6 @@
 #define PROP_PROV_IS_UPDATE_ROOT "UPDATE_ROOT"              // root of a translated update reenactment query
 #define PROP_PROV_ORIG_UPDATE_TYPE "ORIG_UPDATE_TYPE"       // store type of update for reenacted queries
 
-/* Operator type specific properties */
 /* provenance computation specific properties */
 #define PROP_PC_PROV_TYPE "PROV_TYPE"                       // type of provenance to track
 #define PROP_PC_TABLE "TRACK_TABLE"                         // updated table to trace proveance of transaction for
@@ -105,6 +104,10 @@
 #define PROP_PC_COARSE_GRAINED_BIND "COARSE_GRAINED_BIND"             // used in data skipping for reuse
 #define USE_PROP_PC_COARSE_GRAINED "USE_COARSE_GRAINED"             // used in data skipping
 
+/* serialization properties */
+#define PROP_NESTING_TO_SERIALIZE "NESTED_SERIALIZE_SUBQUERIES" // nested subqueries to serialize into thie operator
+
+/* Operator type specific properties */
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
 #define PROP_IS_READ_COMMITTED "TABLE_READ_COMMITTED"      // is table access for updated table in a READ COMMITTED transaction

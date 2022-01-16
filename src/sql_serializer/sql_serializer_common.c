@@ -63,6 +63,7 @@ createAPIStub (void)
 	api->serializeOrderByOperator = genSerializeOrderByOperator;
 	api->serializeExecPreparedOperator = genSerializeExecPreparedOperator;
 	api->serializePreparedStatment = genSerializePreparedStatement;
+	api->getNestedSerLocations = genGetNestedSerializationLocations;
     api->createTempView = genCreateTempView;
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
@@ -373,146 +374,148 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
                         matchInfo->windowRoot = (WindowOperator *) cur;
                         state = MATCH_WINDOW;
                         break;
-				    case T_LimitOperator:
-						if (state == MATCH_START)
-                        {
-							matchInfo->limitOffset = (LimitOperator *) cur;
-							state = MATCH_LIMIT;
-                        }
-                        else
-                        {
-                            matchInfo->fromRoot = cur;
-                            state = MATCH_NEXTBLOCK;
-                        }
-						break;
-                    default:
-                        matchInfo->fromRoot = cur;
-                        state = MATCH_NEXTBLOCK;
-                        break;
+				case T_LimitOperator:
+				{
+					if (state == MATCH_START)
+					{
+						matchInfo->limitOffset = (LimitOperator *) cur;
+						state = MATCH_LIMIT;
+					}
+					else
+					{
+						matchInfo->fromRoot = cur;
+						state = MATCH_NEXTBLOCK;
+					}
+				}
+				break;
+				default:
+					matchInfo->fromRoot = cur;
+					state = MATCH_NEXTBLOCK;
+					break;
                 }
             }
             break;
-            case MATCH_FIRST_PROJ:
-            {
-                switch(cur->type)
-                {
-                    case T_SelectionOperator:
-                    {
-                        QueryOperator *child = OP_LCHILD(cur);
-                        if (child->type == T_AggregationOperator)
-                        {
-                            matchInfo->having = (SelectionOperator *) cur;
-                            state = MATCH_HAVING;
-                        }
-                    }
-                    break;
-                    case T_AggregationOperator:
-                        matchInfo->aggregation= (AggregationOperator *) cur;
-                        state = MATCH_AGGREGATION;
-                        break;
-                    case T_WindowOperator:
-                        matchInfo->windowRoot = (WindowOperator *) cur;
-                        state = MATCH_WINDOW;
-                        break;
-                    default:
-                        FATAL_LOG("After matching first projection we should "
-                                "match selection or aggregation and not %s",
-                                nodeToString(cur));
-                    break;
-                }
-            }
-            break;
-            case MATCH_HAVING:
-            {
-                switch(cur->type)
-                {
-                    case T_AggregationOperator:
-                    {
-                        matchInfo->aggregation = (AggregationOperator *) cur;
-                        state = MATCH_AGGREGATION;
-                    }
-                    break;
-                    default:
-                           FATAL_LOG("after matching having we should match "
-                                   "aggregation and not %s", nodeToString(cur));
-                    break;
-                }
-            }
-            break;
-            case MATCH_AGGREGATION:
-            {
-                switch(cur->type)
-                {
-                    case T_SelectionOperator:
-                    {
-                        matchInfo->where = (SelectionOperator *) cur;
-                        state = MATCH_WHERE;
-                    }
-                    break;
-                    case T_ProjectionOperator:
-                        matchInfo->secondProj = (ProjectionOperator *) cur;
-                        state = MATCH_SECOND_PROJ;
-                        break;
-                    default:
-                        matchInfo->fromRoot = cur;
-                        state = MATCH_NEXTBLOCK;
-                    break;
-                }
-            }
-            break;
-            case MATCH_SECOND_PROJ:
-            {
-                switch(cur->type)
-                {
-                    case T_SelectionOperator:
-                    {
-                        matchInfo->where = (SelectionOperator *) cur;
-                        state = MATCH_WHERE;
-                    }
-                    break;
-                    default:
-                        matchInfo->fromRoot = cur;
-                        state = MATCH_NEXTBLOCK;
-                    break;
-                }
-            }
-            break;
-            case MATCH_WHERE:
-            {
-                matchInfo->fromRoot = cur;
-                state = MATCH_NEXTBLOCK;
-            }
-            break;
-            case MATCH_WINDOW:
-            {
-                switch(cur->type)
-                {
-                    case T_WindowOperator:
-                        // do nothing
-                    break;
-                    case T_SelectionOperator:
-                    {
-                        matchInfo->where = (SelectionOperator *) cur;
-                        state = MATCH_WHERE;
-                    }
-                    break;
-                   case T_ProjectionOperator:
-                   {
-                       matchInfo->secondProj = (ProjectionOperator *) cur;
-                       state = MATCH_SECOND_PROJ;
-                   }
-                   break;
-                   default:
-                       matchInfo->fromRoot = cur;
-                       state = MATCH_NEXTBLOCK;
-                   break;
-                }
-            }
-            break;
-            case MATCH_NEXTBLOCK:
-                FATAL_LOG("should not end up here because we already"
-                        " have reached MATCH_NEXTBLOCK state");
-                break;
+		case MATCH_FIRST_PROJ:
+		{
+			switch(cur->type)
+			{
+			case T_SelectionOperator:
+			{
+				QueryOperator *child = OP_LCHILD(cur);
+				if (child->type == T_AggregationOperator)
+				{
+					matchInfo->having = (SelectionOperator *) cur;
+					state = MATCH_HAVING;
+				}
+			}
+			break;
+			case T_AggregationOperator:
+				matchInfo->aggregation= (AggregationOperator *) cur;
+				state = MATCH_AGGREGATION;
+				break;
+			case T_WindowOperator:
+				matchInfo->windowRoot = (WindowOperator *) cur;
+				state = MATCH_WINDOW;
+				break;
+			default:
+				FATAL_LOG("After matching first projection we should "
+						  "match selection or aggregation and not %s",
+						  nodeToString(cur));
+				break;
+			}
+		}
+		break;
+		case MATCH_HAVING:
+		{
+			switch(cur->type)
+			{
+			case T_AggregationOperator:
+			{
+				matchInfo->aggregation = (AggregationOperator *) cur;
+				state = MATCH_AGGREGATION;
+			}
+			break;
+			default:
+				FATAL_LOG("after matching having we should match "
+						  "aggregation and not %s", nodeToString(cur));
+				break;
+			}
+		}
+		break;
+		case MATCH_AGGREGATION:
+		{
+			switch(cur->type)
+			{
+			case T_SelectionOperator:
+			{
+				matchInfo->where = (SelectionOperator *) cur;
+				state = MATCH_WHERE;
+			}
+			break;
+			case T_ProjectionOperator:
+				matchInfo->secondProj = (ProjectionOperator *) cur;
+				state = MATCH_SECOND_PROJ;
+				break;
+			default:
+				matchInfo->fromRoot = cur;
+				state = MATCH_NEXTBLOCK;
+				break;
+			}
+		}
+		break;
+		case MATCH_SECOND_PROJ:
+		{
+			switch(cur->type)
+			{
+			case T_SelectionOperator:
+			{
+				matchInfo->where = (SelectionOperator *) cur;
+				state = MATCH_WHERE;
+			}
+			break;
+			default:
+				matchInfo->fromRoot = cur;
+				state = MATCH_NEXTBLOCK;
+				break;
+			}
+		}
+		break;
+		case MATCH_WHERE:
+		{
+			matchInfo->fromRoot = cur;
+			state = MATCH_NEXTBLOCK;
+		}
+		break;
+		case MATCH_WINDOW:
+		{
+			switch(cur->type)
+			{
+			case T_WindowOperator:
+				// do nothing
+				break;
+			case T_SelectionOperator:
+			{
+				matchInfo->where = (SelectionOperator *) cur;
+				state = MATCH_WHERE;
+			}
+			break;
+			case T_ProjectionOperator:
+			{
+				matchInfo->secondProj = (ProjectionOperator *) cur;
+				state = MATCH_SECOND_PROJ;
+			}
+			break;
+			default:
+				matchInfo->fromRoot = cur;
+				state = MATCH_NEXTBLOCK;
+				break;
+			}
+		}
+		break;
+		case MATCH_NEXTBLOCK:
+			FATAL_LOG("should not end up here because we already"
+					  " have reached MATCH_NEXTBLOCK state");
+			break;
         }
 
         // go to child of cur
@@ -587,6 +590,117 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
     FREE(matchInfo);
 
     return attrNames;
+}
+
+/**
+ * @brief Determines which clause nested subqueries should be serialized into.
+ *
+ * Given a query block match that assigns operators to SQL query block clauses, determines for each matched nesting operator what to do:
+ *
+ * 1) if the result attribute of the nesting operator is
+ *      (i) used only in the conditions of matched selection(s) (WHERE or HAVING) AND
+ *      (ii) the nesting operator can be serialized into a condition (e.g., LATERAL does not work)
+ *	  then serialize the nested subquery into the WHERE of HAVING condition.
+ * 2) if the nesting operator can be serialized into the FROM clause, then do that
+ * 3) otherwise serialize into the SELECT (projection)
+ *
+ * for some systems 2) and 3) may require modifications to the nesting operator
+ *
+ * @param qbMatch operators that will go into the current query block
+ * @param op operator to check (skip if this is no nesting operator)
+ */
+
+
+void
+genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *op, SerializeClausesAPI *api)
+{
+	if(isA(op,NestingOperator))
+	{
+		NestingOperator *n = (NestingOperator *) op;
+		int serLocations = api->getNestedSerLocations(n, api);
+
+		// check for case 1: operator can be serialized into WHERE or HAVING
+		if((qbMatch->where || qbMatch->having) // we have a condition clause to serialize into
+		   && (serLocations & NEST_SER_SELECTION)) // this type of subquery can be put into a condition
+		{
+			// determine whether the result attribute is only used in selections that are matched to the current query block
+			boolean inMatchedSel;
+			boolean inNonSelOrNonMatched;
+			char *curTrackAtt = strdup(getSingleNestingResultAttribute(n));
+			QueryOperator *cur = op;
+
+		}
+	}
+	// from clause operators to traverse into
+	if(isA(op,NestingOperator)
+	   || isA(op,JoinOperator))
+	{
+		FOREACH(QueryOperator,c,op->inputs)
+		{
+			genMarkSubqueriesSerializationLocation(qbMatch,c);
+		}
+	}
+}
+
+void
+findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom)
+{
+	char *newA = a;
+
+	switch (op->type)
+	{
+	case T_NestingOperator:
+	case T_ProjectionOperator:
+	{
+
+	}
+	break;
+	// if selection operator
+	case T_SelectionOperator:
+	{
+		// does selection operator reference subquery
+		if(opReferencesAttr(op, a))
+		{
+			// is this a matched operator or from a different query block
+			if(((QueryOperator *) m->where) == op || ((QueryOperator *) m->having) == op)
+			{
+				*inMatchSel = TRUE;
+			}
+			// not a matched operator
+			else
+			{
+				*inNonMatchSel = TRUE;
+			}
+		}
+	}
+	break;
+	case T_JoinOperator:
+	{
+
+	}
+	break;
+	default:
+	{
+
+	}
+	break;
+	}
+
+	FOREACH(QueryOperator,p,op->parents)
+	{
+		findNestedSubqueryUsage(p, newA, inMatchSel, inNonMatchSel, m, outOfFrom);
+	}
+}
+
+
+int
+genGetNestedSerializationLocations(NestingOperator *n, struct SerializeClausesAPI *api)
+{
+	if(n->nestingType == NESTQ_LATERAL)
+	{
+		return NEST_SER_FROM;
+	}
+	return NEST_SER_SELECTION | NEST_SER_SELECT;
 }
 
 void

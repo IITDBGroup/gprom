@@ -688,10 +688,6 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 {
     ProjectionOperator *prj = makeNode(ProjectionOperator);
 
-    /* FOREACH(Node, expr, projExprs) */
-	/* { */
-	/* 	prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr)); */
-	/* } */
 	prj->projExprs = copyObject(projExprs);
 
     if (input != NULL)
@@ -1298,7 +1294,7 @@ getAttrRefByName(QueryOperator *op, char *attr)
 }
 
 List *
-getAttrRefsInOperator (QueryOperator *op)
+getAttrRefsInOperator(QueryOperator *op)
 {
     List *refs = NIL;
 
@@ -1347,8 +1343,12 @@ getAttrRefsInOperator (QueryOperator *op)
         }
         break;
         case T_NestingOperator:
+		{
             //TODO do not traverse into query operator
-            break;
+			NestingOperator *n = (NestingOperator *) op;
+			refs = getAttrReferences(n->cond);
+		}
+		break;
         case T_OrderOperator:
         {
             OrderOperator *p = (OrderOperator *) op;
@@ -1362,6 +1362,22 @@ getAttrRefsInOperator (QueryOperator *op)
     }
 
     return refs;
+}
+
+boolean
+opReferencesAttr(QueryOperator *op, char *a)
+{
+	List *refs =getAttrRefsInOperator(op);
+
+	FOREACH(AttributeReference,ar,refs)
+	{
+		if(streq(ar->name, a))
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 List *
@@ -1432,6 +1448,26 @@ getProjExprsForAllAttrs(QueryOperator *op)
 	return getProjExprsForAttrNames(op, attrNames);
 }
 
+
+
+List *
+getNestingResultAttributeNames(NestingOperator *op)
+{
+	List *attrs = getQueryOperatorAttrNames((QueryOperator *) op);
+	int numOuterAttrs = getNumAttrs(OP_LCHILD(op));
+
+	// return result attributes that are not from the outer (left input)
+	attrs = sublist(attrs, numOuterAttrs, -1);
+
+	return attrs;
+}
+
+char *
+getSingleNestingResultAttribute(NestingOperator *op)
+{
+	ASSERT(getNumAttrs(OP_LCHILD(op)) + 1 == getNumAttrs((QueryOperator *) op));
+	return getTailOfListP(getQueryOperatorAttrNames((QueryOperator *) op));
+}
 
 void
 treeify(QueryOperator *op)

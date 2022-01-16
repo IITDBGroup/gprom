@@ -321,7 +321,8 @@ extern AttributeReference *getAttrRefByPos (QueryOperator *op, int pos);
 extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
-extern List *getAttrRefsInOperator (QueryOperator *op);
+extern List *getAttrRefsInOperator(QueryOperator *op);
+extern boolean opReferencesAttr(QueryOperator *op, char *a);
 
 /* operator specific functions */
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
@@ -333,6 +334,9 @@ extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
 extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
 extern List *getProjExprsForAllAttrs(QueryOperator *op);
+
+extern List *getNestingResultAttributeNames(NestingOperator *op);
+extern char *getSingleNestingResultAttribute(NestingOperator *op);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
@@ -348,7 +352,7 @@ extern unsigned int numOpsInGraph (QueryOperator *root);
 extern unsigned int numOpsInTree (QueryOperator *root);
 
 //find NestingOperator based on levelsUp
-extern QueryOperator*findNestingOperator (QueryOperator *op, int levelsUp);
+extern QueryOperator*findNestingOperator(QueryOperator *op, int levelsUp);
 extern char *getNestingAttrPrefix();
 extern char *getNestingResultAttribute(int number);
 extern boolean isNestingAttribute(char *attr);

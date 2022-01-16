@@ -103,6 +103,12 @@ typedef struct JoinAttrRenameState {
 #define TVIEW_SET_ATTRNAMES(tview, attrs) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_ATTRNAMES_FIELD), attrs)
 #define TVIEW_SET_DEF(tview,def) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_DEF_FIELD), createConstString(def))
 
+typedef enum {
+	NEST_SER_SELECTION = 1,
+	NEST_SER_FROM = 2,
+	NEST_SER_SELECT = 4
+} NestedQSerLocationFlags;
+
 // struct that stores functions that serialize clauses of a select statement
 typedef struct SerializeClausesAPI {
     List *(*serializeQueryOperator) (QueryOperator *q, StringInfo str,
@@ -125,6 +131,7 @@ typedef struct SerializeClausesAPI {
 									struct SerializeClausesAPI *api);
 	void (*serializeLimitOperator) (LimitOperator *q, StringInfo limit, struct SerializeClausesAPI *api);
 	void (*serializePreparedStatment) (QueryOperator *q, StringInfo prep, struct SerializeClausesAPI *api);
+    int (*getNestedSerLocations) (NestingOperator *n, struct SerializeClausesAPI *api);
 	void (*serializeExecPreparedOperator) (ExecPreparedOperator *q, StringInfo exec);
     List *(*createTempView) (QueryOperator *q, StringInfo str,
             QueryOperator *parent, FromAttrsContext *fac, struct SerializeClausesAPI *api);
@@ -139,6 +146,8 @@ extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
         QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api);
 extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
         SerializeClausesAPI *api);
+extern int genGetNestedSerializationLocations(NestingOperator *n, struct SerializeClausesAPI *api);
+extern void genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *op, SerializeClausesAPI *api);
 extern void genSerializeFrom (QueryOperator *q, StringInfo from,
 		FromAttrsContext *fac, SerializeClausesAPI *api);
 extern void genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q,

@@ -574,11 +574,34 @@ concatLists (List *a, ...)
     return result;
 }
 
+/**
+ * @brief Return a sublist of a list
+ *
+ * This creates a shallow copy. Like in python, negative numbers are interpreted
+ * as starting from the end of the list, e.g., -1 is the last element.
+ *
+ * @param l the list to return a sublist from
+ * @param from starting position (inclusive)
+ * @param to stopping position (inclusive)
+ * @return l[from,to]
+ */
+
+
 List *
 sublist(List *l, int from, int to)
 {
     List *result = makeNode(List);
     ListCell *lc = l->head;
+
+	// python style counting from end of list
+	if(from < 0)
+	{
+		from = LIST_LENGTH(l) - from;
+	}
+	if(to < 0)
+	{
+		to = LIST_LENGTH(l) - to;
+	}
 
     ASSERT(from >= 0 && to < LIST_LENGTH(l) && to >= from);
 

@@ -81,6 +81,7 @@
 // schema manipulation
 extern void clearAttrsFromSchema(QueryOperator *target);
 extern void addNormalAttrsToSchema(QueryOperator *target, QueryOperator *source);
+extern void addProvenanceAttrsToSchemaWithRename(QueryOperator *target, QueryOperator * source, char *suffix);
 extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source);
 extern void addProvenanceAttrsToSchemabasedOnList(QueryOperator *target, List *provList);
 extern void makeNamesUnique (List *names, Set *allNames);

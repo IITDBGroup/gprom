@@ -41,6 +41,7 @@ static QueryOperator *tempRewrDuplicateRemOp (DuplicateRemoval *o);
 
 static QueryOperator *temporalLateralizeAndUnnestSubqueries(QueryOperator *root);
 static QueryOperator *constructJoinIntervalIntersection(QueryOperator *op);
+static Node *constructNestingIntervalOverlapCondition(QueryOperator *op);
 static Node *constructIntervalOverlapCondition(QueryOperator *lChild, QueryOperator *rChild);
 static void rewriteJoinChildren(QueryOperator **lChild, QueryOperator **rChild, QueryOperator *o);
 static boolean isSetCoalesceSufficient(QueryOperator *q);
@@ -308,7 +309,7 @@ tempRewrProjection (ProjectionOperator *o)
 }
 
 static QueryOperator *
-tempRewrJoin (JoinOperator *op)
+tempRewrJoin(JoinOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS - Join");
     QueryOperator *o = (QueryOperator *) op;
@@ -408,6 +409,8 @@ tempRewrJoin (JoinOperator *op)
     return (QueryOperator *) proj;
 }
 
+#define JOIN_RIGHT_TEMP_ATTR_SUFFIX "_1"
+
 static void
 rewriteJoinChildren(QueryOperator **lChild, QueryOperator **rChild, QueryOperator *o)
 {
@@ -430,7 +433,7 @@ rewriteJoinChildren(QueryOperator **lChild, QueryOperator **rChild, QueryOperato
     // adapt schema for join op use
     addProvenanceAttrsToSchema(o, l);
     o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
-    addProvenanceAttrsToSchema(o, r);
+    addProvenanceAttrsToSchemaWithRename(o, r, JOIN_RIGHT_TEMP_ATTR_SUFFIX);
 }
 
 static Node *
@@ -454,6 +457,28 @@ constructIntervalOverlapCondition(QueryOperator *lChild, QueryOperator *rChild)
 
 	return cond;
 }
+
+static Node *
+constructNestingIntervalOverlapCondition(QueryOperator *op)
+{
+    AttributeReference *lBegin, *lEnd, *rBegin, *rEnd;
+	List *tempAttrDefs = getAttrRefsByNames(op, getOpProvenanceAttrNames(op));
+    Node *cond;
+
+    lBegin = getNthOfListP(tempAttrDefs, 0);
+    lEnd = getNthOfListP(tempAttrDefs, 1);
+    rBegin = getNthOfListP(tempAttrDefs, 2);
+    rEnd =  getNthOfListP(tempAttrDefs, 3);
+
+	// interval overlap join condition
+    cond = AND_EXPRS(
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+            );
+
+	return cond;
+}
+
 
 static QueryOperator *
 constructJoinIntervalIntersection(QueryOperator *op)
@@ -479,12 +504,12 @@ constructJoinIntervalIntersection(QueryOperator *op)
             getNormalAttrProjectionExprs((QueryOperator *) op),
             temporalAttrProjs);
     ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
+	proj->op.schema->attrDefs = NIL;
 
     addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
     // use left inputs provenance attributes in join output as provenance attributes to be able to reuse code from provenance rewriting
     op->provAttrs = sublist(op->provAttrs, 0, 1);
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
-
 
     // switch join with new projection
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
@@ -632,13 +657,13 @@ tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op)
 	rewriteJoinChildren(&outer, &inner, o);
 
 	// add selection for interval overlap condition
-	overlapCond = constructIntervalOverlapCondition(outer, inner);
+	overlapCond = constructNestingIntervalOverlapCondition(o);
 	rewritten = (QueryOperator *) createSelectionOp(overlapCond, o, NIL, NIL);
-	o->provAttrs = copyList(o->provAttrs);
+	rewritten->provAttrs = copyList(o->provAttrs);
 
     // switch nesting operator with new selection
     switchSubtrees((QueryOperator *) op, (QueryOperator *) rewritten);
-    //addChildOperator((QueryOperator *) rewritten, (QueryOperator *) op);
+	addParent(o, rewritten);
 
     setTempAttrProps((QueryOperator *) rewritten);
 
