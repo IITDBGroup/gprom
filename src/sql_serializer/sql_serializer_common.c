@@ -39,6 +39,8 @@ static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
 static char *createAttrName (char *name, int fItem, FromAttrsContext *fac);
 static HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api);
 static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api);
+static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
+
 
 /*
  * create API struct
@@ -600,7 +602,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
  * 1) if the result attribute of the nesting operator is
  *      (i) used only in the conditions of matched selection(s) (WHERE or HAVING) AND
  *      (ii) the nesting operator can be serialized into a condition (e.g., LATERAL does not work)
- *	  then serialize the nested subquery into the WHERE of HAVING condition.
+ *	  then serialize the nested subquery into the WHERE or HAVING condition.
  * 2) if the nesting operator can be serialized into the FROM clause, then do that
  * 3) otherwise serialize into the SELECT (projection)
  *
@@ -637,10 +639,23 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 	{
 		FOREACH(QueryOperator,c,op->inputs)
 		{
-			genMarkSubqueriesSerializationLocation(qbMatch,c);
+			genMarkSubqueriesSerializationLocation(qbMatch, c, api);
 		}
 	}
 }
+
+/**
+ * @brief Find operators which use the result attribute of NestingOperator.
+ *
+ *
+ * @param op check whether this operator uses the result attribute a of the nesting operator
+ * @param a the result attribute of the nesting operator
+ * @param inMatchSel record whether the nesting result is used in a selection of the query query block (m)
+ * @param inNonMatchSel record whether the nesting result is used in a selection belonging to another query block
+ * @param m the query block to which the nesting operator belongs to
+ * @param outOfFrom is op inside the from clause of the query block m
+ *
+ */
 
 void
 findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom)
@@ -652,12 +667,15 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 	case T_NestingOperator:
 	case T_ProjectionOperator:
 	{
-
+		// for projection we need to check whether an in match attribute
+		outOfFrom = TRUE;
 	}
 	break;
 	// if selection operator
 	case T_SelectionOperator:
 	{
+		outOfFrom = TRUE;
+
 		// does selection operator reference subquery
 		if(opReferencesAttr(op, a))
 		{
@@ -681,7 +699,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 	break;
 	default:
 	{
-
+		outOfFrom = TRUE;
 	}
 	break;
 	}
@@ -694,7 +712,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 
 
 int
-genGetNestedSerializationLocations(NestingOperator *n, struct SerializeClausesAPI *api)
+genGetNestedSerializationLocations(NestingOperator *n, SerializeClausesAPI *api)
 {
 	if(n->nestingType == NESTQ_LATERAL)
 	{
