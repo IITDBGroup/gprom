@@ -283,6 +283,8 @@ extern char *latexEscapeString(char *st);
 
 /* functions for searching inside expressions */
 extern List *getAttrReferences(Node *node);
+extern List *exprGetReferencedAttrNames(Node *node);
+extern boolean doesExprReferenceAttribute(Node *expr, char *a);
 extern List *getDLVars(Node *node);
 extern List *getDLVarsIgnoreProps(Node *node);
 

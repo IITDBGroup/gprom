@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "log/logger.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
@@ -1138,7 +1139,7 @@ getAttrRefNames(ProjectionOperator *op)
 {
    List *result = NIL;
 
-   FOREACH(AttributeReference, a, op->projExprs)
+   FOREACH(AttributeReference, a, op->projExprs)//FIXME will break if not just attribute references
       result = appendToTailOfList(result, strdup(a->name));
 
    return result;
@@ -1448,6 +1449,25 @@ getProjExprsForAllAttrs(QueryOperator *op)
 	return getProjExprsForAttrNames(op, attrNames);
 }
 
+
+List *
+getProjResultAttrNamesForProjExpr(ProjectionOperator *op, Node *expr)
+{
+    List *result;
+	List *names = getQueryOperatorAttrNames((QueryOperator *) op);
+	int pos = 0;
+
+	FOREACH(Node,pe,op->projExprs)
+	{
+		if(equal(pe, expr))
+		{
+			result = appendToTailOfList(result, getNthOfListP(names, pos));
+		}
+		pos++;
+	}
+
+	return result;
+}
 
 
 List *

@@ -334,6 +334,7 @@ extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
 extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
 extern List *getProjExprsForAllAttrs(QueryOperator *op);
+extern List *getProjResultAttrNamesForProjExpr(ProjectionOperator *op, Node *expr);
 
 extern List *getNestingResultAttributeNames(NestingOperator *op);
 extern char *getSingleNestingResultAttribute(NestingOperator *op);

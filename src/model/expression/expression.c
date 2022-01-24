@@ -1348,7 +1348,6 @@ funcExists (char *fName, List *argDTs)
 
     return fExists;
 }
-
 static Set *
 castsAsSet(DataType in)
 {
@@ -1409,6 +1408,27 @@ findAttrReferences (Node *node, List **state)
     }
 
     return visit(node, findAttrReferences, state);
+}
+
+List *
+exprGetReferencedAttrNames(Node *node)
+{
+	List *refs = getAttrReferences(node);
+	List *names = NIL;
+
+	FOREACH(AttributeReference,a,refs)
+	{
+		names = appendToTailOfList(names, strdup(a->name));
+	}
+
+	return names;
+}
+
+boolean
+doesExprReferenceAttribute(Node *expr, char *a)
+{
+	List *names = exprGetReferencedAttrNames(expr);
+	return searchListString(names, a);
 }
 
 List *

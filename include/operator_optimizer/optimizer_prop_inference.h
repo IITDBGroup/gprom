@@ -38,7 +38,8 @@ extern void computeECPropTopDown (QueryOperator *root);
 extern List *SCHAtoBUsedInBomUp(List *setList, List *childECSetList, List *attrA, List *attrB);
 extern void SCHBtoAUsedInTopBom(List **setList, List *attrRefs, List *attrDefs);
 
-extern void computeReqColProp (QueryOperator *root);
+extern void computeReqColProp(QueryOperator *root);
+extern boolean isAttrRequired(QueryOperator *q, char *attr);
 extern void computeSetProp (QueryOperator *root);
 
 extern void initializeSetProp(QueryOperator *root);

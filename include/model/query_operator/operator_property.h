@@ -106,6 +106,7 @@
 
 /* serialization properties */
 #define PROP_NESTING_TO_SERIALIZE "NESTED_SERIALIZE_SUBQUERIES" // nested subqueries to serialize into thie operator
+#define PROP_NESTING_LOCATIONS "NESTED_SUBQUERY_LOCATIONS" //
 
 /* Operator type specific properties */
 /* table access properties */

@@ -2713,7 +2713,7 @@ initializeIColProp(QueryOperator *root)
  * rewrites.
  */
 void
-computeReqColProp (QueryOperator *root)
+computeReqColProp(QueryOperator *root)
 {
 	/*
 	 * Get root's icols set which can be used in following each operator
@@ -3022,6 +3022,19 @@ computeReqColProp (QueryOperator *root)
             computeReqColProp(o);
         }
     }
+}
+
+boolean
+isAttrRequired(QueryOperator *q, char *attr)
+{
+	if(HAS_STRING_PROP(q, PROP_STORE_SET_ICOLS))
+	{
+		Set *icols = (Set *) getStringProperty(q, PROP_STORE_SET_ICOLS);
+
+		return hasSetElem(icols, attr);
+	}
+
+	return FALSE;
 }
 
 void
