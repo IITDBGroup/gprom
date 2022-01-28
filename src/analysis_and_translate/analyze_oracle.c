@@ -78,6 +78,7 @@ static void analyzeInsert(Insert *f);
 static void analyzeDelete(Delete *f);
 static void analyzeUpdate(Update *f);
 static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
+static void analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 static boolean correctFromTableVisitor (Node *node, void *context);
@@ -478,16 +479,25 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     }
 
     // figuring out attributes of from clause items
+	// to deal with LATERAL correlated subqueries we have to keep partial copies of the from clause items
+	List *priorFromItems = NIL;
+
     FOREACH(FromItem,f,qb->fromClause)
     {
+		List *newParentFroms = appendToHeadOfList(copyList(parentFroms), copyList(priorFromItems));
+		priorFromItems = appendToTailOfList(priorFromItems, f);
+
         switch(f->type)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
                 break;
             case T_FromSubquery:
-            	    analyzeFromSubquery((FromSubquery *) f, parentFroms);
+            	analyzeFromSubquery((FromSubquery *) f, parentFroms);
             	break;
+		    case T_FromLateralSubquery:
+				analyzeFromLateralSubquery((FromLateralSubquery *) f, newParentFroms);
+			    break;
             case T_FromJoinExpr:
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
@@ -540,20 +550,6 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     // adapt attribute references
     adaptAttributeRefs(attrRefs, parentFroms);
 
-    // create attribute names for unnamed attribute in select clause
-    /* FOREACH(SelectItem,s,qb->selectClause) */
-    /* { */
-    /*     if (s->alias == NULL) */
-    /*     { */
-    /*         char *newAlias = generateAttrNameFromExpr(s); */
-    /*         s->alias = strdup(newAlias); */
-    /*     } */
-    /*     else */
-    /*     { */
-    /*         s->alias = backendifyIdentifier(s->alias); */
-    /*     } */
-    /* } */
-
     // adapt function call (isAgg)
     analyzeFunctionCall(qb);
     DEBUG_LOG("Analyzed functions");
@@ -595,7 +591,7 @@ analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
     findNestedSubqueries((Node *) qb->orderByClause, &nestedSubqueries);
 
     DEBUG_LOG("Current query <%s>\nhas nested subqueries\n%s",
-            nodeToString(qb), nodeToString(nestedSubqueries));
+			  nodeToString(qb), nodeToString(nestedSubqueries));
 
     // analyze each subquery
     FOREACH(NestedSubquery,q,nestedSubqueries)
@@ -1773,6 +1769,22 @@ analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 }
 
 static void
+analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFroms)
+{
+    List *expectedAttrs;
+
+	analyzeQueryBlockStmt(lq->subquery, parentFroms);
+	expectedAttrs = getQBAttrNames(lq->subquery);
+
+	// if no attr aliases given
+	if (!(lq->from.attrNames))
+	    lq->from.attrNames = expectedAttrs;
+	lq->from.dataTypes = getQBAttrDTs(lq->subquery);
+
+	ASSERT(LIST_LENGTH(lq->from.attrNames) == LIST_LENGTH(expectedAttrs));
+}
+
+static void
 getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts)
 {
     if (schemaInfoHasTable(tableName))
@@ -1936,6 +1948,7 @@ getFromTreeLeafs (List *from)
             }
             break;
             case T_FromSubquery:
+     		case T_FromLateralSubquery:
             case T_FromTableRef:
                 result = appendToTailOfList(result, f);
                 break;

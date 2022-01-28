@@ -1909,12 +1909,12 @@ fromClauseItem:
                 RULELOG("fromClauseItem::LATERALsubQuery");
                 FromItem *f = (FromItem *) createFromLateralSubquery(NULL, NULL, $2);
                 f->provInfo = (FromProvInfo *) $3;
-                $$ = $2;
+                $$ = (Node *) f;
             }
 		| LATERAL queryStmtWithParens optionalAlias
 			{
                 RULELOG("fromClauseItem::LATERALsubQuery");
-                FromSubquery *s = (FromSubquery *) createFromLateralSubquery(NULL, NULL, $2);
+                FromLateralSubquery *s = (FromLateralSubquery *) createFromLateralSubquery(NULL, NULL, $2);
                 s->from.name = ((FromItem *) $3)->name;
                 s->from.attrNames = ((FromItem *) $3)->attrNames;
                 s->from.provInfo = ((FromItem *) $3)->provInfo;

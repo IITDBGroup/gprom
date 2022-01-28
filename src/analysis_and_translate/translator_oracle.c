@@ -73,6 +73,7 @@ static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList);
+static QueryOperator *translateFromLateralSubquery(FromSubquery *fsq, List **attrsOffsetsList);
 static QueryOperator *translateFromJsonTable(FromJsonTable *fjt);
 static QueryOperator *translateFromProvInfo(QueryOperator *op, FromItem *f);
 
@@ -1253,6 +1254,8 @@ translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
             case T_FromSubquery:
                 op = translateFromSubquery((FromSubquery *) from, attrsOffsetsList);
                 break;
+		    case T_FromLateralSubquery:
+			    op = trans
             case T_FromJsonTable:
             	op = translateFromJsonTable((FromJsonTable *) from);
             	break;
@@ -1576,6 +1579,13 @@ translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList)
 {
     return translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
     //TODO set attr names from FromItem
+}
+
+static QueryOperator *
+translateFromLateralSubquery(FromSubquery *fsq, List **attrsOffsetsList)
+{
+	//TODO use translateNestedSubquery to take care of
+    return translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
 }
 
 static QueryOperator *

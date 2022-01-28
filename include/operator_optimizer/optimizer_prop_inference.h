@@ -46,7 +46,7 @@ extern void initializeSetProp(QueryOperator *root);
 extern void initializeIColProp(QueryOperator *root);
 extern void printIcols(QueryOperator *root);
 
-extern Set* AddAttrOfSelectCondToSet(Set *set, Operator *op);
+extern Set *addAttrOfSelectCondToSet(Set *set, Node *expr);
 
 /* help print function */
 extern void printECPro(QueryOperator *root);

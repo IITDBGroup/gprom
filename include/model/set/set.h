@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * set.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -115,8 +115,9 @@ extern void removeSetElem (Set *set, void *elem);
 extern void removeSetIntElem (Set *set, int elem);
 extern void removeSetLongElem (Set *set, gprom_long_t elem);
 
-extern Set *unionSets (Set *left, Set *right);
-extern Set *intersectSets (Set *left, Set *right);
+extern Set *unionSets(Set *left, Set *right);
+extern void unionIntoSet(Set *left, Set *right);
+extern Set *intersectSets(Set *left, Set *right);
 extern Set *setDifference(Set *left, Set *right);
 
 extern boolean overlapsSet(Set *left, Set *right);

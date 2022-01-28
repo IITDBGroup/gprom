@@ -78,6 +78,7 @@ typedef struct UpdateAggAndGroupByAttrState {
 typedef struct FromAttrsContext {
     List *fromAttrs;
     List *fromAttrsList;
+	HashMap *nestAttrMap;
 } FromAttrsContext;
 
 typedef struct JoinAttrRenameState {
@@ -140,6 +141,7 @@ typedef struct SerializeClausesAPI {
 } SerializeClausesAPI;
 
 /* generic functions for serializing queries that call an API provided as a parameter */
+extern char *serLocationsToString(int serloc);
 extern SerializeClausesAPI *createAPIStub (void);
 extern void genQuoteAttributeNames (Node *q);
 extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
@@ -177,7 +179,7 @@ extern FromAttrsContext *initializeFromAttrsContext ();
     do { \
         Node *_localExpr = (Node *) (expr); \
         if (m->secondProj == NULL) \
-            updateAttributeNames(_localExpr, falseAttrs); \
+            updateAttributeNames(_localExpr, falseAttrs);	\
         else \
             updateAttributeNamesSimple(_localExpr, trueAttrs); \
     } while(0)

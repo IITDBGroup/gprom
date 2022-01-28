@@ -158,6 +158,8 @@ typedef struct StringInfoData
 
 typedef StringInfoData *StringInfo;
 
+#define STRINFO_LEN(s) strlen(s->data)
+
 /* Key-Value pair */
 
 typedef struct KeyValue
