@@ -22,6 +22,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator.h"
@@ -66,14 +67,14 @@ static QueryOperator *translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 /* Functions of translating from clause in a QueryBlock */
 static QueryOperator *translateFromClause(List *fromClause, List **attrsOffsetsList);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
-static List *translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList);
+static List *translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList, List *selfOffsets);
 //static void addPrefixToAttrNames (List *str, char *prefix);
 static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList);
-static QueryOperator *translateFromLateralSubquery(FromSubquery *fsq, List **attrsOffsetsList);
+static QueryOperator *translateFromLateralSubquery(FromLateralSubquery *fsq, List **attrsOffsetsList);
 static QueryOperator *translateFromJsonTable(FromJsonTable *fjt);
 static QueryOperator *translateFromProvInfo(QueryOperator *op, FromItem *f);
 
@@ -1123,7 +1124,9 @@ replaceWithViewRefsMutator(Node *node, List *views)
 static QueryOperator *
 translateFromClause(List *fromClause, List **attrsOffsetsList)
 {
-    List *opList = translateFromClauseToOperatorList(fromClause, attrsOffsetsList);
+    List *selfOffsets = getAttrsOffsets(fromClause);
+
+    List *opList = translateFromClauseToOperatorList(fromClause, attrsOffsetsList, selfOffsets);
     return buildJoinTreeFromOperatorList(opList);
 }
 
@@ -1165,10 +1168,11 @@ buildJoinTreeFromOperatorList(List *opList)
         else
         {
             QueryOperator *oldRoot = (QueryOperator *) root;
-            List *inputs = NIL;
+			boolean isLateral = HAS_STRING_PROP(op, PROP_OP_IS_LATERAL);
+            List *inputs = LIST_MAKE(oldRoot, op);
             // set children of the join node
-            inputs = appendToTailOfList(inputs, oldRoot);
-            inputs = appendToTailOfList(inputs, op);
+            /* inputs = appendToTailOfList(inputs, oldRoot); */
+            /* inputs = appendToTailOfList(inputs, op); */
             List *lAttrs = getAttrNames(oldRoot->schema);
             List *rAttrs = getAttrNames(op->schema);
 
@@ -1178,12 +1182,29 @@ buildJoinTreeFromOperatorList(List *opList)
             // names
             List *attrNames = concatTwoLists(lAttrs, rAttrs);
 
+			// for lateral subqueries create nesting operator
+			if(isLateral)
+			{
+				List *dts = CONCAT_LISTS(getDataTypes(oldRoot->schema),
+										 getDataTypes(op->schema));
+				root = (QueryOperator *) createNestingOp(NESTQ_LATERAL,
+														 NULL,
+														 inputs,
+														 NIL,
+														 attrNames,
+														 dts);
+				addParent(OP_LCHILD(root), root);
+				addParent(OP_RCHILD(root), root);
+			}
             // create join operator
-            root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
+			else
+			{
+				root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
-            // set the parent of the operator's children
-            OP_LCHILD(root)->parents = singleton(root);
-            OP_RCHILD(root)->parents = singleton(root);
+				// set the parent of the operator's children
+				OP_LCHILD(root)->parents = singleton(root);
+				OP_RCHILD(root)->parents = singleton(root);
+			}
         }
         pos++;
     }
@@ -1234,10 +1255,11 @@ getAttrsOffsets(List *fromClause)
 }
 
 static List *
-translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
+translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList, List *selfOffsets)
 {
     List *opList = NIL;
-
+	List *currentOffsets = NIL;
+	int pos = 0;
     DEBUG_LOG("translate from clause");
 
     FOREACH(FromItem, from, fromClause)
@@ -1255,7 +1277,21 @@ translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
                 op = translateFromSubquery((FromSubquery *) from, attrsOffsetsList);
                 break;
 		    case T_FromLateralSubquery:
-			    op = trans
+			{
+				// make from items to the left of this LATERAL query available for correlation
+				if(LIST_LENGTH(currentOffsets) > 0)
+				{
+					*attrsOffsetsList = appendToHeadOfList(*attrsOffsetsList, currentOffsets);
+				}
+
+			    op = translateFromLateralSubquery((FromLateralSubquery *) from, attrsOffsetsList);
+
+				if(LIST_LENGTH(currentOffsets) > 0)
+				{
+					*attrsOffsetsList = removeFromHead(*attrsOffsetsList);
+				}
+			}
+			break;
             case T_FromJsonTable:
             	op = translateFromJsonTable((FromJsonTable *) from);
             	break;
@@ -1268,6 +1304,9 @@ translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
 
         ASSERT(op);
         opList = appendToTailOfList(opList, op);
+		// create prefix of offsets for from items we have processed so far
+		currentOffsets = appendToTailOfListInt(currentOffsets, getNthOfListInt(selfOffsets, pos));
+		pos++;
     }
 
     ASSERT(opList);
@@ -1582,10 +1621,15 @@ translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList)
 }
 
 static QueryOperator *
-translateFromLateralSubquery(FromSubquery *fsq, List **attrsOffsetsList)
+translateFromLateralSubquery(FromLateralSubquery *fsq, List **attrsOffsetsList)
 {
+	QueryOperator *result;
 	//TODO use translateNestedSubquery to take care of
-    return translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
+    result = translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
+	SET_BOOL_STRING_PROP(result, PROP_OP_IS_LATERAL);
+	DEBUG_LOG("translated lateral subquery.");
+
+	return result;
 }
 
 static QueryOperator *

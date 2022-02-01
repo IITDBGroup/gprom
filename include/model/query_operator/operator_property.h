@@ -193,6 +193,9 @@
 #define PROV_PROP_RADB_LIST "PROV_PROP_RADB_LIST"
 #define PROV_PROP_UADB_LIST "PROV_PROP_UADB_LIST"
 
+/* nested subqueries */
+#define PROP_OP_IS_LATERAL "IS_LATERAL_TRANSLATION"
+
 /* properties for aggregation operators created by lateral rewrite */
 #define PROP_OPT_AGGREGATION_BY_LATREAL_WRITE "AGGREGATION BY LATERAL REWRITE" //mark the aggregation created by lateral rewrite for nested queries
 

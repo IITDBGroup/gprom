@@ -179,15 +179,17 @@ printFromAttrsContext(FromAttrsContext *fac)
 		appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
 		FOREACH(List, l1, fac->fromAttrsList)
 		{
+			appendStringInfoString(s1, "[");
 			FOREACH(List, l2, l1)
 			{
 				appendStringInfo(s1, "(");
 				FOREACH(char, c, l2)
+				{
 					appendStringInfo(s1, " %s ", c);
-				//DEBUG_LOG("%s",c);
-				appendStringInfo(s1, ")");
+				}
+				appendStringInfo(s1, ")%s", FOREACH_HAS_MORE(l2) ? ", " : "");
 			}
-			appendStringInfo(s1, " , ");
+			appendStringInfo(s1, "]%s", FOREACH_HAS_MORE(l1) ? ", " : "");
 		}
 		DEBUG_LOG(" %s ", s1->data);
 	}
@@ -203,7 +205,7 @@ printFromAttrsContext(FromAttrsContext *fac)
     	    appendStringInfo(s2, "(");
 			FOREACH(char, c, l1)
 				appendStringInfo(s2, " %s ", c);
-			appendStringInfo(s2, ")");
+			appendStringInfo(s2, ")%s", FOREACH_HAS_MORE(l1) ? ", " : "");
 		}
 		DEBUG_LOG(" %s ", s2->data);
 	}
@@ -223,6 +225,12 @@ getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *ap
 static void
 setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
+	FromAttrsContext *subqueryFac = copyFromAttrsContext(fac);
+
+	// subquery from clause starts empty but has current query's from clause as an "outer"
+	subqueryFac->fromAttrs = NIL;
+	subqueryFac->fromAttrsList = appendToHeadOfList(subqueryFac->fromAttrsList, copyList(fac->fromAttrs));
+
 	if(isA(op, NestingOperator))
 	{
 		NestingOperator *nest = (NestingOperator *) op;
@@ -256,7 +264,7 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 				}
 
 				appendStringInfoString(s, "(");
-				api->serializeQueryOperator(OP_RCHILD(op), s, NULL, fac, api);
+				api->serializeQueryOperator(OP_RCHILD(op), s, NULL, subqueryFac, api);
 				appendStringInfoString(s, ")");
 				DEBUG_LOG("serialized nested subquery: %s", s->data);
 				MAP_ADD_STRING_KEY(*map, strdup(nestName),
@@ -273,7 +281,7 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
 List *
-genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
+genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
     StringInfo fromString = makeStringInfo();
@@ -556,8 +564,6 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
-    //List *fromAttrs = NIL;
-    //sine want to use fac->fromAttrs as a local variable in serializeFrom
     FromAttrsContext *cfac = copyFromAttrsContext(fac);
     cfac->fromAttrs = NIL;
     api->serializeFrom(matchInfo->fromRoot, fromString, cfac, api);
@@ -678,6 +684,7 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 
 		setStringProperty(op, PROP_NESTING_LOCATIONS, (Node *) createConstInt(serLocations));
 		DEBUG_LOG("Subquery: %s\nshould be serialized into %s", singleOperatorToOverview(op), serLocationsToString(serLocations));
+		ASSERT(serLocations != NEST_SER_SELECT); //TODO implement serialization into SELECT
 	}
 	// from clause operators to traverse into
 	if(isA(op,NestingOperator)
@@ -720,6 +727,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 			*inNonMatchSel = TRUE;
 		}
 	}
+	break;
 	case T_ProjectionOperator:
 	{
 		ProjectionOperator *p = (ProjectionOperator *) op;
@@ -769,6 +777,11 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 			}
 			}
 			outOfFrom = TRUE;
+		}
+		// no references, attribute no longer there
+		else
+		{
+			attrExistsInOutput = FALSE;
 		}
 	}
 		break;
@@ -863,6 +876,8 @@ genSerializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac, Seri
     api->serializeFromItem (q, q, from, &curFromItem, &attrOffset, fac, api);
 }
 
+#define CLOSE_FROM_ITEM() appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList))
+
 void
 genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
 					  int *attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
@@ -908,26 +923,28 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 			// only serialize to FROM clause if we do not serialize elsewhere
 			if(location & NEST_SER_FROM)
 			{
-				char *subAttr = getTailOfListP(getQueryOperatorAttrNames(q));
-				QueryOperator *input = OP_LCHILD(nest);
+				QueryOperator *outer = OP_LCHILD(nest);
 				QueryOperator *subquery = OP_RCHILD(nest);
-				//List *subqueryNames = getQueryOperatorAttrNames(subquery);
+				FromAttrsContext *subqueryFac;
+				List *subqueryNames;
 
-				api->serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fac, api);
+				// serialize left input (the outer query)
+				api->serializeFromItem(fromRoot, outer, from, curFromItem, attrOffset, fac, api);
 
-				fac->fromAttrs = appendToTailOfList(fac->fromAttrs, LIST_MAKE(strdup(subAttr)));
+				// create fac with previous from clause items as context for correlations in LATERAL
+				subqueryFac = copyFromAttrsContext(fac);
+				subqueryFac->fromAttrsList = appendToHeadOfList(subqueryFac->fromAttrsList, copyList(fac->fromAttrs));
+				subqueryFac->fromAttrs = NIL;
 
-				//fromAttrsList: ( ((C,D)) , ((A,B), (nesting)) ) -> format: (L1, L2)
-				//here (((A,B))) -> (((A,B), (nesting_eval_1)))
-				fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
-				fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+				// serialize the nested subquery
+				appendStringInfoString(from, ", LATERAL (");
+				subqueryNames = api->serializeQueryOperator(subquery, from, q, subqueryFac, api);
+				CLOSE_FROM_ITEM();
+
+				// add result attributes to current from clasue
+				fac->fromAttrs = appendToTailOfList(fac->fromAttrs, subqueryNames);
 				printFromAttrsContext(fac);
 
-				AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
-				a->attrName = strdup(subAttr);
-				//api->serializeQueryOperator(subquery, from, (QueryOperator *) nest, fac, api);
-				//appendStringInfoString(from, ")");
-				//appendStringInfo(from, " F%u_0", (*curFromItem)++);
 			}
 			else // otherwise attributes from the left input still have to be added to from clause
 			{
@@ -936,19 +953,15 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 			}
 		}
 		break;
-		default:
+		default://CHECK not sure that the fromAttrsList handling here is correct
 		{
 			List *attrNames;
 
 			appendStringInfoString(from, "(");
 			attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac, api); //TODO ok to use first?
 			fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-			//fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
-			fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
 			printFromAttrsContext(fac);
-			appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
-			//*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-			//appendStringInfo(from, ") F%u", (*curFromItem)++);
+			CLOSE_FROM_ITEM();
 		}
 		break;
         }
@@ -964,8 +977,8 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
             fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
             //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
-            fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-            appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+            //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+            CLOSE_FROM_ITEM();
         }
     }
 }
@@ -1074,22 +1087,11 @@ updateAttributeNames(Node *node, FromAttrsContext *fac)
 
 		if(!fac->nestAttrMap || !MAP_HAS_STRING_KEY(fac->nestAttrMap, a->name))
 		{
-//        // LOOP THROUGH fromItems (outer list)
-//        FOREACH(List, attrs, fromAttrs)
-//        {
-//            attrPos += LIST_LENGTH(attrs);
-//            fromItem++;
-//            if (attrPos > a->attrPosition)
-//            {
-//                outer = attrs;
-//                break;
-//            }
-//        }
 			List *attrsList = NIL;
-			if(a->outerLevelsUp >= 0)
-				attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp);
-			else
-				attrsList = (List *) getNthOfListP(fac->fromAttrsList, 0);
+			if(a->outerLevelsUp > 0) // outer query correlated attributes
+				attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp - 1);
+			else // attribute from current query block
+				attrsList = (List *) fac->fromAttrs;
 
 			FOREACH(List, attrs, attrsList)
 			{
@@ -1105,16 +1107,10 @@ updateAttributeNames(Node *node, FromAttrsContext *fac)
 			newName = getNthOfListP(outer, attrPos);
 
 			if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
-				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-1) , ".", newName);
+				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", newName);
 			else
-				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
+				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-(a->outerLevelsUp)) , ".", newName);
 		}
-//        attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
-//        if(LIST_LENGTH(outer) > attrPos)
-//        {
-//        		newName = getNthOfListP(outer, attrPos);
-//        		a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
-//        }
     }
 
     return visit(node, updateAttributeNames, fac);
@@ -1274,7 +1270,7 @@ createAttrName (char *name, int fItem, FromAttrsContext *fac)
    StringInfo str = makeStringInfo();
    char *result = NULL;
 
-   appendStringInfo(str, "F%u_%u.%s", fItem, LIST_LENGTH(fac->fromAttrsList) - 1, name);
+   appendStringInfo(str, "F%u_%u.%s", fItem, LIST_LENGTH(fac->fromAttrsList), name);
    result = str->data;
    FREE(str);
 

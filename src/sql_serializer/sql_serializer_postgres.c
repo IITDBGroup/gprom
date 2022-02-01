@@ -233,7 +233,7 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
     api->serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset,
             fac, api);
 
-    fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+    //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
 
     // join
     switch (j->joinType)
@@ -316,10 +316,6 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(Node,expr,agg->aggrs)
         {
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
-//            if (m->secondProj == NULL)
-//                updateAttributeNames(expr, fromAttrs);
-//            else
-//                updateAttributeNamesSimple(expr, firstProjs);
             aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL, FALSE));
         }
         DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
@@ -334,10 +330,6 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 appendStringInfoString (groupBy, ", ");
 
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
-//            if (m->secondProj == NULL)
-//                updateAttributeNames(expr, fromAttrs);
-//            else
-//                updateAttributeNamesSimple(expr, firstProjs);
             g = exprToSQL(expr, NULL, FALSE);
 
             groupBys = appendToTailOfList(groupBys, g);
@@ -367,10 +359,6 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 					  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
-//            if (m->secondProj == NULL)
-//                updateAttributeNames(expr, fromAttrs);
-//            else
-//                updateAttributeNamesSimple(expr, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fac, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fac, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
@@ -417,8 +405,6 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
-//        List *resultAttrs = NIL;
-
         DEBUG_LOG("outer projection");
 
         FOREACH(Node,a,p->projExprs)
@@ -501,7 +487,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(List, attrs, fac->fromAttrs)
         {
             FOREACH(char,name,attrs)
-                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList) - 1), ".", name));
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", name));
             fromItem++;
         }
 
@@ -530,7 +516,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
     List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
     //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
     fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+    //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     appendStringInfoString(from, "(SELECT ");
     FOREACH(char,attrName,attrNames)
     {
@@ -542,7 +528,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
 
     }
 
-    appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+    appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
 }
 
 //static void
@@ -608,7 +594,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         }
         //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+        //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     }
     else
     {
@@ -640,7 +626,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
         DEBUG_LOG("table access append fac->fromAttrsList");
         //append fromAttrs into fromAttrsList, e.g., fromAttrs: ((A,B)), fromAttrsList: ( ((A,B)) )
-        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+        //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
         printFromAttrsContext(fac);
 
         //for temporal database coalesce
@@ -664,13 +650,13 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         	{
     			appendStringInfo(from, "%s%s F%u_%u",
     					quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
-    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
         	}
         	else
         	{
     			appendStringInfo(from, "%s%s F%u_%u",
     					t->tableName, asOf ? asOf : "",
-    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
         	}
         }
 
