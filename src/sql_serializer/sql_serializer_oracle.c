@@ -34,17 +34,10 @@ typedef struct ReplaceNonOracleDTsContext {
     boolean inCond;
 } ReplaceNonOracleDTsContext;
 
-//typedef struct FromAttrsContext {
-//    List *fromAttrs;
-//    List *fromAttrsList;
-//} FromAttrsContext;
-
 typedef struct JoinStateFac {
     JoinAttrRenameState *state;
     FromAttrsContext *fac;
 } JoinStateFac;
-
-
 
 /* variables */
 static TemporaryViewMap *viewMap;
@@ -98,11 +91,6 @@ static char *createViewName(void);
 static boolean shortenAttributeNames(QueryOperator *q, void *context);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
-
-////for nesting
-//static FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
-//static void printFromAttrsContext(FromAttrsContext *fac);
-//static FromAttrsContext *initializeFromAttrsContext ();
 
 char *
 serializeOperatorModelOracle(Node *q)
@@ -259,71 +247,6 @@ quoteAttributeNames (Node *node, void *context)
     return visit(node, quoteAttributeNames, context);
 }
 
-
-//FromAttrsContext *
-//initializeFromAttrsContext ()
-//{
-//  	struct FromAttrsContext *fac;
-//  	fac =  CALLOC(sizeof(FromAttrsContext),1);
-//  	fac->fromAttrsList = NIL;
-//  	fac->fromAttrs = NIL;
-//
-//  	return fac;
-//}
-//
-//FromAttrsContext *
-//copyFromAttrsContext(FromAttrsContext *fac)
-//{
-//  	struct FromAttrsContext *result;
-//  	result =  CALLOC(sizeof(FromAttrsContext),1);
-//  	result->fromAttrsList = copyList(fac->fromAttrsList);
-//  	result->fromAttrs = copyList(fac->fromAttrs);
-//
-//  	return result;
-//}
-
-//void
-//printFromAttrsContext(FromAttrsContext *fac)
-//{
-//     DEBUG_LOG("FromAttrsContext:");
-//     if(fac->fromAttrsList != NIL)
-//     {
-//     StringInfo s1 = makeStringInfo();
-//     appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
-//     FOREACH(List, l1, fac->fromAttrsList)
-//     {
-//     	 FOREACH(List, l2, l1)
-//		{
-//     	    appendStringInfo(s1, "(");
-//		 	 FOREACH(char, c, l2)
-//			    appendStringInfo(s1, " %s ", c);
-//			 	 //DEBUG_LOG("%s",c);
-//		 	appendStringInfo(s1, ")");
-//		}
-//     	appendStringInfo(s1, " , ");
-//     }
-//     DEBUG_LOG(" %s ", s1->data);
-//     }
-//     else
-//    	 	 DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
-//
-//     if(fac->fromAttrs != NIL)
-//     {
-//     StringInfo s2 = makeStringInfo();
-//     appendStringInfo(s2,"Len: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
-//     FOREACH(List, l1, fac->fromAttrs)
-//     {
-//    	    appendStringInfo(s2, "(");
-// 	 	 FOREACH(char, c, l1)
-//		 	 appendStringInfo(s2, " %s ", c);
-// 	 	appendStringInfo(s2, ")");
-//     }
-//     DEBUG_LOG(" %s ", s2->data);
-//     }
-//     else
-//    	 DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
-//}
-
 char *
 serializeQueryOracle(QueryOperator *q)
 {
@@ -400,7 +323,7 @@ replaceNonOracleDTsVisitQO (QueryOperator *node, void *context)
 }
 
 static boolean
-replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **partentPointer)
+replaceNonOracleDTs(Node *node, ReplaceNonOracleDTsContext *context, void **partentPointer)
 {
     if (node == NULL)
         return TRUE;
@@ -465,7 +388,7 @@ replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **par
  * Main entry point for serialization.
  */
 static List *
-serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac)
+serializeQueryOperator(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac)
 {
     // operator with multiple parents
     if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
@@ -480,7 +403,7 @@ serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent,
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
 static List *
-serializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac)
+serializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
     StringInfo fromString = makeStringInfo();
@@ -1557,22 +1480,22 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
 //                  }
 //              }
         //printFromAttrsContext(fac);
-            List *attrsList = NIL;
-            if(a->outerLevelsUp >= 0)
-                    attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp);
-            else
-                    attrsList = (List *) getNthOfListP(fac->fromAttrsList, 0);
+		List *attrsList = NIL;
+		if(a->outerLevelsUp >= 0)
+			attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp);
+		else
+			attrsList = (List *) getNthOfListP(fac->fromAttrsList, 0);
 
-            FOREACH(List, attrs, attrsList)
-            {
-                    attrPos += LIST_LENGTH(attrs);
-                    fromItem++;
-                    if (attrPos > a->attrPosition)
-                    {
-                        outer = attrs;
-                        break;
-                    }
-            }
+		FOREACH(List, attrs, attrsList)
+		{
+			attrPos += LIST_LENGTH(attrs);
+			fromItem++;
+			if (attrPos > a->attrPosition)
+			{
+				outer = attrs;
+				break;
+			}
+		}
 
 // stable version
 //              // LOOP THROUGH all fromItems (outer list)
@@ -1603,9 +1526,9 @@ updateAttributeNamesOracle(Node *node, FromAttrsContext *fac)
         newName = getNthOfListP(outer, attrPos);
 
         if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
-                a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-1) , ".", newName);
+			a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-1) , ".", newName);
         else
-                a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
+			a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-a->outerLevelsUp-1) , ".", newName);
     }
 
     return visit(node, updateAttributeNamesOracle, fac);
