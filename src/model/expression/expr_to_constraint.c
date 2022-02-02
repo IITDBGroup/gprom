@@ -9,6 +9,9 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "configuration/option.h"
+#include "model/relation/relation.h"
+#include "metadata_lookup/metadata_lookup.h"
+
 
 #define HAVE_LIBCPLEX 1
 
@@ -22,6 +25,7 @@ newRenamingCtx ()
 {
     RenamingCtx *ctx = MALLOC(sizeof(RenamingCtx));
     ctx->map = NEW_MAP(Constant, Constant);
+    ctx->kept = NIL;
 
     return ctx;
 }
@@ -33,10 +37,12 @@ newConstraintTranslationCtx ()
     ctx->current_expr = 0;
     ctx->variableMap = NEW_MAP(Constant, Constant);
     ctx->reuseMap = NEW_MAP(Node, SQLParameter);
+    ctx->exprToMilpVar = NEW_MAP(Node, Constant);
     ctx->variables = NIL;
     ctx->constraints = NIL;
     ctx->caseConds = NIL;
     ctx->deletes = NIL;
+    ctx->root = NULL;
 
     MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX));
     MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-INT_MAX)); //TODO: There is definitely a better way to be doing this.
@@ -135,11 +141,12 @@ renameParameters (Node *node, RenamingCtx *ctx)
 // update a = 5, c = 3 where a < 3;
 
 // a1 = case when a0 < 3 then 5 else a0 end <---- b1
-// c1 = case when a0 < 3 then 5 else a0 
+// c1 = case when a0 < 3 then 5 else a0
 
 List *
 historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translationCtx, RenamingCtx *renameCtx) {
     HashMap *current = renameCtx->map;
+    HashMap *seen = NEW_MAP(AttributeReference, Node); // value is unused, key for looking up seen TODO: use a set
     List *caseExprs = NIL;
     // HashMap *current = NEW_MAP(Constant, Constant);
     // TODO: Deep copy history list? copyobject
@@ -159,38 +166,46 @@ historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translatio
                     // first update rename will look like foo1 = foo0 + 3 where foo0 > 2
                     MAP_ADD_STRING_KEY(current, setAttr->name, createConstInt(0));
                 }
-                char *rhsSetAttr = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name))));
+
+                int rhs = MAP_HAS_STRING_KEY(seen, setAttr->name) ? INT_VALUE(MAP_GET_STRING(current, setAttr->name)) : 0;
+                int lhs = INT_VALUE(MAP_GET_STRING(current, setAttr->name)) + 1;
+
+                char *rhsSetAttr = CONCAT_STRINGS(setAttr->name, gprom_itoa(rhs));
                 visit((Node*)setExpr, renameParameters, renameCtx);
                 if(u->cond) visit(u->cond, renameParameters, renameCtx);
                 updatedAttrs = appendToTailOfList(updatedAttrs, strdup(setAttr->name));
-                setAttr->name = CONCAT_STRINGS(setAttr->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(current, setAttr->name)) + 1));
+                setAttr->name = CONCAT_STRINGS(setAttr->name, gprom_itoa(lhs));
                 // foo1 := case when foo0 > 3 then foo0 + 3 else 4
-                caseExprs = appendToTailOfList(caseExprs, createOpExpr(":=", LIST_MAKE(createSQLParameter(setAttr->name), 
+                caseExprs = appendToTailOfList(caseExprs, createOpExpr(":=", LIST_MAKE(createSQLParameter(setAttr->name),
                                                                                     createCaseExpr(NULL, singleton(createCaseWhen(u->cond, (Node *)getTailOfListP(set->args))), (Node *)createSQLParameter(rhsSetAttr))
                                                                         )));
             }
 
             FOREACH(char, updatedAttr, updatedAttrs) {
                 MAP_ADD_STRING_KEY(current, updatedAttr, createConstInt(INT_VALUE(MAP_GET_STRING(current, updatedAttr)) + 1));
+                if(!MAP_HAS_STRING_KEY(seen, updatedAttr)) MAP_ADD_STRING_KEY(seen, updatedAttr, NULL);
             }
         } else if(isA(n, Delete)) {
             Delete *d = (Delete *)n;
             caseExprs = appendToTailOfList(caseExprs, d); // pass delete directly through if delete
         }
     }
+    renameCtx->kept = appendToTailOfList(renameCtx->kept, copyObject(current));
     return caseExprs;
 }
 
 // Taking SQL constraints from SelectItems and turning them into MILP constraints as described by the paper.
-ConstraintTranslationCtx *
-exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
+SQLParameter *
+exprToConstraints(Node *expr, ConstraintTranslationCtx *ctx)
 {
+    SQLParameter *resultant;
+
     if(isA(expr, Operator))
     {
         Operator *operator = (Operator *)expr;
-        if(strcmp(operator->name, OPNAME_LT) == 0)
+        if(streq(operator->name, OPNAME_LT))
         {
-            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
             ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
@@ -227,11 +242,11 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         else if(strcmp(operator->name, OPNAME_GT) == 0)
         {
             Operator *as = createOpExpr(OPNAME_NOT, LIST_MAKE(createOpExpr(OPNAME_LE, operator->args)));
-            exprToConstraints((Node*)as, ctx);
+            resultant = exprToConstraints((Node*)as, ctx);
         }
         else if(strcmp(operator->name, OPNAME_LE) == 0)
         {
-            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
             ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
@@ -268,11 +283,11 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         else if(strcmp(operator->name, OPNAME_GE) == 0)
         {
             Operator *as = createOpExpr(OPNAME_NOT, LIST_MAKE(createOpExpr(OPNAME_LT, operator->args)));
-            exprToConstraints((Node*)as, ctx);
+            resultant = exprToConstraints((Node*)as, ctx);
         }
         else if(streq(operator->name, OPNAME_AND))
         {
-            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
             ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
@@ -308,9 +323,10 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         }
         else if(streq(operator->name, OPNAME_OR))
         {
-            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
             ctx->variables = appendToTailOfList(ctx->variables, resultant);
+            if(!ctx->root) ctx->root = resultant;
 
             SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, TRUE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);
@@ -344,7 +360,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         }
         else if(streq(operator->name, OPNAME_NOT))
         {
-            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+            resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
             resultant->parType = DT_BOOL;
             ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
@@ -364,7 +380,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
         }
         else if(streq(operator->name, OPNAME_ADD))
         {
-            SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+            resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
             ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
             SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
@@ -445,17 +461,18 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 			  ctx->constraints = appendToTailOfList(ctx->constraints, c4);*/
             List *args = copyObject(operator->args);
             Operator *as = createOpExpr("AND", LIST_MAKE(createOpExpr("<=", operator->args), createOpExpr(">=", args)));
-            exprToConstraints((Node*)as, ctx);
+            resultant = exprToConstraints((Node*)as, ctx);
         }
 		else if (streq(operator->name, OPNAME_NEQ) || streq(operator->name, OPNAME_NEQ_BANG))
 		{
             Operator *as = createOpExpr(OPNAME_NOT, LIST_MAKE(createOpExpr(OPNAME_EQ, operator->args)));
-            exprToConstraints((Node*)as, ctx);
+            resultant = exprToConstraints((Node*)as, ctx);
 		}
         else if(streq(operator->name, ":="))
         {
             SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
             exprToConstraints(getHeadOfListP(operator->args), ctx);
+            resultant = leftVar;
 
             SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
             exprToConstraints(getTailOfListP(operator->args), ctx);
@@ -473,16 +490,16 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
             ctx->constraints = appendToTailOfList(ctx->constraints, c);
         }
     }
-    else if(isA(expr, CaseExpr)) 
+    else if(isA(expr, CaseExpr))
     {
         CaseExpr *caseExpr = (CaseExpr *)expr;
         CaseWhen *caseWhen = (CaseWhen *)getHeadOfListP(caseExpr->whenClauses); // redundant cast?
 
         // TODO: Fold multiple CaseWhens into chain of if/else, only handles first when
         // TODO: only handles CASE caseWhenList optionalCaseElse END
-        // e.g. foo = case when 3 > 2 then 2 + 4 else 
+        // e.g. foo = case when 3 > 2 then 2 + 4 else
 
-        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+        resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
         ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
         SQLParameter *b = introduceMILPVariable(caseWhen->when, ctx, TRUE);
@@ -598,7 +615,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
     }
     else if(isA(expr, Constant))
     {
-        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
+        resultant = createSQLParameter(CONCAT_STRINGS("v", gprom_itoa(ctx->current_expr)));
 		Constant *c = (Constant *) expr;
         ctx->variables = appendToTailOfList(ctx->variables, resultant);
 
@@ -613,7 +630,7 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
 		default:
 			constraint->rhs = c;
 		}
-        constraint->originalExpr = (Node *)expr;		
+        constraint->originalExpr = (Node *)expr;
         constraint->terms = LIST_MAKE(createNodeKeyValue((Node*)createConstInt(1), (Node*)resultant));
 
         ctx->constraints = appendToTailOfList(ctx->constraints, constraint);
@@ -621,11 +638,14 @@ exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx)
     else if(isA(expr, Delete))
     {
         Delete *d = (Delete *)d;
-        SQLParameter *resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
+        resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
         exprToConstraints((Node*)(d->cond), ctx);
         ctx->deletes = appendToTailOfList(ctx->deletes, resultant);
     }
-    return ctx;
+
+    // store expr -> milp variable
+    addToMap(ctx->exprToMilpVar, (Node *) expr, (Node *) createConstString(resultant->name));
+    return resultant;
 }
 
 LPProblem *
@@ -673,7 +693,7 @@ newLPProblem (ConstraintTranslationCtx* ctx)
 			break;
 		case DT_LONG:
 			problem->rhs[i] = (double) LONG_VALUE(c->rhs);
-			break;			
+			break;
 		case DT_FLOAT:
 			problem->rhs[i] = FLOAT_VALUE(c->rhs);
 			break;
@@ -740,7 +760,7 @@ newLPProblem (ConstraintTranslationCtx* ctx)
 		addToMap(varsToPos, (Node *) v, (Node *) createConstInt(i));
         i++;
 	}
-    
+
 	i = 0;
     FOREACH(Constraint, c, ctx->constraints)
 	{
@@ -770,7 +790,7 @@ char *
 cstringLPProblem(LPProblem *lp, boolean details)
 {
     StringInfo str = makeStringInfo();
-    
+
     appendStringInfo(str, "Rcnt: %d, Ccnt: %d, Non-zero: %d, LB: %f, UB: %f\n\n", lp->rcnt, lp->ccnt, lp->nzcnt, lp->lb[0], lp->ub[0]);
 
     if(details)
@@ -798,7 +818,7 @@ cstringLPProblem(LPProblem *lp, boolean details)
 				break;
 			case 'L':
 				sense = "<=";
-				break;    
+				break;
             }
             appendStringInfo(str, "%s %f\n", sense, lp->rhs[i]);
         }
@@ -814,7 +834,7 @@ executeLPProblem(LPProblem *lp)
 	CPXENVptr cplexEnv = CPXopenCPLEX(&cplexStatus);
 	if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
 	//cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
-	cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_ASSIST);
+	cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_OFF);
 	if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
 
 	CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
@@ -871,7 +891,7 @@ cstringConstraintTranslationCtx(ConstraintTranslationCtx *ctx, boolean origin)
 
 	FOREACH(Constraint,c,ctx->constraints)
 	{
-		appendStringInfo(str, "%s\n", cstringConstraint(c, TRUE, 60));		
+		appendStringInfo(str, "%s\n", cstringConstraint(c, TRUE, 60));
 	}
 
 	return str->data;
@@ -882,7 +902,7 @@ cstringConstraint(Constraint *constraint, boolean origin, int padLength)
 {
     StringInfo str = makeStringInfo();
     StringInfo result = makeStringInfo();
-	
+
     FOREACH(KeyValue, term, constraint->terms)
     {
         appendStringInfo(str, "%d * %s%s",
@@ -891,7 +911,7 @@ cstringConstraint(Constraint *constraint, boolean origin, int padLength)
 						 FOREACH_HAS_MORE(term) ? " + " : ""
 			);
     }
-    
+
     char *sense;
     switch(constraint->sense)
     {
@@ -919,6 +939,16 @@ cstringConstraint(Constraint *constraint, boolean origin, int padLength)
 	}
 
     return result->data;
+}
+
+Relation *
+attrHistogram(AttributeReference *attr, char* relation, int fragments) {
+    StringInfo query = makeStringInfo();
+    appendStringInfo(query, "with groups as (select generate_series(min(%s), max(%s), (max(%s) - min(%s)) / %d) as max from %s), "
+    "fragments as (select coalesce(lag(max, 1) over () + 1, 0) as min, max from groups) "
+    "select min, max, count(*) from %s, fragments where min <= %s and %s < max group by min, max;",
+    attr->name, attr->name, attr->name, attr->name, fragments - 1, relation, relation, attr->name, attr->name);
+    return executeQuery(query->data);
 }
 
 // define dummy functions if CPLEX is not available

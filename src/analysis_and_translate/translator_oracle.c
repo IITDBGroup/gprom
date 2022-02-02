@@ -941,7 +941,7 @@ constructLPProblem (List *slice)
 
         if(getListLength(ctx->deletes) > 0)
         {
-        Constraint *c2 = makeNode(Constraint);
+            Constraint *c2 = makeNode(Constraint);
             c2->sense = CONSTRAINT_E;
             c2->rhs = createConstInt(0);
             c2->terms = NIL;
@@ -1088,6 +1088,8 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 		pos++;
 	}
 
+    QueryOperator *reenactHistoryOp, *reenactModifiedHistoryOp;
+
     #ifdef HAVE_LIBCPLEX
     if(getBoolOption(OPTIMIZATION_WHATIF_PROGRAM_SLICING))
     {
@@ -1103,85 +1105,110 @@ translateWhatIfStmt (WhatIfStmt *whatif)
         }
 
         /* Find dependent updates */
-        FOREACH(Constant, modifiedIndex, whatif->indices)
-        {
-            INFO_LOG("Looking at original/modified modification for modification #%d...", INT_VALUE(modifiedIndex) - 1);
-            int u0 = INT_VALUE(modifiedIndex) - 1;
-            // M = u1' u2 u3 u4 u5 u6' u7 u8
-            // eliminate dependency checks between updates that have already been established as dependent
-            // merge dependency, do not delete modified updates under any circumstances
-            for(int u = u0 + 1; u < getListLength(whatif->history); u++)
-            {
-				if (!hasSetIntElem(dependentUpdated, u))
-				{
-					INFO_LOG("Comparing to update #%d", u);
-					//Node *up = MAP_GET_INT(upToPos, u);
+        if(getListLength(whatif->indices) > 1) {
+            List *originalSlice = copyObject(whatif->history);
+            List *modifiedSlice = copyObject(whatif->modifiedHistory);
+            for(int u = 1; u < getListLength(whatif->history); u++) {
+                if(!hasSetIntElem(dependentUpdated, u)) { // don't remove modified statements
+                    List *originalPruned = copyObject(originalSlice); // slice from the slice determined so far
+                    List *modifiedPruned = copyObject(modifiedSlice);
+                    originalPruned = genericRemoveFromList(originalPruned, equal, getNthOfListP(whatif->history, u));
+                    modifiedPruned = genericRemoveFromList(modifiedPruned, equal, getNthOfListP(whatif->modifiedHistory, u));
 
-					List *original = sublist(copyObject(whatif->history), u0, u);
-					START_TIMER("translator - LP construction");
-					LPProblem *originalLp = constructLPProblem(original);
-					STOP_TIMER("translator - LP construction");
+                    RenamingCtx *renamingCtx = newRenamingCtx();
+                    ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
 
-					List *modified = sublist(copyObject(whatif->modifiedHistory), u0, u);
-					START_TIMER("translator - LP construction");
-					LPProblem *modifiedLp = constructLPProblem(modified);
-					STOP_TIMER("translator - LP construction");
+                    List *exprs = NIL;
+                    exprs = concatLists(
+                        historyToCaseExprsFreshVars(whatif->history, ctx, renamingCtx),
+                        historyToCaseExprsFreshVars(originalPruned, ctx, renamingCtx),
+                        historyToCaseExprsFreshVars(whatif->modifiedHistory, ctx, renamingCtx),
+                        historyToCaseExprsFreshVars(modifiedPruned, ctx, renamingCtx)
+                    );
 
-					START_TIMER("translator - CPLEX time");
-					int originalResult = executeLPProblem(originalLp);
-					int modifiedResult = executeLPProblem(modifiedLp);
-					STOP_TIMER("translator - CPLEX time");
-
-					INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-					if(originalResult == 101 || modifiedResult == 101)
-					{
-						//independentUpdates = genericRemoveFromList(independentUpdates, equal, up); // remove from independent updates list if classified independent update by previous modification
-						addIntToSet(dependentUpdated, u);
-					}
-				}
-            }
-        }
-
-        /* Second pass to check independent updates against modified updates further along in the history */
-        if(getListLength(whatif->indices) > 1) // no second pass necessary for only one modification
-        {
-            for(int i = 0; i < getListLength(whatif->history); i++)
-            {
-                if(!hasSetIntElem(dependentUpdated, i))
-                {
-                    //Node *up = MAP_GET_INT(posToUp, i);
-                    FOREACH(Constant, m, whatif->indices)
+                    FOREACH(Node, e, exprs)
                     {
-                        int modifiedIdx = INT_VALUE(m) - 1;
-                        if(i < modifiedIdx && !hasSetIntElem(dependentUpdated, i))
+                        exprToConstraints(e, ctx);
+                    }
+
+                    FOREACH_HASH_KEY(Constant, attr, renamingCtx->map) {
+                        // assumptions: 0th and 1st are original and original pruned, 2nd and 3rd are modified and modified pruned
+
+                        Operator *originalCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), attr)));
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), attr)));
+                        ));
+
+                        Operator *modifiedCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), attr)));
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), attr)));
+                        ));
+
+                        exprToConstraints((Node *) originalCompare, ctx);
+                        //TODO keep compiler quiet for now SQLParameter *originalCond = ctx->root;
+                        exprToConstraints((Node *) modifiedCompare, ctx);
+                        //SQLParameter *modifiedCond = ctx->root;
+                    }
+
+                    LPProblem *lp = newLPProblem(ctx);
+                    int result = executeLPProblem(originalLp);
+
+                    /*
+                    if(getListLength(ctx->deletes) > 0)
                         {
-                            List *original = sublist(copyObject(whatif->history), i, modifiedIdx);
-                            START_TIMER("translator - LP construction");
-                            LPProblem *originalLp = constructLPProblem(original);
-                            STOP_TIMER("translator - LP construction");
-
-                            START_TIMER("translator - LP construction");
-                            List *modified = sublist(copyObject(whatif->modifiedHistory), i, modifiedIdx);
-                            LPProblem *modifiedLp = constructLPProblem(modified);
-                            STOP_TIMER("translator - LP construction");
-
-                            START_TIMER("translator - CPLEX time");
-                            int originalResult = executeLPProblem(originalLp);
-                            int modifiedResult = executeLPProblem(modifiedLp);
-                            STOP_TIMER("translator - CPLEX time");
-
-                            INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
-                            if(originalResult == 101 || modifiedResult == 101) // 101 is CPLEX MIP optimal solution found, i.e. there exists a possible world
-                            {
-                                INFO_LOG("Determined independent update as dependent on second pass...");
-                                addIntToSet(dependentUpdated, i);
+                            Constraint *c2 = makeNode(Constraint);
+                            c2->sense = CONSTRAINT_E;
+                            c2->rhs = createConstInt(0);
+                            c2->terms = NIL;
+                            FOREACH(SQLParameter, d, ctx->deletes) {
+                                c2->terms = appendToTailOfList(c2->terms, createNodeKeyValue((Node*)createConstInt(1), (Node*)d));
                             }
+                            ctx->constraints = appendToTailOfList(ctx->constraints, c2);
+                    } */
+                }
+            }
+        } else {
+            FOREACH(Constant, modifiedIndex, whatif->indices)
+            {
+                INFO_LOG("Looking at original/modified modification for modification #%d...", INT_VALUE(modifiedIndex) - 1);
+                int u0 = INT_VALUE(modifiedIndex) - 1;
+                // M = u1' u2 u3 u4 u5 u6' u7 u8
+                // eliminate dependency checks between updates that have already been established as dependent
+                // merge dependency, do not delete modified updates under any circumstances
+                for(int u = u0 + 1; u < getListLength(whatif->history); u++)
+                {
+                    if (!hasSetIntElem(dependentUpdated, u))
+                    {
+                        INFO_LOG("Comparing to update #%d", u);
+                        //Node *up = MAP_GET_INT(upToPos, u);
+
+                        List *original = sublist(copyObject(whatif->history), u0, u);
+                        START_TIMER("translator - LP construction");
+                        LPProblem *originalLp = constructLPProblem(original);
+                        STOP_TIMER("translator - LP construction");
+
+                        List *modified = sublist(copyObject(whatif->modifiedHistory), u0, u);
+                        START_TIMER("translator - LP construction");
+                        LPProblem *modifiedLp = constructLPProblem(modified);
+                        STOP_TIMER("translator - LP construction");
+
+                        START_TIMER("translator - CPLEX time");
+                        int originalResult = executeLPProblem(originalLp);
+                        int modifiedResult = executeLPProblem(modifiedLp);
+                        STOP_TIMER("translator - CPLEX time");
+
+                        INFO_LOG("Original was %d, modified was %d", originalResult, modifiedResult);
+                        if(originalResult == 101 || modifiedResult == 101)
+                        {
+                            //independentUpdates = genericRemoveFromList(independentUpdates, equal, up); // remove from independent updates list if classified independent update by previous modification
+                            addIntToSet(dependentUpdated, u);
                         }
                     }
                 }
             }
         }
 
+        INFO_LOG("dep updates at %s", beatify(nodeToString(dependentUpdated)));
         for(int i = 0; i < getListLength(whatif->history); i++)
         {
 			if(!hasSetIntElem(dependentUpdated, i))

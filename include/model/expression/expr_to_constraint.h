@@ -18,6 +18,7 @@ NEW_ENUM_WITH_TO_STRING(ConstraintSense,
 
 typedef struct RenamingCtx {
     HashMap *map;
+    List *kept;
 } RenamingCtx;
 
 typedef struct Constraint {
@@ -33,9 +34,11 @@ typedef struct {
     List *variables;
     HashMap *variableMap;
     HashMap *reuseMap;
+    HashMap *exprToMilpVar;
     List *constraints;
     List *caseConds; // case condition variable names
-    List *deletes; // delete condition resultants
+    List *deletes; // delete condition resultant
+    SQLParameter *root; // first boolean variable created (i.e. root of expression, translate OR(a + b = 3, a + 2 > 3), b1 represents OR, b1 is root)
 } ConstraintTranslationCtx;
 
 typedef struct {
@@ -66,7 +69,7 @@ extern ConstraintTranslationCtx *newConstraintTranslationCtx (void);
 extern List *historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translationCtx, RenamingCtx *renameCtx);
 
 /* create MILP constraints from an expression tree */
-extern ConstraintTranslationCtx *exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx);
+extern SQLParameter *exprToConstraints (Node *expr, ConstraintTranslationCtx *ctx);
 
 /* create CPLEX format problem from Constraints  */
 extern LPProblem *newLPProblem (ConstraintTranslationCtx *ctx);
