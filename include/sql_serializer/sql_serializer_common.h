@@ -130,7 +130,7 @@ typedef struct SerializeClausesAPI {
             int* curFromItem, int* attrOffset, FromAttrsContext *fac, struct SerializeClausesAPI *api);
  	void (*serializeOrderByOperator) (OrderOperator *q, StringInfo orderby, FromAttrsContext *fac,
 									struct SerializeClausesAPI *api);
-	void (*serializeLimitOperator) (LimitOperator *q, StringInfo limit, struct SerializeClausesAPI *api);
+	void (*serializeLimitOperator) (LimitOperator *q, StringInfo limitPrefix, StringInfo limitSuffix, struct SerializeClausesAPI *api);
 	void (*serializePreparedStatment) (QueryOperator *q, StringInfo prep, struct SerializeClausesAPI *api);
     int (*getNestedSerLocations) (NestingOperator *n, struct SerializeClausesAPI *api);
 	void (*serializeExecPreparedOperator) (ExecPreparedOperator *q, StringInfo exec);
@@ -148,7 +148,7 @@ extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
         QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api);
 extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
         SerializeClausesAPI *api);
-extern int genGetNestedSerializationLocations(NestingOperator *n, struct SerializeClausesAPI *api);
+extern int genGetNestedSerializationLocations(NestingOperator *n, SerializeClausesAPI *api);
 extern void genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *op, SerializeClausesAPI *api);
 extern void genSerializeFrom (QueryOperator *q, StringInfo from,
 		FromAttrsContext *fac, SerializeClausesAPI *api);
@@ -157,12 +157,12 @@ extern void genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q,
         SerializeClausesAPI *api);
 extern void genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac,
         SerializeClausesAPI *api);
-extern void genSerializeLimitOperator (LimitOperator *q, StringInfo limit,
-									struct SerializeClausesAPI *api);
+extern void genSerializeLimitOperator (LimitOperator *q, StringInfo limitPrefix, StringInfo limitSuffix,
+									SerializeClausesAPI *api);
 extern void genSerializePreparedStatement (QueryOperator *q, StringInfo prep, SerializeClausesAPI *api);
 extern void genSerializeExecPreparedOperator (ExecPreparedOperator *q, StringInfo exec);
 extern void genSerializeOrderByOperator (OrderOperator *q, StringInfo order,  FromAttrsContext *fac,
-									struct SerializeClausesAPI *api);
+									SerializeClausesAPI *api);
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,
         QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api);
 extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac);
