@@ -198,7 +198,7 @@ historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translatio
 SQLParameter *
 exprToConstraints(Node *expr, ConstraintTranslationCtx *ctx)
 {
-    SQLParameter *resultant;
+    SQLParameter *resultant = NULL;
 
     if(isA(expr, Operator))
     {
@@ -489,6 +489,10 @@ exprToConstraints(Node *expr, ConstraintTranslationCtx *ctx)
 
             ctx->constraints = appendToTailOfList(ctx->constraints, c);
         }
+		else
+		{
+			ASSERT(FALSE); // should not end up here
+		}
     }
     else if(isA(expr, CaseExpr))
     {
@@ -637,13 +641,18 @@ exprToConstraints(Node *expr, ConstraintTranslationCtx *ctx)
     }
     else if(isA(expr, Delete))
     {
-        Delete *d = (Delete *)d;
+        Delete *d = (Delete *) expr;
         resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
         exprToConstraints((Node*)(d->cond), ctx);
         ctx->deletes = appendToTailOfList(ctx->deletes, resultant);
     }
+	else
+	{
+		ASSERT(FALSE); //TODO just make sure we do not silently end up here
+	}
 
     // store expr -> milp variable
+	ASSERT(resultant);
     addToMap(ctx->exprToMilpVar, (Node *) expr, (Node *) createConstString(resultant->name));
     return resultant;
 }

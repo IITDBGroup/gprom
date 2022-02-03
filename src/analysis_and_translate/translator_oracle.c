@@ -1024,28 +1024,29 @@ switchInsertSubtree (Node *node)
     }
 }
 
-static Node *
-deepReplaceAttrRefMutator(Node *node, HashMap *context)
-{
-    if (node == NULL)
-        return NULL;
+//TODO Boris: this function was unused, commenting it out for now
+/* static Node * */
+/* deepReplaceAttrRefMutator(Node *node, HashMap *context) */
+/* { */
+/*     if (node == NULL) */
+/*         return NULL; */
 
-    if (isA(node, AttributeReference))
-    {
-        Node *r;
-        r = getMap(context, node);
-        if (r)
-        {
-            return r;
-        }
-        else
-        {
-            return node;
-        }
-    }
+/*     if (isA(node, AttributeReference)) */
+/*     { */
+/*         Node *r; */
+/*         r = getMap(context, node); */
+/*         if (r) */
+/*         { */
+/*             return r; */
+/*         } */
+/*         else */
+/*         { */
+/*             return node; */
+/*         } */
+/*     } */
 
-    return mutate(node, deepReplaceAttrRefMutator, context);
-}
+/*     return mutate(node, deepReplaceAttrRefMutator, context); */
+/* } */
 
 static boolean
 replaceAttributeRefsMutator (Node *node, HashMap *state, void **parentPointer)
@@ -1135,14 +1136,14 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         // assumptions: 0th and 1st are original and original pruned, 2nd and 3rd are modified and modified pruned
 
                         Operator *originalCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), attr)));
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), attr)));
-                        ));
+																	 createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *) attr))),
+																	 createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), (Node *) attr)))
+																	 ));
 
                         Operator *modifiedCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), attr)));
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), attr)));
-                        ));
+																	 createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *) attr))),
+																	 createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), (Node *) attr)))
+																	 ));
 
                         exprToConstraints((Node *) originalCompare, ctx);
                         //TODO keep compiler quiet for now SQLParameter *originalCond = ctx->root;
@@ -1151,8 +1152,9 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     }
 
                     LPProblem *lp = newLPProblem(ctx);
-                    int result = executeLPProblem(originalLp);
-
+                    int result = executeLPProblem(lp); //TODO was originalLp
+					//TODO result was unused
+					DEBUG_LOG("cplex result was %u", result); //TODO Boris: added this to keep compiler quiet about unused result variable
                     /*
                     if(getListLength(ctx->deletes) > 0)
                         {
@@ -1223,8 +1225,8 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     #endif
 
 
-    QueryOperator *reenactHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->history)));     // Prune independent updates
-    QueryOperator *reenactModifiedHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->modifiedHistory)));     // Prune independent updates
+    reenactHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->history)));     // Prune independent updates
+    reenactModifiedHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->modifiedHistory)));     // Prune independent updates
 
     QueryOperator *origUnion = NULL, *modifiedUnion = NULL;
     if(insertsInOriginal || insertsInModified) {
