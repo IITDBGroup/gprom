@@ -1280,8 +1280,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     {
         case T_FromTableRef:
         {
-			/* FromTableRef *lt = (FromTableRef *) left; */
-			/* lt->tableId = backendifyIdentifier(lt->tableId); */
+			FromTableRef *lt = (FromTableRef *) left;
+			lt->tableId = backendifyIdentifier(lt->tableId);
         	analyzeFromTableRef((FromTableRef *)left);
             analyzeFromProvInfo(left);
         }
@@ -1303,8 +1303,8 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 	{
 		case T_FromTableRef:
 		{
-			/* FromTableRef *rt = (FromTableRef *) right; */
-			/* rt->tableId = backendifyIdentifier(rt->tableId); */
+			FromTableRef *rt = (FromTableRef *) right;
+			rt->tableId = backendifyIdentifier(rt->tableId);
             analyzeFromTableRef((FromTableRef *)right);
 		    analyzeFromProvInfo(right);
 		}
@@ -1321,6 +1321,31 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 		default:
 			break;
 	}
+
+    if (j->joinCond == JOIN_COND_NATURAL)
+    {
+        List *expectedAttrs = analyzeNaturalJoinRef((FromTableRef *)j->left,
+                (FromTableRef *)j->right);
+        if (j->from.attrNames == NULL)
+            j->from.attrNames = expectedAttrs;
+        ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
+    }
+    //JOIN_COND_USING
+    //JOIN_COND_ON
+    else
+    {
+        List *expectedAttrs = concatTwoLists(
+                deepCopyStringList(left->attrNames),
+                deepCopyStringList(right->attrNames));
+        if (j->from.attrNames == NULL)
+            j->from.attrNames = expectedAttrs;
+        ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
+    }
+
+    j->from.dataTypes = CONCAT_LISTS((List *) copyObject(left->dataTypes),
+            (List *) copyObject(right->dataTypes));
+
+    DEBUG_NODE_BEATIFY_LOG("join analysis:", j);
 }
 
 
