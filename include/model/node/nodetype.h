@@ -15,7 +15,6 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_HashMap,
     T_Vector,
 	T_BitSet,
-
     /* options */
     T_KeyValue,
 
@@ -135,7 +134,10 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_TEMPORAL_QUERY,
     PROV_INPUT_UNCERTAIN_QUERY,
 	//updateps input type
-	PROV_INPUT_UPDATEPS
+	PROV_INPUT_UPDATEPS,
+
+	PROV_INPUT_UNCERTAIN_TUPLE_QUERY,
+	PROV_INPUT_RANGE_QUERY
 );
 
 /* stringinfo provides the string data type*/

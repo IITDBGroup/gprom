@@ -30,7 +30,11 @@ bitSetToString (BitSet *bitset)
 	unsigned int length = bitset->length;
     unsigned int longpos = -1;
     unsigned int pos = -1;
+// <<<<<<< HEAD
 	unsigned long mask = 1UL;
+// =======
+	// unsigned long mask = 1;
+// >>>>>>> origin/CPB
 
 	while(++pos < length)
 	{
@@ -51,7 +55,11 @@ stringToBitset (char *v)
 {
     BitSet *res = newBitSet(strlen(v));
     unsigned int longpos = -1;
+// <<<<<<< HEAD
     unsigned long mask = 1UL;
+// =======
+    // unsigned long mask = 1;
+// >>>>>>> origin/CPB
 
     for(int i = 0; i < res->length; i++)
     {
@@ -87,7 +95,11 @@ isBitSet(BitSet *bitset, unsigned int pos){
 		DEBUG_LOG("OUT OF RANGE");
 		return FALSE;
 	}
+// <<<<<<< HEAD
 	if(bitset->value[longpos] & (1UL << bitpos))
+// =======
+	// if(bitset->value[longpos] & (1 << bitpos))
+// >>>>>>> origin/CPB
 		return TRUE;
 	else
 		return FALSE;
@@ -105,11 +117,19 @@ setBit(BitSet *bitset, unsigned int pos, boolean val)
     }
     // set bit to 1 using bitor with 0...010...0
     if (val) {
+// <<<<<<< HEAD
         bitset->value[longpos] |= 1UL << bitpos;
     }
     // set bit to 0 using bitand with 1...101...1
     else {
         bitset->value[longpos] &= ~(1UL << bitpos);
+// =======
+        // bitset->value[longpos] |= 1 << bitpos;
+    // }
+    // set bit to 0 using bitand with 1...101...1
+    // else {
+        // bitset->value[longpos] &= ~(1 << bitpos);
+// >>>>>>> origin/CPB
     }
 }
 

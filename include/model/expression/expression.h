@@ -4,6 +4,7 @@
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "utility/enum_magic.h"
 #include "model/set/hashmap.h"
 
@@ -26,6 +27,12 @@ typedef struct Operator {
 #define OPNAME_NOT "NOT"
 #define OPNAME_not "not"
 #define OPNAME_CONCAT "CONCAT"
+#define OPNAME_EQ "="
+#define OPNAME_LT "<"
+#define OPNAME_LE "<="
+#define OPNAME_GT ">"
+#define OPNAME_GE ">="
+#define OPNAME_NEQ "<>"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -178,6 +185,11 @@ typedef struct QuantifiedComparison {
 	isA(_n,OrderExpr)  \
     )
 
+#define FUNC_LEFT_INPUT(_e) ((Node *) getNthOfListP(((FunctionCall *) _e)->args, 0))
+#define FUNC_RIGHT_INPUT(_e) ((Node *) getNthOfListP(((FunctionCall *) _e)->args, 1))
+#define OP_LEFT_INPUT(_e) ((Node *) getNthOfListP(((Operator *) _e)->args, 0))
+#define OP_RIGHT_INPUT(_e) ((Node *) getNthOfListP(((Operator *) _e)->args, 1))
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
@@ -218,6 +230,7 @@ extern Constant *createConstFloat (double value);
 extern Constant *createConstBoolFromString (char *v);
 extern Constant *createConstBool (boolean value);
 extern Constant *createNullConst (DataType dt);
+extern Constant *makeConst(DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
 #define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
 #define LONG_VALUE(_c) *((gprom_long_t *) ((Constant *) _c)->value)
@@ -225,16 +238,24 @@ extern Constant *createNullConst (DataType dt);
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
 #define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL))
+// <<<<<<< HEAD
 
 /*
  * extern void* getValue(Constant* c);
  */
+// =======
+extern Constant *minConsts(Constant *l, Constant *r, boolean nullIsMin);
+extern Constant *maxConsts(Constant *l, Constant *r, boolean nullIsMax);
+ // >>>>>>> origin/CPB
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
-extern boolean isConstExpr (Node *expr);
+extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
+
+/* expression node type accessors */
+extern char *getAttributeReferenceName(AttributeReference *a);
 
 /* backend specific */
 extern char *backendifyIdentifier(char *name);
@@ -247,7 +268,11 @@ extern DataType lcaType (DataType l, DataType r);
 extern DataType SQLdataTypeToDataType (char *dt);
 
 /* create an SQL expression from an expression tree */
+// <<<<<<< HEAD
 extern char *exprToSQL (Node *expr, HashMap *map);
+// =======
+// extern char *exprToSQL (Node *expr, HashMap *nestedSubqueries);
+// >>>>>>> origin/CPB
 
 /* create an Latex expression from an expression tree */
 extern char *exprToLatex (Node *expr);
@@ -268,5 +293,16 @@ extern Node *changeListOpToAnOpNode(List *l1);
 /* find all nodes of a certain type */
 extern List *findAllNodes(Node *node, NodeTag type);
 
+// names for common SQL functions
+#define LEAST_FUNC_NAME backendifyIdentifier("least")
+#define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
+
+// names for common SQL aggregation functions
+#define MIN_FUNC_NAME backendifyIdentifier("min")
+#define MAX_FUNC_NAME backendifyIdentifier("max")
+#define SUM_FUNC_NAME backendifyIdentifier("sum")
+#define AVG_FUNC_NAME backendifyIdentifier("avg")
+#define COUNT_FUNC_NAME backendifyIdentifier("count")
+#define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 
 #endif /* EXPRESSION_H */

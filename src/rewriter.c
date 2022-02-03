@@ -43,8 +43,15 @@
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 
+// <<<<<<< HEAD
 static char* rewriteParserOutput(Node *parse, boolean applyOptimizations);
 static char* rewriteQueryInternal(char *input, boolean rethrowExceptions);
+// =======
+#include "provenance_rewriter/coarse_grained/ps_safety_check.h"
+
+// static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
+// static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
+// >>>>>>> origin/CPB
 static void setupPlugin(const char *pluginType);
 //static void summarizationPlan(Node *parse);
 //static List *summOpts = NIL;
@@ -155,7 +162,8 @@ void setupPluginsFromOptions(void) {
 
 	// setup metadata lookup - individual option overrides backend option
 	pluginName = getStringOption("plugin.metadata");
-	if (strpeq(pluginName, "external")) {
+//	if (strpeq(pluginName, "external")) {
+	if(pluginName != NULL && strcmp(pluginName, "external") == 0){
 		//printf("\nPLUGIN******************************************\n\n");
 	} else {
 		initMetadataLookupPlugins();
@@ -180,6 +188,7 @@ void setupPluginsFromOptions(void) {
 	pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
 	chooseExecutorPluginFromString(pluginName);
 
+// <<<<<<< HEAD
 	// setup cost-based optimizer
 	if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
 		chooseOptimizerPluginFromString(pluginName);
@@ -199,7 +208,8 @@ static void setupPlugin(const char *pluginType) {
 	// setup metadata lookup - individual option overrides backend option
 	if (streq(pluginType, OPTION_PLUGIN_METADATA)) {
 		pluginName = getStringOption(OPTION_PLUGIN_METADATA);
-		if (strpeq(pluginName, "external")) {
+//		if (strpeq(pluginName, "external")) {
+		if(pluginName != NULL && strcmp(pluginName, "external") == 0){
 			printf("\nPLUGIN******************************************\n\n");
 		} else {
 			initMetadataLookupPlugins();    //TODO not necessary
@@ -239,6 +249,113 @@ static void setupPlugin(const char *pluginType) {
 		else
 			chooseOptimizerPluginFromString("exhaustive");
 	}
+// =======
+// void
+// setupPluginsFromOptions(void)
+// {
+//     char *be = getStringOption("backend");
+//     char *fe = getStringOption("frontend");
+//     char *pluginName = be;
+//
+//     // setup parser - individual option overrides backend option
+//     CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
+//
+//     // setup metadata lookup - individual option overrides backend option
+//     pluginName = getStringOption("plugin.metadata");
+//     if (strpleq(pluginName,"external"))
+//     {
+//         //printf("\nPLUGIN******************************************\n\n");
+//     }
+//     else
+//     {
+//         initMetadataLookupPlugins();
+//         CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
+//         initMetadataLookupPlugin();
+//     }
+//
+//     // setup analyzer - individual option overrides backend option
+//     CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
+//
+//     // setup analyzer - individual option overrides backend option
+//     CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
+//
+//     // setup analyzer - individual option overrides backend option
+//     CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
+//     CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLCODEGEN, chooseSqlserializerPluginFromString);
+//
+//     // setup analyzer - individual option overrides backend option
+//     pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+//     chooseExecutorPluginFromString(pluginName);
+//
+//     // setup cost-based optimizer
+//     if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
+//         chooseOptimizerPluginFromString(pluginName);
+//     else
+//         chooseOptimizerPluginFromString("exhaustive");
+// }
+//
+// static void
+// setupPlugin(const char *pluginType)
+// {
+//     char *pluginName;
+//     char *be = getStringOption("backend");
+//     char *fe = getStringOption("frontend");
+//
+//     if (streq(pluginType,OPTION_PLUGIN_PARSER))
+//     {
+//         CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
+//     }
+//
+//     // setup metadata lookup - individual option overrides backend option
+//     if (streq(pluginType,OPTION_PLUGIN_METADATA))
+//     {
+//         pluginName = getStringOption(OPTION_PLUGIN_METADATA);
+//         if (strpleq(pluginName,"external"))
+//         {
+//             printf("\nPLUGIN******************************************\n\n");
+//         }
+//         else
+//         {
+//             initMetadataLookupPlugins();//TODO not necessary
+//             CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
+//             initMetadataLookupPlugin();
+//         }
+//     }
+//
+//     // setup analyzer - individual option overrides backend option
+//     if (streq(pluginType,OPTION_PLUGIN_ANALYZER))
+//     {
+//         CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
+//     }
+//
+//     // setup analyzer - individual option overrides backend option
+//     if (streq(pluginType,OPTION_PLUGIN_TRANSLATOR))
+//     {
+//         CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
+//     }
+//
+//     // setup  sql serializer - individual option overrides backend option
+//     if (streq(pluginType,OPTION_PLUGIN_SQLSERIALIZER))
+//     {
+//         CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
+//     }
+//
+//     // setup executor
+//     if (streq(pluginType,OPTION_PLUGIN_EXECUTOR))
+//     {
+//         pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+//         chooseExecutorPluginFromString(pluginName);
+//     }
+//
+//     // setup cost-based optimizer
+//     if (streq(pluginType,OPTION_PLUGIN_CBO))
+//     {
+//         if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
+//             chooseOptimizerPluginFromString(pluginName);
+//         else
+//             chooseOptimizerPluginFromString("exhaustive");
+//     }
+// >>>>>>> origin/CPB
 }
 
 void resetupPluginsFromOptions(void) {
@@ -410,6 +527,7 @@ generatePlan(Node *oModel, boolean applyOptimizations) {
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
+// <<<<<<< HEAD
 	if (isRewriteOptionActivated(OPTION_LATERAL_REWRITE)
 			&& !hasProvComputation(oModel))
 		oModel = lateralTranslateQBModel(oModel);
@@ -435,6 +553,18 @@ generatePlan(Node *oModel, boolean applyOptimizations) {
 		DEBUG_NODE_BEATIFY_LOG("THE UPDATED PROVENANCE SKETCH", rewrittenTree);
 		return STRING_VALUE(rewrittenTree);
 	}
+// =======
+    //Ziyu Liu
+	//TODO only run check if
+	/* HashMap *checkResult; //TODO only call if we are computing prov sketches */
+	/* checkResult = monotoneCheck(oModel); */
+	// FREE(checkResult); //TODO why free this?
+	//Ziyu Liu
+
+    // if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
+            // oModel = lateralTranslateQBModel(oModel);
+    // rewrittenTree = provRewriteQBModel(oModel);
+// >>>>>>> origin/CPB
 
 	if (IS_QB(rewrittenTree)) {
 		DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);

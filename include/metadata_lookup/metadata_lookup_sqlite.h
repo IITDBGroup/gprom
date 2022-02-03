@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_sqlite.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -40,6 +40,8 @@ extern int sqliteGetCostEstimation(char *query);
 extern List *sqliteGetKeyInformation(char *tableName);
 extern DataType sqliteBackendSQLTypeToDT (char *sqlType);
 extern char * sqliteBackendDatatypeToSQL (DataType dt);
+extern HashMap *sqliteGetMinAndMax(char* tableName, char* colName);
+
 
 extern Relation *sqliteExecuteQuery(char *query);
 extern void sqliteExecuteQueryIgnoreResults(char *query);

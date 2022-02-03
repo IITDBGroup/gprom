@@ -36,7 +36,7 @@ static void updateCDBInsertion(QueryOperator *insertQ, char *tablename, psAttrIn
 static void updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo, Relation** relFroUpdateUse, boolean isFromUpdate);
 static void updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, boolean* hasUpdated);
 static void createAndInitValOfCompressedTable(char *tablename, List *ranges, char *psAttr);
-static void createCompressedTable(char *tablename, List *attrDefs);
+static void createCompressedTable(char *tablename, List *attrDefs, int rangeLength);
 static void initValToCompressedTable(char *tablename, List *attrDefs, List *ranges, char *psAttr);
 static int binarySearchToFindFragNo(Constant *value, List *ranges);
 static int isInRange(Constant *val, Constant *lower, Constant *upper);
@@ -77,7 +77,7 @@ createAndInitValOfCompressedTable(char *tablename, List *ranges, char *psAttr)
 	List *attrDefs = getAttributes(tablename);
 
 	INFO_LOG("START CREATING AND INITIALIZING CDB\n");
-	createCompressedTable(tablename, attrDefs);
+	createCompressedTable(tablename, attrDefs, getListLength(ranges));
 	initValToCompressedTable(tablename, attrDefs, ranges, psAttr);
 	INFO_LOG("FINISH CREATING AND INITIALIZING CDB\n");
 }
@@ -136,9 +136,9 @@ initValToCompressedTable(char *tablename, List *attrDefs, List *ranges,
 
 // TODO Further research to create the compressed table based on different mechanism.
 static void
-createCompressedTable(char *tablename, List *attrDefs)
+createCompressedTable(char *tablename, List *attrDefs, int rangeLength)
 {
-	INFO_LOG("START TO REWRITE COMPRESSED TABLE\n");
+	INFO_LOG("START TO CREATE COMPRESSED TABLE\n");
 
 	// set the name of compressed table
 	StringInfo cmprTbl = makeStringInfo();
@@ -151,9 +151,25 @@ createCompressedTable(char *tablename, List *attrDefs)
 			createAttributeDef("cid", (DataType) DT_INT));
 	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
 			createAttributeDef("cnt", (DataType) DT_INT));
+//	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+//			createAttributeDef("lb_prov", (DataType) DT_INT));
+//	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+//			createAttributeDef("ub_prov", (DataType) DT_INT));
+//	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+//				createAttributeDef("cert_r", (DataType) DT_INT));
+//	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+//				createAttributeDef("bst_r", (DataType) DT_INT));
+//	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+//				createAttributeDef("pos_r", (DataType) DT_INT));
+
 
 	for (int i = 0; i < LIST_LENGTH(attrDefs); i++) {
 		AttributeDef *attrDef = (AttributeDef*) getNthOfListP(attrDefs, i);
+		// attr
+//		StringInfo attr = makeStringInfo();
+//		appendStringInfo(attr, attrDef->attrName);
+//		cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+//				createAttributeDef(attr->data, attrDef->dataType));
 		// lower bound
 		StringInfo lb = makeStringInfo();
 		appendStringInfo(lb, "lb_%s", attrDef->attrName);
@@ -191,6 +207,27 @@ createCompressedTable(char *tablename, List *attrDefs)
 	char *ddlQuery = serializeQuery(createTableOp);
 
 	executeStatementLocal(ddlQuery);
+	//for postgres lb_prov and ub_prov, should be bit;
+//	StringInfo queryModifyType = makeStringInfo();
+//	appendStringInfo(queryModifyType, "alter table compressedtable_%s "
+//			"alter column lb_prov type bit using lb_prov::bit(%d);",
+//			tablename, rangeLength - 1);
+//	executeStatementLocal(queryModifyType->data);
+//	queryModifyType = makeStringInfo();
+//	appendStringInfo(queryModifyType, "alter table compressedtable_%s "
+//				"alter column lb_prov type bit(%d);",
+//				tablename, rangeLength - 1);
+//	executeStatementLocal(queryModifyType->data);
+//	queryModifyType = makeStringInfo();
+//	appendStringInfo(queryModifyType, "alter table compressedtable_%s "
+//			"alter column ub_prov type bit using ub_prov::bit(%d);",
+//			tablename, rangeLength - 1);
+//	executeStatementLocal(queryModifyType->data);
+//	queryModifyType = makeStringInfo();
+//		appendStringInfo(queryModifyType, "alter table compressedtable_%s "
+//				"alter column ub_prov type bit(%d);",
+//				tablename, rangeLength - 1);
+//	executeStatementLocal(queryModifyType->data);
 }
 
 /*
@@ -227,7 +264,7 @@ updateCompressedTable(QueryOperator *updateQuery, char *tablename,
 
 	// 2. derictly execute the updateQuery to original table;
 
-	// this special check is for update, since somethins will update base table ahead;
+	// this special check is for update, since something will update base table ahead;
 	if((nodeTag(((DLMorDDLOperator* )updateQuery)->stmt) == T_Update) && hasUpdatedBaseTable){
 		return;
 	}
@@ -557,6 +594,7 @@ updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo,
 	// iterate each tuple, to update the compressed table;
 	int delTupleListLength = getListLength(rel->tuples);
 
+	// TODO : Here should consider the original / compressed table is empty: this is a unrelistic case.
 	for (int i = 0; i < delTupleListLength; i++) {
 		List *nthOfDelTupList = (List*) getNthOfListP(rel->tuples, i);
 		int rangeIndex = binarySearchToFindFragNo(
@@ -863,7 +901,7 @@ updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, bo
 		insert->schema = (List*) copyObject(update->schema);
 		DLMorDDLOperator* dmlOp = createDMLDDLOp((Node*) insert);
 		DEBUG_NODE_BEATIFY_LOG("what is the created insert\n", dmlOp);
-		updateCDBInsertion((QueryOperator*) dmlOp, update->updateTableName,attrInfo);
+		updateCDBInsertion((QueryOperator*) dmlOp, update->updateTableName, attrInfo);
 	}
 }
 

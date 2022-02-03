@@ -535,26 +535,40 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
     DEBUG_LOG("mergePartsTogether");
     //TODO DISTINCT
     if (STRINGLEN(selectString) > 0)
+	{
         appendStringInfoString(str, selectString->data);
+	}
     else
+	{
         appendStringInfoString(str, "\nSELECT *");
+	}
 
     appendStringInfoString(str, fromString->data);
 
     if (STRINGLEN(whereString) > 0)
+	{
         appendStringInfoString(str, whereString->data);
+	}
 
     if (STRINGLEN(groupByString) > 0)
+	{
         appendStringInfoString(str, groupByString->data);
+	}
 
     if (STRINGLEN(havingString) > 0)
+	{
         appendStringInfoString(str, havingString->data);
+	}
 
 	if (STRINGLEN(orderString) > 0)
+	{
 		appendStringInfoString(str, orderString->data);
+	}
 
 	if (STRINGLEN(limitOffsetString) > 0)
+	{
 		appendStringInfoString(str, limitOffsetString->data);
+	}
 
     FREE(matchInfo);
 
@@ -669,11 +683,17 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 void
 genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
+// <<<<<<< HEAD
 	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api);
 
 	appendStringInfoString(where, "\nWHERE ");
 	updateAttributeNames((Node *) q->cond, fac);
     appendStringInfoString(where, exprToSQL(q->cond, nestAttrMap));
+// =======
+//     appendStringInfoString(where, "\nWHERE ");
+//     updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
+//     appendStringInfoString(where, exprToSQL(q->cond, NULL));
+// >>>>>>> origin/CPB
 }
 
 void

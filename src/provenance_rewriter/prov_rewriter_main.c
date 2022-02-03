@@ -141,6 +141,7 @@ findProvenanceComputations(QueryOperator *op, Set *haveSeen) {
 	return op;
 }
 
+// <<<<<<< HEAD
 static QueryOperator*
 rewriteProvenanceComputation(ProvenanceComputation *op) {
 	QueryOperator *result = NULL;
@@ -202,6 +203,71 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 			(QueryOperator*) op);
 
 	//used to get coarse grained parameter used in CASE PROV_COARSE_GRAINED
+// =======
+// static QueryOperator *
+// rewriteProvenanceComputation (ProvenanceComputation *op)
+// {
+//     QueryOperator *result = NULL;
+//     boolean requiresPostFiltering = FALSE;
+//     boolean applySummarization = HAS_STRING_PROP(op, PROP_SUMMARIZATION_DOSUM);
+//     HashMap *properties = (HashMap *) copyObject(op->op.properties);
+//
+//     // for a sequence of updates of a transaction merge the sequence into a single
+//     // query before rewrite.
+//     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
+//             || op->inputType == PROV_INPUT_TRANSACTION
+//             || op->inputType == PROV_INPUT_REENACT
+//             || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
+//     {
+//         START_TIMER("rewrite - merge update reenactments");
+//         mergeUpdateSequence(op);
+//         STOP_TIMER("rewrite - merge update reenactments");
+//
+//         // need to restrict to updated rows?
+//         if ((op->inputType == PROV_INPUT_TRANSACTION
+//                 || op->inputType == PROV_INPUT_REENACT_WITH_TIMES
+//                 || op->inputType == PROV_INPUT_REENACT)
+//                 && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
+//         {
+//             START_TIMER("rewrite - restrict to updated rows");
+//             restrictToUpdatedRows(op);
+//             requiresPostFiltering = HAS_STRING_PROP(op,PROP_PC_REQUIRES_POSTFILTERING);
+//             STOP_TIMER("rewrite - restrict to updated rows");
+//         }
+//     }
+//
+//     if (op->inputType == PROV_INPUT_TEMPORAL_QUERY)
+//     {
+//         return rewriteImplicitTemporal((QueryOperator *) op);
+//     }
+//
+//     if (op->inputType == PROV_INPUT_UNCERTAIN_QUERY)
+//     {
+//         return rewriteUncert((QueryOperator *) op);
+//     }
+//     if (op->inputType == PROV_INPUT_UNCERTAIN_TUPLE_QUERY)
+//     {
+//         return rewriteUncertTuple((QueryOperator *) op);
+//     }
+//     if (op->inputType == PROV_INPUT_RANGE_QUERY)
+//     {
+//         return rewriteRange((QueryOperator *) op);
+//     }
+//
+//     // turn operator graph into a tree since provenance rewrites currently expect a tree
+//     if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
+//     {
+//         treeify((QueryOperator *) op);
+//         INFO_OP_LOG("treeified operator model:", op);
+//         DEBUG_NODE_BEATIFY_LOG("treeified operator model:", op);
+//         ASSERT(isTree((QueryOperator *) op));
+//     }
+//
+//     //semiring comb operations
+//     boolean isCombinerActivated = isSemiringCombinerActivatedOp((QueryOperator *) op);
+//
+//     //used to get coarse grained parameter used in CASE PROV_COARSE_GRAINED
+// >>>>>>> origin/CPB
 	Node *coarsePara = NULL;
 	psInfo *psPara = NULL;
 
@@ -284,6 +350,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 		break;
 
 	case PROV_COARSE_GRAINED:
+		DEBUG_LOG("START CAPTURE:\n", op);
 		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
 		PROP_PC_COARSE_GRAINED);
 		psPara = createPSInfo(coarsePara);
@@ -317,6 +384,24 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 		removeParent(result, (QueryOperator*) op);
 		break;
 	case PROV_TYPE_UPDATEPS:
+		DEBUG_LOG("START CAPTURE:\n", op);
+		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
+		PROP_PC_COARSE_GRAINED);
+		psPara = createPSInfo(coarsePara);
+		DEBUG_LOG("coarse grained fragment parameters: %s",
+				nodeToString((Node* ) psPara));
+		markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
+
+		//mark the number of table - used in provenance scratch
+		markNumOfTableAccess((QueryOperator*) op);
+		DEBUG_LOG("finish markNumOfTableAccess!");
+		bottomUpPropagateLevelAggregation((QueryOperator*) op, psPara);
+		DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
+		result = rewritePI_CS(op);
+		result = addTopAggForCoarse(result);
+
+
+		/*
 		if (isRewriteOptionActivated(OPTION_PS_USE_NEST))
 			op = originalOp;
 
@@ -334,16 +419,9 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 		QueryOperator *op1 = (QueryOperator*) op;
 		QueryOperator *rChild = OP_RCHILD(op1);
 		op1->inputs = singleton(rChild);
-		//END ADDED
-
-		//op->inputs(update, query)
-//		INFO_OP_LOG("\nMMMMMMMMMtreeified operator model:\n", op);
-//		DEBUG_NODE_BEATIFY_LOG(
-//				"\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQtreeified operator model:\n",
-//				op);
-		//
 		result = rewritePI_CS(op);
 		removeParent(result, (QueryOperator*) op);
+		*/
 		break;
 	case PROV_TRANSFORMATION:
 		result = rewriteTransformationProvenance((QueryOperator*) op);

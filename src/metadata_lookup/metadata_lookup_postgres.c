@@ -25,6 +25,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "model/set/hashmap.h"
 
 #if HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
@@ -90,7 +91,7 @@
 
 #define NAME_IS_WIN_FUNC_11 "GPRoM_IsWinFunc"
 #define PARAMS_IS_WIN_FUNC_11 1
-#define QUERY_IS_WIN_FUNC_11 "SELECT bool_or(prokind = 'w') is_win FROM pg_proc " \
+#define QUERY_IS_WIN_FUNC_11 "SELECT (bool_or(prokind = 'w' OR prokind = 'a')) is_win FROM pg_proc " \
         "WHERE proname = $1::text;"
 
 #define NAME_IS_AGG_FUNC_11 "GPRoM_IsAggFunc"
@@ -100,7 +101,7 @@
 
 #define NAME_IS_WIN_FUNC "GPRoM_IsWinFunc"
 #define PARAMS_IS_WIN_FUNC 1
-#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswindow) is_win FROM pg_proc " \
+#define QUERY_IS_WIN_FUNC "SELECT bool_or(proiswindow OR proisagg) is_win FROM pg_proc " \
         "WHERE proname = $1::text;"
 
 #define NAME_IS_AGG_FUNC "GPRoM_IsAggFunc"
@@ -185,6 +186,7 @@ static DataType postgresTypenameToDT (char *typName);
         do { \
             PQfinish(plugin->conn); \
             PQclear(res); \
+			STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
             FATAL_LOG(__VA_ARGS__); \
         } while(0)
 
@@ -203,9 +205,14 @@ typedef struct PostgresPlugin
 typedef struct PostgresMetaCache {
     HashMap *oidToDT;   // maps datatype OID to GProM datatypes
     Set *anyOids;
+	HashMap *tableMinMax;
 } PostgresMetaCache;
 
 #define GET_CACHE() ((PostgresMetaCache *) plugin->plugin.cache->cacheHook)
+
+// names of timers used here
+#define METADATA_LOOKUP_TIMER "module - metadata lookup"
+#define METADATA_LOOKUP_QUERY_TIMER "modeul - metadata lookup - running queries"
 
 // global vars
 static PostgresPlugin *plugin = NULL;
@@ -246,6 +253,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->connectionDescription = postgresGetConnectionDescription;
     p->sqlTypeToDT = postgresBackendSQLTypeToDT;
     p->dataTypeToSQL = postgresBackendDatatypeToSQL;
+	p->getMinAndMax = postgresGetMinAndMax;
 
     return p;
 }
@@ -266,6 +274,8 @@ postgresInitMetadataLookupPlugin (void)
 
     memContext = getCurMemContext();
 
+	START_TIMER(METADATA_LOOKUP_TIMER);
+
     // create cache
     plugin->plugin.cache = createCache();
 
@@ -273,10 +283,13 @@ postgresInitMetadataLookupPlugin (void)
     psqlCache = NEW(PostgresMetaCache);
     psqlCache->oidToDT = NEW_MAP(Constant,Constant);
     psqlCache->anyOids = INTSET();
+	psqlCache->tableMinMax = NEW_MAP(Constant,HashMap);
     plugin->plugin.cache->cacheHook = (void *) psqlCache;
 
     plugin->initialized = TRUE;
 
+
+	STOP_TIMER(METADATA_LOOKUP_TIMER);
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
@@ -299,6 +312,8 @@ postgresDatabaseConnectionOpen (void)
 //    OptionConnection *op = getOptions()->optionConnection;
 
     ACQUIRE_MEM_CONTEXT(memContext);
+
+	START_TIMER(METADATA_LOOKUP_TIMER);
 
     /* create connection string */
     appendStringInfo(connStr, " host=%s", getStringOption("connection.host"));
@@ -331,6 +346,7 @@ postgresDatabaseConnectionOpen (void)
     // initialize cache
     fillOidToDTMap(GET_CACHE()->oidToDT, GET_CACHE()->anyOids);
 
+	STOP_TIMER(METADATA_LOOKUP_TIMER);
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
@@ -452,7 +468,7 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_HIST);
 
     // catalog pg_proc has changed in 11
-    if (plugin->serverMajorVersion == 11)
+    if (plugin->serverMajorVersion >= 11)
     {
         PREP_QUERY(IS_WIN_FUNC_11);
         PREP_QUERY(IS_AGG_FUNC_11);
@@ -957,6 +973,7 @@ postgresIsWindowFunction(char *functionName)
     {
         addToSet(plugin->plugin.cache->winFuncNames, functionName);
         PQclear(res);
+		RELEASE_MEM_CONTEXT();
         return TRUE;
     }
     PQclear(res);
@@ -1039,9 +1056,14 @@ postgresGetKeyInformation(char *tableName)
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
+	{
         addToSet(keySet, strdup(PQgetvalue(res,i,0)));
+	}
 
-    result = singleton(keySet);
+	if (PQntuples(res) > 0)
+	{
+		result = singleton(keySet);
+	}
 
     // cleanup
     PQclear(res);
@@ -1080,7 +1102,92 @@ postgresBackendDatatypeToSQL (DataType dt)
     return "text";
 }
 
+HashMap *
+postgresGetMinAndMax(char* tableName, char* colName)
+{
+	HashMap *result_map;
 
+    PGresult *res = NULL;
+    StringInfo statement;
+	HashMap *tableMap = (HashMap *) MAP_GET_STRING(GET_CACHE()->tableMinMax, tableName);
+
+	if(tableMap == NULL)
+	{
+		tableMap = NEW_MAP(Constant,HashMap);
+		MAP_ADD_STRING_KEY(GET_CACHE()->tableMinMax, tableName, tableMap);
+	}
+	// table cache exists, return attribute if we have it already
+	else
+	{
+		result_map = (HashMap *) MAP_GET_STRING(tableMap, colName);
+		if(result_map != NULL)
+		{
+		    DEBUG_LOG("POSTGRES_GET_MINMAX: REUSE (%s.%s)\n%s",
+					 tableName,
+					 colName,
+					 nodeToString(result_map));
+			return result_map;
+		}
+	}
+
+	result_map = NEW_MAP(Constant, Node);
+    statement = makeStringInfo();
+    appendStringInfo(statement,
+            "SELECT MIN(%s),MAX(%s) FROM %s;",colName,colName,tableName);
+
+    res = execQuery(statement->data);
+
+    int numRes = PQntuples(res);
+
+    for(int i = 0; i < numRes; i++)
+    {
+        char *min = PQgetvalue(res,i,0);
+        // int oidInt = atoi(oid);
+        char *max = PQgetvalue(res,i,1);
+        Constant *cmin;
+        Constant *cmax;
+
+        List *dts = getAttributes(tableName);
+
+        FOREACH(AttributeDef,n,dts)
+		{
+            INFO_LOG(n->attrName);
+            if(strcmp(n->attrName,colName)==0)
+			{
+                if (n->dataType==DT_INT)
+                {
+                    cmin = createConstInt(atoi(min));
+                    cmax = createConstInt(atoi(max));
+                }
+                else if(n->dataType==DT_FLOAT)
+				{
+                    cmin = createConstFloat(atof(min));
+                    cmax = createConstFloat(atof(max));
+                }
+                else
+				{
+                    cmin = createConstString(min);
+                    cmax = createConstString(max);
+                }
+                DEBUG_LOG("min = %s, max = %s", nodeToString(cmin), nodeToString(cmax));
+            }
+        }
+
+        MAP_ADD_STRING_KEY(result_map, "MIN", cmin);
+        MAP_ADD_STRING_KEY(result_map, "MAX", cmax);
+    }
+
+    PQclear(res);
+    execCommit();
+
+	MAP_ADD_STRING_KEY(tableMap, colName, result_map);
+    DEBUG_LOG("POSTGRES_GET_MINMAX: GOT (%s.%s)\n%s",
+			 tableName,
+			 colName,
+			 nodeToString(result_map));
+
+	return result_map;
+}
 
 void
 postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
@@ -1106,6 +1213,8 @@ execStmt (char *stmt)
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;;
 
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     res = PQexec(c, "BEGIN TRANSACTION;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
             CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
@@ -1119,6 +1228,8 @@ execStmt (char *stmt)
                 PQerrorMessage(c));
     PQclear(res);
 
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     execCommit();
 }
 
@@ -1128,6 +1239,8 @@ execQuery(char *query)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQexec(c, "BEGIN TRANSACTION;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
@@ -1146,6 +1259,8 @@ execQuery(char *query)
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
 
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     return res;
 }
 
@@ -1155,11 +1270,16 @@ execCommit(void)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     res = PQexec(c, "COMMIT;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
             CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
     PQclear(res);
+
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 }
 
 static PGresult *
@@ -1172,6 +1292,7 @@ execPrepared(char *qName, List *values)
     params = CALLOC(sizeof(char*),LIST_LENGTH(values));
 
     ASSERT(postgresIsInitialized());
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     i = 0;
     FOREACH(Constant,c,values)
@@ -1192,6 +1313,8 @@ execPrepared(char *qName, List *values)
         CLOSE_RES_CONN_AND_FATAL(res, "query %s failed:\n%s", qName,
                 PQresultErrorMessage(res));
 
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     return res;
 }
 
@@ -1201,6 +1324,8 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQprepare(c,
                     qName,
@@ -1213,6 +1338,8 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
     PQclear(res);
 
     DEBUG_LOG("prepared query: %s AS\n%s", qName, query);
+
+	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     return TRUE;
 }
@@ -1439,6 +1566,12 @@ char *
 postgresGetViewDefinition(char *viewName)
 {
     return NULL;
+}
+
+char *
+postgresBackendDatatypeToSQL (DataType dt)
+{
+	return NULL;
 }
 
 void

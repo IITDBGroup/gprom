@@ -381,7 +381,7 @@ static QueryOperator
         FORBOTH(AttributeReference,l,r,lAttrExprs,rAttrExprs)
         {
         	r->fromClauseItem = 1;
-        	condExprs =  appendToTailOfList(condExprs, (Node *) createOpExpr("=", LIST_MAKE(l, r)));
+        	condExprs =  appendToTailOfList(condExprs, (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(l, r)));
         }
         // A=C AND B=D AND ....
         Node *joinCond  = andExprList(condExprs);
@@ -459,7 +459,7 @@ static QueryOperator
         FORBOTH(AttributeReference,l,r,lJoinAttrExprs,rJoinAttrExprs)
         {
         	r->fromClauseItem = 1;
-        	condExprs =  appendToTailOfList(condExprs, (Node *) createOpExpr("=", LIST_MAKE(l, r)));
+        	condExprs =  appendToTailOfList(condExprs, (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(l, r)));
         }
         // A=C AND B=D AND ....
         Node *joinCond  = andExprList(condExprs);

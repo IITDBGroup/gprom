@@ -67,9 +67,13 @@ testQueryBlockToString(void)
     q->whereClause = NULL;
 
     toString = nodeToString(q);
+<<<<<<< HEAD
     ASSERT_EQUALS_STRING("{QUERYBLOCK:distinct|<>:selectClause|<>:fromClause|<>"
             ":whereClause|<>:groupByClause|<>:havingClause|<>:orderByClause|<>"
             ":limitClause|<>:offsetClause|<>}", toString, "");
+// =======
+    // ASSERT_EQUALS_STRING("{QUERYBLOCK:distinct|<>:selectClause|<>:fromClause|<>:whereClause|<>:groupByClause|<>:havingClause|<>:orderByClause|<>:limitClause|<>:offsetClause|<>}", toString, "");
+// >>>>>>> origin/CPB
 
     return PASS;
 }

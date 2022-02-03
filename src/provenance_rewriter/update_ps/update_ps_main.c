@@ -31,9 +31,11 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 #include "sql_serializer/sql_serializer.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "metadata_lookup/metadata_lookup_postgres.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "provenance_rewriter/update_ps/table_compress.h"
 
@@ -55,7 +57,8 @@
 /*
  * Function Declaration
  */
-
+//
+static QueryOperator* captureRewrite(ProvenanceComputation* pc);
 //DELETE
 static char* update_ps_delete(QueryOperator *query, QueryOperator *updateQuery, psInfo *PSInfo, int ruleNum);
 static char* update_ps_delete_drop(QueryOperator *query, QueryOperator *updateQuery, psInfo *PSInfo);
@@ -85,56 +88,28 @@ void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result);
 int skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo, QueryOperator *updateQuery);
 void compressTable(char *tablename, char *psAttr, List *ranges);
 
+
 /*
  * Function Implementation
  */
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
+	DEBUG_NODE_BEATIFY_LOG("qbModel for update ps:\n", qbModel);
 
 	//initialize some parameters to get the ps, left chile(update statement) and right child(query);
 	ProvenanceComputation *op = qbModel;
 	Node *coarsePara = NULL;
 	psInfo *psPara = NULL;
 
-//	coarsePara = (Node*) getStringProperty((QueryOperator*) op,
-//	PROP_PC_COARSE_GRAINED);
-//	psPara = createPSInfo(coarsePara);
-
-
-		/*
-		 * Capture
-		 *
-		 */
-		QueryOperator* result = NULL;
-		coarsePara = (Node*) getStringProperty((QueryOperator*) op,
-		PROP_PC_COARSE_GRAINED);
-		psPara = createPSInfo(coarsePara);
-		DEBUG_LOG("coarse grained fragment parameters: %s",
-						nodeToString((Node* ) psPara));
-		markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
-
-		//mark the number of table - used in provenance scratch
-		markNumOfTableAccess((QueryOperator*) op);
-		DEBUG_LOG("finish markNumOfTableAccess!");
-		bottomUpPropagateLevelAggregation((QueryOperator*) op, psPara);
-		DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
-		result = rewritePI_CS(op);
-		result = addTopAggForCoarse(result);
-		/*
-		 * end of capture rewrite
-		 */
-
-	NODE_BEATIFY_LOG("AFTER WRITE QUERY:\n", result);
-
-
-
-
-
-//	DEBUG_LOG("use coarse grained fragment parameters: %s\n",
-//			nodeToString((Node* ) psPara));
-//	DEBUG_NODE_BEATIFY_LOG("WHAT IS psPARA", psPara);
-
+	coarsePara = (Node*) getStringProperty((QueryOperator*) op,
+	PROP_PC_COARSE_GRAINED);
+	psPara = createPSInfo(coarsePara);
+	/*
+	 * Check the compressed table exists,
+	 * If not, build it.
+	 */
+	// check each table to build compressed table;
 	List *allTables = getAllTables(psPara);
 
 	for (int i = 0; i < LIST_LENGTH(allTables); i++) {
@@ -143,20 +118,12 @@ update_ps(ProvenanceComputation *qbModel)
 		List *psAttrInfoList = (List*) getMapString(psPara->tablePSAttrInfos,
 				tableName);
 		psAttrInfo *attInfo = (psAttrInfo*) getNthOfListP(psAttrInfoList, 0);
-		printf("TABLE NAME: %s\n", tableName);
-		printf("ATTRI NAME: %s\n", attInfo->attrName);
+		INFO_LOG("TABLE NAME: %s\n", tableName);
+		INFO_LOG("ATTRI NAME: %s\n", attInfo->attrName);
 		DEBUG_NODE_BEATIFY_LOG("RANGE LIST\n", attInfo->rangeList);
 		tableCompress(tableName, attInfo->attrName, attInfo->rangeList);
 
 	}
-
-
-
-
-
-
-
-
 
 
 	/*
@@ -164,13 +131,14 @@ update_ps(ProvenanceComputation *qbModel)
 	 * left child is a update statement
 	 * right child is a normal query
 	 */
-	QueryOperator *op1 = (QueryOperator*) op;
+	QueryOperator *op1 = (QueryOperator*) qbModel;
 	QueryOperator *lChild = (QueryOperator*) OP_LCHILD(op1);
 	removeParent(lChild, op1);
 	DEBUG_NODE_BEATIFY_LOG("LEFT CHILD\n", lChild);
-
-//	char* updateTblName = ((TableAccessOperator*) getNthOfListP(lChild->inputs, 0))->tableName;
-
+	/*
+	 * Update the compressed table based on UPDATE STATEMENT;
+	 */
+	// get update table name from update statement;
 	char *updateTblName = NULL;
 	DLMorDDLOperator *updateOp = (DLMorDDLOperator*) lChild;
 	switch (nodeTag(updateOp->stmt)) {
@@ -190,7 +158,52 @@ update_ps(ProvenanceComputation *qbModel)
 			updateTblName);
 	psAttrInfo *attrInfo = (psAttrInfo*) getNthOfListP(psAttrInfoList, 0);
 
+
 	updateCompressedTable(lChild, updateTblName, attrInfo);
+
+
+	/*
+	 * Get capture rewrite query
+	 */
+	QueryOperator* captureQuery = captureRewrite(qbModel);
+	DEBUG_NODE_BEATIFY_LOG("capture query:\n", captureQuery);
+
+
+	/*
+	 * For each table access operator
+	 * Replace it with compressed table
+	 * Set the property "PROP_HAS_UNCERT"
+	 */
+	List* tableAccessList = NIL;
+	getTableAccessOps((Node*) captureQuery, &tableAccessList);
+	for(int i = 0; i < getListLength(tableAccessList); i++) {
+		DEBUG_NODE_BEATIFY_LOG("ori table op:\n", getNthOfListP(tableAccessList, i));
+		// replace table with compressed table
+		TableAccessOperator* taop = (TableAccessOperator*) getNthOfListP(tableAccessList, i);
+		StringInfo tblName = makeStringInfo();
+		appendStringInfo(tblName, "compressedtable_%s", taop->tableName);
+		taop->tableName = tblName->data;
+		// set property "PROP_HAS_UNCERT"
+		setStringProperty((QueryOperator*) taop, PROP_HAS_UNCERT, (Node*) createConstBool(TRUE));
+		DEBUG_NODE_LOG("property has uncert\n",getStringProperty((QueryOperator*) taop, PROP_HAS_UNCERT));
+		DEBUG_NODE_BEATIFY_LOG("modi table op:\n", getNthOfListP(tableAccessList, i));
+	}
+
+	/*
+	 * uncertainty rewrite of capture query;
+	 */
+	INFO_OP_LOG("before uncert rewrite:\n", captureQuery);
+	QueryOperator* uncertCaptureRewriteOp = rewriteUncert(captureQuery);
+	INFO_OP_LOG("after uncert rewrite:\n", uncertCaptureRewriteOp);
+
+	/*
+	 * Serialize uncertainy rewrite query
+	 * Run to get the updated ps
+	 */
+	char* updatePSQuery = serializeQuery(uncertCaptureRewriteOp);
+	if (getBackend() == BACKEND_POSTGRES) {
+			postgresExecuteStatement(updatePSQuery);
+	}
 
 	boolean stopHere = TRUE;
 	if (stopHere) {
@@ -258,6 +271,34 @@ update_ps(ProvenanceComputation *qbModel)
 		result = update_ps_update(newQuery, lChild, psPara, UPDATE_RULE_1);
 	}
 
+	return result;
+}
+
+static
+QueryOperator* captureRewrite(ProvenanceComputation* op){
+	DEBUG_NODE_BEATIFY_LOG("Provenance Computation* \n", op);
+	// remove left child which is the update statemnt;
+	QueryOperator *rChild = OP_RCHILD((QueryOperator*) op);
+	((QueryOperator*)op)->inputs = singleton(rChild);
+	DEBUG_NODE_BEATIFY_LOG("query operator after remove update statment:\n", op);
+	QueryOperator* result = NULL;
+	Node *coarsePara = NULL;
+	psInfo *psPara = NULL;
+
+	coarsePara = (Node*) getStringProperty((QueryOperator*) op,
+	PROP_PC_COARSE_GRAINED);
+	psPara = createPSInfo(coarsePara);
+	DEBUG_LOG("coarse grained fragment parameters: %s",
+							nodeToString((Node* ) psPara));
+	markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
+
+	//mark the number of table - used in provenance scratch
+	markNumOfTableAccess((QueryOperator*) op);
+	DEBUG_LOG("finish markNumOfTableAccess!");
+	bottomUpPropagateLevelAggregation((QueryOperator*) op, psPara);
+	DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
+	result = rewritePI_CS(op);
+	result = addTopAggForCoarse(result);
 	return result;
 }
 

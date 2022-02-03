@@ -52,7 +52,7 @@ rc
 testMetadataLookup(void)
 {
 
-    if (strpeq(getStringOption("backend"),"oracle"))
+    if (strpleq(getStringOption("backend"),"oracle"))
     {
 #if HAVE_ORACLE_BACKEND
         ASSERT_EQUALS_INT(EXIT_SUCCESS, oracleShutdownMetadataLookupPlugin(), "shutdown plugin");

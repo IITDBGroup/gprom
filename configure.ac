@@ -87,6 +87,47 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# All Oracle Checks
+AC_DEFUN([AC_ORACLE_ALL_CHECKS],
+[
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_OCI_LOCATION
+  AC_OCIH_LOCATION
+  AC_OCI_LIB_LOCATION
+  AC_OCILIB_LOCATION
+  AC_CHECK_HEADERS([ocilib.h],
+# do nothing if header exists
+    [],
+# fail if header not found
+    [AC_MSG_ERROR([missing Oracle ocilib.h header])]
+    )
+# check for the libraries
+  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
+    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
+    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+])
+# Postgres libpq header location
+AC_DEFUN([AC_LIBPQ_HEADER_LOCATION],
+[AC_ARG_WITH(libpq-headers, [  --with-libpq-headers], , )
+AC_MSG_CHECKING([for user provided libpq header location])
+if test "x$with_libpq_headers" != x; then
+	if test -f "$with_libpq_headers/libpq-fe.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_libpq_headers"
+    	AC_MSG_RESULT([yes, found at $with_libpq_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no headers for Postgres libpq found in location $with_libpq_headers])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 # Postgres libpq library location
 AC_DEFUN([AC_LIBPQ_LOCATION],
 [AC_ARG_WITH(libpq, [  --with-libpq], , )
@@ -104,22 +145,81 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
-# MonetDB Mapi library location
-AC_DEFUN([AC_MAPI_LOCATION],
-[AC_ARG_WITH(mapi, [  --with-mapi], , )
-AC_MSG_CHECKING([for user provided MonetDB mapi library location])
-if test "x$with_mapi" != x; then
-	if test -d "$with_mapi"; then
-		LDFLAGS="$LDFLAGS -L$with_mapi"
-    	CPPFLAGS="$CPPFLAGS -I$with_mapi/../include"
-    	AC_MSG_RESULT([yes, $with_mapi])
+# All Postgres Checks
+AC_DEFUN([AC_POSTGRES_ALL_CHECKS],
+[
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_LIBPQ_LOCATION
+  AC_LIBPQ_HEADER_LOCATION
+  AC_CHECK_HEADERS([libpq-fe.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find PostgreSQL libpq-fe.h])]
+  )
+# check for the libpq library
+  AC_CHECK_LIB([pq],[PQconndefaults],[],[
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
+  ])
+]
+)
+# MonetDB Mapi header location
+AC_DEFUN([AC_MAPIH_LOCATION],
+[AC_ARG_WITH(mapi-headers, [  --with-mapi-headers], , )
+AC_MSG_CHECKING([for user provided mapi header location])
+if test "x$with_mapi_headers" != x; then
+	if test -f "$with_mapi_headers/mapi.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_mapi_headers"
+    	AC_MSG_RESULT([yes, found at $with_mapi_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no libpq library found in location $with_mapi])
+    	AC_WARN([no headers for MonetDB mapi found in location $with_mapi_headers])
+	fi
+else
+    # monetdb install in monetdb subdir of include directory
+    CPPFLAGS="$CPPFLAGS -I/usr/lib/monetdb"
+	AC_MSG_RESULT([not set])
+fi
+])
+# MonetDB Mapi library location
+AC_DEFUN([AC_MAPI_LOCATION],
+[AC_ARG_WITH(mapi, [  --with-mapi-lib], , )
+AC_MSG_CHECKING([for user provided MonetDB mapi library location])
+if test "x$with_mapi_lib" != x; then
+	if test -d "$with_mapi_lib"; then
+		LDFLAGS="$LDFLAGS -L$with_mapi_lib"
+    	AC_MSG_RESULT([yes, $with_mapi_lib])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no libmapi library found in location $with_mapi_lib])
 	fi
 else
 	AC_MSG_RESULT([not set])
 fi
+])
+# All Monetdb Checks
+AC_DEFUN([AC_MONETDB_ALL_CHECKS],
+[
+# user has provided us with a non-standard location for MonetDB Mapi library
+  AC_MAPI_LOCATION
+  AC_MAPIH_LOCATION
+  AC_CHECK_HEADERS([mapi.h],
+# do nothing if header exists
+    [],
+# fail if header does not exists
+    [AC_MSG_ERROR([Unable to find MonetDB mapi.h header])]
+  )
+# check for the mapi library
+  AC_CHECK_LIB([mapi],[mapi_unquote],[],[
+    AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
+  ])
+])
+# All SQLite Checks
+AC_DEFUN([AC_SQLITE_ALL_CHECKS],
+[
+    AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+	])
 ])
 # cplex library location
 AC_DEFUN([AC_CPLEX_LOCATION],
@@ -509,12 +609,14 @@ AS_CASE(["$enable_cplex"],
     AC_MSG_ERROR([missing cplex library - if you want to compile without cplex support do not use --enable-cplex])
   ])
   ],
+  # No and default
   [no], [],
   []
 )
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
 AS_CASE(["$enable_oracle"],
+# <<<<<<< HEAD
   [yes], [
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
   AC_OCI_LOCATION
@@ -551,6 +653,12 @@ AS_CASE(["$enable_oracle"],
   ])
   ]
 ])
+# =======
+  # [yes], [AC_ORACLE_ALL_CHECKS],
+  # [no], [],
+  # [AC_ORACLE_ALL_CHECKS]
+# )
+# >>>>>>> origin/CPB
 ################################################################################
 # Readline
 AC_CHECK_LIB([readline],[readline],[],[
@@ -569,6 +677,7 @@ AS_IF([test "x$enable_readline" == "xno"], [
 ################################################################################
 # Postgres C client library (libpq)
 AS_CASE(["$enable_postgres"],
+# <<<<<<< HEAD
   [yes], [
 # check if user has provided us with a non-standard location for Postgres's libpq library
   AC_LIBPQ_LOCATION
@@ -588,11 +697,19 @@ AS_CASE(["$enable_postgres"],
     AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
   ])
   ]
+# =======
+  # [yes], [AC_POSTGRES_ALL_CHECKS],
+  # Deactivated
+  # [no], [],
+  # Default (active)
+  # [AC_POSTGRES_ALL_CHECKS]
+# >>>>>>> origin/CPB
 )
 ################################################################################
 # SQlite library (libsqlite3)
 # check for the sqlite3 library
 AS_CASE(["$enable_sqlite"],
+# <<<<<<< HEAD
 	[yes], [
 	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
@@ -604,10 +721,18 @@ AS_CASE(["$enable_sqlite"],
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 	])
 	]
+# =======
+	# [yes], [AC_SQLITE_ALL_CHECKS],
+    # Deactivated
+    # [no], [],
+    # Default (active)
+	# [AC_SQLITE_ALL_CHECKS]
+# >>>>>>> origin/CPB
 )
 ################################################################################
 # MonetDB C client library (mapi)
 AS_CASE(["$enable_monetdb"],
+# <<<<<<< HEAD
   [yes], [
 # user has provided us with a non-standard location for MonetDB Mapi library
   AC_MAPI_LOCATION
@@ -627,6 +752,13 @@ AS_CASE(["$enable_monetdb"],
     AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
   ])
   ]
+# =======
+  # [yes], [AC_MONETDB_ALL_CHECKS],
+# Deactivated
+  # [no], [],
+# Default (active)
+  # [AC_MONETDB_ALL_CHECKS]
+# >>>>>>> origin/CPB
 )
 ################################################################################
 # enable/disable features

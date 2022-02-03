@@ -69,7 +69,11 @@ testSuites(void)
     RUN_TEST(testList(), "List model");
     RUN_TEST(testSet(), "Set");
     RUN_TEST(testVector(), "Vector");
+// <<<<<<< HEAD
     RUN_TEST(testBitset(), "Bitset");
+// =======
+	// RUN_TEST(testBitset(), "Bitset");
+// >>>>>>> origin/CPB
     RUN_TEST(testHashMap(), "HashMap");
     RUN_TEST(testExpr(), "Expression model");
     RUN_TEST(testCopy(), "Test generic copy function");

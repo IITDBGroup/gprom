@@ -1,7 +1,7 @@
 ACLOCAL_AMFLAGS = -I m4
 
-# configure for distcheck (need to disable Java since Java build requires writing files and distcheck runs everything read-only 
-AM_DISTCHECK_CONFIGURE_FLAGS=--disable-oracle --disable-monetdb --disable-java
+# configure for distcheck (need to disable Java since Java build requires writing files and distcheck runs everything read-only, also disable backend with client libraries that are installed in nonstandard locations)
+AM_DISTCHECK_CONFIGURE_FLAGS=--disable-oracle --disable-monetdb --disable-java --disable-postgres
 
 # add include dir to C compile flags
 AM_CPPFLAGS = -I$(top_srcdir)/include
@@ -26,8 +26,8 @@ SUBDIRS = include src test doc
 endif
 
 # additional directories to include in a distribution package:
-# - maintainer Makefile for running autotools 
-# - the header file dir 
+# - maintainer Makefile for running autotools
+# - the header file dir
 # - .y and .l files
 # - YACC and FLEX generated files
 # - scripts for running executables and scripts

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * gp_bottom_up_program.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel & seokki
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -104,7 +104,7 @@ createBottomUpGPprogram (DLProgram *p)
 	programRules = NIL;
 	domainRules = NIL;
 	origDLrules = NIL;
-	
+
 //    // store original input rule for summarization process
 //    if (p->sumOpts != NIL)
 //    {
@@ -381,7 +381,7 @@ createInputDBprogram (DLProgram *p, DLAtom *question)
 //						FORBOTH(Node,ln,rn,r->head->args,(List *) getTailOfListP(values))
 //						{
 //							DLComparison *dlC = makeNode(DLComparison);
-//							dlC->opExpr = createOpExpr("=",LIST_MAKE(ln,rn));
+//							dlC->opExpr = createOpExpr(OPNAME_EQ,LIST_MAKE(ln,rn));
 //							dlR->body = appendToTailOfList(dlR->body,dlC);
 //						}
 //					}
@@ -1945,8 +1945,12 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
             boolean onlyConst = TRUE;
 
             FOREACH(Node,n,copiedOrig->args)
+			{
             	if(isA(n,DLVar))
+				{
             		onlyConst = FALSE;
+				}
+			}
 
 	        // Collecting all the original variables for later use
 	        int argPos = -1;
@@ -4172,7 +4176,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
 
 						DLComparison *comp = makeNode(DLComparison);
-						comp->opExpr = createOpExpr(">=",compArgs);
+						comp->opExpr = createOpExpr(OPNAME_GE,compArgs);
 						r->body = appendToTailOfList(r->body,comp);
 					}
 				}
@@ -4205,7 +4209,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
 
 						DLComparison *comp = makeNode(DLComparison);
-						comp->opExpr = createOpExpr(">=",compArgs);
+						comp->opExpr = createOpExpr(OPNAME_GE,compArgs);
 						r->body = appendToTailOfList(r->body,comp);
 					}
 				}

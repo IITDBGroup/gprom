@@ -92,6 +92,8 @@ boolean oracle_use_service_name = FALSE;
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
+boolean opt_log_operator_colorize = TRUE;
+boolean opt_log_operator_verbose = FALSE;
 
 // input options
 char *sql = NULL;
@@ -143,9 +145,10 @@ int cost_based_num_heuristic_opt_iterations = 1;
 boolean opt_optimization_push_selections = FALSE;
 boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
-boolean opt_materialize_unsafe_proj = FALSE;
-boolean opt_remove_redundant_projections = TRUE;
-boolean opt_remove_redundant_duplicate_operator = TRUE;
+boolean opt_optimization_materialize_unsafe_proj = FALSE;
+boolean opt_optimization_merge_unsafe_proj = FALSE;
+boolean opt_optimization_remove_redundant_projections = TRUE;
+boolean opt_optimization_remove_redundant_duplicate_operator = TRUE;
 boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
 boolean opt_optimization_selection_move_around = FALSE;
@@ -174,6 +177,7 @@ boolean opt_lateral_rewrite = FALSE;
 boolean opt_unnest_rewrite = FALSE;
 boolean opt_agg_reduction_model_rewrite = FALSE;
 
+//<<<<<<< HEAD
 // use provenance scratch
 int max_number_paritions_for_uses = 0;
 int bit_vector_size = 32;
@@ -187,6 +191,12 @@ boolean ps_post_to_oracle = FALSE;
 
 // update ps option to decide acccurate or approximate updating
 int update_ps_option = 0;
+//=======
+// Uncertainty rewriter options
+boolean range_optimize_join = TRUE;
+boolean range_optimize_agg = TRUE;
+int range_compression_rate = 1;
+//>>>>>>> origin/CPB
 
 // struct that encapsulates option state
 struct option_state {
@@ -249,6 +259,16 @@ static char *defGetString(OptionDefault *def, OptionType type);
         }
 
 #define anTemporaldbOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
+
+#define anUncertaintyOption(_name,_opt,_desc,_var,_def) \
         { \
             _name, \
             _opt, \
@@ -351,7 +371,7 @@ OptionInfo opts[] =
         },
         // logging options
         {
-                "log.level",
+                OPTION_LOG_LEVEL,
                 "-loglevel",
                 "Log level determining log output: TRACE=5, DEBUG=4, INFO=3, WARN=2, ERROR=1, FATAL=0",
                 OPTION_INT,
@@ -359,12 +379,28 @@ OptionInfo opts[] =
                 defOptionInt(1)
         },
         {
-                "log.active",
+                OPTION_LOG_ACTIVE,
                 "-log",
                 "Activate/Deactivate logging",
                 OPTION_BOOL,
                 wrapOptionBool(&logActive),
                 defOptionBool(TRUE)
+        },
+		{
+                OPTION_LOG_OPERATOR_COLORIZED,
+                "-Loperator_colorize",
+                "Colorize relational algebra operator overviews",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_log_operator_colorize),
+                defOptionBool(TRUE)
+        },
+		{
+                OPTION_LOG_OPERATOR_VERBOSE,
+                "-Loperator_verbose",
+                "Relational algebra operator overviews are verbose",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_log_operator_verbose),
+                defOptionBool(FALSE)
         },
         // input options
         {
@@ -763,19 +799,27 @@ OptionInfo opts[] =
                 "Optimization: add materialization hint for projections that "
                 "if merged with adjacent projection would cause expontential "
                 "expression size blowup",
-                opt_materialize_unsafe_proj,
+				opt_optimization_materialize_unsafe_proj,
                 TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_MERGE_UNSAFE_PROJECTIONS,
+                "-Omerge_unsafe_proj",
+                "Optimization: merge projections even "
+                "if this may cause an expontential blowup in "
+                "expression size",
+				opt_optimization_merge_unsafe_proj,
+                FALSE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS,
                 "-Oremove_redundant_projections",
                 "Optimization: try to remove redundant projections",
-                opt_remove_redundant_projections,
+                opt_optimization_remove_redundant_projections,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
                 "-Oremove_redundant_duplicate_removals",
                 "Optimization: try to remove redundant duplicate removal operators",
-                opt_remove_redundant_duplicate_operator,
+                opt_optimization_remove_redundant_duplicate_operator,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
@@ -893,6 +937,27 @@ OptionInfo opts[] =
                 opt_operator_model_data_structure_consistency,
                 TRUE
         ),
+        // Unercainty options
+        anUncertaintyOption(RANGE_OPTIMIZE_JOIN,
+                "-range_optimize_join",
+                "Range rewriter: Optimized join rewriting.",
+                range_optimize_join,
+                TRUE
+        ),
+        anUncertaintyOption(RANGE_OPTIMIZE_AGG,
+                "-range_optimize_agg",
+                "Range rewriter: Optimized aggregation rewriting.",
+                range_optimize_agg,
+                TRUE
+        ),
+        {
+                 RANGE_COMPRESSION_RATE,
+                 "-range_compression_rate",
+                 "Range rewriter: Set rate of compression for possible, number indicates iterations where 1=split by half and 2=split by quarter...",
+                 OPTION_INT,
+                 wrapOptionInt(&range_compression_rate),
+                 defOptionInt(1)
+         },
         // stopper to indicate end of array
         {
                 STOPPER_STRING,

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * query_block_to_sql.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -127,4 +127,3 @@ fromItemToSQL(StringInfo str, FromItem *f)
     if (f->name)
         appendStringInfo(str, " %s", f->name);
 }
-

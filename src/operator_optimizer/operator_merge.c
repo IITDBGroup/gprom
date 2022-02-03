@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * operator_merge.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -106,7 +106,8 @@ mergeProjection(ProjectionOperator *op)
         childRefCount = calculateChildAttrRefCnts(child, OP_LCHILD(child));
         DEBUG_NODE_BEATIFY_LOG("reference counts:", opRefCount, childRefCount);
 
-        if (!isMergeSafe(opRefCount, childRefCount))
+		// if merging this projections would blow up expression size, then don't do it unless -Omerge_unsafe_proj has been set
+        if (!isMergeSafe(opRefCount, childRefCount) && !opt_optimization_merge_unsafe_proj)
             break;
 
         // combine expressions and link child's children to root
