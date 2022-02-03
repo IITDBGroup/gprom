@@ -1024,28 +1024,29 @@ switchInsertSubtree (Node *node)
     }
 }
 
-static Node *
-deepReplaceAttrRefMutator(Node *node, HashMap *context)
-{
-    if (node == NULL)
-        return NULL;
+//TODO Boris: this function was unused, commenting it out for now
+/* static Node * */
+/* deepReplaceAttrRefMutator(Node *node, HashMap *context) */
+/* { */
+/*     if (node == NULL) */
+/*         return NULL; */
 
-    if (isA(node, AttributeReference))
-    {
-        Node *r;
-        r = getMap(context, node);
-        if (r)
-        {
-            return r;
-        }
-        else
-        {
-            return node;
-        }
-    }
+/*     if (isA(node, AttributeReference)) */
+/*     { */
+/*         Node *r; */
+/*         r = getMap(context, node); */
+/*         if (r) */
+/*         { */
+/*             return r; */
+/*         } */
+/*         else */
+/*         { */
+/*             return node; */
+/*         } */
+/*     } */
 
-    return mutate(node, deepReplaceAttrRefMutator, context);
-}
+/*     return mutate(node, deepReplaceAttrRefMutator, context); */
+/* } */
 
 static boolean
 replaceAttributeRefsMutator (Node *node, HashMap *state, void **parentPointer)
@@ -1176,8 +1177,9 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     ctx->constraints = appendToTailOfList(ctx->constraints, enforcePossible);
 
                     LPProblem *lp = newLPProblem(ctx);
-                    int result = executeLPProblem(originalLp);
-
+                    int result = executeLPProblem(lp); //TODO was originalLp
+					//TODO result was unused
+					DEBUG_LOG("cplex result was %u", result); //TODO Boris: added this to keep compiler quiet about unused result variable
                     /*
                     if(getListLength(ctx->deletes) > 0)
                         {
@@ -1248,8 +1250,8 @@ translateWhatIfStmt (WhatIfStmt *whatif)
     #endif
 
 
-    QueryOperator *reenactHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->history)));     // Prune independent updates
-    QueryOperator *reenactModifiedHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->modifiedHistory)));     // Prune independent updates
+    reenactHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->history)));     // Prune independent updates
+    reenactModifiedHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->modifiedHistory)));     // Prune independent updates
 
     QueryOperator *origUnion = NULL, *modifiedUnion = NULL;
     if(insertsInOriginal || insertsInModified) {

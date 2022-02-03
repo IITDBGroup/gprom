@@ -58,8 +58,8 @@ static void setCplexObjects(char *tbName) {
 	}
 }
 
-static int getObjectIndex(char *attrName) {
-
+static int getObjectIndex(char *attrName)
+{
 	int index = 0;
 
 	if (!MAP_HAS_STRING_KEY(cplexObjects->attrIndex, attrName)) {
@@ -78,8 +78,8 @@ static int getObjectIndex(char *attrName) {
 }
 
 static List *
-getOpExpStack(List *stackList, Operator *opExpList) {
-
+getOpExpStack(List *stackList, Operator *opExpList)
+{
 	stackList = appendToTailOfList(stackList, opExpList);
 	Node *left = (Node *) getHeadOfListP(opExpList->args);
 	Node *right = (Node *) getTailOfListP(opExpList->args);
@@ -100,8 +100,9 @@ getOpExpStack(List *stackList, Operator *opExpList) {
 
 }
 
-static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) {
-
+static int
+setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp)
+{
 	int status = 0;
 
 	if (isA(query, List)) {

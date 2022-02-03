@@ -1665,7 +1665,8 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
                 				name = (char *) n;
                 				if(streq(name, attrName))
                 				{
-                					type = (DataType) t;
+                					/* type = (DataType) t; */ //TODO this is casting node to int (DataType). Is resolved in master anyways, can't use forboth here
+									type = DT_INT;
                 					break;
                 				}
                 			}

@@ -113,7 +113,7 @@ Node *oracleParseResult = NULL;
 
 /* Arithmetic operators : FOR TESTING */
 %nonassoc DUMMYEXPR
-%right UNARYMINUS						
+%right UNARYMINUS
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
@@ -1275,7 +1275,7 @@ expression:
 		| '-' constant       %prec UNARYMINUS
 		{
 			RULELOG("expression::UNARYMINUS constant");
-			Constant *c = $2;
+			Constant *c = (Constant *) $2;
 			switch(c->constType)
 			{
 				case DT_INT:
