@@ -1138,17 +1138,17 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         // assumptions: 0th and 1st are original and original pruned, 2nd and 3rd are modified and modified pruned
 
                         Operator *originalCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), attr))),
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), attr)))
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))),
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), (Node *)attr)))
                         ));
 
                         Operator *modifiedCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), attr))),
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), attr)))
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr))),
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), (Node *)attr)))
                         ));
 
-                        pruneCompare = appendToTailOfList(inequalityConditions, originalCompare);
-			pruneCompare = appendToTailOfList(inequalityConditions, modifiedCompare);
+                        pruneCompare = appendToTailOfList(pruneCompare, originalCompare);
+			pruneCompare = appendToTailOfList(pruneCompare, modifiedCompare);
 
                         //exprToConstraints((Node *) originalCompare, ctx);
                         //TODO keep compiler quiet for now SQLParameter *originalCond = ctx->root;
@@ -1159,8 +1159,8 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     List *diffCompare = NIL;
                     FOREACH_HASH_KEY(Constant, attr, renamingCtx->map) {
 			diffCompare = appendToTailOfList(diffCompare, createOpExpr(OPNAME_NEQ, LIST_MAKE(
-			    createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), attr))),
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), attr)))
+			    createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))),
+                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr)))
 			)));
                     }
 
@@ -1168,13 +1168,13 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         createOpExpr(OPNAME_OR, diffCompare),
                         createOpExpr(OPNAME_OR, pruneCompare)
                     ));
-                    SQLParameter *possibleWorldCondVariable = exprToConstraints(possibleWorldCond, ctx);
+                    SQLParameter *possibleWorldCondVariable = exprToConstraints((Node *)possibleWorldCond, ctx);
 
                     Constraint *enforcePossibleWorld = makeNode(Constraint);
                     enforcePossibleWorld->sense = CONSTRAINT_E;
-                    enforcePossible->rhs = createConstInt(1);
-                    enforcePossible->terms = LIST_MAKE(createNodeKeyValue((Node *)createConstInt(1), (Node *)possibleWorldCondVariable));
-                    ctx->constraints = appendToTailOfList(ctx->constraints, enforcePossible);
+                    enforcePossibleWorld->rhs = createConstInt(1);
+                    enforcePossibleWorld->terms = LIST_MAKE(createNodeKeyValue((Node *)createConstInt(1), (Node *)possibleWorldCondVariable));
+                    ctx->constraints = appendToTailOfList(ctx->constraints, enforcePossibleWorld);
 
                     LPProblem *lp = newLPProblem(ctx);
                     int result = executeLPProblem(lp); //TODO was originalLp
