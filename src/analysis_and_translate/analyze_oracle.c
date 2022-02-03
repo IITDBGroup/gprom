@@ -495,15 +495,15 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     FOREACH(FromItem,f,qb->fromClause)
     {
         // deal with identifiers
-        /* if (f->name != NULL) */
-        /*     f->name = backendifyIdentifier(f->name); */
+        if (f->name != NULL)
+            f->name = backendifyIdentifier(f->name);
 
         switch(f->type)
         {
             case T_FromTableRef:
             {
                 FromTableRef *tr = (FromTableRef *) f;
-                /* tr->tableId = backendifyIdentifier(tr->tableId); */
+                tr->tableId = backendifyIdentifier(tr->tableId);
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
 
@@ -598,18 +598,18 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     adaptAttributeRefs(attrRefs, parentFroms);
 
     // create attribute names for unnamed attribute in select clause
-    /* FOREACH(SelectItem,s,qb->selectClause) */
-    /* { */
-    /*     if (s->alias == NULL) */
-    /*     { */
-    /*         char *newAlias = generateAttrNameFromExpr(s); */
-    /*         s->alias = strdup(newAlias); */
-    /*     } */
-    /*     else */
-    /*     { */
-    /*         s->alias = backendifyIdentifier(s->alias); */
-    /*     } */
-    /* } */
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+        if (s->alias == NULL)
+        {
+            char *newAlias = generateAttrNameFromExpr(s);
+            s->alias = strdup(newAlias);
+        }
+        else
+        {
+            s->alias = backendifyIdentifier(s->alias);
+        }
+    }
 
     // adapt function call (isAgg)
     analyzeFunctionCall(qb);
@@ -624,9 +624,18 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 	{
         analyzeWhere(qb, parentFroms);
 	}
+
+	// if group by or aggregation, check that no non-group by attribute references exist
+	analyzeGroupByAgg(qb, parentFroms);
+
+	// check order by
+	analyzeOrderBy(qb);
+
+	// check limit and offset
+	analyzeLimitAndOffset(qb);
+
+    INFO_LOG("Analysis done");
 }
-
-
 
 static void
 analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
