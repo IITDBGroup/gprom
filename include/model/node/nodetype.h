@@ -80,7 +80,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 	T_LimitOperator,
 	T_DLMorDDLOperator,
     T_ExecPrepratedOperator,
-n
+
     /* datalog model nodes */
     T_DLNode,
     T_DLAtom,

@@ -231,7 +231,6 @@ findProvenanceComputations(QueryOperator *op, Set *haveSeen) {
 	return op;
 }
 
-// <<<<<<< HEAD
 static QueryOperator*
 rewriteProvenanceComputation(ProvenanceComputation *op) {
 	QueryOperator *result = NULL;
@@ -293,7 +292,6 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 			(QueryOperator*) op);
 
 	//used to get coarse grained parameter used in CASE PROV_COARSE_GRAINED
-// =======
 // static QueryOperator *
 // rewriteProvenanceComputation (ProvenanceComputation *op)
 // {
@@ -357,7 +355,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op) {
 //     boolean isCombinerActivated = isSemiringCombinerActivatedOp((QueryOperator *) op);
 //
 //     //used to get coarse grained parameter used in CASE PROV_COARSE_GRAINED
-// >>>>>>> origin/CPB
+
 	Node *coarsePara = NULL;
 	psInfo *psPara = NULL;
 

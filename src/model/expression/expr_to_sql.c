@@ -560,7 +560,7 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *nestedSubqueries, boolean t
             castExprToSQL(str, (CastExpr *) expr, nestedSubqueries, trimAttrNames);
         break;
         case T_AttributeDef: // used for update provenancesketch
-        	attributeDefToSQL(str, (AttributeDef*) expr, map);
+        	attributeDefToSQL(str, (AttributeDef*) expr, nestedSubqueries);
         break;
 //        case T_SelectItem: // used for update provenance sketch
 //        	INFO_LOG("T_SELECTITEM IN EXPR T_ SQL\n");
