@@ -58,13 +58,14 @@ static QueryOperator* findProvenanceComputations(QueryOperator *op,
 static QueryOperator* rewriteProvenanceComputation(ProvenanceComputation *op);
 
 /* function definitions */
+
 Node*
 provRewriteQBModel(Node *qbModel) {
 	if (isA(qbModel, List)) {
 
 		//check here to update ps.
 		if(isA(getHeadOfListP((List*)qbModel), ProvenanceComputation)) {
-			ProvenanceComputation* pc = (ProvenanceComputation*) getHeadOfListP((List*) qbModel);
+			ProvenanceComputation *pc = (ProvenanceComputation *) getHeadOfListP((List*) qbModel);
 			if(pc->inputType == PROV_INPUT_UPDATEPS){
 				DEBUG_LOG("START UPDATEPS\n");
 				char * ps = update_ps(pc);
@@ -77,8 +78,18 @@ provRewriteQBModel(Node *qbModel) {
 			}
 		}
 
-		return (Node*) provRewriteQueryList((List*) qbModel);
+		return (Node *) provRewriteQueryList((List *) qbModel);
 	} else if (IS_OP(qbModel)) {
+
+		return (Node *) provRewriteQuery((QueryOperator *) qbModel);
+	} else if (IS_DL_NODE(qbModel)) {
+		createRelToRuleMap(qbModel);
+		return (Node*) rewriteForGP(qbModel);
+	}
+	FATAL_LOG("cannot rewrite node <%s>", nodeToString(qbModel));
+
+	return NULL;
+}
 
 QueryOperator *
 provRewriteQuery (QueryOperator *input)
@@ -124,55 +135,6 @@ findProvenanceComputations (QueryOperator *op, Set *haveSeen)
 //	return map;
 //}
 
-static QueryOperator *
-rewriteProvenanceComputation (ProvenanceComputation *op)
-{
-    QueryOperator *result = NULL;
-    boolean requiresPostFiltering = FALSE;
-    boolean applySummarization = HAS_STRING_PROP(op, PROP_SUMMARIZATION_DOSUM);
-    HashMap *properties = (HashMap *) copyObject(op->op.properties);
-
-    // for a sequence of updates of a transaction merge the sequence into a single
-    // query before rewrite.
-    if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
-            || op->inputType == PROV_INPUT_TRANSACTION
-            || op->inputType == PROV_INPUT_REENACT
-            || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
-    {
-        START_TIMER("rewrite - merge update reenactments");
-        mergeUpdateSequence(op);
-        STOP_TIMER("rewrite - merge update reenactments");
-
-        // need to restrict to updated rows?
-        if ((op->inputType == PROV_INPUT_TRANSACTION
-                || op->inputType == PROV_INPUT_REENACT_WITH_TIMES
-                || op->inputType == PROV_INPUT_REENACT)
-                && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
-        {
-            START_TIMER("rewrite - restrict to updated rows");
-            restrictToUpdatedRows(op);
-            requiresPostFiltering = HAS_STRING_PROP(op,PROP_PC_REQUIRES_POSTFILTERING);
-            STOP_TIMER("rewrite - restrict to updated rows");
-        }
-    }
-
-    if (op->inputType == PROV_INPUT_TEMPORAL_QUERY)
-    {
-        return rewriteImplicitTemporal((QueryOperator *) op);
-    }
-
-    if (op->inputType == PROV_INPUT_UNCERTAIN_QUERY)
-    {
-        return rewriteUncert((QueryOperator *) op);
-    }
-	if (op->inputType == PROV_INPUT_UNCERTAIN_TUPLE_QUERY)
-	{
-		return rewriteUncertTuple((QueryOperator *) op);
-	}
-	FATAL_LOG("cannot rewrite node <%s>", nodeToString(qbModel));
-
-	return NULL;
-}
 
 List*
 provRewriteQueryList(List *list) {
@@ -185,50 +147,6 @@ provRewriteQueryList(List *list) {
 	}
 
 	return list;
-}
-
-QueryOperator*
-provRewriteQuery(QueryOperator *input) {
-	Set *seen = PSET();
-	Node *inputProp = input->properties;
-
-	QueryOperator *result = findProvenanceComputations(input, seen);
-	result->properties = inputProp;
-
-	return result;
-}
-
-static QueryOperator*
-findProvenanceComputations(QueryOperator *op, Set *haveSeen) {
-	// is provenance computation? then rewrite
-
-	if (isA(op, ProvenanceComputation)) {
-
-		//if it is a update, then return the updated ps
-
-//		DEBUG_LOG("qbMode is a ProvenanceComputation\n");
-//		ProvenanceComputation *pc = (ProvenanceComputation*) op;
-//		if (pc->inputType == PROV_INPUT_UPDATEPS) {
-//			DEBUG_LOG("update qbModel\n");
-//
-//			Constant * result =  createConstString(update_ps(pc));
-//			//One: set inputs
-//			return (QueryOperator*) (result);
-//		}
-
-		return rewriteProvenanceComputation((ProvenanceComputation*) op);
-	}
-
-	// else search for children with provenance
-	FOREACH(QueryOperator,c,op->inputs)
-	{
-		if (!hasSetElem(haveSeen, c)) {
-			addToSet(haveSeen, c);
-			findProvenanceComputations(c, haveSeen);
-		}
-	}
-
-	return op;
 }
 
 static QueryOperator*
