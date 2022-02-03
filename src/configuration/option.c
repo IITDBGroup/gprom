@@ -89,6 +89,8 @@ int connection_port = 0;
 char *oracle_audit_log_table = NULL;
 boolean oracle_use_service_name = FALSE;
 
+char *odbc_driver = NULL;
+
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
@@ -177,26 +179,24 @@ boolean opt_lateral_rewrite = FALSE;
 boolean opt_unnest_rewrite = FALSE;
 boolean opt_agg_reduction_model_rewrite = FALSE;
 
-//<<<<<<< HEAD
 // use provenance scratch
 int max_number_paritions_for_uses = 0;
 int bit_vector_size = 32;
 boolean ps_binary_search = FALSE;
+boolean ps_binary_search_case_when = FALSE;
 boolean ps_settings = FALSE;
 boolean ps_set_bits = FALSE;
 boolean ps_use_brin_op = FALSE;
 boolean ps_analyze = TRUE;
 boolean ps_use_nest = FALSE;
 boolean ps_post_to_oracle = FALSE;
-
-// update ps option to decide acccurate or approximate updating
+char *ps_store_table = NULL;
 int update_ps_option = 0;
-//=======
+
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
 boolean range_optimize_agg = TRUE;
 int range_compression_rate = 1;
-//>>>>>>> origin/CPB
 
 // struct that encapsulates option state
 struct option_state {
@@ -368,6 +368,14 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionString(&oracle_use_service_name),
                 defOptionBool(FALSE)
+        },
+        {
+                OPTION_ODBC_DRIVER,
+                "-Bodbc.driver",
+                "Name of the ODBC driver to use.",
+                OPTION_STRING,
+                wrapOptionString(&odbc_driver),
+                defOptionString("")
         },
         // logging options
         {
@@ -624,12 +632,12 @@ OptionInfo opts[] =
                 TRUE),
 		aRewriteOption(OPTION_LATERAL_REWRITE,
 				"-lateral_rewrite",
-				"Activate lateral rewrite",
+				"Activate automatic rewrite of nested subqueries into LATERAL queries.",
 				opt_lateral_rewrite,
 				FALSE),
 		aRewriteOption(OPTION_UNNEST_REWRITE,
 						"-unnest_rewrite",
-						"Activate unnest rewrite",
+						"Activate unnest & de-correlation rewrites.",
 						opt_unnest_rewrite,
 						FALSE),
 		aRewriteOption(OPTION_AGG_REDUCTION_MODEL_REWRITE,
@@ -717,6 +725,14 @@ OptionInfo opts[] =
 				 OPTION_INT,
 				 wrapOptionInt(&update_ps_option),
 				 defOptionInt(0)
+         },
+         {
+				 OPTION_PS_STORE_TABLE,
+				 "-ps_store_table",
+				 "the table name used to store the ps information",
+				 OPTION_STRING,
+				 wrapOptionString(&ps_store_table),
+				 defOptionString(NULL)
 		 },
 		 {
 				 OPTION_PS_BINARY_SEARCH,
@@ -724,6 +740,14 @@ OptionInfo opts[] =
 				 "Activate binary search instead of case when",
 				 OPTION_BOOL,
 				 wrapOptionBool(&ps_binary_search),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_BINARY_SEARCH_CASE_WHEN,
+				 "-ps_binary_search_case_when",
+				 "Activate binary search case when",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_binary_search_case_when),
 				 defOptionBool(FALSE)
 		 },
 		 {
@@ -1007,6 +1031,15 @@ BackendInfo backends[]  = {
             "sqlite",    // sqlserializer
             "oracle"   // translator
         },
+		{
+			BACKEND_MSSQL,
+            "mssql",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "mssql",   // metadata
+            "postgres",    // sqlserializer
+            "oracle"   // translator
+		},
         {
             BACKEND_ORACLE, STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
@@ -1434,6 +1467,11 @@ char *
 getBackendPlugin(char *be, char *pluginOpt)
 {
     HashMap *bInfo = (HashMap *) MAP_GET_STRING(backendInfo, be);
+
+	if(bInfo == NULL)
+	{
+		FATAL_LOG("backend %s not defined", be);
+	}
 
     return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
 }

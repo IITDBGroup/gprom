@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * parameter.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -15,6 +15,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/expression/expression.h"
+#include "model/query_block/query_block.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "instrumentation/timing_instrumentation.h"
@@ -33,6 +34,12 @@ static boolean findParamVisitor(Node *node, List **state);
 static Node *replaceParamMutator (Node *node, List *state);
 static Node *replaceParamByNameMutator (Node *node, ParByNameState *state);
 static Constant *createBindConstant (char *value);
+
+Node *
+applyBinds(ParameterizedQuery *p, List *values)
+{
+	return setParameterValues(p->q, values);
+}
 
 Node *
 setParameterValues (Node *qbModel, List *values)
@@ -100,6 +107,7 @@ replaceParamByNameMutator (Node *node, ParByNameState *state)
 
     return mutate(node, replaceParamMutator, state);
 }
+
 
 
 List *
@@ -182,6 +190,3 @@ createBindConstant (char *value)
 
     return createConstString(value);
 }
-
-
-

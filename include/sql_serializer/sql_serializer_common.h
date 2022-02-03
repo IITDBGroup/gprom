@@ -47,7 +47,7 @@ typedef struct QueryBlockMatch {
 
 #define OUT_BLOCK_MATCH(_level,_m,_message) \
     do { \
-        _level ## _LOG ("MATCH INFO: %s", _message); \
+        _level ## _LOG ("\n================================================================================\n\t\tMATCH INFO: %s\n================================================================================", _message); \
         _level ## _LOG ("distinct: %s", operatorToOverviewString((Node *) _m->distinct)); \
         _level ## _LOG ("firstProj: %s", operatorToOverviewString((Node *) _m->firstProj)); \
         _level ## _LOG ("having: %s", operatorToOverviewString((Node *) _m->having)); \
@@ -58,6 +58,7 @@ typedef struct QueryBlockMatch {
         _level ## _LOG ("windowRoot: %s", operatorToOverviewString((Node *) _m->windowRoot)); \
         _level ## _LOG ("orderBy: %s", operatorToOverviewString((Node *) _m->orderBy)); \
 		_level ## _LOG ("limitOffset: %s", operatorToOverviewString((Node *) _m->limitOffset)); \
+		_level ## _LOG ("\n================================================================================\n\n================================================================================"); \
     } while(0)
 
 typedef struct TemporaryViewMap {
@@ -89,10 +90,6 @@ typedef struct JoinAttrRenameState {
 //	JoinAttrRenameState *state;
 //	FromAttrsContext *fac;
 //} JoinStateFac;
-
-#define MAP_HAS_POINTER(map,p) MAP_HAS_LONG_KEY(map, (gprom_long_t) p)
-#define MAP_GET_POINTER(map,p) MAP_GET_LONG(map,(gprom_long_t) p)
-#define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (gprom_long_t) p, val)
 
 #define TVIEW_NAME_FIELD "ViewName"
 #define TVIEW_ATTRNAMES_FIELD "AttrNames"
@@ -127,6 +124,8 @@ typedef struct SerializeClausesAPI {
  	void (*serializeOrderByOperator) (OrderOperator *q, StringInfo orderby, FromAttrsContext *fac,
 									struct SerializeClausesAPI *api);
 	void (*serializeLimitOperator) (LimitOperator *q, StringInfo limit, struct SerializeClausesAPI *api);
+	void (*serializePreparedStatment) (QueryOperator *q, StringInfo prep, struct SerializeClausesAPI *api);
+	void (*serializeExecPreparedOperator) (ExecPreparedOperator *q, StringInfo exec);
     List *(*createTempView) (QueryOperator *q, StringInfo str,
             QueryOperator *parent, FromAttrsContext *fac, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
@@ -149,6 +148,8 @@ extern void genSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrs
         SerializeClausesAPI *api);
 extern void genSerializeLimitOperator (LimitOperator *q, StringInfo limit,
 									struct SerializeClausesAPI *api);
+extern void genSerializePreparedStatement (QueryOperator *q, StringInfo prep, SerializeClausesAPI *api);
+extern void genSerializeExecPreparedOperator (ExecPreparedOperator *q, StringInfo exec);
 extern void genSerializeOrderByOperator (OrderOperator *q, StringInfo order,  FromAttrsContext *fac,
 									struct SerializeClausesAPI *api);
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,

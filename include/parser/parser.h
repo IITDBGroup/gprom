@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * parser.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -32,7 +32,7 @@ typedef struct ParserPlugin
     /* functional interface */
     Node *(*parseStream) (FILE *file);
     Node *(*parseFromString) (char *input);
-
+	Node *(*parseExprFromString) (char *input);
 } ParserPlugin;
 
 // plugin management
@@ -46,5 +46,6 @@ extern void chooseParserPluginFromString(char *type);
 // parser interface wrapper
 extern Node *parseStream (FILE *file);
 extern Node *parseFromString (char *input);
+extern Node *parseExprFromString (char *input);
 
 #endif /* PARSER_H_ */

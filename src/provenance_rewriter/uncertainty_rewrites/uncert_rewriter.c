@@ -516,7 +516,7 @@ getLBExpr(Node *expr, HashMap *hmp)
 Node *
 getUncertaintyExpr(Node *expr, HashMap *hmp)
 {
-	INFO_LOG("expression: %s ,  %p", exprToSQL(expr, NULL), expr); //TODO deal with nested subqueries
+	INFO_LOG("expression: %s ,  %p", exprToSQL(expr, NULL, FALSE), expr); //TODO deal with nested subqueries
 	switch(expr->type){
 		case T_Constant: {
 			return (Node *)createConstInt(1);
@@ -1289,7 +1289,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 		Operator *firstParam = createOpExpr(OPNAME_GT,LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
 
 		Operator *secondParam = createOpExpr(OPNAME_EQ,LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), copyObject(probRef)));
-		selec1Cond = createOpExpr("AND", LIST_MAKE(firstParam,secondParam));
+		selec1Cond = createOpExpr(OPNAME_AND, LIST_MAKE(firstParam,secondParam));
 	}
 
 	/* Selection - Select rows with the maximum probability  */
@@ -1673,7 +1673,7 @@ UncertOp(Operator *expr, HashMap *hmp)
 		ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(ret), createCaseOperator(c3)));
 		return ret;
 	}
-	else if(strcmp(strToUpper(expr->name),"OR")==0){
+	else if(strcmp(strToUpper(expr->name),OPNAME_OR)==0){
 		Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 		Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
 		List * argList = singleton(getUncertaintyExpr(e1, hmp));
@@ -1693,7 +1693,7 @@ UncertOp(Operator *expr, HashMap *hmp)
 		ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, argList);
 		return ret;
 	}
-	else if(strcmp(strToUpper(expr->name),"AND")==0) {
+	else if(strcmp(strToUpper(expr->name),OPNAME_AND)==0) {
 		Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 		Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
 		List * argList = singleton(getUncertaintyExpr(e1, hmp));
@@ -1757,12 +1757,12 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp){
 			// Node *c5 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
 			// Node *c6 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 
-			// Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
-			// Node *c34 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c3),c4));
-			// Node *c56 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c5),c6));
-			// Node *c1234 = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c12),c34));
-			// Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(c1234),c56));
-			Node *ret = (Node *)createOpExpr("AND", LIST_MAKE(c1,c2));
+			// Node *c12 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c1),c2));
+			// Node *c34 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c3),c4));
+			// Node *c56 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c5),c6));
+			// Node *c1234 = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c12),c34));
+			// Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c1234),c56));
+			Node *ret = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(c1,c2));
 			return ret;
 		}
 		if(strcmp(expr->name,OPNAME_GT)==0) {
@@ -1801,16 +1801,16 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp){
 			Node *ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
 			return ret;
 		}
-		else if(strcmp(strToUpper(expr->name),"OR")==0){
+		else if(strcmp(strToUpper(expr->name),OPNAME_OR)==0){
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
 			return ret;
 		}
-		else if(strcmp(strToUpper(expr->name),"AND")==0) {
+		else if(strcmp(strToUpper(expr->name),OPNAME_AND)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("AND", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
 			return ret;
 		}
 		else {
@@ -1859,8 +1859,8 @@ static Node *RangeLBOp(Operator *expr, HashMap *hmp){
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
 			Node *c1 = (Node *)createOpExpr(OPNAME_EQ, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e1, hmp)));
 			Node *c2 = (Node *)createOpExpr(OPNAME_EQ, appendToTailOfList(singleton(getUBExpr(e2, hmp)),getLBExpr(e2, hmp)));
-			Node *c12 = (Node *)createOpExpr("AND", appendToTailOfList(singleton(c1),c2));
-			Node *ret = (Node *)createOpExpr("AND", appendToTailOfList(singleton(expr),c12));
+			Node *c12 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c1),c2));
+			Node *ret = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(expr),c12));
 			return ret;
 		}
 		if(strcmp(expr->name,OPNAME_GT)==0) {
@@ -1887,16 +1887,16 @@ static Node *RangeLBOp(Operator *expr, HashMap *hmp){
 			Node *ret = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
-		else if(strcmp(strToUpper(expr->name),"OR")==0){
+		else if(strcmp(strToUpper(expr->name),OPNAME_OR)==0){
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("OR", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
-		else if(strcmp(strToUpper(expr->name),"AND")==0) {
+		else if(strcmp(strToUpper(expr->name),OPNAME_AND)==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			Node *ret = (Node *)createOpExpr("AND", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+			Node *ret = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
 			return ret;
 		}
 		else {
@@ -2140,16 +2140,16 @@ rewrite_RangeAggregation(QueryOperator *op){
 			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
 //				INFO_LOG("%s", nodeToString(funattr));
 				Node *bgMult = (Node *)createOpExpr("*", LIST_MAKE(funattr,getAttrRefByName(childop, ROW_BESTGUESS)));
-				Node *ubCase = (Node *)createCaseExpr(NULL, 
+				Node *ubCase = (Node *)createCaseExpr(NULL,
 					singleton((Node *)createCaseWhen(
 						(Node *)createOpExpr(OPNAME_GT, LIST_MAKE(funattrub,createConstInt(0)))
 						,(Node *)getAttrRefByName(childop, ROW_POSSIBLE)
 					)),
 					(Node *)getAttrRefByName(childop, ROW_CERTAIN)
 				);
-				Node *lbCase = (Node *)createCaseExpr(NULL, 
+				Node *lbCase = (Node *)createCaseExpr(NULL,
 					singleton((Node *)createCaseWhen(
-						(Node *)createOpExpr(OPNAME_GT, 
+						(Node *)createOpExpr(OPNAME_GT,
 							LIST_MAKE(funattrlb,createConstInt(0)))
 						,(Node *)getAttrRefByName(childop, ROW_CERTAIN)
 					)),
@@ -2366,13 +2366,13 @@ rewrite_RangeAggregation(QueryOperator *op){
 		((AttributeReference *)aRef2_lb)->fromClauseItem = 1;
 		Node *refExprCase1 = (Node *)createOpExpr(OPNAME_GE ,LIST_MAKE(aRef1_ub,aRef2_lb));
 		Node *refExprCase2 = (Node *)createOpExpr(OPNAME_GE ,LIST_MAKE(aRef2_ub,aRef1_lb));
-		// Node *refExprCase3 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_ub,aRef2_ub))));
-		Node *refExpr = (Node *)createOpExpr("AND", LIST_MAKE(refExprCase1,refExprCase2));
+		// Node *refExprCase3 = (Node *)createOpExpr(OPNAME_AND ,LIST_MAKE(createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_ub,aRef2_ub))));
+		Node *refExpr = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExprCase1,refExprCase2));
 		if(joinExpr == NULL){
 			joinExpr = refExpr;
 		}
 		else {
-			joinExpr = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExpr));
+			joinExpr = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExpr, joinExpr));
 		}
 	}
 	// INFO_LOG(nodeToString(joinExpr));
@@ -2388,13 +2388,13 @@ rewrite_RangeAggregation(QueryOperator *op){
 			joinExprBg = refExpr;
 		}
 		else {
-			joinExprBg = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExprBg));
+			joinExprBg = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExpr, joinExprBg));
 		}
 	}
 	// INFO_LOG(nodeToString(joinExprBg));
 
 
-	//if optimization 
+	//if optimization
 	//TODO
 	QueryOperator *bgVer = NULL;
 	if(HAS_STRING_PROP(childdup, PROP_STORE_POSSIBLE_TREE)){
@@ -2488,16 +2488,16 @@ rewrite_RangeAggregation(QueryOperator *op){
 
 		Node * bg_eq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, fname), getAttrRefByName(join, getAttrTwoString(fname))));
 
-		Node * cert_eq = (Node *)createOpExpr("AND", LIST_MAKE(cert_eq_3, createOpExpr("AND", LIST_MAKE(cert_eq_1, cert_eq_2))));
+		Node * cert_eq = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(cert_eq_3, createOpExpr(OPNAME_AND, LIST_MAKE(cert_eq_1, cert_eq_2))));
 		if(cert_case == NULL){
 			cert_case = cert_eq;
 		} else {
-			cert_case = (Node *)createOpExpr("AND", LIST_MAKE(cert_case, cert_eq));
+			cert_case = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(cert_case, cert_eq));
 		}
 		if(bg_case == NULL){
 			bg_case = bg_eq;
 		} else {
-			bg_case = (Node *)createOpExpr("AND", LIST_MAKE(bg_case, bg_eq));
+			bg_case = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(bg_case, bg_eq));
 		}
 	}
 
@@ -2534,26 +2534,26 @@ rewrite_RangeAggregation(QueryOperator *op){
 				if(bgAndExpr == NULL){
 					bgAndExpr = bgeq;
 				} else {
-					bgAndExpr = (Node *)createOpExpr("AND", LIST_MAKE(bgAndExpr, bgeq));
+					bgAndExpr = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(bgAndExpr, bgeq));
 				}
 			}
-			Node *bgCase = (Node *)createCaseExpr(NULL, 
+			Node *bgCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(
 					bgAndExpr
 					,(Node *)createConstInt(1)/*(Node *)getAttrRefByName(join, ROW_BESTGUESS)*/
 				)),
 				(Node *)createConstInt(0)
 			);
-			Node *ubCase = (Node *)createCaseExpr(NULL, 
+			Node *ubCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(
 					(Node *)createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(join, fname_ub),createConstInt(0)))
 					,(Node *)getAttrRefByName(join, ROW_POSSIBLE)
 				)),
 				(Node *)createConstInt(0)
 			);
-			Node *lbCase = (Node *)createCaseExpr(NULL, 
+			Node *lbCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(
-					(Node *)createOpExpr(OPNAME_GT, 
+					(Node *)createOpExpr(OPNAME_GT,
 						LIST_MAKE(getAttrRefByName(join, fname_lb),createConstInt(0)))
 						,(Node *)createConstInt(0)
 					)),
@@ -2866,16 +2866,16 @@ rewrite_RangeAggregation2(QueryOperator *op){
 			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
 				// INFO_LOG("%s", nodeToString(funattr));
 				Node *bgMult = (Node *)createOpExpr("*", LIST_MAKE(funattr,getAttrRefByName(childop, ROW_BESTGUESS)));
-				Node *ubCase = (Node *)createCaseExpr(NULL, 
+				Node *ubCase = (Node *)createCaseExpr(NULL,
 					singleton((Node *)createCaseWhen(
 						(Node *)createOpExpr(OPNAME_GT, LIST_MAKE(funattrub,createConstInt(0)))
 						,(Node *)getAttrRefByName(childop, ROW_POSSIBLE)
 					)),
 					(Node *)getAttrRefByName(childop, ROW_CERTAIN)
 				);
-				Node *lbCase = (Node *)createCaseExpr(NULL, 
+				Node *lbCase = (Node *)createCaseExpr(NULL,
 					singleton((Node *)createCaseWhen(
-						(Node *)createOpExpr(OPNAME_GT, 
+						(Node *)createOpExpr(OPNAME_GT,
 							LIST_MAKE(funattrlb,createConstInt(0)))
 						,(Node *)getAttrRefByName(childop, ROW_CERTAIN)
 					)),
@@ -3012,7 +3012,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	QueryOperator *child = OP_LCHILD(op);
 	QueryOperator *childdup = copyObject(child);
 
-	//pre-aggregate group by attributes, bg aggregation results and 
+	//pre-aggregate group by attributes, bg aggregation results and
 
 	List *aggrlist = NIL;
 	List *gattrn = NIL;
@@ -3057,7 +3057,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		if(cert_case == NULL){
 			cert_case = cert_eq;
 		} else {
-			cert_case = (Node *)createOpExpr("AND", LIST_MAKE(cert_case, cert_eq));
+			cert_case = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(cert_case, cert_eq));
 		}
 	}
 	Node *certainCond = (Node *)createOpExpr("*", LIST_MAKE(createCaseOperator(cert_case), getAttrRefByName(child, ROW_CERTAIN)));
@@ -3155,13 +3155,13 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		((AttributeReference *)aRef2_lb)->fromClauseItem = 1;
 		Node *refExprCase1 = (Node *)createOpExpr(OPNAME_GE ,LIST_MAKE(aRef1_ub,aRef2_lb));
 		Node *refExprCase2 = (Node *)createOpExpr(OPNAME_GE ,LIST_MAKE(aRef2_ub,aRef1_lb));
-		// Node *refExprCase3 = (Node *)createOpExpr("AND" ,LIST_MAKE(createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_ub,aRef2_ub))));
-		Node *refExpr = (Node *)createOpExpr("AND", LIST_MAKE(refExprCase1,refExprCase2));
+		// Node *refExprCase3 = (Node *)createOpExpr(OPNAME_AND ,LIST_MAKE(createOpExpr(OPNAME_GE, LIST_MAKE(aRef1_lb,aRef2_lb)), createOpExpr(OPNAME_LE, LIST_MAKE(aRef1_ub,aRef2_ub))));
+		Node *refExpr = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExprCase1,refExprCase2));
 		if(joinExpr == NULL){
 			joinExpr = refExpr;
 		}
 		else {
-			joinExpr = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExpr));
+			joinExpr = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExpr, joinExpr));
 		}
 	}
 	// INFO_LOG(nodeToString(joinExpr));
@@ -3177,13 +3177,13 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	// 		joinExprBg = refExpr;
 	// 	}
 	// 	else {
-	// 		joinExprBg = (Node *)createOpExpr("AND", LIST_MAKE(refExpr, joinExprBg));
+	// 		joinExprBg = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExpr, joinExprBg));
 	// 	}
 	// }
 	// INFO_LOG(nodeToString(joinExprBg));
 
 
-	//if optimization 
+	//if optimization
 	//TODO
 	// QueryOperator *bgVer = NULL;
 	if(HAS_STRING_PROP(childdup, PROP_STORE_POSSIBLE_TREE)){
@@ -3266,16 +3266,16 @@ rewrite_RangeAggregation2(QueryOperator *op){
 			nameList = appendToTailOfList(nameList,fname_lb);
 		}
 		if(strcmp(((FunctionCall *)n)->functionname, SUM_FUNC_NAME)==0){
-			Node *ubCase = (Node *)createCaseExpr(NULL, 
+			Node *ubCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(
 					(Node *)createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(join, fname_ub),createConstInt(0)))
 					,(Node *)getAttrRefByName(join, ROW_POSSIBLE_TWO)
 				)),
 				(Node *)createConstInt(0)
 			);
-			Node *lbCase = (Node *)createCaseExpr(NULL, 
+			Node *lbCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(
-					(Node *)createOpExpr(OPNAME_GT, 
+					(Node *)createOpExpr(OPNAME_GT,
 						LIST_MAKE(getAttrRefByName(join, fname_lb),createConstInt(0)))
 						,(Node *)createConstInt(0)
 					)),
@@ -4077,7 +4077,7 @@ spliceToBG(QueryOperator *op){
 		}
 		else {
 			Node *temp = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(getAttrRefByName(bg,getUBString(an)),getAttrRefByName(bg,getLBString(an))));
-			ctcase = (Node *)createOpExpr("AND", LIST_MAKE(ctcase,temp));
+			ctcase = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(ctcase,temp));
 		}
 		normalProjList = appendToTailOfList(normalProjList,getAttrRefByName(bg,an));
 		rangeProjList = appendToTailOfList(rangeProjList,getAttrRefByName(bg,an));

@@ -22,6 +22,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_CONN_DB "connection.db"
 #define OPTION_CONN_PORT "connection.port"
 #define OPTION_CONN_HOST "connection.host"
+#define OPTION_ODBC_DRIVER "connection.odbcdriver"
 
 /* backend specific options */
 #define OPTION_ORACLE_AUDITTABLE "backendOpts.oracle.logtable"
@@ -115,26 +116,25 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UNNEST_REWRITE "unnest_rewrite"
 #define OPTION_AGG_REDUCTION_MODEL_REWRITE "agg_reduction_model_rewrite"
 
-// <<<<<<< HEAD
+
 /* use provenance scratch */
 #define OPTION_MAX_NUMBER_PARTITIONS_FOR_USE "number_max_paritions_for_use"
 #define OPTION_BIT_VECTOR_SIZE "bit_vector_size"
 #define OPTION_PS_BINARY_SEARCH "ps_bianry_search"
+#define OPTION_PS_BINARY_SEARCH_CASE_WHEN "ps_bianry_search_case_when"
 #define OPTION_PS_SETTINGS "ps_settings"
 #define OPTION_PS_SET_BITS "set_bits"
 #define OPTION_PS_USE_BRIN_OP "us_brin_op"
 #define OPTION_PS_ANALYZE "ps_analyze"
 #define OPTION_PS_USE_NEST "ps_use_nest"
 #define OPTION_PS_POST_TO_ORACLE "ps_post_to_oracle"
-
-/* update provenance sketch option*/
+#define OPTION_PS_STORE_TABLE "ps_store_table"
 #define OPTION_UPDATE_PS_OPTION "update_ps_option"
-// =======
+
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"
 #define RANGE_COMPRESSION_RATE "range_compression_rate"
-// >>>>>>> origin/CPB
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(
@@ -142,7 +142,8 @@ NEW_ENUM_WITH_TO_STRING(
     BACKEND_ORACLE,
     BACKEND_POSTGRES,
     BACKEND_SQLITE,
-    BACKEND_MONETDB
+    BACKEND_MONETDB,
+	BACKEND_MSSQL
 );
 
 

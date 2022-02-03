@@ -113,12 +113,12 @@ createCastExpr (Node *expr, DataType resultDt)
 }
 
 CastExpr *
-createCastExprOtherDT (Node *expr, char* otherDT, int num)
+createCastExprOtherDT(Node *expr, char* otherDT, int num, DataType gpromDT)
 {
     CastExpr *result = makeNode(CastExpr);
 
     result->expr = expr;
-    result->resultDT = -1;
+    result->resultDT = gpromDT;
     result->otherDT = otherDT;
     result->num = num;
 
@@ -635,6 +635,25 @@ maxConsts(Constant *l, Constant *r, boolean nullIsMax)
 	return result;
 }
 
+void
+incrConst(Constant *c)
+{
+	ASSERT(!c->isNull && (c->constType == DT_INT || c->constType == DT_LONG));
+
+	switch(c->constType)
+	{
+	case DT_INT:
+		INT_VALUE(c) = INT_VALUE(c) + 1;
+		break;
+	case DT_LONG:
+		LONG_VALUE(c) = LONG_VALUE(c) + 1;
+		break;
+	default:
+		c = NULL;
+		// will never end up here
+	}
+}
+
 DataType
 typeOf (Node *expr)
 {
@@ -671,8 +690,19 @@ typeOf (Node *expr)
         }
         case T_IsNullExpr:
             return DT_BOOL;
+			// Oracle has an ROWNUM pseudo attribute for that. All other systems we have to use ROW_NUMBER()
         case T_RowNumExpr:
-            return DT_INT;
+			if(getBackend() == BACKEND_ORACLE)
+			{
+				return DT_INT;
+			}
+			else
+			{
+				DataType rt;
+				boolean exists;
+				rt = getFuncReturnType(ROW_NUMBER_FUNC_NAME, NIL, &exists);
+				return rt;
+			}
         case T_SQLParameter:
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:
@@ -863,6 +893,10 @@ backendifyIdentifier(char *name)
                 break;
 		    case BACKEND_SQLITE: // treat everything as upper case since SQLite completely ignores all cases when it comes to matching attribute names even through internally identifiers are stored case sensitive
 				result = strToUpper(name);
+				break;
+		    case BACKEND_MSSQL:
+				result = strToLower(name);
+				break;
             default:
                 result = strToUpper(name);
                 break;
@@ -1197,14 +1231,14 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 
     // logical operators
     if (streq(upCaseOpName,OPNAME_OR)
-            || streq(upCaseOpName,OPNAME_AND)
-            )
+		|| streq(upCaseOpName,OPNAME_AND)
+		)
     {
         if (dLeft == dRight && dLeft == DT_BOOL)
             return DT_BOOL;
     }
 
-    // TODO: operator name is "NOT" or "not"
+    // TODO: operator name is OPNAME_NOT or OPNAME_not
     if (streq(opName,OPNAME_NOT) || streq(opName,OPNAME_not))
     {
         if (dLeft == DT_BOOL)
@@ -1212,11 +1246,12 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     }
 
     // standard arithmetic operators
-    if (streq(opName,"+")
-            || streq(opName,"*")
-            || streq(opName,"/")
-            || streq(opName,"-")
-            )
+    if (streq(opName,OPNAME_ADD)
+		|| streq(opName,OPNAME_MULT)
+		|| streq(opName,OPNAME_DIV)
+		|| streq(opName,OPNAME_MINUS)
+		|| streq(opName,OPNAME_MOD)
+		)
     {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
@@ -1225,27 +1260,26 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     }
 
     // string ops
-    if (streq(opName,"||"))
+    if (streq(opName,OPNAME_STRING_CONCAT))
     {
         if (dLeft == dRight && dLeft == DT_STRING)
             return DT_STRING;
     }
+
     // comparison operators
     if (streq(opName,OPNAME_LT)
-            || streq(opName,OPNAME_GT)
-            || streq(opName,OPNAME_LE)
-            || streq(opName,OPNAME_GE)
-            || streq(opName,"=>")
-            || streq(opName,"<>")
-            || streq(opName,"^=")
-            || streq(opName,OPNAME_EQ)
-            || streq(opName,"!=")
-			|| streq(opName,"like")
-		    || streq(opName,"LIKE")
-                )
+		|| streq(opName,OPNAME_GT)
+		|| streq(opName,OPNAME_LE)
+		|| streq(opName,OPNAME_GE)
+		|| streq(opName,"=>") //TODO is this supposed ot be >=?
+		|| streq(opName,OPNAME_NEQ)
+		|| streq(opName,OPNAME_NEQ_HAT)
+		|| streq(opName,OPNAME_EQ)
+		|| streq(opName,OPNAME_NEQ_BANG)
+		|| streq(opName,OPNAME_LIKE)
+    )
     {
-        //if (dLeft == dRight)
-            return DT_BOOL;
+       return DT_BOOL;
     }
 
     *exists = FALSE;

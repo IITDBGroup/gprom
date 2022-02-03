@@ -79,6 +79,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             break;
         case T_IntList:
         	break;
+    	case T_KeyValue:
+		{
+			PREP_VISIT(KeyValue);
+			VISIT(key);
+			VISIT(value);
+		}
+		break;
         /* expression nodes */
         case T_Constant:
         	{
@@ -214,7 +221,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(subquery);
         	}
         	break;
-        case T_FromJoinExpr:
+        case T_FromLateralSubquery:
+        	{
+        		PREP_VISIT(FromLateralSubquery);
+        		VISIT(subquery);
+        	}
+        	break;
+	    case T_FromJoinExpr:
         	{
         		PREP_VISIT(FromJoinExpr);
         		VISIT(left);
@@ -254,6 +267,26 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(cond);
         	}
         	break;
+	    case T_PreparedQuery:
+		{
+			PREP_VISIT(PreparedQuery);
+			VISIT(q);
+			VISIT(dts);
+		}
+		break;
+	    case T_ExecQuery:
+		{
+			PREP_VISIT(ExecQuery);
+			VISIT(params);
+		}
+		break;
+	    case T_WithStmt:
+		{
+			PREP_VISIT(WithStmt);
+			VISIT(withViews);
+			VISIT(query);
+		}
+		break;
         /* query operator model nodes */
         case T_Schema:
         	{
@@ -267,6 +300,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		//VISIT();
         	}
         	break;
+	    case T_ParameterizedQuery:
+		{
+			PREP_VISIT(ParameterizedQuery);
+			VISIT(q);
+			VISIT(parameters);
+		}
         case T_SelectionOperator:
             {
                 PREP_VISIT(SelectionOperator);
@@ -359,6 +398,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(offsetExpr);
             }
             break;
+     	case T_ExecPreparedOperator:
+		{
+			PREP_VISIT(ExecPreparedOperator);
+			VISIT_OPERATOR_FIELDS();
+			VISIT(params);
+		}
+		break;
         // DLNodes
         case T_DLAtom:
         {
@@ -402,6 +448,20 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             VISIT(rangeList);
             VISIT(BitVector);
             VISIT(psIndexList);
+        }
+        break;
+        case T_psInfoCell:
+        {
+//            PREP_VISIT(psInfoCell);
+//            VISIT(storeTable);
+//            VISIT(pqSql);
+//            VISIT(paraValues);
+//            VISIT(tableName);
+//            VISIT(attrName);
+//            VISIT(provTableAttr);
+//            VISIT(numRanges);
+//            VISIT(psSize);
+//            VISIT(ps);
         }
         break;
         default:
@@ -575,6 +635,18 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
 				MUTATE(Node, offsetClause);
         	}
         	break;
+	    case T_ExecQuery:
+		{
+			NEWN(ExecQuery);
+			MUTATE(List, params);
+		}
+	    case T_PreparedQuery:
+		{
+			NEWN(PreparedQuery);
+			MUTATE(Node, q);
+			MUTATE(List, dts);
+		}
+		break;
         case T_SelectItem:
         	{
         		NEWN(SelectItem);
@@ -596,6 +668,13 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         case T_FromSubquery:
         	{
         		NEWN(FromSubquery);
+        		MUTATE(List, from.attrNames);
+        		MUTATE(Node, subquery);
+        	}
+        	break;
+        case T_FromLateralSubquery:
+        	{
+        		NEWN(FromLateralSubquery);
         		MUTATE(List, from.attrNames);
         		MUTATE(Node, subquery);
         	}
@@ -652,6 +731,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
             break;
         case T_AttributeDef:
         	return node;
+	    case T_ParameterizedQuery:
+		{
+			NEWN(ParameterizedQuery);
+			MUTATE(Node, q);
+			MUTATE(List, parameters);
+		}
         case T_SelectionOperator:
             {
                 NEWN(SelectionOperator);
@@ -742,6 +827,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(Node,offsetExpr);
             }
             break;
+	    case T_ExecPreparedOperator:
+		{
+			NEWN(ExecPreparedOperator);
+			MUTATE_OPERATOR();
+			MUTATE(List,params);
+		}
 		// DL nodes
         case T_DLAtom:
             {
@@ -788,6 +879,13 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,rangeList);
                 MUTATE(BitSet,BitVector);
                 MUTATE(List,psIndexList);
+            }
+        break;
+        case T_psInfoCell:
+            {
+                NEWN(psInfoCell);
+
+                MUTATE(BitSet,ps);
             }
         break;
         default:
@@ -973,6 +1071,12 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(subquery);
             }
             break;
+        case T_FromLateralSubquery:
+            {
+                PREP_VISIT_P(FromLateralSubquery);
+                VISIT_P(subquery);
+            }
+            break;
         case T_FromJoinExpr:
             {
                 PREP_VISIT_P(FromJoinExpr);
@@ -1026,6 +1130,13 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 //VISIT_P();
             }
             break;
+	    case T_ParameterizedQuery:
+		{
+			PREP_VISIT_P(ParameterizedQuery);
+			VISIT_P(q);
+			VISIT_P(parameters);
+		}
+		break;
         case T_SelectionOperator:
             {
                 PREP_VISIT_P(SelectionOperator);
@@ -1146,6 +1257,13 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(rangeList);
                 VISIT_P(BitVector);
                 VISIT_P(psIndexList);
+            }
+            break;
+        case T_psInfoCell:
+            {
+                PREP_VISIT_P(psInfoCell);
+
+                VISIT_P(ps);
             }
             break;
         default:

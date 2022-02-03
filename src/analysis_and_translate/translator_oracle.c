@@ -27,6 +27,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
+#include "parameterized_query/parameterized_queries.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
@@ -54,6 +55,9 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
 static QueryOperator *translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList);
+static QueryOperator *translateExecQuery(ExecQuery *q, List **attrsOffsetsList);
+static QueryOperator *translatePrepareQuery(PreparedQuery *q, List **attrsOffsetsList);
+static int compareParameters(const void **a, const void **b);
 static void markTableAccessForRowidProv (QueryOperator *o);
 static void getAffectedTableAndOperationType (Node *stmt,
         ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
@@ -178,6 +182,10 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
         case T_ProvenanceStmt:
         	INFO_LOG("IT IS A T_PROVENANCESTMT\n");
             return translateProvenanceStmt((ProvenanceStmt *) node, attrsOffsetsList);
+	    case T_ExecQuery:
+			return translateExecQuery((ExecQuery *) node, attrsOffsetsList);
+	    case T_PreparedQuery:
+			return translatePrepareQuery((PreparedQuery *) node, attrsOffsetsList);
         case T_Insert:
         case T_Update:
         case T_Delete:
@@ -602,6 +610,61 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     	prop = (Node *) limitAndOffset;
 
     return limitAndOffset;
+}
+
+static QueryOperator *
+translateExecQuery(ExecQuery *e, List **attrsOffsetsList)
+{
+    ExecPreparedOperator *q = (ExecPreparedOperator *) makeNode(ExecPreparedOperator);
+
+	q->name = e->name;
+	q->params = e->params;
+
+	return (QueryOperator *) q;
+}
+
+static QueryOperator *
+translatePrepareQuery(PreparedQuery *p, List **attrsOffsetsList)
+{
+	QueryOperator *q = translateQueryOracleInternal(p->q, attrsOffsetsList);
+	ParameterizedQuery *pq = makeNode(ParameterizedQuery);
+	List *parameters = findParameters((Node *) q);
+
+	// store prepared query's name and dts as property
+	setStringProperty(q,
+					  PROP_PREPARED_QUERY_NAME,
+					  (Node *) createConstString(p->name));
+
+	setStringProperty(q, PROP_PREPARED_QUERY_DTS,
+					  (Node *) p->dts);
+
+	setStringProperty(q, PROP_PREPARED_QUERY_SQLTEXT,
+					  (Node *) createConstString(p->sqlText));
+
+	pq->q = (Node *) q;
+	pq->parameters = unique(parameters, compareParameters); //TODO what to record here?
+
+	// store parameterized query
+	createParameterizedQuery(p->name, pq);
+
+	return q;
+}
+
+static int
+compareParameters(const void **a, const void **b)
+{
+	ASSERT(isA(*a,SQLParameter) && isA(*b,SQLParameter));
+	SQLParameter *p1, *p2;
+
+	p1 = (SQLParameter *) *a;
+	p2 = (SQLParameter *) *b;
+
+	if (p1->position < p2->position)
+		return -1;
+	if (p1->position > p2->position)
+		return 1;
+
+	return 0;
 }
 
 static QueryOperator *
@@ -1609,7 +1672,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *dts = getDataTypes(lChild->schema);
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
-        char *attrName = CONCAT_STRINGS("nesting_eval_", gprom_itoa(i++));
+        char *attrName = getNestingResultAttribute(i++);
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
                                             (Node *)createConstInt(LIST_LENGTH(attrNames))));
@@ -1620,7 +1683,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         else if (nsq->nestingType == NESTQ_SCALAR)
         {
-        		nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
+			nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
             dts = appendToTailOfListInt(dts, getAttrDefByPos(rChild, 0)->dataType);
         }
         else
@@ -1704,7 +1767,6 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         if (((NestedSubquery *) node)->nestingType == NESTQ_SCALAR)
             return (Node *) attr;
 
-// <<<<<<< HEAD
 //        // create "nesting_eval_i = true" expression
 //        Constant *trueValue = createConstBool(TRUE);
 //        List *args = LIST_MAKE(attr, trueValue);
@@ -1712,12 +1774,6 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
 //
 //        // replace the nested subquery node with the auxiliary expression
 //        return (Node *) opExpr;
-// =======
-        // create "nesting_eval_i = true" expression
-        // Constant *trueValue = createConstBool(TRUE);
-        // List *args = LIST_MAKE(attr, trueValue);
-        // Operator *opExpr = createOpExpr(OPNAME_EQ, args);
-// >>>>>>> origin/CPB
 
         return (Node *) attr;
     }
@@ -1772,7 +1828,9 @@ static boolean
 visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 {
     if (n == NULL)
+    {
         return TRUE;
+	}
     if (isA(n, AttributeReference))
     {
     	//int count = 0;
@@ -2206,7 +2264,7 @@ visitAggregFunctionCall(Node *n, List **aggregs)
         FunctionCall *fc = (FunctionCall *) n;
         if (fc->isAgg)
         {
-            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL));
+            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL, TRUE));
             *aggregs = appendToTailOfList(*aggregs, fc);
 
             // do not recurse into aggregation function calls
@@ -2225,7 +2283,7 @@ visitFindWindowFuncs(Node *n, List **wfs)
 
     if (isA(n, WindowFunction))
     {
-        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL));
+        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL, TRUE));
         *wfs = appendToTailOfList(*wfs, n);
         return TRUE;
     }

@@ -12,6 +12,7 @@
 
 #include "common.h"
 
+#include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
@@ -110,6 +111,23 @@ getNormalAttrProjectionExprs(QueryOperator *op)
     }
 
     return result;
+}
+
+List *
+getAllAttrProjectionExprs(QueryOperator *op)
+{
+	List *result = NIL;
+	int i = 0;
+	
+	FOREACH(AttributeDef,a,op->schema->attrDefs)
+	{
+		AttributeReference *at;
+
+		at = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+		result = appendToTailOfList(result, at);
+	}
+
+	return result;
 }
 
 QueryOperator *
@@ -470,3 +488,40 @@ hasProvVisitor(Node *q, boolean *found)
 
 	return visit(q, hasProvVisitor, found);
 }
+
+boolean
+isOpRewritten(HashMap *opToRewrittenOp, QueryOperator *op)
+{
+	return MAP_HAS_LONG_KEY(opToRewrittenOp, (gprom_long_t) op);
+}
+
+QueryOperator *
+getRewrittenOp(HashMap *opToRewrittenOp, QueryOperator *op)
+{
+	return (QueryOperator *) MAP_GET_LONG(opToRewrittenOp, (gprom_long_t) op);
+}
+
+QueryOperator *
+setRewrittenOp(HashMap *opToRewrittenOp, QueryOperator *op, QueryOperator *rewrittenOp)
+{
+	MAP_ADD_LONG_KEY(opToRewrittenOp, (gprom_long_t) op, (gprom_long_t) rewrittenOp);
+	return rewrittenOp;
+}
+
+QueryOperator *
+getOrSetOpCopy(HashMap *origOps, QueryOperator *op)
+{
+	QueryOperator *opCopy;
+	
+	if(MAP_HAS_LONG_KEY(origOps, (gprom_long_t) op))
+	{	
+		opCopy = (QueryOperator *) MAP_GET_LONG(origOps, (gprom_long_t) op);
+	}
+	else {
+		opCopy = copyUnrootedSubtree(op);
+		MAP_ADD_LONG_KEY(origOps, (gprom_long_t) op, (gprom_long_t) opCopy);
+	}
+	
+	return opCopy;
+}
+

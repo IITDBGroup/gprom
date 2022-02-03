@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * query_operator_dt_inference.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -13,6 +13,7 @@
 #include "common.h"
 
 #include "log/logger.h"
+#include "model/list/list.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
@@ -31,7 +32,7 @@ introduceCastsWhereNecessary(QueryOperator *q)
     // process children first
     FOREACH(QueryOperator,c,q->inputs)
     {
-        introduceCastsWhereNecessary(c);
+		introduceCastsWhereNecessary(c);
     }
 
     // introduce cast for expressions that are used by the operator

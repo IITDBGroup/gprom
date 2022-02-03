@@ -1,4 +1,4 @@
-%option prefix="hive" 
+%option prefix="hive"
 %option outfile="hive_parser.lex.c"
 
 /*
@@ -8,7 +8,7 @@
 
 
 /*******************************************************************************
- * options section 
+ * options section
  ******************************************************************************/
 
 /* set lexer options */
@@ -53,13 +53,13 @@
 %}
 
 /********************************************************************
- * lexer states 
+ * lexer states
  */
 
 %s SQL
 
 /********************************************************************
- * predefined regular expressions 
+ * predefined regular expressions
  */
 
 /* whitespace */
@@ -86,22 +86,22 @@ identifiers		({identStart}({identDelim}?{identContinue}+)*)
 parameters		[:]{identifiers}
 
 /* operators */
-/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
+/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		["<<"|">>"] */
-notOps			("NOT"|"!")
+notOps			(OPNAME_NOT|"!")
 
 /*****************************************************************/
 /* HIVE ONES */
 DOT						'.'
-COLON					':' 
-COMMA					',' 
-SEMICOLON				';' 
+COLON					':'
+COMMA					','
+SEMICOLON				';'
 
-LPAREN					'(' 
-RPAREN					')' 
-LSQUARE					'[' 
-RSQUARE					']' 
+LPAREN					'('
+RPAREN					')'
+LSQUARE					'['
+RSQUARE					']'
 LCURLY					'{'
 RCURLY					'}'
 
@@ -151,7 +151,7 @@ WS    				(' '|'\r'|'\t'|'\n')
 COMMENT '--' (~('\n'|'\r'))*
 
 /*******************************************************************************
- * Token definitions and actions 
+ * Token definitions and actions
  ******************************************************************************/
 %%
 
@@ -208,7 +208,7 @@ COMMENT '--' (~('\n'|'\r'))*
 (?i:REPAIR) TOK(KW_REPAIR)
 (?i:DIRECTORY) TOK(KW_DIRECTORY)
 (?i:LOCAL) TOK(KW_LOCAL)
-(?i:TRANSFORM)	TOK(KW_TRANSFORM) 
+(?i:TRANSFORM)	TOK(KW_TRANSFORM)
 (?i:USING) TOK(KW_USING);
 (?i:CLUSTER) TOK(KW_CLUSTER);
 (?i:DISTRIBUTE) TOK(KW_DISTRIBUTE);
@@ -380,15 +380,15 @@ COMMENT '--' (~('\n'|'\r'))*
 %%
 
 /*
-	
+
 {identifiers}	UPCASE_TOK(identifier)
-{quotedIdentifier}   { 		
+{quotedIdentifier}   {
 		hivelval.stringVal = MALLOC(strlen(hivetext) - 1);
 		memcpy(hivelval.stringVal, hivetext + 1, strlen(hivetext) - 2);
 		hivelval.stringVal[strlen(hivetext) - 2] = '\0';
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", hivetext);
 		return identifier;
-	}	
+	}
 
 {parameters} {
 		hivelval.stringVal = MALLOC(strlen(hivetext));
@@ -398,20 +398,20 @@ COMMENT '--' (~('\n'|'\r'))*
 		return parameter;
 	}
 
-	
+
 [(),.;] TOKSELF()
 
-	
+
 {comparisonOps}		TOK(comparisonOps)
 [-+*%/^~&|!]		TOKSELF()
-	
 
 
-	
+
+
 {integer}	TOKSAVE(intConst,intVal,atoi)
 {float}	TOKSAVE(floatConst,floatVal,atof)
 
-	
+
 '[^'\n]*'	{
 		hivelval.stringVal = MALLOC(strlen(hivetext) - 1);
 		memcpy(hivelval.stringVal, hivetext + 1, strlen(hivetext) - 2);
@@ -420,7 +420,7 @@ COMMENT '--' (~('\n'|'\r'))*
 		return stringConst;
 	}
 }
-		
+
 '[^'\n]*$	{hiveerror("Unterminated string"); }
 */
 

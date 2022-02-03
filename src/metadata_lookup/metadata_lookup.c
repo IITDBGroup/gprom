@@ -15,6 +15,7 @@
 
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "metadata_lookup/metadata_lookup_odbc.h"
 #include "model/list/list.h"
 #include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
@@ -23,11 +24,14 @@
 #include "metadata_lookup/metadata_lookup_external.h"
 #include "metadata_lookup/metadata_lookup_sqlite.h"
 #include "metadata_lookup/metadata_lookup_monetdb.h"
+#include "metadata_lookup/metadata_lookup_mssql.h"
 
 #define PLUGIN_NAME_ORACLE "oracle"
 #define PLUGIN_NAME_POSTGRES "postgres"
 #define PLUGIN_NAME_SQLITE "sqlite"
 #define PLUGIN_NAME_MONETDB "monetdb"
+#define PLUGIN_NAME_ODBC "odbc"
+#define PLUGIN_NAME_MSSQL "mssql"
 #define PLUGIN_NAME_EXTERNAL "external"
 
 MetadataLookupPlugin *activePlugin = NULL;
@@ -54,6 +58,12 @@ initMetadataLookupPlugins (void)
 #endif
 #if HAVE_MONETDB_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assembleMonetdbMetadataLookupPlugin());
+#endif
+#if HAVE_ODBC_BACKEND
+	availablePlugins = appendToTailOfList(availablePlugins, assembleOdbcMetadataLookupPlugin());
+#endif
+#if HAVE_MSSQL_BACKEND
+	availablePlugins = appendToTailOfList(availablePlugins, assembleMssqlMetadataLookupPlugin());
 #endif
     availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
 
@@ -125,6 +135,10 @@ stringToPluginType(char *type)
         return METADATA_LOOKUP_PLUGIN_SQLITE;
     if (strcmp(type, PLUGIN_NAME_MONETDB) == 0)
         return METADATA_LOOKUP_PLUGIN_MONETDB;
+    if (strcmp(type, PLUGIN_NAME_ODBC) == 0)
+        return METADATA_LOOKUP_PLUGIN_ODBC;
+    if (strcmp(type, PLUGIN_NAME_MSSQL) == 0)
+        return METADATA_LOOKUP_PLUGIN_MSSQL;
     if (strcmp(type, PLUGIN_NAME_EXTERNAL) == 0)
         return METADATA_LOOKUP_PLUGIN_EXTERNAL;
     FATAL_LOG("unkown plugin type <%s>", type);
@@ -143,7 +157,11 @@ pluginTypeToString(MetadataLookupPluginType type)
     case METADATA_LOOKUP_PLUGIN_SQLITE:
         return PLUGIN_NAME_SQLITE;
     case METADATA_LOOKUP_PLUGIN_MONETDB:
-            return PLUGIN_NAME_MONETDB;
+		return PLUGIN_NAME_MONETDB;
+    case METADATA_LOOKUP_PLUGIN_ODBC:
+		return PLUGIN_NAME_ODBC;
+    case METADATA_LOOKUP_PLUGIN_MSSQL:
+		return PLUGIN_NAME_MSSQL;
     case METADATA_LOOKUP_PLUGIN_EXTERNAL:
         return PLUGIN_NAME_EXTERNAL;
     }
@@ -437,6 +455,91 @@ getPS (char *sql, List *attrNames)
     return result;
 }
 
+HashMap *
+getPSInfoFromTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    HashMap *result = activePlugin->getProvenanceSketchInfoFromTable();
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+HashMap *
+getPSTemplateFromTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    HashMap *result = activePlugin->getProvenanceSketchTemplateFromTable();
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+HashMap *
+getPSHistogramFromTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    HashMap *result = activePlugin->getProvenanceSketchHistogramFromTable();
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+void
+createPSTemplateTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->createProvenanceSketchTemplateTable();
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+createPSInfoTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->createProvenanceSketchInfoTable();
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+createPSHistTable ()
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->createProvenanceSketchHistTable();
+    RELEASE_MEM_CONTEXT();
+}
+
+
+void
+storePsInfo (int tNo, char *paras, psInfoCell *psc)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->storePsInformation(tNo,paras,psc);
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+storePsTemplate (KeyValue *kv)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->storePsTemplates(kv);
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+storePsHist (KeyValue *kv, int n)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->storePsHistogram(kv,n);
+    RELEASE_MEM_CONTEXT();
+}
+
 
 int
 databaseConnectionOpen (void)
@@ -507,6 +610,17 @@ getMinAndMax(char *tableName, char *colName)
     RELEASE_MEM_CONTEXT();
     return result;
 }
+
+List *
+getAllMinAndMax(TableAccessOperator *table)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    List * result = activePlugin->getAllMinAndMax(table);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
 
 int
 getRowNum(char* tableName)

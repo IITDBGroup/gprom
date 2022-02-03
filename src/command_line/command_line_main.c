@@ -35,6 +35,8 @@
 #include "execution/exe_run_query.h"
 #include "rewriter.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 #define PROCESS_CONTEXT_NAME "PROCESS_CONTEXT"
 static const char *commandHelp = "\n"
@@ -230,6 +232,10 @@ utility(char *command)
     // QUIT
     if(strStartsWith(command,"\\q"))
     {
+    	//if in self-turning model, store the cached provenance sketches into table
+    	if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    		storePS();
+
         //printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
         printf("\n");
         persistHistory();

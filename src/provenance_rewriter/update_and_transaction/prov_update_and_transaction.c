@@ -657,11 +657,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		    ASSERT(isA(q,SelectionOperator));
 
 		    // add SCN attribute to schema and turn NOT(C) into NOT(C) OR SCN > X to selection condition
-// <<<<<<< HEAD
-            DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond, NULL));
-// =======
-            // DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond, NULL)); //TODO deal with nested subqueries
-// >>>>>>> origin/CPB
+            DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond, NULL, FALSE)); //TODO deal with nested subqueries
 
             // adding SCN < update SCN condition
             scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
@@ -719,11 +715,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 						Node *when = whenC->when;
 						Node *newCond;
 
-// <<<<<<< HEAD
-						DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp, NULL));
-// =======
-						// DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp, NULL)); //TODO support nested subqueries
-// >>>>>>> origin/CPB
+						DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp, NULL, FALSE)); //TODO support nested subqueries
 
 						// adding SCN < update SCN condition
 						scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
@@ -734,11 +726,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 						newWhen = ((when == NULL) || equal(when,createConstBool(TRUE))) ?  newCond : AND_EXPRS(when, newCond);
 						whenC->when = newWhen;
-// <<<<<<< HEAD
-						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp, NULL));
-// =======
-						// DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp, NULL)); //TODO support nested subqueries
-// >>>>>>> origin/CPB
+						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp, NULL, FALSE)); //TODO support nested subqueries
 				    }
 					// check if is part of the set clause for an update without WHERE clause
 					else if (j < LIST_LENGTH(upd->schema))
@@ -1302,7 +1290,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
             if (!allTrue)
             {
                 if (LIST_LENGTH(args) > 1)
-                    cond = (Node *) createOpExpr("OR", (List *) cond);
+                    cond = (Node *) createOpExpr(OPNAME_OR, (List *) cond);
                 else
                     cond = (Node *) getHeadOfListP(args);
 

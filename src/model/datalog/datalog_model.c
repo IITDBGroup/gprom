@@ -209,7 +209,7 @@ unifyRule (DLRule *r, List *headBinds)
     {
         DLVar *var = (DLVar *) v;
         MAP_ADD_STRING_KEY(varToBind,var->name,bind);
-        DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind, NULL));
+        DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind, NULL, FALSE));
     }
 
     result = (DLRule *) unificationMutator((Node *) result, varToBind);
@@ -245,7 +245,7 @@ getUnificationString(DLAtom *a)
                 stringArg = strdup(STRING_VALUE(entry));
         }
         else if (isA(arg,Constant))
-            stringArg = exprToSQL(arg, NULL);
+            stringArg = exprToSQL(arg, NULL, FALSE);
         else
             FATAL_LOG("unexpected type: %u", arg->type);
 

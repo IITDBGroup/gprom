@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_autocast.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -79,8 +79,8 @@ testCastExprs (void)
     a1 = (AttributeDef *) LC_P_VAL(eS->schema->attrDefs->head);
     a1->dataType = DT_FLOAT;
 
-    DEBUG_LOG("expected: %s", beatify(nodeToString(eS)));
-    DEBUG_LOG("result: %s", beatify(nodeToString(result)));
+    DEBUG_NODE_BEATIFY_LOG("expected: %s", eS);
+    DEBUG_NODE_BEATIFY_LOG("result: %s", result);
     DEBUG_NODE_BEATIFY_LOG("after casting", result);
 
     ASSERT_EQUALS_NODE(eS, result, "casting in algebra operator expressions");
@@ -97,6 +97,7 @@ testCastSetOp (void)
     QueryOperator *p1, *p2;
     SetOperator *u;
     QueryOperator *result, *expected;
+	ListCell *lc;
 
     // input tree
     t1 = createTableAccessOp("R", NULL, "R", NIL,
@@ -113,13 +114,23 @@ testCastSetOp (void)
 
     // expected result
     p1 = createProjOnAllAttrs((QueryOperator *) t1);
+    lc = ((ProjectionOperator *) p1)->projExprs->head;
+    LC_P_VAL(lc) = createCastExpr((Node *) createFullAttrReference(strdup("A"), 0, 0, INVALID_ATTR, DT_INT), DT_STRING);
+	((AttributeDef *) p1->schema->attrDefs->head->data.ptr_value)->dataType = DT_STRING;
     addChildOperator(p1,copyObject(t1));
+
     p2 = createProjOnAllAttrs((QueryOperator *) t2);
+    lc = ((ProjectionOperator *) p2)->projExprs->head->next;
+    LC_P_VAL(lc) = createCastExpr((Node *) createFullAttrReference(strdup("D"), 0, 1, INVALID_ATTR, DT_INT), DT_FLOAT);
+	((AttributeDef *) p2->schema->attrDefs->head->next->data.ptr_value)->dataType = DT_FLOAT;
     addChildOperator(p2,copyObject(t2));
 
     expected = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(p1,p2), NIL, LIST_MAKE(strdup("A"), strdup("B")));
+	addParent(p1, expected);
+	addParent(p2, expected);
 
-    DEBUG_NODE_BEATIFY_LOG("after casting", result);
+    INFO_OP_LOG("casting result: ", result);
+    INFO_OP_LOG("expected result: ", expected);
     ASSERT_EQUALS_NODE(expected, result, "making inputs union compatible");
 
     return PASS;

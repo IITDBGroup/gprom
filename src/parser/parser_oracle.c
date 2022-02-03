@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * parser_oracle.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -13,6 +13,8 @@
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
+#include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "parser/parser.h"
 #include "parser/parse_internal_oracle.h"
 #include "parser/parser_oracle.h"
@@ -70,6 +72,17 @@ parseFromStringOracle (char *input)
 
     return parseInternalOracle();
 }
+
+Node *
+parseExprFromStringOracle (char *input)
+{
+	INFO_LOG("parse expr:\n%s", input);
+	char *wrappedInput = CONCAT_STRINGS("[", input, "]");
+	oracleSetupStringInput(wrappedInput);
+
+	return getHeadOfListP((List *) parseInternalOracle());
+}
+
 
 const char *
 languageHelpOracle (void)

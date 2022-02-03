@@ -15,6 +15,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_HashMap,
     T_Vector,
 	T_BitSet,
+
     /* options */
     T_KeyValue,
 
@@ -46,6 +47,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_FromProvInfo,
     T_FromTableRef,
     T_FromSubquery,
+	T_FromLateralSubquery,
     T_FromJoinExpr,
     T_DistinctClause,
     T_NestedSubquery,
@@ -60,8 +62,9 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     /* query operator model nodes */
     T_Schema,
     T_AttributeDef,
-    T_QueryOperator,
-    T_SelectionOperator,
+	T_QueryOperator,
+	T_ParameterizedQuery,
+	T_SelectionOperator,
     T_ProjectionOperator,
     T_JoinOperator,
     T_AggregationOperator,
@@ -76,7 +79,8 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 	T_SampleClauseOperator,
 	T_LimitOperator,
 	T_DLMorDDLOperator,
-
+    T_ExecPrepratedOperator,
+n
     /* datalog model nodes */
     T_DLNode,
     T_DLAtom,
@@ -103,9 +107,15 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_CreateTable,
     T_AlterTable,
 
+    /* parameterized query */
+	T_PreparedQuery,
+	T_ExecQuery,
+	T_ExecPreparedOperator,
+
 	/* provenance sketch */
 	T_psInfo,
-	T_psAttrInfo
+	T_psAttrInfo,
+	T_psInfoCell
 );
 
 typedef struct Node{
@@ -120,6 +130,7 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceType,
 	CAP_USE_PROV_COARSE_GRAINED,
 	PROV_COARSE_GRAINED,
 	USE_PROV_COARSE_GRAINED,
+	USE_PROV_COARSE_GRAINED_BIND,
     PROV_NONE /* for reenactment of bag semantics only */
 );
 

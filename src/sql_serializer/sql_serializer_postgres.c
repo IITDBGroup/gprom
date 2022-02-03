@@ -35,29 +35,18 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
-static void
-createAPI(void);
-static boolean
-addNullCasts(Node *n, Set *visited, void **parentPointer);
-static char*
-serializeDMLandDDLPostgres(QueryOperator *q);
-static void
-serializeJoinOperator(StringInfo from, QueryOperator *fromRoot, JoinOperator *j,
-		int *curFromItem, int *attrOffset, FromAttrsContext *fac,
-		SerializeClausesAPI *api);
-static List*
-serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
-		StringInfo having, StringInfo groupBy, FromAttrsContext *fac,
-		boolean materialize, SerializeClausesAPI *api);
-static void
-serializeConstRel(StringInfo from, ConstRelOperator *t, FromAttrsContext *fac,
-		int *curFromItem, SerializeClausesAPI *api);
-static void
-serializeTableAccess(StringInfo from, TableAccessOperator *t, int *curFromItem,
-		FromAttrsContext *fac, int *attrOffset, SerializeClausesAPI *api);
-static List*
-serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac,
-		SerializeClausesAPI *api);
+static void createAPI(void);
+static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
+static char*serializeDMLandDDLPostgres(QueryOperator *q);
+static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
+        int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
+static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
+        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
+static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
+        int* curFromItem,  SerializeClausesAPI *api);
+static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api);
+static List *serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api);
 
 /* serialize functions for create table, delete, insert and update*/
 static void
@@ -198,31 +187,33 @@ quoteIdentifierPostgres(char *ident)
 	if (ident[0] == '"')
 		return ident;
 
-	// sqlite completely ignores case no matter whether the identifier is quoted or not
-	// so upper/lower case does not indicate whether we need to escape
-	for (i = 0; i < strlen(ident); i++) {
-		switch (ident[i]) {
-		case '$':
-		case '#':
-		case '_':
-			break;
-		case ' ':
-		case '(':
-		case ')':
-			needsQuotes = TRUE;
-			break;
-		case '"':
-			needsQuotes = TRUE;
-			containsQuotes = TRUE;
-			break;
-		default:
-			if (!isupper(ident[i]))
-				needsQuotes = TRUE;
-			break;
-		}
-		if (needsQuotes)
-			break;
-	}
+	// certain characters need to be quoted
+	// also upper case needs to be quoted to preserve the case
+    for(i = 0; i < strlen(ident); i++)
+    {
+        switch(ident[i])
+        {
+            case '$':
+            case '#':
+            case '_':
+                break;
+            case ' ':
+            case '(':
+            case ')':
+                needsQuotes = TRUE;
+                break;
+            case '"':
+                needsQuotes = TRUE;
+                containsQuotes = TRUE;
+                break;
+            default:
+                if (!isupper(ident[i]))
+                    needsQuotes = TRUE;
+                break;
+        }
+        if (needsQuotes)
+            break;
+    }
 
 	if (containsQuotes)
 		ident = replaceSubstr(ident, "\"", "\"\"");
@@ -447,16 +438,16 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 //        appendStringInfoString(select, " DISTINCT "); //TODO deal with distinct on attributes
 
     // Projection for aggregation inputs and group-by
-//    if (m->secondProj != NULL && (agg != NULL || winR != NULL))
-//    {
-//        FOREACH(Node,n,m->secondProj->projExprs)
-//        {
-//            updateAttributeNames(n, fromAttrs);
-//            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL));
-//        }
-//        DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
-//                stringListToString(firstProjs));
-//    }
+    if (m->secondProj != NULL && (agg != NULL || winR != NULL))
+    {
+        FOREACH(Node,n,m->secondProj->projExprs)
+        {
+            updateAttributeNames(n, fac);
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE));
+        }
+        DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
+                stringListToString(firstProjs));
+    }
 
 
     // aggregation if need be
@@ -473,25 +464,9 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-//<<<<<<< HEAD
-			aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL));
-		}
-		DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
-
-		// group by
-		FOREACH(Node,expr,agg->groupBy)
-		{
-			char *g;
-			if (pos++ == 0)
-				appendStringInfoString(groupBy, "\nGROUP BY ");
-			else
-				appendStringInfoString(groupBy, ", ");
-
-			UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
-//=======
-//            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL));
-//        }
-//        DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
+            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL, FALSE));
+        }
+        DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
 
         // group by
 //        FOREACH(Node,expr,agg->groupBy)
@@ -508,8 +483,7 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-//<<<<<<< HEAD
-			g = exprToSQL(expr, NULL);
+            g = exprToSQL(expr, NULL, FALSE);
 
 			groupBys = appendToTailOfList(groupBys, g);
 			appendStringInfo(groupBy, "%s", strdup(g));
@@ -567,8 +541,17 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 //            DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
 //                                (WindowOperator *) curOp), NULL));
 
-//            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
-//>>>>>>> origin/CPB
+        windowFs = NIL;
+
+        while(isA(curOp,WindowOperator))
+        {
+            WindowOperator *wOp = (WindowOperator *) curOp;
+            Node *expr = wOp->f;
+
+            DEBUG_LOG("BEFORE: window function = %s",
+					  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
+
+            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
@@ -581,12 +564,18 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 			UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac,
 					firstProjs);
 
-			windowFs = appendToHeadOfList(windowFs,
-					exprToSQL((Node*) winOpGetFunc((WindowOperator*) curOp),
-					NULL));
+            if(HAS_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK))
+            {
+            	int numFrags = INT_VALUE(GET_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK));
+                windowFs = appendToHeadOfList(windowFs,
+    										  exprToSQL((Node *) createCastExprOtherDT((Node *) winOpGetFunc((WindowOperator *) curOp),"bit", numFrags, DT_STRING), NULL, FALSE));
+            }
+            else
+            	windowFs = appendToHeadOfList(windowFs,
+										  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
-			DEBUG_LOG("AFTER: window function = %s",
-					exprToSQL((Node *) winOpGetFunc( (WindowOperator *) curOp), NULL));
+
+            DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
 
 			curOp = OP_LCHILD(curOp);
 		}
@@ -601,14 +590,15 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 				stringListToString(windowFs));
 	}
 
-	// having
-	if (m->having != NULL) {
-		SelectionOperator *sel = (SelectionOperator*) m->having;
-		DEBUG_LOG("having condition %s", nodeToString(sel->cond));
-		updateAggsAndGroupByAttrs(sel->cond, state);
-		appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL));
-		DEBUG_LOG("having translation %s", having->data);
-	}
+    // having
+    if (m->having != NULL)
+    {
+        SelectionOperator *sel = (SelectionOperator *) m->having;
+        DEBUG_LOG("having condition %s", nodeToString(sel->cond));
+        updateAggsAndGroupByAttrs(sel->cond, state);
+        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL, FALSE));
+        DEBUG_LOG("having translation %s", having->data);
+    }
 
 	// second level of projection either if no aggregation or using aggregation
 	if ((m->secondProj != NULL && !agg && !winR)
@@ -628,18 +618,17 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 			if (pos++ != 0)
 				appendStringInfoString(select, ", ");
 
-			// is projection over aggregation
-			if (agg)
-				updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid
-			// is projection over window functions
-			else if (winR)
-				updateAggsAndGroupByAttrs(a, state);
-			// is projection in query without aggregation
-			else
-				updateAttributeNames(a, fac);
-			appendStringInfo(select, "%s%s", exprToSQL(a, NULL),
-					attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
-		}
+            // is projection over aggregation
+            if (agg)
+                updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid
+            // is projection over window functions
+            else if (winR)
+                updateAggsAndGroupByAttrs(a, state);
+            // is projection in query without aggregation
+            else
+                updateAttributeNames(a, fac);
+            appendStringInfo(select, "%s%s", exprToSQL(a, NULL, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+        }
 
 		resultAttrs = attrNames;
 		DEBUG_LOG("second projection expressions %s", select->data);
@@ -869,21 +858,19 @@ static void
 serializeConstRel(StringInfo from, ConstRelOperator *t, FromAttrsContext *fac,
 		int *curFromItem, SerializeClausesAPI *api)
 {
-// <<<<<<< HEAD
-	int pos = 0;
-	List *attrNames = getAttrNames(((QueryOperator*) t)->schema);
-	//*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-	fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-	fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList,
-			copyList(fac->fromAttrs));
-	appendStringInfoString(from, "(SELECT ");
-	FOREACH(char,attrName,attrNames)
-	{
-		Node *value;
-		if (pos != 0)
-			appendStringInfoString(from, ", ");
-		value = getNthOfListP(t->values, pos++);
-		appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL), attrName);
+    int pos = 0;
+    List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
+    //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+    appendStringInfoString(from, "(SELECT ");
+    FOREACH(char,attrName,attrNames)
+    {
+        Node *value;
+        if (pos != 0)
+            appendStringInfoString(from, ", ");
+        value = getNthOfListP(t->values, pos++);
+        appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName);
 
 	}
 
@@ -917,78 +904,86 @@ serializeTableAccess(StringInfo from, TableAccessOperator *t, int *curFromItem,
 // <<<<<<< HEAD
 	char *asOf = NULL;
 
-	// use history join to prefilter updated rows
-	if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN)) {
-		List *scnsAndXid = (List*) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
-		Constant *startScn, *commitScn, *commitMinusOne;
-		Constant *xid;
-		StringInfo attrNameStr = makeStringInfo();
-		List *attrNames = getAttrNames(((QueryOperator*) t)->schema);
-		int i = 0;
-		xid = (Constant*) getNthOfListP(scnsAndXid, 0);
-		startScn = (Constant*) getNthOfListP(scnsAndXid, 1);
-		commitScn = (Constant*) getNthOfListP(scnsAndXid, 2);
-		commitMinusOne = createConstLong(LONG_VALUE(commitScn) - 1);
-		FOREACH(char,a,attrNames)
-		{
-			appendStringInfo(attrNameStr, "%s%s", (i++ == 0) ? "" : ", ", a);
-		}
-		// read committed?
-		if (HAS_STRING_PROP(t, PROP_IS_READ_COMMITTED)) {
-			appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
-			appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
-					attrNameStr->data);
-			appendStringInfo(from,
-					"\tFROM %s VERSIONS BETWEEN SCN %u AND %u) F0",
-					t->tableName, LONG_VALUE(commitMinusOne),
-					LONG_VALUE(commitMinusOne));
-			appendStringInfoString(from, "\n JOIN ");
-			appendStringInfo(from,
-					"\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
-					t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
-			appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
-					STRING_VALUE(xid));
-			appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
-					(*curFromItem)++);
-		} else {
-			appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
-			appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
-					attrNameStr->data);
-			appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0", t->tableName,
-					LONG_VALUE(startScn));
-			appendStringInfoString(from, "\n JOIN ");
-			appendStringInfo(from,
-					"\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
-					t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
-			appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
-					STRING_VALUE(xid));
-			appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
-					(*curFromItem)++);
-		}
-		//*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-		fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-		fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList,
-				copyList(fac->fromAttrs));
-	} else {
-		// add list of attributes as list to fromAttrs
-		*attrOffset = 0;
-		if (t->asOf) {
-			if (isA(t->asOf, Constant)) {
-				Constant *c = (Constant*) t->asOf;
-				if (c->constType == DT_LONG)
-					asOf = CONCAT_STRINGS(" AS OF SCN ",
-							exprToSQL(t->asOf, NULL));
-				else
-					asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(",
-							exprToSQL(t->asOf, NULL), ")");
-			} else {
-				List *scns = (List*) t->asOf;
-				Node *begin = (Node*) getNthOfListP(scns, 0);
-				Node *end = (Node*) getNthOfListP(scns, 1);
-				asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ",
-						exprToSQL(begin, NULL), " AND ", exprToSQL(end, NULL));
-			}
-		}
+    // use history join to prefilter updated rows
+    if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
+    {
+        List* scnsAndXid = (List*) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
+        Constant *startScn, *commitScn, *commitMinusOne;
+        Constant* xid;
+        StringInfo attrNameStr = makeStringInfo();
+        List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
+        int i = 0;
+        xid = (Constant*) getNthOfListP(scnsAndXid, 0);
+        startScn = (Constant*) getNthOfListP(scnsAndXid, 1);
+        commitScn = (Constant*) getNthOfListP(scnsAndXid, 2);
+        commitMinusOne = createConstLong(LONG_VALUE(commitScn) - 1);
+        FOREACH(char,a,attrNames)
+        {
+            appendStringInfo(attrNameStr, "%s%s", (i++ == 0) ? "" : ", ", a);
+        }
+        // read committed?
+        if (HAS_STRING_PROP(t, PROP_IS_READ_COMMITTED))
+        {
+            appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
+            appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
+                    attrNameStr->data);
+            appendStringInfo(from,
+                    "\tFROM %s VERSIONS BETWEEN SCN %u AND %u) F0",
+                    t->tableName, LONG_VALUE(commitMinusOne),
+                    LONG_VALUE(commitMinusOne));
+            appendStringInfoString(from, "\n JOIN ");
+            appendStringInfo(from,
+                    "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                    t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+            appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
+                    STRING_VALUE(xid));
+            appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
+                    (*curFromItem)++);
+        }
+        else
+        {
+            appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
+            appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
+                    attrNameStr->data);
+            appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0", t->tableName,
+                    LONG_VALUE(startScn));
+            appendStringInfoString(from, "\n JOIN ");
+            appendStringInfo(from,
+                    "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                    t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+            appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
+                    STRING_VALUE(xid));
+            appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
+                    (*curFromItem)++);
+        }
+        //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+        fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+        fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+    }
+    else
+    {
+        // add list of attributes as list to fromAttrs
+        *attrOffset = 0;
+        if (t->asOf)
+        {
+            if (isA(t->asOf, Constant))
+            {
+                Constant* c = (Constant*) t->asOf;
+                if (c->constType == DT_LONG)
+                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf, NULL, FALSE));
+                else
+                    asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(",
+                            exprToSQL(t->asOf, NULL, FALSE), ")");
+            }
+            else
+            {
+                List* scns = (List*) t->asOf;
+                Node* begin = (Node*) getNthOfListP(scns, 0);
+                Node* end = (Node*) getNthOfListP(scns, 1);
+                asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ",
+                        exprToSQL(begin, NULL, FALSE), " AND ", exprToSQL(end, NULL, FALSE));
+            }
+        }
 
 		List *attrNames = getAttrNames(((QueryOperator*) t)->schema);
 		//*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
@@ -1135,24 +1130,29 @@ serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac,
 	SetOperator *setOp = (SetOperator*) q;
 	List *resultAttrs;
 
-	// output left child
-	resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, fac, api);
+	//TODO be smarter to use UNION / INTERSECT / EXCEPT when these are implemented in rel algebra as duplicate elimination
 
-	// output set operation
-	switch (setOp->setOpType) {
-	case SETOP_UNION:
-		appendStringInfoString(str, " UNION ALL ");
-		break;
-	case SETOP_INTERSECTION:
-		appendStringInfoString(str, " INTERSECT ");
-		break;
-	case SETOP_DIFFERENCE:
-		appendStringInfoString(str, " EXCEPT ");
-		break;
-	}
+    // output left child
+	appendStringInfoString(str, "(");
+    resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, fac, api);
 
-	// output right child
-	api->serializeQueryOperator(OP_RCHILD(q), str, q, fac, api);
+    // output set operation
+    switch(setOp->setOpType)
+    {
+        case SETOP_UNION:
+            appendStringInfoString(str, " UNION ALL ");
+            break;
+        case SETOP_INTERSECTION:
+            appendStringInfoString(str, " INTERSECT ALL ");
+            break;
+        case SETOP_DIFFERENCE:
+            appendStringInfoString(str, " EXCEPT ALL ");
+            break;
+    }
+
+    // output right child
+    api->serializeQueryOperator(OP_RCHILD(q), str, q, fac, api);
+	appendStringInfoString(str, ")");
 
 	return resultAttrs;
 }

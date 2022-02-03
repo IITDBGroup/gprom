@@ -34,27 +34,28 @@ typedef struct TestNameToFunc {
 } TestNameToFunc;
 
 static TestNameToFunc testFuncs [] = {
+        { "autocast", testAutocast },
+		{ "bitset", testBitset },
+        { "copy", testCopy },
+        { "datalog_model", testDatalogModel },
+        { "dynstring", testString },
+        { "equal", testEqual },
+        { "exception", testException },
+        { "expr", testExpr },
+        { "hashmap", testHashMap },
+        { "list", testList },
         { "logger", testLogger },
         { "mem_mgr", testMemManager },
-        { "exception", testException },
-        { "list", testList },
-        { "set", testSet },
-        { "vector", testVector },
-		{ "bitset", testBitset },
-        { "hashmap", testHashMap },
-        { "expr", testExpr },
-        { "copy", testCopy },
-        { "equal", testEqual },
-        { "stringutils", testStringUtils },
-        { "tostring", testToString },
-        { "dynstring", testString },
-        { "parse", testParse },
         { "metadatalookup", testMetadataLookup },
         { "metadatalookup_postgres", testMetadataLookupPostgres },
         { "parameter", testParameter },
-        { "datalog_model", testDatalogModel },
+        { "parse", testParse },
         { "rpq", testRPQ },
-        { "autocast", testAutocast },
+        { "set", testSet },
+        { "stringutils", testStringUtils },
+        { "tostring", testToString },
+        { "vector", testVector },
+		{ "z3", testZ3 },
         { NULL, NULL }
 };
 
@@ -69,11 +70,7 @@ testSuites(void)
     RUN_TEST(testList(), "List model");
     RUN_TEST(testSet(), "Set");
     RUN_TEST(testVector(), "Vector");
-// <<<<<<< HEAD
-    RUN_TEST(testBitset(), "Bitset");
-// =======
-	// RUN_TEST(testBitset(), "Bitset");
-// >>>>>>> origin/CPB
+	RUN_TEST(testBitset(), "Bitset");
     RUN_TEST(testHashMap(), "HashMap");
     RUN_TEST(testExpr(), "Expression model");
     RUN_TEST(testCopy(), "Test generic copy function");
@@ -91,6 +88,7 @@ testSuites(void)
 //    RUN_TEST(testLibGProM(), "Test gprom dynamic link library"); make this work
     RUN_TEST(testRPQ(), "Test regular path query features");
     RUN_TEST(testAutocast(), "Test automatic casting");
+	RUN_TEST(testZ3(), "Testing Z3 constraint solving.");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

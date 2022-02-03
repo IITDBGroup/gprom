@@ -22,17 +22,30 @@ typedef struct Operator {
     List *args;
 } Operator;
 
+/* OPERATOR NAMES */
 #define OPNAME_AND "AND"
 #define OPNAME_OR "OR"
 #define OPNAME_NOT "NOT"
 #define OPNAME_not "not"
-#define OPNAME_CONCAT "CONCAT"
+
 #define OPNAME_EQ "="
 #define OPNAME_LT "<"
 #define OPNAME_LE "<="
 #define OPNAME_GT ">"
 #define OPNAME_GE ">="
 #define OPNAME_NEQ "<>"
+#define OPNAME_NEQ_BANG "!="
+#define OPNAME_NEQ_HAT "^="
+
+#define OPNAME_STRING_CONCAT "||"
+#define OPNAME_CONCAT "CONCAT"
+#define OPNAME_LIKE "LIKE"
+
+#define OPNAME_ADD "+"
+#define OPNAME_MULT "*"
+#define OPNAME_DIV "/"
+#define OPNAME_MINUS "-"
+#define OPNAME_MOD "%"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -191,45 +204,45 @@ typedef struct QuantifiedComparison {
 #define OP_RIGHT_INPUT(_e) ((Node *) getNthOfListP(((Operator *) _e)->args, 1))
 
 /* functions to create expression nodes */
-extern FunctionCall *createFunctionCall (char *fName, List *args);
-extern Operator *createOpExpr (char *name, List *args);
-extern AttributeReference *createAttributeReference (char *name);
-extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
+extern FunctionCall *createFunctionCall(char *fName, List *args);
+extern Operator *createOpExpr(char *name, List *args);
+extern AttributeReference *createAttributeReference(char *name);
+extern AttributeReference *createFullAttrReference(char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
-extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
-extern CastExpr *createCastExprOtherDT (Node *expr, char* otherDT, int num);
-extern Node *concatExprList (List *exprs);
-extern Node *andExprList (List *exprs);
-extern Node *orExprList (List *exprs);
-extern Node *andExprs (Node *expr, ...);
-extern Node *orExprList (List *exprs);
-extern Node *orExprs (Node *expr, ...);
-extern Node *concatExprs (Node *expr, ...);
+extern CastExpr *createCastExpr(Node *expr, DataType resultDt);
+extern CastExpr *createCastExprOtherDT(Node *expr, char* otherDT, int num, DataType gpromDT);
+extern Node *concatExprList(List *exprs);
+extern Node *andExprList(List *exprs);
+extern Node *orExprList(List *exprs);
+extern Node *andExprs(Node *expr, ...);
+extern Node *orExprList(List *exprs);
+extern Node *orExprs(Node *expr, ...);
+extern Node *concatExprs(Node *expr, ...);
 #define CONCAT_EXPRS(...) concatExprs(__VA_ARGS__, NULL)
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
 #define OR_EXPRS(...) orExprs(__VA_ARGS__, NULL)
-extern SQLParameter *createSQLParameter (char *name);
-extern CaseExpr *createCaseExpr (Node *expr, List *whenClauses, Node *elseRes);
-extern CaseWhen *createCaseWhen (Node *when, Node *then);
-extern IsNullExpr *createIsNullExpr (Node *expr);
-extern Node *createIsNotDistinctExpr (Node *lArg, Node *rArg);
+extern SQLParameter *createSQLParameter(char *name);
+extern CaseExpr *createCaseExpr(Node *expr, List *whenClauses, Node *elseRes);
+extern CaseWhen *createCaseWhen(Node *when, Node *then);
+extern IsNullExpr *createIsNullExpr(Node *expr);
+extern Node *createIsNotDistinctExpr(Node *lArg, Node *rArg);
 
-extern WindowBound *createWindowBound (WindowBoundType bType, Node *expr);
-extern WindowFrame *createWindowFrame (WinFrameType winType, WindowBound *lower, WindowBound *upper);
-extern WindowDef *createWindowDef (List *partitionBy, List *orderBy, WindowFrame *frame);
-extern WindowFunction *createWindowFunction (FunctionCall *f, WindowDef *win);
+extern WindowBound *createWindowBound(WindowBoundType bType, Node *expr);
+extern WindowFrame *createWindowFrame(WinFrameType winType, WindowBound *lower, WindowBound *upper);
+extern WindowDef *createWindowDef(List *partitionBy, List *orderBy, WindowFrame *frame);
+extern WindowFunction *createWindowFunction(FunctionCall *f, WindowDef *win);
 
-extern OrderExpr *createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder);
-extern QuantifiedComparison *createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList);
+extern OrderExpr *createOrderExpr(Node *expr, SortOrder order, SortNullOrder nullOrder);
+extern QuantifiedComparison *createQuantifiedComparison(char *nType, Node *checkExpr, char *opName, List *exprList);
 
 /* functions for creating constants */
-extern Constant *createConstInt (int value);
-extern Constant *createConstLong (gprom_long_t value);
-extern Constant *createConstString (char *value);
-extern Constant *createConstFloat (double value);
-extern Constant *createConstBoolFromString (char *v);
-extern Constant *createConstBool (boolean value);
-extern Constant *createNullConst (DataType dt);
+extern Constant *createConstInt(int value);
+extern Constant *createConstLong(gprom_long_t value);
+extern Constant *createConstString(char *value);
+extern Constant *createConstFloat(double value);
+extern Constant *createConstBoolFromString(char *v);
+extern Constant *createConstBool(boolean value);
+extern Constant *createNullConst(DataType dt);
 extern Constant *makeConst(DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
 #define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
@@ -237,20 +250,14 @@ extern Constant *makeConst(DataType dt);
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
-#define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL))
-// <<<<<<< HEAD
-
-/*
- * extern void* getValue(Constant* c);
- */
-// =======
+#define CONST_TO_STRING(_c) (exprToSQL((Node *) _c, NULL, FALSE))
 extern Constant *minConsts(Constant *l, Constant *r, boolean nullIsMin);
 extern Constant *maxConsts(Constant *l, Constant *r, boolean nullIsMax);
- // >>>>>>> origin/CPB
+extern void incrConst(Constant *c);
 
 /* functions for determining the type of an expression */
-extern DataType typeOf (Node *expr);
-extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
+extern DataType typeOf(Node *expr);
+extern DataType typeOfInOpModel(Node *expr, List *inputOperators);
 extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
 
@@ -263,25 +270,21 @@ extern char *backendifyIdentifier(char *name);
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
 extern Node *addCastsToExpr(Node *expr, boolean errorOnFailure);
-extern DataType lcaType (DataType l, DataType r);
+extern DataType lcaType(DataType l, DataType r);
 
-extern DataType SQLdataTypeToDataType (char *dt);
+extern DataType SQLdataTypeToDataType(char *dt);
 
 /* create an SQL expression from an expression tree */
-// <<<<<<< HEAD
-extern char *exprToSQL (Node *expr, HashMap *map);
-// =======
-// extern char *exprToSQL (Node *expr, HashMap *nestedSubqueries);
-// >>>>>>> origin/CPB
+extern char *exprToSQL(Node *expr, HashMap *nestedSubqueries, boolean trimAttrNames);
 
 /* create an Latex expression from an expression tree */
-extern char *exprToLatex (Node *expr);
-extern char *latexEscapeString (char *st);
+extern char *exprToLatex(Node *expr);
+extern char *latexEscapeString(char *st);
 
 /* functions for searching inside expressions */
-extern List *getAttrReferences (Node *node);
-extern List *getDLVars (Node *node);
-extern List *getDLVarsIgnoreProps (Node *node);
+extern List *getAttrReferences(Node *node);
+extern List *getDLVars(Node *node);
+extern List *getDLVarsIgnoreProps(Node *node);
 
 /* for the condition of selection operator, separate the AND operator to a
  * list of operators, these relation among these operators is AND */
@@ -304,5 +307,6 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define AVG_FUNC_NAME backendifyIdentifier("avg")
 #define COUNT_FUNC_NAME backendifyIdentifier("count")
 #define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
+#define DENSE_RANK_FUNC_NAME backendifyIdentifier("dense_rank")
 
 #endif /* EXPRESSION_H */

@@ -172,8 +172,18 @@ void setupPluginsFromOptions(void) {
 		initMetadataLookupPlugin();
 	}
 
-	// setup analyzer - individual option overrides backend option
-	CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
+    // setup metadata lookup - individual option overrides backend option
+    pluginName = getStringOption("plugin.metadata");
+    if (strpleq(pluginName,"external"))
+    {
+        //printf("\nPLUGIN******************************************\n\n");
+    }
+    else
+    {
+        initMetadataLookupPlugins();
+        CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
+        initMetadataLookupPlugin();
+    }
 
 	// setup analyzer - individual option overrides backend option
 	CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
@@ -188,12 +198,20 @@ void setupPluginsFromOptions(void) {
 	pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
 	chooseExecutorPluginFromString(pluginName);
 
-// <<<<<<< HEAD
-	// setup cost-based optimizer
-	if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
-		chooseOptimizerPluginFromString(pluginName);
-	else
-		chooseOptimizerPluginFromString("exhaustive");
+    // setup analyzer - individual option overrides backend option
+    pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+    chooseExecutorPluginFromString(pluginName);
+
+    // setup cost-based optimizer
+    if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
+        chooseOptimizerPluginFromString(pluginName);
+    else
+        chooseOptimizerPluginFromString("exhaustive");
+
+    // for self-turning of ps - load the stored provenance sketches from table first
+    if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    	loadPSInfoFromTable();
+
 }
 
 static void setupPlugin(const char *pluginType) {
@@ -205,19 +223,21 @@ static void setupPlugin(const char *pluginType) {
 		CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
 	}
 
-	// setup metadata lookup - individual option overrides backend option
-	if (streq(pluginType, OPTION_PLUGIN_METADATA)) {
-		pluginName = getStringOption(OPTION_PLUGIN_METADATA);
-//		if (strpeq(pluginName, "external")) {
-		if(pluginName != NULL && strcmp(pluginName, "external") == 0){
-			printf("\nPLUGIN******************************************\n\n");
-		} else {
-			initMetadataLookupPlugins();    //TODO not necessary
-			CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA,
-					chooseMetadataLookupPluginFromString);
-			initMetadataLookupPlugin();
-		}
-	}
+    // setup metadata lookup - individual option overrides backend option
+    if (streq(pluginType,OPTION_PLUGIN_METADATA))
+    {
+        pluginName = getStringOption(OPTION_PLUGIN_METADATA);
+        if (strpleq(pluginName,"external"))
+        {
+            printf("\nPLUGIN******************************************\n\n");
+        }
+        else
+        {
+            initMetadataLookupPlugins();//TODO not necessary
+            CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
+            initMetadataLookupPlugin();
+        }
+    }
 
 	// setup analyzer - individual option overrides backend option
 	if (streq(pluginType, OPTION_PLUGIN_ANALYZER)) {
@@ -527,44 +547,8 @@ generatePlan(Node *oModel, boolean applyOptimizations) {
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-// <<<<<<< HEAD
-	if (isRewriteOptionActivated(OPTION_LATERAL_REWRITE)
-			&& !hasProvComputation(oModel))
-		oModel = lateralTranslateQBModel(oModel);
-
-	if (isRewriteOptionActivated(OPTION_UNNEST_REWRITE)
-			&& !hasProvComputation(oModel))
-		oModel = unnestTranslateQBModel(oModel);
-
-	rewrittenTree = provRewriteQBModel(oModel);
-
-	/*
-	 * deal with provenance sketch returned when maintaining a sketch under updates
-	 *
-	 * return the updated ps if check the return rewritten tree is a "Constant"
-	 */
-
-// should we use oModel or rewrittenTree? sincce rewrittenTree is the returnd from provRewriteQBModel
-//	if(isA(oModel, Constant))
-//	{
-//		return STRING_VALUE(oModel);
-//	}
-	if (isA(rewrittenTree, Constant)) {
-		DEBUG_NODE_BEATIFY_LOG("THE UPDATED PROVENANCE SKETCH", rewrittenTree);
-		return STRING_VALUE(rewrittenTree);
-	}
-// =======
-    //Ziyu Liu
-	//TODO only run check if
-	/* HashMap *checkResult; //TODO only call if we are computing prov sketches */
-	/* checkResult = monotoneCheck(oModel); */
-	// FREE(checkResult); //TODO why free this?
-	//Ziyu Liu
-
-    // if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
-            // oModel = lateralTranslateQBModel(oModel);
-    // rewrittenTree = provRewriteQBModel(oModel);
-// >>>>>>> origin/CPB
+    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
+    		oModel = lateralTranslateQBModel(oModel);
 
 	if (IS_QB(rewrittenTree)) {
 		DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);

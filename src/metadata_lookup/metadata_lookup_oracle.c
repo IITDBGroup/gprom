@@ -975,7 +975,8 @@ boolean oracleIsAgg(char* functionName) {
 	if (functionName == NULL)
 		return FALSE;
 
-	for (int i = 0; i < AGG_FUNCTION_COUNT; i++) {
+	for (int i = 0; i < AGG_FUNCTION_COUNT; i++)
+	{
 		if (strcasecmp(aggList[i], functionName) == 0)
 			return TRUE;
 	}
@@ -1344,7 +1345,9 @@ oracleGetViewDefinition(char *viewName) {
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
-DataType oracleGetOpReturnType(char *oName, List *dataTypes, boolean *opExists) {
+DataType
+oracleGetOpReturnType(char *oName, List *dataTypes, boolean *opExists)
+{
 	*opExists = TRUE;
 
 	if (streq(oName,

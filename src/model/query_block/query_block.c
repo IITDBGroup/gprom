@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * query_block.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -66,6 +66,12 @@ getQBAttrDTs (Node *qb)
             DTs = pStmt->dts;
         }
         break;
+        case T_WithStmt:
+        {
+            WithStmt *wStmt = (WithStmt *) qb;
+            DTs = getQBAttrDTs(wStmt->query);
+        }
+        break;
         default:
             FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;
@@ -104,6 +110,12 @@ getQBAttrNames (Node *qb)
             attrs = deepCopyStringList(pStmt->selectClause);
         }
         break;
+        case T_WithStmt:
+        {
+            WithStmt *wStmt = (WithStmt *) qb;
+            attrs = getQBAttrNames(wStmt->query);
+        }
+        break;
         default:
             break;
     }
@@ -118,11 +130,11 @@ createSetQuery(char *setOp, boolean all, Node *lChild,
 {
     SetQuery *result = makeNode(SetQuery);
 
-    if (streq(setOp, "UNION"))
+    if (streq(setOp, SETOP_STRING_UNION))
         result->setOp = SETOP_UNION;
-    else if (streq(setOp, "INTERSECT"))
+    else if (streq(setOp, SETOP_STRING_INTERSECT))
         result->setOp = SETOP_INTERSECTION;
-    else if (streq(setOp, "MINUS"))
+    else if (streq(setOp, SETOP_STRING_MINUS) || (streq(setOp, SETOP_STRING_EXCEPT)))
         result->setOp = SETOP_DIFFERENCE;
     else
         FATAL_LOG("set operation has to be one of UNION, INTERSECT, MINUS and not <%s>", setOp);
@@ -198,6 +210,20 @@ FromItem *
 createFromSubquery(char *alias, List *attrNames, Node *query)
 {
     FromSubquery *result = makeNode(FromSubquery);
+
+    ((FromItem *) result)->name = alias;
+    ((FromItem *) result)->attrNames = attrNames;
+    ((FromItem *) result)->provInfo = NULL;
+
+    result->subquery = query;
+
+    return (FromItem *) result;
+}
+
+FromItem *
+createFromLateralSubquery(char *alias, List *attrNames, Node *query)
+{
+    FromLateralSubquery *result = makeNode(FromLateralSubquery);
 
     ((FromItem *) result)->name = alias;
     ((FromItem *) result)->attrNames = attrNames;
@@ -447,6 +473,31 @@ createAlterTableRemoveColumn (char *tName, char *colName)
 }
 
 
+ExecQuery *
+createExecQuery (char *name, List *vals)
+{
+	ExecQuery *result = makeNode(ExecQuery);
+
+	result->name = name;
+	result->params = vals;
+
+	return result;
+}
+
+PreparedQuery *
+createPrepareQuery (char *name, Node *q, List *dts, char *sqlText)
+{
+	PreparedQuery *result = makeNode(PreparedQuery);
+
+	result->name = name;
+	result->q = q;
+	result->dts = dts;
+	result->sqlText = sqlText;
+
+	return result;
+}
+
+
 /* fromProvInfo ProvProperties helper functions*/
 static KeyValue *getProvProp (FromProvInfo *from, Node *key);
 
@@ -501,4 +552,3 @@ setStringProvProperty (FromProvInfo *from, char *key, Node *value)
 {
 	setProvProperty(from, (Node *) createConstString(key), value);
 }
-

@@ -643,8 +643,8 @@ minMaxToString(HashMap *h)
 			HashMap *minmax = (HashMap*) kv->value;
 			appendStringInfo(s,"%s: [ %s, %s ]",
 							 STRING_VALUE(kv->key),
-							 exprToSQL((Node *) GET_MIN_BOUND(minmax), NULL),
-							 exprToSQL((Node *) GET_MAX_BOUND(minmax), NULL)
+							 exprToSQL((Node *) GET_MIN_BOUND(minmax), NULL, FALSE),
+							 exprToSQL((Node *) GET_MAX_BOUND(minmax), NULL, FALSE)
 				);
 
 		    if (FOREACH_HASH_HAS_MORE(kv))
@@ -656,8 +656,8 @@ minMaxToString(HashMap *h)
 	else
 	{
 			appendStringInfo(s,"[ %s, %s ]",
-							 exprToSQL((Node *) GET_MIN_BOUND(h), NULL),
-							 exprToSQL((Node *) GET_MAX_BOUND(h), NULL)
+							 exprToSQL((Node *) GET_MIN_BOUND(h), NULL, FALSE),
+							 exprToSQL((Node *) GET_MAX_BOUND(h), NULL, FALSE)
 				);
 	}
 
@@ -899,7 +899,7 @@ computeExprMinMax(Node *expr, HashMap *attrMinMax)
 	ASSERT(MAP_HAS_STRING_KEY(result, MIN_KEY) && MAP_HAS_STRING_KEY(result, MAX_KEY));
 
 	DEBUG_LOG("min max for expression [%s] is %s",
-			  exprToSQL(expr, NULL),
+			  exprToSQL(expr, NULL, FALSE),
 			  minMaxToString(result));
 
 	return result;
@@ -1574,7 +1574,7 @@ printSingleECList(List *l)
 		    DEBUG_LOG("%s", (char *)n);
         }
 		if (c != NULL)
-		    DEBUG_LOG("%s", exprToSQL((Node *) c, NULL));
+		    DEBUG_LOG("%s", exprToSQL((Node *) c, NULL, FALSE));
 		DEBUG_LOG("\n");
 	}
 }
@@ -1610,7 +1610,7 @@ printECProVisitor (QueryOperator *root, void *context)
             appendStringInfo(str,"%s%s", (char *)n, FOREACH_SET_HAS_NEXT(n) ? " " : "");
         }
         if (c != NULL)
-            appendStringInfo(str," %s", exprToSQL((Node *) c, NULL));
+            appendStringInfo(str," %s", exprToSQL((Node *) c, NULL, FALSE));
         appendStringInfoString(str, "} ");
     }
     appendStringInfoString(str, "\n");
