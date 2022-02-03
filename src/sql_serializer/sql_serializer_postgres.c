@@ -276,14 +276,14 @@ static void
 serializeCreateTable(StringInfo str, CreateTable *c)
 {
 	appendStringInfo(str, "create table %s", c->tableName);
-	appendStringInfo(str, "%s;", exprToSQL((Node*) c->tableElems, NULL));
+	appendStringInfo(str, "%s;", exprToSQL((Node*) c->tableElems, NULL, FALSE));
 }
 
 static void
 serializeDelete(StringInfo str, Delete *d)
 {
 	appendStringInfo(str, "delete from %s %s;", d->deleteTableName,
-			(d->cond ? CONCAT_STRINGS("where ", exprToSQL(d->cond, NULL)) : ""));
+					 (d->cond ? CONCAT_STRINGS("where ", exprToSQL(d->cond, NULL, FALSE)) : ""));
 }
 
 static void
@@ -297,7 +297,7 @@ serializeInsert(StringInfo str, Insert *i)
 
 	} else {
 		appendStringInfo(str, "insert into %s values %s ;", i->insertTableName,
-				exprToSQL(i->query, NULL));
+						 exprToSQL(i->query, NULL, FALSE));
 	}
 }
 
@@ -316,17 +316,17 @@ serializeUpdate(StringInfo str, Update *u)
 	for (int i = 0; i < len; i++) {
 		Operator *op = (Operator*) getNthOfListP(u->selectClause, i);
 		appendStringInfo(str, " %s",
-				exprToSQL((Node*) getNthOfListP(op->args, 0), NULL));
+						 exprToSQL((Node*) getNthOfListP(op->args, 0), NULL, FALSE));
 		appendStringInfo(str, " =");
 		appendStringInfo(str, " %s",
-				exprToSQL((Node*) getNthOfListP(op->args, 1), NULL));
+						 exprToSQL((Node*) getNthOfListP(op->args, 1), NULL, FALSE));
 		if (i != len - 1) {
 			appendStringInfo(str, " ,");
 		}
 	}
 
 	appendStringInfo(str, " %s;",
-			u->cond ? CONCAT_STRINGS("where ", exprToSQL(u->cond, NULL)) : "");
+					 u->cond ? CONCAT_STRINGS("where ", exprToSQL(u->cond, NULL, FALSE)) : "");
 }
 
 static void
@@ -406,7 +406,7 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 		FOREACH(Node,n,m->secondProj->projExprs)
 		{
 			updateAttributeNames(n, fac);
-			firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL));
+			firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE));
 		}
 		DEBUG_LOG(
 				"second projection (aggregation and group by or window inputs) is %s",
@@ -509,7 +509,7 @@ serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 			Node *expr = wOp->f;
 
 			DEBUG_LOG("BEFORE: window function = %s",
-					exprToSQL((Node *) winOpGetFunc( (WindowOperator *) curOp), NULL));
+					exprToSQL((Node *) winOpGetFunc( (WindowOperator *) curOp), NULL, FALSE));
 
 			UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
 //=======
