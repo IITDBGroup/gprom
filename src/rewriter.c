@@ -550,6 +550,8 @@ generatePlan(Node *oModel, boolean applyOptimizations) {
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
     		oModel = lateralTranslateQBModel(oModel);
 
+    rewrittenTree = oModel;
+
 	if (IS_QB(rewrittenTree)) {
 		DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);
 
