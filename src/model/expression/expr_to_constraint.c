@@ -107,9 +107,8 @@ introduceMILPVariable (Node *expr, ConstraintTranslationCtx *ctx, boolean isBool
 
 // Extension of operator_optimizer.c:1403
 static boolean
-renameParameters (Node *node, RenamingCtx *ctx)
+renameParameters (Node *node, HashMap *nameMap)
 {
-    HashMap *nameMap = ctx->map;
     if (node == NULL)
         return FALSE;
 
@@ -122,6 +121,11 @@ renameParameters (Node *node, RenamingCtx *ctx)
             a->name = CONCAT_STRINGS(a->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(nameMap, a->name))));
             return TRUE;
         }
+        else 
+        {
+            a->name = CONCAT_STRINGS(a->name, gprom_itoa(0));
+            return TRUE;
+        }
     }
     else if(isA(node, SQLParameter))
     {
@@ -131,9 +135,14 @@ renameParameters (Node *node, RenamingCtx *ctx)
             s->name = CONCAT_STRINGS(s->name, gprom_itoa(INT_VALUE(MAP_GET_STRING(nameMap, s->name))));
             return TRUE;
         }
+        else
+        {
+            s->name = CONCAT_STRINGS(s->name, gprom_itoa(0));
+            return TRUE;
+        }
     }
     else
-        return visit(node, renameParameters, ctx);
+        return visit(node, renameParameters, nameMap);
 
     return FALSE;
 }
@@ -149,9 +158,9 @@ historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translatio
     HashMap *seen = NEW_MAP(AttributeReference, Node); // value is unused, key for looking up seen TODO: use a set
     List *caseExprs = NIL;
     // HashMap *current = NEW_MAP(Constant, Constant);
-    // TODO: Deep copy history list? copyobject
     // Change variables and construct CASE exprs
-    FOREACH(Node, n, history)
+    List *h = copyObject(history);
+    FOREACH(Node, n, h)
     {
         if(isA(n, Update)) {
             Update *u = (Update *)n;
@@ -171,8 +180,17 @@ historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translatio
                 int lhs = INT_VALUE(MAP_GET_STRING(current, setAttr->name)) + 1;
 
                 char *rhsSetAttr = CONCAT_STRINGS(setAttr->name, gprom_itoa(rhs));
-                visit((Node*)setExpr, renameParameters, renameCtx);
-                if(u->cond) visit(u->cond, renameParameters, renameCtx);
+
+                HashMap *rhsMap = NEW_MAP(Constant, Constant);
+                FOREACH_HASH_KEY(Constant, k, rhsMap) {
+                    if(MAP_HAS_STRING_KEY(seen, STRING_VALUE(k))) {
+                        ADD_TO_MAP(rhsMap, getMapEntry(current, (Node *)k));
+                    }
+                }
+                MAP_ADD_STRING_KEY(rhsMap, setAttr->name, createConstInt(rhs));
+
+                visit((Node*)setExpr, renameParameters, rhsMap);
+                if(u->cond) visit(u->cond, renameParameters, rhsMap);
                 updatedAttrs = appendToTailOfList(updatedAttrs, strdup(setAttr->name));
                 setAttr->name = CONCAT_STRINGS(setAttr->name, gprom_itoa(lhs));
                 // foo1 := case when foo0 > 3 then foo0 + 3 else 4
@@ -183,7 +201,7 @@ historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translatio
 
             FOREACH(char, updatedAttr, updatedAttrs) {
                 MAP_ADD_STRING_KEY(current, updatedAttr, createConstInt(INT_VALUE(MAP_GET_STRING(current, updatedAttr)) + 1));
-                if(!MAP_HAS_STRING_KEY(seen, updatedAttr)) MAP_ADD_STRING_KEY(seen, updatedAttr, NULL);
+                if(!MAP_HAS_STRING_KEY(seen, updatedAttr)) MAP_ADD_STRING_KEY(seen, updatedAttr, createConstInt(1));
             }
         } else if(isA(n, Delete)) {
             Delete *d = (Delete *)n;
@@ -471,7 +489,7 @@ exprToConstraints(Node *expr, ConstraintTranslationCtx *ctx)
         else if(streq(operator->name, ":="))
         {
             SQLParameter *leftVar = introduceMILPVariable(getHeadOfListP(operator->args), ctx, FALSE);
-            exprToConstraints(getHeadOfListP(operator->args), ctx);
+            //exprToConstraints(getHeadOfListP(operator->args), ctx);
             resultant = leftVar;
 
             SQLParameter *rightVar = introduceMILPVariable(getTailOfListP(operator->args), ctx, FALSE);
@@ -491,7 +509,7 @@ exprToConstraints(Node *expr, ConstraintTranslationCtx *ctx)
         }
 		else
 		{
-			ASSERT(FALSE); // should not end up here
+			//ASSERT(FALSE); // should not end up here
 		}
     }
     else if(isA(expr, CaseExpr))
@@ -645,6 +663,14 @@ exprToConstraints(Node *expr, ConstraintTranslationCtx *ctx)
         resultant = createSQLParameter(CONCAT_STRINGS("b", gprom_itoa(ctx->current_expr)));
         exprToConstraints((Node*)(d->cond), ctx);
         ctx->deletes = appendToTailOfList(ctx->deletes, resultant);
+    }
+    else if(isA(expr, SQLParameter))
+    {
+        resultant = introduceMILPVariable(expr, ctx, FALSE);
+    }
+    else if(isA(expr, AttributeReference))
+    {
+        resultant = introduceMILPVariable(expr, ctx, FALSE);
     }
 	else
 	{

@@ -1110,6 +1110,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
             List *originalSlice = copyObject(whatif->history);
             List *modifiedSlice = copyObject(whatif->modifiedHistory);
             for(int u = 1; u < getListLength(whatif->history); u++) {
+                INFO_LOG("Multi-mod, pruning update %d", u);
                 if(!hasSetIntElem(dependentUpdated, u)) { // don't remove modified statements
                     List *originalPruned = copyObject(originalSlice); // slice from the slice determined so far
                     List *modifiedPruned = copyObject(modifiedSlice);
@@ -1119,13 +1120,21 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     RenamingCtx *renamingCtx = newRenamingCtx();
                     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
 
-                    List *exprs = NIL;
-                    exprs = concatLists(
+                    List *a = historyToCaseExprsFreshVars(whatif->history, ctx, renamingCtx);
+                    List *b = historyToCaseExprsFreshVars(originalPruned, ctx, renamingCtx);
+                    List *c = historyToCaseExprsFreshVars(whatif->modifiedHistory, ctx, renamingCtx);
+                    List *d = historyToCaseExprsFreshVars(modifiedPruned, ctx, renamingCtx);
+
+                    List *exprs = CONCAT_LISTS(a, b, c, d);
+                    FOREACH(Node, n, exprs) {
+                        INFO_LOG("%s", exprToSQL(n, NULL));
+                    }
+                    /*exprs = concatLists(
                         historyToCaseExprsFreshVars(whatif->history, ctx, renamingCtx),
                         historyToCaseExprsFreshVars(originalPruned, ctx, renamingCtx),
                         historyToCaseExprsFreshVars(whatif->modifiedHistory, ctx, renamingCtx),
                         historyToCaseExprsFreshVars(modifiedPruned, ctx, renamingCtx)
-                    );
+                    );*/
 
                     FOREACH(Node, e, exprs)
                     {
@@ -1138,17 +1147,17 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         // assumptions: 0th and 1st are original and original pruned, 2nd and 3rd are modified and modified pruned
 
                         Operator *originalCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))),
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), (Node *)attr)))
+                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))))),
+                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), (Node *)attr)))))
                         ));
 
                         Operator *modifiedCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr))),
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), (Node *)attr)))
+                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr))))),
+                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), (Node *)attr)))))
                         ));
 
                         pruneCompare = appendToTailOfList(pruneCompare, originalCompare);
-			pruneCompare = appendToTailOfList(pruneCompare, modifiedCompare);
+                        pruneCompare = appendToTailOfList(pruneCompare, modifiedCompare);
 
                         //exprToConstraints((Node *) originalCompare, ctx);
                         //TODO keep compiler quiet for now SQLParameter *originalCond = ctx->root;
@@ -1158,10 +1167,10 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 
                     List *diffCompare = NIL;
                     FOREACH_HASH_KEY(Constant, attr, renamingCtx->map) {
-			diffCompare = appendToTailOfList(diffCompare, createOpExpr(OPNAME_NEQ, LIST_MAKE(
-			    createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))),
-                            createAttributeReference(STRING_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr)))
-			)));
+                        diffCompare = appendToTailOfList(diffCompare, createOpExpr(OPNAME_NEQ, LIST_MAKE(
+                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))))),
+                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr)))))
+                        )));
                     }
 
                     Operator *possibleWorldCond = createOpExpr(OPNAME_AND, LIST_MAKE(
@@ -1174,12 +1183,21 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     enforcePossibleWorld->sense = CONSTRAINT_E;
                     enforcePossibleWorld->rhs = createConstInt(1);
                     enforcePossibleWorld->terms = LIST_MAKE(createNodeKeyValue((Node *)createConstInt(1), (Node *)possibleWorldCondVariable));
+                    enforcePossibleWorld->originalExpr = (Node *)createConstString("enforce possible world");
                     ctx->constraints = appendToTailOfList(ctx->constraints, enforcePossibleWorld);
+
+                    INFO_LOG("Running LP with constraints...");
+                    INFO_LOG("%s", cstringConstraintTranslationCtx(ctx, TRUE));
+                    //INFO_LOG("%s", beatify(nodeToString(ctx->exprToMilpVar)));
 
                     LPProblem *lp = newLPProblem(ctx);
                     int result = executeLPProblem(lp); //TODO was originalLp
-					//TODO result was unused
-					DEBUG_LOG("cplex result was %u", result); //TODO Boris: added this to keep compiler quiet about unused result variable
+                    INFO_LOG("Result of multi-mod LP was %d", result);
+                    if(result != 101) {
+                        originalSlice = originalPruned;
+                        modifiedSlice = modifiedPruned;
+                    }
+                    DEBUG_LOG("cplex result was %u", result); //TODO Boris: added this to keep compiler quiet about unused result variable
                     /*
                     if(getListLength(ctx->deletes) > 0)
                         {
