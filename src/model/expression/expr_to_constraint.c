@@ -966,7 +966,7 @@ cstringConstraint(Constraint *constraint, boolean origin, int padLength)
 		sense = "<=";
     }
 
-    appendStringInfo(str, " %s %d", sense, exprToSQL((Node *) constraint->rhs, NULL));
+    appendStringInfo(str, " %s %d", sense, INT_VALUE(constraint->rhs));
 	appendStringInfo(result, CONCAT_STRINGS("%-", gprom_itoa(padLength), "s"), str->data);
     if(origin)
 	{
