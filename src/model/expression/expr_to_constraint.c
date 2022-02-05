@@ -44,8 +44,8 @@ newConstraintTranslationCtx ()
     ctx->deletes = NIL;
     ctx->root = NULL;
 
-    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX));
-    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-INT_MAX)); //TODO: There is definitely a better way to be doing this.
+    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX-1));
+    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-INT_MAX+1)); //TODO: There is definitely a better way to be doing this.
 
     return ctx;
 }

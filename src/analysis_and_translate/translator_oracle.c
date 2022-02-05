@@ -38,6 +38,8 @@
 #include "utility/string_utils.h"
 #include "provenance_rewriter/prov_rewriter.h"
 
+#define LIST_OR_SINGLETON(OP, LIST)     mapSize(renamingCtx->map) > 1 ? createOpExpr(OP, LIST) : getHeadOfListP(LIST)
+
 #ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
 #endif
@@ -1068,6 +1070,19 @@ replaceAttributeRefsMutator (Node *node, HashMap *state, void **parentPointer)
     return visitWithPointers(node, replaceAttributeRefsMutator, parentPointer, state);
 }
 
+static List *
+compareSymbolicTuplesExprs (char *opname, RenamingCtx *ctx, int l, int r)
+{
+    List *list = NIL;
+    FOREACH_HASH_KEY(Constant, attr, ctx->map) {
+        list = appendToTailOfList(list, createOpExpr(opname, LIST_MAKE(
+            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(ctx->kept, l), (Node *)attr))))),
+            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(ctx->kept, r), (Node *)attr)))))
+        )));
+    }
+    return list;
+}
+
 static QueryOperator *
 translateWhatIfStmt (WhatIfStmt *whatif)
 {
@@ -1141,42 +1156,39 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                         exprToConstraints(e, ctx);
                     }
 
+                    // assumptions: 0th and 1st are original and original pruned, 2nd and 3rd are modified and modified pruned (0 H, 1 Hs, 2 Hm, 3 Hms)
+                    List *hEqHm = compareSymbolicTuplesExprs(OPNAME_EQ, renamingCtx, 0, 2);
+                    List *hsNeqHms = compareSymbolicTuplesExprs(OPNAME_NEQ, renamingCtx, 1, 3);
+                    List *hNeqHm = compareSymbolicTuplesExprs(OPNAME_NEQ, renamingCtx, 0, 2);
+                    List *hsEqHms = compareSymbolicTuplesExprs(OPNAME_EQ, renamingCtx, 1, 3);
+                    List *hNeqHs = compareSymbolicTuplesExprs(OPNAME_NEQ, renamingCtx, 0, 1);
+                    List *hmNeqHms = compareSymbolicTuplesExprs(OPNAME_NEQ, renamingCtx, 2, 3);
+                    List *hNeqHms = compareSymbolicTuplesExprs(OPNAME_NEQ, renamingCtx, 0, 3);
+                    List *hmNeqHs = compareSymbolicTuplesExprs(OPNAME_NEQ, renamingCtx, 1, 2);
 
-                    List *pruneCompare = NIL;
-                    FOREACH_HASH_KEY(Constant, attr, renamingCtx->map) {
-                        // assumptions: 0th and 1st are original and original pruned, 2nd and 3rd are modified and modified pruned
-
-                        Operator *originalCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))))),
-                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 1), (Node *)attr)))))
-                        ));
-
-                        Operator *modifiedCompare = createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr))))),
-                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 3), (Node *)attr)))))
-                        ));
-
-                        pruneCompare = appendToTailOfList(pruneCompare, originalCompare);
-                        pruneCompare = appendToTailOfList(pruneCompare, modifiedCompare);
-
-                        //exprToConstraints((Node *) originalCompare, ctx);
-                        //TODO keep compiler quiet for now SQLParameter *originalCond = ctx->root;
-                        //exprToConstraints((Node *) modifiedCompare, ctx);
-                        //SQLParameter *modifiedCond = ctx->root;
-                    }
-
-                    List *diffCompare = NIL;
-                    FOREACH_HASH_KEY(Constant, attr, renamingCtx->map) {
-                        diffCompare = appendToTailOfList(diffCompare, createOpExpr(OPNAME_NEQ, LIST_MAKE(
-                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 0), (Node *)attr))))),
-                            createAttributeReference(CONCAT_STRINGS(STRING_VALUE(attr), gprom_itoa(INT_VALUE(getMap((HashMap *)getNthOfListP(renamingCtx->kept, 2), (Node *)attr)))))
-                        )));
-                    }
-
-                    Operator *possibleWorldCond = createOpExpr(OPNAME_AND, LIST_MAKE(
-                        createOpExpr(OPNAME_OR, diffCompare),
-                        createOpExpr(OPNAME_OR, pruneCompare)
+                    
+                    Operator *possibleWorldCond = createOpExpr(OPNAME_OR, LIST_MAKE(
+                        createOpExpr(OPNAME_AND, LIST_MAKE(LIST_OR_SINGLETON(OPNAME_AND, hEqHm), LIST_OR_SINGLETON(OPNAME_OR, hsNeqHms))),
+                        createOpExpr(OPNAME_AND, LIST_MAKE(
+                            LIST_OR_SINGLETON(OPNAME_OR, hNeqHm),
+                            createOpExpr(OPNAME_OR, LIST_MAKE(
+                                LIST_OR_SINGLETON(OPNAME_AND, hsEqHms),
+                                createOpExpr(OPNAME_AND, LIST_MAKE(
+                                    createOpExpr(OPNAME_OR, LIST_MAKE(LIST_OR_SINGLETON(OPNAME_OR, hNeqHs), LIST_OR_SINGLETON(OPNAME_OR, hmNeqHms))),
+                                    createOpExpr(OPNAME_OR, LIST_MAKE(LIST_OR_SINGLETON(OPNAME_OR, hNeqHms), LIST_OR_SINGLETON(OPNAME_OR, hmNeqHs)))
+                                ))
+                            ))
+                        ))
                     ));
+
+                    /*
+                    Operator *possibleWorldCond = createOpExpr(OPNAME_AND, LIST_MAKE(
+                        LIST_OR_SINGLETON(OPNAME_OR, hNeqHm),
+                        LIST_OR_SINGLETON(OPNAME_AND, hsEqHms)
+                    ));
+                    */
+
+                    //Operator *possibleWorldCond = LIST_OR_SINGLETON(OPNAME_OR, hNeqHm);
                     SQLParameter *possibleWorldCondVariable = exprToConstraints((Node *)possibleWorldCond, ctx);
 
                     Constraint *enforcePossibleWorld = makeNode(Constraint);
@@ -1185,6 +1197,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     enforcePossibleWorld->terms = LIST_MAKE(createNodeKeyValue((Node *)createConstInt(1), (Node *)possibleWorldCondVariable));
                     enforcePossibleWorld->originalExpr = (Node *)createConstString("enforce possible world");
                     ctx->constraints = appendToTailOfList(ctx->constraints, enforcePossibleWorld);
+                    exprToConstraints((Node *)createOpExpr(":=", LIST_MAKE(createSQLParameter("a0"), createConstInt(7))), ctx);
 
                     INFO_LOG("Running LP with constraints...");
                     INFO_LOG("%s", cstringConstraintTranslationCtx(ctx, TRUE));
