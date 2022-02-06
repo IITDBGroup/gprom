@@ -1096,6 +1096,9 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 	HashMap *upToPosReal = NEW_MAP(Node,Constant);
 	int pos;
 
+    List *originalSlice = copyObject(whatif->history);
+    List *modifiedSlice = copyObject(whatif->modifiedHistory);
+
 	pos = 0;
 	FOREACH(Node,u,whatif->history)
 	{
@@ -1122,8 +1125,7 @@ translateWhatIfStmt (WhatIfStmt *whatif)
 
         /* Find dependent updates */
         if(getListLength(whatif->indices) > 1) {
-            List *originalSlice = copyObject(whatif->history);
-            List *modifiedSlice = copyObject(whatif->modifiedHistory);
+
             for(int u = 1; u < getListLength(whatif->history); u++) {
                 INFO_LOG("Multi-mod, pruning update %d", u);
                 if(!hasSetIntElem(dependentUpdated, u)) { // don't remove modified statements
@@ -1197,7 +1199,6 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     enforcePossibleWorld->terms = LIST_MAKE(createNodeKeyValue((Node *)createConstInt(1), (Node *)possibleWorldCondVariable));
                     enforcePossibleWorld->originalExpr = (Node *)createConstString("enforce possible world");
                     ctx->constraints = appendToTailOfList(ctx->constraints, enforcePossibleWorld);
-                    exprToConstraints((Node *)createOpExpr(":=", LIST_MAKE(createSQLParameter("a0"), createConstInt(7))), ctx);
 
                     INFO_LOG("Running LP with constraints...");
                     INFO_LOG("%s", cstringConstraintTranslationCtx(ctx, TRUE));
@@ -1264,25 +1265,25 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     }
                 }
             }
-        }
-
-        INFO_LOG("dep updates at %s", beatify(nodeToString(dependentUpdated)));
-        for(int i = 0; i < getListLength(whatif->history); i++)
-        {
-			if(!hasSetIntElem(dependentUpdated, i))
-			{
-				independentUpdates = appendToTailOfList(independentUpdates, MAP_GET_INT(upToPos, i));
-			}
+            INFO_LOG("dep updates at %s", beatify(nodeToString(dependentUpdated)));
+            for(int i = 0; i < getListLength(whatif->history); i++)
+            {
+                if(!hasSetIntElem(dependentUpdated, i))
+                {
+                    independentUpdates = appendToTailOfList(independentUpdates, MAP_GET_INT(upToPos, i));
+                }
+            }
+            originalSlice = removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->history));
+            modifiedSlice = removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->modifiedHistory));
         }
 
         STOP_TIMER("translator - program slicing optimization");
-        INFO_LOG("%d dependent updates/%d total", getListLength(whatif->history) - getListLength(independentUpdates), getListLength(whatif->history));
+        INFO_LOG("%d independent updates/%d total", getListLength(whatif->history) - getListLength(originalSlice), getListLength(whatif->history));
     }
     #endif
 
-
-    reenactHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->history)));     // Prune independent updates
-    reenactModifiedHistoryOp = whatifReenactment(removeListElementsFromAnotherList(independentUpdates, copyObject(whatif->modifiedHistory)));     // Prune independent updates
+    reenactHistoryOp = whatifReenactment(originalSlice);     // Prune independent updates
+    reenactModifiedHistoryOp = whatifReenactment(modifiedSlice);     // Prune independent updates
 
     QueryOperator *origUnion = NULL, *modifiedUnion = NULL;
     if(insertsInOriginal || insertsInModified) {

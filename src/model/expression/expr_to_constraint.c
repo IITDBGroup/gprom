@@ -18,7 +18,7 @@
 #ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
 
-#define GPROM_INFBOUND 1e20
+#define GPROM_INFBOUND INT_MAX
 
 RenamingCtx *
 newRenamingCtx ()
@@ -44,8 +44,8 @@ newConstraintTranslationCtx ()
     ctx->deletes = NIL;
     ctx->root = NULL;
 
-    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(INT_MAX-1));
-    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-INT_MAX+1)); //TODO: There is definitely a better way to be doing this.
+    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(20000));
+    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-20000)); //TODO: There is definitely a better way to be doing this.
 
     return ctx;
 }
@@ -705,11 +705,11 @@ newLPProblem (ConstraintTranslationCtx* ctx)
 		case DT_BOOL:
 			problem->lb[i] = 0.0;
 			problem->ub[i] = 1.0;
-			problem->types[i] = 'I';
+			problem->types[i] = 'B';
 			break;
 		default:
-			problem->lb[i] = -GPROM_INFBOUND;
-			problem->ub[i] = GPROM_INFBOUND;
+			problem->lb[i] = -19000;
+			problem->ub[i] = 19000;
 			problem->types[i] = 'C';
         }
     }
@@ -870,6 +870,7 @@ executeLPProblem(LPProblem *lp)
 	if (cplexEnv == NULL) ERROR_LOG("Could not open CPLEX environment."); else INFO_LOG("CPLEX environment opened.");
 	//cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_ScreenOutput, CPX_ON);
 	cplexStatus = CPXsetintparam(cplexEnv, CPXPARAM_Read_DataCheck, CPX_DATACHECK_OFF);
+    cplexStatus = CPXsetdblparam(cplexEnv, CPX_PARAM_EPINT, 1e-10);
 	if(cplexStatus) ERROR_LOG("Couldn't turn on screen output or data checking...");
 
 	CPXLPptr cplexLp = CPXcreateprob(cplexEnv, &cplexStatus, "gpromlp");
@@ -911,6 +912,9 @@ executeLPProblem(LPProblem *lp)
 	   default:
 	   INFO_LOG("Something else... value %d", CPXgetstat(cplexEnv, cplexLp));
 	   } */
+
+    double solns[lp->ccnt-1];
+    cplexStatus = CPXgetsolnpoolx(cplexEnv, cplexLp, -1, solns, 0, lp->ccnt-1);
 
 	cplexStatus = CPXfreeprob(cplexEnv, &cplexLp);
 	cplexStatus = CPXcloseCPLEX(&cplexEnv);
