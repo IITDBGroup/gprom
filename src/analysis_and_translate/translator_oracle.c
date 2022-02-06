@@ -1137,9 +1137,9 @@ translateWhatIfStmt (WhatIfStmt *whatif)
                     RenamingCtx *renamingCtx = newRenamingCtx();
                     ConstraintTranslationCtx *ctx = newConstraintTranslationCtx();
 
-                    List *a = historyToCaseExprsFreshVars(whatif->history, ctx, renamingCtx);
+                    List *a = historyToCaseExprsFreshVars(originalSlice, ctx, renamingCtx);
                     List *b = historyToCaseExprsFreshVars(originalPruned, ctx, renamingCtx);
-                    List *c = historyToCaseExprsFreshVars(whatif->modifiedHistory, ctx, renamingCtx);
+                    List *c = historyToCaseExprsFreshVars(modifiedSlice, ctx, renamingCtx);
                     List *d = historyToCaseExprsFreshVars(modifiedPruned, ctx, renamingCtx);
 
                     List *exprs = CONCAT_LISTS(a, b, c, d);
