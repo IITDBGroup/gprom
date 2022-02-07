@@ -730,7 +730,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
 		List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
 
-
 		//Set schema attr def
 		List *newAttrDefs = NIL;
 		if(j->cond != NULL)
@@ -753,6 +752,13 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		     newAttrDefs = concatTwoLists(copyObject(OP_LCHILD(root)->schema->attrDefs), copyObject(OP_RCHILD(root)->schema->attrDefs));
 		}
 		root->schema->attrDefs = newAttrDefs;
+
+		// we may have un-uniquified attribute names, so uniqify them again if necessary
+		if(!checkUniqueAttrNames(root))
+        {
+            makeAttrNamesUnique(root);
+            DEBUG_OP_LOG("join or projection attributes are not unique", root);
+        }
 
 //		List *newAttrDefs = NIL;
 //		if(j->cond != NULL)
@@ -861,11 +867,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 			DEBUG_LOG("Reset join left");
 			FOREACH(AttributeReference,a,leftRefs)
-			        resetPos(a,cSchema);
+				resetPos(a,cSchema);
 
 			DEBUG_LOG("Reset join right");
 			FOREACH(AttributeReference,a,rightRefs)
-			        resetPos(a,rcSchema);
+				resetPos(a,rcSchema);
 
 //			FOREACH(AttributeReference,a,attrRefs)
 //			{

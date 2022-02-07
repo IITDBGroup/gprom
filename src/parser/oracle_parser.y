@@ -56,7 +56,11 @@ Node *oracleParseResult = NULL;
 %token <stringVal> boolConst
 %token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']'
+/* <<<<<<< HEAD */
+/* %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']' */
+/* ======= */
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']'STRINGCONCAT POSTGRESCAST
+/* >>>>>>> origin/CPB */
 
 /*
  * Tokens for in-built keywords
@@ -114,6 +118,11 @@ Node *oracleParseResult = NULL;
 %nonassoc  LIKE IN BETWEEN
 
 /* Arithmetic operators : FOR TESTING */
+/* <<<<<<< HEAD */
+/* ======= */
+/* %nonassoc DUMMYEXPR */
+%right POSTGRESCAST
+/* >>>>>>> origin/CPB */
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
@@ -1587,13 +1596,28 @@ unaryOperatorExpression:
          	RULELOG("unaryOperatorExpression::IS NOT NULL");
          	$$ = (Node *) createOpExpr(OPNAME_NOT, singleton(createIsNullExpr($1)));
          }
+		 | expression POSTGRESCAST identifier
+		 {
+			 RULELOG("postgres castExpression");
+			 CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3));
+			 $$ = (Node *) c;
+		 }
     ;
 
 /*
  * Rule to parse function calls
  */
 sqlFunctionCall:
-        identifier '(' exprList ')' overClause
+		identifier '(' ')' overClause
+        {
+			RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
+			FunctionCall *f = createFunctionCall($1, NIL);
+			if ($4 != NULL)
+				$$ = (Node *) createWindowFunction(f, (WindowDef *) $4);
+			else
+				$$ = (Node *) f;
+		}
+        | identifier '(' exprList ')' overClause
             {
                 RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);

@@ -1,11 +1,8 @@
 /*-------------------------------------------------------------------------
  *
- * query_operator.c
+ * query_operator.c - Datastructures to encode relational algebra graphs
  *    Author: Ying Ni yni6@hawk.iit.edu
- *    One-line description
  *
- *        Here starts the more detailed description where we
- *        explain in more detail how this works.
  *
  *-------------------------------------------------------------------------
  */
@@ -23,6 +20,7 @@
 #include "model/query_operator/operator_property.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "utility/string_utils.h"
+#include "model/query_operator/query_operator_model_checker.h"
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
@@ -209,6 +207,10 @@ void
 reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
 {
 	int cnt;
+	DEBUG_LOG("resetAttrRefs %s\nbased references: %s",
+			  NodeTagToString(op2->type),
+			  beatify(nodeToString(attrRefs)));
+    DEBUG_OP_LOG("tree", op2);
 	FOREACH(AttributeReference,a1,attrRefs)
 	{
 	    cnt = 0;
@@ -227,41 +229,52 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
 }
 
 void
-resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1, QueryOperator *op2)
+resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *child)
 {
 	List *attrRefs = NIL;
-	if(isA(op1, ProjectionOperator))
+
+	// collect attribute references in parent and adapt them based on child
+	if (isA(child,JoinOperator) || isA(child,ProjectionOperator))
+    {
+        if(!checkUniqueAttrNames(child))
+        {
+            makeAttrNamesUnique(child);
+            DEBUG_OP_LOG("join or projection attributes are not unique", child);
+        }
+    }
+
+	if(isA(parent, ProjectionOperator))
 	{
-		attrRefs = getAttrReferences((Node *) ((ProjectionOperator *)op1)->projExprs);
+		attrRefs = getAttrReferences((Node *) ((ProjectionOperator *)parent)->projExprs);
 	}
-	else if(isA(op1, SelectionOperator))
+	else if(isA(parent, SelectionOperator))
 	{
-		Node *cond = ((SelectionOperator *)op1)->cond;
+		Node *cond = ((SelectionOperator *)parent)->cond;
 		attrRefs = getAttrReferences(cond);
 	}
-	else if (isA(op1,JoinOperator))
+	else if (isA(parent,JoinOperator))
 	{
-		Node *cond = ((JoinOperator *)op1)->cond;
+		Node *cond = ((JoinOperator *)parent)->cond;
 		attrRefs = getAttrReferences(cond);
 	}
-	else if (isA(op1,AggregationOperator))
+	else if (isA(parent,AggregationOperator))
 	{
-		AggregationOperator *agg = (AggregationOperator *) op1;
+		AggregationOperator *agg = (AggregationOperator *) parent;
 		List *aggrs = getAttrReferences((Node *) agg->aggrs);
 		List *groupBy = getAttrReferences((Node *) agg->groupBy);
 		attrRefs = concatTwoLists(aggrs, groupBy);
 	}
-	else if (isA(op1,DuplicateRemoval))
+	else if (isA(parent,DuplicateRemoval))
 	{
-		attrRefs = getAttrReferences((Node *) ((DuplicateRemoval *) op1)->attrs);
+		attrRefs = getAttrReferences((Node *) ((DuplicateRemoval *) parent)->attrs);
 	}
-	else if (isA(op1,NestingOperator))
+	else if (isA(parent,NestingOperator))
 	{
-		attrRefs = getAttrReferences((Node *) ((NestingOperator *) op1)->cond);
+		attrRefs = getAttrReferences((Node *) ((NestingOperator *) parent)->cond);
 	}
-	else if (isA(op1,WindowOperator))
+	else if (isA(parent,WindowOperator))
 	{
-        WindowOperator *w = (WindowOperator *) op1;
+        WindowOperator *w = (WindowOperator *) parent;
         List *partitionBy = getAttrReferences((Node *) w->partitionBy);
         List *orderBy = getAttrReferences((Node *) w->orderBy);
         List *frameDef = getAttrReferences((Node *) w->frameDef);
@@ -269,14 +282,14 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1, QueryOperator *op2)
         attrRefs = concatTwoLists(partitionBy, orderBy);
         attrRefs = concatTwoLists(attrRefs, frameDef);
         attrRefs = concatTwoLists(attrRefs, f);
-        DEBUG_LOG("WINATTR %p:", (void *) op1);
+        DEBUG_LOG("WINATTR %p:", (void *) parent);
         DEBUG_NODE_BEATIFY_LOG("", attrRefs);
 	}
-	else if (isA(op1,OrderOperator))
+	else if (isA(parent,OrderOperator))
 	{
-		attrRefs = getAttrReferences((Node *) ((OrderOperator *) op1)->orderExprs);
+		attrRefs = getAttrReferences((Node *) ((OrderOperator *) parent)->orderExprs);
 	}
-    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, attrRefs);
+    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, attrRefs);
 }
 
 /*List *

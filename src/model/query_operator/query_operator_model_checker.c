@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * query_operator_model_checker.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -176,7 +176,7 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         }
         else
                 child = (QueryOperator *) getNthOfListP(children, input);
-        
+
         if (attrPos < 0 || attrPos >= getNumAttrs(child))
         {
             ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "
@@ -569,5 +569,3 @@ checkParentChildLinks(QueryOperator *op, void *context)
 
     return TRUE;
 }
-
-

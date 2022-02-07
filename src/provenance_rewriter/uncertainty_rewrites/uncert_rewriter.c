@@ -639,9 +639,9 @@ static QueryOperator *combineRowByBG(QueryOperator *op){
 
 	attrExpr = getProjExprsForAllAttrs(aggrop);
 	List *projexpr1 = sublist(attrExpr, attrExpr->length-normalattrlen, attrExpr->length-1);
-	INFO_LOG("projexpr1: %s", nodeToString(projexpr1));
+	// INFO_LOG("projexpr1: %s", nodeToString(projexpr1));
 	List *projexpr2 = sublist(attrExpr, 0, attrExpr->length-normalattrlen-1);
-	INFO_LOG("projexpr2: %s", nodeToString(projexpr2));
+	// INFO_LOG("projexpr2: %s", nodeToString(projexpr2));
 	projexpr1 = concatTwoLists(projexpr1, projexpr2);
 
 	oldattrname = sublist(oldattrname, 0, normalattrlen-1);
@@ -743,8 +743,8 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 	opdup->parents = singleton(pos);
 	setStringProperty(pos, UNCERT_MAPPING_PROP, (Node *) copyObject(hmpIn));
 
-	INFO_OP_LOG("bg:", bg);
-	INFO_OP_LOG("pos:", pos);
+	// INFO_OP_LOG("bg:", bg);
+	// INFO_OP_LOG("pos:", pos);
 	//
 	QueryOperator *onepos = combineRowMinBg(pos);
 
@@ -762,13 +762,14 @@ static QueryOperator *combinePosToOne(QueryOperator *op) {
 static QueryOperator *
 compressPosRow(QueryOperator *op, int n, char *attr)
 {
+	INFO_LOG("#########################  Compressing possible rows for attriute [%s] with factor [%d]. #########################", attr, n);
 	List *attrnames = getQueryOperatorAttrNames(op);
 	HashMap * mmpro = (HashMap *)getStringProperty(op, PROP_STORE_MIN_MAX);
 	// INFO_LOG("property: %s", nodeToString(mmpro));
 	Node *max = MAP_GET_STRING_ENTRY((HashMap *)MAP_GET_STRING_ENTRY(mmpro,attr)->value, "MAX")->value;
 	Node *min = MAP_GET_STRING_ENTRY((HashMap *)MAP_GET_STRING_ENTRY(mmpro,attr)->value, "MIN")->value;
-	INFO_LOG("max for %s is: %s", attr, nodeToString(max));
-	INFO_LOG("min for %s is: %s", attr, nodeToString(min));
+	// INFO_LOG("max for %s is: %s", attr, nodeToString(max));
+	// INFO_LOG("min for %s is: %s", attr, nodeToString(min));
 	List *range = LIST_MAKE(max,min);
 	while(n>0){
 		range = splitRanges(range);
@@ -780,7 +781,7 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 		if(strcmp(n,attr)==0 && range->length >=3){
 			List *cwhens = NIL;
 			range = sublist(range, 1, range->length-1);
-			INFO_LOG("divider range for %s is: %s", attr, nodeToString(range));
+			// INFO_LOG("divider range for %s is: %s", attr, nodeToString(range));
 			AttributeReference *tattr = getAttrRefByName(op, n);
 			Node *last = NULL;
 			FOREACH(Node, nd, range){
@@ -791,9 +792,9 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 				}
 				else{
 					Node *lbexpr = (Node *)createOpExpr(OPNAME_LT, LIST_MAKE(tattr, last));
-					INFO_LOG("lbexpr: %s",nodeToString(lbexpr));
+					// INFO_LOG("lbexpr: %s",nodeToString(lbexpr));
 					Node *ubexpr = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE(tattr, nd));
-					INFO_LOG("ubexpr: %s",nodeToString(lbexpr));
+					// INFO_LOG("ubexpr: %s",nodeToString(lbexpr));
 					Node *whenexpr = (Node *)AND_EXPRS(lbexpr, ubexpr);
 					cwhens = appendToTailOfList(cwhens, createCaseWhen(whenexpr, nd));
 					last = nd;
@@ -813,18 +814,18 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 					  copyObject(getStringProperty(op, UNCERT_MAPPING_PROP)));
 	markUncertAttrsAsProv(projop);
 
-	INFO_OP_LOG("1st projection:", projop);
+	// INFO_OP_LOG("1st projection:", projop);
 
 	int div = (attrnames->length-3)/3;
 	List *normattr = sublist(attrnames, 0, div-1);
-	INFO_LOG("normattr: %s",stringListToString(normattr));
+	// INFO_LOG("normattr: %s",stringListToString(normattr));
 
 	//compress group by bg of target attr
 	List *groupby = singleton(getAttrRefByName(projop, attr));
 	List *aggrs = NIL;
 	List *aname = NIL;
 	FOREACH(char, n, normattr){
-		INFO_LOG("attrname: %s", n);
+		// INFO_LOG("attrname: %s", n);
 		if(strcmp(n,attr)==0){
 			aggrs = appendToTailOfList(aggrs, (Node *)createFunctionCall(MAX_FUNC_NAME,singleton(getAttrRefByName(projop,getUBString(n)))));
 			aggrs = appendToTailOfList(aggrs, (Node *)createFunctionCall(MIN_FUNC_NAME,singleton(getAttrRefByName(projop,getLBString(n)))));
@@ -861,7 +862,7 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 		}
 	}
 
-	INFO_OP_LOG("aggregation:", aggrop);
+	// INFO_OP_LOG("aggregation:", aggrop);
 
 	List *rplist = NIL;
 	List *nplist = NIL;
@@ -882,7 +883,7 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 	markUncertAttrsAsProv(finalproj);
 	//projection
 
-	INFO_OP_LOG("last projection:", finalproj);
+	INFO_OP_LOG("Compressed result:", finalproj);
 
 	setStringProperty(finalproj, PROP_STORE_MIN_MAX, (Node *)mmpro);
 	SET_BOOL_STRING_PROP(finalproj, PROP_STORE_MIN_MAX_DONE);
@@ -892,7 +893,7 @@ compressPosRow(QueryOperator *op, int n, char *attr)
 
 //given a list of bounds, divide each bounds into two
 static List *splitRanges(List *ranges){
-	INFO_LOG("input ranges %s", nodeToString(ranges));
+	// INFO_LOG("input ranges %s", nodeToString(ranges));
 	if(ranges->length<=1){
 		return ranges;
 	}
@@ -909,7 +910,7 @@ static List *splitRanges(List *ranges){
                   first = nd;
 		}
 	}
-	INFO_LOG("output ranges %s", nodeToString(nb));
+	// INFO_LOG("output ranges %s", nodeToString(nb));
 	return nb;
 }
 
@@ -1012,7 +1013,7 @@ getStringMedian(Constant *ub, Constant *lb)
 	char *lbs = STRING_VALUE(lb);
 	int l1 = strlen(ubs);
 	int l2 = strlen(lbs);
-	INFO_LOG("%d", MAX(l1,l2));
+	// INFO_LOG("%d", MAX(l1,l2));
 	char val1 = 0;
 	char val2 = 0;
 	char *res = (char *)MALLOC((MAX(l1,l2)+1)*sizeof(char));
@@ -1026,7 +1027,7 @@ getStringMedian(Constant *ub, Constant *lb)
         	val2 = (char)lbs[i];
         }
         res[i] = getCharMedian(val1,val2);
-        INFO_LOG("for position %d, it is %c + %c to median %c.", i, val1, val2,res[i]);
+        // INFO_LOG("for position %d, it is %c + %c to median %c.", i, val1, val2,res[i]);
         val1=0;
         val2=0;
     }
@@ -1034,7 +1035,7 @@ getStringMedian(Constant *ub, Constant *lb)
 
 	if(ub->constType == DT_STRING)
 	{
-		INFO_LOG("median for %s and %s is: %s.", ubs,lbs,nodeToString(createConstString(res)));
+		// INFO_LOG("median for %s and %s is: %s.", ubs,lbs,nodeToString(createConstString(res)));
 		return createConstString(res);
 	}
 	else
@@ -2056,19 +2057,19 @@ Add the hashmap property given list of normal attribute names and assume range a
 static void create_Mapping_rewritten(QueryOperator* op, List *attrs, boolean row){
 	HashMap * hmp = NEW_MAP(Node, Node);
 	FOREACH(char, an, attrs){
-		INFO_LOG("adding %s", an);
+		// INFO_LOG("adding %s", an);
 		Node * aref = (Node *)getAttrRefByName(op, an);
 		Node * arefub = (Node *)getAttrRefByName(op, getUBString(an));
 		Node * areflb = (Node *)getAttrRefByName(op, getLBString(an));
 		ADD_TO_MAP(hmp, createNodeKeyValue((Node *)aref, (Node *)LIST_MAKE(arefub, areflb)));
-		INFO_LOG("added %s", an);
+		// INFO_LOG("added %s", an);
 	}
 	if(row){
 		ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getAttrRefByName(op, ROW_BESTGUESS)));
 		ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getAttrRefByName(op, ROW_POSSIBLE)));
 		ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_CERTAIN), (Node *)getAttrRefByName(op, ROW_CERTAIN)));
 	}
-	INFO_LOG(nodeToString((Node *)hmp));
+	// INFO_LOG(nodeToString((Node *)hmp));
 	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 }
 
@@ -2085,7 +2086,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 			Set *dependency = copyObject((Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS));
 			newdep = unionSets(newdep, dependency);
 		}
-		INFO_LOG("[Aggregation] Pushing minmax prop attr to child: %s", nodeToString(newdep));
+		// INFO_LOG("[Aggregation] Pushing minmax prop attr to child: %s", nodeToString(newdep));
 		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newdep);
 	}
 
@@ -2315,11 +2316,11 @@ rewrite_RangeAggregation(QueryOperator *op){
 		int lbpos = getAttrPos(preaggr, getLBString(aname));
 		List *ad = preaggr->schema->attrDefs;
 		DataType dt = ((AttributeDef *)(getNthOfList(ad,apos)->data.ptr_value))->dataType;
-		INFO_LOG("dt for %s is %d", aname, dt);
-		DataType dt2 = ((AttributeDef *)(getNthOfList(ad,ubpos)->data.ptr_value))->dataType;
-		INFO_LOG("dt for %s is %d", getUBString(aname), dt2);
-		DataType dt3 = ((AttributeDef *)(getNthOfList(ad,lbpos)->data.ptr_value))->dataType;
-		INFO_LOG("dt for %s is %d", getLBString(aname), dt3);
+		// INFO_LOG("dt for %s is %d", aname, dt);
+		// DataType dt2 = ((AttributeDef *)(getNthOfList(ad,ubpos)->data.ptr_value))->dataType;
+		// INFO_LOG("dt for %s is %d", getUBString(aname), dt2);
+		// DataType dt3 = ((AttributeDef *)(getNthOfList(ad,lbpos)->data.ptr_value))->dataType;
+		// INFO_LOG("dt for %s is %d", getLBString(aname), dt3);
 		((AttributeDef *)(getNthOfList(preaggr->schema->attrDefs,ubpos)->data.ptr_value))->dataType = dt;
 		((AttributeDef *)(getNthOfList(preaggr->schema->attrDefs,lbpos)->data.ptr_value))->dataType = dt;
 	}
@@ -2348,7 +2349,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 	attrn2_2 = appendToTailOfList(attrn2_2, ROW_POSSIBLE);
 	// List *attrn2dup = deepCopyStringList(attrn2);
 	List *attrJoin = CONCAT_LISTS(attrn1,attrn2_1,attrn2_2);
-	INFO_LOG("%s", stringListToString(attrJoin));
+	// INFO_LOG("%s", stringListToString(attrJoin));
 
 	Node *joinExpr = NULL;
 
@@ -2374,7 +2375,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 			joinExpr = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExpr, joinExpr));
 		}
 	}
-	INFO_LOG(nodeToString(joinExpr));
+	// INFO_LOG(nodeToString(joinExpr));
 
 	//best guess matching
 	Node *joinExprBg = NULL;
@@ -2390,7 +2391,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 			joinExprBg = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExpr, joinExprBg));
 		}
 	}
-	INFO_LOG(nodeToString(joinExprBg));
+	// INFO_LOG(nodeToString(joinExprBg));
 
 
 	//if optimization
@@ -2561,9 +2562,43 @@ rewrite_RangeAggregation(QueryOperator *op){
 			Node *bgMult = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(join, fname),bgCase));
 			Node *ubMult = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(join, fname_ub),ubCase));
 			Node *lbMult = (Node *)createOpExpr("*", LIST_MAKE(getAttrRefByName(join, fname_lb),lbCase));
+
+			//Optimization when groupby is certain
+			Node *optimizeExpr = NULL;
+			FOREACH(Node, bn, aggr_groupby_list){
+				char *ubgbn = getUBString(((AttributeReference *)bn)->name);
+				char *lbgbn = getLBString(((AttributeReference *)bn)->name);
+				// INFO_LOG("[Aggregation] ub and lb names: %s , %s", ubgbn, lbgbn);
+				Node *ubeq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, ubgbn),getAttrRefByName(join, getAttrTwoString(ubgbn))));
+				Node *lbeq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, lbgbn),getAttrRefByName(join, getAttrTwoString(lbgbn))));
+				Node *uleq = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(getAttrRefByName(join, lbgbn),getAttrRefByName(join, ubgbn)));
+				Node *caseeq = (Node *)createOpExpr("AND", LIST_MAKE(ubeq, lbeq));
+				caseeq = (Node *)createOpExpr("AND", LIST_MAKE(uleq, caseeq));
+				if(optimizeExpr == NULL){
+					optimizeExpr = caseeq;
+				} else {
+					optimizeExpr = (Node *)createOpExpr("AND", LIST_MAKE(optimizeExpr, caseeq));
+				}
+			}
+
+			Node *ubMtCase = (Node *)createCaseExpr(NULL, 
+				singleton((Node *)createCaseWhen(optimizeExpr
+						,(Node *)createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(join, fname_ub), (Node *)getAttrRefByName(join, ROW_POSSIBLE)))
+					)),
+				ubMult
+			);
+			Node *lbMtCase = (Node *)createCaseExpr(NULL, 
+				singleton((Node *)createCaseWhen(optimizeExpr
+						,(Node *)createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(join, fname_lb), (Node *)getAttrRefByName(join, ROW_CERTAIN)))
+					)),
+				lbMult
+			);
+			INFO_LOG("[Aggregation] optimization for certain group by ub: %s", exprToSQL(ubMtCase, NULL, FALSE));
+			INFO_LOG("[Aggregation] optimization for certain group by lb: %s", exprToSQL(lbMtCase, NULL, FALSE));
+
 			projList = appendToTailOfList(projList, bgMult);
-			projList = appendToTailOfList(projList, ubMult);
-			projList = appendToTailOfList(projList, lbMult);
+			projList = appendToTailOfList(projList, ubMtCase);
+			projList = appendToTailOfList(projList, lbMtCase);
 			nameList = appendToTailOfList(nameList,fname);
 			nameList = appendToTailOfList(nameList,fname_ub);
 			nameList = appendToTailOfList(nameList,fname_lb);
@@ -2683,6 +2718,12 @@ rewrite_RangeAggregation(QueryOperator *op){
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 	}
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
+	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
+	pos++;
 	FOREACH(Node, n, aggr_groupby_list){
 		DataType dt = ((AttributeReference *)n)->attrType;
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
@@ -2692,12 +2733,6 @@ rewrite_RangeAggregation(QueryOperator *op){
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 	}
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
-	((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = DT_INT;
-	pos++;
 
 	INFO_OP_LOG("Range Aggregation with groupby - rewrite aggregation:", aggrop);
 
@@ -2777,7 +2812,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 			Set *dependency = copyObject((Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS));
 			newdep = unionSets(newdep, dependency);
 		}
-		INFO_LOG("[Aggregation] Pushing minmax prop attr to child: %s", nodeToString(newdep));
+		// INFO_LOG("[Aggregation] Pushing minmax prop attr to child: %s", nodeToString(newdep));
 		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newdep);
 	}
 
@@ -2829,7 +2864,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
 			}
 			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
-				INFO_LOG("%s", nodeToString(funattr));
+				// INFO_LOG("%s", nodeToString(funattr));
 				Node *bgMult = (Node *)createOpExpr("*", LIST_MAKE(funattr,getAttrRefByName(childop, ROW_BESTGUESS)));
 				Node *ubCase = (Node *)createCaseExpr(NULL,
 					singleton((Node *)createCaseWhen(
@@ -2901,7 +2936,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 
 		FOREACH(Node, nd, aggrl){
 			Node * funattr = getHeadOfListP(((FunctionCall *)nd)->args);
-			INFO_LOG("%s", nodeToString(funattr));
+			// INFO_LOG("%s", nodeToString(funattr));
 			char * aName = ((AttributeReference *)funattr)->name;
 			Node * aref = (Node *)getAttrRefByName(proj, aName);
 			Node * arefub = (Node *)getAttrRefByName(proj, getUBString(aName));
@@ -3129,7 +3164,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 			joinExpr = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(refExpr, joinExpr));
 		}
 	}
-	INFO_LOG(nodeToString(joinExpr));
+	// INFO_LOG(nodeToString(joinExpr));
 
 	// //best guess matching
 	// Node *joinExprBg = NULL;
@@ -3163,7 +3198,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		childdup = poschild;
 	}
 
-	INFO_LOG("Cross Join attributes: %s", stringListToString(attrJoin));
+	// INFO_LOG("Cross Join attributes: %s", stringListToString(attrJoin));
 
 	QueryOperator *join = (QueryOperator *)createJoinOp(JOIN_INNER, joinExpr ,LIST_MAKE(preaggr, childdup), NIL, attrJoin);
 	switchSubtrees(preaggr, join);
@@ -3213,7 +3248,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		char * fname = getAttrTwoString(((AttributeReference *)funattr)->name);
 		char * fname_ub = getUBString(fname);
 		char * fname_lb = getLBString(fname);
-		INFO_LOG("%s, %s, %s, %s",fnameo, fname, fname_ub, fname_lb);
+		// INFO_LOG("%s, %s, %s, %s",fnameo, fname, fname_ub, fname_lb);
 		if(strcmp(((FunctionCall *)n)->functionname, COUNT_FUNC_NAME)==0){
 			projList = appendToTailOfList(projList, getAttrRefByName(join, fnameo));
 			projList = appendToTailOfList(projList, getAttrRefByName(join, ROW_POSSIBLE_TWO));
@@ -3386,7 +3421,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	pos++;
 	FOREACH(Node, n, aggr_groupby_list){
 		DataType dt = ((AttributeReference *)n)->attrType;
-		INFO_LOG("dt for %s is %d", ((AttributeReference *)n)->name, dt);
+		// INFO_LOG("dt for %s is %d", ((AttributeReference *)n)->name, dt);
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
 		pos++;
 		((AttributeDef *)getNthOfListP((aggrop->schema)->attrDefs, pos))->dataType = dt;
@@ -3465,8 +3500,7 @@ markUncertAttrsAsProv(QueryOperator *op)
 	Set *uncertAttrs = STRSET();
 	int pos = 0;
 
-	INFO_LOG("MARK ATTRIBUTES AS UNCERTAIN FOR: \n%s",
-			  singleOperatorToOverview(op));
+	// INFO_LOG("MARK ATTRIBUTES AS UNCERTAIN FOR: \n%s",singleOperatorToOverview(op));
 
 	FOREACH_HASH(Node,n,hmp)
 	{
@@ -3480,12 +3514,11 @@ markUncertAttrsAsProv(QueryOperator *op)
 		}
 	}
 
-	INFO_LOG("Uncertainty Attributes: %s",
-			  nodeToString(uncertAttrs));
+	// INFO_LOG("Uncertainty Attributes: %s",nodeToString(uncertAttrs));
 
 	FOREACH(AttributeDef,a,op->schema->attrDefs)
 	{
-		INFO_LOG("check attribute %s", a->attrName);
+		// INFO_LOG("check attribute %s", a->attrName);
 		if(streq(a->attrName,ROW_CERTAIN) ||
 		   streq(a->attrName,ROW_BESTGUESS) ||
 		   streq(a->attrName,ROW_POSSIBLE) ||
@@ -4166,8 +4199,8 @@ spliceToPOS(QueryOperator *op, char *jattr){
 	INFO_OP_LOG("posproj:", posProj);
 
 	//compress possibles
-	int iter = getIntOption(RANGE_COMPRESSION_RATE);
-	QueryOperator *compposProj = compressPosRow(posProj, iter, jattr);
+	// int iter = getIntOption(RANGE_COMPRESSION_RATE);
+	QueryOperator *compposProj = compressPosRow(posProj, getIntOption(RANGE_COMPRESSION_RATE), jattr);
 
 	INFO_OP_LOG("compressed possible:", compposProj);
 
@@ -4276,10 +4309,15 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 		rpos = spliceToPOS(ropdup,getTailOfListP(attpair));
 	}
 
-	INFO_OP_LOG("lbg:", lbg);
-	printECPro(lpos);
-	INFO_OP_LOG("rbg:", rbg);
-	printECPro(rpos);
+	// INFO_OP_LOG("lbg:", lbg);
+	// printECPro(lpos);
+	// INFO_OP_LOG("rbg:", rbg);
+	// printECPro(rpos);
+
+	HashMap * lmmpro = (HashMap *)getStringProperty(lpos, PROP_STORE_MIN_MAX);
+	INFO_LOG("lpo property: %s", nodeToString(lmmpro));
+	HashMap * rmmpro = (HashMap *)getStringProperty(rpos, PROP_STORE_MIN_MAX);
+	INFO_LOG("lpo property: %s", nodeToString(rmmpro));
 
 	// INFO_OP_LOG("lpos:", lpos);
 	// INFO_OP_LOG("rpos:", rpos);
@@ -4309,7 +4347,7 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	QueryOperator *bgjoin = (QueryOperator *)createJoinOp(JOIN_INNER, ((JoinOperator*)op)->cond, LIST_MAKE(lbg,rbg), NIL, joinNames);
 	lbg->parents = singleton(bgjoin);
 	rbg->parents = singleton(bgjoin);
-	INFO_OP_LOG("bg join: ", bgjoin);
+	// INFO_OP_LOG("bg join: ", bgjoin);
 
 	//projection to rearrange attributes
 	List *bgNprojList = NIL;
@@ -4331,7 +4369,7 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	bgRprojList = appendToTailOfList(bgRprojList, opbg);
 	bgRprojList = appendToTailOfList(bgRprojList, oppos);
 	List *bgproj = CONCAT_LISTS(bgNprojList,bgRprojList);
- 	INFO_LOG("BG proj List: %s", stringListToString(alist));
+ 	// INFO_LOG("BG proj List: %s", stringListToString(alist));
 
 	QueryOperator *bgProj = (QueryOperator *)createProjectionOp(bgproj,bgjoin,NIL,alist);
 	bgjoin->parents = singleton(bgProj);
@@ -4384,12 +4422,12 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	Node *ubExpr = getUBExpr(copyObject(condExpr), hmpin);
 	((JoinOperator *)posjoin)->cond = ubExpr;
 
-	INFO_OP_LOG("pos join: ", posjoin);
+	// INFO_OP_LOG("pos join: ", posjoin);
 
 	// INFO_LOG("ub expr: %s", nodeToString(ubExpr));
 
 	Node *lbExpr = getLBExpr(copyObject(bgExpr),hmpout);
-	INFO_LOG("lb expr: %s", nodeToString(lbExpr));
+	// INFO_LOG("lb expr: %s", nodeToString(lbExpr));
 
 	//projection to rearrange attributes
 	List *posNprojList = NIL;
@@ -4459,10 +4497,16 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	markUncertAttrsAsProv(bgProj);
 	markUncertAttrsAsProv(posProj);
 
-	INFO_OP_LOG("bg proj: ", bgProj);
-	INFO_OP_LOG("pos proj: ", posProj);
+	//compress projoin result
+	setStringProperty(posProj, PROP_STORE_MIN_MAX, (Node *)rmmpro);
+	QueryOperator *compposJoin = compressPosRow(posProj, getIntOption(RANGE_COMPRESSION_RATE), getTailOfListP(attpair));
+	setStringProperty(compposJoin, UNCERT_MAPPING_PROP, (Node *)hmpret);
+	markUncertAttrsAsProv(compposJoin);
 
-	setStringProperty(bgProj, PROP_STORE_POSSIBLE_TREE, (Node *)posProj);
+	// INFO_OP_LOG("bg proj: ", bgProj);
+	// INFO_OP_LOG("pos proj: ", compposJoin);
+
+	setStringProperty(bgProj, PROP_STORE_POSSIBLE_TREE, (Node *)compposJoin);
 
 	switchSubtrees(op, bgProj);
 
@@ -4585,7 +4629,7 @@ rewrite_RangeSelection(QueryOperator *op)
 	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
 	{
 		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
-		INFO_LOG("[Selection] Pushing minmax prop attr to child: %s", nodeToString(dependency));
+		// INFO_LOG("[Selection] Pushing minmax prop attr to child: %s", nodeToString(dependency));
 		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)dependency);
 	}
 
@@ -4639,7 +4683,7 @@ rewrite_RangeSelection(QueryOperator *op)
     	cpop->parents = singleton(cpproj);
     	cpproj->parents = NIL;
     	SET_STRING_PROP(proj, PROP_STORE_POSSIBLE_TREE, (Node *)cpproj);
-    	INFO_OP_LOG("[Selection] REWRITTEN POS BRACH: ", cpproj);
+    	// INFO_OP_LOG("[Selection] REWRITTEN POS BRACH: ", cpproj);
     }
 
 	markUncertAttrsAsProv(proj);
@@ -4705,8 +4749,8 @@ rewrite_RangeProjection(QueryOperator *op)
 		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
 		// removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
 		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
-		INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
-		INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
+		// INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
+		// INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
 		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
 		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
 	}
@@ -4725,20 +4769,20 @@ rewrite_RangeProjection(QueryOperator *op)
     //get child hashmap
     HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
     List *attrExpr = getProjExprsForAllAttrs(op);
-   	INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
-   	INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
+   	// INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
+   	// INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
     List *uncertlist = NIL;
     int ict = 0;
     FOREACH(Node, nd, attrExpr){
         addRangeAttrToSchema(hmp, op, nd);
         Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,ict);
-        INFO_LOG("Proj: %s", nodeToString(projexpr));
+        // INFO_LOG("Proj: %s", nodeToString(projexpr));
         // Node *ubExpr = getUBExprByName(projexpr, hmpIn, OP_LCHILD(op));
         Node *ubExpr = getUBExpr(projexpr, hmpIn);
-        INFO_LOG("Ub: %s", nodeToString(ubExpr));
+        // INFO_LOG("Ub: %s", nodeToString(ubExpr));
         // Node *lbExpr = getLBExprByName(projexpr, hmpIn, OP_LCHILD(op));
         Node *lbExpr = getLBExpr(projexpr, hmpIn);
-        INFO_LOG("Lb: %s", nodeToString(lbExpr));
+        // INFO_LOG("Lb: %s", nodeToString(lbExpr));
         ict ++;
         uncertlist = appendToTailOfList(uncertlist, ubExpr);
         uncertlist = appendToTailOfList(uncertlist, lbExpr);
@@ -4759,7 +4803,7 @@ rewrite_RangeProjection(QueryOperator *op)
     	pos->parents = singleton(cpop);
     	cpop->parents = NIL;
     	SET_STRING_PROP(op, PROP_STORE_POSSIBLE_TREE, (Node *)cpop);
-    	INFO_OP_LOG("[PROJECTION] REWRITTEN POS BRACH: ", cpop);
+    	// INFO_OP_LOG("[PROJECTION] REWRITTEN POS BRACH: ", cpop);
     }
 
 
