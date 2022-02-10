@@ -2200,4 +2200,11 @@ postgresExecuteQueryIgnoreResult (char *query)
 
 }
 
+void
+postgresExecuteStatement(char* sql)
+{
+
+}
+
+
 #endif

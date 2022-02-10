@@ -2137,8 +2137,11 @@ rewrite_RangeAggregation(QueryOperator *op){
 			Node *funattrlb = (Node *)getAttrRefByName(childop, getLBString(aName));
 			Node *rowCertain = (Node *) getAttrRefByName(childop, ROW_CERTAIN);
 			Node *rowBG =  (Node *) getAttrRefByName(childop, ROW_BESTGUESS);
+			char *fname = ((FunctionCall *)nd)->functionname;
 
-			if(strcmp(((FunctionCall *)nd)->functionname, BIT_OR_FUNC_NAME)==0)
+			if(strcmp(fname, POSTGRES_FAST_BITOR_FUN)==0
+			   || strcmp(fname, POSTGRES_BITOR_FUN)==0
+			   || strcmp(fname, ORACLE_SKETCH_AGG_FUN)==0)
 			{
 				Node *bgCase = (Node *)createCaseExpr(NULL,
 													  singleton((Node *)createCaseWhen(
@@ -2162,7 +2165,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
 				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
 			}
-			if(strcmp(((FunctionCall *)nd)->functionname, COUNT_FUNC_NAME)==0)
+			if(strcmp(fname, COUNT_FUNC_NAME)==0)
 			{
 				getNthOfList(proj_projExpr,ptr)->data.ptr_value = getAttrRefByName(childop, ROW_BESTGUESS);
 				proj_projExpr = appendToTailOfList(proj_projExpr, getAttrRefByName(childop, ROW_POSSIBLE));
@@ -2170,7 +2173,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
 				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
 			}
-			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
+			if(strcmp(fname, SUM_FUNC_NAME)==0){
 //				INFO_LOG("%s", nodeToString(funattr));
 				Node *bgMult = (Node *)createOpExpr("*", LIST_MAKE(funattr,getAttrRefByName(childop, ROW_BESTGUESS)));
 				Node *ubCase = (Node *)createCaseExpr(NULL,
@@ -2197,7 +2200,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
 			}
 			//TODO upper bound can be optimized if there are certain tuples exist
-			if(strcmp(((FunctionCall *)nd)->functionname, MIN_FUNC_NAME)==0){
+			if(strcmp(fname, MIN_FUNC_NAME)==0){
 //				INFO_LOG("%s", nodeToString(funattr));
 				proj_projExpr = appendToTailOfList(proj_projExpr, funattrub);
 				proj_projExpr = appendToTailOfList(proj_projExpr, funattrlb);
@@ -2205,7 +2208,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
 			}
 			//TODO lower bound can be optimized if there are certain tuples exist
-			if(strcmp(((FunctionCall *)nd)->functionname, MAX_FUNC_NAME)==0){
+			if(strcmp(fname, MAX_FUNC_NAME)==0){
 //				INFO_LOG("%s", nodeToString(funattr));
 				proj_projExpr = appendToTailOfList(proj_projExpr, funattrub);
 				proj_projExpr = appendToTailOfList(proj_projExpr, funattrlb);
@@ -2246,34 +2249,42 @@ rewrite_RangeAggregation(QueryOperator *op){
 			Node *aref = (Node *)getAttrRefByName(proj, aName);
 			Node *arefub = (Node *)getAttrRefByName(proj, getUBString(aName));
 			Node *areflb = (Node *)getAttrRefByName(proj, getLBString(aName));
+			char *fname = ((FunctionCall *)nd)->functionname;
 
 			/* pos = ((AttributeReference *)funattr)->attrPosition; */
-			if(strcmp(((FunctionCall *)nd)->functionname, BIT_OR_FUNC_NAME)==0){
+			if(strcmp(fname, POSTGRES_BITOR_FUN)==0
+				|| strcmp(fname, POSTGRES_FAST_BITOR_FUN)==0
+				|| strcmp(fname, ORACLE_SKETCH_AGG_FUN)==0)
+			{
 				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
-				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(BIT_OR_FUNC_NAME,singleton(arefub)));
-				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(BIT_OR_FUNC_NAME,singleton(areflb)));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(strdup(fname),singleton(arefub)));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(strdup(fname),singleton(areflb)));
 			}
-			if(strcmp(((FunctionCall *)nd)->functionname, COUNT_FUNC_NAME)==0){
+			if(strcmp(fname, COUNT_FUNC_NAME)==0)
+			{
 				getNthOfList(((AggregationOperator *)op)->aggrs,aggpos)->data.ptr_value = createFunctionCall(SUM_FUNC_NAME,singleton(aref));
 				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(SUM_FUNC_NAME,singleton(arefub)));
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(SUM_FUNC_NAME,singleton(areflb)));
 			}
-			if(strcmp(((FunctionCall *)nd)->functionname, MIN_FUNC_NAME)==0){
+			if(strcmp(fname, MIN_FUNC_NAME)==0)
+			{
 				// Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
 				// Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));
 				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME,singleton(arefub)));
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MIN_FUNC_NAME,singleton(areflb)));
 			}
-			if(strcmp(((FunctionCall *)nd)->functionname, MAX_FUNC_NAME)==0){
+			if(strcmp(fname, MAX_FUNC_NAME)==0)
+			{
 				// Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
 				// Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));
 				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MAX_FUNC_NAME,singleton(arefub)));
 				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(MIN_FUNC_NAME,singleton(areflb)));
 			}
-			if(strcmp(((FunctionCall *)nd)->functionname, SUM_FUNC_NAME)==0){
+			if(strcmp(fname, SUM_FUNC_NAME)==0)
+			{
 				// Node* funattrlb = (Node *)getAttrRefByName(proj,getLBString(((AttributeReference *)funattr)->name));
 				// Node* funattrub = (Node *)getAttrRefByName(proj,getUBString(((AttributeReference *)funattr)->name));
 				Node *ubAgg = (Node *) createFunctionCall(SUM_FUNC_NAME,singleton(arefub));
@@ -2329,7 +2340,8 @@ rewrite_RangeAggregation(QueryOperator *op){
 	List *gattrn = NIL;
 	List *rattrn = NIL;
 
-	FOREACH(Node, n, aggr_groupby_list){
+	FOREACH(Node, n, aggr_groupby_list)
+	{
 		gattrn = appendToTailOfList(gattrn, ((AttributeReference *)n)->name);
 		Node *aRef_ub = (Node *)getAttrRefByName(child, getUBString(((AttributeReference *)n)->name));
 		Node *aRef_lb = (Node *)getAttrRefByName(child, getLBString(((AttributeReference *)n)->name));
