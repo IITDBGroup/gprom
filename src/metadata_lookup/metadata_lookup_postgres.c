@@ -2067,6 +2067,10 @@ postgresExecuteQueryIgnoreResult (char *query)
     STOP_TIMER(METADATA_LOOKUP_TIMER);
 }
 
+void postgresExecuteStatement(char* sql) {
+	execStmt(sql);
+}
+
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
 

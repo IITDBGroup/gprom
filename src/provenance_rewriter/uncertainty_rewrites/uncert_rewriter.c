@@ -150,25 +150,31 @@ rewriteUncert(QueryOperator * op)
 	switch(op->type)
 	{
 	    case T_ProvenanceComputation:
+	    	INFO_LOG("START PROVENANCECOMPUTATION\n");
 	        rewrittenOp = rewriteUncertProvComp(op, TRUE);
 	        break;
 		case T_TableAccessOperator:
+			INFO_LOG("START TABLEACCESS\n");
 			rewrittenOp =rewrite_UncertTableAccess(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite TableAccess:", rewrittenOp);
 			break;
 		case T_SelectionOperator:
+			INFO_LOG("START SELECTION\n");
 			rewrittenOp = rewrite_UncertSelection(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Selection:", rewrittenOp);
 			break;
 		case T_ProjectionOperator:
+			INFO_LOG("START PROJECTION\n");
 			rewrittenOp = rewrite_UncertProjection(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Projection:", rewrittenOp);
 			break;
 		case T_JoinOperator:
+			INFO_LOG("START JOIN\n");
 			rewrittenOp = rewrite_UncertJoin(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Join:", rewrittenOp);
 			break;
 		case T_AggregationOperator:
+			INFO_LOG("START AGGREGATION\n");
 			rewrittenOp = rewrite_UncertAggregation(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Aggregation:", rewrittenOp);
 			break;
@@ -3606,6 +3612,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 {
 	ASSERT(OP_LCHILD(op));
 
+	DEBUG_NODE_BEATIFY_LOG("THE AGGRE OP\n", op);
 	INFO_LOG("REWRITE-UNCERT - Aggregation");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 

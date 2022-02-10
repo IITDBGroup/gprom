@@ -59,7 +59,7 @@ Node *oracleParseResult = NULL;
 /* <<<<<<< HEAD */
 /* %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']' */
 /* ======= */
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']'STRINGCONCAT POSTGRESCAST
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']' STRINGCONCAT POSTGRESCAST
 /* >>>>>>> origin/CPB */
 
 /*
@@ -72,6 +72,9 @@ Node *oracleParseResult = NULL;
 %token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE
 %token <stringVal> TIP INCOMPLETE XTABLE RADB UADB
+
+//update ps key
+%token <stringVal> UPDATEPS
 
 %token <stringVal> FROM LATERAL
 %token <stringVal> ISOLATION LEVEL
@@ -511,6 +514,19 @@ provStmt:
             // p->options = $4;
             p->options = concatTwoLists($4, $9);
             $$ = (Node *) p;
+        }
+        |  UPDATEPS '(' stmt ')' PROVENANCE optionalProvWith OF '(' stmt ')' optionalTranslate
+        {
+            RULELOG("provStmt::update ps");
+            Node* updatestmt = $3;
+            Node* stmt = $9;
+            List* list = LIST_MAKE(updatestmt, stmt);
+            ProvenanceStmt* p = createProvenanceStmt((Node*) list);
+            p->options = concatTwoLists($6, $11);
+            p->inputType = PROV_INPUT_UPDATEPS;
+            p->provType = PROV_TYPE_UPDATEPS;
+
+            $$ = (Node*) p;
         }
         | CANUSE PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
         {

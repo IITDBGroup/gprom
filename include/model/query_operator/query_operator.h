@@ -170,6 +170,12 @@ typedef struct ExecPreparedOperator
 	List *params;
 } ExecPreparedOperator;
 
+typedef struct DLMorDDLOperator
+{
+	QueryOperator op;
+	Node *stmt;
+} DLMorDDLOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator) \
@@ -248,7 +254,7 @@ extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
 extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
         List *parents);
 extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents);
-
+extern DLMorDDLOperator *createDMLDDLOp(Node *stmt);
 /* navigation functions */
 #define OP_LCHILD(op) \
     ((QueryOperator *) getHeadOfListP(((QueryOperator*) op)->inputs))

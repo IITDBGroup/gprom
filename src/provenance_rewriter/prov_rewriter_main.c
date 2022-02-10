@@ -33,6 +33,7 @@
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 #include "parameterized_query/parameterized_queries.h"
+#include "provenance_rewriter/update_ps/update_ps_main.h"
 
 #include "temporal_queries/temporal_rewriter.h"
 
@@ -60,7 +61,22 @@ Node *
 provRewriteQBModel (Node *qbModel)
 {
     if (isA(qbModel, List))
+    {
+        //check here to update ps.
+        if(isA(getHeadOfListP((List*)qbModel), ProvenanceComputation)) {
+        	ProvenanceComputation* pc = (ProvenanceComputation*) getHeadOfListP((List*) qbModel);
+        	if(pc->inputType == PROV_INPUT_UPDATEPS){
+        		DEBUG_LOG("START UPDATEPS\n");
+        		char * ps = update_ps(pc);
+        		//TODO add time consumption
+        		START_TIMER("UPDATEPS");
+        		Constant* result = createConstString(ps);
+        		STOP_TIMER("UPDATEPS");
+        		return (Node*) result;
+        	}
+     	}
         return (Node *) provRewriteQueryList((List *) qbModel);
+    }
     else if (IS_OP(qbModel))
         return (Node *) provRewriteQuery((QueryOperator *) qbModel);
     else if (IS_DL_NODE(qbModel))
@@ -436,6 +452,48 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         case PROV_NONE:
             result = OP_LCHILD(op);
             break;
+        case PROV_TYPE_UPDATEPS:
+        {
+        	DEBUG_LOG("START CAPTURE:\n", op);
+        	coarsePara = (Node*) getStringProperty((QueryOperator*) op,
+        	PROP_PC_COARSE_GRAINED);
+        	psPara = createPSInfo(coarsePara);
+        	DEBUG_LOG("coarse grained fragment parameters: %s",
+        			nodeToString((Node* ) psPara));
+        	markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
+
+        	//mark the number of table - used in provenance scratch
+        	markNumOfTableAccess((QueryOperator*) op);
+        	DEBUG_LOG("finish markNumOfTableAccess!");
+        	bottomUpPropagateLevelAggregation((QueryOperator*) op, psPara);
+        	DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
+        	result = rewritePI_CS(op);
+        	result = addTopAggForCoarse(result);
+
+
+        	/*
+        	if (isRewriteOptionActivated(OPTION_PS_USE_NEST))
+        		op = originalOp;
+
+        	coarsePara = (Node*) getStringProperty((QueryOperator*) op,
+        	PROP_PC_COARSE_GRAINED);
+        	psPara = createPSInfo(coarsePara);
+        	DEBUG_LOG("use coarse grained fragment parameters: %s",
+        			nodeToString((Node* ) psPara));
+        	markUseTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
+
+        	//mark the number of table - used in provenance scratch
+        	markNumOfTableAccess((QueryOperator*) op);
+
+
+        	QueryOperator *op1 = (QueryOperator*) op;
+        	QueryOperator *rChild = OP_RCHILD(op1);
+        	op1->inputs = singleton(rChild);
+        	result = rewritePI_CS(op);
+        	removeParent(result, (QueryOperator*) op);
+        	*/
+        }
+        break;
     }
 
 

@@ -104,6 +104,7 @@ static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
 static void outOrderOperator(StringInfo str, OrderOperator *node);
 static void outLimitOperator(StringInfo str, LimitOperator *node);
+static void outDLMorDDLOperator(StringInfo str, DLMorDDLOperator* node);
 
 //json
 static void outFromJsonTable(StringInfo str, FromJsonTable *node);
@@ -1129,6 +1130,13 @@ outLimitOperator(StringInfo str, LimitOperator *node)
 }
 
 static void
+outDLMorDDLOperator(StringInfo str, DLMorDDLOperator* node) {
+	WRITE_NODE_TYPE(DLM_DDL_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+	WRITE_NODE_FIELD(stmt);
+}
+
+static void
 outJsonTableOperator(StringInfo str, JsonTableOperator *node)
 {
     WRITE_NODE_TYPE(JSONTABLEOPERATOR);
@@ -1407,6 +1415,9 @@ outNode(StringInfo str, void *obj)
 		    case T_LimitOperator:
                 outLimitOperator(str, (LimitOperator *) obj);
                 break;
+            case T_DLMorDDLOperator:
+            	outDLMorDDLOperator(str, (DLMorDDLOperator*) obj);
+            	break;
 		    case T_ExecPreparedOperator:
 				outExecPreparedOperator(str, (ExecPreparedOperator *) obj);
 				break;
@@ -2088,6 +2099,15 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfoChar(params, ']');
 			WRITE_OP_PARAM(params);
             break;
+        case T_DLMorDDLOperator:
+        {
+//        	DLMorDDLOperator* o = (DLMorDDLOperator*) op;
+        	WRITE_NODE_TYPE(DLM_DDL_OPREATOR);
+        	appendStringInfoString(str, " [");
+//        	appendStringInfo(str, " stmt: %s", exprToSQL(o->stmt, NULL));
+        	appendStringInfoString(str, " ]");
+        }
+        	break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;

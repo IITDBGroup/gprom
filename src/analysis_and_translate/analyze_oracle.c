@@ -333,6 +333,7 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
     switch(stmt->type)
     {
         case T_QueryBlock:
+        	DEBUG_LOG("\n###\n \t analyze T_QueryBlock\n");
             analyzeQueryBlock((QueryBlock *) stmt, parentFroms);
             DEBUG_LOG("analyzed QB");
             break;
@@ -341,20 +342,25 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             DEBUG_LOG("analyzed Set Query");
             break;
         case T_ProvenanceStmt:
+        	DEBUG_LOG("\n###\n \t analyze T_ProvenanceStmt\n");
             analyzeProvenanceStmt((ProvenanceStmt *) stmt, parentFroms);
             DEBUG_LOG("analyzed Provenance Stmt");
             break;
         case T_List:
+        	DEBUG_LOG("\n###\n \t analyze T_List\n");
             analyzeStmtList ((List *) stmt, parentFroms);
             DEBUG_LOG("analyzed List");
             break;
         case T_Insert:
+        	DEBUG_LOG("\n###\n \t analyze T_Insert\n");
             analyzeInsert((Insert *) stmt);
             break;
         case T_Delete:
+        	DEBUG_LOG("\n###\n \t analyze T_Delete\n");
             analyzeDelete((Delete *) stmt);
             break;
         case T_Update:
+        	DEBUG_LOG("\n###\n \t analyze T_Update\n");
             analyzeUpdate((Update *) stmt);
             break;
         case T_WithStmt:
@@ -362,6 +368,7 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             DEBUG_LOG("analyzed With Stmt");
             break;
         case T_CreateTable:
+        	DEBUG_LOG("\n###\n \t analyze T_CreateTable\n");
             analyzeCreateTable((CreateTable *) stmt);
             break;
         case T_AlterTable:
@@ -396,8 +403,12 @@ enumerateParameters (Node *stmt)
 static void
 analyzeStmtList (List *l, List *parentFroms)
 {
+	int idx = 0;
     FOREACH(Node,n,l)
+	{
+    	DEBUG_LOG("\n###\n \t analyzeStmtList in T_LIST: %d\n", idx++);
         analyzeQueryBlockStmt(n, parentFroms);
+	}
 }
 
 static void
@@ -432,6 +443,7 @@ adaptAttributeRefs(List* attrRefs, List* parentFroms)
 static void
 analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
+	DEBUG_LOG("\n###\n \t analyzeQueryBlock()\n");
     List *attrRefs = NIL;
 
     // unfold views
@@ -2223,6 +2235,38 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_UPDATE_SEQUENCE:
             break;
+        case PROV_INPUT_UPDATEPS: {
+        		DEBUG_LOG(
+        				"\n###\n \t In analyzeProvenanceStmt() PROV_INPUT_UPDATEPS\n ###\n");
+
+        		List *provAttrNames = NIL;
+        		List *provDts = NIL;
+
+        		analyzeQueryBlockStmt(q->query, parentFroms);
+
+        		switch (q->provType) {
+        		case PROV_COARSE_GRAINED:
+        		case USE_PROV_COARSE_GRAINED:
+        		case PROV_TYPE_UPDATEPS:
+        			getQBProvenanceAttrList(q, &provAttrNames, &provDts);
+
+        			q->selectClause = provAttrNames;
+        			q->dts = provDts;
+        			break;
+        		default:
+        			q->selectClause = getQBAttrNames(q->query);
+        			q->dts = getQBAttrDTs(q->query);
+        			// if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
+        			// semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+        			correctFromTableVisitor(q->query, NULL);
+        			getQBProvenanceAttrList(q, &provAttrNames, &provDts);
+
+        			q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+        			q->dts = concatTwoLists(q->dts, provDts);
+        			break;
+        		}
+        	}
+        	break;
         default:
             break;
     }

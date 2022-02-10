@@ -460,6 +460,12 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
     rewrittenTree = provRewriteQBModel(oModel);
 
+    // update ps should return early
+    if(isA(rewrittenTree, Constant))
+    {
+    	DEBUG_NODE_BEATIFY_LOG("updated provenance sketch:\n", rewrittenTree);
+    	return STRING_VALUE(rewrittenTree);
+    }
 	if (IS_QB(rewrittenTree))
 	{
 	    DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);
@@ -553,6 +559,18 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
+
+	// shortcircuit DML and DDL statements directly translate into SQL code
+	if(isA(oModel, DLMorDDLOperator)) // check for list of DLMorDDLOperator operators
+	{
+		INFO_LOG("A DMLDDLOP\n");
+		StringInfo result = makeStringInfo();
+
+		appendStringInfo(result, "%s\n", serializeOperatorModel(oModel));
+		return result->data;
+	}
+
+
     if (IS_OP(oModel))
     {
         INFO_OP_LOG("translator result as overview:", oModel);

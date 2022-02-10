@@ -130,6 +130,9 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PS_POST_TO_ORACLE "ps_post_to_oracle"
 #define OPTION_PS_STORE_TABLE "ps_store_table"
 
+/* udpate provenance sketch*/
+#define OPTION_UPDATE_PS_OPTION "update_ps_option"
+
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"

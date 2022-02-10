@@ -79,6 +79,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 	T_SampleClauseOperator,
 	T_LimitOperator,
     T_ExecPrepratedOperator,
+	T_DLMorDDLOperator,
 
     /* datalog model nodes */
     T_DLNode,
@@ -129,7 +130,8 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceType,
 	PROV_COARSE_GRAINED,
 	USE_PROV_COARSE_GRAINED,
 	USE_PROV_COARSE_GRAINED_BIND,
-    PROV_NONE /* for reenactment of bag semantics only */
+    PROV_NONE, /* for reenactment of bag semantics only */
+	PROV_TYPE_UPDATEPS /*new type of provType for updateps*/
 );
 
 /* what type of database operation(s) a provenance computation is for */
@@ -143,7 +145,8 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_TEMPORAL_QUERY,
     PROV_INPUT_UNCERTAIN_QUERY,
 	PROV_INPUT_UNCERTAIN_TUPLE_QUERY,
-	PROV_INPUT_RANGE_QUERY
+	PROV_INPUT_RANGE_QUERY,
+	PROV_INPUT_UPDATEPS /*update ps input type*/
 );
 
 /* stringinfo provides the string data type*/

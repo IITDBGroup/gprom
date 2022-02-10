@@ -15,16 +15,19 @@
 #include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "log/logger.h"
+#include "model/expression/expression.h"
 
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 
+#include "analysis_and_translate/translator.h"
 #include "utility/string_utils.h"
 
 /* vars */
@@ -42,7 +45,12 @@ static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsCon
 static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api);
 static List *serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api);
-
+/* serialize functions for create table, delete, insert and update in update ps*/
+static char* serializeDMLandDDLPostgres(QueryOperator *q);
+static void serializeCreateTable(StringInfo str, CreateTable* c);
+static void serializeDelete(StringInfo str, Delete* d);
+static void serializeInsert(StringInfo str, Insert* i);
+static void serializeUpdate(StringInfo str, Update* u);
 char *
 serializeOperatorModelPostgres(Node *q)
 {
@@ -81,6 +89,45 @@ serializeOperatorModelPostgres(Node *q)
     result = str->data;
     FREE(str);
     return result;
+}
+
+static char *
+serializeDMLandDDLPostgres(QueryOperator *q)
+{
+	DLMorDDLOperator *o = (DLMorDDLOperator *) q;
+	StringInfo str = makeStringInfo();
+	Node *stmt = o->stmt;
+
+	switch(stmt->type)
+	{
+		case T_Update:
+		{
+			serializeUpdate(str, (Update*) stmt);
+			break;
+			/* Update *u = (Update *) stmt; */
+		}
+		break;
+		case T_Insert:
+		{
+			// this is current to support: insert into r values(xxxx);
+			serializeInsert(str, (Insert*) stmt);
+			// TODO need to support insert into r select xxxx;
+			break;
+		}
+		case T_Delete:
+		serializeDelete(str, (Delete*) stmt);
+		break;
+		case T_CreateTable:
+		serializeCreateTable(str, (CreateTable*) stmt);
+		break;
+		case T_AlterTable:
+		break;
+
+		default:
+		FATAL_LOG("should only pass DML and DDL nodes to this function.");
+	}
+
+	return str->data;
 }
 
 static boolean
@@ -122,6 +169,13 @@ serializeQueryPostgres(QueryOperator *q)
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
     str = makeStringInfo();
     viewDef = makeStringInfo();
+
+    // DML and DDL statements
+    if (isA(q, DLMorDDLOperator)) {
+    	result = serializeDMLandDDLPostgres(q);
+   		FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    //		return serializeDMLandDDLPostgres(q);
+    }
 
     // initialize basic structures and then call the worker
     api->tempViewMap = NEW_MAP(Constant, Node);
@@ -222,6 +276,62 @@ createAPI (void)
         api->serializeConstRel = serializeConstRel;
         api->serializeJoinOperator = serializeJoinOperator;
     }
+}
+
+static void
+serializeCreateTable(StringInfo str, CreateTable* c) {
+		appendStringInfo(str, "create table %s", c->tableName);
+		appendStringInfo(str, "%s;", exprToSQL((Node*) c->tableElems, NULL, FALSE));
+}
+
+static void
+serializeDelete(StringInfo str, Delete* d) {
+	appendStringInfo(str, "delete from %s %s;", d->deleteTableName,
+				(d->cond ? CONCAT_STRINGS("where ", exprToSQL(d->cond, NULL, FALSE)) : ""));
+}
+
+
+
+static void
+serializeInsert(StringInfo str, Insert* i){
+	if(isA(i->query, QueryBlock)){
+		// TODO this is for insert into tbl (a query);
+//		appendStringInfo(str, "insert into %s ", i->insertTableName);
+//		appendStringInfo(str, "select %s", exprToSQL((Node*) (((QueryBlock* )(i->query))->selectClause), NULL ));
+//		appendStringInfoString(str, "from (");
+	} else {
+		appendStringInfo(str, "INSERT INTO %s values %s ;",
+			i->insertTableName,
+			exprToSQL(i->query, NULL, FALSE));
+	}
+}
+
+static void
+serializeUpdate(StringInfo str, Update *u)
+{
+	INFO_LOG("SERIALIZE UPDATE\n");
+
+	appendStringInfo(str, "update %s set", u->updateTableName);
+	//Since exprToSQL add () for each time called, and this cause "update xxx set ((xx = xx), (xx = xx))..." error
+	//iterate the selectClause list and exprToSQL() each item.
+	// serialize left
+	// =
+	// serialize right
+	int len = getListLength(u->selectClause);
+	for (int i = 0; i < len; i++) {
+		Operator *op = (Operator*) getNthOfListP(u->selectClause, i);
+		appendStringInfo(str, " %s",
+				exprToSQL((Node*) getNthOfListP(op->args, 0), NULL, FALSE));
+		appendStringInfo(str, " =");
+		appendStringInfo(str, " %s",
+				exprToSQL((Node*) getNthOfListP(op->args, 1), NULL, FALSE));
+		if (i != len - 1) {
+			appendStringInfo(str, " ,");
+		}
+	}
+
+	appendStringInfo(str, " %s;",
+			u->cond ? CONCAT_STRINGS("where ", exprToSQL(u->cond, NULL, FALSE)) : "");
 }
 
 static void

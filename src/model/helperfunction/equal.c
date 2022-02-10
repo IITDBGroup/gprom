@@ -77,6 +77,7 @@ static boolean equalWindowOperator(WindowOperator *a, WindowOperator *b, HashMap
 static boolean equalOrderOperator(OrderOperator *a, OrderOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalLimitOperator(LimitOperator *a, LimitOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalExecPreparedOperator(ExecPreparedOperator *a, ExecPreparedOperator *b, HashMap *seenOps, MemContext *c);
+static boolean equalDMLorDDLOperator(DLMorDDLOperator *a, DLMorDDLOperator *b, HashMap *seenOps, MemContext *c);
 
 // Json
 static boolean equalFromJsonTable(FromJsonTable *a, FromJsonTable *b, HashMap *seenOps, MemContext *c);
@@ -108,6 +109,7 @@ static boolean equalCreateTable (CreateTable *a, CreateTable *b, HashMap *seenOp
 static boolean equalAlterTable (AlterTable *a, AlterTable *b, HashMap *seenOps, MemContext *c);
 static boolean equalPreparedQuery(PreparedQuery *a, PreparedQuery *b, HashMap *seenOps, MemContext *c);
 static boolean equalExecQuery(ExecQuery *a, ExecQuery *b, HashMap *seenOps, MemContext *c);
+
 
 // equal functions for datalog model
 static boolean equalDLAtom (DLAtom *a, DLAtom *b, HashMap *seenOps, MemContext *c);
@@ -852,6 +854,14 @@ equalExecPreparedOperator(ExecPreparedOperator *a, ExecPreparedOperator *b, Hash
 }
 
 static boolean
+equalDMLorDDLOperator(DLMorDDLOperator *a, DLMorDDLOperator *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_QUERY_OP();
+	COMPARE_NODE_FIELD(stmt);
+	return TRUE;
+}
+
+static boolean
 equalFromJsonTable(FromJsonTable *a, FromJsonTable *b, HashMap *seenOps, MemContext *c)
 {
 	COMPARE_NODE_FIELD(columns);
@@ -1426,18 +1436,21 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_LimitOperator:
             retval = equalLimitOperator(a,b, seenOps, c);
             break;
+        case T_DLMorDDLOperator:
+        	retval = equalDMLorDDLOperator(a,b, seenOps, c);
+        	break;
         case T_FromJsonTable:
             retval = equalFromJsonTable(a,b, seenOps, c);
             break;
         case T_JsonColInfoItem:
         	retval = equalJsonColInfoItem(a,b, seenOps, c);
-        		break;
+        	break;
         case T_JsonTableOperator:
         	retval = equalJsonTableOperator(a,b, seenOps, c);
-        		break;
+        	break;
         case T_JsonPath:
         	retval = equalJsonPath(a,b, seenOps, c);
-        		break;
+        	break;
         /* datalog model */
         case T_DLAtom:
             retval = equalDLAtom(a,b, seenOps, c);

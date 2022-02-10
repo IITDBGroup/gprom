@@ -104,6 +104,7 @@ static LimitOperator *copyLimitOperator(LimitOperator *from, OperatorMap **opMap
 static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
 static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap **opMap);
 static ExecPreparedOperator *copyExecPreparedOperator(ExecPreparedOperator *from, OperatorMap **opMap);
+static DLMorDDLOperator* copyDMLorDDLOperator(DLMorDDLOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -877,6 +878,16 @@ copyExecPreparedOperator(ExecPreparedOperator *from, OperatorMap **opMap)
 	return new;
 }
 
+static DLMorDDLOperator*
+copyDMLorDDLOperator(DLMorDDLOperator *from, OperatorMap **opMap)
+{
+	COPY_INIT(DLMorDDLOperator);
+
+	COPY_OPERATOR();
+	COPY_NODE_FIELD(stmt);
+	return new;
+}
+
 /*functions to copy query_block*/
 static SetQuery *
 copySetQuery(SetQuery *from, OperatorMap **opMap)
@@ -1407,6 +1418,9 @@ copyInternal(void *from, OperatorMap **opMap)
 	    case T_ExecPreparedOperator:
 			retval = copyExecPreparedOperator(from, opMap);
 			break;
+	    case T_DLMorDDLOperator:
+	    	retval = copyDMLorDDLOperator(from, opMap);
+	    	break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);

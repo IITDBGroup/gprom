@@ -43,6 +43,9 @@ static void orderExprToSQL(StringInfo str, OrderExpr *o, HashMap *nestedSubqueri
 static void quantifiedComparisonToSQL(StringInfo str, QuantifiedComparison *o, HashMap *nestedSubqueries, boolean trimAttrNames);
 static void dataTypeToSQL(StringInfo str, DataType dt);
 
+static void attributeDefToSQL(StringInfo str, AttributeDef* expr, HashMap* map); // update provenance sketch
+static void selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map); // update provenance sketch
+
 static void functionCallToLatex (StringInfo str, FunctionCall *node, HashMap *nestedSubqueries);
 static void operatorToLatex (StringInfo str, Operator *node, HashMap *nestedSubqueries);
 static void constantToLatex (StringInfo str, Constant *node);
@@ -123,6 +126,31 @@ constantToSQL (StringInfo str, Constant *node)
             appendStringInfo(str, "'%s'", (char *) node->value);
             break;
     }
+}
+
+static void
+attributeDefToSQL(StringInfo str, AttributeDef* expr, HashMap* map){
+	appendStringInfo(str, "%s ", expr->attrName);
+	char* type = NULL;
+	if(expr->dataType == DT_INT) {
+		type = "int";
+	} else if(expr->dataType == DT_LONG) {
+		type = "long";
+	} else if(expr->dataType == DT_STRING) {
+		type = "varchar2";
+	} else if(expr->dataType == DT_FLOAT) {
+		type = "float";
+	} else if(expr->dataType == DT_BOOL) {
+		type = "bool";
+	} else if(expr->dataType == DT_VARCHAR2) {
+		type = "varchar2";
+	}
+	appendStringInfo(str, "%s", type);
+}
+
+static void
+selectItemToSQL(StringInfo str, SelectItem* expr, HashMap* map) {
+	appendStringInfo(str, "%s", expr->alias);
 }
 
 static void
@@ -530,6 +558,12 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *nestedSubqueries, boolean t
         break;
         case T_CastExpr:
             castExprToSQL(str, (CastExpr *) expr, nestedSubqueries, trimAttrNames);
+        break;
+        case T_AttributeDef: // used for update provenancesketch
+        attributeDefToSQL(str, (AttributeDef*) expr, nestedSubqueries);
+        break;
+        case T_SelectItem: // used for update provenance sketch
+            selectItemToSQL(str, (SelectItem*) expr, nestedSubqueries);
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));

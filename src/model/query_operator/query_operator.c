@@ -927,6 +927,16 @@ createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *par
 	return o;
 }
 
+DLMorDDLOperator *
+createDMLDDLOp(Node *stmt)
+{
+	DLMorDDLOperator *o = makeNode(DLMorDDLOperator);
+
+	o->stmt = stmt;
+
+	return o;
+}
+
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {
