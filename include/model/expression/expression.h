@@ -308,5 +308,7 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define COUNT_FUNC_NAME backendifyIdentifier("count")
 #define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 #define DENSE_RANK_FUNC_NAME backendifyIdentifier("dense_rank")
+#define BIT_OR_FUNC_NAME backendifyIdentifier("bitoragg")
+
 
 #endif /* EXPRESSION_H */

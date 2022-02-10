@@ -2133,8 +2133,35 @@ rewrite_RangeAggregation(QueryOperator *op){
 			Node * funattr = getHeadOfListP(((FunctionCall *)nd)->args);
 			ptr = ((AttributeReference *)funattr)->attrPosition;
 			char *aName = getNthOfListP(pro_attrName, ptr);
-			Node * funattrub = (Node *)getAttrRefByName(childop, getUBString(aName));
-			Node * funattrlb = (Node *)getAttrRefByName(childop, getLBString(aName));
+			Node *funattrub = (Node *)getAttrRefByName(childop, getUBString(aName));
+			Node *funattrlb = (Node *)getAttrRefByName(childop, getLBString(aName));
+			Node *rowCertain = (Node *) getAttrRefByName(childop, ROW_CERTAIN);
+			Node *rowBG =  (Node *) getAttrRefByName(childop, ROW_BESTGUESS);
+
+			if(strcmp(((FunctionCall *)nd)->functionname, BIT_OR_FUNC_NAME)==0)
+			{
+				Node *bgCase = (Node *)createCaseExpr(NULL,
+													  singleton((Node *)createCaseWhen(
+																	(Node *)createOpExpr(OPNAME_GT,
+																						 LIST_MAKE(rowBG,createConstInt(0)))
+																	,(Node *) funattr
+																	)),
+													  (Node *) createNullConst(DT_STRING)
+					);
+				Node *lbCase = (Node *)createCaseExpr(NULL,
+													  singleton((Node *)createCaseWhen(
+																	(Node *)createOpExpr(OPNAME_GT,
+																						 LIST_MAKE(rowCertain,createConstInt(0)))
+																	,(Node *) funattrlb
+																	)),
+													  (Node *) createNullConst(DT_STRING)
+					);
+				getNthOfList(proj_projExpr,ptr)->data.ptr_value = bgCase;
+				proj_projExpr = appendToTailOfList(proj_projExpr, funattrub);
+				proj_projExpr = appendToTailOfList(proj_projExpr, lbCase);
+				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
+				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
+			}
 			if(strcmp(((FunctionCall *)nd)->functionname, COUNT_FUNC_NAME)==0)
 			{
 				getNthOfList(proj_projExpr,ptr)->data.ptr_value = getAttrRefByName(childop, ROW_BESTGUESS);
@@ -2213,13 +2240,19 @@ rewrite_RangeAggregation(QueryOperator *op){
 		int aggpos = 0;
 
 		FOREACH(Node, nd, aggrl){
-			Node * funattr = getHeadOfListP(((FunctionCall *)nd)->args);
+			Node *funattr = getHeadOfListP(((FunctionCall *)nd)->args);
 			INFO_LOG("%s", nodeToString(funattr));
-			char * aName = ((AttributeReference *)funattr)->name;
-			Node * aref = (Node *)getAttrRefByName(proj, aName);
-			Node * arefub = (Node *)getAttrRefByName(proj, getUBString(aName));
-			Node * areflb = (Node *)getAttrRefByName(proj, getLBString(aName));
+			char *aName = ((AttributeReference *)funattr)->name;
+			Node *aref = (Node *)getAttrRefByName(proj, aName);
+			Node *arefub = (Node *)getAttrRefByName(proj, getUBString(aName));
+			Node *areflb = (Node *)getAttrRefByName(proj, getLBString(aName));
+
 			/* pos = ((AttributeReference *)funattr)->attrPosition; */
+			if(strcmp(((FunctionCall *)nd)->functionname, BIT_OR_FUNC_NAME)==0){
+				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(BIT_OR_FUNC_NAME,singleton(arefub)));
+				((AggregationOperator *)op)->aggrs = appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall(BIT_OR_FUNC_NAME,singleton(areflb)));
+			}
 			if(strcmp(((FunctionCall *)nd)->functionname, COUNT_FUNC_NAME)==0){
 				getNthOfList(((AggregationOperator *)op)->aggrs,aggpos)->data.ptr_value = createFunctionCall(SUM_FUNC_NAME,singleton(aref));
 				addRangeAttrToSchema(hmp, op, getNthOfListP(agg_projExpr, aggpos));
@@ -2587,13 +2620,13 @@ rewrite_RangeAggregation(QueryOperator *op){
 				}
 			}
 
-			Node *ubMtCase = (Node *)createCaseExpr(NULL, 
+			Node *ubMtCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(optimizeExpr
 						,(Node *)createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(join, fname_ub), (Node *)getAttrRefByName(join, ROW_POSSIBLE)))
 					)),
 				ubMult
 			);
-			Node *lbMtCase = (Node *)createCaseExpr(NULL, 
+			Node *lbMtCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(optimizeExpr
 						,(Node *)createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(join, fname_lb), (Node *)getAttrRefByName(join, ROW_CERTAIN)))
 					)),
