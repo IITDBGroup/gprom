@@ -608,11 +608,11 @@ backendifyAtom(DLAtom *a)
 	a->rel = backendifyIdentifier(a->rel);
 
 	// backendify arguments
-	FOREACH(DLNode,n,a->args)
+	FOREACH(Node,n,a->args)
 	{
-		if(isA(n,DLVar))
+		List *vars = getExprVars(n);
+		FOREACH(DLVar,v,vars)
 		{
-			DLVar *v = (DLVar *) n;
 			v->name = backendifyIdentifier(v->name);
 		}
 	}
