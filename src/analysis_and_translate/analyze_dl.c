@@ -246,9 +246,6 @@ analyzeDLProgram(DLProgram *p)
     FOREACH(DLRule,r,rules)
         analyzeRule((DLRule *) r, idbRels, p); //, edbRels, factRels);
 
-    //TODO analyze FDs to check that tables and attributes exist
-	// add fds for tables
-
     p->rules = rules;
     p->facts = facts;
     p->doms = doms;
@@ -262,6 +259,7 @@ analyzeDLProgram(DLProgram *p)
 		analyzeFD(f, p);
 	}
 
+	// add fds for tables
 	fds = CONCAT_LISTS(fds, getEDBFDs(p));
 
     setDLProp((DLNode *) p, DL_PROG_FDS, (Node *) fds);
@@ -537,11 +535,21 @@ analyzeProv(DLProgram *p, KeyValue *kv)
 
             if(opts->key)
             {
-                DL_SET_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE, copyObject(opts->key));
+				Constant *target = (Constant *) opts->key;
+			    target->value = (void *) backendifyIdentifier(STRING_VALUE(target));
+
+                DL_SET_PROP(p,
+							DL_PROV_LINEAGE_TARGET_TABLE,
+							copyObject(target));
             }
             if(opts->value)
             {
-                DL_SET_PROP(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE, copyObject(opts->value));
+				Constant *filter = (Constant *) opts->value;
+			    filter->value = (void *) backendifyIdentifier(STRING_VALUE(filter));
+
+                DL_SET_PROP(p,
+							DL_PROV_LINEAGE_RESULT_FILTER_TABLE,
+							copyObject(filter));
             }
         }
         return;
@@ -631,6 +639,16 @@ backendifyProgram(DLProgram *p)
 					backendifyAtom(atom);
 				}
 			}
+		}
+		else if(isA(n,Constant))
+        {
+			Constant *c = (Constant *) n;
+            c->value = backendifyIdentifier(STRING_VALUE(c));
+        }
+        else if(isA(n,DLAtom))
+        {
+            DLAtom *f = (DLAtom *) n;
+			f->rel = backendifyIdentifier(f->rel);
 		}
 	}
 }

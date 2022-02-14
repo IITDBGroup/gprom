@@ -30,7 +30,7 @@
 #include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 
-#define PROV_PRED(_p) CONCAT_STRINGS("PROV_", _p);
+#define PROV_PRED(_p) CONCAT_STRINGS(backendifyIdentifier("prov_"), _p);
 
 static Set *computePredsToRewrite(char *targetTable, DLProgram *p);
 
