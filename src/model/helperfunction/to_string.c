@@ -1657,6 +1657,17 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             if (p->ans)
                 appendStringInfo(str, "ANSWER RELATION:\n\t%s\n",
                         p->ans);
+			if(DL_HAS_PROP(p, DL_PROG_FDS))
+			{
+				List *fds = (List *) getDLProp((DLNode *) p, DL_PROG_FDS);
+
+				appendStringInfoString(str, "FDS:\n");
+				FOREACH(FD,f,fds)
+				{
+					appendStringInfo(str, "\t%s\n", icToString((Node *) f));
+				}
+			}
+
             if (DL_HAS_PROP(p,DL_PROV_WHY) || DL_HAS_PROP(p,DL_PROV_WHYNOT))
             {
                 char *prop = DL_HAS_PROP(p,DL_PROV_WHY) ? DL_PROV_WHY : DL_PROV_WHYNOT;

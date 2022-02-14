@@ -10,15 +10,18 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "configuration/option.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "exception/exception.h"
 #include "test_main.h"
 #include "model/integrity_constraints/integrity_constraints.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 static rc testAttributeClosure(void);
 static rc testNormalizeFDs(void);
 static rc testGetFDsForAttrs(void);
+static rc testGetFDsForPKs(void);
 
 rc
 testIntegrityConstraints(void)
@@ -26,6 +29,7 @@ testIntegrityConstraints(void)
     RUN_TEST(testAttributeClosure(), "test computing attribtue closures");
     RUN_TEST(testNormalizeFDs(), "test normalizing FDs");
 	RUN_TEST(testGetFDsForAttrs(), "test returning subset of FDs that hold on attributes.");
+	RUN_TEST(testGetFDsForPKs(), "test retrieving FDs based on PK constraints from DB.");
 
     return PASS;
 }
@@ -97,4 +101,28 @@ testGetFDsForAttrs(void)
 
 	return PASS;
 
+}
+
+static rc
+testGetFDsForPKs(void)
+{
+
+// only run test if we have SQLite backend to contact the DB
+#if HAVE_SQLITE_BACKEND
+
+	FD *f1 = createFD("customer", MAKE_STR_SET("C_CUSTKEY"), MAKE_STR_SET("C_NAME","C_ADDRESS","C_NATIONKEY","C_PHONE","C_ACCTBAL","C_MKTSEGMENT","C_COMMENT"));
+	List *fds = LIST_MAKE(f1);
+
+	initMetadataLookupPlugins();
+    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_SQLITE);
+    initMetadataLookupPlugin();
+
+	setStringOption(OPTION_CONN_DB, "../examples/test.db");
+	databaseConnectionOpen();
+
+	ASSERT_EQUALS_NODE(primaryKeyToFD("customer"), fds, "FDs on R are a -> b");
+
+#endif
+
+	return PASS;
 }

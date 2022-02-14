@@ -16,6 +16,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/query_operator/query_operator.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "model/graph/graph.h"
@@ -745,6 +746,16 @@ findVarsVisitor(Node *node, List **context)
     }
 
     return visit(node, findVarsVisitor, context);
+}
+
+size_t
+getIDBPredArity(DLProgram *p, char *pred)
+{
+	HashMap *relToRules = (HashMap *) DL_GET_PROP(p, DL_MAP_RELNAME_TO_RULES);
+	ASSERT(MAP_HAS_STRING_KEY(relToRules, pred));
+	DLRule *r = getHeadOfListP((List *) MAP_GET_STRING(relToRules, pred));
+
+	return LIST_LENGTH(r->head->args);
 }
 
 static List *

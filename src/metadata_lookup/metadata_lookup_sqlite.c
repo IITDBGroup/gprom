@@ -139,7 +139,7 @@ sqliteShutdownMetadataLookupPlugin (void)
 int
 sqliteDatabaseConnectionOpen (void)
 {
-    char *dbfile = getStringOption("connection.db");
+    char *dbfile = getStringOption(OPTION_CONN_DB);
     int rc;
     if (dbfile == NULL)
         FATAL_LOG("no database file given (<connection.db> parameter)");

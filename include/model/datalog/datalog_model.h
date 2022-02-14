@@ -115,9 +115,7 @@ extern List *getHeadExprVars(DLRule *r);
 extern List *getAtomExprVars(DLAtom *a);
 extern List *getAtomTopLevelVars(DLAtom *a);
 extern List *getExprVars(Node *expr);
-
-//extern List *getAtomVars(DLAtom *r);
-
+extern size_t getIDBPredArity(DLProgram *p, char *pred);
 extern List *getVarNames(List *vars);
 
 // unification and variable mappings

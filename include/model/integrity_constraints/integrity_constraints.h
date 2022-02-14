@@ -49,6 +49,7 @@ extern FOdep *createFODep(List *lhs, List *rhs);
 extern List *getFDsForAttributes(List *fds, Set *attrs);
 extern List *getFDsForAttributesOnRels(List *fds, Set *attrs, Set *rels);
 extern List *normalizeFDs(List *fds);
+extern List *primaryKeyToFD(char *tableName);
 extern char *icToString(Node *ics);
 
 #endif /* _INTEGRITY_CONSTRAINTS_H_ */

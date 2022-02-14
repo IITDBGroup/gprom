@@ -846,6 +846,14 @@ OptionInfo opts[] =
 			wrapOptionBool(&opt_merge_dl),
 			defOptionBool(FALSE)
 		},
+		{
+			OPTION_DL_FETCH_PK_FDS_FROM_DB,
+			"-dl_load_fds",
+			"Merge Datalog rules by substituting idb predicates in bodies with the rules that define them.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_merge_dl),
+			defOptionBool(FALSE)
+		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
                 "-Cdata_structure_consistency",
                 "Model Check: check that nodes in a query operator graph are not sharing "

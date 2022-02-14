@@ -123,6 +123,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_WHYNOT_ADV "whynot_adv"
 #define OPTION_DL_SEMANTIC_OPT "dl_semantic_opt"
 #define OPTION_DL_MERGE_RULES "dl_merge_rules"
+#define OPTION_DL_FETCH_PK_FDS_FROM_DB "dl_load_fds"
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(

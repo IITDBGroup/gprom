@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include "exception/exception.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "configuration/option.h"
@@ -36,7 +37,10 @@
 static DLProgram *analyzeDLProgram (DLProgram *p);
 static void analyzeSummerizationBasics (DLProgram *p);
 static void analyzeSummarizationAdvanced (DLProgram *p);
-static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
+static void backendifyAtom(DLAtom *a);
+static void backendifyProgram(DLProgram *p);
+static void analyzeRule(DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
+static void analyzeFD(FD *f, DLProgram *p);
 static void analyzeExpression(Node *expr);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
@@ -187,6 +191,10 @@ analyzeDLProgram(DLProgram *p)
     }
     p->rules = CONCAT_LISTS(rpqRules);
 
+	// adapt identifiers
+	backendifyProgram(p);
+
+	// create map from head predicates to rules
     createRelToRuleMap((Node *) p);
 
     FOREACH(Node,r,p->rules)
@@ -239,14 +247,24 @@ analyzeDLProgram(DLProgram *p)
         analyzeRule((DLRule *) r, idbRels, p); //, edbRels, factRels);
 
     //TODO analyze FDs to check that tables and attributes exist
-    setDLProp((DLNode *) p, DL_PROG_FDS, (Node *) fds);
+	// add fds for tables
 
     p->rules = rules;
     p->facts = facts;
     p->doms = doms;
 
-	// add fds for tables
+	// check the DL model
+	checkDLModel((Node *) p);
+
+	// analyze FDs, add PK FDs for EDB rels, then store FDs
+	FOREACH(FD,f,fds)
+	{
+		analyzeFD(f, p);
+	}
+
 	fds = CONCAT_LISTS(fds, getEDBFDs(p));
+
+    setDLProp((DLNode *) p, DL_PROG_FDS, (Node *) fds);
 
 	// if requested, first merge rules (replace IDB goals with the rules that define them)
 	if(getBoolOption(OPTION_DL_MERGE_RULES))
@@ -577,7 +595,48 @@ analyzeProv(DLProgram *p, KeyValue *kv)
 }
 
 static void
-analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factRels)
+backendifyAtom(DLAtom *a)
+{
+	a->rel = backendifyIdentifier(a->rel);
+
+	// backendify arguments
+	FOREACH(DLNode,n,a->args)
+	{
+		if(isA(n,DLVar))
+		{
+			DLVar *v = (DLVar *) n;
+			v->name = backendifyIdentifier(v->name);
+		}
+	}
+}
+
+static void
+backendifyProgram(DLProgram *p)
+{
+	FOREACH(DLNode,n,p->rules)
+	{
+		if(isA(n,DLRule))
+		{
+			DLRule *r = (DLRule *) n;
+
+			// backendify predicate relation names
+			backendifyAtom(r->head);
+
+			FOREACH(Node,a,r->body)
+			{
+				if (isA(a,DLAtom))
+				{
+					DLAtom *atom = (DLAtom *) a;
+
+					backendifyAtom(atom);
+				}
+			}
+		}
+	}
+}
+
+static void
+analyzeRule(DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factRels)
 {
     // check safety
     if (!checkDLRuleSafety(r))
@@ -620,6 +679,90 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
 			{
 				DL_SET_BOOL_PROP((DLNode *) r, DL_HAS_AGG);
 			}
+		}
+	}
+}
+
+static void
+analyzeFD(FD *f, DLProgram *p)
+{
+	Set *newLHS = STRSET();
+	Set *newRHS = STRSET();
+	Set *edbRels, *idbRels;
+	boolean isEDB;
+	/* Set *tableAttrs; */
+
+	edbRels = (Set *) DL_GET_PROP(p, DL_EDB_RELS);
+	idbRels = (Set *) DL_GET_PROP(p, DL_IDB_RELS);
+
+	// backendify identifiers
+	f->table = backendifyIdentifier(f->table);
+	FOREACH_SET(char,a,f->lhs)
+	{
+		addToSet(newLHS, backendifyIdentifier(a));
+	}
+	FOREACH_SET(char,a,f->rhs)
+	{
+		addToSet(newRHS, backendifyIdentifier(a));
+	}
+
+	f->lhs = newLHS;
+	f->rhs = newRHS;
+
+	// backendify identifiers used in FD
+	if(!hasSetElem(edbRels, f->table)
+	   && !hasSetElem(idbRels, f->table))
+	{
+		THROW(SEVERITY_RECOVERABLE, "%s is neither an EDB rel: %s nor an IDB rel: %s",
+			  f->table,
+			  nodeToString(edbRels),
+			  nodeToString(idbRels));
+	}
+
+	isEDB = hasSetElem(edbRels, f->table);
+
+	Set *attrs;
+
+	if(isEDB)
+	{
+		attrs = makeStrSetFromList(getAttributeNames(f->table));;
+	}
+	// for IDB predicates we name attributes a0,a1,... by position
+	else
+	{
+		attrs = STRSET();
+		size_t arity = getIDBPredArity(p, f->table);
+
+		for(int i = 0; i < arity; i++)
+		{
+			addToSet(attrs, backendifyIdentifier(CONCAT_STRINGS("a", gprom_itoa(i))));
+		}
+	}
+
+	// check that attributes exist
+	FOREACH_SET(char,a,f->lhs)
+	{
+		if(!hasSetElem(attrs, a))
+		{
+			THROW(SEVERITY_RECOVERABLE,
+				  "attribute %s of FD %s does not exist in table %s(%s)",
+				  a,
+				  icToString((Node *) f),
+				  f->table,
+				  nodeToString(attrs));
+		}
+	}
+
+	FOREACH_SET(char,a,f->rhs)
+	{
+		if(!hasSetElem(attrs, a))
+		{
+			THROW(SEVERITY_RECOVERABLE,
+				  "attribute %s of FD %s does not exist in table %s(%s)",
+				  a,
+				  icToString((Node *) f),
+				  f->table,
+				  nodeToString(attrs));
 		}
 	}
 }
@@ -706,7 +849,6 @@ getEDBFDs(DLProgram *p)
 	Set *edbOnly;
 	List *fds = NIL;
 
-	checkDLModel((Node *) p);
 	edbOnly = (Set *) DL_GET_PROP(p, DL_EDB_RELS);
 
 	FOREACH_SET(char,e,edbOnly)

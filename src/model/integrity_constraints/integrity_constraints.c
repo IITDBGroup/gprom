@@ -16,6 +16,7 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
@@ -235,6 +236,27 @@ normalizeFDs(List *fds)
 													 MAKE_STR_SET(a)));
 			}
 		}
+	}
+
+	return result;
+}
+
+List *
+primaryKeyToFD(char *tableName)
+{
+	List *keys = getKeyInformation(tableName);
+	List *result = NIL;
+	List *attrNames = getAttributeNames(tableName);
+	Set *allAttrs = makeStrSetFromList(attrNames);
+	Set *lhs, *rhs;
+	FD *f;
+
+	FOREACH(Set,k,keys)
+	{
+		lhs = copyObject(k);
+		rhs = setDifference(copyObject(allAttrs), k);
+		f = createFD(strdup(tableName), lhs, rhs);
+		result = appendToHeadOfList(result, f);
 	}
 
 	return result;
