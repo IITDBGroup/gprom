@@ -78,7 +78,7 @@ int skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo, QueryOperator *update
 void compressTable(char *tablename, char *psAttr, List *ranges);
 static boolean replaceSetBitsWithFastBitOr (Node *node, void *state);
 static boolean replaceTableAccessWithCompressedTableAccess(Node *node, void *state);
-
+void removeProvAttrsList(QueryOperator *op);
 
 /*
  * Function Implementation
@@ -169,7 +169,7 @@ update_ps(ProvenanceComputation *qbModel)
 
 	replaceTableAccessWithCompressedTableAccess((Node*) captureQuery, NULL);
 	replaceSetBitsWithFastBitOr((Node*) captureQuery, NULL);
-
+	removeProvAttrsList((QueryOperator *) captureQuery);
 	/*
 	 * uncertainty rewrite of capture query;
 	 */
@@ -183,20 +183,17 @@ update_ps(ProvenanceComputation *qbModel)
 	 * Serialize uncertainy rewrite query
 	 * Run to get the updated ps
 	 */
-	char* updatePSQuery = serializeQuery(uncertCaptureRewriteOp);
+	StringInfo updatePSQuery = makeStringInfo();
+	appendStringInfo(updatePSQuery, "%s;", serializeQuery(uncertCaptureRewriteOp));
 
-	boolean stoppp = TRUE;
-	if(stoppp)
-	{
-		return updatePSQuery;
-	}
-	if (getBackend() == BACKEND_POSTGRES) {
-			postgresExecuteStatement(updatePSQuery);
-	}
+
+//	if (getBackend() == BACKEND_POSTGRES) {
+//			postgresExecuteStatement(updatePSQuery->data);
+//	}
 
 	boolean stopHere = TRUE;
 		if (stopHere) {
-			return "END";
+			return updatePSQuery->data;
 	}
 
 	QueryOperator *rChild = OP_RCHILD(op1);
@@ -374,9 +371,16 @@ QueryOperator* captureRewrite(ProvenanceComputation* op){
 	return result;
 }
 
+void removeProvAttrsList(QueryOperator *op)
+{
+	if(op == NULL)
+		return;
 
+	op->provAttrs = NIL;
 
-
+	FOREACH(QueryOperator, o, op->inputs)
+		removeProvAttrsList(o);
+}
 
 /*
  * DELETE OPERATION UPDATING
