@@ -295,11 +295,13 @@ rewriteRange(QueryOperator * op)
 	    	rewrittenOp = rewriteRangeLimit(op);
 	    	break;
 		case T_TableAccessOperator:
+			INFO_LOG("START REWRITE TA\n");
 			rewrittenOp = rewrite_RangeTableAccess(op);
 			if(0){
 				rewrittenOp = combinePosToOne(rewrittenOp);
 			}
-			INFO_OP_LOG("Range Rewrite TableAccess:", rewrittenOp);
+			INFO_OP_LOG("FINISH Range Rewrite TableAccess:", rewrittenOp);
+//			DEBUG_NODE_BEATIFY_LOG("After ta:", rewrittenOp);
 			break;
 		case T_SelectionOperator:
 			rewrittenOp = rewrite_RangeSelection(op);
@@ -309,24 +311,30 @@ rewriteRange(QueryOperator * op)
 			INFO_OP_LOG("Range Rewrite Selection:", rewrittenOp);
 			break;
 		case T_ProjectionOperator:
+			INFO_LOG("START REWRITE PROJ\n");
 			rewrittenOp = rewrite_RangeProjection(op);
 			// if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
 			// 	SET_STRING_PROP(rewrittenOp, PROP_STORE_POSSIBLE_TREE, (Node *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE));
 			// }
-			INFO_OP_LOG("Range Rewrite Projection:", rewrittenOp);
+			INFO_OP_LOG("FINISH Range Rewrite Projection:", rewrittenOp);
+//			DEBUG_NODE_BEATIFY_LOG("After proj:", rewrittenOp);
 			break;
 		case T_JoinOperator:
 			rewrittenOp = rewrite_RangeJoin(op);
 			INFO_OP_LOG("Range Rewrite Join:", rewrittenOp);
 			break;
 		case T_AggregationOperator:
-			if(getBoolOption(RANGE_OPTIMIZE_AGG)){
+			INFO_LOG("START REWRITE AGG\n");
+			// UPDATEPS: Here we go to rewrite_RangeAggregation need getBoolOption(RANGE_OPTIMIZE_AGG) == FALSE.
+//			if(getBoolOption(RANGE_OPTIMIZE_AGG)){
+			if(getBoolOption(RANGE_OPTIMIZE_AGG) == FALSE){
 				rewrittenOp = rewrite_RangeAggregation2(op);
 			}
 			else {
 				rewrittenOp = rewrite_RangeAggregation(op);
 			}
-			INFO_OP_LOG("Range Rewrite Aggregation:", rewrittenOp);
+			INFO_OP_LOG("FINISH Range Rewrite Aggregation:", rewrittenOp);
+//			DEBUG_NODE_BEATIFY_LOG("After agg:", rewrittenOp);
 			break;
 		case T_DuplicateRemoval:
 			rewrittenOp = rewrite_UncertDuplicateRemoval(op, TRUE);
@@ -401,8 +409,8 @@ getUBExpr(Node *expr, HashMap *hmp)
 			if(((AttributeReference *)expr)->outerLevelsUp == -1){
 				((AttributeReference *)expr)->outerLevelsUp = 0;
 			}
-//			INFO_LOG("AttrExprUB - %s", nodeToString(hmp));
-//			INFO_LOG("AttrExprUB - %s", nodeToString(expr));
+			INFO_LOG("AttrExprUB - %s", nodeToString(hmp));
+			INFO_LOG("AttrExprUB - %s", nodeToString(expr));
 
 			Node * ret = getNthOfListP((List *)getMap(hmp, expr), 0);
 			((AttributeReference *)ret)->outerLevelsUp = 0;
@@ -2062,11 +2070,15 @@ Add the hashmap property given list of normal attribute names and assume range a
 */
 static void create_Mapping_rewritten(QueryOperator* op, List *attrs, boolean row){
 	HashMap * hmp = NEW_MAP(Node, Node);
+	INFO_OP_LOG("op", op);
 	FOREACH(char, an, attrs){
-		// INFO_LOG("adding %s", an);
+		INFO_LOG("adding %s", an);
 		Node * aref = (Node *)getAttrRefByName(op, an);
+		INFO_LOG("aaaa");
 		Node * arefub = (Node *)getAttrRefByName(op, getUBString(an));
+		INFO_LOG("bbbb");
 		Node * areflb = (Node *)getAttrRefByName(op, getLBString(an));
+		INFO_LOG("cccc");
 		ADD_TO_MAP(hmp, createNodeKeyValue((Node *)aref, (Node *)LIST_MAKE(arefub, areflb)));
 		// INFO_LOG("added %s", an);
 	}
@@ -2117,6 +2129,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 	HashMap * hmp = NEW_MAP(Node, Node);
 	// HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
 
+	INFO_OP_LOG("current op", op);
 	//rewrite non-groupby case
 	if(((AggregationOperator *)op)->groupBy == NIL){
 		INFO_LOG("RANGE_Aggregation - No groupby");
@@ -2125,45 +2138,56 @@ rewrite_RangeAggregation(QueryOperator *op){
 
 		// List *proj_ExprList = NIL;
 		// List *proj_NameList = NIL;
-
 		List *aggrl = copyList(((AggregationOperator *)op)->aggrs);
 
 		//add projection
 		FOREACH(Node, nd, aggrl){
 			Node * funattr = getHeadOfListP(((FunctionCall *)nd)->args);
+			char *fname = ((FunctionCall *)nd)->functionname;
+			INFO_NODE_LOG("funattr:", funattr);
 			ptr = ((AttributeReference *)funattr)->attrPosition;
-			char *aName = getNthOfListP(pro_attrName, ptr);
+			INFO_LOG("ptr pos %d", ptr);
+			INFO_LOG("pro_attrName length: %d", LIST_LENGTH(pro_attrName));
+			for(int i = 0; i < LIST_LENGTH(pro_attrName); i++)
+			{
+				INFO_LOG("%d name %s", i, getNthOfListP(pro_attrName, i));
+			}
+			char *aName;
+			if(strcmp(fname, POSTGRES_FAST_BITOR_FUN)==0
+			|| strcmp(fname, POSTGRES_BITOR_FUN)==0
+			|| strcmp(fname, ORACLE_SKETCH_AGG_FUN)==0)
+			{
+				List* attrRefNames = getAttrRefNames((ProjectionOperator*) childop);
+				aName = getNthOfListP(attrRefNames, ptr);
+			}
+			else
+			{
+				aName = getNthOfListP(pro_attrName, ptr);
+			}
 			Node *funattrub = (Node *)getAttrRefByName(childop, getUBString(aName));
 			Node *funattrlb = (Node *)getAttrRefByName(childop, getLBString(aName));
 			Node *rowCertain = (Node *) getAttrRefByName(childop, ROW_CERTAIN);
 			Node *rowBG =  (Node *) getAttrRefByName(childop, ROW_BESTGUESS);
-			char *fname = ((FunctionCall *)nd)->functionname;
 
 			if(strcmp(fname, POSTGRES_FAST_BITOR_FUN)==0
 			   || strcmp(fname, POSTGRES_BITOR_FUN)==0
 			   || strcmp(fname, ORACLE_SKETCH_AGG_FUN)==0)
 			{
-				Node *bgCase = (Node *)createCaseExpr(NULL,
-													  singleton((Node *)createCaseWhen(
-																	(Node *)createOpExpr(OPNAME_GT,
-																						 LIST_MAKE(rowBG,createConstInt(0)))
-																	,(Node *) funattr
-																	)),
-													  (Node *) createNullConst(DT_STRING)
-					);
-				Node *lbCase = (Node *)createCaseExpr(NULL,
-													  singleton((Node *)createCaseWhen(
-																	(Node *)createOpExpr(OPNAME_GT,
-																						 LIST_MAKE(rowCertain,createConstInt(0)))
-																	,(Node *) funattrlb
-																	)),
-													  (Node *) createNullConst(DT_STRING)
-					);
-				getNthOfList(proj_projExpr,ptr)->data.ptr_value = bgCase;
+				INFO_LOG("is a function call");
+				Node *bgCase = (Node *)createCaseExpr(NULL,singleton((Node *)createCaseWhen(
+							(Node *)createOpExpr(OPNAME_GT,LIST_MAKE(rowBG,createConstInt(0))),(Node *) funattr)),
+							(Node *) createNullConst(DT_STRING));
+				Node *lbCase = (Node *)createCaseExpr(NULL,singleton((Node *)createCaseWhen(
+							(Node *)createOpExpr(OPNAME_GT,LIST_MAKE(rowCertain,createConstInt(0))),(Node *) funattrlb)),
+							(Node *) createNullConst(DT_STRING));
+//				getNthOfList(proj_projExpr,ptr)->data.ptr_value = bgCase; // remove since prj_projExpr do not contain this
+				proj_projExpr = appendToTailOfList(proj_projExpr, bgCase); // add
 				proj_projExpr = appendToTailOfList(proj_projExpr, funattrub);
 				proj_projExpr = appendToTailOfList(proj_projExpr, lbCase);
+//				pro_attrName = appendToTailOfList(pro_attrName, aName); // add
 				pro_attrName = appendToTailOfList(pro_attrName, getUBString(aName));
 				pro_attrName = appendToTailOfList(pro_attrName, getLBString(aName));
+//				p_attrName = appendToTailOfList(p_attrName, aName); // add
 			}
 			if(strcmp(fname, COUNT_FUNC_NAME)==0)
 			{

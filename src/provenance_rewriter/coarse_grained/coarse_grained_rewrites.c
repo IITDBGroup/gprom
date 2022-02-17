@@ -558,7 +558,40 @@ addTopAggForCoarse(QueryOperator *op)
 
     return (QueryOperator *) newOp;
 }
+QueryOperator *
+addTopAggForCoarseUpdatePS(QueryOperator *op)
+{
+    List *provAttr = getOpProvenanceAttrNames(op);
+    List *projExpr = NIL;
+    int cnt = 0;
+    List *provPosList = NIL;
 
+    FOREACH(char, c, provAttr)
+    {
+        provPosList = appendToTailOfListInt(provPosList, cnt);
+        AttributeReference *a = createAttrsRefByName(op, c);
+        FunctionCall *f = NULL;
+        if(getBackend() == BACKEND_ORACLE)
+        {
+			f = createFunctionCall(ORACLE_SKETCH_AGG_FUN, singleton(a));
+			projExpr = appendToTailOfList(projExpr, f);
+        }
+        else if(getBackend() == BACKEND_POSTGRES)
+        {
+			f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
+			projExpr = appendToTailOfList(projExpr, f);
+        }
+        cnt++;
+    }
+
+    AggregationOperator *newOp = createAggregationOp(projExpr, NIL, op, NIL, provAttr);
+    newOp->op.provAttrs = provPosList;
+
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) newOp);
+    op->parents = singleton(newOp);
+
+    return (QueryOperator *) newOp;
+}
 
 void
 markTableAccessAndAggregation(QueryOperator *op, Node *psPara)
@@ -589,6 +622,38 @@ markTableAccessAndAggregation(QueryOperator *op, Node *psPara)
 		}
 
 		markTableAccessAndAggregation(o, psPara);
+	}
+}
+
+void
+markTableAccessAndAggregationUpdatePS(QueryOperator *op, Node *psPara)
+{
+	FOREACH(QueryOperator, o, op->inputs)
+	{
+		if(isA(o,TableAccessOperator))
+		{
+			DEBUG_LOG("mark tableAccessOperator.");
+
+			/* mark coarsePara info */
+			SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MAKR_UPDATE_PS, psPara);
+
+		}
+		if(isA(o,WindowOperator))
+		{
+			DEBUG_LOG("mark WindowOperator.");
+
+			/* mark coarsePara info */
+			SET_STRING_PROP(o, PROP_COARSE_GRAINED_WINDOW_MARK, psPara);
+
+		}
+		if(isA(o,AggregationOperator))
+		{
+			DEBUG_LOG("mark aggregationOperator.");
+			SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+			SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS);
+		}
+
+		markTableAccessAndAggregationUpdatePS(o, psPara);
 	}
 }
 

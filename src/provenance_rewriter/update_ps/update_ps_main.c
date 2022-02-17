@@ -76,6 +76,8 @@ static BitSet* bitOrResults(HashMap *old, HashMap *new, StringInfo *result);
 void bitOrResultsPostgres(HashMap *old, HashMap *new, StringInfo *result);
 int skipFragsBasedOnPS(char *updatedTable, psInfo *PSInfo, QueryOperator *updateQuery);
 void compressTable(char *tablename, char *psAttr, List *ranges);
+static boolean replaceSetBitsWithFastBitOr (Node *node, void *state);
+static boolean replaceTableAccessWithCompressedTableAccess(Node *node, void *state);
 
 
 /*
@@ -155,7 +157,8 @@ update_ps(ProvenanceComputation *qbModel)
 	 * Get capture rewrite query
 	 */
 	QueryOperator* captureQuery = captureRewrite(qbModel);
-	DEBUG_NODE_BEATIFY_LOG("capture query:\n", captureQuery);
+//	DEBUG_NODE_BEATIFY_LOG("capture query:\n", captureQuery);
+//	INFO_OP_LOG("before uncert rewrite:\n", captureQuery);
 
 
 	/*
@@ -163,41 +166,37 @@ update_ps(ProvenanceComputation *qbModel)
 	 * Replace it with compressed table
 	 * Set the property "PROP_HAS_UNCERT"
 	 */
-	List* tableAccessList = NIL;
-	getTableAccessOps((Node*) captureQuery, &tableAccessList);
-	for(int i = 0; i < getListLength(tableAccessList); i++) {
-		DEBUG_NODE_BEATIFY_LOG("ori table op:\n", getNthOfListP(tableAccessList, i));
-		// replace table with compressed table
-		TableAccessOperator* taop = (TableAccessOperator*) getNthOfListP(tableAccessList, i);
-		StringInfo tblName = makeStringInfo();
-		appendStringInfo(tblName, "compressedtable_%s", taop->tableName);
-		taop->tableName = tblName->data;
-		// set property "PROP_HAS_UNCERT"
-		setStringProperty((QueryOperator*) taop, PROP_HAS_UNCERT, (Node*) createConstBool(TRUE));
-		DEBUG_NODE_LOG("property has uncert\n",getStringProperty((QueryOperator*) taop, PROP_HAS_UNCERT));
-		DEBUG_NODE_BEATIFY_LOG("modi table op:\n", getNthOfListP(tableAccessList, i));
-	}
+
+	replaceTableAccessWithCompressedTableAccess((Node*) captureQuery, NULL);
+	replaceSetBitsWithFastBitOr((Node*) captureQuery, NULL);
 
 	/*
 	 * uncertainty rewrite of capture query;
 	 */
-	DEBUG_NODE_BEATIFY_LOG("before uncert rewrite tree:\n", captureQuery);
 	INFO_OP_LOG("before uncert rewrite:\n", captureQuery);
-	QueryOperator* uncertCaptureRewriteOp = rewriteUncert(captureQuery);
+	QueryOperator* uncertCaptureRewriteOp = rewriteRange(captureQuery);
+//	QueryOperator* uncertCaptureRewriteOp = rewriteUncert(captureQuery);
 	INFO_OP_LOG("after uncert rewrite:\n", uncertCaptureRewriteOp);
+
 
 	/*
 	 * Serialize uncertainy rewrite query
 	 * Run to get the updated ps
 	 */
 	char* updatePSQuery = serializeQuery(uncertCaptureRewriteOp);
+
+	boolean stoppp = TRUE;
+	if(stoppp)
+	{
+		return updatePSQuery;
+	}
 	if (getBackend() == BACKEND_POSTGRES) {
 			postgresExecuteStatement(updatePSQuery);
 	}
 
 	boolean stopHere = TRUE;
-	if (stopHere) {
-		return "END";
+		if (stopHere) {
+			return "END";
 	}
 
 	QueryOperator *rChild = OP_RCHILD(op1);
@@ -264,6 +263,85 @@ update_ps(ProvenanceComputation *qbModel)
 	return result;
 }
 
+static boolean
+replaceTableAccessWithCompressedTableAccess(Node *node, void *state)
+{
+	if(node == NULL)
+		return TRUE;
+
+	if (isA(node, TableAccessOperator))
+	{
+
+		TableAccessOperator *taOp = (TableAccessOperator *) node;
+		StringInfo cmprdTaOp = makeStringInfo();
+
+		appendStringInfo(cmprdTaOp, "compressedtable_%s", taOp->tableName);
+
+		List *attrNames = getAttributeNames(cmprdTaOp->data);
+		List *attrDataTypes = getAttributeDataTypes(cmprdTaOp->data);
+
+		TableAccessOperator *cmprTableAccessOp = createTableAccessOp(cmprdTaOp->data, NULL, cmprdTaOp->data, NIL, copyList(attrNames), copyList(attrDataTypes));
+		cmprTableAccessOp->op.parents = taOp->op.parents;
+		((QueryOperator *) getNthOfListP(cmprTableAccessOp->op.parents, 0))->inputs = singleton(cmprTableAccessOp);
+
+		/*
+		 *	adapt proj->projExprs with compressed table attributes;
+		 */
+
+		// put attribute of compressed table into hash map;
+		HashMap *hmap = NEW_MAP(Constant, Constant);
+		for (int i = 0; i < getListLength(attrNames); i++)
+		{
+			char *name = (char *) getNthOfListP(attrNames, i);
+			addToMap(hmap, (Node *) createConstString(name), (Node *) createConstInt(i));
+		}
+//		INFO_NODE_LOG("HASH MAP\n", hmap);
+
+		ProjectionOperator *projOp = (ProjectionOperator *) ((QueryOperator *) getNthOfListP(cmprTableAccessOp->op.parents, 0));
+
+		// replace with new attribute reference;
+		List *projExprs = projOp->projExprs;
+		FOREACH(Node, node, projExprs)
+		{
+			AttributeReference *ar = (AttributeReference *) node;
+//			INFO_LOG("ar %s", ar->name);
+			Constant *c = (Constant *) getMapString(hmap, ar->name);
+//			INFO_NODE_LOG("const", c);
+			int pos = INT_VALUE(c);
+			AttributeReference *newAr = createFullAttrReference(strdup(ar->name), 0, pos, 0, (DataType) getNthOfListP(attrDataTypes, pos));
+			projExprs = replaceNode(projExprs, ar, newAr);
+		}
+
+		// set property "PROP_HAS_UNCERT"
+		setStringProperty((QueryOperator*) cmprTableAccessOp, PROP_HAS_RANGE, (Node*) createConstBool(TRUE));
+		setStringProperty((QueryOperator*) cmprTableAccessOp, PROP_HAS_UNCERT, (Node*) createConstBool(TRUE));
+
+		return TRUE;
+	}
+
+	return visit(node, replaceTableAccessWithCompressedTableAccess, state);
+}
+
+static boolean
+replaceSetBitsWithFastBitOr (Node* node, void* state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, FunctionCall))
+    {
+        FunctionCall *f = (FunctionCall *) node;
+        if(streq(f->functionname, POSTGRES_SET_BITS_FUN))
+        {
+            f->functionname = strdup(POSTGRES_FAST_BITOR_FUN);
+        }
+
+        return TRUE;
+    }
+
+    return visit(node, replaceSetBitsWithFastBitOr, state);
+}
+
 static
 QueryOperator* captureRewrite(ProvenanceComputation* op){
 	DEBUG_NODE_BEATIFY_LOG("Provenance Computation* \n", op);
@@ -280,17 +358,25 @@ QueryOperator* captureRewrite(ProvenanceComputation* op){
 	psPara = createPSInfo(coarsePara);
 	DEBUG_LOG("coarse grained fragment parameters: %s",
 							nodeToString((Node* ) psPara));
-	markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
+
+	markTableAccessAndAggregationUpdatePS((QueryOperator*) op, (Node*) psPara);
+//	markTableAccessAndAggregation((QueryOperator*) op, (Node*) psPara);
 
 	//mark the number of table - used in provenance scratch
 	markNumOfTableAccess((QueryOperator*) op);
 	DEBUG_LOG("finish markNumOfTableAccess!");
 	bottomUpPropagateLevelAggregation((QueryOperator*) op, psPara);
 	DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
+	INFO_OP_LOG("before rewrite pics", op);
 	result = rewritePI_CS(op);
-	result = addTopAggForCoarse(result);
+//	result = addTopAggForCoarse(result);
+	result = addTopAggForCoarseUpdatePS(result);
 	return result;
 }
+
+
+
+
 
 /*
  * DELETE OPERATION UPDATING

@@ -71,11 +71,12 @@ typedef struct psInfoCell
 
 //extern List *psinfos;
 //extern List *psinfosLoad;
-
+QueryOperator *addTopAggForCoarseUpdatePS(QueryOperator *op); //for update ps, just "fast_bit_or", no need "set_bits";
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
 extern void autoMarkTableAccessAndAggregation (QueryOperator *op, Node *psPara);
 extern void markTableAccessAndAggregation (QueryOperator *op, Node *psPara);
 extern void markUseTableAccessAndAggregation (QueryOperator *op, Node *psPara);
+extern void markTableAccessAndAggregationUpdatePS(QueryOperator *op, Node *psPara);// for update ps, mark ta and agg ops;
 extern void markNumOfTableAccess(QueryOperator *op);
 extern void markAutoUseTableAccess (QueryOperator *op, HashMap *psMap);
 extern psAttrInfo* createPSAttrInfo(List *l, char *tableName);

@@ -92,8 +92,8 @@ initValToCompressedTable(char *tablename, List *attrDefs, List *ranges,
 //			"insert into compressedtable_%s select cid, count(*) as cnt, ",
 //			tablename);
 	appendStringInfo(dmlQuery,
-			"insert into compressedtable_%s select cid, count(*) as cnt, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as lb_prov, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as ub_prov, count(*) as cet_r, count(*) as bst_r, count(*) as pos_r, ",
-			tablename, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1);
+			"insert into compressedtable_%s select cid, count(*) as cnt, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as prov, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as lb_prov, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as ub_prov, count(*) as cet_r, count(*) as bst_r, count(*) as pos_r, ",
+			tablename, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1);
 
 	StringInfo caseWhens = makeStringInfo();
 	for (int i = 0; i < LIST_LENGTH(ranges) - 1; i++) {
@@ -155,6 +155,8 @@ createCompressedTable(char *tablename, List *attrDefs, int rangeLength)
 	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
 			createAttributeDef("cnt", (DataType) DT_INT));
 	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+				createAttributeDef("prov", (DataType) DT_INT));
+	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
 			createAttributeDef("lb_prov", (DataType) DT_INT));
 	cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
 			createAttributeDef("ub_prov", (DataType) DT_INT));
@@ -213,6 +215,17 @@ createCompressedTable(char *tablename, List *attrDefs, int rangeLength)
 	//for postgres lb_prov and ub_prov, should be bit;
 	StringInfo queryModifyType = makeStringInfo();
 	appendStringInfo(queryModifyType, "alter table compressedtable_%s "
+				"alter column prov type bit using prov::bit(%d);",
+				tablename, rangeLength - 1);
+	executeStatementLocal(queryModifyType->data);
+	queryModifyType = makeStringInfo();
+	appendStringInfo(queryModifyType, "alter table compressedtable_%s "
+			"alter column prov type bit(%d);",
+			tablename, rangeLength - 1);
+	executeStatementLocal(queryModifyType->data);
+
+	queryModifyType = makeStringInfo();
+	appendStringInfo(queryModifyType, "alter table compressedtable_%s "
 			"alter column lb_prov type bit using lb_prov::bit(%d);",
 			tablename, rangeLength - 1);
 	executeStatementLocal(queryModifyType->data);
@@ -221,6 +234,7 @@ createCompressedTable(char *tablename, List *attrDefs, int rangeLength)
 				"alter column lb_prov type bit(%d);",
 				tablename, rangeLength - 1);
 	executeStatementLocal(queryModifyType->data);
+
 	queryModifyType = makeStringInfo();
 	appendStringInfo(queryModifyType, "alter table compressedtable_%s "
 			"alter column ub_prov type bit using ub_prov::bit(%d);",
@@ -343,7 +357,7 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 		// set cnt
 		appendStringInfo(updQ, ",cnt = cnt + 1 ");
 
-		int attIndex = 8;
+		int attIndex = 9;
 		int oriTblIdx = 0;
 		int schemaLen = getListLength(rel->schema);
 
@@ -624,7 +638,7 @@ updateCDBDeletion(QueryOperator *deleteQ, char *tablename, psAttrInfo *attrInfo,
 		// set cnt;
 		appendStringInfo(updCDBQ, ", %s = %s - 1 ", "cnt", "cnt");
 		// for each attribute;
-		int attrIndex = 8;
+		int attrIndex = 9;
 		int oriTblIdx = 0;
 		int schemaLen = getListLength(rel->schema);
 		while (oriTblIdx < schemaLen) {
