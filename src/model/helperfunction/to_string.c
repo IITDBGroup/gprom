@@ -2103,15 +2103,20 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         {
 //        	DLMorDDLOperator* o = (DLMorDDLOperator*) op;
         	WRITE_NODE_TYPE(DLM_DDL_OPREATOR);
-        	appendStringInfoString(str, " [");
+        	appendStringInfoString(params, " [");
 //        	appendStringInfo(str, " stmt: %s", exprToSQL(o->stmt, NULL));
-        	appendStringInfoString(str, " ]");
+        	appendStringInfoString(params, " ]");
+        	WRITE_OP_PARAM(params);
         }
         	break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;
     }
+
+    // return when op is DLMorDDLOperator
+    if(isA(op, DLMorDDLOperator))
+    	return;
 
 	if (opt_log_operator_verbose)
 	{
