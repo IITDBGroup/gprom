@@ -44,7 +44,6 @@ static Set *computePredsToRewrite(char *targetTable, DLProgram *p);
  * @return the rewritten program
  */
 
-
 DLProgram *
 rewriteDLForLinageCapture(DLProgram *p)
 {

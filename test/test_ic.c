@@ -100,7 +100,6 @@ testGetFDsForAttrs(void)
 					   "FDSs on {a,b,c,d} are a->b; b->c");
 
 	return PASS;
-
 }
 
 static rc
