@@ -41,7 +41,7 @@ inferFDsForRule(DLRule *r, List *fds)
 	{
 		FOREACH(FD,f,adaptedFDs)
 		{
-			
+			result = appendToTailOfList(result, f);
 		}
 	}
 
