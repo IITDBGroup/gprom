@@ -42,7 +42,7 @@ testMakeVarsUnique (void)
 
     a1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
     e1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("V1")), FALSE);
-    makeVarNamesUnique(LIST_MAKE(a1));
+    makeVarNamesUnique(LIST_MAKE(a1), TRUE);
     ASSERT_EQUALS_NODE(e1,a1,"R(V0,V1)");
 
 
@@ -50,7 +50,7 @@ testMakeVarsUnique (void)
     a2 = createDLAtom("S", LIST_MAKE(VAR("B"), VAR("C")), FALSE);
     e1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("V1")), FALSE);
     e2 = createDLAtom("S", LIST_MAKE(VAR("V2"), VAR("V3")), FALSE);
-    makeVarNamesUnique(LIST_MAKE(a1,a2));
+    makeVarNamesUnique(LIST_MAKE(a1,a2), TRUE);
     ASSERT_EQUALS_NODE(LIST_MAKE(e1,e2), LIST_MAKE(a1,a2),"R(V0,V1)");
 
     a1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
@@ -59,7 +59,7 @@ testMakeVarsUnique (void)
     e1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("V1")), FALSE);
     e2 = createDLAtom("S", LIST_MAKE(VAR("V1"), VAR("V2")), FALSE);
     er1 = createDLRule(e1, singleton(e2));
-    makeVarNamesUnique(LIST_MAKE(r1));
+    makeVarNamesUnique(LIST_MAKE(r1), TRUE);
     ASSERT_EQUALS_NODE(er1, r1, "R(A,B) :- S(B,C);");
 
     return PASS;

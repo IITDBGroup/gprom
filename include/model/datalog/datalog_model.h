@@ -126,7 +126,7 @@ extern Node *applyVarMap(Node *input, HashMap *h);
 extern boolean argListsUnifyable(List *argsL, List *argsR);
 extern Node *applyVarMapAsLists(Node *input, List *vars, List *replacements);
 extern DLAtom *getNormalizedAtom(DLAtom *a);
-extern void makeVarNamesUnique(List *nodes);
+extern void makeVarNamesUnique(List *nodes, boolean replaceOrigNames);
 extern DLVar *createUniqueVar(Node *n, DataType dt);
 extern char *getUnificationString(DLAtom *a);
 

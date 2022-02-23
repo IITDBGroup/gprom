@@ -456,11 +456,11 @@ mergeRule(DLRule *super, List *replacements)
 		}
 
 		// make sure that the rule and all replacement rule copies have unique variable names
-		subst = appendToHeadOfList(subst, newR);
-		makeVarNamesUnique(subst);
+		//subst = appendToHeadOfList(subst, newR);
+		makeVarNamesUnique(subst, FALSE);
+		DEBUG_DL_LOG("after making super variable names unique", newR);
 		DEBUG_DL_LOG("after making variable name unique", subst);
-		popHeadOfListP(subst);
-
+		//popHeadOfListP(subst);
 
 		// replace atoms with rule bodies
 		FOREACH(DLNode,a,newR->body)
@@ -524,7 +524,7 @@ getNormalizedAtom(DLAtom *a)
 }
 
 void
-makeVarNamesUnique(List *nodes)
+makeVarNamesUnique(List *nodes, boolean keepOrigNames)
 {
     int varId = 0;
 
@@ -534,12 +534,12 @@ makeVarNamesUnique(List *nodes)
         {
             DLRule *r = (DLRule *) n;
             List *args = getRuleVars(r);
-            makeUniqueVarNames(args, &varId, TRUE);
+            makeUniqueVarNames(args, &varId, keepOrigNames);
         }
         if (isA(n, DLAtom))
         {
             DLAtom *a = (DLAtom *) n;
-            makeUniqueVarNames(a->args, &varId, TRUE);
+            makeUniqueVarNames(a->args, &varId, keepOrigNames);
         }
     }
 }
@@ -765,7 +765,7 @@ getAtomVars(DLAtom *a)
 
     FOREACH(Node,arg,a->args)
     {
-		result = CONCAT_LISTS(result, copyObject(getExprVars(arg)));
+		result = CONCAT_LISTS(result, getExprVars(arg));
     }
 
     return result;
