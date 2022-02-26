@@ -221,6 +221,7 @@ checkDLProgram(DLProgram *p)
     setDLProp((DLNode *) p, DL_EDB_RELS, (Node *) edbRels);
     setDLProp((DLNode *) p, DL_FACT_RELS, (Node *) factRels);
 	setDLProp((DLNode *) p, DL_AGGR_RELS, (Node *) aggrRels);
+	
     return TRUE;
 }
 

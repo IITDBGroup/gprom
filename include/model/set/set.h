@@ -106,6 +106,33 @@ extern List *makeNodeListFromSet(Set *s);
 
 #define FOREACH_SET_HAS_NEXT(_elem_) (DUMMY_SETEL(_elem_)->hh.next != NULL)
 
+#define MAP_SET_STR(_set_,_expr_)										\
+	do {																\
+		Set *_result_ = STRSET();										\
+		SetElem *_elem_;												\
+		char *newIt;													\
+		for(_elem_ = _set_->elem; _elem_ != NULL; _elem_ = _elem_->hh.next) { \
+			char *it = (char *)(_elem_->data);								\
+			newIt = _expr_;												\
+			addToSet(_result_, newIt);									\
+		}																\
+		_set_ = _result_;												\
+	} while(0);
+
+#define MAP_SET_NODE(_set_,_expr_)										\
+	do {																\
+		Set *_result_ = NODESET();										\
+		SetElem *_elem_;												\
+	    Node *newIt;													\
+		for(_elem_ = _set_->elem; _elem_ != NULL; _elem_ = _elem_->hh.next) { \
+		    Node *it = (Node *)(_elem_->data);								\
+			newIt = (Node *) _expr_;										\
+			addToSet(_result_, newIt);									\
+		}																\
+		_set_ = _result_;												\
+	} while(0);
+
+
 extern boolean hasSetElem (Set *set, void *_el);
 extern boolean hasSetIntElem (Set *set, int _el);
 extern boolean hasSetLongElem (Set *set, gprom_long_t _el);
@@ -127,6 +154,7 @@ extern boolean overlapsSet(Set *left, Set *right);
 extern boolean containsSet(Set *left, Set *right);
 
 extern void *popSet(Set *set);
+extern void *peekSet(Set *set);
 
 extern int setSize (Set *set);
 #define EMPTY_SET(set) (setSize(set) == 0)

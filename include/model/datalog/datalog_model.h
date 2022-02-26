@@ -91,6 +91,8 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
 #define IS_DL_NODE(n) (isA(n,DLNode) || isA(n,DLAtom) || isA(n,DLVar) \
 					   || isA(n,DLComparison) || isA(n,DLRule) || isA(n,DLProgram))
 
+#define IDB_ATTR_NAME(i) backendifyIdentifier(CONCAT_STRINGS("a", gprom_itoa(i)))
+
 // convenience functions
 extern DLAtom *createDLAtom(char *rel, List *args, boolean negated);
 extern DLAtom *createDLAtomFromStrs(char *rel, boolean negated, char *vars, ...);
@@ -102,10 +104,9 @@ extern DLProgram *createDLProgram(List *dlRules, List *facts, char *ans, List *d
 extern DLComparison *createDLComparison(char *op, Node *lArg, Node *rArg);
 extern DLDomain *createDLDomain(char *rel, char *attr, char *dom);
 
-
-
 // get information about DL program elements
 extern char *getHeadPredName(DLRule *r);
+extern List *getHeadAttrNames(DLRule *r);
 extern List *getRuleVars(DLRule *r);
 extern List *getBodyVars(DLRule *r);
 List *getBodyArgs(DLRule *r);
@@ -116,7 +117,10 @@ extern List *getAtomExprVars(DLAtom *a);
 extern List *getAtomTopLevelVars(DLAtom *a);
 extern List *getExprVars(Node *expr);
 extern size_t getIDBPredArity(DLProgram *p, char *pred);
+extern boolean isIDB(DLProgram *p, char *pred);
+extern boolean isEDB(DLProgram *p, char *pred);
 extern List *getVarNames(List *vars);
+extern List *predGetAttrNames(DLProgram *p, char *pred);
 
 // unification and variable mappings
 extern DLRule *unifyRule(DLRule *r, List *headBinds);
@@ -158,6 +162,7 @@ extern void delAllProps(DLNode *n);
 #define DL_HAS_AGG "HAS_AGGR"
 
 #define DL_PROG_FDS "PROGRAM_FDS"
+#define DL_IS_CHECKED "HAS_BEEN_CHECKED"
 
 #define DL_PROV_WHY "WHY_PROV"
 #define DL_PROV_WHYNOT "WHYNOT_PROV"

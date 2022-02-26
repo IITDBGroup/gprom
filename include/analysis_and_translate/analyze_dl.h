@@ -32,11 +32,20 @@ extern List *getEDBFDs(DLProgram *p);
 	} while (0)
 #define ENSURE_BODY_PRED_TO_RULE_MAP(_p) \
 	do {\
-		if(!DL_HAS_PROP(_p ,DL_MAP_BODYPRED_TO_RULES)) \
+		if(!DL_HAS_PROP(_p, DL_MAP_BODYPRED_TO_RULES)) \
 		{ \
 			createBodyPredToRuleMap((DLProgram *) _p);	\
 		} \
 	} while (0)
-
+#define ENSURE_DL_CHECKED(_p)						\
+	do {											\
+		if(!DL_HAS_PROP(_p, DL_IS_CHECKED))			\
+		{											\
+			checkDLModel((Node *) _p);				\
+			ENSURE_REL_TO_REL_GRAPH(_p);			\
+			ENSURE_BODY_PRED_TO_RULE_MAP(_p);		\
+			DL_SET_BOOL_PROP(_p, DL_IS_CHECKED);	\
+		}											\
+	} while(0)
 
 #endif /* INCLUDE_ANALYSIS_AND_TRANSLATE_ANALYZE_DL_H_ */

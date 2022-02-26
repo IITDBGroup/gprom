@@ -13,6 +13,8 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "model/integrity_constraints/integrity_constraint_inference.h"
+#include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "test_main.h"
@@ -28,6 +30,7 @@ static rc testRewriting(void);
 static rc testJoinGraph(void);
 static rc testAdaptFDsForRule(void);
 static rc testFDchecking(void);
+static rc testInferFDsForIDB(void);
 
 rc
 testSemanticOptimization(void)
@@ -37,6 +40,7 @@ testSemanticOptimization(void)
 	RUN_TEST(testFDchecking(), "testing checking validty of FDs over body atoms.");
     RUN_TEST(testOptimization(), "testing optimizing a DL rule for provenance capture using semantic query optimization.");
 	RUN_TEST(testAdaptFDsForRule(), "test adapting FDs to a FL rule by replacing attributes with variables.");
+	RUN_TEST(testInferFDsForIDB(), "test inferring FDs that hold for IDB atoms.");
 
 	return PASS;
 }
@@ -143,6 +147,7 @@ testOptimization(void)
 	DLRule *r, *opt, *exp;
 	List *fds;
 	DLAtom *headx, *headxy, *gr,*gs, *glr, *gt, *gu, *pr, *plr;
+	DLProgram *p;
 
 	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
 	glr = DLATOM_FROM_STRS("PRR",FALSE,"X","Y","A");
@@ -160,32 +165,41 @@ testOptimization(void)
 	// optimized capture rule: R(X,Y) :- Q(X,Y).
 	r = createDLRule(headxy, LIST_MAKE(gr,gs));
 	fds = LIST_MAKE(createFD("R", MAKE_STR_SET("A"), MAKE_STR_SET("B")));
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(pr,LIST_MAKE(headxy));
-	opt = optimizeDLRule(r, fds, "R", NULL);
+	opt = optimizeDLRule(p, r, fds, "R", NULL);
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
+	delAllProps((DLNode *) opt);
+	delAllProps((DLNode *) exp);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
 
 	// Q(X) :- R(X,Y), S(Y,Z). R(a,b), S(c,d). X -> Y for R
 	// optimized capture rule: R(X,Y) :- Q(X), R(X,Y).
 	r = createDLRule(headx, LIST_MAKE(gr,gs));
 	fds = LIST_MAKE(createFD("R", MAKE_STR_SET("A"), MAKE_STR_SET("B")));
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(pr,LIST_MAKE(gr,headx));
-	opt = optimizeDLRule(r, fds, "R", NULL);
+	opt = optimizeDLRule(p, r, fds, "R", NULL);
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
+	delAllProps((DLNode *) opt);
+	delAllProps((DLNode *) exp);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
 
 	// Q(X) :- PRR(X,Y,A), S(Y,Z), T(A,B), U(B,C). a->b for R
 	// optimized capture rule: R(X,Y,A) :- Q(X), R(X,Y,A), T(A,B), U(B,C)
 	r = createDLRule(headx, LIST_MAKE(glr,gs,gt,gu));
 	fds = LIST_MAKE(createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("B")));
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,gt,gu,headx));
-	opt = optimizeDLRule(r, fds, "PRR", NULL);
+	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
 
+	delAllProps((DLNode *) opt);
+	delAllProps((DLNode *) exp);
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
 
@@ -194,9 +208,12 @@ testOptimization(void)
 	r = createDLRule(headx, LIST_MAKE(glr,gs,gt,gu));
 	fds = LIST_MAKE(createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("B")),
 					createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("C")));
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,headx));
-	opt = optimizeDLRule(r, fds, "PRR", NULL);
+	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
+	delAllProps((DLNode *) opt);
+	delAllProps((DLNode *) exp);
 
 	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
 	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
@@ -210,6 +227,7 @@ testAdaptFDsForRule(void)
 	List *in, *exp, *out;
 	DLRule *r;
 	DLAtom *headx, *gr,*gs, *grt;
+	DLProgram *p;
 
 	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
 	grt = DLATOM_FROM_STRS("R",FALSE,"X","Z");
@@ -220,8 +238,9 @@ testAdaptFDsForRule(void)
 	r = createDLRule(headx, LIST_MAKE(gr,gs,grt));
     in = LIST_MAKE(createFD("R", MAKE_STR_SET("A"), MAKE_STR_SET("B")),
 					createFD("S", MAKE_STR_SET("C"), MAKE_STR_SET("D")));
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
-	out = adaptFDsToRules(r, in);
+	out = adaptFDsToRules(p, r, in);
 	exp = LIST_MAKE(createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Y")),
 					createFD("R", MAKE_STR_SET("X"), MAKE_STR_SET("Z")),
 					createFD("S", MAKE_STR_SET("Y"), MAKE_STR_SET("Z")));
@@ -264,6 +283,58 @@ testFDchecking(void)
 
 	in = MAKE_NODE_SET(gr,gs);
 	ASSERT_TRUE(checkFDonAtoms(in, fds, fd4), "X->Z on R,S");
+
+	return PASS;
+}
+
+static rc
+testInferFDsForIDB(void)
+{
+	DLRule *r, *r2;
+	DLProgram *p;
+	DLAtom *gr, *gs, *gq;
+	List *fds, *actualFds, *expectedFds;
+	FD *f1, *f2, *f3, *f4;
+
+	f1 = createFD("R", MAKE_STR_SET("A"), MAKE_STR_SET("B"));
+	f2 = createFD("S", MAKE_STR_SET("C"), MAKE_STR_SET("D"));
+	f3 = createFD("Q", MAKE_STR_SET("A0"), MAKE_STR_SET("A1"));
+	fds = LIST_MAKE(f1,f2);
+
+	expectedFds = LIST_MAKE(f1,f2,f3);
+
+	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
+	gs = DLATOM_FROM_STRS("S",FALSE,"Y","Z");
+
+	// Q(X,Z) :- R(X,Y), S(Y,Z). => X->Y, Y->Z implies X->Z for Q
+	r = createDLRule(DLATOM_FROM_STRS("Q", FALSE, "X", "Z"),
+					 LIST_MAKE(gr,gs));
+
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
+	setDLProp((DLNode *) p, DL_PROG_FDS, (Node *) fds);
+
+    actualFds = inferFDsForProgram(p);
+
+	ASSERT_EQUALS_NODE(expectedFds, actualFds, "FDs on Q: A0 -> A1");
+
+	// add second rule
+	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
+	gs = DLATOM_FROM_STRS("S",FALSE,"Y","Z");
+	gq = DLATOM_FROM_STRS("Q",FALSE,"X","Y");
+
+	r = createDLRule(DLATOM_FROM_STRS("Q", FALSE, "X", "Z"),
+					 LIST_MAKE(gr,gs));
+	r2 = createDLRule(DLATOM_FROM_STRS("Q2", FALSE, "Y", "X"),
+					  LIST_MAKE(gq));
+	p = createDLProgram(LIST_MAKE(r,r2), NIL, "Q2", NIL, NIL, NIL);
+	setDLProp((DLNode *) p, DL_PROG_FDS, (Node *) fds);
+
+	f4 = createFD("Q2", MAKE_STR_SET("A1"), MAKE_STR_SET("A0"));
+
+	expectedFds = LIST_MAKE(f1,f2,f3,f4);
+    actualFds = inferFDsForProgram(p);
+
+	ASSERT_EQUALS_NODE(expectedFds, actualFds, "FDs on Q2: A1 -> A0");
 
 	return PASS;
 }

@@ -18,7 +18,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/list/list.h"
 
-extern List *inferFDsForProgram(DLProgram *progam);
-extern List *inferFDsForRule(DLRule *r, List *fds);
+extern List *inferFDsForProgram(DLProgram *program);
+extern List *inferFDsForRule(DLProgram * p, DLRule *r, List *fds);
 
 #endif /* _INTEGRITY_CONSTRAINT_INFERENCE_H_ */

@@ -77,7 +77,7 @@ testRuleMerging(void)
 	DLProgram *expected = (DLProgram *) parseFromStringdl(
 		"RP(1,1).\nSP(1,1).\n"
 		"TP(1).\nUP(1,1).\n"
-		"Q(V3) :- RP(V3,V4),SP(V4,V6),TP(V7),UP(V4,V4).");
+		"Q(X) :- RP(X,Y),SP(Y,V2),TP(Z),UP(Y,Y).");
 
 	analyzeDLModel((Node *) p);
 	analyzeDLModel((Node *) expected);
@@ -93,7 +93,7 @@ testRuleMerging(void)
 	expected = (DLProgram *) parseFromStringdl(
 		"RP(1,1).\nSP(1,1).\n"
 		"TP(1).\nUP(1,1).\n"
-		"Q(V0) :- RP(V1,V1),RP(V0,V0),RP(V2,V2),RP(V1,V1).");
+		"Q(X) :- RP(Y,Y),RP(X,X),RP(Z,Z),RP(Y,Y).");
 
 	analyzeDLModel((Node *) p);
 	analyzeDLModel((Node *) expected);

@@ -63,7 +63,7 @@ analyzeDLModel(Node *stmt)
 }
 
 void
-createRelToRuleMap (Node *stmt)
+createRelToRuleMap(Node *stmt)
 {
     if (!isA(stmt,DLProgram))
         return;
@@ -753,7 +753,7 @@ analyzeFD(FD *f, DLProgram *p)
 
 		for(int i = 0; i < arity; i++)
 		{
-			addToSet(attrs, backendifyIdentifier(CONCAT_STRINGS("a", gprom_itoa(i))));
+			addToSet(attrs, IDB_ATTR_NAME(i));
 		}
 	}
 

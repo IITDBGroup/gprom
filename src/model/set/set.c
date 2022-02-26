@@ -544,6 +544,25 @@ popSet(Set *set)
 	}
 }
 
+void *
+peekSet(Set *set)
+{
+    ASSERT(!EMPTY_SET(set));
+
+	SetElem *e = set->elem;
+
+	if(set->setType == SET_TYPE_STRING)
+	{
+		char *el = strdup(e->data);
+		return el;
+	}
+	else
+	{
+		Node *el = copyObject(e->data);
+		return el;
+	}
+}
+
 int
 setSize (Set *set)
 {

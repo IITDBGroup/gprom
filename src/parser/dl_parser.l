@@ -180,14 +180,6 @@ FROM                "FROM"
 
 {quotedIdentifier}   TOK(IDENT)
 
-	/* { */
-	/* 		dllval.stringVal = MALLOC(strlen(dltext) - 1); */
-	/* 		memcpy(dllval.stringVal, dltext + 1, strlen(dltext) - 2); */
-	/* 		dllval.stringVal[strlen(dltext) - 2] = '\0'; */
-	/* 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", dltext); */
-	/* 		return IDENT; */
-	/* 	} */
-
 [(),.;:] 			TOKSELF()
 
 	/* comparisons */

@@ -23,6 +23,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/expression/expression.h"
 #include "model/graph/graph.h"
+#include "model/integrity_constraints/integrity_constraint_inference.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/set/hashmap.h"
@@ -79,6 +80,13 @@ rewriteDLForLinageCapture(DLProgram *p)
 
 		//TODO filter based on answer predicate to avoid generating unncessary rules
 
+		// infer FDs for idb predicates if semantic optimization is on
+		if(getBoolOption(OPTION_DL_SEMANTIC_OPT))
+		{
+			List *fds = inferFDsForProgram(p);
+			DL_SET_PROP(p, DL_PROG_FDS, fds);
+		}
+
 		FOREACH_SET(char,pred,rewrPreds)
 		{
 			List *rs = (List *) MAP_GET_STRING(predToRules, pred);
@@ -95,7 +103,7 @@ rewriteDLForLinageCapture(DLProgram *p)
 				{
 					List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
 
-					captureRule = optimizeDLRule(r, fds, pred, filter);
+					captureRule = optimizeDLRule(p, r, fds, pred, filter);
 				}
 				else
 				{

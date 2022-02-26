@@ -24,6 +24,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
 #include "analysis_and_translate/analyze_dl.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "ocilib.h"
 #include <assert.h>
 
@@ -152,6 +153,19 @@ getHeadPredName(DLRule *r)
 }
 
 List *
+getHeadAttrNames(DLRule *r)
+{
+	List *results = NIL;
+
+	for(int i = 0; i < LIST_LENGTH(r->head->args); i++)
+	{
+		results = appendToTailOfList(results, IDB_ATTR_NAME(i));
+	}
+
+	return results;
+}
+
+List *
 getRuleVars(DLRule *r)
 {
     List *result = NIL;
@@ -211,10 +225,33 @@ getBodyPredVars(DLRule *r)
 }
 
 
+/**
+ * @brief Return variables from head of rule r.
+ * Ignore variables in expressions, e.g., for
+ *
+ * Q(X,Y+Z,sum(A)) :-
+ *
+ * we would return [X].
+ *
+ * @param r the rule
+ * @return list of DLVar nodes
+ */
+
+
 List *
-getHeadVars (DLRule *r)
+getHeadVars(DLRule *r)
 {
-    return getAtomVars(r->head);
+	List *result = NIL;
+
+	FOREACH(Node,harg,r->head->args)
+	{
+		if(isA(harg,DLVar))
+		{
+			result = appendToTailOfList(result, harg);
+		}
+	}
+
+    return result;
 }
 
 List *
@@ -298,8 +335,8 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	Set *requiredAggRels = STRSET();
 	Set *todo;
 	List *newRules = NIL;
-	ENSURE_REL_TO_REL_GRAPH(p);
-	checkDLModel((Node *) p);
+	ENSURE_DL_CHECKED(p);
+	/* checkDLModel((Node *) p); */
 	result = copyObject(p);
 
 	idbRels = (Set *) getDLProp((DLNode *) result, DL_IDB_RELS);
@@ -751,11 +788,49 @@ findVarsVisitor(Node *node, List **context)
 size_t
 getIDBPredArity(DLProgram *p, char *pred)
 {
+	ENSURE_DL_CHECKED(p);
 	HashMap *relToRules = (HashMap *) DL_GET_PROP(p, DL_MAP_RELNAME_TO_RULES);
 	ASSERT(MAP_HAS_STRING_KEY(relToRules, pred));
 	DLRule *r = getHeadOfListP((List *) MAP_GET_STRING(relToRules, pred));
 
 	return LIST_LENGTH(r->head->args);
+}
+
+boolean
+isIDB(DLProgram *p, char *pred)
+{
+	ENSURE_DL_CHECKED(p);
+	Set *idbPreds = (Set *) DL_GET_PROP(p,DL_IDB_RELS);
+	/* HashMap *relToRules = (HashMap *) DL_GET_PROP(p, DL_MAP_RELNAME_TO_RULES); */
+	return hasSetElem(idbPreds, pred);
+}
+
+boolean
+isEDB(DLProgram *p, char *pred)
+{
+	return !isIDB(p, pred);
+}
+
+
+List *
+predGetAttrNames(DLProgram *p, char *pred)
+{
+	ENSURE_DL_CHECKED(p);
+	if(isIDB(p, pred))
+	{
+		List *attrs = NIL;
+		int arity = getIDBPredArity(p, pred);
+		for(int i = 0; i < arity; i++)
+		{
+			attrs = appendToTailOfList(attrs, IDB_ATTR_NAME(i));
+		}
+
+		return attrs;
+	}
+	else
+	{
+		return getAttributeNames(pred);
+	}
 }
 
 static List *

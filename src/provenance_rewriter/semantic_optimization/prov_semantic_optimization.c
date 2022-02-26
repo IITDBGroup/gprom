@@ -61,7 +61,7 @@ static boolean removeOneEdgeBasedOnFDs(Set *dreach, RewriteSearchState *state);
 static Set *computeFrontier(Graph *g, Set *nodes);
 
 DLRule *
-optimizeDLRule(DLRule *r, List *inFDs, char *targetTable, char *filterPred)
+optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, char *targetTable, char *filterPred)
 {
 	Set *seeds;
 	DLAtom *target = NULL;
@@ -73,7 +73,7 @@ optimizeDLRule(DLRule *r, List *inFDs, char *targetTable, char *filterPred)
 	START_TIMER("semantic optimization");
 
 	joinG = createJoinGraph(r);
-	fds = adaptFDsToRules(r, inFDs);
+	fds = adaptFDsToRules(p, r, inFDs);
 
 	DEBUG_LOG("adapted FDs: %s", icToString((Node *) fds));
 
@@ -286,17 +286,6 @@ existsNonReachableAtom(RewriteSearchState *state)
 	return ex;
 }
 
-/* static Set * */
-/* minimalRewriting(Set *seeds, DLRule *r, List *fds, Graph *joinG) */
-/* { */
-/* 	Set *results; */
-
-/* 	while(!EMPTY_SET(todo)) */
-/* 	{ */
-
-/* 	} */
-/* } */
-
 static Set *
 computeSeeds(DLRule *r, List *fds, DLAtom *target)
 {
@@ -396,7 +385,7 @@ varListToNameSet(List *vars)
 }
 
 List *
-adaptFDsToRules(DLRule *r, List *fds)
+adaptFDsToRules(DLProgram *p, DLRule *r, List *fds)
 {
 	List *result = NIL;
 	HashMap *predToGoals = NEW_MAP(Constant,List);
@@ -414,7 +403,7 @@ adaptFDsToRules(DLRule *r, List *fds)
 	FOREACH(FD,f,fds)
 	{
 		List *goals = (List *) MAP_GET_STRING(predToGoals, f->table);
-		List *attrNames = getAttributeNames(f->table);
+		List *attrNames = predGetAttrNames(p, f->table);
 
 		FOREACH(DLAtom,g,goals)
 		{

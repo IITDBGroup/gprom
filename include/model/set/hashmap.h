@@ -59,7 +59,7 @@ extern List *getKeys(HashMap *map);
 extern List *getEntries(HashMap *map);
 
 // add elements to map
-extern boolean addToMap (HashMap *map, Node *key, Node *value);
+extern boolean addToMap(HashMap *map, Node *key, Node *value);
 #define ADD_TO_MAP(map, keyvalue) \
 	do { \
 	    KeyValue *_kv = (keyvalue); \
@@ -78,7 +78,7 @@ extern int mapIncrString(HashMap *map, char *key);
 
 // remove elements from map
 extern void removeAndFreeMapElem (HashMap *map, Node *key);
-extern void removeMapElem (HashMap *map, Node *key);
+extern void removeMapElem(HashMap *map, Node *key);
 extern void removeMapStringElem (HashMap *map, char *key);
 
 // map size
