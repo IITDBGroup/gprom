@@ -315,6 +315,7 @@ replaceTableAccessWithCompressedTableAccess(Node *node, void *state)
 
 		List *attrNames = getAttributeNames(cmprdTaOp->data);
 		List *attrDataTypes = getAttributeDataTypes(cmprdTaOp->data);
+		List *attrDefs = getAttributes(cmprdTaOp->data);
 
 		TableAccessOperator *cmprTableAccessOp = createTableAccessOp(cmprdTaOp->data, NULL, cmprdTaOp->data, NIL, copyList(attrNames), copyList(attrDataTypes));
 		cmprTableAccessOp->op.parents = taOp->op.parents;
@@ -344,7 +345,8 @@ replaceTableAccessWithCompressedTableAccess(Node *node, void *state)
 			Constant *c = (Constant *) getMapString(hmap, ar->name);
 //			INFO_NODE_LOG("const", c);
 			int pos = INT_VALUE(c);
-			AttributeReference *newAr = createFullAttrReference(strdup(ar->name), 0, pos, 0, (DataType) getNthOfListP(attrDataTypes, pos));
+			// AttributeReference *newAr = createFullAttrReference(strdup(ar->name), 0, pos, 0, (DataType) getNthOfListP(attrDataTypes, pos));
+			AttributeReference *newAr = createFullAttrReference(strdup(ar->name), 0, pos, 0, ((AttributeDef *)getNthOfListP(attrDefs, pos))->dataType);
 			projExprs = replaceNode(projExprs, ar, newAr);
 		}
 
