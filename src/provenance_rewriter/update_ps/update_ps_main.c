@@ -79,7 +79,7 @@ void compressTable(char *tablename, char *psAttr, List *ranges);
 static boolean replaceSetBitsWithFastBitOr (Node *node, void *state);
 static boolean replaceTableAccessWithCompressedTableAccess(Node *node, void *state);
 void removeProvAttrsList(QueryOperator *op);
-
+static void modifyUncertCapTree(QueryOperator *op);
 /*
  * Function Implementation
  */
@@ -178,6 +178,7 @@ update_ps(ProvenanceComputation *qbModel)
 //	QueryOperator* uncertCaptureRewriteOp = rewriteUncert(captureQuery);
 	INFO_OP_LOG("after uncert rewrite:\n", uncertCaptureRewriteOp);
 
+	modifyUncertCapTree(uncertCaptureRewriteOp);
 
 	/*
 	 * Serialize uncertainy rewrite query
@@ -185,7 +186,6 @@ update_ps(ProvenanceComputation *qbModel)
 	 */
 	StringInfo updatePSQuery = makeStringInfo();
 	appendStringInfo(updatePSQuery, "%s;", serializeQuery(uncertCaptureRewriteOp));
-
 
 //	if (getBackend() == BACKEND_POSTGRES) {
 //			postgresExecuteStatement(updatePSQuery->data);
@@ -259,6 +259,45 @@ update_ps(ProvenanceComputation *qbModel)
 
 	return result;
 }
+
+static void
+modifyUncertCapTree(QueryOperator *op)
+{
+	if(op == NULL)
+		return;
+	if(isA((Node *)op, AggregationOperator))
+	{
+		List *aggArgs = ((AggregationOperator *) op)->aggrs;
+		FOREACH(Node, n, aggArgs)
+		{
+			FunctionCall *fc = (FunctionCall *)n;
+			char *attrRefName = ((AttributeReference *)getNthOfListP(fc->args, 0))->name;
+			if(strcmp(fc->functionname, MIN_FUNC_NAME) == 0)
+			{
+				if(strcmp(attrRefName, "prov") == 0
+						|| strcmp(attrRefName, "lb_prov") == 0
+						|| strcmp(attrRefName, "ub_prov") == 0)
+				{
+					if(getBackend() == BACKEND_POSTGRES)
+						fc->functionname = strdup(POSTGRES_BIT_AND_FUN);
+				}
+			}
+			if(strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+				if(strcmp(attrRefName, "prov") == 0
+				|| strcmp(attrRefName, "lb_prov") == 0
+				|| strcmp(attrRefName, "ub_prov") == 0)
+				{
+					if(getBackend() == BACKEND_POSTGRES)
+						fc->functionname = strdup(POSTGRES_FAST_BITOR_FUN);
+				}
+			}
+		}
+	}
+
+	FOREACH(QueryOperator, o, op->inputs)
+		modifyUncertCapTree(o);
+}
+
 
 static boolean
 replaceTableAccessWithCompressedTableAccess(Node *node, void *state)

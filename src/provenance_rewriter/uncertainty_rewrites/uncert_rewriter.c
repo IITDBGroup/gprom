@@ -3080,7 +3080,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 
 	//rewrite groupby case
 
-	INFO_LOG("RANGE_Aggregation - With groupby");
+	INFO_LOG("RANGE_Aggregation2 - With groupby");
 
 	//two branches for "selfjoin"
 
@@ -3192,7 +3192,7 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	// 	((AttributeDef *)(getNthOfList(preaggr->schema->attrDefs,lbpos)->data.ptr_value))->dataType = dt;
 	// }
 
-	INFO_OP_LOG("Range Aggregation with groupby - left pre-aggregation:", preaggr);
+	INFO_OP_LOG("Range Aggregation2 with groupby - left pre-aggregation:", preaggr);
 
 	//do the join
 
@@ -3324,6 +3324,31 @@ rewrite_RangeAggregation2(QueryOperator *op){
 		char * fname_ub = getUBString(fname);
 		char * fname_lb = getLBString(fname);
 		// INFO_LOG("%s, %s, %s, %s",fnameo, fname, fname_ub, fname_lb);
+		if(strcmp(((FunctionCall *)n)->functionname, POSTGRES_BITOR_FUN)==0
+			|| strcmp(((FunctionCall *)n)->functionname, POSTGRES_FAST_BITOR_FUN)==0
+			|| strcmp(((FunctionCall *)n)->functionname, ORACLE_SKETCH_AGG_FUN)==0)
+		{
+			INFO_LOG("fnameo: %s, fname: %s", fnameo, fname);
+			Node *rowCertain = (Node *)getAttrRefByName(join, ROW_CERTAIN);
+			Node *rowBG = (Node *)getAttrRefByName(join, ROW_BESTGUESS);
+			Node *attrLB = (Node *)getAttrRefByName(join, getLBString(fname));
+//			Node *bgCase = (Node *)createCaseExpr(NULL,singleton((Node *)createCaseWhen(
+//					(Node *)createOpExpr(OPNAME_GT,LIST_MAKE(rowBG,createConstInt(0))),(Node *) funattr)),
+//					(Node *) createNullConst(DT_STRING));
+			Node *bgCase = (Node *)createCaseExpr(NULL,singleton((Node *)createCaseWhen(
+					(Node *)createOpExpr(OPNAME_GT,LIST_MAKE(rowBG,createConstInt(0))),(Node *) getAttrRefByName(join, fname))),
+					(Node *) createNullConst(DT_STRING));
+			Node *lbCase = (Node *)createCaseExpr(NULL,singleton((Node *)createCaseWhen(
+					(Node *)createOpExpr(OPNAME_GT,LIST_MAKE(rowCertain,createConstInt(0))),(Node *) attrLB)),
+					(Node *) createNullConst(DT_STRING));
+
+			projList = appendToTailOfList(projList, bgCase);
+			projList = appendToTailOfList(projList, getAttrRefByName(join, fname_ub));
+			projList = appendToTailOfList(projList, lbCase);
+			nameList = appendToTailOfList(nameList,fname);
+			nameList = appendToTailOfList(nameList,fname_ub);
+			nameList = appendToTailOfList(nameList,fname_lb);
+		}
 		if(strcmp(((FunctionCall *)n)->functionname, COUNT_FUNC_NAME)==0){
 			projList = appendToTailOfList(projList, getAttrRefByName(join, fnameo));
 			projList = appendToTailOfList(projList, getAttrRefByName(join, ROW_POSSIBLE_TWO));
@@ -3392,13 +3417,29 @@ rewrite_RangeAggregation2(QueryOperator *op){
 	List *namelist_aggr = NIL;
 
 	int pos = 0;
-
 	FOREACH(Node, n, aggrl){
 		Node * funattr = getHeadOfListP(((FunctionCall *)n)->args);
 		char * origname = ((AttributeReference *)funattr)->name;
 		char * fname = getAttrTwoString(origname);
 		char * fname_ub = getUBString(fname);
 		char * fname_lb = getLBString(fname);
+		if(strcmp(((FunctionCall *)n)->functionname, POSTGRES_BITOR_FUN)==0
+			|| strcmp(((FunctionCall *)n)->functionname, POSTGRES_FAST_BITOR_FUN)==0
+			|| strcmp(((FunctionCall *)n)->functionname, ORACLE_SKETCH_AGG_FUN)==0)
+		{
+			INFO_LOG("what is origname: %s, fname %s", origname, fname);
+			char* fcname = ((FunctionCall *)n)->functionname;
+			Node *bgfunc = (Node *)createFunctionCall(strdup(fcname), singleton(getAttrRefByName(proj, fname)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);
+			Node *ubfunc = (Node *)createFunctionCall(strdup(fcname), singleton(getAttrRefByName(proj, fname_ub)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, ubfunc);
+			Node *lbfunc = (Node *)createFunctionCall(strdup(fcname), singleton(getAttrRefByName(proj, fname_lb)));
+			new_aggr_List = appendToTailOfList(new_aggr_List, lbfunc);
+			char *outname = (char*)getNthOfListP(aggr_out_names, pos);
+			namelist_aggr = appendToTailOfList(namelist_aggr, outname);
+			namelist_aggr = appendToTailOfList(namelist_aggr, getUBString(outname));
+			namelist_aggr = appendToTailOfList(namelist_aggr, getLBString(outname));
+		}
 		if(strcmp(((FunctionCall *)n)->functionname, COUNT_FUNC_NAME)==0){
 			Node *bgfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname)));
 			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);

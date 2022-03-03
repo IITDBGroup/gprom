@@ -62,6 +62,7 @@ typedef struct psInfoCell
 #define POSTGRES_BITOR_FUN "bitor"
 #define POSTGRES_SET_BIT_FUN "set_bit_on"
 #define POSTGRES_BIT_DT "bit"
+#define POSTGRES_BIT_AND_FUN "bit_and"
 
 #define COARSE_GRAINED_HASH "HASH"
 #define COARSE_GRAINED_PAGE "PAGE"
