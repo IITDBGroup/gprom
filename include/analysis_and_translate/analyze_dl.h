@@ -16,6 +16,7 @@
 #include "model/graph/graph.h"
 
 extern Node *analyzeDLModel(Node *stmt);
+extern void createDLanalysisStructures(DLProgram *p, boolean cleanup, boolean createRelToRelG, boolean createBityPredToRule);
 extern void createRelToRuleMap(Node *stmt);
 extern Graph *createRelToRelGraph(Node *stmt);
 extern HashMap *createBodyPredToRuleMap(DLProgram *p);

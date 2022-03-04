@@ -117,7 +117,7 @@ extern List *makeNodeListFromSet(Set *s);
 			addToSet(_result_, newIt);									\
 		}																\
 		_set_ = _result_;												\
-	} while(0);
+	} while(0)
 
 #define MAP_SET_NODE(_set_,_expr_)										\
 	do {																\
@@ -130,7 +130,7 @@ extern List *makeNodeListFromSet(Set *s);
 			addToSet(_result_, newIt);									\
 		}																\
 		_set_ = _result_;												\
-	} while(0);
+	} while(0)
 
 
 extern boolean hasSetElem (Set *set, void *_el);

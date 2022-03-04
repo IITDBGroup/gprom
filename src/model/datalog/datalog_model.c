@@ -255,6 +255,16 @@ getHeadVars(DLRule *r)
 }
 
 List *
+getHeadVarNames(DLRule *r)
+{
+	List *result = getHeadVars(r);
+
+
+
+	return result;
+}
+
+List *
 getVarNames (List *vars)
 {
     List *result = NIL;
@@ -405,6 +415,9 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 
 	result = copyObject(p);
 	result->rules = newRules;
+
+	// recreate analysis data structures for modified program
+	createDLanalysisStructures(result, TRUE, TRUE, TRUE);
 
 	INFO_DL_LOG("Program after merging subqueries:", result);
 

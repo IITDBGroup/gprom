@@ -62,6 +62,48 @@ analyzeDLModel(Node *stmt)
     return stmt;
 }
 
+/**
+ * @brief Create convenience data structures of DL program analysis results.
+ *
+ * The data structures are stored as properties of the program. Unless overwrite
+ * is true, do not overwrite any data structure that already exists.
+ *
+ * @param p the program to analyze
+ * @param cleanup delete previous versions of the generated datastructures
+ * @param createRelToRelG if true, create a idb to body atom graph
+ * @param createBodyPredToRuleMap create map from body predicates  to the rules they belong to
+ */
+
+
+void
+createDLanalysisStructures(DLProgram *p, boolean cleanup, boolean createRelToRelG, boolean createBodyPredToRule)
+{
+	if(cleanup)
+	{
+		DL_DEL_PROP(p, DL_IS_CHECKED);
+	    DL_DEL_PROP(p, DL_IDB_RELS);
+	    DL_DEL_PROP(p, DL_EDB_RELS);
+		DL_DEL_PROP(p, DL_MAP_RELNAME_TO_RULES);
+		DL_DEL_PROP(p, DL_MAP_BODYPRED_TO_RULES);
+		DL_DEL_PROP(p, DL_FACT_RELS);
+		DL_DEL_PROP(p, DL_AGGR_RELS);
+		DL_DEL_PROP(p, DL_REL_TO_REL_GRAPH);
+	}
+
+	if(!DL_HAS_PROP(p, DL_IS_CHECKED))
+	{
+		checkDLModel((Node *) p);
+	}
+	if(createRelToRelG && !DL_HAS_PROP(p, DL_REL_TO_REL_GRAPH))
+	{
+		createRelToRelGraph((Node *) p);
+	}
+	if(createBodyPredToRule && !DL_HAS_PROP(p, DL_MAP_BODYPRED_TO_RULES))
+	{
+		createBodyPredToRuleMap(p);
+	}
+}
+
 void
 createRelToRuleMap(Node *stmt)
 {

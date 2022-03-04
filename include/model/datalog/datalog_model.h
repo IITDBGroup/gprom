@@ -112,6 +112,7 @@ extern List *getBodyVars(DLRule *r);
 List *getBodyArgs(DLRule *r);
 extern List *getBodyPredVars(DLRule *r);
 extern List *getHeadVars(DLRule *r);
+extern List *getHeadVarNames(DLRule *r);
 extern List *getHeadExprVars(DLRule *r);
 extern List *getAtomExprVars(DLAtom *a);
 extern List *getAtomTopLevelVars(DLAtom *a);
@@ -164,6 +165,7 @@ extern void delAllProps(DLNode *n);
 #define DL_PROG_FDS "PROGRAM_FDS"
 #define DL_IS_CHECKED "HAS_BEEN_CHECKED"
 
+// provenance
 #define DL_PROV_WHY "WHY_PROV"
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
 #define DL_PROV_FULL_GP "FULL_GP_PROV"
@@ -195,6 +197,7 @@ extern void delAllProps(DLNode *n);
 #define DL_FACT_RELS "FACT_RELS"
 #define DL_AGGR_RELS "AGGR_DEF_RELS"
 
+// GP rule information
 #define DL_WON "WON"
 #define DL_LOST "LOST"
 #define DL_UNDER_NEG_WON "UNDER_NEG_WON"

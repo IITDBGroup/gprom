@@ -527,8 +527,9 @@ createJoinGraph(DLRule *r)
 					{
 						if(!equal(a, end))
 						{
-							edges = appendToTailOfList(edges,
-													   createNodeKeyValue((Node *) a, (Node *) end));
+							edges = appendToTailOfList(
+								edges,
+								createNodeKeyValue((Node *) a, (Node *) end));
 						}
 					}
 				}
@@ -539,4 +540,26 @@ createJoinGraph(DLRule *r)
 	g = createGraph(nodes, edges);
     DEBUG_NODE_BEATIFY_LOG("generated join graph", g);
 	return g;
+}
+
+DLRule *
+minimizeDLRule(DLRule *r)
+{
+	DLRule *prev = r;
+	DLRule *result = copyObject(r);
+	boolean changed = TRUE;
+	Set *headVars = varListToNameSet(getHeadVars(r));
+
+	while(changed)
+	{
+
+
+
+		if(equal(prev, result))
+		{
+			changed = FALSE;
+		}
+	}
+
+	return result;
 }

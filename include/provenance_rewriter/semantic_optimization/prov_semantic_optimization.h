@@ -25,6 +25,6 @@ extern DLRule *optimizeDLRule(DLProgram *p, DLRule *r, List *fds, char *targetTa
 extern List *adaptFDsToRules(DLProgram *p, DLRule *r, List *fds);
 extern boolean checkFDonAtoms(Set *atoms, List *fds, FD *fd);
 extern Graph *createJoinGraph(DLRule *r);
-
+extern DLRule *minimizeDLRule(DLRule *r);
 
 #endif /* _PROV_SEMANTIC_OPTIMIZATION_H_ */

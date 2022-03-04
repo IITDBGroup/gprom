@@ -120,6 +120,17 @@ typedef struct List
                     DUMMY_LC(_ival2_)->next) != NULL) ? \
                     DUMMY_LC(_ival2_)->data.int_value : -1))
 
+// map over list elements with anamorphic expression
+#define MAP_LIST(_list_,_expr_)											\
+	do {																\
+		List *_result_ = newList(T_List);								\
+		for(ListCell *_lc_ = _list_->head; _lc_ != NULL; lc = lc->next)	\
+		{																\
+			void *it = _lc_->data.ptr_value;							\
+			_lc_->data.ptr_value = (_expr_);							\
+		}																\
+    } while(0)
+
 /*
  * Get pointer of integer value of a list cell
  */
