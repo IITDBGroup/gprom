@@ -1,12 +1,12 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_postgres.c
- *			  
+ *
  *		- Catalog lookup for postgres database
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -111,6 +111,9 @@
                      "FROM pg_constraint c, pg_class t, pg_attribute a " \
                      "WHERE c.contype = 'p' AND c.conrelid = t.oid AND t.relname = $1::text AND a.attrelid = t.oid AND a.attnum = ANY(c.conkey);"
 
+#define NAME_GET_NUMROWS "GProM_GetNumRows"
+#define PARAMS_GET_NUMROWS 1
+#define QUERY_GET_NUMROWS "SELECT reltuples AS estimate FROM pg_class WHERE relname = $1::text;"
 
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
@@ -217,6 +220,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getKeyInformation = postgresGetKeyInformation;
     p->executeQuery = postgresExecuteQuery;
     p->executeQueryIgnoreResult = postgresExecuteQueryIgnoreResult;
+	p->getNumofRowsInformation = postgresGetNumRowsInformation;
     p->connectionDescription = postgresGetConnectionDescription;
     p->sqlTypeToDT = postgresBackendSQLTypeToDT;
     p->dataTypeToSQL = postgresBackendDatatypeToSQL;
@@ -390,6 +394,7 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_FUNC_DEFS);
     PREP_QUERY(GET_OP_DEFS);
     PREP_QUERY(GET_PK);
+	PREP_QUERY(GET_NUMROWS);
 }
 
 int
@@ -904,6 +909,28 @@ postgresBackendDatatypeToSQL (DataType dt)
 }
 
 
+int
+postgresGetNumRowsInformation(char *tableName)
+{
+	int result;
+    PGresult *res = NULL;
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    res = execPrepared(NAME_GET_NUMROWS, singleton(createConstString(tableName)));
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++)
+        result =  atoi(PQgetvalue(res,i,0));
+
+    // cleanup
+    PQclear(res);
+
+    RELEASE_MEM_CONTEXT();
+	return result;
+}
+
 
 void
 postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
@@ -1296,4 +1323,3 @@ postgresExecuteQueryIgnoreResult (char *query)
 }
 
 #endif
-
