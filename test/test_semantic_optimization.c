@@ -21,9 +21,13 @@
 #include "log/logger.h"
 
 #include "model/datalog/datalog_model.h"
+#include "model/datalog/datalog_model_checker.h"
+#include "analysis_and_translate/analyze_dl.h"
 #include "model/graph/graph.h"
+#include "parser/parser_dl.h"
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 #include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
+
 
 static rc testOptimization(void);
 static rc testRewriting(void);
@@ -118,6 +122,25 @@ testJoinGraph(void)
 	return PASS;
 }
 
+#define TEST_LINEAGE_REWRITE(_inp,_exp,_description)					\
+	do {																\
+		DLProgram *_inp_, *_ep_,*_ap_;									\
+																		\
+		_inp_ = (DLProgram *) parseFromStringdl(_inp);					\
+		_ep_ = (DLProgram *) parseFromStringdl(_exp);					\
+																		\
+		analyzeDLModel((Node *) _inp_);									\
+		analyzeDLModel((Node *) _ep_);									\
+																		\
+		_ap_ = rewriteDLForLinageCapture(_inp_);						\
+																		\
+		delAllProps((DLNode *) _inp_);									\
+		delAllProps((DLNode *) _ep_);									\
+		delAllProps((DLNode *) _ap_);									\
+																		\
+		ASSERT_EQUALS_NODE(_ep_,_ap_,_description " : " _inp); \
+	} while (0)
+
 static rc
 testRewriting(void)
 {
@@ -137,6 +160,21 @@ testRewriting(void)
 					   LIST_MAKE(gr,gs,head));
 
 	ASSERT_EQUALS_NODE(exp,rewr,"capture rule is");
+
+	TEST_LINEAGE_REWRITE(
+		"Q(X) :- R(X,Y). ANS : Q. LINEAGE FOR R.",
+		"Q(X) :- R(X,Y). PROV_R(X,Y) :- R(X,Y), Q(X). ANS : PROV_R.",
+		"simple query");
+
+	TEST_LINEAGE_REWRITE(
+		"Q(X) :- R(X,Y), S(Y,Z). ANS : Q. LINEAGE FOR R.",
+		"Q(X) :- R(X,Y), S(Y,Z). PROV_R(X,Y) :- R(X,Y), S(Y,Z), Q(X). ANS : PROV_R.",
+		"join query");
+
+	TEST_LINEAGE_REWRITE(
+		"Q(X) :- R(X,Y), X < 5. ANS : Q. LINEAGE FOR R.",
+		"Q(X) :- R(X,Y), X < 5. PROV_R(X,Y) :- R(X,Y), X < 5, Q(X). ANS : PROV_R.",
+		"query with comparison");
 
 	return PASS;
 }

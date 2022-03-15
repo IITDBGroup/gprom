@@ -548,7 +548,7 @@ minimizeDLRule(DLRule *r)
 	DLRule *prev = r;
 	DLRule *result = copyObject(r);
 	boolean changed = TRUE;
-	Set *headVars = varListToNameSet(getHeadVars(r));
+	//TODO implement this Set *headVars = varListToNameSet(getHeadVars(r));
 
 	while(changed)
 	{
