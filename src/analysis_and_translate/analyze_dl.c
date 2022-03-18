@@ -38,6 +38,7 @@ static DLProgram *analyzeDLProgram (DLProgram *p);
 static void analyzeSummerizationBasics (DLProgram *p);
 static void analyzeSummarizationAdvanced (DLProgram *p);
 static void backendifyAtom(DLAtom *a);
+static void backendifyDLComparison(DLComparison *c);
 static void backendifyProgram(DLProgram *p);
 static void analyzeRule(DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
 static void analyzeFD(FD *f, DLProgram *p);
@@ -661,6 +662,17 @@ backendifyAtom(DLAtom *a)
 }
 
 static void
+backendifyDLComparison(DLComparison *c)
+{
+	List *vars = getExprVars((Node *) c);
+
+	FOREACH(DLVar,v,vars)
+	{
+		v->name = backendifyIdentifier(v->name);
+	}
+}
+
+static void
 backendifyProgram(DLProgram *p)
 {
 	FOREACH(DLNode,n,p->rules)
@@ -679,6 +691,12 @@ backendifyProgram(DLProgram *p)
 					DLAtom *atom = (DLAtom *) a;
 
 					backendifyAtom(atom);
+				}
+				else if(isA(a, DLComparison))
+				{
+					DLComparison *c = (DLComparison *) a;
+
+					backendifyDLComparison(c);
 				}
 			}
 		}
@@ -716,9 +734,10 @@ analyzeRule(DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factR
             }
         }
 
+		//TODO this seems not very useful because we do not know which rules these come from and it is not used anywhere
         if (isA(a,DLComparison))
         {
-            p->comp = appendToTailOfList(p->comp, a);
+            //p->comp = appendToTailOfList(p->comp, a);
 
             INFO_DL_LOG("comparison expression:", p->comp);
             DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp));

@@ -145,8 +145,6 @@ testequalList (void)
 		ASSERT_EQUALS_NODE(_ep,_ap,"Datalog programs equal:\n" ep);	\
 	} while(0)
 
-
-
 static rc
 testequalDL(void)
 {

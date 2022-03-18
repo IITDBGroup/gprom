@@ -138,7 +138,12 @@ testJoinGraph(void)
 		delAllProps((DLNode *) _ep_);									\
 		delAllProps((DLNode *) _ap_);									\
 																		\
-		ASSERT_EQUALS_NODE(_ep_,_ap_,_description " : " _inp); \
+		INFO_DL_LOG("Expected progran", _ep_);							\
+	    INFO_DL_LOG("Actual progran", _ap_);							\
+		DEBUG_NODE_BEATIFY_LOG("Expected progran", _ep_);				\
+		DEBUG_NODE_BEATIFY_LOG("Actual progran", _ap_);					\
+																		\
+		ASSERT_EQUALS_NODE(_ep_,_ap_,_description " : " _inp);			\
 	} while (0)
 
 static rc
