@@ -25,6 +25,7 @@
 #define RANGE "RANGE"
 #define BLOOM_FILTER "BLOOM_FILTER"
 #define HASH "HASH"
+#define PROP_STORE_APPROX "STORE APPROX PROPERTY"
 
 void test(Node *qbModel);
 extern HashMap *monotoneCheck(Node *qbModel);
@@ -69,12 +70,35 @@ boolean checkAllIsNegative(HashMap *table_map, char *colName);
 boolean isPostive(char *tableName, char *colName);
 boolean isNegative(char *tableName, char *colName);
 
-
-
+boolean decodeQuery(Node* node, HashMap *data);
+void runSelectivity(Node *qbModel);
+void runSelectivity2(Node *qbModel);
+void runSelectivity3(Node *qbModel);
 void computeDistinct (QueryOperator *root);
-double computeSelectivity(Operator *cond);
+double computeSelectivity2(Operator *cond);
 void *constantToValue(Constant *constant);
 void testhistogrma();
+char* materlizeSample (QueryOperator *root);
+void selectKItems(int n, int k, int *sample);
+void kkkk(int n, int k, int *sample);
+void generateQuery();
+void generateQuery_CRIMES();
+char *printQuery(char *value, double percent, char *query, char *agg, char* agg_attr);
+
+boolean computeCost(Node* node, Set *SafeOpeartors);
+void computeCosts (QueryOperator *root, Set *SafeOpeartors);
+boolean isSkewed();
+char* checkUncertainty (QueryOperator *root, Set *SafeOpeartors);
+char*getTable(QueryOperator *root);
+boolean countSelection(Node* node, int* count);
+boolean isSkewed(char *tableName);
+char* urange(char* table);
+char* compressTable(char* attr,char *table);
+char intToChar(int num);
+char* selectionCondition(Operator * cond);
+List *step1Sample(char *ps[],char* groupbyAttr1_groupbyAttr2, char* groupbyAttr);
+List *step2PartialSample(List *samples,char* groupbyAttr);
+List *step3StatSample(List *partialSamples,char* groupbyAttr1_groupbyAttr2, char* groupbyAttr,char* aggrName);
 //void joinHist(char *hist1, char *hist2);
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_PS_SAFETY_CHECK_H_ */

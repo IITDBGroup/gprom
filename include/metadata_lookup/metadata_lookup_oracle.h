@@ -14,6 +14,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/query_operator/query_operator.h"
 
+
 /* enums for aggregation and window functions */
 #define AGG_FUNCTION_NAME_MAXSIZE 20
 
@@ -94,9 +95,33 @@ char *appendStatement(char *tableName, char *attrName, char *attrName2, char *nu
 extern void oracleStoreInterval(char *tableName, char *attrName, char *numPartitions);
 List* getAttributeFromHist(char *hist1, char *hist2);
 extern char *oracleJoin2Hist(char *hist1, char *hist2, char *tableName, char *attrName);
-extern List* oracleComputeSumFromHist(char *tableName, char *attrName, char *sumAttrName);
+extern char *oracleComputeSumFromHist(char *tableName, char *attrName, char *sumAttrName, char *aggName);
 char* computeNumOfGroupFromHist(char *tableName, char *attrName, char *sumAttrName);
 List* getLastInterval(char *tableName, char *attrName, char *numPartitions);
+extern char* oracleProjectionFiltering(char *tableName, char *num, Set *attrNames);
+extern char* oracleSelectionFiltering(char *tableName, char *num, char *selection);
+extern char* oracleGet1Dhist(char *tableName, char *colName, char *numPartitions);
+extern double oracleComputeSelectivity(char *tableName, char *selection);
+extern char* oracleGetSamples(int num, char *query, char *sampleTable);
+extern char* oracleGetSampleStat(char * sampleName,char *aggrName,char *groupBy, char *sampleRate, char* count_table);
+extern void oracleGetPartitionSizes(char* tableName, char* attr, char* partition[], char* size[], int length);
+extern char* oracleGetPartitionSizes2(char *tableName, char*num);
+extern char* oracleCreateSampleTable(char * sampleName,char *aggrName,char *groupBy);
+extern char* oracleStorePartitionSizes(char* tableName, char* attr, char* partition[], int length);
+extern char* oracleGetSamplesDirectly(char *attributes, char *partitionAttributes, char *sampleRate, char*tableName);
+extern char* oracleDropTable(char *table);
+extern char* oracleStoreSelectivty(char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate);
+extern char *oracleStoreGroupbyCount(char *groupby, char *groupby2, char* tablename);
+extern char *oracleFindTheMax(char *query, char *aggName);
+extern char *oracleGetSamples2(char *groupbyAttr, char* groupbyAttr1_groupbyAttr2, char *psAttr, char*sampleRate);
+extern char *oraclePartialSample(char *tableName, char *groupbyAttr, int num);
+extern int oracleGetCount(char *tableName);
+extern char *oracleGetStatPartialSample(char *partialSampleTableName, char *aggrName, char*groupbyAttr,char* count_table);
+extern char*oracleStoreSelectivty2(char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate);
+extern char*oracleInsertSelectivity(char *constant, char *groupbyAttr, char *agg_attr, char* ps_attr, char *agg_name, char* table, char *sampleRate);
+extern char*oracleCreateTable(char* query, char* tablename);
+//extern char* selectionCondition(Operator * cond);
+
 
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);

@@ -1,0 +1,1 @@
+"SELECT * FROM (select sum(L_SUPPKEY) AS SUM_u_views,L_PARTKEY,L_ORDERKEY from lineitem GROUP BY L_PARTKEY,L_ORDERKEY) WHERE SUM_u_views >10000;"

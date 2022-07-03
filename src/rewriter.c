@@ -450,8 +450,15 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	//HashMap *checkResult; //TODO only call if we are computing prov sketches
 	//checkResult = monotoneCheck(oModel);
 	//FREE(checkResult); //TODO why free this?
-	QueryOperator *root = (QueryOperator *) getHeadOfList((List*) oModel)->data.ptr_value;
-	computeDistinct(root);
+	//QueryOperator *root = (QueryOperator *) getHeadOfList((List*) oModel)->data.ptr_value;
+	//computeDistinct(root);
+	//char *query = serializeOperatorModel(oModel);
+	//char *query = serializeQueryOracle(root);
+	//DEBUG_LOG("LZY is %s", query);
+	//generateQuery_CRIMES();
+	runSelectivity3(oModel);
+	//runSelectivity2(oModel);
+	//generateQuery();
 	//Ziyu Liu
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))

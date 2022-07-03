@@ -23,6 +23,7 @@
 #include "metadata_lookup/metadata_lookup_external.h"
 #include "metadata_lookup/metadata_lookup_sqlite.h"
 #include "metadata_lookup/metadata_lookup_monetdb.h"
+#include "model/query_operator/query_operator.h"
 
 #define PLUGIN_NAME_ORACLE "oracle"
 #define PLUGIN_NAME_POSTGRES "postgres"
@@ -37,520 +38,642 @@ static MetadataLookupPluginType stringToPluginType(char *type);
 static char *pluginTypeToString(MetadataLookupPluginType type);
 
 /* create list of available plugins */
-int
-initMetadataLookupPlugins (void)
-{
-    availablePlugins = NIL;
+int initMetadataLookupPlugins(void) {
+	availablePlugins = NIL;
 
 // only assemble plugins for which the library is available
 #if HAVE_ORACLE_BACKEND
-    availablePlugins = appendToTailOfList(availablePlugins, assembleOracleMetadataLookupPlugin());
+	availablePlugins = appendToTailOfList(availablePlugins,
+			assembleOracleMetadataLookupPlugin());
 #endif
 #ifdef HAVE_POSTGRES_BACKEND
-    availablePlugins = appendToTailOfList(availablePlugins, assemblePostgresMetadataLookupPlugin());
+	availablePlugins = appendToTailOfList(availablePlugins,
+			assemblePostgresMetadataLookupPlugin());
 #endif
 #if HAVE_SQLITE_BACKEND
-    availablePlugins = appendToTailOfList(availablePlugins, assembleSqliteMetadataLookupPlugin());
+	availablePlugins = appendToTailOfList(availablePlugins, assembleSqliteMetadataLookupPlugin());
 #endif
 #if HAVE_MONETDB_BACKEND
-    availablePlugins = appendToTailOfList(availablePlugins, assembleMonetdbMetadataLookupPlugin());
+	availablePlugins = appendToTailOfList(availablePlugins, assembleMonetdbMetadataLookupPlugin());
 #endif
-    availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
+	availablePlugins = appendToTailOfList(availablePlugins,
+			assembleExternalMetadataLookupPlugin(NULL));
 
-
-
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
-int
-shutdownMetadataLookupPlugins (void)
-{
-    FOREACH(MetadataLookupPlugin,p,availablePlugins)
-    {
-        if (p->isInitialized())
-            p->shutdownMetadataLookupPlugin();
-    }
-    FOREACH(MetadataLookupPlugin,p,availablePlugins)
-    {
-        FREE(p);
-    }
-    freeList(availablePlugins);
-    availablePlugins = NIL;
+int shutdownMetadataLookupPlugins(void) {
+	FOREACH(MetadataLookupPlugin,p,availablePlugins)
+	{
+		if (p->isInitialized())
+			p->shutdownMetadataLookupPlugin();
+	}
+	FOREACH(MetadataLookupPlugin,p,availablePlugins)
+	{
+		FREE(p);
+	}
+	freeList(availablePlugins);
+	availablePlugins = NIL;
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
 /* choosePlugins */
-void
-chooseMetadataLookupPluginFromString (char *plug)
-{
-    chooseMetadataLookupPlugin(stringToPluginType(plug));
+void chooseMetadataLookupPluginFromString(char *plug) {
+	chooseMetadataLookupPlugin(stringToPluginType(plug));
 }
 
-void
-chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
-{
-    FOREACH(MetadataLookupPlugin,p,availablePlugins)
-    {
-        if (p->type == plugin)
-        {
-            activePlugin = p;
-            if (!(p->isInitialized()))
-                p->initMetadataLookupPlugin();
-            INFO_LOG("PLUGIN metadatalookup: <%s>", pluginTypeToString(plugin));
+void chooseMetadataLookupPlugin(MetadataLookupPluginType plugin) {
+	FOREACH(MetadataLookupPlugin,p,availablePlugins)
+	{
+		if (p->type == plugin) {
+			activePlugin = p;
+			if (!(p->isInitialized()))
+				p->initMetadataLookupPlugin();
+			INFO_LOG("PLUGIN metadatalookup: <%s>", pluginTypeToString(plugin));
 
-            return;
-        }
-    }
-    FATAL_LOG("did not find plugin <%s>", MetadataLookupPluginTypeToString(plugin));
+			return;
+		}
+	}
+	FATAL_LOG("did not find plugin <%s>",
+			MetadataLookupPluginTypeToString(plugin));
 }
 
-void
-setMetadataLookupPlugin (MetadataLookupPlugin *p)
-{
+void setMetadataLookupPlugin(MetadataLookupPlugin *p) {
 	activePlugin = p;
 	if (!(p->isInitialized()))
 		p->initMetadataLookupPlugin();
 
 }
 
-static MetadataLookupPluginType
-stringToPluginType(char *type)
-{
-    if (strcmp(type, PLUGIN_NAME_ORACLE) == 0)
-        return METADATA_LOOKUP_PLUGIN_ORACLE;
-    if (strcmp(type, PLUGIN_NAME_POSTGRES) == 0)
-        return METADATA_LOOKUP_PLUGIN_POSTGRES;
-    if (strcmp(type, PLUGIN_NAME_SQLITE) == 0)
-        return METADATA_LOOKUP_PLUGIN_SQLITE;
-    if (strcmp(type, PLUGIN_NAME_MONETDB) == 0)
-        return METADATA_LOOKUP_PLUGIN_MONETDB;
-    if (strcmp(type, PLUGIN_NAME_EXTERNAL) == 0)
-        return METADATA_LOOKUP_PLUGIN_EXTERNAL;
-    FATAL_LOG("unkown plugin type <%s>", type);
-    return METADATA_LOOKUP_PLUGIN_ORACLE;
+static MetadataLookupPluginType stringToPluginType(char *type) {
+	if (strcmp(type, PLUGIN_NAME_ORACLE) == 0)
+		return METADATA_LOOKUP_PLUGIN_ORACLE;
+	if (strcmp(type, PLUGIN_NAME_POSTGRES) == 0)
+		return METADATA_LOOKUP_PLUGIN_POSTGRES;
+	if (strcmp(type, PLUGIN_NAME_SQLITE) == 0)
+		return METADATA_LOOKUP_PLUGIN_SQLITE;
+	if (strcmp(type, PLUGIN_NAME_MONETDB) == 0)
+		return METADATA_LOOKUP_PLUGIN_MONETDB;
+	if (strcmp(type, PLUGIN_NAME_EXTERNAL) == 0)
+		return METADATA_LOOKUP_PLUGIN_EXTERNAL;
+	FATAL_LOG("unkown plugin type <%s>", type);
+	return METADATA_LOOKUP_PLUGIN_ORACLE;
 }
 
 static char *
-pluginTypeToString(MetadataLookupPluginType type)
-{
-    switch(type)
-    {
-    case METADATA_LOOKUP_PLUGIN_ORACLE:
-        return PLUGIN_NAME_ORACLE;
-    case METADATA_LOOKUP_PLUGIN_POSTGRES:
-        return PLUGIN_NAME_POSTGRES;
-    case METADATA_LOOKUP_PLUGIN_SQLITE:
-        return PLUGIN_NAME_SQLITE;
-    case METADATA_LOOKUP_PLUGIN_MONETDB:
-            return PLUGIN_NAME_MONETDB;
-    case METADATA_LOOKUP_PLUGIN_EXTERNAL:
-        return PLUGIN_NAME_EXTERNAL;
-    }
-    THROW(SEVERITY_RECOVERABLE, "unkown plugin type <%u>", type);
-    return NULL; //keep compiler quiet
+pluginTypeToString(MetadataLookupPluginType type) {
+	switch (type) {
+	case METADATA_LOOKUP_PLUGIN_ORACLE:
+		return PLUGIN_NAME_ORACLE;
+	case METADATA_LOOKUP_PLUGIN_POSTGRES:
+		return PLUGIN_NAME_POSTGRES;
+	case METADATA_LOOKUP_PLUGIN_SQLITE:
+		return PLUGIN_NAME_SQLITE;
+	case METADATA_LOOKUP_PLUGIN_MONETDB:
+		return PLUGIN_NAME_MONETDB;
+	case METADATA_LOOKUP_PLUGIN_EXTERNAL:
+		return PLUGIN_NAME_EXTERNAL;
+	}
+	THROW(SEVERITY_RECOVERABLE, "unkown plugin type <%u>", type);
+	return NULL; //keep compiler quiet
 }
-
 
 /* wrappers to plugin methods */
-int
-initMetadataLookupPlugin (void)
-{
-    ASSERT(activePlugin);
+int initMetadataLookupPlugin(void) {
+	ASSERT(activePlugin);
 
-	activePlugin->metadataLookupContext = NEW_LONGLIVED_MEMCONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    int returnVal = activePlugin->initMetadataLookupPlugin();
-    RELEASE_MEM_CONTEXT();
+	activePlugin->metadataLookupContext = NEW_LONGLIVED_MEMCONTEXT(
+			"METADATA_LOOKUP_PLUGIN_CONTEXT");
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int returnVal = activePlugin->initMetadataLookupPlugin();
+	RELEASE_MEM_CONTEXT();
 
-    return returnVal;
+	return returnVal;
 }
 
-int
-shutdownMetadataLookupPlugin (void)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
+int shutdownMetadataLookupPlugin(void) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
 
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    int resultVal = activePlugin->shutdownMetadataLookupPlugin();
-    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-    activePlugin->metadataLookupContext = NULL;
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int resultVal = activePlugin->shutdownMetadataLookupPlugin();
+	FREE_AND_RELEASE_CUR_MEM_CONTEXT()
+	;
+	activePlugin->metadataLookupContext = NULL;
 
-    return resultVal;
+	return resultVal;
 }
 
-boolean
-isInitialized (void)
-{
-    ASSERT(activePlugin);
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    boolean result = activePlugin->isInitialized();
-    RELEASE_MEM_CONTEXT();
-    return result;
+boolean isInitialized(void) {
+	ASSERT(activePlugin);
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	boolean result = activePlugin->isInitialized();
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 char *
-getConnectionDescription (void)
-{
-    ASSERT(activePlugin);
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    char *result = activePlugin->connectionDescription();
-    RELEASE_MEM_CONTEXT();
-    return result;
+getConnectionDescription(void) {
+	ASSERT(activePlugin);
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char *result = activePlugin->connectionDescription();
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-boolean
-catalogTableExists (char * tableName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    boolean result = activePlugin->catalogTableExists(tableName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+boolean catalogTableExists(char * tableName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	boolean result = activePlugin->catalogTableExists(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-boolean
-catalogViewExists (char * viewName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    boolean result = activePlugin->catalogViewExists(viewName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+boolean catalogViewExists(char * viewName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	boolean result = activePlugin->catalogViewExists(viewName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 List *
-getAttributes (char *tableName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    List *result = activePlugin->getAttributes(tableName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+getAttributes(char *tableName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	List *result = activePlugin->getAttributes(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 List *
-getAttributeNames (char *tableName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    List *result = activePlugin->getAttributeNames(tableName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+getAttributeNames(char *tableName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	List *result = activePlugin->getAttributeNames(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 Node *
-getAttributeDefaultVal (char *schema, char *tableName, char *attrName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    Node *result = activePlugin->getAttributeDefaultVal(schema, tableName,attrName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+getAttributeDefaultVal(char *schema, char *tableName, char *attrName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	Node *result = activePlugin->getAttributeDefaultVal(schema, tableName,
+			attrName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 List *
-getAttributeDataTypes (char *tableName)
-{
-    //List *result = NIL;
-    List *attrs = NIL;
-    ASSERT(activePlugin && activePlugin->isInitialized());
+getAttributeDataTypes(char *tableName) {
+	//List *result = NIL;
+	List *attrs = NIL;
+	ASSERT(activePlugin && activePlugin->isInitialized());
 
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    attrs = activePlugin->getAttributes(tableName);
-    List *result = NIL;
-    FOREACH(AttributeDef,a,attrs)
-        result = appendToTailOfListInt(result, a->dataType);
-    RELEASE_MEM_CONTEXT();
-    return result;
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	attrs = activePlugin->getAttributes(tableName);
+	List *result = NIL;
+	FOREACH(AttributeDef,a,attrs)
+		result = appendToTailOfListInt(result, a->dataType);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-boolean
-isAgg(char *functionName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    boolean result = activePlugin->isAgg(functionName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+boolean isAgg(char *functionName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	boolean result = activePlugin->isAgg(functionName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-boolean
-isWindowFunction(char *functionName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    boolean result = activePlugin->isWindowFunction(functionName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+boolean isWindowFunction(char *functionName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	boolean result = activePlugin->isWindowFunction(functionName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-DataType
-getFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    DataType result = activePlugin->getFuncReturnType(fName, argTypes, funcExists);
-    RELEASE_MEM_CONTEXT();
-    return result;
+DataType getFuncReturnType(char *fName, List *argTypes, boolean *funcExists) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	DataType result = activePlugin->getFuncReturnType(fName, argTypes,
+			funcExists);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-DataType
-getOpReturnType (char *oName, List *argTypes, boolean *funcExists)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    DataType result = activePlugin->getOpReturnType(oName, argTypes, funcExists);
-    RELEASE_MEM_CONTEXT();
-    return result;
+DataType getOpReturnType(char *oName, List *argTypes, boolean *funcExists) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	DataType result = activePlugin->getOpReturnType(oName, argTypes,
+			funcExists);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-DataType
-backendSQLTypeToDT (char *sqlType)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    DataType result = activePlugin->sqlTypeToDT(sqlType);
-    RELEASE_MEM_CONTEXT();
-    return result;
+DataType backendSQLTypeToDT(char *sqlType) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	DataType result = activePlugin->sqlTypeToDT(sqlType);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 char *
-backendDatatypeToSQL (DataType dt)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    char *result = activePlugin->dataTypeToSQL(dt);
-    RELEASE_MEM_CONTEXT();
-    return result;
-}
-
-
-char *
-getTableDefinition(char *tableName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    char *result = activePlugin->getTableDefinition(tableName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+backendDatatypeToSQL(DataType dt) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char *result = activePlugin->dataTypeToSQL(dt);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 char *
-getViewDefinition(char *viewName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    char *result = activePlugin->getViewDefinition(viewName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+getTableDefinition(char *tableName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char *result = activePlugin->getTableDefinition(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+
+char *
+getViewDefinition(char *viewName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char *result = activePlugin->getViewDefinition(viewName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 List *
-getKeyInformation (char *tableName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    List *result = activePlugin->getKeyInformation(tableName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+getKeyInformation(char *tableName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	List *result = activePlugin->getKeyInformation(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-void
-getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
-        List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
-    RELEASE_MEM_CONTEXT();
-    //return result;
+void getTransactionSQLAndSCNs(char *xid, List **scns, List **sqls,
+		List **sqlBinds, IsolationLevel *iso, Constant *commitScn) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso,
+			commitScn);
+	RELEASE_MEM_CONTEXT();
+	//return result;
 }
 
 Relation *
-executeQuery (char *sql)
-{
-    //ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    Relation *result = activePlugin->executeQuery(sql);
-    RELEASE_MEM_CONTEXT();
-    return result;
+executeQuery(char *sql) {
+	//ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	Relation *result = activePlugin->executeQuery(sql);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-void
-executeQueryIgnoreResult (char *sql)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    activePlugin->executeQueryIgnoreResult(sql);
-    RELEASE_MEM_CONTEXT();
+void executeQueryIgnoreResult(char *sql) {
+	ASSERT(
+			activePlugin && activePlugin->isInitialized()
+					&& activePlugin->executeQuery);
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	activePlugin->executeQueryIgnoreResult(sql);
+	RELEASE_MEM_CONTEXT();
 }
 
-gprom_long_t
-getCommitScn (char *tableName, gprom_long_t maxScn, char *xid)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    gprom_long_t result = activePlugin->getCommitScn(tableName, maxScn, xid);
-    RELEASE_MEM_CONTEXT();
-    return result;
+gprom_long_t getCommitScn(char *tableName, gprom_long_t maxScn, char *xid) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	gprom_long_t result = activePlugin->getCommitScn(tableName, maxScn, xid);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 Node *
-executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    Node *result = activePlugin->executeAsTransactionAndGetXID(statements, isoLevel);
-    RELEASE_MEM_CONTEXT();
-    return result;
+executeAsTransactionAndGetXID(List *statements, IsolationLevel isoLevel) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	Node *result = activePlugin->executeAsTransactionAndGetXID(statements,
+			isoLevel);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-int
-getCostEstimation(char *query)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    int result = activePlugin->getCostEstimation(query);
-    RELEASE_MEM_CONTEXT();
-    return result;
+int getCostEstimation(char *query) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int result = activePlugin->getCostEstimation(query);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-int
-databaseConnectionOpen (void)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    int result = activePlugin->databaseConnectionOpen();
-    RELEASE_MEM_CONTEXT();
-    return result;
+int databaseConnectionOpen(void) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int result = activePlugin->databaseConnectionOpen();
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-
-int
-databaseConnectionClose()
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    int result = activePlugin->databaseConnectionClose();
-    RELEASE_MEM_CONTEXT();
-    return result;
+int databaseConnectionClose() {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int result = activePlugin->databaseConnectionClose();
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 CatalogCache *
-createCache(void)
-{
-    CatalogCache *result = NEW(CatalogCache);
+createCache(void) {
+	CatalogCache *result = NEW(CatalogCache);
 
-    result->tableAttrs = NEW_MAP(Constant,List);
-    result->tableAttrDefs = NEW_MAP(Constant,List);
-    result->viewAttrs = NEW_MAP(Constant,List);
-    result->viewDefs = NEW_MAP(Constant,Constant);
-    result->viewNames = STRSET();
-    result->tableNames = STRSET();
-    result->aggFuncNames = STRSET();
-    result->winFuncNames = STRSET();
-    result->cacheHook = NULL;
+	result->tableAttrs = NEW_MAP(Constant, List);
+	result->tableAttrDefs = NEW_MAP(Constant, List);
+	result->viewAttrs = NEW_MAP(Constant, List);
+	result->viewDefs = NEW_MAP(Constant, Constant);
+	result->viewNames = STRSET();
+	result->tableNames = STRSET();
+	result->aggFuncNames = STRSET();
+	result->winFuncNames = STRSET();
+	result->cacheHook = NULL;
 
-    return result;
+	return result;
 }
 
 /*
-boolean
-isPostive(char *tableName, char *colName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    boolean result = activePlugin->checkPostive(tableName, colName);
-    RELEASE_MEM_CONTEXT();
-    return result;
-}
-*/
+ boolean
+ isPostive(char *tableName, char *colName)
+ {
+ ASSERT(activePlugin && activePlugin->isInitialized());
+ ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+ boolean result = activePlugin->checkPostive(tableName, colName);
+ RELEASE_MEM_CONTEXT();
+ return result;
+ }
+ */
 
 Constant*
-transferRawData(char *data, char *dataType){
+transferRawData(char *data, char *dataType) {
 	ASSERT(activePlugin && activePlugin->isInitialized());
 	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
 	Constant* result = activePlugin->trasnferRawData(data, dataType);
-    RELEASE_MEM_CONTEXT();
-    return result;
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 HashMap *
-getMinAndMax(char *tableName, char *colName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    HashMap * result = activePlugin->getMinAndMax(tableName, colName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+getMinAndMax(char *tableName, char *colName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	HashMap * result = activePlugin->getMinAndMax(tableName, colName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-int
-getRowNum(char* tableName)
-{
-	 ASSERT(activePlugin && activePlugin->isInitialized());
-	    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-	    int result = activePlugin->getRowNum(tableName);
-	    RELEASE_MEM_CONTEXT();
-	    return result;
+int getRowNum(char* tableName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int result = activePlugin->getRowNum(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 
 }
 
-
-int
-getDistinct(char *tableName, char *colName)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    int result = activePlugin->getDistinct(tableName, colName);
-    RELEASE_MEM_CONTEXT();
-    return result;
+int getDistinct(char *tableName, char *colName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int result = activePlugin->getDistinct(tableName, colName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 List *
-getHist(char *tableName, char *colName, char *numPartitions)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    List * result = activePlugin->getHist(tableName, colName, numPartitions);
-    RELEASE_MEM_CONTEXT();
-    return result;
+getHist(char *tableName, char *colName, char *numPartitions) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	List * result = activePlugin->getHist(tableName, colName, numPartitions);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
 char *
-get2DHist(char *tableName, char *colName, char *colName2, char *numPartitions1, char *numPartitions2)
-{
-    ASSERT(activePlugin && activePlugin->isInitialized());
-    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    char * result = activePlugin->get2DHist(tableName, colName, colName2, numPartitions1, numPartitions2);
-    RELEASE_MEM_CONTEXT();
-    return result;
+get2DHist(char *tableName, char *colName, char *colName2, char *numPartitions1,
+		char *numPartitions2) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->get2DHist(tableName, colName, colName2,
+			numPartitions1, numPartitions2);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
 
-void
-storeInterval(char *tableName, char *attrName, char *numPartitions)
-{
+void storeInterval(char *tableName, char *attrName, char *numPartitions) {
 	ASSERT(activePlugin && activePlugin->isInitialized());
 	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
 	activePlugin->storeInterval(tableName, attrName, numPartitions);
-    RELEASE_MEM_CONTEXT();
+	RELEASE_MEM_CONTEXT();
 }
 char*
-join2Hist(char *hist1, char *hist2, char *tableName, char *attrName)
-{
+join2Hist(char *hist1, char *hist2, char *tableName, char *attrName) {
 	ASSERT(activePlugin && activePlugin->isInitialized());
 	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
 	char * result = activePlugin->join2Hist(hist1, hist2, tableName, attrName);
 	RELEASE_MEM_CONTEXT();
 	return result;
 }
-List*
-computeSum(char *tableName, char *attrName, char *sumAttrName)
-{
+char*
+computeSum(char *tableName, char *attrName, char *sumAttrName, char *aggName) {
 	ASSERT(activePlugin && activePlugin->isInitialized());
 	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-	List * result = activePlugin->computeSum(tableName, attrName, sumAttrName);
+	char * result = activePlugin->computeSum(tableName, attrName, sumAttrName,
+			aggName);
 	RELEASE_MEM_CONTEXT();
 	return result;
 }
+char*
+projectionFiltering(char *tableName, char *num, Set *attrNames) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->projectionFiltering(tableName, num,
+			attrNames);
+	RELEASE_MEM_CONTEXT();
+	return result;
+
+}
+char*
+selectionFiltering(char *tableName, char *num, char *selection) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->selectionFiltering(tableName, num, selection);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+get1Dhist(char *tableName, char *colName, char *numPartitions) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->get1Dhist(tableName, colName, numPartitions);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+double computeSelectivity(char *tableName, char *selection) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	double result = activePlugin->computeSelectivity(tableName, selection);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+getSamples(int num, char *query, char*sampleTable) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->getSamples(num, query, sampleTable);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+getSampleStat(char * sampleName, char *aggrName, char *groupBy, char *sampleRate, char* count_table) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->getSampleStat(sampleName, aggrName, groupBy,sampleRate, count_table);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+void getPartitionSizes(char* tableName, char* attr, char* partition[],
+		char* size[], int length) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	activePlugin->getPartitionSizes(tableName, attr, partition, size, length);
+	RELEASE_MEM_CONTEXT();
+}
+char*
+getPartitionSizes2(char *tableName, char*num) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->getPartitionSizes2(tableName, num);
+	RELEASE_MEM_CONTEXT();
+	return result;
+
+}
+char*
+createSampleTable(char * sampleName, char *aggrName, char *groupBy) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->createSampleTable(sampleName, aggrName,
+			groupBy);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+storePartitionSizes(char* tableName, char* attr, char* partition[], int length) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->storePartitionSizes(tableName, attr,
+			partition, length);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+getSamplesDirectly(char *attributes, char *partitionAttributes, char *sampleRate, char*tableName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->getSamplesDirectly(attributes, partitionAttributes, sampleRate, tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+dropTable(char *table) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->dropTable(table);
+	RELEASE_MEM_CONTEXT();
+	return result;
+
+}
+char*
+storeSelectivty(char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char * result = activePlugin->storeSelectivty(stateName, psAttribute, aggregation, aggregationAttribute, groupbyAttribute, tableName, constant ,res, query, SampleRate);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+storeGroupbyCount(char * groupby, char *groupby2, char *tablename){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char * result = activePlugin->storeGroupbyCount(groupby, groupby2, tablename);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+findTheMax(char *query, char *aggName) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char * result = activePlugin->findTheMax(query, aggName);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+getSamples2(char *groupbyAttr, char* groupbyAttr1_groupbyAttr2, char *psAttr, char*sampleRate) {
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->getSamples2(groupbyAttr, groupbyAttr1_groupbyAttr2, psAttr, sampleRate);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+partialSample(char *tableName, char *groupbyAttr, int num){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->partialSample(tableName, groupbyAttr, num);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+int
+getCount(char *tableName){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int result = activePlugin->getCount(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+getStatPartialSample(char *partialSampleTableName, char *aggrName, char*groupbyAttr,char* count_table){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char *result = activePlugin->getStatPartialSample(partialSampleTableName,aggrName,groupbyAttr,count_table);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+storeSelectivty2(char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char * result = activePlugin->storeSelectivty2(stateName, psAttribute, aggregation, aggregationAttribute, groupbyAttribute, tableName, constant ,res, query, SampleRate);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+insertSelectivity(char *constant, char *groupbyAttr, char *agg_attr, char* ps_attr, char *agg_name, char* table, char *sampleRate){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->insertSelectivity(constant, groupbyAttr, agg_attr, ps_attr, agg_name, table, sampleRate);
+	RELEASE_MEM_CONTEXT();
+	return result;
+}
+char*
+createTable(char* query, char* tablename){
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	char * result = activePlugin->createTable(query, tablename);
+	RELEASE_MEM_CONTEXT();
+	return result;
+
+}
+

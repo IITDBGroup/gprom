@@ -24,6 +24,7 @@
 #include "model/relation/relation.h"
 #include "model/query_block/query_block.h"
 #include "mem_manager/mem_mgr.h"
+#include "model/query_operator/query_operator.h"
 
 
 /* types of supported plugins */
@@ -75,9 +76,31 @@ typedef struct MetadataLookupPlugin
     char * (*get2DHist) (char *tableName, char *colName, char *colName2, char *numPartitions1, char *numPartitions2);
     void (*storeInterval) (char *tableName, char *attrName, char *numPartitions);
     char * (*join2Hist) (char *hist1, char *hist2, char *tableName, char *attrName);
-    List * (*computeSum) (char *tableName, char *attrName, char *sumAttrName);
+    char * (*computeSum) (char *tableName, char *attrName, char *sumAttrName, char *aggName);
     int (*getRowNum) (char *tableName);
     int (*getDistinct) (char *tableName, char *colName);
+    char * (*projectionFiltering) (char *tableName, char *num,Set *attrNames);
+    char * (*selectionFiltering) (char *tableName, char *num, char *selection);
+    char * (*get1Dhist) (char *tableName, char *colName, char *numPartitions);
+    double (*computeSelectivity) (char *tableName, char *selection);
+    char * (*getSamples) (int num, char *query, char*sampleTable);
+    char * (*getSamples2) (char *groupbyAttr, char* groupbyAttr1_groupbyAttr2, char *psAttr, char*sampleRate);
+    char * (*getSamplesDirectly) (char *attributes, char *partitionAttributes, char *sampleRate, char*tableName);
+    char* (*getSampleStat) (char * sampleName,char *aggrName,char *groupBy, char *sampleRate, char* count_table);
+    void (*getPartitionSizes) (char *tableName, char* attr, char* partition[], char* size[], int length);
+    char* (*getPartitionSizes2) (char *tableName, char*num);
+    char* (*createSampleTable) (char * sampleName,char *aggrName,char *groupBy);
+    char* (*storePartitionSizes) (char* tableName, char* attr, char* partition[], int length);
+    char* (*dropTable) (char *table);
+    char* (*storeSelectivty) (char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate);
+    char* (*storeSelectivty2) (char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate);
+    char* (*storeGroupbyCount) (char * groupby, char *groupby2,  char *tablename);
+    char* (*findTheMax) (char *query, char *aggName);
+    char* (*partialSample) (char *tableName, char *groupbyAttr, int num);
+    int (*getCount) (char *tableName);
+    char* (*getStatPartialSample)(char *partialSampleTableName, char *aggrName, char*groupbyAttr, char* count_table);
+    char* (*insertSelectivity)(char *constant, char *groupbyAttr, char *agg_attr, char* ps_attr, char *agg_name, char* table, char *sampleRate);
+    char* (*createTable)(char* query, char* tablename);
 
     List * (*getAttributes) (char *tableName);
     List * (*getAttributeNames) (char *tableName);
@@ -159,6 +182,7 @@ extern int getCostEstimation(char *query);
 extern CatalogCache *createCache(void);
 
 //extern boolean isPostive(char *tableName, char *colName);
+
 extern Constant *transferRawData(char *data, char *dataType);
 extern HashMap *getMinAndMax(char *tableName, char *colName);
 extern HashMap *getHistogram(char *tableName, char *colName);
@@ -168,5 +192,27 @@ extern List *getHist(char *tableName, char *colName, char *numPartitions);
 extern char *get2DHist(char *tableName, char *colName, char *colName2, char *numPartitions, char *numPartitions2);
 extern void storeInterval(char *tableName, char *attrName, char *numPartitions);
 extern char *join2Hist(char *hist1, char *hist2, char *tableName, char *attrName);
-extern List *computeSum(char *tableName, char *attrName, char *sumAttrName);
+extern char *computeSum(char *tableName, char *attrName, char *sumAttrName, char *aggName);
+extern char *projectionFiltering(char *tableName, char *num, Set *attrNames);
+extern char *selectionFiltering(char *tableName, char *num, char *selection);
+extern char* get1Dhist(char *tableName, char *colName, char *numPartitions);
+extern double computeSelectivity(char *tableName, char *selection);
+extern char* getSamples(int num, char *query, char*sampleTable);
+extern char *getSamples2(char *groupbyAttr, char* groupbyAttr1_groupbyAttr2, char *psAttr, char*sampleRate);
+extern char* getSamplesDirectly (char *attributes, char *partitionAttributes, char *sampleRate, char*tableName);
+extern char* getSampleStat(char * sampleName,char *aggrName,char *groupBy, char *sampleRate, char* count_table);
+extern void getPartitionSizes(char* tableName, char* attr, char* partition[], char* size[], int length);
+extern char* getPartitionSizes2(char *tableName, char*num);
+extern char* createSampleTable (char * sampleName,char *aggrName,char *groupBy);
+extern char* storePartitionSizes(char* tableName, char* attr, char* partition[], int length);
+extern char* dropTable(char *table);
+extern char* storeSelectivty(char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate);
+extern char* storeGroupbyCount(char * groupby, char *groupby2, char *tablename);
+extern char* findTheMax(char *query, char *aggName);
+extern char* partialSample(char *tableName, char *groupbyAttr, int num);
+extern int getCount(char *tableName);
+extern char* getStatPartialSample(char *partialSampleTableName, char *aggrName, char*groupbyAttr, char* count_table);
+extern char* storeSelectivty2(char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate);
+extern char* insertSelectivity(char *constant, char *groupbyAttr, char *agg_attr, char* ps_attr, char *agg_name,char* table, char *sampleRate);
+extern char* createTable(char* query, char* tablename);
 #endif /* METADATA_LOOKUP_H_ */
