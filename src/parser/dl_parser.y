@@ -583,6 +583,7 @@ exprList:
     ;
 
 
+//TODO allow conditional expressions in head
 /*
  * Rule to parse expressions used in various lists
  */
