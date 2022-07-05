@@ -1922,12 +1922,9 @@ void runSelectivity3(Node *qbModel) {
 		count_table = storeGroupbyCount(groupbyAttr, groupbyAttr1_groupbyAttr2,"CRIMES");
 	}
 //char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD","LONGITUDE","LATITUDE"};
-	char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
+	/*char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
 		for (int i = 0; i < sizeof(ps) / sizeof(ps[0]); i++) {
-			/*char*  sampleName_5 = CONCAT_STRINGS("SAMPLE#", groupbyAttr1_groupbyAttr2, "#PS#",ps[i],"#5");
-			char*  sampleName_10 = CONCAT_STRINGS("SAMPLE#", groupbyAttr1_groupbyAttr2, "#PS#",ps[i],"#10");
-			createTable(sampleName_5);
-			createTable(sampleName_10);*/
+
 			char* sampleName_5 = getSamples2(groupbyAttr, groupbyAttr1_groupbyAttr2,
 					ps[i], "5");
 			int num = getCount(sampleName_5);
@@ -1951,11 +1948,18 @@ void runSelectivity3(Node *qbModel) {
 			dropTable(sampleName_5);
 			dropTable(partSampleName);
 			dropTable(statPartSampleName);
-			dropTable(sampleName_5);
+			dropTable(sampleName_10);
 			dropTable(partSampleName2);
 			dropTable(statPartSampleName2);
 
-		}
+		}*/
+		char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
+			for (int i = 0; i < sizeof(ps) / sizeof(ps[0]); i++) {
+					char*  sampleName_5 = CONCAT_STRINGS("SAMPLE#", groupbyAttr1_groupbyAttr2, "#PS#",ps[i],"#5");
+					char*  sampleName_10 = CONCAT_STRINGS("SAMPLE#", groupbyAttr1_groupbyAttr2, "#PS#",ps[i],"#10");
+					dropTable(sampleName_5);
+					dropTable(sampleName_10);
+			}
 	//dropTable(count_table);
 
 
