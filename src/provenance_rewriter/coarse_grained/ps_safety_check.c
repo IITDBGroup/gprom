@@ -1655,34 +1655,32 @@ void runSelectivity2(Node *qbModel) {
 	} else {
 
 	}*/
-
 	DEBUG_LOG("LZY query is %s", query);
+	/*DEBUG_LOG("LZY query is %s", query);
 	char *ps[] = {"L_QUANTITY","L_LINENUMBER","L_TAX","L_DISCOUNT"};
 	for(int i=0; i<sizeof(ps)/sizeof(ps[0]); i++){
 		insertSelectivity(t, groupbyAttr, aggrName, ps[i], "SUM", "selectivity_store_lzy", "5");
 		insertSelectivity(t, groupbyAttr, aggrName, ps[i], "SUM", "selectivity_store_lzy", "10");
-	}
+	}*/
 
 //////////////////////////////////////////////////////
-	/*int count0 = 0;
-	List *samples_test = NIL;
+	//int count0 = 0;
+	//List *samples_test = NIL;
 	char *ps[] = {"L_ORDERKEY","L_SUPPKEY","L_PARTKEY","L_EXTENDEDPRICE"};
 	for(int i=0; i<sizeof(ps)/sizeof(ps[0]); i++){
-		char* sampleName_5 = CONCAT_STRINGS("SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
-		char* sampleName_10 = CONCAT_STRINGS("SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
-		samples_test = appendToTailOfList(samples_test,createConstString(sampleName_5));
-		samples_test = appendToTailOfList(samples_test,createConstString(sampleName_10));
-		if (catalogTableExists(sampleName_5)) {
-			count0 += 1;
-		}
-		if (catalogTableExists(sampleName_10)) {
-			count0 += 1;
-		}
+		//char* sampleName_5 = CONCAT_STRINGS("SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
+		//char* sampleName_10 = CONCAT_STRINGS("SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
+		char* partsampleName_5 = CONCAT_STRINGS("PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
+		char* partsampleName_10 = CONCAT_STRINGS("PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
+		char* statpartsampleName_5 = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
+		char* statpartsampleName_10 = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
+		dropTable(partsampleName_5);
+		dropTable(partsampleName_10);
+		dropTable(statpartsampleName_5);
+		dropTable(statpartsampleName_10);
 
 	}
-	if (count0 == 8) {
-		DEBUG_LOG("LZY999999999");
-	}*/
+
 
 
  /* List *partialSamples_test = NIL;
@@ -1922,7 +1920,7 @@ void runSelectivity3(Node *qbModel) {
 		count_table = storeGroupbyCount(groupbyAttr, groupbyAttr1_groupbyAttr2,"CRIMES");
 	}
 //char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD","LONGITUDE","LATITUDE"};
-	/*char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
+	char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
 		for (int i = 0; i < sizeof(ps) / sizeof(ps[0]); i++) {
 
 			char* sampleName_5 = getSamples2(groupbyAttr, groupbyAttr1_groupbyAttr2,
@@ -1952,14 +1950,14 @@ void runSelectivity3(Node *qbModel) {
 			dropTable(partSampleName2);
 			dropTable(statPartSampleName2);
 
-		}*/
-		char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
+		}
+		/*char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
 			for (int i = 0; i < sizeof(ps) / sizeof(ps[0]); i++) {
 					char*  sampleName_5 = CONCAT_STRINGS("SAMPLE#", groupbyAttr1_groupbyAttr2, "#PS#",ps[i],"#5");
 					char*  sampleName_10 = CONCAT_STRINGS("SAMPLE#", groupbyAttr1_groupbyAttr2, "#PS#",ps[i],"#10");
 					dropTable(sampleName_5);
 					dropTable(sampleName_10);
-			}
+			}*/
 	//dropTable(count_table);
 
 
