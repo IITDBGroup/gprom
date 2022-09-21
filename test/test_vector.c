@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_vector.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -20,8 +20,10 @@
 
 static rc testIntVector(void);
 static rc testNodeVector(void);
+static rc testCopyVector(void);
+//static rc testVectorVector(void);
 //static rc testStringVector(void);
-//static rc testVectorIteration(void);
+static rc testVectorIteration(void);
 //static rc testVectorEquals(void);
 //static rc testVectorOperations(void);
 
@@ -30,6 +32,9 @@ testVector()
 {
     RUN_TEST(testIntVector(), "test integer vectors");
     RUN_TEST(testNodeVector(), "test node vectors");
+	/* RUN_TEST(testVectorVector(), "test vector of vectors"); */
+	RUN_TEST(testVectorIteration(), "test iterate vector");
+	RUN_TEST(testCopyVector(), "test copying vectors");
 ////    RUN_TEST(testStringVector(), "test node vectors");
 //    RUN_TEST(testVectorIteration(), "test set iteration");
 //    RUN_TEST(testVectorEquals(), "test equal function on sets");
@@ -124,6 +129,48 @@ testNodeVector(void)
 
     return PASS;
 }
+
+static rc
+testVectorIteration(void)
+{
+	Vector *i = MAKE_VEC_INT(1,2,3,4,5);
+	int n = 1;
+
+	FOREACH_VEC_INT(c,i)
+	{
+		ASSERT_EQUALS_INT(n++, *c, "INT VECTOR IERATION");
+	}
+
+	AttributeReference *a1 = createAttributeReference ("a1");
+    Vector *a = MAKE_VEC_NODE(AttributeReference, a1, a1, a1);
+
+	FOREACH_VEC(AttributeReference,attr,a)
+	{
+		ASSERT_EQUALS_NODE(a1, *attr, "iterate node vector");
+	}
+
+	return PASS;
+}
+
+static rc
+testCopyVector(void)
+{
+    Vector *a = MAKE_VEC_INT(1,2,3);
+
+	ASSERT_EQUALS_NODE(a, copyObject(a), "Copy int vector");
+
+	AttributeReference *a1 = createAttributeReference ("a1");
+    AttributeReference *a2 = createAttributeReference ("a2");
+    /* AttributeReference *a2a = createAttributeReference ("a2"); */
+    /* AttributeReference *a3 = createAttributeReference ("a3"); */
+    a = MAKE_VEC_NODE(AttributeReference, a1, a2, a2);
+
+	ASSERT_EQUALS_NODE(a, copyObject(a), "copy node vector");
+
+	return PASS;
+}
+
+
 //
 //static rc
 //testStringVector(void)
