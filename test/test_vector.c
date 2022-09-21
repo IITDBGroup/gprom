@@ -11,6 +11,7 @@
  */
 
 
+#include "log/logger.h"
 #include "test_main.h"
 
 #include "model/node/nodetype.h"
@@ -21,24 +22,17 @@
 static rc testIntVector(void);
 static rc testNodeVector(void);
 static rc testCopyVector(void);
-//static rc testVectorVector(void);
-//static rc testStringVector(void);
+static rc testStringVector(void);
 static rc testVectorIteration(void);
-//static rc testVectorEquals(void);
-//static rc testVectorOperations(void);
 
 rc
 testVector()
 {
     RUN_TEST(testIntVector(), "test integer vectors");
     RUN_TEST(testNodeVector(), "test node vectors");
-	/* RUN_TEST(testVectorVector(), "test vector of vectors"); */
 	RUN_TEST(testVectorIteration(), "test iterate vector");
 	RUN_TEST(testCopyVector(), "test copying vectors");
-////    RUN_TEST(testStringVector(), "test node vectors");
-//    RUN_TEST(testVectorIteration(), "test set iteration");
-//    RUN_TEST(testVectorEquals(), "test equal function on sets");
-//    RUN_TEST(testVectorOperations(), "test set operations");
+    RUN_TEST(testStringVector(), "test string vectors");
 
     return PASS;
 }
@@ -75,6 +69,7 @@ testIntVector(void)
 
     // search elements
     ASSERT_TRUE(findVecInt(a,1), "a contains 1");
+	DEBUG_NODE_BEATIFY_LOG("vector", a);
     ASSERT_TRUE(findVecInt(a,3), "a contains 2");
     ASSERT_TRUE(findVecInt(b,1), "b contains 1");
     ASSERT_TRUE(findVecInt(b,3), "b contains 2");
@@ -138,7 +133,7 @@ testVectorIteration(void)
 
 	FOREACH_VEC_INT(c,i)
 	{
-		ASSERT_EQUALS_INT(n++, *c, "INT VECTOR IERATION");
+		ASSERT_EQUALS_INT(n++, c, "int vector iteration");
 	}
 
 	AttributeReference *a1 = createAttributeReference ("a1");
@@ -146,7 +141,7 @@ testVectorIteration(void)
 
 	FOREACH_VEC(AttributeReference,attr,a)
 	{
-		ASSERT_EQUALS_NODE(a1, *attr, "iterate node vector");
+		ASSERT_EQUALS_NODE(a1, attr, "iterate node vector");
 	}
 
 	return PASS;
@@ -161,8 +156,6 @@ testCopyVector(void)
 
 	AttributeReference *a1 = createAttributeReference ("a1");
     AttributeReference *a2 = createAttributeReference ("a2");
-    /* AttributeReference *a2a = createAttributeReference ("a2"); */
-    /* AttributeReference *a3 = createAttributeReference ("a3"); */
     a = MAKE_VEC_NODE(AttributeReference, a1, a2, a2);
 
 	ASSERT_EQUALS_NODE(a, copyObject(a), "copy node vector");
@@ -170,122 +163,26 @@ testCopyVector(void)
 	return PASS;
 }
 
+static rc
+testStringVector(void)
+{
+   Vector *a = MAKE_VEC_STRING(strdup("abc"), strdup("a"));
+   Vector *b = MAKE_VEC_STRING(strdup("ab"), strdup("bc"));
 
-//
-//static rc
-//testStringVector(void)
-//{
-//    Vector *a = MAKE_STR_SET(strdup("abc"), strdup("a"));
-//    Vector *b = MAKE_STR_SET(strdup("ab"), strdup("bc"));
-//
-////    ASSERT_EQUALS_INT(2, setSize(a), "set a is of size 2");
-////    ASSERT_EQUALS_INT(2, setSize(b), "set b is of size 2");
-////
-////    ASSERT_TRUE(hasVectorElem(a, "abc"), "set a has abc");
-////    ASSERT_TRUE(hasVectorElem(a, "a"), "set a has a");
-////    ASSERT_FALSE(hasVectorElem(a, "ab"), "set a has not ab");
-////
-////    ASSERT_TRUE(hasVectorElem(b, "ab"), "set a has ab");
-////    ASSERT_TRUE(hasVectorElem(b, "bc"), "set a has bc");
-////    ASSERT_FALSE(hasVectorElem(b, "abc"), "set b has not abc");
-////
-////    removeVectorElem(b, "ab");
-////    ASSERT_EQUALS_INT(1, setSize(b), "set b is of size 1");
-////    ASSERT_FALSE(hasVectorElem(b, "ab"), "set b has not ab");
-//
-//    return PASS;
-//}
-//
-//
-//static rc
-//testVectorIteration(void)
-//{
-//    Vector *a, *b;
-//    int exp[3] = {1,2,3};
-//    int pos;
-//
-//    a = MAKE_INT_SET(1,2,3);
-//    pos = 0;
-////    FOREACH_SET(int,i,a)
-////    {
-////        boolean found = FALSE;
-////        for(int j = 0; j < 3; j++)
-////            if (exp[j] == *i)
-////                found = TRUE;
-////        ASSERT_TRUE(found, "found element");
-////    }
-//
-//    return PASS;
-//}
-//
-//static rc
-//testVectorEquals(void)
-//{
-//    Vector *a, *b;
-//    char *c1, *c2, *c3;
-//
-////    a = MAKE_INT_SET(1,2,3);
-////    b = MAKE_INT_SET(1,2,3);
-////    ASSERT_TRUE(equal(a,b), "same int sets");
-////    addIntToVector(a,4);
-////    ASSERT_FALSE(equal(a,b), "not same int sets");
-////
-////    a = MAKE_STR_SET(strdup("a"), strdup("bc"));
-////    b = MAKE_STR_SET(strdup("a"), strdup("bc"));
-////    ASSERT_TRUE(equal(a,b), "same string sets");
-////    addToVector(a, "123");
-////    ASSERT_FALSE(equal(a,b), "not same string sets");
-////
-////    c1 = NEW(char);
-////    *c1 = 'a';
-////    c2 = NEW(char);
-////    *c2 = 'b';
-////    c3 = NEW(char);
-////    *c3 = 'b';
-////    a = MAKE_SET_PTR(c1,c2,c3);
-////    b = MAKE_SET_PTR(c1,c2,c3);
-////    ASSERT_TRUE(equal(a,b), "same pointer sets");
-////    removeVectorElem(a, c3);
-////    ASSERT_FALSE(equal(a,b), "not same pointer sets");
-//
-//    return PASS;
-//}
-//
-//static rc
-//testVectorOperations(void)
-//{
-//    Vector *a;
-//    Vector *b;
-//    Vector *un;
-//    Vector *in;
-//    Vector *result;
-//
-//    // string sets
-////    a = MAKE_STR_SET(strdup("a"), strdup("b"));
-////    b = MAKE_STR_SET(strdup("b"), strdup("c"));
-////    un = MAKE_STR_SET(strdup("a"), strdup("b"), strdup("c"));
-////    in = MAKE_STR_SET(strdup("b"));
-////
-////    result = unionVectors(a,b);
-////    ASSERT_EQUALS_NODE(un,result, "union set if {a,b,c}");
-////
-////    result = intersectVectors(a,b);
-////    ASSERT_EQUALS_NODE(in, result, "intersected set if {b}");
-////
-////    // int sets
-////    a = MAKE_INT_SET(1,2,3,4);
-////    b = MAKE_INT_SET(3,4,5,6);
-////    un = MAKE_INT_SET(1,2,3,4,5,6);
-////    in = MAKE_INT_SET(3,4);
-////
-////    INFO_LOG("created sets");
-////
-////    result = unionVectors(a,b);
-////    ASSERT_EQUALS_NODE(un, result, "union set if {1,2,3,4,5,6}");
-////
-////    result = intersectVectors(a,b);
-////    ASSERT_EQUALS_NODE(in, result, "intersected set if {3,4}");
-//
-//    return PASS;
-//}
-//
+   ASSERT_EQUALS_INT(2, a->length, "vector a is of size 2");
+   ASSERT_EQUALS_INT(2, b->length, "vector b is of size 2");
+
+   ASSERT_TRUE(findVecString(a, "abc"), "vector a has abc");
+   ASSERT_TRUE(findVecString(a, "a"), "vector a has a");
+   ASSERT_FALSE(findVecString(a, "ab"), "vector a has not ab");
+
+   ASSERT_TRUE(findVecString(b, "ab"), "vector a has ab");
+   ASSERT_TRUE(findVecString(b, "bc"), "vector a has bc");
+   ASSERT_FALSE(findVecString(b, "abc"), "vector b has not abc");
+
+   popVecString(b);
+   ASSERT_EQUALS_INT(1, b->length, "vector b is of size 1");
+   ASSERT_FALSE(findVecString(b, "bc"), "vector b has not ab");
+
+   return PASS;
+}

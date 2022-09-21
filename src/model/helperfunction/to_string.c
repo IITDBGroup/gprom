@@ -344,7 +344,7 @@ outVector(StringInfo str, Vector *node)
             int j = 0;
             FOREACH_VEC_INT(i,node)
             {
-                appendStringInfo(str, "%s", gprom_itoa(*i));
+                appendStringInfo(str, "%s", gprom_itoa(i));
                 appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
             }
         }
@@ -352,8 +352,8 @@ outVector(StringInfo str, Vector *node)
         case VECTOR_NODE:
             FOREACH_VEC(Node,n,node)
             {
-                outNode(str, *n);
-                appendStringInfo(str, "%s", VEC_IS_LAST(*n,node) ? ", " : "");
+                outNode(str, n);
+                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? ", " : "");
             }
             break;
         case VECTOR_STRING:

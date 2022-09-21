@@ -247,7 +247,7 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
         case VECTOR_NODE:
             new->length = 0;
             FOREACH_VEC(Node,n,from)
-                VEC_ADD_NODE(new,copyObject(*n));
+                VEC_ADD_NODE(new,copyObject(n));
             break;
         case VECTOR_STRING:
             break;

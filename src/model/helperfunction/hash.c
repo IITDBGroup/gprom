@@ -248,15 +248,15 @@ hashVector (uint64_t cur, Vector *node)
     {
         case VECTOR_INT:
             FOREACH_VEC_INT(i,node)
-                hashInt(cur,*i);
+                hashInt(cur,i);
         break;
         case VECTOR_NODE:
             FOREACH_VEC(Node,n,node)
-                hashValueInternal(cur, *n);
+                hashValueInternal(cur, n);
             break;
         case VECTOR_STRING:
             FOREACH_VEC(char,c,node)
-                hashString(cur, *c);
+                hashString(cur, c);
             break;
     }
 
