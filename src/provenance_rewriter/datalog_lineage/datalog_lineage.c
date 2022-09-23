@@ -135,7 +135,7 @@ rewriteDLForLinageCapture(DLProgram *p)
 	//TODO rewrite rules to propagate provenance for R
 	// remove properties to allow for reanalysis
 	delAllProps((DLNode *) rewrP);
-	DEBUG_DL_LOG("rewritten program for lineage:\n\n", rewrP);
+    INFO_DL_LOG("rewritten program for lineage:\n\n", rewrP);
 
 	return rewrP;
 }
