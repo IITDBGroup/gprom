@@ -23,6 +23,8 @@
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
+#include "model/integrity_constraints/integrity_constraints.h"
+#include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 #include "analysis_and_translate/analyze_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "ocilib.h"
@@ -35,9 +37,10 @@ static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator(Node *node, HashMap *context);
 static List *mergeRule(DLRule *super, List *replacements);
-static char *getFirstIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred);
-static boolean ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred);
-static List *ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds);
+static char *getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease,boolean isAgg);
+/* static boolean ruleHasPosSubstitutableIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred); */
+static boolean headVarsImplyBodyVars(DLProgram *p, DLRule *r, List *fds);
+/* static List *ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds); */
 static boolean delPropsVisitor(Node *n, void *context);
 
 DLAtom *
@@ -259,9 +262,7 @@ getHeadVarNames(DLRule *r)
 {
 	List *result = getHeadVars(r);
 
-
-
-	return result;
+	return getVarNames(result);
 }
 
 List *
@@ -342,9 +343,10 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	HashMap *predToRule;
 	Set *idbRels;
 	Set *aggRels;
-	Set *requiredAggRels = STRSET();
+	/* Set *requiredAggRels = STRSET(); */
 	Set *todo;
 	List *newRules = NIL;
+	List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
 	ENSURE_DL_CHECKED(p);
 	/* checkDLModel((Node *) p); */
 	result = copyObject(p);
@@ -354,6 +356,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	predToRule = (HashMap *) getDLProp((DLNode *) result, DL_MAP_RELNAME_TO_RULES);
 	aggRels = (Set *) getDLProp((DLNode *) result, DL_AGGR_RELS);
     todo = sourceNodes(relGraph);
+
 
 	// need to preserve answer relation
 	if(p->ans)
@@ -376,39 +379,63 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 			while(!LIST_EMPTY(todoR))
 			{
 				DLRule *curR = popHeadOfListP(todoR);
-				List *aggPredNames = NIL;
-				DEBUG_DL_LOG("Substitute first IDB atom in", curR);
+				/* List *aggPredNames = NIL; */
+				boolean isAgg = hasSetElem(aggRels, getHeadPredName(curR));
+				char *firstIDB = getFirstSubstitutableIDBAtom(curR,
+															  p,
+															  idbRels,
+															  aggRels,
+															  p->ans,
+															  predToRule,
+															  fds,
+															  allowRuleNumberIncrease,
+															  isAgg);
 
-				if(ruleHasPosIDBAtom(curR, idbRels, aggRels, p->ans))
+				DEBUG_DL_LOG("Check for substitutable IDB atom in", curR);
+
+				if(firstIDB != NULL)
 				{
-					char *firstIDB = getFirstIDBAtom(curR, idbRels, aggRels, p->ans);
 					List *iRules = (List *) MAP_GET_STRING(predToRule, firstIDB);
+					List *addedRules;
 
-					DEBUG_LOG("Replace atom %s", firstIDB);
+					DEBUG_LOG("Do replace atom %s", firstIDB);
 
-					if(LIST_LENGTH(iRules) < 2 || allowRuleNumberIncrease)
-					{
-						List *newRules;
-						newRules = mergeRule(curR, copyObject(iRules));
-						todoR = appendAllToTail(todoR, newRules);
-					}
+					addedRules = mergeRule(curR, copyObject(iRules));
+					newRules = appendAllToTail(newRules, addedRules);
+					todoR = appendAllToTail(todoR, newRules);
 				}
 				else
 				{
+					DEBUG_DL_LOG("No replacable atoms found for", curR);
 					newRules = appendToTailOfList(newRules, curR);
-				}
 
-				// predicates that are computed by aggregation rules mentioned in the body need to be included
-				aggPredNames = ruleGetAggIDBAtoms(r, aggRels);
-				FOREACH(char,relname,aggPredNames)
-				{
-					if(!hasSetElem(requiredAggRels, relname))
+					// need to add remaining IDB predicates to todo since we need them
+					FOREACH(DLNode,n,curR->body)
 					{
-						DEBUG_LOG("Put agg-predicate %s onto todo list", relname);
-						addToSet(requiredAggRels, strdup(relname));
-						addToSet(todo, createConstString(relname));
+						if(isA(n,DLAtom))
+						{
+							DLAtom *a = (DLAtom *) n;
+
+							if(hasSetElem(idbRels, a->rel))
+							{
+								DEBUG_LOG("Added predicate %s to todo", a->rel);
+								addToSet(todo, createConstString(a->rel));
+							}
+						}
 					}
 				}
+
+				/* // predicates that are computed by aggregation rules mentioned in the body need to be included */
+				/* aggPredNames = ruleGetAggIDBAtoms(r, aggRels); */
+				/* FOREACH(char,relname,aggPredNames) */
+				/* { */
+				/* 	if(!hasSetElem(requiredAggRels, relname)) */
+				/* 	{ */
+				/* 		DEBUG_LOG("Put agg-predicate %s onto todo list", relname); */
+				/* 		addToSet(requiredAggRels, strdup(relname)); */
+				/* 		addToSet(todo, createConstString(relname)); */
+				/* 	} */
+				/* } */
 			}
 		}
 	}
@@ -425,15 +452,29 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 }
 
 static char *
-getFirstIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred)
+getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease, boolean isAgg)
 {
 	FOREACH(DLNode,n,r->body)
 	{
 		if(isA(n,DLAtom))
 		{
 			DLAtom *a = (DLAtom *) n;
+			List *iRules = (List *) MAP_GET_STRING(predToRule, a->rel);
 
-			if(!a->negated && hasSetElem(idbPreds, a->rel) && !strpeq(a->rel, ansPred) && !hasSetElem(aggPreds, a->rel))
+			// for non aggregation rules, we only merge if there is only one rule defining
+			// the IDB body goal or if we explicitly have allowed increasing the number of rules
+			// for aggregation rules we can only merge the rules of an IDB goal if this does not
+			// change the number of tuples (when there is a single rule defining the IDB predicate
+			// and this rule's head variables imply all of the body variables.
+			if(!a->negated &&
+			   hasSetElem(idbPreds, a->rel) &&
+			   !strpeq(a->rel, ansPred) &&
+			   !hasSetElem(aggPreds, a->rel) && (
+				   (!isAgg
+				   && (LIST_LENGTH(iRules) < 2 || allowRuleNumberIncrease))
+			   || (isAgg
+				   && LIST_LENGTH(iRules) == 1
+				   && headVarsImplyBodyVars(p, getHeadOfListP(iRules), fds))))
 			{
 				return a->rel;
 			}
@@ -443,34 +484,56 @@ getFirstIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred)
 	return NULL;
 }
 
+/* static boolean */
+/* ruleHasPosSubstitutableIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred) */
+/* { */
+/* 	return getFirstSubstitutableIDBAtom(r, idbPreds, aggPreds, ansPred) != NULL; */
+/* } */
+
 static boolean
-ruleHasPosIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred)
+headVarsImplyBodyVars(DLProgram *p, DLRule *r, List *fds)
 {
-	return getFirstIDBAtom(r, idbPreds, aggPreds, ansPred) != NULL;
-}
+	List *adaptedFDs = adaptFDsToRules(p, r, fds);
+	boolean result = FALSE;
+	FD *headImpliesBody = createFD(getHeadPredName(r),
+								   makeStrSetFromList(getHeadVarNames(r)),
+								   makeStrSetFromList(getVarNames(getBodyVars(r))));
 
-
-static List *
-ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds)
-{
-	List *result = NIL;
-
-	FOREACH(DLNode,n,r->body)
+	if(checkFDonAtoms(makeNodeSetFromList(r->body), adaptedFDs, headImpliesBody))
 	{
-		if(isA(n,DLAtom))
-		{
-			DLAtom *a = (DLAtom *) n;
-
-			if(hasSetElem(aggPreds, a->rel))
-			{
-				result = appendToTailOfList(result, a->rel);
-			}
-
-		}
+		result = TRUE;
 	}
+
+	DEBUG_LOG("for rule %s head variables do %simply body variable",
+			  datalogToOverviewString(r),
+			  result ? "" : "NOT "
+		);
 
 	return result;
 }
+
+
+/* static List * */
+/* ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds) */
+/* { */
+/* 	List *result = NIL; */
+
+/* 	FOREACH(DLNode,n,r->body) */
+/* 	{ */
+/* 		if(isA(n,DLAtom)) */
+/* 		{ */
+/* 			DLAtom *a = (DLAtom *) n; */
+
+/* 			if(hasSetElem(aggPreds, a->rel)) */
+/* 			{ */
+/* 				result = appendToTailOfList(result, a->rel); */
+/* 			} */
+
+/* 		} */
+/* 	} */
+
+/* 	return result; */
+/* } */
 
 static List *
 mergeRule(DLRule *super, List *replacements)

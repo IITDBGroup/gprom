@@ -58,6 +58,7 @@ static TestNameToFunc testFuncs [] = {
         { "rpq", testRPQ },
         { "autocast", testAutocast },
 		{ "semantic_optimization", testSemanticOptimization },
+		{ "dl", testDatalogModel },
         { NULL, NULL }
 };
 

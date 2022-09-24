@@ -101,6 +101,58 @@ testRuleMerging(void)
 	p = mergeSubqueries(p, TRUE);
 	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
 
+	// aggregation with subquery that cannot be merged (R.1 is a key)
+	p = (DLProgram *) parseFromStringdl(
+		"Q(count(1)) :- Q1(X)."
+		"Q1(Y) :- R(X,Y)."
+		"ANS : Q.");
+	expected = (DLProgram *) parseFromStringdl(
+		"Q(count(1)) :- Q1(X)."
+		"Q1(Y) :- R(X,Y)."
+		"ANS : Q.");
+
+	analyzeDLModel((Node *) p);
+	analyzeDLModel((Node *) expected);
+
+	p = mergeSubqueries(p, TRUE);
+	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
+
+	// aggregation with subquery that can be merged (R.1 is a key)
+	p = (DLProgram *) parseFromStringdl(
+		"Q(count(1)) :- Q1(X)."
+		"Q1(X) :- R(X,Y)."
+		"ANS : Q."
+        "FD R: A -> B.");
+	expected = (DLProgram *) parseFromStringdl(
+		"Q(count(1)) :- R(X,V1)."
+		"ANS : Q."
+		"FD R: A -> B.");
+
+	analyzeDLModel((Node *) p);
+	analyzeDLModel((Node *) expected);
+
+	p = mergeSubqueries(p, TRUE);
+	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
+
+	// not allowed to merge union
+	p = (DLProgram *) parseFromStringdl(
+		"Q(X) :- Q1(X)."
+		"Q1(X) :- R(X,Y)."
+		"Q1(Y) :- R(X,Y)."
+		"ANS : Q.");
+	expected = (DLProgram *) parseFromStringdl(
+		"Q(X) :- Q1(X)."
+		"Q1(X) :- R(X,Y)."
+		"Q1(Y) :- R(X,Y)."
+		"ANS : Q.");
+
+	analyzeDLModel((Node *) p);
+	analyzeDLModel((Node *) expected);
+
+	p = mergeSubqueries(p, FALSE);
+	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
+
+
 	return PASS;
 }
 
