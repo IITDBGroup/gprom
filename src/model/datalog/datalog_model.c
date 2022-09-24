@@ -424,18 +424,6 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 						}
 					}
 				}
-
-				/* // predicates that are computed by aggregation rules mentioned in the body need to be included */
-				/* aggPredNames = ruleGetAggIDBAtoms(r, aggRels); */
-				/* FOREACH(char,relname,aggPredNames) */
-				/* { */
-				/* 	if(!hasSetElem(requiredAggRels, relname)) */
-				/* 	{ */
-				/* 		DEBUG_LOG("Put agg-predicate %s onto todo list", relname); */
-				/* 		addToSet(requiredAggRels, strdup(relname)); */
-				/* 		addToSet(todo, createConstString(relname)); */
-				/* 	} */
-				/* } */
 			}
 		}
 	}
