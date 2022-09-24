@@ -34,7 +34,7 @@ static ParserPluginType getPluginTypeFromString (char *type);
 
 // wrapper interface
 Node *
-parseStream (FILE *stream)
+parseStream(FILE *stream)
 {
     ASSERT(plugin);
     return plugin->parseStream(stream);

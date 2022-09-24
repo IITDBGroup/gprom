@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * rewriter.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -40,7 +40,7 @@ extern int shutdownApplication(void);
         return EXIT_FAILURE;    \
     } while(0)
 
-extern void processInput(char *input);
+extern void processInput(char *input, FILE *stream);
 extern char *rewriteQuery(char *input);
 extern char *rewriteQueryWithRethrow(char *input);
 extern int costQuery (char *input);

@@ -339,7 +339,7 @@ shutdownApplication(void)
 }
 
 void
-processInput(char *input)
+processInput(char *input, FILE *stream)
 {
     char *q = NULL;
     Node *parse;
@@ -347,7 +347,14 @@ processInput(char *input)
     TRY
     {
         NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
-        parse = parseFromString(input);
+		if(stream == NULL)
+		{
+			parse = parseFromString(input);
+		}
+		else
+		{
+			parse = parseStream(stream);
+		}
         q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
         execute(q);
         FREE_AND_RELEASE_CUR_MEM_CONTEXT();
