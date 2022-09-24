@@ -34,7 +34,6 @@ static List *makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames);
 static boolean findVarsVisitor(Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
-static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator(Node *node, HashMap *context);
 static List *mergeRule(DLRule *super, List *replacements);
 static char *getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease,boolean isAgg);
@@ -897,6 +896,22 @@ predGetAttrNames(DLProgram *p, char *pred)
 	}
 }
 
+List *
+getComparisonAtoms(DLRule *r)
+{
+	List *result = NIL;
+
+	FOREACH(DLNode,n,r->body)
+	{
+		if(isA(n,DLComparison))
+		{
+			result = appendToTailOfList(result, n);
+		}
+	}
+
+	return result;
+}
+
 static List *
 getAtomVars(DLAtom *a)
 {
@@ -910,7 +925,7 @@ getAtomVars(DLAtom *a)
     return result;
 }
 
-static List *
+List *
 getComparisonVars(DLComparison *a)
 {
     List *result = NIL;

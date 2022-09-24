@@ -69,6 +69,7 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, char *targetTable, char *fi
 	List *todo = NIL;
 	DLRule *opt, *min;
 	List *fds;
+	Set *headVars = makeStrSetFromList(getHeadVarNames(r));
 
 	START_TIMER("semantic optimization");
 
@@ -176,15 +177,98 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, char *targetTable, char *fi
 	//TODO for now just return the first one
 	Set *bodyAtoms = popSet(results);
 	List *body = NIL;
+	List *comparisonAtoms = getComparisonAtoms(r);
+	Set *minBodyVars = STRSET();
+	Set *notImpliedMinBodyVars = STRSET();
+	boolean fallbackToOriginalRule = FALSE;
+
+	/* Some comparison atoms may have to be kept we have to distinguish 5 cases
+	 *
+	 * 1) comparisons that only refer variables from atoms we are keeping and
+	 * these variable are implied by the head of the query => such comparison
+	 * are not required for correctness since there is a single possible value
+	 * for these variables for a given result tuple, but they may improve
+	 * performance, e.g., by using an index in some cases so we will keep them
+	 * (KEEP)
+	 *
+	 * 2) comparisons that only refer variables from atoms we are keeping which
+	 * are not implied by the head variables of the query => these comparisons
+	 * may filter tuples from the provenance so we have to keep them (KEEP).
+	 *
+	 * 3) comparisons using only variables from atoms we have removed => these
+	 * can be savely removed because if we remove atoms then we know their
+	 * variables are implied by the head variables, so they do not filter.
+	 * (REMOVE)
+	 *
+	 * 4) comparisons using some variables from atoms that are removed and some
+	 * that we are keeping with variables we are keeping are implied by the
+	 * query's head variables. => using the same argument as in 1) and given
+	 * that we only remove atoms whose variables are implied by the head
+	 * variables, it is safe to remove these comparisons. (REMOVE)
+	 *
+	 * 5) comparisons using some variables from atoms that are removed and some
+	 * that we are keeping with variables we are keeping are not implied by the
+	 * query's head variables. => This case represents a problem, we have to
+	 * apply the comparison predicate, but have already removed some atoms that
+	 * bind the variables. Ideally, we should check this when removing atoms,
+	 * but for now we just return the unoptimized rule as a fallback. (DO NOT
+	 * OPTIMIZE)
+	 */
+	FOREACH_SET(DLAtom,a,bodyAtoms)
+	{
+		minBodyVars = unionSets(minBodyVars,
+								makeStrSetFromList(getVarNames(getAtomExprVars(a))));
+	}
+
+	// determine which new body variables are not implied by the head
+	notImpliedMinBodyVars = setDifference(minBodyVars,
+		attributeClosureOnAtoms(bodyAtoms, headVars, fds));
+
+	// handle each comparison predicate and check which
+	FOREACH(DLComparison,c,comparisonAtoms)
+	{
+		Set *cVars = makeStrSetFromList(getVarNames(getComparisonVars(c)));
+
+		// all new body variables
+		if(containsSet(cVars,minBodyVars))
+		{
+			addToSet(bodyAtoms, c);
+		}
+		// some new body variables and some variables from removed atoms
+		else if (overlapsSet(cVars, minBodyVars))
+		{
+			// uses non-implied variables from the new body atoms -> we made a
+			// mistake and have to fall back to using the original rule!
+			if(overlapsSet(cVars, notImpliedMinBodyVars))
+			{
+				fallbackToOriginalRule = TRUE;
+				break;
+			}
+			// otherwise the rule can be removed
+		}
+		// otherwise the comparison only uses variables from removed atoms and
+		// can be removed too
+	}
 
 	DEBUG_NODE_BEATIFY_LOG("minimized body is: ", bodyAtoms);
 
-	FOREACH_SET(DLAtom,a,bodyAtoms)
+	// if we created an incorrect optimization, then use the original rule
+	if(fallbackToOriginalRule)
 	{
-		body = appendToTailOfList(body, a);
+		min = r;
+	}
+	// otherwise build the optimized rule
+	else
+	{
+		FOREACH_SET(DLAtom,a,bodyAtoms)
+		{
+			body = appendToTailOfList(body, a);
+		}
+
+		min = createDLRule(copyObject(r->head), body);
 	}
 
-	min = createDLRule(copyObject(r->head), body);
+	// create a lineage capture rule
 	opt = createCaptureRule(min, target, filterPred);
 
     STOP_TIMER("semantic optimization");
@@ -459,7 +543,17 @@ adaptFDsToRules(DLProgram *p, DLRule *r, List *fds)
 boolean
 checkFDonAtoms(Set *atoms, List *fds, FD *fd) //FIXME does ignore on which relations an FD holds which is not correct. Fix that
 {
-	Set *attrs = STRSET();
+	Set *closure;
+
+	closure = attributeClosureOnAtoms(atoms, fd->lhs, fds);
+
+    return containsSet(fd->rhs, closure);
+}
+
+Set *
+attributeClosureOnAtoms(Set *atoms, Set *attrs, List *fds)
+{
+	Set *aattrs = STRSET();
 	Set *closure;
 	Set *rels = STRSET();
 	List *aFds;
@@ -467,15 +561,17 @@ checkFDonAtoms(Set *atoms, List *fds, FD *fd) //FIXME does ignore on which relat
 	FOREACH_SET(DLAtom,a,atoms)
 	{
 		Set *vars = attrListToSet(getVarNames(getExprVars((Node *) a)));
-		attrs = unionSets(attrs, vars);
+		aattrs = unionSets(aattrs, vars);
 		addToSet(rels, a->rel);
 	}
 
-	aFds = getFDsForAttributesOnRels(fds, attrs, rels);
-	closure = attributeClosure(aFds, fd->lhs, NULL);
+	aFds = getFDsForAttributesOnRels(fds, aattrs, rels);
+	closure = attributeClosure(aFds, attrs, NULL);
 
-    return containsSet(fd->rhs, closure);
+	return closure;
 }
+
+
 
 Graph *
 createJoinGraph(DLRule *r)

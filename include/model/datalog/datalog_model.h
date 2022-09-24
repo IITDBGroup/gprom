@@ -109,19 +109,21 @@ extern char *getHeadPredName(DLRule *r);
 extern List *getHeadAttrNames(DLRule *r);
 extern List *getRuleVars(DLRule *r);
 extern List *getBodyVars(DLRule *r);
-List *getBodyArgs(DLRule *r);
+extern List *getBodyArgs(DLRule *r);
 extern List *getBodyPredVars(DLRule *r);
 extern List *getHeadVars(DLRule *r);
 extern List *getHeadVarNames(DLRule *r);
 extern List *getHeadExprVars(DLRule *r);
 extern List *getAtomExprVars(DLAtom *a);
 extern List *getAtomTopLevelVars(DLAtom *a);
+extern List *getComparisonVars(DLComparison *a);
 extern List *getExprVars(Node *expr);
 extern size_t getIDBPredArity(DLProgram *p, char *pred);
 extern boolean isIDB(DLProgram *p, char *pred);
 extern boolean isEDB(DLProgram *p, char *pred);
 extern List *getVarNames(List *vars);
 extern List *predGetAttrNames(DLProgram *p, char *pred);
+extern List *getComparisonAtoms(DLRule *r);
 
 // unification and variable mappings
 extern DLRule *unifyRule(DLRule *r, List *headBinds);

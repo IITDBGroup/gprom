@@ -13,6 +13,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "model/expression/expression.h"
 #include "model/integrity_constraints/integrity_constraint_inference.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
@@ -184,12 +185,20 @@ testRewriting(void)
 	return PASS;
 }
 
+#define LOG_AND_ASSERT_EQUALS(exp,opt) \
+ 	INFO_DL_LOG("expected and optimized rules: ", exp, opt); \
+	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt); \
+	delAllProps((DLNode *) opt); \
+	delAllProps((DLNode *) exp); \
+	ASSERT_EQUALS_NODE(exp, opt, "optimized rule")
+
+
 static rc
 testOptimization(void)
 {
 	DLRule *r, *opt, *exp;
 	List *fds;
-	DLAtom *headx, *headxy, *gr,*gs, *glr, *gt, *gu, *pr, *plr;
+	DLAtom *headx, *headxy, *headya, *gr,*gs, *gsp, *glr, *gt, *gu, *pr, *plr;
 	DLProgram *p;
 
 	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
@@ -213,10 +222,7 @@ testOptimization(void)
 	exp = createDLRule(pr,LIST_MAKE(headxy));
 	opt = optimizeDLRule(p, r, fds, "R", NULL);
 
-	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
-	delAllProps((DLNode *) opt);
-	delAllProps((DLNode *) exp);
-	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
+	LOG_AND_ASSERT_EQUALS(exp,opt);
 
 	// Q(X) :- R(X,Y), S(Y,Z). R(a,b), S(c,d). X -> Y for R
 	// optimized capture rule: R(X,Y) :- Q(X), R(X,Y).
@@ -227,10 +233,7 @@ testOptimization(void)
 	exp = createDLRule(pr,LIST_MAKE(gr,headx));
 	opt = optimizeDLRule(p, r, fds, "R", NULL);
 
-	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
-	delAllProps((DLNode *) opt);
-	delAllProps((DLNode *) exp);
-	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
+	LOG_AND_ASSERT_EQUALS(exp,opt);
 
 	// Q(X) :- PRR(X,Y,A), S(Y,Z), T(A,B), U(B,C). a->b for R
 	// optimized capture rule: R(X,Y,A) :- Q(X), R(X,Y,A), T(A,B), U(B,C)
@@ -241,13 +244,10 @@ testOptimization(void)
 	exp = createDLRule(plr,LIST_MAKE(glr,gt,gu,headx));
 	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
 
-	delAllProps((DLNode *) opt);
-	delAllProps((DLNode *) exp);
-	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
-	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
+	LOG_AND_ASSERT_EQUALS(exp,opt);
 
 	// Q(X) :- PRR(X,Y,A), S(Y,Z), T(A,B), U(B,C). x->y for R X -> A
-	// optimized capture rule: R(X,Y,A) :- Q(X), R(X,Y,A)
+	// optimized capture rule: R(X,Y,A) :- PRR(X,Y,A), Q(X)
 	r = createDLRule(headx, LIST_MAKE(glr,gs,gt,gu));
 	fds = LIST_MAKE(createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("B")),
 					createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("C")));
@@ -255,11 +255,50 @@ testOptimization(void)
 
 	exp = createDLRule(plr,LIST_MAKE(glr,headx));
 	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
-	delAllProps((DLNode *) opt);
-	delAllProps((DLNode *) exp);
 
-	DEBUG_NODE_BEATIFY_LOG("expected and optimized rules: ", exp, opt);
-	ASSERT_EQUALS_NODE(exp, opt, "optimized rule");
+	LOG_AND_ASSERT_EQUALS(exp,opt);
+
+	// create comparison predicates
+	DLComparison *y3, *z5, *xc;
+
+	y3 = createDLComparison("<",
+							(Node *) createDLVar("Y", DT_INT),
+							(Node *) createConstInt(3));
+
+	z5 = createDLComparison(">",
+							(Node *) createDLVar("Z", DT_INT),
+							(Node *) createConstInt(5));
+
+	xc = createDLComparison("<",
+							(Node *) createDLVar("X", DT_INT),
+							(Node *) createDLVar("C", DT_INT));
+
+	// Q(X) :- PRR(X,Y,A), S(Y,Z), T(A,B), U(B,C), Y < 3, Z > 5, X < C. X->Y,A (A-> B,C)
+	// optimized capture rule: PRR(X,Y,A) :- Q(X), Y < 3, PRRR(X,Y,A)
+	r = createDLRule(headx, LIST_MAKE(glr,gs,gt,gu,y3,z5,xc));
+	fds = LIST_MAKE(createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("B")),
+					createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("C")));
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
+
+	exp = createDLRule(plr,LIST_MAKE(glr,y3,headx));
+	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
+
+	LOG_AND_ASSERT_EQUALS(exp,opt);
+
+	// Q(Y,A) :- PRR(X,Y,A), S(X,Z), T(A,B), U(B,C), Y < 3, Z > 5, X < C. X->Y,A (A-> B,C)
+	// optimized capture rule: PROV_PRR(X,Y,A) :- PRR(X,Y,A), S(X,Z), T(A,B), U(B,C), Y < 3, Z > 5, X < C, Q(X).
+	gsp = DLATOM_FROM_STRS("S",FALSE,"X","Z");
+	headya = DLATOM_FROM_STRS("Q", FALSE, "Y", "A");
+
+	r = createDLRule(headya, LIST_MAKE(glr,gsp,gt,gu,y3,z5,xc));
+	fds = LIST_MAKE(createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("B")),
+					createFD("PRR", MAKE_STR_SET("A"), MAKE_STR_SET("C")));
+	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
+
+	exp = createDLRule(plr,LIST_MAKE(glr,gsp,gt,gu,y3,z5,xc,headya));
+	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
+
+	LOG_AND_ASSERT_EQUALS(exp,opt);
 
 	return PASS;
 }

@@ -18,12 +18,14 @@
 
 #include "model/integrity_constraints/integrity_constraints.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/graph/graph.h"
 #include "model/datalog/datalog_model.h"
 
 extern DLRule *optimizeDLRule(DLProgram *p, DLRule *r, List *fds, char *targetTable, char *filterPred);
 extern List *adaptFDsToRules(DLProgram *p, DLRule *r, List *fds);
 extern boolean checkFDonAtoms(Set *atoms, List *fds, FD *fd);
+extern Set *attributeClosureOnAtoms(Set *atoms, Set *attrs, List *fds);
 extern Graph *createJoinGraph(DLRule *r);
 extern DLRule *minimizeDLRule(DLRule *r);
 
