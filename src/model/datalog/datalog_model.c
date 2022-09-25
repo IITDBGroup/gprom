@@ -912,6 +912,26 @@ getComparisonAtoms(DLRule *r)
 	return result;
 }
 
+List *
+getGoalsForPred(DLRule *r, char *p)
+{
+	List *results = NIL;
+
+	FOREACH(DLNode,n,r->body)
+	{
+		if(isA(n,DLAtom))
+		{
+			DLAtom *a = (DLAtom *) n;
+			if(streq(p,a->rel))
+			{
+				results = appendToTailOfList(results, a);
+			}
+		}
+	}
+
+	return results;
+}
+
 static List *
 getAtomVars(DLAtom *a)
 {

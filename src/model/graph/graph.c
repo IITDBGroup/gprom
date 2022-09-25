@@ -199,6 +199,12 @@ reachableFrom(Graph *g, Node *start)
 	return result;
 }
 
+boolean
+hasOutgoingEdges(Graph *g, Node *n)
+{
+	return !EMPTY_SET((Set *) getMap(g->edges, n));
+}
+
 Graph *
 transitiveClosure(Graph *g)
 {

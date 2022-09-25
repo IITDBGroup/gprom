@@ -49,6 +49,7 @@ extern void deleteEdge(Graph *g, Node *from, Node *to);
 extern boolean isReachable(Graph *g, Node *start, Node *end);
 extern Set *directlyReachableFrom(Graph *g, Node *start);
 extern Set *reachableFrom(Graph *g, Node *start);
+extern boolean hasOutgoingEdges(Graph *g, Node *n);
 extern Graph *transitiveClosure(Graph *g);
 extern Graph *invertEdges(Graph *g);
 

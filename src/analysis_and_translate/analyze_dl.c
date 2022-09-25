@@ -181,6 +181,27 @@ createRelToRelGraph(Node *stmt)
 	return g;
 }
 
+Graph *
+createInvRelToRelGraph(Node *stmt)
+{
+	Graph *g;
+	DLProgram *p;
+
+    if (!isA(stmt,DLProgram))
+	{
+        return NULL;
+	}
+
+	p = (DLProgram *) stmt;
+
+	ENSURE_REL_TO_REL_GRAPH(p);
+
+	g = invertEdges((Graph *) getDLProp((DLNode *) p, DL_REL_TO_REL_GRAPH));
+	setDLProp((DLNode *) p, DL_INV_REL_TO_REL_GRAPH, (Node *) g);
+
+	return g;
+}
+
 HashMap *
 createBodyPredToRuleMap(DLProgram *p)
 {
@@ -195,7 +216,8 @@ createBodyPredToRuleMap(DLProgram *p)
 				DLAtom *a = (DLAtom *) n;
 				addToMapValueList(map,
 								  (Node *) createConstString(strdup(a->rel)),
-								  (Node *) r);
+								  (Node *) r,
+								  TRUE);
 			}
 		}
 	}

@@ -29,7 +29,7 @@
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 #include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
 #include "src/parser/oracle_parser.tab.h"
-
+#include "analysis_and_translate/analyze_dl.h"
 
 typedef struct RewriteSearchState {
 	Set *in;
@@ -61,15 +61,15 @@ static boolean removeOneEdgeBasedOnFDs(Set *dreach, RewriteSearchState *state);
 static Set *computeFrontier(Graph *g, Set *nodes);
 
 DLRule *
-optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, char *targetTable, char *filterPred)
+optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, DLAtom *target, char *filterPred)
 {
 	Set *seeds;
-	DLAtom *target = NULL;
 	Graph *joinG;
 	List *todo = NIL;
 	DLRule *opt, *min;
 	List *fds;
 	Set *headVars = makeStrSetFromList(getHeadVarNames(r));
+	Graph *ig = GET_INV_REL_TO_REL_GRAPH(p);
 
 	START_TIMER("semantic optimization");
 
@@ -77,15 +77,6 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, char *targetTable, char *fi
 	fds = adaptFDsToRules(p, r, inFDs);
 
 	DEBUG_LOG("adapted FDs: %s", icToString((Node *) fds));
-
-	// determine target goal
-	FOREACH(DLAtom,a,r->body)
-	{
-		if(streq(a->rel, targetTable)) //TODO support multiple goals for self-joins?n
-		{
-			target = a;
-		}
-	}
 
 	ASSERT(target);
 	DEBUG_NODE_BEATIFY_LOG("target atom is ", target);
@@ -100,7 +91,7 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, char *targetTable, char *fi
 	{
 		DLRule *res;
 		min =  createDLRule(copyObject(r->head), NIL);
-		res = createCaptureRule(min, target, filterPred); //TODO
+		res = createCaptureRule(min, target, filterPred, ig); //TODO
 		STOP_TIMER("semantic optimization");
 		return res;
 	}
@@ -269,7 +260,7 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, char *targetTable, char *fi
 	}
 
 	// create a lineage capture rule
-	opt = createCaptureRule(min, target, filterPred);
+	opt = createCaptureRule(min, target, filterPred, ig);
 
     STOP_TIMER("semantic optimization");
 
@@ -480,7 +471,7 @@ adaptFDsToRules(DLProgram *p, DLRule *r, List *fds)
 		if(isA(n,DLAtom))
 		{
 			DLAtom *a = (DLAtom *) n;
-		    MAP_ADD_STRING_KEY_TO_VALUE_LIST(predToGoals, a->rel, a);
+		    MAP_ADD_STRING_KEY_TO_VALUE_LIST(predToGoals, a->rel, a, TRUE);
 		}
 	}
 

@@ -13,6 +13,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "configuration/option.h"
 #include "model/expression/expression.h"
 #include "model/integrity_constraints/integrity_constraint_inference.h"
 #include "model/list/list.h"
@@ -150,22 +151,14 @@ testJoinGraph(void)
 static rc
 testRewriting(void)
 {
-	DLRule *r, *rewr, *exp;
-	DLAtom *gr, *gs, *head, *phead;
+	boolean origSubqueryMerge, origSemanticOpt;
 
-	gr = DLATOM_FROM_STRS("R",FALSE,"X","Y");
-	gs = DLATOM_FROM_STRS("S",FALSE,"Y","Z");
-	head = DLATOM_FROM_STRS("Q", FALSE, "X");
-	phead = DLATOM_FROM_STRS("PROV_R",FALSE,"X","Y");
+	origSubqueryMerge = getBoolOption(OPTION_DL_MERGE_RULES);
+	origSemanticOpt = getBoolOption(OPTION_DL_SEMANTIC_OPT);
 
-	r = createDLRule(head,
-					 LIST_MAKE(gr,gs));
-
-	rewr = createCaptureRule(r, gr, NULL);
-	exp = createDLRule(phead,
-					   LIST_MAKE(gr,gs,head));
-
-	ASSERT_EQUALS_NODE(exp,rewr,"capture rule is");
+	// tests without subquery merging and semantic optimization
+	setBoolOption(OPTION_DL_MERGE_RULES, FALSE);
+	setBoolOption(OPTION_DL_SEMANTIC_OPT, FALSE);
 
 	TEST_LINEAGE_REWRITE(
 		"Q(X) :- R(X,Y). ANS : Q. LINEAGE FOR R.",
@@ -181,6 +174,46 @@ testRewriting(void)
 		"Q(X) :- R(X,Y), X < 5. ANS : Q. LINEAGE FOR R.",
 		"Q(X) :- R(X,Y), X < 5. PROV_R(X,Y) :- R(X,Y), X < 5, Q(X). ANS : PROV_R.",
 		"query with comparison");
+
+	TEST_LINEAGE_REWRITE(
+		"Q(X) :- R(X,Y), S(Y,Z). ANS : Q. RQ(20). LINEAGE FOR R FOR RESULTS FROM RQ.",
+		"rq(20)."
+        "q(x) :- r(x,y),s(y,z)."
+        "prov_r(x,y) :- r(x,y),s(y,z),rq(x)."
+		"ANS : PROV_R.",
+		"join query filter provenance.");
+
+	TEST_LINEAGE_REWRITE("Q(X) :- R(X,Y), R(X,Z). ANS : Q. LINEAGE FOR R.",
+						 "q(x) :- r(x,y),r(x,z)."
+						 "prov_r(x,y) :- r(x,y),r(x,z),q(x)."
+						 "prov_r(x,z) :- r(x,y),r(x,z),q(x)."
+						 "ANS: PROV_R.",
+						 "computing provenance for self-join");
+
+	TEST_LINEAGE_REWRITE("Q(Y,count(1)) :- R(X,Y). ANS : Q. LINEAGE FOR R.",
+						 "q(y,count(1)) :- r(x,y)."
+						 "prov_r(x,y) :- r(x,y),q(y,v0)."
+						 "ANS: PROV_R.",
+						 "single table single rule aggregation.");
+
+	TEST_LINEAGE_REWRITE("Q(Y,count(1)) :- R(X,Y), S(X,Z). ANS : Q. LINEAGE FOR R.",
+						 "Q(Y,count(1)) :- R(X,Y),S(X,Z)."
+						 "PROV_R(X,Y) :- R(X,Y),S(X,Z),Q(Y,V0)."
+						 "ANS: PROV_R.",
+						 "join with aggregation.");
+
+	TEST_LINEAGE_REWRITE("Q(X) :- S(X,Y), Q1(X). Q1(X) :- R(X,Y), R(X,Z). ANS : Q. LINEAGE FOR R.",
+						 "q(x) :- s(x,y),q1(x)."
+						 "q1(x) :- r(x,y),r(x,z)."
+						 "prov_q1(x) :- s(x,y),q1(x),q(x)."
+						 "prov_r(x,y) :- r(x,y),r(x,z),prov_q1(x)."
+						 "prov_r(x,z) :- r(x,y),r(x,z),prov_q1(x)."
+						 "ANS : PROV_R.",
+						 "capture provenance for table not in top rule.");
+
+	// reset optimization options
+	setBoolOption(OPTION_DL_MERGE_RULES, origSubqueryMerge);
+	setBoolOption(OPTION_DL_SEMANTIC_OPT, origSemanticOpt);
 
 	return PASS;
 }
@@ -220,7 +253,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(pr,LIST_MAKE(headxy));
-	opt = optimizeDLRule(p, r, fds, "R", NULL);
+	opt = optimizeDLRule(p, r, fds, gr, NULL);
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -231,7 +264,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(pr,LIST_MAKE(gr,headx));
-	opt = optimizeDLRule(p, r, fds, "R", NULL);
+	opt = optimizeDLRule(p, r, fds, gr, NULL);
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -242,7 +275,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,gt,gu,headx));
-	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
+	opt = optimizeDLRule(p, r, fds, glr, NULL);
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -254,7 +287,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,headx));
-	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
+	opt = optimizeDLRule(p, r, fds, glr, NULL);
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -281,7 +314,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,y3,headx));
-	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
+	opt = optimizeDLRule(p, r, fds, glr, NULL);
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -296,7 +329,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,gsp,gt,gu,y3,z5,xc,headya));
-	opt = optimizeDLRule(p, r, fds, "PRR", NULL);
+	opt = optimizeDLRule(p, r, fds, glr, NULL);
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 

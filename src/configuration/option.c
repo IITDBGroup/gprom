@@ -194,6 +194,7 @@ struct option_state {
 boolean opt_whynot_adv = FALSE;
 boolean opt_dl_min_with_fds = FALSE;
 boolean opt_merge_dl = FALSE;
+boolean opt_load_fds = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -851,7 +852,7 @@ OptionInfo opts[] =
 			"-dl_load_fds",
 			"Merge Datalog rules by substituting idb predicates in bodies with the rules that define them.",
 			OPTION_BOOL,
-			wrapOptionBool(&opt_merge_dl),
+			wrapOptionBool(&opt_load_fds),
 			defOptionBool(FALSE)
 		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,

@@ -204,7 +204,7 @@ addToMap(HashMap *map, Node *key, Node *value)
 }
 
 void
-addToMapValueList(HashMap *map, Node *key, Node *item)
+addToMapValueList(HashMap *map, Node *key, Node *item, boolean dupl)
 {
 	if(!hasMapKey(map, key))
 	{
@@ -214,7 +214,10 @@ addToMapValueList(HashMap *map, Node *key, Node *item)
 	else
 	{
 		List *l = (List *) getMap(map, key);
-		appendToTailOfList(l, item);
+		if(!(dupl && searchListNode(l, item)))
+		{
+			appendToTailOfList(l, item);
+		}
 	}
 }
 

@@ -57,6 +57,7 @@ rewriteDLForLinageCapture(DLProgram *p)
 	char *filterPred = DL_GET_STRING_PROP_DEFAULT(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE, NULL);
 	DLProgram *rewrP = copyObject(p);
 	List *provRules = NIL;
+	Graph *ig = GET_INV_REL_TO_REL_GRAPH(p);
 
 	DL_DEL_PROP(rewrP, DL_PROV_LINEAGE);
 
@@ -96,23 +97,26 @@ rewriteDLForLinageCapture(DLProgram *p)
 
 			FOREACH(DLRule,r,rs)
 			{
+				List *bodyGoalsForPred = getGoalsForPred(r, pred);
 				char *filter = filterPred && streq(getHeadPredName(r), answerPred) ? filterPred : NULL;
 				DLRule *captureRule;
 
-				if(getBoolOption(OPTION_DL_SEMANTIC_OPT))
+				FOREACH(DLAtom,g,bodyGoalsForPred)
 				{
-					List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
+					if(getBoolOption(OPTION_DL_SEMANTIC_OPT))
+					{
+						List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
 
-					captureRule = optimizeDLRule(p, r, fds, pred, filter);
-				}
-				else
-				{
-					captureRule = createCaptureRuleForTable(r, pred, filter);
-				}
+						captureRule = optimizeDLRule(p, r, fds, g, filter);
+					}
+					else
+					{
+						captureRule = createCaptureRuleForTable(r, pred, filter, g, ig);
+					}
 
-				provRules = appendToTailOfList(
-					provRules,
-					captureRule);
+					provRules = appendToTailOfList(provRules,
+												   captureRule);
+				}
 			}
 		}
 
@@ -153,35 +157,44 @@ static Set *
 computePredsToRewrite(char *targetTable, DLProgram *p)
 {
 	Constant *target = createConstString(targetTable);
-
-	Graph *bodyRelToHead = invertEdges((Graph *) getDLProp((DLNode *) p, DL_REL_TO_REL_GRAPH));
+	Graph *bodyRelToHead = GET_INV_REL_TO_REL_GRAPH(p);
 	Set *reach = reachableFrom(bodyRelToHead, (Node *) target);
 
 	addToSet(reach, createConstString(targetTable));
 
-	DEBUG_NODE_BEATIFY_LOG("predicates that are targets of rewritte:", reach);
+	DEBUG_NODE_BEATIFY_LOG("predicates that are targets of rewrite:", reach);
 
 	return makeStringSetFromConstSet(reach);
 }
 
-
-
 //TODO this does not support arithmetic expressions
 DLRule *
-createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred)
+createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *goalToHeadPred)
 {
 	List *body = copyObject(r->body);
 	DLAtom *newHead = copyObject(targetAtom);
 	DLRule *result;
 	DLAtom *headOrFilterAtom;
+	boolean useProvHead;
 
+	// new head predicate PROV_...
 	newHead->rel = PROV_PRED(newHead->rel);
 
+	// if this rule is not generating the answer predicate, we need to filter
+	// based on the provenance of our rule's head predicate.
+    useProvHead = hasOutgoingEdges(goalToHeadPred,
+								   (Node *) createConstString(r->head->rel));
+
+	// use head or separately provided filter predicate or provenance predicate (for non-top rules)
 	headOrFilterAtom = copyObject(r->head);
 
 	if(filterAnswerPred)
 	{
 		headOrFilterAtom->rel = filterAnswerPred;
+	}
+	else if (useProvHead)
+	{
+		headOrFilterAtom->rel = PROV_PRED(headOrFilterAtom->rel);
 	}
 
 	if(hasAggFunction((Node *) r->head->args))
@@ -214,17 +227,24 @@ createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred)
 }
 
 DLRule *
-createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred)
+createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred, DLAtom *goal, Graph *goalToHeadPred)
 {
 	DLAtom *target = NULL;
 
 	// determine target goal
-	FOREACH(DLAtom,a,r->body)
+	if (goal == NULL)
 	{
-		if(streq(a->rel, table)) //TODO support multiple goals for self-joins?n
+		FOREACH(DLAtom,a,r->body)
 		{
-			target = a;
+			if(streq(a->rel, table))
+			{
+				target = a;
+			}
 		}
+	}
+	else
+	{
+		target = goal;
 	}
 
 	if(target == NULL)
@@ -234,5 +254,5 @@ createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred)
 			  beatify(nodeToString(r)));
 	}
 
-	return createCaptureRule(r, target, filterAnswerPred);
+	return createCaptureRule(r, target, filterAnswerPred, goalToHeadPred);
 }

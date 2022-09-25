@@ -19,6 +19,7 @@ extern Node *analyzeDLModel(Node *stmt);
 extern void createDLanalysisStructures(DLProgram *p, boolean cleanup, boolean createRelToRelG, boolean createBityPredToRule);
 extern void createRelToRuleMap(Node *stmt);
 extern Graph *createRelToRelGraph(Node *stmt);
+extern Graph *createInvRelToRelGraph(Node *stmt);
 extern HashMap *createBodyPredToRuleMap(DLProgram *p);
 extern boolean hasAggFunction(Node *n);
 extern boolean atomHasExprs(DLAtom *a);
@@ -31,6 +32,17 @@ extern List *getEDBFDs(DLProgram *p);
 			createRelToRelGraph((Node *) _s);	\
 		} \
 	} while (0)
+#define ENSURE_INV_REL_TO_REL_GRAPH(_s) \
+	do { \
+		if(!DL_HAS_PROP(_s,DL_INV_REL_TO_REL_GRAPH)) \
+		{ \
+			createInvRelToRelGraph((Node *) _s);	\
+		} \
+	} while (0)
+#define GET_INV_REL_TO_REL_GRAPH(_s)								\
+	(DL_HAS_PROP(_s,DL_INV_REL_TO_REL_GRAPH) ?						\
+	 (Graph *) getDLProp((DLNode *) _s, DL_INV_REL_TO_REL_GRAPH) :	\
+	 createInvRelToRelGraph((Node *) _s))
 #define ENSURE_BODY_PRED_TO_RULE_MAP(_p) \
 	do {\
 		if(!DL_HAS_PROP(_p, DL_MAP_BODYPRED_TO_RULES)) \

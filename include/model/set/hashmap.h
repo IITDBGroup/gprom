@@ -69,8 +69,8 @@ extern boolean addToMap(HashMap *map, Node *key, Node *value);
 #define MAP_ADD_STRING_KEY_AND_VAL(map, key, value) addToMap((HashMap *) map, (Node *) createConstString(key), (Node *) createConstString(value))
 #define MAP_ADD_INT_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstInt(key), (Node *) value)
 #define MAP_ADD_LONG_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong(key), (Node *) value)
-extern void addToMapValueList(HashMap *map, Node *key, Node *item);
-#define MAP_ADD_STRING_KEY_TO_VALUE_LIST(map,key,value) addToMapValueList((HashMap *) map, (Node *) createConstString(key), (Node *) value)
+extern void addToMapValueList(HashMap *map, Node *key, Node *item, boolean unique);
+#define MAP_ADD_STRING_KEY_TO_VALUE_LIST(map,key,value,unique) addToMapValueList((HashMap *) map, (Node *) createConstString(key), (Node *) value, unique)
 
 extern int mapIncr(HashMap *map, Node *key);
 extern int mapIncrString(HashMap *map, char *key);

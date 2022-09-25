@@ -19,9 +19,10 @@
 #define _DATALOG_LINEAGE_H_
 
 #include "model/datalog/datalog_model.h"
+#include "model/graph/graph.h"
 
 extern DLProgram *rewriteDLForLinageCapture(DLProgram *p);
-extern DLRule *createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred);
-extern DLRule *createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred);
+extern DLRule *createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *goalToHeadPred);
+extern DLRule *createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred, DLAtom *goal, Graph *goalToHeadPred);
 
 #endif /* _DATALOG_LINEAGE_H_ */

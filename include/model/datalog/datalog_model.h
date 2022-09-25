@@ -124,6 +124,7 @@ extern boolean isEDB(DLProgram *p, char *pred);
 extern List *getVarNames(List *vars);
 extern List *predGetAttrNames(DLProgram *p, char *pred);
 extern List *getComparisonAtoms(DLRule *r);
+extern List *getGoalsForPred(DLRule *r, char *p);
 
 // unification and variable mappings
 extern DLRule *unifyRule(DLRule *r, List *headBinds);
@@ -192,6 +193,7 @@ extern void delAllProps(DLNode *n);
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
 #define DL_MAP_BODYPRED_TO_RULES "GOAL_TO_RULES"
 #define DL_REL_TO_REL_GRAPH "REL_TO_REL_G"
+#define DL_INV_REL_TO_REL_GRAPH "REL_TO_REL_INV_G"
 #define DL_MAP_UN_PREDS_TO_RULES "UN_PREDS_TO_RULES"
 #define DL_MAP_ADORNED_PREDS_TO_RULES "ADORNED_PREDS_TO_RULES"
 #define DL_IDB_RELS "IDB_RELS"

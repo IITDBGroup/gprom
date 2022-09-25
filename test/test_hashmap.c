@@ -86,11 +86,26 @@ testHashListValue(void)
 {
 	HashMap *a = NEW_MAP(Constant, List);
 
-    addToMapValueList(a, _S("A"), _S("A"));
-    addToMapValueList(a, _S("A"), _S("B"));
-	addToMapValueList(a, _S("A"), _S("C"));
+    addToMapValueList(a, _S("A"), _S("A"), FALSE);
+    addToMapValueList(a, _S("A"), _S("A"), FALSE);
+    addToMapValueList(a, _S("A"), _S("B"), FALSE);
+	addToMapValueList(a, _S("A"), _S("C"), FALSE);
 
-	addToMapValueList(a, _S("B"), _S("A"));
+	addToMapValueList(a, _S("B"), _S("A"), FALSE);
+
+	ASSERT_EQUALS_NODE(LIST_MAKE(_S("A"), _S("A"), _S("B"), _S("C")), getMapString(a, "A"), "a -> (a,a,b,c)");
+	ASSERT_EQUALS_NODE(LIST_MAKE(_S("A")), getMapString(a, "B"), "b -> (a)");
+
+	a = NEW_MAP(Constant, List);
+
+    addToMapValueList(a, _S("A"), _S("A"), TRUE);
+    addToMapValueList(a, _S("A"), _S("A"), TRUE);
+    addToMapValueList(a, _S("A"), _S("B"), TRUE);
+	addToMapValueList(a, _S("A"), _S("C"), TRUE);
+    addToMapValueList(a, _S("A"), _S("A"), TRUE);
+    addToMapValueList(a, _S("A"), _S("B"), TRUE);
+
+	addToMapValueList(a, _S("B"), _S("A"), TRUE);
 
 	ASSERT_EQUALS_NODE(LIST_MAKE(_S("A"), _S("B"), _S("C")), getMapString(a, "A"), "a -> (a,b,c)");
 	ASSERT_EQUALS_NODE(LIST_MAKE(_S("A")), getMapString(a, "B"), "b -> (a)");
