@@ -343,9 +343,11 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	Set *idbRels;
 	Set *aggRels;
 	/* Set *requiredAggRels = STRSET(); */
-	Set *todo;
+	Set *todo, *done;
 	List *newRules = NIL;
 	List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
+	char *filterPred = DL_GET_STRING_PROP_DEFAULT(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE, NULL);
+
 	ENSURE_DL_CHECKED(p);
 	/* checkDLModel((Node *) p); */
 	result = copyObject(p);
@@ -354,19 +356,29 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	relGraph = (Graph *) getDLProp((DLNode *) result, DL_REL_TO_REL_GRAPH);
 	predToRule = (HashMap *) getDLProp((DLNode *) result, DL_MAP_RELNAME_TO_RULES);
 	aggRels = (Set *) getDLProp((DLNode *) result, DL_AGGR_RELS);
-    todo = sourceNodes(relGraph);
-
 
 	// need to preserve answer relation
 	if(p->ans)
 	{
-		addToSet(todo, createConstString(p->ans));
+		todo = MAKE_NODE_SET(createConstString(p->ans));
+	}
+	else
+	{
+		todo = sourceNodes(relGraph);
+	}
+	done = STRSET();
+
+	// if this is a program that will be rewritten then keep the rules for relation restricting the provenance
+	if(filterPred)
+	{
+		addToSet(todo,createConstString(filterPred));
 	}
 
 	// iterate until all non-negated IDB predicates have been replaced with the bodies of the rules that defines them
 	while(!EMPTY_SET(todo))
 	{
 		char *cur = STRING_VALUE(popSet(todo));
+		addToSet(done, cur);
 		List *pRules = (List *) MAP_GET_STRING(predToRule, cur);
 
 		DEBUG_LOG("Process predicate %s", cur);
@@ -401,7 +413,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 
 					addedRules = mergeRule(curR, copyObject(iRules));
 					newRules = appendAllToTail(newRules, addedRules);
-					todoR = appendAllToTail(todoR, newRules);
+					todoR = appendAllToTail(todoR, addedRules);
 				}
 				else
 				{
@@ -415,7 +427,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 						{
 							DLAtom *a = (DLAtom *) n;
 
-							if(hasSetElem(idbRels, a->rel))
+							if(hasSetElem(idbRels, a->rel) && !hasSetElem(done, a->rel))
 							{
 								DEBUG_LOG("Added predicate %s to todo", a->rel);
 								addToSet(todo, createConstString(a->rel));
