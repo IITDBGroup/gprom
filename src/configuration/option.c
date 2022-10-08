@@ -126,6 +126,7 @@ boolean opt_show_query_result = TRUE;
 boolean opt_aggressive_model_checking = FALSE;
 boolean opt_update_only_conditions = FALSE;
 boolean opt_treeify_opterator_model = FALSE;
+boolean opt_treeify_all = FALSE;
 boolean opt_only_updated_use_history = FALSE;
 boolean opt_pi_cs_composable = FALSE;
 boolean opt_pi_cs_rewrite_agg_window = FALSE;
@@ -592,6 +593,11 @@ OptionInfo opts[] =
                 "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
                 opt_treeify_opterator_model,
                 TRUE),
+        aRewriteOption(OPTION_ALWAYS_TREEIFY,
+                "-treeify-all",
+                "Turn AGM graph into a tree passing it to serializer.",
+                opt_treeify_all,
+                FALSE),		
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
                 "-prov_use_composable",
                 "Use composable version of PI-CS provenance that adds additional columns which"

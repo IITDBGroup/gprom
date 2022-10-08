@@ -372,3 +372,30 @@ strToLower(const char *input)
 
     return result;
 }
+
+#define BUFSIZE 1024
+
+char *
+readStringFromFile(char *file)
+{
+	FILE *rfile;
+	StringInfo str = makeStringInfo();
+	char *result;
+	char buf[BUFSIZE];
+
+	if(access(file, F_OK) != 0)
+		FATAL_LOG("could not open file %s with error %s", file, strerror(errno));
+	
+	rfile = fopen(file, "r");
+	if (rfile == NULL)
+		FATAL_LOG("could not open file %s with error %s", file, strerror(errno));
+
+	while(fgets(buf,BUFSIZE,rfile))
+	{
+		appendStringInfoString(str, buf);
+	}
+	
+	result = str->data;
+	FREE(str);
+	return result;
+}

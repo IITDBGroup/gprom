@@ -27,6 +27,7 @@ extern boolean isSubstr(char *str, char *substr);
 extern char *specializeTemplate(char *template, List *args);
 extern char *strtrim (char *in);
 extern boolean strieq(char *left, char *right);
+extern char *readStringFromFile(char *file);
 
 // string comparison for sorting
 extern int strCompare(const void *a, const void *b);

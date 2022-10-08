@@ -67,6 +67,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
+#define OPTION_ALWAYS_TREEIFY "always_treeify"
 #define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
 #define OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW "pi_cs_rewrite_agg_window"
 #define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"

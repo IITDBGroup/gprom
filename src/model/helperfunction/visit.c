@@ -420,6 +420,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             PREP_VISIT(DLProgram);
             VISIT(rules);
             VISIT(facts);
+			VISIT(func);
         }
         break;
         default:

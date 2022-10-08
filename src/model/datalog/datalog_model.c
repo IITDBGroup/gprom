@@ -716,7 +716,7 @@ createUniqueVar(Node *n, DataType dt)
 	}
 
 	do {
-		varName = CONCAT_STRINGS("V", gprom_itoa(i));
+		varName = CONCAT_STRINGS("V", gprom_itoa(i++));
 	} while (hasSetElem(vars, varName));
 
 	return createDLVar(varName, dt);

@@ -1,0 +1,23 @@
+Q(l_shipmode,sum(1)) :-
+orders(o_okey,x1,x2,x3,x4,'1-URGENT',x5,x6,x7),
+lineitem(o_okey,x8,x9,x10,x11,x12,x13,x14,x15,x16,l_shipdate,l_commitdate,l_receiptdate,x17,l_shipmode,x18),
+l_commitdate < l_receiptdate,
+l_shipdate < l_commitdate,
+l_receiptdate >= '1994-01-01',
+l_receiptdate < '1995-01-01',
+l_shipmode = 'MAIL'.
+
+Q(l_shipmode,sum(1)) :-
+orders(o_okey,x1,x2,x3,x4,'1-URGENT',x5,x6,x7),
+lineitem(o_okey,x8,x9,x10,x11,x12,x13,x14,x15,x16,l_shipdate,l_commitdate,l_receiptdate,x17,l_shipmode,    x18),
+l_commitdate < l_receiptdate,
+l_shipdate < l_commitdate,
+l_receiptdate >= '1994-01-01',
+l_receiptdate < '1995-01-01',
+l_shipmode = 'SHIP'.
+
+ANS:Q.
+
+RP(x1, x2) :- rtpcq12(x1, x2).
+
+LINEAGE FOR lineitem FOR RESULTS FROM RP.

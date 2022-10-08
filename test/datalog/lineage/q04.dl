@@ -1,0 +1,11 @@
+Q1(l_okey) :-
+lineitem(l_okey,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,l_comm_date,l_receipt_date,x11,x12,x13),
+l_comm_date < l_receipt_date.
+
+Q(o_opriority,count(1)) :-
+orders(l_okey,x1,x2,x3,o_odate,o_opriority,x4,x5,x6),
+Q1(l_okey),
+o_odate >= '1993-07-01',
+o_odate < '1993-10-01'.
+
+ANS:Q.

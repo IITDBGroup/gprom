@@ -1,0 +1,15 @@
+Q(n_n,sum(l_ep * (1-l_d))):-
+customer(c_ck,c1,c2,c_nk,c3,c4,c5,c6),
+orders(o_ok,c_ck,o1,o2,o_od,o3,o4,o5,o6),
+lineitem(o_ok,l1,l_sk,l2,l3,l_ep,l_d,l5,l6,l7,l8,l9,l10,l11,l12,l13),
+supplier(l_sk,s1,s2,c_nk,s3,s4,s5),
+nation(c_nk,n_n,n_rk,n1),
+region(n_rk,'ASIA',r2),
+o_od >= '1994-01-01',
+o_od < '1995-01-01'.
+
+ANS: Q.
+
+RP(x1, x2) :- rtpcq05(x1, x2).
+
+LINEAGE FOR region FOR RESULTS FROM RP.

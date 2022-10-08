@@ -21,6 +21,7 @@
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "utility/string_utils.h"
+#include "configuration/option.h"
 
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer.h"
@@ -135,7 +136,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
         DEBUG_LOG("STATE: %s", OUT_MATCH_STATE(state));
         DEBUG_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
-        if (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1)
+        if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) && (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1))
         {
             if (cur != q)
             {
@@ -241,18 +242,20 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                         matchInfo->windowRoot = (WindowOperator *) cur;
                         state = MATCH_WINDOW;
                         break;
-				    case T_LimitOperator:
-						if (state == MATCH_START)
-                        {
-							matchInfo->limitOffset = (LimitOperator *) cur;
-							state = MATCH_LIMIT;
-                        }
-                        else
-                        {
-                            matchInfo->fromRoot = cur;
-                            state = MATCH_NEXTBLOCK;
-                        }
-						break;
+                    case T_LimitOperator:
+                    {
+                    if (state == MATCH_START)
+                    {
+                        matchInfo->limitOffset = (LimitOperator *) cur;
+                        state = MATCH_LIMIT;
+                    }
+                    else
+                    {
+                        matchInfo->fromRoot = cur;
+                        state = MATCH_NEXTBLOCK;
+                    }
+                    }
+                    break;
                     default:
                         matchInfo->fromRoot = cur;
                         state = MATCH_NEXTBLOCK;
@@ -469,7 +472,8 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 {
     // if operator has more than one parent then it will be represented as a CTE
     // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
-    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) || q == fromRoot)
+	// also do not materialized if the user forced a tree structions
+    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) || q == fromRoot || isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY))
     {
         switch(q->type)
         {
@@ -602,7 +606,8 @@ List *
 genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, SerializeClausesAPI *api)
 {
     // operator with multiple parents
-    if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
+    if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) &&
+		(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)))
         return api->createTempView (q, str, parent, api);
     else if (isA(q, SetOperator))
         return api->serializeSetOperator(q, str, api);

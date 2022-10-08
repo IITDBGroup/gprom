@@ -34,6 +34,7 @@
 #define PROV_PRED(_p) CONCAT_STRINGS(backendifyIdentifier("prov_"), _p);
 
 static Set *computePredsToRewrite(char *targetTable, DLProgram *p);
+static DLAtom *replaceHeadExpressionsWithVars(DLAtom *head);
 
 /**
  * @brief Rewrites a program to compute lineage.
@@ -186,7 +187,7 @@ createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *
 								   (Node *) createConstString(r->head->rel));
 
 	// use head or separately provided filter predicate or provenance predicate (for non-top rules)
-	headOrFilterAtom = copyObject(r->head);
+	headOrFilterAtom = replaceHeadExpressionsWithVars(r->head);
 
 	if(filterAnswerPred)
 	{
@@ -223,6 +224,31 @@ createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *
 
 	DEBUG_DL_LOG("Created capture rule: ", result);
 
+	return result;
+}
+
+static DLAtom *
+replaceHeadExpressionsWithVars(DLAtom *head)
+{
+	DLAtom *result = (DLAtom *) copyObject(head);
+	result->args = NIL;
+	FOREACH(Node,n,head->args)
+	{
+		DLVar *v;
+
+		if(isA(n, DLVar))
+		{
+			v = (DLVar *) copyObject(n);
+		}
+		else
+		{
+			v = createUniqueVar((Node *) result, typeOf(n));
+		}
+
+		
+		result->args = appendToTailOfList(result->args,v);
+	}
+	
 	return result;
 }
 

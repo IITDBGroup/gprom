@@ -1,0 +1,9 @@
+Q(l_return, l_linestat, sum(l_quant), sum(l_extp), sum(l_extp*(1-l_disc)),  sum(l_extp*(1-l_disc)*(1+l_tax)), avg(l_quant), avg(l_extp), avg(l_disc), count(x1)) :-
+    lineitem(x1, x2, x3, x4, l_quant, l_extp, l_disc, l_tax, l_return, l_linestat, l_shipdate, x5, x6, x7, x8, x9),
+    l_shipdate <= '1998-09-01'.
+
+ANS: Q.
+
+RP(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10) :- rtpcq01(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10).
+
+LINEAGE FOR lineitem FOR RESULTS FROM RP.

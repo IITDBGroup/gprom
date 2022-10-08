@@ -29,6 +29,7 @@
 #include "parser/parser_dl.h"
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 #include "provenance_rewriter/datalog_lineage/datalog_lineage.h"
+#include "utility/string_utils.h"
 
 
 static rc testOptimization(void);
@@ -140,13 +141,40 @@ testJoinGraph(void)
 		delAllProps((DLNode *) _ep_);									\
 		delAllProps((DLNode *) _ap_);									\
 																		\
-		INFO_DL_LOG("Expected progran", _ep_);							\
-	    INFO_DL_LOG("Actual progran", _ap_);							\
-		DEBUG_NODE_BEATIFY_LOG("Expected progran", _ep_);				\
-		DEBUG_NODE_BEATIFY_LOG("Actual progran", _ap_);					\
+		INFO_DL_LOG("Expected program", _ep_);							\
+	    INFO_DL_LOG("Actual program", _ap_);							\
+		DEBUG_NODE_BEATIFY_LOG("Expected program", _ep_);				\
+		DEBUG_NODE_BEATIFY_LOG("Actual program", _ap_);					\
 																		\
 		ASSERT_EQUALS_NODE(_ep_,_ap_,_description " : " _inp);			\
 	} while (0)
+
+#define TEST_LINEAGE_REWRITE_FILE(_inf,_expf)						\
+	do {															\
+		DLProgram *_inp_, *_ep_,*_ap_;								\
+		char *_inq = readStringFromFile(_inf);						\
+		char *_expq = readStringFromFile(_expf);					\
+		_inp_ = (DLProgram *) parseFromStringdl(_inq);				\
+		_ep_ = (DLProgram *) parseFromStringdl(_expq);				\
+																	\
+		analyzeDLModel((Node *) _inp_);								\
+		analyzeDLModel((Node *) _ep_);								\
+																	\
+		_ap_ = rewriteDLForLinageCapture(_inp_);					\
+																	\
+		delAllProps((DLNode *) _inp_);								\
+		delAllProps((DLNode *) _ep_);								\
+		delAllProps((DLNode *) _ap_);								\
+																	\
+		INFO_DL_LOG("Expected program", _ep_);						\
+		INFO_DL_LOG("Actual program", _ap_);						\
+		DEBUG_NODE_BEATIFY_LOG("Expected program", _ep_);			\
+		DEBUG_NODE_BEATIFY_LOG("Actual program", _ap_);				\
+																	\
+		char *_mes = formatMes("\n================================================================================\n%s rewritten into %s:\n================================================================================\n\n%s\n\n%s",	\
+							   _inf, _expf, _inq, _expq);			\
+		ASSERT_EQUALS_NODE(_ep_,_ap_,_mes);							\
+	} while(0)
 
 static rc
 testRewriting(void)
@@ -192,13 +220,13 @@ testRewriting(void)
 
 	TEST_LINEAGE_REWRITE("Q(Y,count(1)) :- R(X,Y). ANS : Q. LINEAGE FOR R.",
 						 "q(y,count(1)) :- r(x,y)."
-						 "prov_r(x,y) :- r(x,y),q(y,v0)."
+						 "prov_r(x,y) :- r(x,y),q(y,v1)."
 						 "ANS: PROV_R.",
 						 "single table single rule aggregation.");
 
 	TEST_LINEAGE_REWRITE("Q(Y,count(1)) :- R(X,Y), S(X,Z). ANS : Q. LINEAGE FOR R.",
 						 "Q(Y,count(1)) :- R(X,Y),S(X,Z)."
-						 "PROV_R(X,Y) :- R(X,Y),S(X,Z),Q(Y,V0)."
+						 "PROV_R(X,Y) :- R(X,Y),S(X,Z),Q(Y,V1)."
 						 "ANS: PROV_R.",
 						 "join with aggregation.");
 
@@ -211,6 +239,21 @@ testRewriting(void)
 						 "ANS : PROV_R.",
 						 "capture provenance for table not in top rule.");
 
+	// TPC-H queries
+	FOREACH(char,c,LIST_MAKE(
+				"q01_lineitem.dl",
+				"q02_nation.dl",
+				"q03_lineitem.dl",
+				"q04_lineitem.dl",
+				"q05_lineitem.dl",
+				"q06_lineitem.dl"))
+	{
+		char *qfile = CONCAT_STRINGS("./datalog/lineage/", c);
+		char *resultqueryfile = CONCAT_STRINGS("./datalog/lineage/result_", c);
+
+		TEST_LINEAGE_REWRITE_FILE(qfile, resultqueryfile);
+	}
+	
 	// reset optimization options
 	setBoolOption(OPTION_DL_MERGE_RULES, origSubqueryMerge);
 	setBoolOption(OPTION_DL_SEMANTIC_OPT, origSemanticOpt);

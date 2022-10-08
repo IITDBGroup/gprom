@@ -776,6 +776,7 @@ analyzeRule(DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factR
 		FOREACH(FunctionCall,f,fcs)
 		{
             p->func = appendToTailOfList(p->func, f);
+			f->isAgg = isAgg(f->functionname);
 			if(f->isAgg)
 			{
 				DL_SET_BOOL_PROP((DLNode *) r, DL_HAS_AGG);

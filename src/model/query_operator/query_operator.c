@@ -1373,7 +1373,7 @@ void
 treeify(QueryOperator *op)
 {
     FOREACH(QueryOperator,child,op->inputs)
-                treeify(child);
+		treeify(child);
 
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
