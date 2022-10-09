@@ -1,0 +1,10 @@
+Qsub1(ps_pk,sum(ps_sc * ps_aq)):-
+partsupp(ps_pk,ps_sk,ps_aq,ps_sc,ps2),
+supplier(ps_sk,s1,s2,s_nk,s3,s4,s5),
+nation(s_nk,'GERMANY',n1,n2).
+
+Qsub2(sum(c2*0.0001)) :- Qsub1(c1, c2).
+
+Q(c1,c2) :- Qsub1(c1, c2), Qsub2(c3), c2 > c3.
+
+ANS: Q.

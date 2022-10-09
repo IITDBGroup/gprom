@@ -240,7 +240,7 @@ testRewriting(void)
 						 "capture provenance for table not in top rule.");
 
 	// TPC-H queries
-	FOREACH(char,c,LIST_MAKE(
+	List *queries = LIST_MAKE(
 				"q01_lineitem.dl",
 				"q02_nation.dl",
 				"q03_lineitem.dl",
@@ -250,8 +250,18 @@ testRewriting(void)
 				"q07_lineitem.dl",
 				"q08_supplier.dl",
 				"q09_lineitem.dl",
-				"q10_lineitem.dl"
-				))
+				"q10_lineitem.dl",
+				"q11_supplier.dl",
+				"q12_lineitem.dl",
+				"q13_orders.dl",
+				"q14_lineitem.dl",
+				"q15_lineitem.dl",
+				"q17_lineitem.dl",
+				"q18_lineitem.dl",
+				"q19_lineitem.dl"
+		); 
+	
+	FOREACH(char,c,queries)
 	{
 		char *qfile = CONCAT_STRINGS("./datalog/lineage/", c);
 		char *resultqueryfile = CONCAT_STRINGS("./datalog/lineage/result_", c);

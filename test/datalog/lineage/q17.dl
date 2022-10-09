@@ -8,7 +8,3 @@ Q(sum(l_ep / 7.0)):-
     l_q < q2.
 
 ANS: Q.
-
-RP(x1) :- rtpcq17(x1).
-
-LINEAGE FOR lineitem FOR RESULTS FROM RP.

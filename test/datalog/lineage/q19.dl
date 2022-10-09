@@ -42,7 +42,3 @@ Q(sum(l_extp * (1-l_discount))) :-
     Qfilter(l_orderkey, l_linenumber, l_discount, l_extp).
 
 ANS: Q.
-
-RP(x1) :- rtpcq19(x1).
-
-LINEAGE FOR lineitem FOR RESULTS FROM RP.
