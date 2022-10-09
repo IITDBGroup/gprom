@@ -88,7 +88,7 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
+%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison parenComparison ansrelation provStatement rpqStatement associateDomain
 %type <node> functional_dependency
 %type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions caseExpression caseWhen optionalCaseElse 
 %type <node> optionalFPattern
@@ -499,7 +499,7 @@ bodyAtomList:
 
 bodyAtom:
  		relAtom { RULELOG("bodyAtom::relAtom"); $$ = $1; }
-		| comparison
+		| parenComparison
 			{
 				RULELOG("atom::comparison");
 				$$ = (Node *) $1;
@@ -548,6 +548,16 @@ constList:
 		| constant { $$ = singleton($1); }
 	;
 */
+
+parenComparison:
+				'(' parenComparison ')'
+				{
+				    RULELOG("parenComparison::parenComparison");
+				    $$ = $2;
+				}
+		|       comparison {{ $$ = $1; }}		 
+				
+		;
 
 comparison:
 		arg comparisonOp arg
