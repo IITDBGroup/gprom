@@ -16,7 +16,3 @@ Q(s_name,s_address) :-
     Q2(s_suppkey).
 
 ANS: Q.
-
-RP(x1, x2) :- rtpcq20(x1, x2).
-
-LINEAGE FOR part FOR RESULTS FROM RP.

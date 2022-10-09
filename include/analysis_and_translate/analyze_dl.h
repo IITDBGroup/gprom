@@ -22,6 +22,7 @@ extern Graph *createRelToRelGraph(Node *stmt);
 extern Graph *createInvRelToRelGraph(Node *stmt);
 extern HashMap *createBodyPredToRuleMap(DLProgram *p);
 extern boolean hasAggFunction(Node *n);
+extern boolean hasGenProj(DLAtom *head);
 extern boolean atomHasExprs(DLAtom *a);
 extern List *getEDBFDs(DLProgram *p);
 

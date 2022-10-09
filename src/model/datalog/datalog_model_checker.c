@@ -46,10 +46,13 @@ checkDLProgram(DLProgram *p)
     HashMap *relArities = NEW_MAP(Constant,Constant);
     Set *idbRels = STRSET();
 	Set *aggrRels = STRSET();
+	Set *genProjRels = STRSET();
     Set *edbRels = STRSET();
     Set *factRels = STRSET();
     Set *edbOrFactRels = STRSET();
 
+	DEBUG_DL_LOG("Check program ", p);
+	
     // check facts
     FOREACH(DLAtom,f,p->facts)
     {
@@ -73,11 +76,17 @@ checkDLProgram(DLProgram *p)
         if (!MAP_HAS_STRING_KEY(relArities, r->head->rel))
             MAP_ADD_STRING_KEY(relArities, strdup(r->head->rel),
                     createConstInt(LIST_LENGTH(r->head->args)));
+
+		// determine which rules use aggregation and generalized projection
 		if(hasAggFunction((Node *) r->head->args))
 		{
 			addToSet(aggrRels,strdup(r->head->rel));
 		}
-
+		else if(hasGenProj(r->head))
+		{
+			addToSet(genProjRels, strdup(r->head->rel));
+		}		   
+		
         FOREACH(DLNode,a,r->body)
         {
             if (isA(a, DLAtom))
@@ -221,6 +230,7 @@ checkDLProgram(DLProgram *p)
     setDLProp((DLNode *) p, DL_EDB_RELS, (Node *) edbRels);
     setDLProp((DLNode *) p, DL_FACT_RELS, (Node *) factRels);
 	setDLProp((DLNode *) p, DL_AGGR_RELS, (Node *) aggrRels);
+	setDLProp((DLNode *) p, DL_GEN_PROJ_RELS, (Node *) genProjRels);
 	
     return TRUE;
 }

@@ -36,7 +36,7 @@ static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
 static Node *unificationMutator(Node *node, HashMap *context);
 static List *mergeRule(DLRule *super, List *replacements);
-static char *getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease,boolean isAgg);
+static char *getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, Set *genProjPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease,boolean isAgg);
 /* static boolean ruleHasPosSubstitutableIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred); */
 static boolean headVarsImplyBodyVars(DLProgram *p, DLRule *r, List *fds);
 /* static List *ruleGetAggIDBAtoms(DLRule *r, Set *aggPreds); */
@@ -342,12 +342,15 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	HashMap *predToRule;
 	Set *idbRels;
 	Set *aggRels;
+	Set *genProjRels;
 	/* Set *requiredAggRels = STRSET(); */
 	Set *todo, *done;
 	List *newRules = NIL;
 	List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
 	char *filterPred = DL_GET_STRING_PROP_DEFAULT(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE, NULL);
 
+	DEBUG_LOG("Trying to merge subqueries.");
+	
 	ENSURE_DL_CHECKED(p);
 	/* checkDLModel((Node *) p); */
 	result = copyObject(p);
@@ -356,7 +359,8 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	relGraph = (Graph *) getDLProp((DLNode *) result, DL_REL_TO_REL_GRAPH);
 	predToRule = (HashMap *) getDLProp((DLNode *) result, DL_MAP_RELNAME_TO_RULES);
 	aggRels = (Set *) getDLProp((DLNode *) result, DL_AGGR_RELS);
-
+	genProjRels = (Set *) getDLProp((DLNode *) result, DL_GEN_PROJ_RELS);
+	
 	// need to preserve answer relation
 	if(p->ans)
 	{
@@ -396,6 +400,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 															  p,
 															  idbRels,
 															  aggRels,
+															  genProjRels,
 															  p->ans,
 															  predToRule,
 															  fds,
@@ -451,7 +456,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 }
 
 static char *
-getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease, boolean isAgg)
+getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, Set *genProjPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease, boolean isAgg)
 {
 	FOREACH(DLNode,n,r->body)
 	{
@@ -468,8 +473,9 @@ getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPre
 			if(!a->negated &&
 			   hasSetElem(idbPreds, a->rel) &&
 			   !strpeq(a->rel, ansPred) &&
-			   !hasSetElem(aggPreds, a->rel) && (
-				   (!isAgg
+			   !hasSetElem(aggPreds, a->rel) &&
+			   !hasSetElem(genProjPreds, a->rel) &&
+			   ((!isAgg
 				   && (LIST_LENGTH(iRules) < 2 || allowRuleNumberIncrease))
 			   || (isAgg
 				   && LIST_LENGTH(iRules) == 1

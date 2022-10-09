@@ -237,6 +237,9 @@ analyzeDLProgram(DLProgram *p)
     List *doms = NIL;
 	List *fds = NIL;
 
+	// reset functions
+	p->func = NIL;
+	
     // extract summarization options
     analyzeSummerizationBasics(p);
 
@@ -309,7 +312,7 @@ analyzeDLProgram(DLProgram *p)
 
     // analyze all rules
     FOREACH(DLRule,r,rules)
-        analyzeRule((DLRule *) r, idbRels, p); //, edbRels, factRels);
+        analyzeRule((DLRule *) r, idbRels, p);
 
     p->rules = rules;
     p->facts = facts;
@@ -892,6 +895,21 @@ hasAggFunction(Node *n)
 	hasAggFunctionVisitor(n, &result);
 
 	return result;
+}
+
+boolean
+hasGenProj(DLAtom *head)
+{
+	FOREACH(DLNode,n,head->args)
+	{
+		if(!(isA(n,DLVar)
+			 || isA(n,Constant)))
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 boolean

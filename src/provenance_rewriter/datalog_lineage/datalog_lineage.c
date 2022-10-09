@@ -108,6 +108,7 @@ rewriteDLForLinageCapture(DLProgram *p)
 					{
 						List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
 
+						DEBUG_DL_LOG("create semantically optimized rule for ", r);
 						captureRule = optimizeDLRule(p, r, fds, g, filter);
 					}
 					else

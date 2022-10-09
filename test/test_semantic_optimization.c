@@ -132,14 +132,18 @@ testJoinGraph(void)
 		_inp_ = (DLProgram *) parseFromStringdl(_inp);					\
 		_ep_ = (DLProgram *) parseFromStringdl(_exp);					\
 																		\
-		analyzeDLModel((Node *) _inp_);									\
-		analyzeDLModel((Node *) _ep_);									\
+		_inp_ = (DLProgram *) analyzeDLModel((Node *) _inp_);			\
+		_ep_ = (DLProgram *) analyzeDLModel((Node *) _ep_);				\
 																		\
 		_ap_ = rewriteDLForLinageCapture(_inp_);						\
+		_ap_->rules = CONCAT_LISTS(_ap_->rules, _ap_->facts);			\
+		_ap_ =  (DLProgram *) analyzeDLModel((Node *) _ap_);			\
 																		\
 		delAllProps((DLNode *) _inp_);									\
 		delAllProps((DLNode *) _ep_);									\
 		delAllProps((DLNode *) _ap_);									\
+		_ep_->func = NIL;												\
+		_ap_->func = NIL;												\
 																		\
 		INFO_DL_LOG("Expected program", _ep_);							\
 	    INFO_DL_LOG("Actual program", _ap_);							\
@@ -149,31 +153,35 @@ testJoinGraph(void)
 		ASSERT_EQUALS_NODE(_ep_,_ap_,_description " : " _inp);			\
 	} while (0)
 
-#define TEST_LINEAGE_REWRITE_FILE(_inf,_expf)						\
-	do {															\
-		DLProgram *_inp_, *_ep_,*_ap_;								\
-		char *_inq = readStringFromFile(_inf);						\
-		char *_expq = readStringFromFile(_expf);					\
-		_inp_ = (DLProgram *) parseFromStringdl(_inq);				\
-		_ep_ = (DLProgram *) parseFromStringdl(_expq);				\
-																	\
-		analyzeDLModel((Node *) _inp_);								\
-		analyzeDLModel((Node *) _ep_);								\
-																	\
-		_ap_ = rewriteDLForLinageCapture(_inp_);					\
-																	\
-		delAllProps((DLNode *) _inp_);								\
-		delAllProps((DLNode *) _ep_);								\
-		delAllProps((DLNode *) _ap_);								\
-																	\
-		INFO_DL_LOG("Expected program", _ep_);						\
-		INFO_DL_LOG("Actual program", _ap_);						\
-		DEBUG_NODE_BEATIFY_LOG("Expected program", _ep_);			\
-		DEBUG_NODE_BEATIFY_LOG("Actual program", _ap_);				\
-																	\
-		char *_mes = formatMes("\n================================================================================\n%s rewritten into %s:\n================================================================================\n\n%s\n\n%s",	\
-							   _inf, _expf, _inq, _expq);			\
-		ASSERT_EQUALS_NODE(_ep_,_ap_,_mes);							\
+#define TEST_LINEAGE_REWRITE_FILE(_inf,_expf)							\
+	do {																\
+		DLProgram *_inp_, *_ep_,*_ap_;									\
+		char *_inq = readStringFromFile(_inf);							\
+		char *_expq = readStringFromFile(_expf);						\
+		_inp_ = (DLProgram *) parseFromStringdl(_inq);					\
+		_ep_ = (DLProgram *) parseFromStringdl(_expq);					\
+																		\
+		_inp_ = (DLProgram *) analyzeDLModel((Node *) _inp_);			\
+		_ep_ = (DLProgram *) analyzeDLModel((Node *) _ep_);				\
+																		\
+		_ap_ = rewriteDLForLinageCapture(_inp_);						\
+		_ap_->rules = CONCAT_LISTS(_ap_->rules, _ap_->facts);			\
+		_ap_ =  (DLProgram *) analyzeDLModel((Node *) _ap_);			\
+																		\
+		delAllProps((DLNode *) _inp_);									\
+		delAllProps((DLNode *) _ep_);									\
+		delAllProps((DLNode *) _ap_);									\
+		_ep_->func = NIL;												\
+		_ap_->func = NIL;												\
+																		\
+		INFO_DL_LOG("Expected program", _ep_);							\
+		INFO_DL_LOG("Actual program", _ap_);							\
+		DEBUG_NODE_BEATIFY_LOG("Expected program", _ep_);				\
+		DEBUG_NODE_BEATIFY_LOG("Actual program", _ap_);					\
+																		\
+		char *_mes = formatMes("\n================================================================================\n%s rewritten into %s:\n================================================================================\n\n%s\n================================================================================\n%s", \
+							   _inf, _expf, _inq, _expq);				\
+		ASSERT_EQUALS_NODE(_ep_,_ap_,_mes);								\
 	} while(0)
 
 static rc
@@ -258,13 +266,49 @@ testRewriting(void)
 				"q15_lineitem.dl",
 				"q17_lineitem.dl",
 				"q18_lineitem.dl",
-				"q19_lineitem.dl"
+				"q19_lineitem.dl",
+				"q20_part.dl"
+		); 
+
+	// check rewrites without optimizations
+	FOREACH(char,c,queries)
+	{
+		char *qfile = CONCAT_STRINGS("./datalog/lineage/", c);
+		char *resultqueryfile = CONCAT_STRINGS("./datalog/lineage/result_", c);
+
+		TEST_LINEAGE_REWRITE_FILE(qfile, resultqueryfile);
+	}
+
+	// check rewrites with optimizations
+	setBoolOption(OPTION_DL_MERGE_RULES, TRUE);
+	setBoolOption(OPTION_DL_SEMANTIC_OPT, TRUE);
+
+	queries = LIST_MAKE(
+				"q01_lineitem.dl",
+				/* "q02_nation.dl", */
+				"q03_lineitem.dl",
+				"q04_lineitem.dl",
+				"q05_lineitem.dl",
+				"q06_lineitem.dl",
+				/* "q07_lineitem.dl", */
+				"q08_supplier.dl",
+				"q09_lineitem.dl",
+				"q10_lineitem.dl",
+				/* "q11_supplier.dl", */
+				/* "q12_lineitem.dl", */
+				"q13_orders.dl",
+				"q14_lineitem.dl",
+				/* "q15_lineitem.dl", */
+				/* "q17_lineitem.dl", */
+				/* "q18_lineitem.dl", */
+				/* "q19_lineitem.dl", */
+				"q20_part.dl" 
 		); 
 	
 	FOREACH(char,c,queries)
 	{
 		char *qfile = CONCAT_STRINGS("./datalog/lineage/", c);
-		char *resultqueryfile = CONCAT_STRINGS("./datalog/lineage/result_", c);
+		char *resultqueryfile = CONCAT_STRINGS("./datalog/lineage/optresult_", c);
 
 		TEST_LINEAGE_REWRITE_FILE(qfile, resultqueryfile);
 	}
