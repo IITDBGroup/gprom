@@ -167,6 +167,11 @@ FROM                "FROM"
 {THRESHOLDS}		TOK(THRESHOLDS)
 {RESULTS}           TOK(RESULTS)
 {FROM}              TOK(FROM)
+(?i:CASE)			UPCASE_TOK(CASE)
+(?i:WHEN)			UPCASE_TOK(WHEN)
+(?i:THEN)			UPCASE_TOK(THEN)
+(?i:END)			UPCASE_TOK(END)
+(?i:ELSE)			UPCASE_TOK(ELSE)
 
 	/* aggregation functions */
 (?i:AVG)	TOK(AMMSC)

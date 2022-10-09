@@ -246,7 +246,9 @@ testRewriting(void)
 				"q03_lineitem.dl",
 				"q04_lineitem.dl",
 				"q05_lineitem.dl",
-				"q06_lineitem.dl"))
+				"q06_lineitem.dl",
+				"q07_lineitem.dl",
+				"q08_supplier.dl"))
 	{
 		char *qfile = CONCAT_STRINGS("./datalog/lineage/", c);
 		char *resultqueryfile = CONCAT_STRINGS("./datalog/lineage/result_", c);

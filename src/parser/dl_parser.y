@@ -44,6 +44,7 @@ Node *dlParseResult = NULL;
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
 %token <stringVal> FORMAT
+%token	<stringVal>	CASE WHEN THEN ELSE END
 
 /*
  * Functions and operators
@@ -89,9 +90,9 @@ Node *dlParseResult = NULL;
 
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
 %type <node> functional_dependency
-%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions
+%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions caseExpression caseWhen optionalCaseElse 
 %type <node> optionalFPattern
-%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds nameList
+%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds nameList caseWhenList
 %type <stringVal> optProvFormat
 
 /* start symbol */
@@ -592,7 +593,13 @@ expression:
 		| constant     				   	{ RULELOG("expression::constant"); }
         | variable 	        		  	{ RULELOG("expression::variable"); }
         | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); }
+		| caseExpression                { RULELOG("expression::caseExpression"); }
         | functionCall	        		{ RULELOG("expression::functionCall"); }
+		| comparison
+		  {
+				RULELOG("expression:comparison");
+                $$ = (Node *) ((DLComparison *) $1)->opExpr;
+		  }
     ;
 
 /*
@@ -647,6 +654,51 @@ binaryOperatorExpression:
             }
     ;
 
+/*
+ * Rule to parser CASE expressions
+ */
+caseExpression:
+		CASE expression caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::expression::whens:else:END");
+				$$ = (Node *) createCaseExpr($2, $3, $4);
+			}
+		| CASE caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::whens::else::END");
+				$$ = (Node *) createCaseExpr(NULL, $2, $3);
+			}
+	;
+
+caseWhenList:
+		caseWhenList caseWhen
+			{
+				RULELOG("caseWhenList::list::caseWhen");
+				$$ = appendToTailOfList($1, $2);
+			}
+		| caseWhen
+			{
+				RULELOG("caseWhenList::caseWhen");
+				$$ = singleton($1);
+			}
+	;
+
+caseWhen:
+		WHEN expression THEN expression
+			{
+				RULELOG("caseWhen::WHEN::expression::THEN::expression");
+				$$ = (Node *) createCaseWhen($2,$4);
+			}
+	;
+
+optionalCaseElse:
+		/* empty */				{ RULELOG("optionalCaseElse::NULL"); $$ = NULL; }
+		| ELSE expression
+			{
+				RULELOG("optionalCaseElse::ELSE::expression");
+				$$ = $2;
+			}
+	;
 
 /*
  * Rule to parse function calls (provision for aggregation)

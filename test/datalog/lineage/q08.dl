@@ -15,7 +15,3 @@ Q1(year, sum(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END), sum(volume)) :
 Q(year, x / y) :- Q1(year,X,Y).
 
 ANS:Q.
-
-RP(x1, x2) :- rtpcq08(x1, x2).
-
-LINEAGE FOR supplier FOR RESULTS FROM RP.
