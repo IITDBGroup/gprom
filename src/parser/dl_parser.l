@@ -101,7 +101,7 @@ STAR					'*'
 MOD						'%'
 STRCONCAT				"||"
 
-comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">="|"LIKE")
 LOG_IMPLIES             "->"
 
 /* KEYWORDS */
@@ -180,19 +180,19 @@ FROM                "FROM"
 (?i:SUM)	TOK(AMMSC)
 (?i:COUNT)	TOK(AMMSC)
 
-	/* identifier types */
-{identifier}	TOK(IDENT)
-
-{quotedIdentifier}   TOK(IDENT)
-
-[(),.;:] 			TOKSELF()
-
 	/* comparisons */
 {comparisonOps}		TOK(comparisonOp)
 
 	/* arithmetic operator */
 [-+*%/]				TOKSELF()
 {STRCONCAT}		TOK(STRCONCAT)
+
+	/* identifier types */
+{identifier}	TOK(IDENT)
+
+{quotedIdentifier}   TOK(IDENT)
+
+[(),.;:] 			TOKSELF()
 
 	/* constants */
 {integer}	TOKSAVE(intConst,intVal,atoi)

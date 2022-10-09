@@ -1,0 +1,16 @@
+Q1(n_name, year(o_orderdate), l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity) :-
+    part(p_partkey, p_name, x1,x2,x3,x4,x5,x6,x7),
+    supplier(s_suppkey,x8,x9,s_nationkey,x10,x11,x12), 
+    lineitem(l_orderkey,p_partkey,s_suppkey,x13,l_quantity,l_extendedprice,l_discount,x14,x15,x16,x17,x18,x19,x20,x21,x22),   
+    partsupp(p_partkey,s_suppkey,x24,ps_supplycost,x25),
+    orders(l_orderkey,x26,x27,x28,o_orderdate,x30,x31,x32,x33),
+    nation(s_nationkey,n_name,x34,x35),
+    p_name LIKE '%green%'.
+
+Q(nation,year,sum(amount)) :- Q1(nation,year,amount).
+
+ANS:Q.
+
+RP(x1, x2, x3) :- rtpcq09(x1, x2, x3).
+
+LINEAGE FOR lineitem FOR RESULTS FROM RP.

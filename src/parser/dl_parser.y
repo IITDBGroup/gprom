@@ -44,7 +44,7 @@ Node *dlParseResult = NULL;
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
 %token <stringVal> FORMAT
-%token	<stringVal>	CASE WHEN THEN ELSE END
+%token	<stringVal>	CASE WHEN THEN ELSE END LIKE
 
 /*
  * Functions and operators
