@@ -300,8 +300,8 @@ testRewriting(void)
 				"q14_lineitem.dl",
 				"q15_lineitem.dl",
 				"q17_lineitem.dl",
-				/* "q18_lineitem.dl", */
-				/* "q19_lineitem.dl", */
+				"q18_lineitem.dl",
+				"q19_lineitem.dl",
 				"q20_part.dl" 
 		); 
 	
