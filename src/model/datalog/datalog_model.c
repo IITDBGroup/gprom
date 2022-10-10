@@ -387,62 +387,62 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 
 		DEBUG_LOG("Process predicate %s", cur);
 
-		FOREACH(DLRule,r,pRules)
+		List *todoR = copyObject(pRules);
+	
+		// loop until we have exaustively replaced idb predicates in rules for
+		// the predicate.
+		while(!LIST_EMPTY(todoR))
 		{
-			List *todoR = LIST_MAKE(copyObject(r));
+			DLRule *curR = popHeadOfListP(todoR);
+			/* List *aggPredNames = NIL; */
+			boolean isAgg = hasSetElem(aggRels, getHeadPredName(curR));
+			char *firstIDB = getFirstSubstitutableIDBAtom(curR,
+														  p,
+														  idbRels,
+														  aggRels,
+														  genProjRels,
+														  p->ans,
+														  predToRule,
+														  fds,
+														  allowRuleNumberIncrease,
+														  isAgg);
 
-			while(!LIST_EMPTY(todoR))
+			DEBUG_DL_LOG("Check for substitutable IDB atom in", curR);
+
+			if(firstIDB != NULL)
 			{
-				DLRule *curR = popHeadOfListP(todoR);
-				/* List *aggPredNames = NIL; */
-				boolean isAgg = hasSetElem(aggRels, getHeadPredName(curR));
-				char *firstIDB = getFirstSubstitutableIDBAtom(curR,
-															  p,
-															  idbRels,
-															  aggRels,
-															  genProjRels,
-															  p->ans,
-															  predToRule,
-															  fds,
-															  allowRuleNumberIncrease,
-															  isAgg);
+				List *iRules = (List *) MAP_GET_STRING(predToRule, firstIDB);
+				List *addedRules;
 
-				DEBUG_DL_LOG("Check for substitutable IDB atom in", curR);
+				DEBUG_LOG("Do replace atom %s", firstIDB);
 
-				if(firstIDB != NULL)
+				addedRules = mergeRule(copyObject(curR), copyObject(iRules));
+				/* newRules = appendAllToTail(newRules, copyObject(addedRules)); */
+				todoR = appendAllToTail(todoR, copyObject(addedRules));
+			}
+			else
+			{
+				DEBUG_DL_LOG("No replacable atoms found for", curR);
+				newRules = appendToTailOfList(newRules, curR);
+
+				// need to add remaining IDB predicates to todo since we need them
+				FOREACH(DLNode,n,curR->body)
 				{
-					List *iRules = (List *) MAP_GET_STRING(predToRule, firstIDB);
-					List *addedRules;
-
-					DEBUG_LOG("Do replace atom %s", firstIDB);
-
-					addedRules = mergeRule(curR, copyObject(iRules));
-					newRules = appendAllToTail(newRules, addedRules);
-					todoR = appendAllToTail(todoR, addedRules);
-				}
-				else
-				{
-					DEBUG_DL_LOG("No replacable atoms found for", curR);
-					newRules = appendToTailOfList(newRules, curR);
-
-					// need to add remaining IDB predicates to todo since we need them
-					FOREACH(DLNode,n,curR->body)
+					if(isA(n,DLAtom))
 					{
-						if(isA(n,DLAtom))
-						{
-							DLAtom *a = (DLAtom *) n;
+						DLAtom *a = (DLAtom *) n;
 
-							if(hasSetElem(idbRels, a->rel) && !hasSetElem(done, a->rel))
-							{
-								DEBUG_LOG("Added predicate %s to todo", a->rel);
-								addToSet(todo, createConstString(a->rel));
-							}
+						if(hasSetElem(idbRels, a->rel) && !hasSetElem(done, a->rel))
+						{
+							DEBUG_LOG("Added predicate %s to todo", a->rel);
+							addToSet(todo, createConstString(a->rel));
 						}
 					}
 				}
 			}
 		}
 	}
+
 
 	result = copyObject(p);
 	result->rules = newRules;

@@ -120,8 +120,9 @@ checkDLProgram(DLProgram *p)
                 else if (!(hasSetElem(idbRels,relName) || hasSetElem(factRels,relName)))
                 {
                     FATAL_LOG("Predicate of body atom %s is neither IDB nor EDB"
-                            " (used in facts of present in the database)",
-                            datalogToOverviewString((Node *) atom));
+                            " (used in facts of present in the database) in program:\n%s",
+							  datalogToOverviewString((Node *) atom),
+							  datalogToOverviewString((Node *) p));
                 }
 
             }

@@ -1,4 +1,4 @@
-Qsub(supp_nation,cust_nation,year(l_sd), l_extendedprice * (1 - l_discount)) :-
+Qsub(supp_nation,cust_nation,strftime('%Y',l_sd), l_extendedprice * (1 - l_discount)) :-
 supplier(l_sk,s2,s3,s_nationkey,s4,s5,s6),
 lineitem(l_ok,l1,l_sk,l2,l3,l_extendedprice,l_discount,l6,l7,l8,l_sd,l9,l10,l11,l12,l13),
 orders(l_ok,l_ck,o1,o2,o3,o4,o5,o6,o7),
@@ -10,7 +10,7 @@ l_sd <= '1996-12-31',
 supp_nation = 'FRANCE',
 cust_nation = 'GERMANY'.
 
-Qsub(supp_nation,cust_nation,year(l_sd), l_extendedprice * (1 - l_discount)) :-
+Qsub(supp_nation,cust_nation,strftime('%Y',l_sd), l_extendedprice * (1 - l_discount)) :-
 supplier(l_sk,s2,s3,s_nationkey,s4,s5,s6),
 lineitem(l_ok,l1,l_sk,l2,l3,l_extendedprice,l_discount,l6,l7,l8,l_sd,l9,l10,l11,l12,l13),
 orders(l_ok,l_ck,o1,o2,o3,o4,o5,o6,o7),

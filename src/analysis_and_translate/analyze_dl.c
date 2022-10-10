@@ -760,13 +760,13 @@ analyzeRule(DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factR
         }
 
 		//TODO this seems not very useful because we do not know which rules these come from and it is not used anywhere
-        if (isA(a,DLComparison))
-        {
-            //p->comp = appendToTailOfList(p->comp, a);
+        /* if (isA(a,DLComparison)) */
+        /* { */
+        /*     //p->comp = appendToTailOfList(p->comp, a); */
 
-            INFO_DL_LOG("comparison expression:", p->comp);
-            DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp));
-        }
+        /*     //INFO_DL_LOG("comparison expression:", p->comp); */
+        /*     //DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp)); */
+        /* } */
     }
 
     // check head if agg functions exist

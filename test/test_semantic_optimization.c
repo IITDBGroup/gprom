@@ -285,21 +285,21 @@ testRewriting(void)
 
 	queries = LIST_MAKE(
 				"q01_lineitem.dl",
-				/* "q02_nation.dl", */
+				"q02_nation.dl",
 				"q03_lineitem.dl",
 				"q04_lineitem.dl",
 				"q05_lineitem.dl",
 				"q06_lineitem.dl",
-				/* "q07_lineitem.dl", */
+				"q07_lineitem.dl",
 				"q08_supplier.dl",
 				"q09_lineitem.dl",
 				"q10_lineitem.dl",
-				/* "q11_supplier.dl", */
-				/* "q12_lineitem.dl", */
+				"q11_supplier.dl",
+				"q12_lineitem.dl",
 				"q13_orders.dl",
 				"q14_lineitem.dl",
-				/* "q15_lineitem.dl", */
-				/* "q17_lineitem.dl", */
+				"q15_lineitem.dl",
+				"q17_lineitem.dl",
 				/* "q18_lineitem.dl", */
 				/* "q19_lineitem.dl", */
 				"q20_part.dl" 

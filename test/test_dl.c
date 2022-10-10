@@ -81,93 +81,115 @@ testMakeVarsUnique (void)
     return PASS;
 }
 
+#define TEST_MERGED(_inp,_exp) \
+	do {																\
+		DLProgram *_inparse, *_expparse, *_merged;						\
+		char *_mes;														\
+																		\
+	    _inparse = (DLProgram *) parseFromStringdl(_inp);				\
+		_expparse = (DLProgram *) parseFromStringdl(_exp);				\
+		_inparse = (DLProgram *) analyzeDLModel((Node *) _inparse);		\
+		_expparse = (DLProgram *) analyzeDLModel((Node *) _expparse);	\
+																		\
+		_merged = mergeSubqueries(_inparse, TRUE);						\
+																		\
+		INFO_DL_LOG("================================================================================\ninput program", _inparse); \
+		INFO_DL_LOG("================================================================================\nmerged program", _merged); \
+		INFO_DL_LOG("================================================================================\nexpected program", _inparse); \
+																		\
+		_mes = formatMes("================================================================================" \
+						"\nEXPECTED:\n%s\n"								\
+						"================================================================================\n" \
+						 "ACTUAL\n%s", \
+						 datalogToOverviewString(_expparse),			\
+						 datalogToOverviewString(_merged));				\
+		ASSERT_EQUALS_NODE(_expparse->rules, _merged->rules, _mes);		\
+	} while(0)	
+		  
 static rc
 testRuleMerging(void)
 {
-	DLProgram *p = (DLProgram *) parseFromStringdl(
+	TEST_MERGED(
 		"RP(1,1).\nSP(1,1).\n"
 		"TP(1).\nUP(1,1).\n"
 		"Q(X) :- Q2(X,Y), Q3(Y,Z).\n"
 		"Q2(Y,Z) :- RP(Y,Z), SP(Z,X).\n"
-		"Q3(Z,X) :- TP(X), UP(Z,Z).");
-	DLProgram *expected = (DLProgram *) parseFromStringdl(
+		"Q3(Z,X) :- TP(X), UP(Z,Z).",
 		"RP(1,1).\nSP(1,1).\n"
 		"TP(1).\nUP(1,1).\n"
 		"Q(X) :- RP(X,Y),SP(Y,V2),TP(Z),UP(Y,Y).");
 
-	analyzeDLModel((Node *) p);
-	analyzeDLModel((Node *) expected);
-
-	p = mergeSubqueries(p, TRUE);
-	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
-
-	p = (DLProgram *) parseFromStringdl(
+    TEST_MERGED(
 		"RP(1,1).\nSP(1,1).\n"
 		"TP(1).\nUP(1,1).\n"
 		"Q(X) :- Q2(X,Y), Q2(Y,Z).\n"
-		"Q2(Z,X) :- RP(X,X), RP(Z,Z).");
-	expected = (DLProgram *) parseFromStringdl(
+		"Q2(Z,X) :- RP(X,X), RP(Z,Z).",
 		"RP(1,1).\nSP(1,1).\n"
 		"TP(1).\nUP(1,1).\n"
 		"Q(X) :- RP(Y,Y),RP(X,X),RP(Z,Z),RP(Y,Y).");
 
-	analyzeDLModel((Node *) p);
-	analyzeDLModel((Node *) expected);
-
-	p = mergeSubqueries(p, TRUE);
-	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
-
 	// aggregation with subquery that cannot be merged (R.1 is a key)
-	p = (DLProgram *) parseFromStringdl(
+	TEST_MERGED(
+		"Q(count(1)) :- Q1(X)."
+		"Q1(Y) :- R(X,Y)."
+		"ANS : Q.",
 		"Q(count(1)) :- Q1(X)."
 		"Q1(Y) :- R(X,Y)."
 		"ANS : Q.");
-	expected = (DLProgram *) parseFromStringdl(
-		"Q(count(1)) :- Q1(X)."
-		"Q1(Y) :- R(X,Y)."
-		"ANS : Q.");
-
-	analyzeDLModel((Node *) p);
-	analyzeDLModel((Node *) expected);
-
-	p = mergeSubqueries(p, TRUE);
-	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
 
 	// aggregation with subquery that can be merged (R.1 is a key)
-	p = (DLProgram *) parseFromStringdl(
+    TEST_MERGED(
 		"Q(count(1)) :- Q1(X)."
 		"Q1(X) :- R(X,Y)."
 		"ANS : Q."
-        "FD R: A -> B.");
-	expected = (DLProgram *) parseFromStringdl(
+        "FD R: A -> B.",
 		"Q(count(1)) :- R(X,V1)."
 		"ANS : Q."
 		"FD R: A -> B.");
 
-	analyzeDLModel((Node *) p);
-	analyzeDLModel((Node *) expected);
-
-	p = mergeSubqueries(p, TRUE);
-	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
-
-	// not allowed to merge union
-	p = (DLProgram *) parseFromStringdl(
+	// allowed to merge union
+    TEST_MERGED(
 		"Q(X) :- Q1(X)."
 		"Q1(X) :- R(X,Y)."
 		"Q1(Y) :- R(X,Y)."
+		"ANS : Q.",
+		"Q(X) :- R(X,V1)."
+		"Q(X) :- R(V1,X)."
 		"ANS : Q.");
-	expected = (DLProgram *) parseFromStringdl(
-		"Q(X) :- Q1(X)."
+
+	// can't merge union in agg rule
+    TEST_MERGED(
+		"Q(sum(X)) :- Q1(X)."
+		"Q1(X) :- R(X,Y)."
+		"Q1(Y) :- R(X,Y)."
+		"ANS : Q.",
+		"Q(sum(X)) :- Q1(X)."
 		"Q1(X) :- R(X,Y)."
 		"Q1(Y) :- R(X,Y)."
 		"ANS : Q.");
-
-	analyzeDLModel((Node *) p);
-	analyzeDLModel((Node *) expected);
-
-	p = mergeSubqueries(p, FALSE);
-	ASSERT_EQUALS_NODE(expected->rules, p->rules, "after merging subqueries.");
-
+	
+	// cannot merge generalized projections
+	TEST_MERGED(
+		"Q(X) :- Q1(X)."
+		"Q1(X+Y) :- R(X,Y)."
+		"Q1(X*Y) :- R(X,Y)."
+		"ANS : Q.",
+		"Q(X) :- Q1(X)."
+		"Q1(X+Y) :- R(X,Y)."
+		"Q1(X*Y) :- R(X,Y)."
+		"ANS : Q.");
+	
+	// merging with idb being used at different levels
+	TEST_MERGED(
+		"Q(X) :- Q1(X),Q2(X)."
+		"Q2(min(X)) :- Q1(X)."
+		"Q1(X) :- R(X,Y)."
+		"ANS : Q."
+		"FD R: A -> B.",
+		"Q(X) :- R(X,V1),Q2(X)."
+		"Q2(min(X)) :- R(X,V1)."
+		"ANS : Q."
+		"FD R: A -> B.");
 
 	return PASS;
 }
