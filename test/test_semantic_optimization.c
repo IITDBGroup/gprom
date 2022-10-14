@@ -264,11 +264,12 @@ testRewriting(void)
 				"q13_orders.dl",
 				"q14_lineitem.dl",
 				"q15_lineitem.dl",
+				/* "q16_part.dl", */
 				"q17_lineitem.dl",
 				"q18_lineitem.dl",
 				"q19_lineitem.dl",
 				"q20_part.dl"
-		); 
+		);
 
 	// check rewrites without optimizations
 	FOREACH(char,c,queries)
@@ -302,9 +303,9 @@ testRewriting(void)
 				"q17_lineitem.dl",
 				"q18_lineitem.dl",
 				"q19_lineitem.dl",
-				"q20_part.dl" 
-		); 
-	
+				"q20_part.dl"
+		);
+
 	FOREACH(char,c,queries)
 	{
 		char *qfile = CONCAT_STRINGS("./datalog/lineage/", c);
@@ -312,7 +313,7 @@ testRewriting(void)
 
 		TEST_LINEAGE_REWRITE_FILE(qfile, resultqueryfile);
 	}
-	
+
 	// reset optimization options
 	setBoolOption(OPTION_DL_MERGE_RULES, origSubqueryMerge);
 	setBoolOption(OPTION_DL_SEMANTIC_OPT, origSemanticOpt);

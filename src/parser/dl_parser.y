@@ -44,7 +44,7 @@ Node *dlParseResult = NULL;
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
 %token <stringVal> FORMAT
-%token	<stringVal>	CASE WHEN THEN ELSE END LIKE
+%token	<stringVal>	CASE WHEN THEN ELSE END LIKE NOT
 
 /*
  * Functions and operators
@@ -84,7 +84,7 @@ Node *dlParseResult = NULL;
  * Types of non-terminal symbols
  */
 /* statements and their parts */
-%type <stringVal> name
+%type <stringVal> name comparisonOperator
 %type <list> stmtList
 %type <node> statement program
 
@@ -560,11 +560,17 @@ parenComparison:
 		;
 
 comparison:
-		arg comparisonOp arg
+		arg comparisonOperator arg
 			{
 				RULELOG("comparison::arg::op::arg");
 				$$ = (Node *) createDLComparison($2, $1, $3);
 			}
+	;
+
+comparisonOperator:
+		comparisonOp
+		| LIKE
+		| NEGATION LIKE { $$="NOT LIKE"; }
 	;
 
 /* args */

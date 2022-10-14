@@ -101,7 +101,7 @@ STAR					'*'
 MOD						'%'
 STRCONCAT				"||"
 
-comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">="|"LIKE")
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 LOG_IMPLIES             "->"
 
 /* KEYWORDS */
@@ -140,7 +140,7 @@ FROM                "FROM"
 {whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", dltext); /* ignore it */ }
 
 	/* literal keyword tokens */
-(?i:not)			TOK(NEGATION)
+(?i:LIKE)           TOK(LIKE)
 {IMPLIES}			TOK(RULE_IMPLICATION)
 {LOG_IMPLIES}       TOK(IMPLIES)
 {FD}                TOK(KEYWORD_FD)
@@ -156,7 +156,6 @@ FROM                "FROM"
 {IS}				TOK(IS)
 {USERDOMAIN}		TOK(USERDOMAIN)
 {TOP}				TOK(TOP)
-{FOR}				TOK(FOR)
 {FAILURE}			TOK(FAILURE)
 {SUMMARIZED}		TOK(SUMMARIZED)
 {BY}				TOK(BY)
@@ -172,6 +171,7 @@ FROM                "FROM"
 (?i:THEN)			UPCASE_TOK(THEN)
 (?i:END)			UPCASE_TOK(END)
 (?i:ELSE)			UPCASE_TOK(ELSE)
+(?i:NOT)			TOK(NEGATION)
 
 	/* aggregation functions */
 (?i:AVG)	TOK(AMMSC)
