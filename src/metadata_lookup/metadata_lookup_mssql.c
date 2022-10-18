@@ -217,7 +217,7 @@ mssqlDatabaseConnectionClose(void)
 	rc = SQLDisconnect(plugin->plugin.connection);
 
 	SQLFreeHandle(SQL_HANDLE_DBC,plugin->plugin.connection);
-    return EXIT_SUCCESS;
+    return rc;
 }
 
 boolean

@@ -294,7 +294,8 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
     StringInfo groupByString = makeStringInfo();
     StringInfo havingString = makeStringInfo();
 	StringInfo orderString = makeStringInfo();
-	StringInfo limitOffsetString = makeStringInfo();
+	StringInfo limitOffsetPrefixString = makeStringInfo();
+	StringInfo limitOffsetSuffixString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
     List *attrNames = getAttrNames(q->schema);
@@ -586,11 +587,16 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 
 	DEBUG_LOG("serializeLimit");
 	if (matchInfo->limitOffset != NULL)
-		api->serializeLimitOperator(matchInfo->limitOffset, limitOffsetString, api);
+		api->serializeLimitOperator(matchInfo->limitOffset, limitOffsetPrefixString, limitOffsetSuffixString, api);
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
     //TODO DISTINCT
+	if(STRINGLEN(limitOffsetPrefixString) > 0)
+	{
+		appendStringInfoString(str, limitOffsetPrefixString->data);
+	}
+
     if (STRINGLEN(selectString) > 0)
 	{
         appendStringInfoString(str, selectString->data);
@@ -622,9 +628,9 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 		appendStringInfoString(str, orderString->data);
 	}
 
-	if (STRINGLEN(limitOffsetString) > 0)
+	if (STRINGLEN(limitOffsetSuffixString) > 0)
 	{
-		appendStringInfoString(str, limitOffsetString->data);
+		appendStringInfoString(str, limitOffsetSuffixString->data);
 	}
 
     FREE(matchInfo);
@@ -872,7 +878,7 @@ genGetNestedSerializationLocations(NestingOperator *n, SerializeClausesAPI *api)
 }
 
 void
-genSerializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac, SerializeClausesAPI *api)
+genSerializeFrom(QueryOperator *q, StringInfo from, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     int curFromItem = 0, attrOffset = 0;
 
@@ -883,7 +889,7 @@ genSerializeFrom (QueryOperator *q, StringInfo from, FromAttrsContext *fac, Seri
 #define CLOSE_FROM_ITEM() appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList))
 
 void
-genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
+genSerializeFromItem(QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
 					  int *attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // if operator has more than one parent then it will be represented as a CTE
@@ -978,10 +984,7 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 
             appendStringInfoString(from, "(");
             attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac, api); //TODO ok to use first?
-            //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
             fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-            //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
-            //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
             CLOSE_FROM_ITEM();
         }
     }
@@ -1003,17 +1006,17 @@ genSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac,
 }
 
 void
-genSerializeLimitOperator(LimitOperator *q, StringInfo limit, SerializeClausesAPI *api)
+genSerializeLimitOperator(LimitOperator *q, StringInfo limitPrefix, StringInfo limitSuffix, SerializeClausesAPI *api)
 {
 	if (q->limitExpr != NULL)
 	{
-		appendStringInfoString(limit, "\nLIMIT ");
-		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr, NULL, FALSE));
+		appendStringInfoString(limitSuffix, "\nLIMIT ");
+		appendStringInfo(limitSuffix, "%s", exprToSQL(q->limitExpr, NULL, FALSE));
 	}
 	if (q->offsetExpr != NULL)
 	{
-		appendStringInfoString(limit, "\nOFFSET ");
-		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr, NULL, FALSE));
+		appendStringInfoString(limitSuffix, "\nOFFSET ");
+		appendStringInfo(limitSuffix, "%s", exprToSQL(q->offsetExpr, NULL, FALSE));
 	}
 }
 

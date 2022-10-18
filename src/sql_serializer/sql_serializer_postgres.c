@@ -116,6 +116,8 @@ serializeQueryPostgres(QueryOperator *q)
     StringInfo str;
     StringInfo viewDef;
     char *result;
+
+	// create serializer API
     createAPI();
 
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
@@ -127,7 +129,7 @@ serializeQueryPostgres(QueryOperator *q)
     api->viewCounter = 0;
 
     // initialize FromAttrsContext structure
-  	struct FromAttrsContext *fac = initializeFromAttrsContext();
+  	FromAttrsContext *fac = initializeFromAttrsContext();
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, fac, api);
