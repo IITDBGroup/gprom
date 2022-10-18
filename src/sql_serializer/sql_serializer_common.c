@@ -24,7 +24,11 @@
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
+
+#if HAVE_ORACLE_BACKEND
 #include "ocilib.h"
+#endif
+
 #include "utility/string_utils.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 
@@ -734,7 +738,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 		// for projection we need to check whether the attribute is only referenced or also used in an expression.
 		if(opReferencesAttr(op, a))
 		{
-			List *resultNames;
+			List *resultNames = NIL;
 			int pos = 0;
 
 			FOREACH(Node,e,p->projExprs)

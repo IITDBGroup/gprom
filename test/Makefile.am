@@ -34,6 +34,7 @@ testmain_SOURCES = test_main.c \
 	test_set.c \
 	test_string.c \
 	test_string_utils.c \
+	test_temporal.c \
 	test_to_string.c \
 	test_vector.c \
 	test_z3.c

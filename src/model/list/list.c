@@ -596,11 +596,11 @@ sublist(List *l, int from, int to)
 	// python style counting from end of list
 	if(from < 0)
 	{
-		from = LIST_LENGTH(l) - from;
+		from = LIST_LENGTH(l) + from;
 	}
 	if(to < 0)
 	{
-		to = LIST_LENGTH(l) - to;
+		to = LIST_LENGTH(l) + to;
 	}
 
     ASSERT(from >= 0 && to < LIST_LENGTH(l) && to >= from);

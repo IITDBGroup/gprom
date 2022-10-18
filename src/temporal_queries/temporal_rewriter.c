@@ -19,6 +19,7 @@
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "operator_optimizer/cost_based_optimizer.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
@@ -26,6 +27,7 @@
 #include "temporal_queries/temporal_rewriter.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "utility/string_utils.h"
+
 
 static QueryOperator *temporalRewriteOperator(QueryOperator *op);
 static QueryOperator *tempRewrSelection (SelectionOperator *o);
@@ -36,6 +38,7 @@ static QueryOperator *tempRewrAggregation (AggregationOperator *o);
 static QueryOperator *tempRewrTemporalSource (QueryOperator *o);
 static QueryOperator *tempRewrSetOperator (SetOperator *o);
 static QueryOperator *tempRewrNestedSubquery(NestingOperator *op);
+static QueryOperator *tempRewrNestedSubqueryCorrelated(NestingOperator *op);
 static QueryOperator *tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op);
 static QueryOperator *tempRewrDuplicateRemOp (DuplicateRemoval *o);
 
@@ -641,7 +644,118 @@ static QueryOperator *
 tempRewrNestedSubquery(NestingOperator *op)
 {
 	//TODO add other rewrite methods
-	return tempRewrNestedSubqueryLateralPostFilterTime(op);
+    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+    {
+        int res = callback(2);
+        if (res == 1) {
+            return tempRewrNestedSubqueryLateralPostFilterTime(op);
+        }
+        return tempRewrNestedSubqueryCorrelated(op);
+    }
+    return tempRewrNestedSubqueryCorrelated(op);
+    // return tempRewrNestedSubqueryLateralPostFilterTime(op);
+}
+
+// static Node *
+// addConditionMutator (Node *node, Node *condition)
+// {
+//     if (node == NULL)
+//         return NULL;
+
+//     if(isA(node, SelectionOperator))
+//     {
+//         SelectionOperator *i = (SelectionOperator *)node;
+//         if(i->cond) {
+//             i->cond = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(i->cond, condition));
+//         } else {
+//             i->cond = condition;
+//         }
+//     }
+
+//     return mutate(node, addConditionMutator, condition);
+// }
+
+static QueryOperator *
+tempRewrNestedSubqueryCorrelated(NestingOperator *op)
+{
+    LOG_RESULT("before rewriting:", op);
+
+    QueryOperator *asq = (QueryOperator *)op;
+
+    QueryOperator *outer = OP_LCHILD(op);
+	QueryOperator *inner = OP_RCHILD(op);
+    // int numOuterAttrs = getNumAttrs(OP_LCHILD(op)); // track pre-rewrite
+    Schema *innerSchemaPreRewrite = copyObject(inner->schema);
+
+    // List *innerAttrs = copyObject(inner->schema->attrDefs);
+
+    // rewrite to add provenance attributes and include interval in selection
+
+    outer = temporalRewriteOperator(outer);
+    inner = temporalRewriteOperator(inner);
+
+    // replace schema of nesting operator with outer attrs + nesting eval
+    // List *nestingEvals = copyObject(sublist(asq->schema->attrDefs, numOuterAttrs, -1));
+    // List *schema = concatTwoLists((List*)(copyObject(OP_LCHILD(op)->schema->attrDefs)), nestingEvals);
+
+    addProvenanceAttrsToSchema(asq, outer); // we need the prov attrs for making overlap condition
+    // addProvenanceAttrsToSchemaWithRename(asq, inner, JOIN_RIGHT_TEMP_ATTR_SUFFIX); // "
+
+    List *intersection = NIL;
+    FOREACH(char, attrR, getAttrNames(innerSchemaPreRewrite)) {
+        FOREACH(char, attrL, getAttrNames(outer->schema)) {
+            if (streq(attrR, attrL)) {
+                intersection = appendToTailOfList(intersection, attrR);
+            }
+        }
+    }
+
+    outer = addTemporalNormalization(outer, copyObject(inner), intersection);
+
+    // !!
+    // reuse of overlap condition from lateral join, instead now we push it into the subquery
+    // Node *correlation = constructNestingIntervalOverlapCondition(asq);
+    // !!
+
+    // gut of constructNestingIntervalOverlapCondition to change outer levels up value on outer attrrefs
+    AttributeReference *lBegin, *lEnd, *rBegin, *rEnd;
+	List *tempAttrDefs = getAttrRefsByNames(outer, getOpProvenanceAttrNames(outer));
+    List *tempAttrDefs2 = getAttrRefsByNames(inner, getOpProvenanceAttrNames(inner));
+    Node *correlation;
+
+    lBegin = getNthOfListP(tempAttrDefs, 0);
+    lEnd = getNthOfListP(tempAttrDefs, 1);
+    rBegin = getNthOfListP(tempAttrDefs2, 0);
+    rEnd =  getNthOfListP(tempAttrDefs2, 1);
+
+    rBegin->outerLevelsUp = 1;
+    rEnd->outerLevelsUp = 1;
+
+	// interval overlap join condition
+    correlation = AND_EXPRS(
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+            );
+
+    // todo: robustness
+    // add the correlation into the subquery
+    // addConditionMutator((Node *)inner, correlation);
+
+    QueryOperator *selection = (QueryOperator *)createSelectionOp(correlation, inner, NIL, NIL);
+    selection->schema = copyObject(selection->schema);
+    selection->provAttrs = copyObject(inner->provAttrs);
+    inner->parents = appendToTailOfList(inner->parents, selection);
+    switchSubtrees(inner, selection);
+
+    // return rewritten nesting operator with modified subquery with correlation
+
+    // asq->schema->attrDefs = schema;
+    // asq->provAttrs = copyObject(outer->provAttrs);
+
+    // return a projection on top of "asq" to reorder schema 
+
+    LOG_RESULT("after rewriting:", asq);
+    return asq;
 }
 
 static QueryOperator *
@@ -1453,6 +1567,8 @@ markTemporalAttrsAsProv (QueryOperator *op)
  * -- join based implementation using window functions
  * ----------------------------------------
  */
+
+// should take 2 lists of attributes, outer & inner
 QueryOperator *
 addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrNames)
 {
@@ -1584,7 +1700,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     	if(!streq(c, "T"))
     	{
         DEBUG_LOG("Unequal to T");
-    		char *cc = concatStrings(c,"_1");
+    		char *cc = CONCAT_STRINGS(c,"_1");
     		projCPNames = appendToTailOfList(projCPNames,cc);
     		leftList = appendToTailOfList(leftList, strdup(c));
     		rightList = appendToTailOfList(rightList, strdup(cc));
@@ -1635,6 +1751,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     intervalOp->parents = singleton(joinCP);
     projCPOp->parents = singleton(joinCP);
 
+    // TODO: join on multiple attributes or cross product
     QueryOperator *joinCPOp = (QueryOperator *)joinCP;
     //selection cond
     List *joinCPcondList = NIL;

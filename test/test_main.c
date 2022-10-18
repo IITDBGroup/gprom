@@ -53,6 +53,7 @@ static TestNameToFunc testFuncs [] = {
         { "rpq", testRPQ },
         { "set", testSet },
         { "stringutils", testStringUtils },
+        { "temporal", testTemporal },
         { "tostring", testToString },
         { "vector", testVector },
 		{ "z3", testZ3 },
@@ -88,6 +89,7 @@ testSuites(void)
 //    RUN_TEST(testLibGProM(), "Test gprom dynamic link library"); make this work
     RUN_TEST(testRPQ(), "Test regular path query features");
     RUN_TEST(testAutocast(), "Test automatic casting");
+    RUN_TEST(testTemporal(), "Test temporal rewriting");
 	RUN_TEST(testZ3(), "Testing Z3 constraint solving.");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
