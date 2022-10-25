@@ -30,7 +30,7 @@
 #include "ocilib.h"
 #include <assert.h>
 
-static List *makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames);
+static List *makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames, Set *allnames);
 static boolean findVarsVisitor(Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
@@ -350,7 +350,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	char *filterPred = DL_GET_STRING_PROP_DEFAULT(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE, NULL);
 
 	DEBUG_LOG("Trying to merge subqueries.");
-	
+
 	ENSURE_DL_CHECKED(p);
 	/* checkDLModel((Node *) p); */
 	result = copyObject(p);
@@ -360,7 +360,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 	predToRule = (HashMap *) getDLProp((DLNode *) result, DL_MAP_RELNAME_TO_RULES);
 	aggRels = (Set *) getDLProp((DLNode *) result, DL_AGGR_RELS);
 	genProjRels = (Set *) getDLProp((DLNode *) result, DL_GEN_PROJ_RELS);
-	
+
 	// need to preserve answer relation
 	if(p->ans)
 	{
@@ -388,7 +388,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 		DEBUG_LOG("Process predicate %s", cur);
 
 		List *todoR = copyObject(pRules);
-	
+
 		// loop until we have exaustively replaced idb predicates in rules for
 		// the predicate.
 		while(!LIST_EMPTY(todoR))
@@ -546,7 +546,7 @@ mergeRule(DLRule *super, List *replacements)
 	List *results = NIL;
 	char *pred = getHeadPredName(getHeadOfListP(replacements));
 
-	DEBUG_LOG("Replace %s in %s with\n\n%s",
+    INFO_LOG("Replace %s in %s with\n\n%s",
 			  pred,
 			  datalogToOverviewString(super),
 			  datalogToOverviewString(replacements));
@@ -557,6 +557,7 @@ mergeRule(DLRule *super, List *replacements)
 		DLRule *newR = copyObject(super);
 		List *newBody = NIL;
 		List *subst = NIL;
+		List *uniqueScope = NIL;
 
 		DEBUG_DL_LOG("substitute", repl);
 
@@ -573,12 +574,14 @@ mergeRule(DLRule *super, List *replacements)
 			}
 		}
 
-		// make sure that the rule and all replacement rule copies have unique variable names
-		//subst = appendToHeadOfList(subst, newR);
-		makeVarNamesUnique(subst, FALSE);
-		DEBUG_DL_LOG("after making super variable names unique", newR);
-		DEBUG_DL_LOG("after making variable name unique", subst);
-		//popHeadOfListP(subst);
+		// make sure that the rule and all replacement rule copies have unique
+		// variable names. Try to keep original names for readability
+		uniqueScope = copyList(subst);
+		uniqueScope = appendToHeadOfList(uniqueScope, newR);
+		makeVarNamesUnique(uniqueScope, TRUE);
+
+	    INFO_DL_LOG("after making super variable names unique", newR);
+	    INFO_DL_LOG("after making variable name unique", subst);
 
 		// replace atoms with rule bodies
 		FOREACH(DLNode,a,newR->body)
@@ -608,6 +611,7 @@ mergeRule(DLRule *super, List *replacements)
 		}
 
 		newR->body = newBody;
+		INFO_DL_LOG("result of substitution", newR);
 		results = appendToTailOfList(results, newR);
 	}
 
@@ -635,8 +639,9 @@ getNormalizedAtom(DLAtom *a)
 {
     DLAtom *result = copyObject(a);
     int varId = 0;
+	Set *allnames = STRSET();
 
-    makeUniqueVarNames(result->args, &varId, FALSE);
+    makeUniqueVarNames(result->args, &varId, FALSE, allnames);
 
     return result;
 }
@@ -645,6 +650,7 @@ void
 makeVarNamesUnique(List *nodes, boolean keepOrigNames)
 {
     int varId = 0;
+	Set *allnames = STRSET();
 
     FOREACH(DLNode,n,nodes)
     {
@@ -652,18 +658,18 @@ makeVarNamesUnique(List *nodes, boolean keepOrigNames)
         {
             DLRule *r = (DLRule *) n;
             List *args = getRuleVars(r);
-            makeUniqueVarNames(args, &varId, keepOrigNames);
+            makeUniqueVarNames(args, &varId, keepOrigNames, allnames);
         }
         if (isA(n, DLAtom))
         {
             DLAtom *a = (DLAtom *) n;
-            makeUniqueVarNames(a->args, &varId, keepOrigNames);
+            makeUniqueVarNames(a->args, &varId, keepOrigNames, allnames);
         }
     }
 }
 
 static List *
-makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames)
+makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames, Set *allnames)
 {
     HashMap *varToNewVar = NEW_MAP(Constant,Constant);
     Set *names = STRSET();
@@ -691,8 +697,16 @@ makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames)
             {
                 // skip varnames that already exist
                 if (doNotOrigNames)
-                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
-                        ;
+				{
+					if (!hasSetElem(allnames, v->name))
+					{
+						stringArg = strdup(v->name);
+					}
+					else {
+						while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
+							;
+					}
+				}
                 else
                     stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));
 
@@ -701,6 +715,7 @@ makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames)
             else
                 stringArg = strdup(STRING_VALUE(entry));
 
+			addToSet(allnames, stringArg);
             v->name = stringArg;
 		}
 	}

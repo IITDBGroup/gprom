@@ -40,25 +40,25 @@ testMakeVarsUnique (void)
     DLAtom *a1, *a2, *e1, *e2;
     DLRule *r1, *er1;
 	DLVar *va, *ve;
-	
+
     a1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
-    e1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("V1")), FALSE);
+    e1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
     makeVarNamesUnique(LIST_MAKE(a1), TRUE);
-    ASSERT_EQUALS_NODE(e1,a1,"R(V0,V1)");
+    ASSERT_EQUALS_NODE(e1,a1,"R(A,B)");
 
 
     a1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
     a2 = createDLAtom("S", LIST_MAKE(VAR("B"), VAR("C")), FALSE);
-    e1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("V1")), FALSE);
-    e2 = createDLAtom("S", LIST_MAKE(VAR("V2"), VAR("V3")), FALSE);
+    e1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
+    e2 = createDLAtom("S", LIST_MAKE(VAR("V0"), VAR("C")), FALSE);
     makeVarNamesUnique(LIST_MAKE(a1,a2), TRUE);
-    ASSERT_EQUALS_NODE(LIST_MAKE(e1,e2), LIST_MAKE(a1,a2),"R(V0,V1)");
+    ASSERT_EQUALS_NODE(LIST_MAKE(e1,e2), LIST_MAKE(a1,a2),"R(A,B),S(V0,C");
 
     a1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
     a2 = createDLAtom("S", LIST_MAKE(VAR("B"), VAR("C")), FALSE);
     r1 = createDLRule(a1, singleton(a2));
-    e1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("V1")), FALSE);
-    e2 = createDLAtom("S", LIST_MAKE(VAR("V1"), VAR("V2")), FALSE);
+    e1 = createDLAtom("R", LIST_MAKE(VAR("A"), VAR("B")), FALSE);
+    e2 = createDLAtom("S", LIST_MAKE(VAR("B"), VAR("C")), FALSE);
     er1 = createDLRule(e1, singleton(e2));
     makeVarNamesUnique(LIST_MAKE(r1), TRUE);
     ASSERT_EQUALS_NODE(er1, r1, "R(A,B) :- S(B,C);");
@@ -67,17 +67,17 @@ testMakeVarsUnique (void)
 	ve = createDLVar("V0", DT_INT);
 	va = createUniqueVar((Node *) a1, DT_INT);
 	ASSERT_EQUALS_NODE(ve,va,"R(B,A) -> V0");
-	
+
 	a1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("A")), FALSE);
 	ve = createDLVar("V1", DT_INT);
 	va = createUniqueVar((Node *) a1, DT_INT);
 	ASSERT_EQUALS_NODE(ve,va,"R(V0,A) -> V1");
-	
+
 	a1 = createDLAtom("R", LIST_MAKE(VAR("V0"), VAR("V1")), FALSE);
 	ve = createDLVar("V2", DT_INT);
 	va = createUniqueVar((Node *) a1, DT_INT);
 	ASSERT_EQUALS_NODE(ve,va,"R(V0,V1) -> V2");
-	
+
     return PASS;
 }
 
@@ -104,8 +104,8 @@ testMakeVarsUnique (void)
 						 datalogToOverviewString(_expparse),			\
 						 datalogToOverviewString(_merged));				\
 		ASSERT_EQUALS_NODE(_expparse->rules, _merged->rules, _mes);		\
-	} while(0)	
-		  
+	} while(0)
+
 static rc
 testRuleMerging(void)
 {
@@ -143,7 +143,7 @@ testRuleMerging(void)
 		"Q1(X) :- R(X,Y)."
 		"ANS : Q."
         "FD R: A -> B.",
-		"Q(count(1)) :- R(X,V1)."
+		"Q(count(1)) :- R(X,Y)."
 		"ANS : Q."
 		"FD R: A -> B.");
 
@@ -153,8 +153,8 @@ testRuleMerging(void)
 		"Q1(X) :- R(X,Y)."
 		"Q1(Y) :- R(X,Y)."
 		"ANS : Q.",
-		"Q(X) :- R(X,V1)."
-		"Q(X) :- R(V1,X)."
+		"Q(X) :- R(X,Y)."
+		"Q(X) :- R(V0,X)."
 		"ANS : Q.");
 
 	// can't merge union in agg rule
@@ -167,7 +167,7 @@ testRuleMerging(void)
 		"Q1(X) :- R(X,Y)."
 		"Q1(Y) :- R(X,Y)."
 		"ANS : Q.");
-	
+
 	// cannot merge generalized projections
 	TEST_MERGED(
 		"Q(X) :- Q1(X)."
@@ -178,7 +178,7 @@ testRuleMerging(void)
 		"Q1(X+Y) :- R(X,Y)."
 		"Q1(X*Y) :- R(X,Y)."
 		"ANS : Q.");
-	
+
 	// merging with idb being used at different levels
 	TEST_MERGED(
 		"Q(X) :- Q1(X),Q2(X)."
@@ -186,8 +186,8 @@ testRuleMerging(void)
 		"Q1(X) :- R(X,Y)."
 		"ANS : Q."
 		"FD R: A -> B.",
-		"Q(X) :- R(X,V1),Q2(X)."
-		"Q2(min(X)) :- R(X,V1)."
+		"Q(X) :- R(X,Y),Q2(X)."
+		"Q2(min(X)) :- R(X,Y)."
 		"ANS : Q."
 		"FD R: A -> B.");
 

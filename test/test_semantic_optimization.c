@@ -280,7 +280,8 @@ testRewriting(void)
 		TEST_LINEAGE_REWRITE_FILE(qfile, resultqueryfile);
 	}
 
-	// check rewrites with optimizations
+	// check rewrites with optimizations (merging subqueries and semantic
+	// optimization)
 	setBoolOption(OPTION_DL_MERGE_RULES, TRUE);
 	setBoolOption(OPTION_DL_SEMANTIC_OPT, TRUE);
 
@@ -313,6 +314,41 @@ testRewriting(void)
 
 		TEST_LINEAGE_REWRITE_FILE(qfile, resultqueryfile);
 	}
+
+	// merge subqueries but do not use semantic optimization
+	setBoolOption(OPTION_DL_MERGE_RULES, TRUE);
+	setBoolOption(OPTION_DL_SEMANTIC_OPT, FALSE);
+
+	queries = LIST_MAKE(
+				"q01_lineitem.dl",
+				"q02_nation.dl",
+				"q03_lineitem.dl",
+				"q04_lineitem.dl",
+				"q05_lineitem.dl",
+				"q06_lineitem.dl",
+				"q07_lineitem.dl",
+				"q08_supplier.dl",
+				"q09_lineitem.dl",
+				"q10_lineitem.dl",
+				"q11_supplier.dl",
+				"q12_lineitem.dl",
+				"q13_orders.dl",
+				"q14_lineitem.dl",
+				"q15_lineitem.dl",
+				"q17_lineitem.dl",
+				"q18_lineitem.dl",
+				"q19_lineitem.dl",
+				"q20_part.dl"
+		);
+
+	FOREACH(char,c,queries)
+	{
+		char *qfile = CONCAT_STRINGS("./datalog/lineage/", c);
+		char *resultqueryfile = CONCAT_STRINGS("./datalog/lineage/flatresult_", c);
+
+		TEST_LINEAGE_REWRITE_FILE(qfile, resultqueryfile);
+	}
+
 
 	// reset optimization options
 	setBoolOption(OPTION_DL_MERGE_RULES, origSubqueryMerge);

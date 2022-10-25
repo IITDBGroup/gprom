@@ -5,8 +5,10 @@ Q1(l_okey,l_linenumber,l_shipmode) :-
     l_receiptdate >= '1994-01-01',
     l_receiptdate < '1995-01-01'.
 
-Q2(l_okey,l_linenumber,l_shipmode) :- Q1(l_okey,l_linenumber,l_shipmode),l_shipmode = 'SHIP'.
-Q2(l_okey,l_linenumber,l_shipmode) :- Q1(l_okey,l_linenumber,l_shipmode),l_shipmode = 'MAIL'.
+Qshipmodes('SHIP').
+Qshipmodes('MAIL').
+
+Q2(l_okey,l_linenumber,l_shipmode) :- Q1(l_okey,l_linenumber,l_shipmode),Qshipmodes(l_shipmode).
 
 Q(l_shipmode,
   sum(CASE WHEN o_orderpriority = '1-URGENT' THEN 1
