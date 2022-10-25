@@ -684,7 +684,7 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
 
     QueryOperator *outer = OP_LCHILD(op);
 	QueryOperator *inner = OP_RCHILD(op);
-    // int numOuterAttrs = getNumAttrs(OP_LCHILD(op)); // track pre-rewrite
+    int numOuterAttrs = getNumAttrs(OP_LCHILD(op)); // track pre-rewrite
     Schema *innerSchemaPreRewrite = copyObject(inner->schema);
 
     // List *innerAttrs = copyObject(inner->schema->attrDefs);
@@ -695,8 +695,8 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     inner = temporalRewriteOperator(inner);
 
     // replace schema of nesting operator with outer attrs + nesting eval
-    // List *nestingEvals = copyObject(sublist(asq->schema->attrDefs, numOuterAttrs, -1));
-    // List *schema = concatTwoLists((List*)(copyObject(OP_LCHILD(op)->schema->attrDefs)), nestingEvals);
+    List *nestingEvals = copyObject(sublist(asq->schema->attrDefs, numOuterAttrs, -1));
+    List *schema = concatTwoLists((List*)(copyObject(OP_LCHILD(op)->schema->attrDefs)), nestingEvals);
 
     addProvenanceAttrsToSchema(asq, outer); // we need the prov attrs for making overlap condition
     // addProvenanceAttrsToSchemaWithRename(asq, inner, JOIN_RIGHT_TEMP_ATTR_SUFFIX); // "
@@ -747,15 +747,25 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     inner->parents = appendToTailOfList(inner->parents, selection);
     switchSubtrees(inner, selection);
 
-    // return rewritten nesting operator with modified subquery with correlation
-
-    // asq->schema->attrDefs = schema;
-    // asq->provAttrs = copyObject(outer->provAttrs);
-
     // return a projection on top of "asq" to reorder schema 
 
-    LOG_RESULT("after rewriting:", asq);
-    return asq;
+    Schema *nestingSchema = copyObject(asq->schema);
+
+    asq->schema->attrDefs = schema;
+    asq->provAttrs = copyObject(outer->provAttrs);
+
+    QueryOperator *projection = createProjOnAllAttrs(asq);
+
+    projection->schema = nestingSchema;
+    projection->provAttrs = NIL;
+    projection->provAttrs = appendToTailOfListInt(projection->provAttrs, getListLength(projection->schema->attrDefs)-2);
+    projection->provAttrs = appendToTailOfListInt(projection->provAttrs, getListLength(projection->schema->attrDefs)-1);
+
+    addChildOperator(projection, asq);
+    switchSubtrees(asq, projection);
+
+    LOG_RESULT("after rewriting:", projection);
+    return projection;
 }
 
 static QueryOperator *
