@@ -2218,7 +2218,7 @@ rewriteUpdatePSCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteStat
 	List *provAttr = NIL;
 	List *projExpr = NIL;
 	List *provAttrsOnly = NIL;
-//	char *newAttrName;
+	char *newAttrName;
 	int cnt = 0;
 	int numTable = 0;
 	List *provInfo;
@@ -2256,40 +2256,65 @@ rewriteUpdatePSCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteStat
 		cnt++;
 	}
 
-	appendToTailOfList(projExpr, createFullAttrReference("prov", 0, 0, 0, DT_STRING));
-
 	//three cases: fragment or range or page
 	List *newProvPosList = NIL;
-	newProvPosList = appendToTailOfListInt(newProvPosList, cnt);
-	provAttr = appendToTailOfList(provAttr, "prov");
+//	newProvPosList = appendToTailOfListInt(newProvPosList, cnt);
+//	provAttr = appendToTailOfList(provAttr, "prov");
+	List *psAttrList = (List *) getMapString(map, op->tableName);
 
+
+	// this is for update rewrite for table access operator;
+	// normal rewrite there are three cases,
+	// here only case when then "frag no" is needed
+	if (streq(psPara->psType, COARSE_GRAINED_RANGEB)) {
+		for (int j = 0; j < LIST_LENGTH(psAttrList); j++) {
+			newProvPosList = appendToTailOfListInt(newProvPosList, cnt++);
+
+			psAttrInfo *currPSAI = (psAttrInfo *) getNthOfListP(psAttrList, j);
+			AttributeReference *pAttr = createAttrsRefByName((QueryOperator *) op, strdup(currPSAI->attrName));
+
+			newAttrName = getCoarseGrainedAttrName(op->tableName, currPSAI->attrName, numTable);
+			provAttr = appendToTailOfList(provAttr, newAttrName);
+			provAttrsOnly = singleton(createConstString(strdup(currPSAI->attrName)));
+
+			List *condList = getCondList(pAttr, currPSAI->rangeList);
+			List *whenList = NIL;
+
+			// do not call any function
+			// just create case when a >= 1 and a < 5 then 0 when a >= 5 and a < 10 then 1;
+//			for (int whenNo = 0; whenNo < LIST_LENGTH(condList); whenNo++) {
+//				Node *cond = (Node *) getNthOfListP(condList, whenNo);
+//				CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(whenNo));
+//				whenList = appendToTailOfList(whenList, when);
+
+//			}
+
+			whenList = getWhenList(condList);
+			CaseExpr *caseExpr = createCaseExpr(NULL, whenList, NULL);
+			projExpr = appendToTailOfList(projExpr, caseExpr);
+		}
+	}
 
 	DEBUG_LOG(
 			"rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
-			stringListToString(provAttr), nodeToString(projExpr),
+			stringListToString(provAttr),
+			nodeToString(projExpr),
 			nodeToString(newProvPosList));
 
 	// Create a new projection operator with these new attributes
-	ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL,
-			provAttr);
-
-
-
+	ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL,provAttr);
 	newpo->op.provAttrs = newProvPosList;
 	SET_BOOL_STRING_PROP((QueryOperator* ) newpo, PROP_PROJ_PROV_ATTR_DUP);
 
 	// Add child to the newly created projections operator,
 	addChildOperator((QueryOperator*) newpo, rewr);
-//	addChildOperator((QueryOperator*) newpo, (QueryOperator*) cmprTableAccessOp);
-
 
 	// the projection is the rewritten result
 	rewr = (QueryOperator*) newpo;
 
 	// store table name and sketch attribute name
-	provInfo = singleton(
-			createNodeKeyValue((Node*) createConstString(tableName),
-					(Node*) provAttrsOnly));
+	provInfo = singleton(createNodeKeyValue((Node*) createConstString(tableName),
+											(Node*) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
 	LOG_RESULT_AND_RETURN(TableAccess);
@@ -2461,7 +2486,7 @@ rewriteCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteState *state
     for(int i=0; i< newProvAttrDefsLen; i++)
     {
     	newProvAttrs = appendToTailOfListInt(newProvAttrs,provAttrDefsPos);
-    	provAttrDefsPos ++;
+    	provAttrDefsPos++;
     }
 
     // finish add new aggattr (for the cnt-th reference to operator)
@@ -2585,24 +2610,49 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
     for(int i=0; i< newProvAttrDefsLen; i++)
     {
     	newProvAttrs = appendToTailOfListInt(newProvAttrs,provAttrDefsPos);
-    	provAttrDefsPos ++;
+    	provAttrDefsPos++;
     }
 
-
+    // finish add new aggattr (for the cnt-th reference to operator)
+//    HashMap *map = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(rewr, PROP_LEVEL_AGGREGATION_MARK), 0);
     FOREACH(char, c, provList)
     {
-        AttributeReference *a = createAttrsRefByName(OP_LCHILD(rewr), c);
-        FunctionCall *f = NULL;
-        if(getBackend() == BACKEND_ORACLE)
-		{
-			f = createFunctionCall(ORACLE_SKETCH_AGG_FUN, singleton(a));
-		}
-        else if(getBackend() == BACKEND_POSTGRES)
-        {
-			f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
-			agg = appendToTailOfList(agg, f);
-        }
+//    	List *levelandNumFrags =  (List *) getMapString(map, c);
+//    	int level = INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0));
+//    	int numFrags = INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 1));
+    	AttributeReference *ar = createAttrsRefByName(OP_LCHILD(rewr), c);
+
+//    	FunctionCall *f = NULL;
+
+//    	if(getBackend() == BACKEND_ORACLE)
+//    	{
+//    		f = createFunctionCall(ORACLE_SKETCH_AGG_FUN, singleton(a));
+//    	}
+//    	else if(getBackend() == BACKEND_POSTGRES)
+//    	{
+//    		//if(getBoolOption(OPTION_PS_SET_BITS))
+//    		if(level == 1)
+//    		{
+//    			f = createFunctionCall(POSTGRES_SET_BITS_FUN, singleton(a));
+//    			CastExpr *c = createCastExprOtherDT((Node *) f, POSTGRES_BIT_DT, numFrags, DT_STRING);
+//    			agg = appendToTailOfList(agg, c);
+//    		}
+//    		else
+//    		{
+//    			f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
+//    			agg = appendToTailOfList(agg, f);
+//    		}
+//    	}
+
+    	// create new function call
+    	FunctionCall *fc = createFunctionCall(COUNT_FUNC_NAME, singleton(ar));
+    	agg = appendToHeadOfList(agg, fc);
+//
+    	a->op.schema->attrDefs = appendToHeadOfList(a->op.schema->attrDefs, createAttributeDef(backendifyIdentifier("count_per_group"), DT_INT));
+//
+    	a->groupBy = appendToHeadOfList(a->groupBy, ar);
     }
+
     //finish adapt schema (adapt provattrs)
     rewr->provAttrs = newProvAttrs;
 
@@ -2659,6 +2709,7 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
 static QueryOperator *
 rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *state)
 {
+	INFO_LOG("REWRITE COARSE GRAINED TABLE ACCESS");
 	REWR_UNARY_SETUP_COARSE(Aggregation);
 
 	ASSERT(OP_LCHILD(op));

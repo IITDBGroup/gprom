@@ -110,15 +110,15 @@ serializeDMLandDDLPostgres(QueryOperator *q)
 		case T_Insert:
 		{
 			// this is current to support: insert into r values(xxxx);
-			serializeInsert(str, (Insert*) stmt);
+			serializeInsert(str, (Insert *) stmt);
 			// TODO need to support insert into r select xxxx;
 			break;
 		}
 		case T_Delete:
-		serializeDelete(str, (Delete*) stmt);
+		serializeDelete(str, (Delete *) stmt);
 		break;
 		case T_CreateTable:
-		serializeCreateTable(str, (CreateTable*) stmt);
+		serializeCreateTable(str, (CreateTable *) stmt);
 		break;
 		case T_AlterTable:
 		break;
@@ -294,15 +294,23 @@ serializeDelete(StringInfo str, Delete* d) {
 
 static void
 serializeInsert(StringInfo str, Insert* i){
-	if(isA(i->query, QueryBlock)){
+	if (isA(i->query, QueryBlock)){
 		// TODO this is for insert into tbl (a query);
 //		appendStringInfo(str, "insert into %s ", i->insertTableName);
 //		appendStringInfo(str, "select %s", exprToSQL((Node*) (((QueryBlock* )(i->query))->selectClause), NULL ));
 //		appendStringInfoString(str, "from (");
 	} else {
-		appendStringInfo(str, "INSERT INTO %s values %s ;",
+		appendStringInfo(str, "%s %s %s ",
+			backendifyIdentifier("insert into"),
 			i->insertTableName,
-			exprToSQL(i->query, NULL, FALSE));
+			backendifyIdentifier("values"));
+		if (isA(i->query, List)) {
+			int len = LIST_LENGTH(i->query);
+			List *qList = (List *) i->query;
+			for (int index = 0; index < len; index++) {
+				appendStringInfo(str, "%s%s", exprToSQL((Node *) getNthOfListP(qList, index), NULL, FALSE), (index == len - 1 ? "" : ","));
+			}
+		}
 	}
 }
 

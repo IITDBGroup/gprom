@@ -14,6 +14,7 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/bitset/bitset.h"
+#include "model/set/vector.h"
 
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/update_ps/update_ps_main.h"
@@ -27,6 +28,7 @@
 #include "metadata_lookup/metadata_lookup_postgres.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "provenance_rewriter/update_ps/table_compress.h"
+#include "provenance_rewriter/update_ps/update_ps_incremental.h"
 
 /*
  * Macro
@@ -80,12 +82,24 @@ static boolean replaceSetBitsWithFastBitOr (Node *node, void *state);
 static boolean replaceTableAccessWithCompressedTableAccess(Node *node, void *state);
 void removeProvAttrsList(QueryOperator *op);
 static void modifyUncertCapTree(QueryOperator *op);
+//static void localTest();
 /*
  * Function Implementation
  */
+
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
+
+
+	return update_ps_incremental((QueryOperator *) qbModel);
+
+
+//	return update_ps_incremental( qbModel);
+
+	if(1 == 1) {
+		return "end";
+	}
 	DEBUG_NODE_BEATIFY_LOG("qbModel for update ps:\n", qbModel);
 
 	//initialize some parameters to get the ps, left chile(update statement) and right child(query);
@@ -260,6 +274,18 @@ update_ps(ProvenanceComputation *qbModel)
 	return result;
 }
 
+//static void
+//localTest()
+//{
+//	// test data type of a real db like date, in GPROM.
+//	List *attrDef = getAttributes("customer");
+//	for(int i = 0; i < getListLength(attrDef); i++)
+//	{
+//		AttributeDef * ad = (AttributeDef*) getNthOfListP(attrDef, i);
+//		INFO_LOG("attr name %s, attr type %d", ad->attrName, ad->dataType);
+//	}
+//}
+
 static void
 modifyUncertCapTree(QueryOperator *op)
 {
@@ -385,7 +411,7 @@ QueryOperator* captureRewrite(ProvenanceComputation* op){
 	DEBUG_NODE_BEATIFY_LOG("Provenance Computation* \n", op);
 	// remove left child which is the update statemnt;
 	QueryOperator *rChild = OP_RCHILD((QueryOperator*) op);
-	((QueryOperator*)op)->inputs = singleton(rChild);
+	((QueryOperator*) op)->inputs = singleton(rChild);
 	DEBUG_NODE_BEATIFY_LOG("query operator after remove update statment:\n", op);
 	QueryOperator* result = NULL;
 	Node *coarsePara = NULL;
@@ -407,8 +433,8 @@ QueryOperator* captureRewrite(ProvenanceComputation* op){
 	DEBUG_LOG("finish bottomUpPropagateLevelAggregation!");
 	INFO_OP_LOG("before rewrite pics", op);
 	result = rewritePI_CS(op);
-//	result = addTopAggForCoarse(result);
-	result = addTopAggForCoarseUpdatePS(result);
+	result = addTopAggForCoarse(result);
+//	result = addTopAggForCoarseUpdatePS(result);
 	return result;
 }
 

@@ -1961,6 +1961,7 @@ postgresTypenameToDT (char *typName)
     if (streq(typName, "float4")
             || streq(typName, "float8")
             || streq(typName, "numeric")
+			|| streq(typName, "float")
             )
         return DT_FLOAT;
 

@@ -395,6 +395,8 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 		// numeric data types
 		if (typName.equals("float4")
 				|| typName.equals("float8")
+				|| typName.equals("float")
+				|| typName.equals("numeric")
 				)
 			return DT_FLOAT;
 

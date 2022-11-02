@@ -185,12 +185,22 @@ getVecInt(Vector *v, int pos)
     return VEC_TO_IA(v)[pos];
 }
 
+char *
+getVecString(Vector *v, int pos)
+{
+	ASSERT(pos >=0 && pos < VEC_LENGTH(v));
+
+	return VEC_TO_ARR(v,char)[pos];
+}
+
 boolean
 findVecNode(Vector *v, Node *el)
 {
     FOREACH_VEC(Node,n,v)
-        if (equal(el,*n))
+    {
+    	if (equal(el,n))
             return TRUE;
+    }
 
     return FALSE;
 }
@@ -199,10 +209,26 @@ boolean
 findVecInt(Vector *v, int el)
 {
     FOREACH_VEC_INT(e,v)
-       if (*e == el)
+	{
+       if (e == el)
            return TRUE;
+	}
 
     return FALSE;
+}
+
+boolean
+findVecString(Vector *v, char *el)
+{
+	FOREACH_VEC(char,s,v)
+	{
+		if (streq(s, el))
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 boolean
@@ -240,6 +266,17 @@ popVecNode(Vector *v)
     return result;
 }
 
+char *
+popVecString(Vector *v)
+{
+	ASSERT(v->length > 0);
+
+	char *result = getVecString(v, v->length - 1);
+	v->length--;
+
+	return result;
+}
+
 void
 freeVec (Vector *v)
 {
@@ -253,7 +290,7 @@ deepFreeVec (Vector *v)
 {
     FOREACH_VEC(void,el,v)
     {
-        FREE(*el);
+        FREE(el);
     }
     FREE(v->data);
     FREE(v);

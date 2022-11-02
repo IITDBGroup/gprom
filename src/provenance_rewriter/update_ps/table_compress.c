@@ -91,9 +91,13 @@ initValToCompressedTable(char *tablename, List *attrDefs, List *ranges,
 //	appendStringInfo(dmlQuery,
 //			"insert into compressedtable_%s select cid, count(*) as cnt, ",
 //			tablename);
+//	appendStringInfo(dmlQuery,
+//			"insert into compressedtable_%s select cid, count(*) as cnt, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as prov, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as lb_prov, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as ub_prov, count(*) as cet_r, count(*) as bst_r, count(*) as pos_r, ",
+//			tablename, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1);
+//	int psLength = getListLength(ranges) - 1;
 	appendStringInfo(dmlQuery,
-			"insert into compressedtable_%s select cid, count(*) as cnt, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as prov, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as lb_prov, (select ((pow(2,%d - cid)::int - 1) - (pow(2,%d - cid - 1)::int - 1))::bit(%d)) as ub_prov, count(*) as cet_r, count(*) as bst_r, count(*) as pos_r, ",
-			tablename, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1, getListLength(ranges), getListLength(ranges), getListLength(ranges) - 1);
+			"insert into compressedtable_%s select cid, count(*) as cnt, set_bit(0::bit(%d), cid -1, 1) as prov, set_bit(0::bit(%d), cid - 1, 1) as lb_prov, set_bit(0::bit(%d), cid - 1, 1) as ub_prov, count(*) as cet_r, count(*) as bst_r, count(*) as pos_r, ",
+			tablename, getListLength(ranges) - 1, getListLength(ranges) - 1, getListLength(ranges) - 1);
 
 	StringInfo caseWhens = makeStringInfo();
 	for (int i = 0; i < LIST_LENGTH(ranges) - 1; i++) {
@@ -113,10 +117,17 @@ initValToCompressedTable(char *tablename, List *attrDefs, List *ranges,
 	for (int i = 0; i < LIST_LENGTH(attrDefs); i++) {
 		AttributeDef *attribute = (AttributeDef*) getNthOfListP(attrDefs, i);
 		char *attname = attribute->attrName;
-		appendStringInfo(dmlQuery,
+		if(attribute->dataType == 2 || attribute->dataType == 5) {
+			appendStringInfo(dmlQuery,
+				"min(%s) as %s, min(%s) as lb_%s, max(%s) as ub_%s, count(distinct %s) as lb_dist_%s, count(distinct %s) as ub_dist_%s, count(*) as sum_%s ",
+				attname, attname, attname, attname, attname, attname, attname,
+				attname, attname, attname, attname, attname);
+		} else {
+			appendStringInfo(dmlQuery,
 				"min(%s) as %s, min(%s) as lb_%s, max(%s) as ub_%s, count(distinct %s) as lb_dist_%s, count(distinct %s) as ub_dist_%s, sum(%s) as sum_%s ",
 				attname, attname, attname, attname, attname, attname, attname,
 				attname, attname, attname, attname, attname);
+		}
 		if (i != LIST_LENGTH(attrDefs) - 1) {
 			appendStringInfo(dmlQuery, ",");
 		}
@@ -173,6 +184,10 @@ createCompressedTable(char *tablename, List *attrDefs, int rangeLength)
 		// attr
 		StringInfo attr = makeStringInfo();
 		appendStringInfo(attr, attrDef->attrName);
+//		if(attrDef->dataType == 2 || attrDef->dataType == 5) {
+//			cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+//							createAttributeDef(attr->data, attrDef->dataType));
+//		}
 		cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
 				createAttributeDef(attr->data, attrDef->dataType));
 		// lower bound
@@ -202,8 +217,13 @@ createCompressedTable(char *tablename, List *attrDefs, int rangeLength)
 		// sum val
 		StringInfo sum = makeStringInfo();
 		appendStringInfo(sum, "sum_%s", attrDef->attrName);
-		cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+		if(attrDef->dataType == 2 || attrDef->dataType == 5) {
+			cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
+				createAttributeDef(sum->data, DT_INT));
+		} else {
+			cmprTblAttrDefs = appendToTailOfList(cmprTblAttrDefs,
 				createAttributeDef(sum->data, attrDef->dataType));
+		}
 	}
 
 	CreateTable *createTable = createCreateTable(cmprTbl->data,
@@ -330,7 +350,7 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 	appendStringInfo(query, "select * from compressedtable_%s where cid=%d;",
 			insert->insertTableName, rangeIndex);
 	Relation *rel = executeQueryLocal(query->data);
-	
+//	INFO_LOG("rel info: ", rel->schema, rel->)
 	// no tuples, it is deleted previouse
 	if(getListLength(rel->tuples) == 0) {
 		// compressed the insert tuple locally;
@@ -359,16 +379,19 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 
 		int attIndex = 9;
 		int oriTblIdx = 0;
-		int schemaLen = getListLength(rel->schema);
-
+		int schemaLen = getListLength(rel->schema); // schemaLen is compressed table attrList length
+		INFO_LOG("schemaLen: %d", schemaLen);
 		// now only concentrate on conpressed attributes: lb-, ub-, dist, sum
+		INFO_LOG("insert query: %s", insert->schema);
 		while (attIndex < schemaLen) {
+			INFO_LOG("attr %s, attrPos: %d, cbdPos: %d", (char*) getNthOfListP(insert->schema, oriTblIdx), oriTblIdx, attIndex);
 			int type = ((AttributeDef*) getNthOfListP(insert->schema, oriTblIdx))->dataType;
 			getCDBInsertUpdateUsingRule(updQ, type,
 					getNthOfListP((List*) insert->query, oriTblIdx), attIndex, 
 					getNthOfListP(rel->tuples, i), rel->schema);
 			attIndex += 6;
 			oriTblIdx += 1;
+			INFO_LOG("current attindex: %d", attIndex);
 		}
 
 		appendStringInfo(updQ, " where %s = %d;", "cid", rangeIndex);
@@ -500,7 +523,62 @@ getCDBInsertUpdateUsingRule(StringInfo str, int dataType, Constant *insertV,
 					getNthOfListP(schema, index + 4), LONG_VALUE(insertV));
 		}
 	} else if (dataType == 2 || dataType == 5) {
-		return;
+		char* val = STRING_VALUE(insertV);
+		char* currMin = (char*) getNthOfListP(tuples, index);
+		char* currMax = (char*) getNthOfListP(tuples, index + 1);
+
+		if(strcmp(val, currMin) < 0) {
+			// set min
+			appendStringInfo(str, ", %s = %s", getNthOfListP(schema, index),
+					STRING_VALUE(insertV));
+			// set lb_dist_xxx
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 2),
+					getNthOfListP(schema, index + 2));
+			// set ub_dist_xxx
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 3),
+					getNthOfListP(schema, index + 3));
+			// set sum
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 4),
+					getNthOfListP(schema, index + 4));
+		} else if(strcmp(val, currMin) == 0) {
+			// set sum
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 4),
+					getNthOfListP(schema, index + 4));
+		} else if(strcmp(val, currMin) > 0 && strcmp(val, currMax) < 0) {
+			// set ub_dist_xxx
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 3),
+					getNthOfListP(schema, index + 3));
+			// set sum;
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 4),
+					getNthOfListP(schema, index + 4));
+		} else if(strcmp(val, currMax) == 0) {
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 4),
+					getNthOfListP(schema, index + 4));
+		} else if(strcmp(val, currMax) > 0) {
+			// set max
+			appendStringInfo(str, ", %s = %ld",
+					getNthOfListP(schema, index + 1), STRING_VALUE(insertV));
+			// set lb_dist_xxx
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 2),
+					getNthOfListP(schema, index + 2));
+			// set ub_dist_xxx
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 3),
+					getNthOfListP(schema, index + 3));
+			// set sum
+			appendStringInfo(str, ", %s = %s + 1",
+					getNthOfListP(schema, index + 4),
+					getNthOfListP(schema, index + 4));
+		}
+//		return;
 	} else if (dataType == 3) {
 		double val = FLOAT_VALUE(insertV);
 		char *aux;
@@ -764,7 +842,27 @@ getCDBDeleteUsingRules(StringInfo str, int dataType, List *cdbTupleList,
 					deleteVal);
 		}
 	} else if (dataType == 2 || dataType == 5) {
-		return;
+//		char* deleteVal = (char*) getNthOfListP(delTuples, delAttrIndex);
+		appendStringInfo(str, ", sum_%s = sum_%s - 1", attrName, attrName);
+		char* deleteVal = (char*) getNthOfListP(delTuples, delAttrIndex);
+		int sumVal = atoi(getNthOfListP(cdbTupleList, cdbAttrIndex + 4));
+		char* upperBound = (char*) getNthOfListP(cdbTupleList, cdbAttrIndex + 1);
+		char* lowerBound = (char*) getNthOfListP(cdbTupleList, cdbAttrIndex);
+//		int distUpperBound = atoi(getNthOfListP(cdbTupleList, cdbAttrIndex + 3));
+//		int distlowerBound = atoi(getNthOfListP(cdbTupleList, cdbAttrIndex + 2));
+
+		if(sumVal == 2) {
+			if(strcmp(deleteVal, upperBound) == 0 ) {
+				appendStringInfo(str, ", ub_%s = lb_%s", attrName, attrName);
+			} else if(strcmp(deleteVal, lowerBound) == 0) {
+				appendStringInfo(str, ", lb_%s = ub_%s", attrName, attrName);
+			}
+			appendStringInfo(str, ", lb_dist_%s = 1, ub_dist_%s = 1", attrName, attrName);
+		} else if(sumVal == 3) {
+			appendStringInfo(str, ", lb_dist_%s = 2", attrName);
+			appendStringInfo(str, ", ub_dist_%s = 2", attrName);
+		}
+//		return;
 	} else if (dataType == 3) {
 		char *aux;
 		double deleteVal = (double) strtod(

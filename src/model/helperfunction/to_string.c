@@ -26,6 +26,8 @@
 #include "model/set/vector.h"
 #include "utility/string_utils.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "provenance_rewriter/update_ps/update_ps_incremental.h"
+#include "model/relation/relation.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -134,6 +136,9 @@ static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 static void outPSInfo(StringInfo str, psInfo *node);
 static void outPSAttrInfo(StringInfo str, psAttrInfo *node);
 static void outPSInfoCell(StringInfo str, psInfoCell *node);
+
+// for update provenance sketch
+static void outDataChunk(StringInfo str, DataChunk *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -358,7 +363,8 @@ outVector(StringInfo str, Vector *node)
             int j = 0;
             FOREACH_VEC_INT(i,node)
             {
-                appendStringInfo(str, "%s", gprom_itoa(*i));
+//                appendStringInfo(str, "%s", gprom_itoa(*i));
+                appendStringInfo(str, "%s", gprom_itoa(i));
                 appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
             }
         }
@@ -366,8 +372,10 @@ outVector(StringInfo str, Vector *node)
         case VECTOR_NODE:
             FOREACH_VEC(Node,n,node)
             {
-                outNode(str, *n);
-                appendStringInfo(str, "%s", VEC_IS_LAST(*n,node) ? ", " : "");
+//                outNode(str, *n);
+//                appendStringInfo(str, "%s", VEC_IS_LAST(*n,node) ? ", " : "");
+                outNode(str, n);
+                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? ", " : "");
             }
             break;
         case VECTOR_STRING:
@@ -1130,7 +1138,7 @@ outLimitOperator(StringInfo str, LimitOperator *node)
 }
 
 static void
-outDLMorDDLOperator(StringInfo str, DLMorDDLOperator* node) {
+outDLMorDDLOperator(StringInfo str, DLMorDDLOperator *node) {
 	WRITE_NODE_TYPE(DLM_DDL_OPERATOR);
 	WRITE_QUERY_OPERATOR();
 	WRITE_NODE_FIELD(stmt);
@@ -1215,6 +1223,20 @@ outPSInfoCell(StringInfo str, psInfoCell *node)
     WRITE_INT_FIELD(numRanges);
 	WRITE_INT_FIELD(psSize);
     WRITE_NODE_FIELD(ps);
+}
+
+static void
+outDataChunk(StringInfo str, DataChunk *node)
+{
+	WRITE_NODE_TYPE(DATACHUNK);
+	WRITE_NODE_FIELD(attrNames);
+	WRITE_NODE_FIELD(updateIdentifier);
+	WRITE_NODE_FIELD(tuples);
+	WRITE_NODE_FIELD(fragmentsInfo);
+	WRITE_INT_FIELD(numTuples);
+	WRITE_INT_FIELD(tupleFields);
+	WRITE_NODE_FIELD(attriToPos);
+	WRITE_NODE_FIELD(posToDatatype);
 }
 
 void
@@ -1470,8 +1492,10 @@ outNode(StringInfo str, void *obj)
 		    case T_psInfoCell:
 				outPSInfoCell(str, (psInfoCell *) obj);
 			    break;
-
-
+			/* update provenance sketch */
+		    case T_DataChunk:
+		    	outDataChunk(str, (DataChunk *) obj);
+		    	break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);

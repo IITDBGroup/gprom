@@ -115,7 +115,10 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 	/* provenance sketch */
 	T_psInfo,
 	T_psAttrInfo,
-	T_psInfoCell
+	T_psInfoCell,
+
+	/* update provenance sketch*/
+	T_DataChunk
 );
 
 typedef struct Node{

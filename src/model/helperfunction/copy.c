@@ -23,6 +23,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/rpq/rpq_model.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "provenance_rewriter/update_ps/update_ps_incremental.h"
 
 /* data structures for copying operator nodes */
 typedef struct OperatorMap
@@ -150,6 +151,10 @@ static psInfo *copyPSInfo(psInfo *from, OperatorMap **opMap);
 static psAttrInfo *copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap);
 static psInfoCell *copyPSInfoCell(psInfoCell *from, OperatorMap **opMap);
 
+/* copy structure for update provenance sketch */
+static DataChunk* copyDataChunk(DataChunk * from, OperatorMap **opMap);
+
+
 /*use the Macros(the varibles are 'new' and 'from')*/
 
 /* creates a new pointer to a node and allocated mem */
@@ -247,7 +252,7 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     Vector *new = makeVector(from->elType, from->elNodeType);
 
     FREE(new->data);
-    COPY_SCALAR_FIELD(length);
+   	COPY_SCALAR_FIELD(length);
     COPY_SCALAR_FIELD(maxLength);
     new->data = MALLOC(getVecDataSize(from));
 
@@ -259,9 +264,11 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
         case VECTOR_NODE:
             new->length = 0;
             FOREACH_VEC(Node,n,from)
-                VEC_ADD_NODE(from,copyObject(n));
+                VEC_ADD_NODE(new, copyObject(n));
+//                VEC_ADD_NODE(new, copyObject(*n));
             break;
         case VECTOR_STRING:
+        	// string copy;
             break;
     }
 
@@ -619,6 +626,22 @@ copyPSInfoCell(psInfoCell *from, OperatorMap **opMap)
     COPY_NODE_FIELD(ps);
 
     return new;
+}
+
+static DataChunk*
+copyDataChunk(DataChunk * from, OperatorMap **opMap)
+{
+	COPY_INIT(DataChunk);
+	COPY_NODE_FIELD(attrNames);
+	COPY_NODE_FIELD(updateIdentifier);
+	COPY_NODE_FIELD(tuples);
+	COPY_NODE_FIELD(fragmentsInfo);
+	COPY_SCALAR_FIELD(numTuples);
+	COPY_SCALAR_FIELD(tupleFields);
+	COPY_NODE_FIELD(attriToPos);
+	COPY_NODE_FIELD(posToDatatype);
+
+	return new;
 }
 
 /*functions to copy query_operator*/
@@ -1463,6 +1486,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_psInfoCell:
             retval = copyPSInfoCell(from, opMap);
             break;
+        case T_DataChunk:
+        	retval = copyDataChunk(from, opMap);
+        	break;
         default:
             retval = NULL;
             break;
