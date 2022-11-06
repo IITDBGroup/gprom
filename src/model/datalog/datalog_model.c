@@ -703,7 +703,7 @@ makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames, Set *allnames
 						stringArg = strdup(v->name);
 					}
 					else {
-						while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
+						while(hasSetElem(allnames, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
 							;
 					}
 				}

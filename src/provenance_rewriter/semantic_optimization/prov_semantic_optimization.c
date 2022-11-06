@@ -19,6 +19,7 @@
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/graph/graph.h"
@@ -59,17 +60,21 @@ static Set *computeSeeds(DLRule *r, List *fds, DLAtom *target);
 static boolean existsNonReachableAtom(RewriteSearchState *state);
 static boolean removeOneEdgeBasedOnFDs(Set *dreach, RewriteSearchState *state);
 static Set *computeFrontier(Graph *g, Set *nodes);
+static int getMaxId(HashMap *m);
 
-DLRule *
+List *
 optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, DLAtom *target, char *filterPred)
 {
 	Set *seeds;
 	Graph *joinG;
 	List *todo = NIL;
-	DLRule *opt, *min;
+	DLRule *min;
 	List *fds;
 	Set *headVars = makeStrSetFromList(getHeadVarNames(r));
 	Graph *ig = GET_INV_REL_TO_REL_GRAPH(p);
+	HashMap *ruleids = createRuleIds(p);
+	List *result  = NIL;
+	int maxId = getMaxId(ruleids) + 1;
 
 	START_TIMER("semantic optimization");
 
@@ -89,11 +94,11 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, DLAtom *target, char *filte
 	// no seeds, head of the query provides all variables we need
 	if(!seeds) //TODO
 	{
-		DLRule *res;
 		min =  createDLRule(copyObject(r->head), NIL);
-		res = createCaptureRule(min, target, filterPred, ig); //TODO
+		addToMap(ruleids, (Node *) min, (Node *) createConstInt(maxId++));
+		result = createCaptureRule(min, target, filterPred, ig, ruleids); //TODO
 		STOP_TIMER("semantic optimization");
-		return res;
+		return result;
 	}
 
 	Set *bodyAts = makeNodeSetFromList(r->body);
@@ -257,16 +262,39 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, DLAtom *target, char *filte
 		}
 
 		min = createDLRule(copyObject(r->head), body);
+		addToMap(ruleids, (Node *) min, (Node *) createConstInt(maxId++));
 	}
 
 	// create a lineage capture rule
-	opt = createCaptureRule(min, target, filterPred, ig);
+    result = createCaptureRule(min, target, filterPred, ig, ruleids);
 
     STOP_TIMER("semantic optimization");
 
-	return opt;
+	return result;
 }
 
+
+static int
+getMaxId(HashMap *m)
+{
+	int result = -1;
+	FOREACH_HASH(Constant, i, m)
+	{
+		result = MAX(result, INT_VALUE(i));
+	}
+
+	return result;
+}
+
+
+/**
+ * @brief Compute Frontier of nodes to look at
+ *
+ *
+ * @param g goal graph for datalog rule
+ * @param nodes nodes to start from
+ * @return set of goals in the frontier
+ */
 
 static Set *
 computeFrontier(Graph *g, Set *nodes)

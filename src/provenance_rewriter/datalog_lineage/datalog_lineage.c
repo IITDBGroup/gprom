@@ -32,6 +32,10 @@
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 
 #define PROV_PRED(_p) CONCAT_STRINGS(backendifyIdentifier("prov_"), _p);
+#define PROV_PRE_PRED(_p,_i) CONCAT_STRINGS(backendifyIdentifier("prov_"), \
+											_p,							\
+											backendifyIdentifier("_pre_"), \
+											gprom_itoa(_i));
 
 static Set *computePredsToRewrite(char *targetTable, DLProgram *p);
 static DLAtom *replaceHeadExpressionsWithVars(DLAtom *head);
@@ -57,13 +61,16 @@ rewriteDLForLinageCapture(DLProgram *p)
 	List *rulesToRewrite = NIL;
 	char *filterPred = DL_GET_STRING_PROP_DEFAULT(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE, NULL);
 	DLProgram *rewrP = copyObject(p);
+	HashMap *ruleIds = createRuleIds(rewrP);
+	HashMap *predToRules;
 	List *provRules = NIL;
 	Graph *ig = GET_INV_REL_TO_REL_GRAPH(p);
 
 	DL_DEL_PROP(rewrP, DL_PROV_LINEAGE);
 
+	// prepare datastructures
 	ENSURE_BODY_PRED_TO_RULE_MAP(rewrP);
-    HashMap *predToRules = (HashMap *) getDLProp((DLNode *) rewrP, DL_MAP_BODYPRED_TO_RULES);
+    predToRules = (HashMap *) getDLProp((DLNode *) rewrP, DL_MAP_BODYPRED_TO_RULES);
 
 	DEBUG_NODE_BEATIFY_LOG("body predicate to rule map:\n", predToRules);
 
@@ -100,7 +107,7 @@ rewriteDLForLinageCapture(DLProgram *p)
 			{
 				List *bodyGoalsForPred = getGoalsForPred(r, pred);
 				char *filter = filterPred && streq(getHeadPredName(r), answerPred) ? filterPred : NULL;
-				DLRule *captureRule;
+				List *captureRules;
 
 				FOREACH(DLAtom,g,bodyGoalsForPred)
 				{
@@ -109,15 +116,15 @@ rewriteDLForLinageCapture(DLProgram *p)
 						List *fds = (List *) DL_GET_PROP(p, DL_PROG_FDS);
 
 						DEBUG_DL_LOG("create semantically optimized rule for ", r);
-						captureRule = optimizeDLRule(p, r, fds, g, filter);
+						captureRules = optimizeDLRule(p, r, fds, g, filter);
 					}
 					else
 					{
-						captureRule = createCaptureRuleForTable(r, pred, filter, g, ig);
+						captureRules = createCaptureRuleForTable(r, pred, filter, g, ig, ruleIds);
 					}
 
-					provRules = appendToTailOfList(provRules,
-												   captureRule);
+					provRules = appendAllToTail(provRules,
+												captureRules);
 				}
 			}
 		}
@@ -170,14 +177,21 @@ computePredsToRewrite(char *targetTable, DLProgram *p)
 }
 
 //TODO this does not support arithmetic expressions
-DLRule *
-createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *goalToHeadPred)
+List *
+createCaptureRule(DLRule *r,
+				  DLAtom *targetAtom,
+				  char *filterAnswerPred,
+				  Graph *goalToHeadPred,
+				  HashMap *ruleids)
 {
-	List *body = copyObject(r->body);
+	List *body;
 	DLAtom *newHead = copyObject(targetAtom);
 	DLRule *result;
 	DLAtom *headOrFilterAtom;
 	boolean useProvHead;
+	boolean isAgg = hasAggFunction((Node *) r->head->args);
+	boolean hasScalarExpr = !isAgg && hasGenProj(r->head);
+	List *newrules = NIL;
 
 	// new head predicate PROV_...
 	newHead->rel = PROV_PRED(newHead->rel);
@@ -199,7 +213,8 @@ createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *
 		headOrFilterAtom->rel = PROV_PRED(headOrFilterAtom->rel);
 	}
 
-	if(hasAggFunction((Node *) r->head->args))
+	// aggregation, join body with head on group-by attributes
+	if(isAgg)
 	{
 		List *newArgs = NIL;
 
@@ -218,14 +233,51 @@ createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *
 
 		headOrFilterAtom->args = newArgs;
 	}
+	// for scalar rules we need to add an additional rule for the generalized projection
+	// Q(A+B) :- R(A,B). RP(2).                           [original rule]
+	// PROV_R(A,B) :- , PROV_PRE_R(A,B,V0), RP(V0).       [provenance rule]
+    // PROV_PRE_R(A,B,A+B) :- R(A,B).                     [prerule]
+	else if (hasScalarExpr)
+	{
+		DLRule *prerule;
+		int ruleid = INT_VALUE(getMap(ruleids, (Node *) r));
+		char *preruleHeadPred = PROV_PRE_PRED(r->head->rel, ruleid);
+		List *prebody;
+		DLAtom *prehead;
+		DLAtom *pregoal;
 
+		prehead = createDLAtom(preruleHeadPred,
+							   CONCAT_LISTS(copyObject(targetAtom->args),
+											copyObject(r->head->args)),
+							   FALSE);
+		prebody = copyObject(r->body);
+		prerule = createDLRule(prehead, prebody);
+
+		// add prerule to result
+		newrules = appendToHeadOfList(newrules, prerule);
+
+		// body of provenance rule PROV_PRE_R(A,B,V0), RP(V0).
+		pregoal = createDLAtom(preruleHeadPred,
+							   CONCAT_LISTS(copyObject(targetAtom->args),
+											copyObject(headOrFilterAtom->args)),
+							   FALSE);
+		body = singleton(pregoal);
+	}
+
+	// for aggregation and rules without scalar operations in the head, copy original rule body
+	if(!hasScalarExpr)
+	{
+		body = copyObject(r->body);
+	}
 	body = appendToTailOfList(body, headOrFilterAtom);
 
 	result = createDLRule(newHead, body);
 
 	DEBUG_DL_LOG("Created capture rule: ", result);
 
-	return result;
+	newrules = appendToHeadOfList(newrules, result);
+
+	return newrules;
 }
 
 static DLAtom *
@@ -246,15 +298,20 @@ replaceHeadExpressionsWithVars(DLAtom *head)
 			v = createUniqueVar((Node *) result, typeOf(n));
 		}
 
-		
+
 		result->args = appendToTailOfList(result->args,v);
 	}
-	
+
 	return result;
 }
 
-DLRule *
-createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred, DLAtom *goal, Graph *goalToHeadPred)
+List *
+createCaptureRuleForTable(DLRule *r,
+						  char *table,
+						  char *filterAnswerPred,
+						  DLAtom *goal,
+						  Graph *goalToHeadPred,
+						  HashMap *ruleids)
 {
 	DLAtom *target = NULL;
 
@@ -281,5 +338,5 @@ createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred, DLAtom
 			  beatify(nodeToString(r)));
 	}
 
-	return createCaptureRule(r, target, filterAnswerPred, goalToHeadPred);
+	return createCaptureRule(r, target, filterAnswerPred, goalToHeadPred, ruleids);
 }

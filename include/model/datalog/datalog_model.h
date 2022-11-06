@@ -201,6 +201,7 @@ extern void delAllProps(DLNode *n);
 #define DL_FACT_RELS "FACT_RELS"
 #define DL_AGGR_RELS "AGGR_DEF_RELS"
 #define DL_GEN_PROJ_RELS "GEN_PROJ_RELS"
+#define DL_RULE_IDS "DL_RULE_IDS"
 
 // GP rule information
 #define DL_WON "WON"

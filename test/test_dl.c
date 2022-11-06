@@ -191,6 +191,16 @@ testRuleMerging(void)
 		"ANS : Q."
 		"FD R: A -> B.");
 
+	// merging with multiple predicates to be replaced in one rule
+	TEST_MERGED(
+		"Q(X) :- Q1(X,Y), Q2(X,Z). Q1(X1,X2) :- R(X1,X2), S(X2,X3). Q2(X1,X2) :- R(X1,X2), S(X2,X3). ANS: Q.",
+"Q(X) :- R(X,Y),S(Y,X3),R(X,Z),S(Z,V0). ANS : Q.");
+
+	TEST_MERGED(
+		"Q(X) :- Q1(X), Q2(X), Q3(A). Q1(X1) :- R(X1,X2), S(X2,X3). Q2(X1) :- R(X1,X2), S(X2,X3). Q3(X1) :- R(X1,X2), S(X2,X3). ANS: Q.",
+"Q(X) :- R(X,X2),S(X2,X3),R(X,V0),S(V0,V1),R(A,V2),S(V2,V3). ANS: Q.");
+
+
 	return PASS;
 }
 

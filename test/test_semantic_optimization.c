@@ -43,11 +43,11 @@ rc
 testSemanticOptimization(void)
 {
     RUN_TEST(testJoinGraph(), "testing creation of join graphs for datalog rules.");
-	RUN_TEST(testRewriting(), "testing creation of capture rules.");
 	RUN_TEST(testFDchecking(), "testing checking validty of FDs over body atoms.");
-    RUN_TEST(testOptimization(), "testing optimizing a DL rule for provenance capture using semantic query optimization.");
 	RUN_TEST(testAdaptFDsForRule(), "test adapting FDs to a FL rule by replacing attributes with variables.");
 	RUN_TEST(testInferFDsForIDB(), "test inferring FDs that hold for IDB atoms.");
+    RUN_TEST(testOptimization(), "testing optimizing a DL rule for provenance capture using semantic query optimization.");
+	RUN_TEST(testRewriting(), "testing creation of capture rules.");
 
 	return PASS;
 }
@@ -160,6 +160,8 @@ testJoinGraph(void)
 		char *_expq = readStringFromFile(_expf);						\
 		_inp_ = (DLProgram *) parseFromStringdl(_inq);					\
 		_ep_ = (DLProgram *) parseFromStringdl(_expq);					\
+		boolean _subquerymerge = getBoolOption(OPTION_DL_MERGE_RULES);	\
+		boolean _semanticOpt = getBoolOption(OPTION_DL_SEMANTIC_OPT);	\
 																		\
 		_inp_ = (DLProgram *) analyzeDLModel((Node *) _inp_);			\
 		_ep_ = (DLProgram *) analyzeDLModel((Node *) _ep_);				\
@@ -179,8 +181,10 @@ testJoinGraph(void)
 		DEBUG_NODE_BEATIFY_LOG("Expected program", _ep_);				\
 		DEBUG_NODE_BEATIFY_LOG("Actual program", _ap_);					\
 																		\
-		char *_mes = formatMes("\n================================================================================\n%s rewritten into %s:\n================================================================================\n\n%s\n================================================================================\n%s", \
-							   _inf, _expf, _inq, _expq);				\
+		char *_mes = formatMes("\n================================================================================\n%s rewritten into %s [semopt: %s, flattening: %s]:\n================================================================================\n\n%s\n================================================================================\n%s", \
+							   _inf, _expf, _semanticOpt ? "1" : "0",	\
+							   _subquerymerge ? "1" : "0",				\
+							   _inq, _expq);							\
 		ASSERT_EQUALS_NODE(_ep_,_ap_,_mes);								\
 	} while(0)
 
@@ -247,6 +251,18 @@ testRewriting(void)
 						 "ANS : PROV_R.",
 						 "capture provenance for table not in top rule.");
 
+	TEST_LINEAGE_REWRITE("Q(X+Y) :- R(X,Y). ANS : Q. LINEAGE FOR R.",
+						 "Q((X + Y)) :- R(X,Y)."
+						 "PROV_R(X,Y) :- PROV_Q_PRE_0(X,Y,V0),Q(V0)."
+						 "PROV_Q_PRE_0(X,Y,(X + Y)) :- R(X,Y)."
+						 "ANS: PROV_R.",
+						 "create provenance for rule with generalized projection");
+
+	INFO_LOG("================================================================================"
+			 "\nTPC-H no optimizations\n"
+			 "================================================================================");
+
+
 	// TPC-H queries
 	List *queries = LIST_MAKE(
 				"q01_lineitem.dl",
@@ -285,6 +301,10 @@ testRewriting(void)
 	setBoolOption(OPTION_DL_MERGE_RULES, TRUE);
 	setBoolOption(OPTION_DL_SEMANTIC_OPT, TRUE);
 
+	INFO_LOG("================================================================================"
+			 "\nTPC-H full optimizations\n"
+			 "================================================================================");
+
 	queries = LIST_MAKE(
 				"q01_lineitem.dl",
 				"q02_nation.dl",
@@ -293,7 +313,7 @@ testRewriting(void)
 				"q05_lineitem.dl",
 				"q06_lineitem.dl",
 				"q07_lineitem.dl",
-				"q08_supplier.dl",
+				/*"q08_supplier.dl", */
 				"q09_lineitem.dl",
 				"q10_lineitem.dl",
 				"q11_supplier.dl",
@@ -316,29 +336,33 @@ testRewriting(void)
 	}
 
 	// merge subqueries but do not use semantic optimization
+	INFO_LOG("================================================================================"
+			 "\nTPC-H only flattening\n"
+			 "================================================================================");
+
 	setBoolOption(OPTION_DL_MERGE_RULES, TRUE);
 	setBoolOption(OPTION_DL_SEMANTIC_OPT, FALSE);
 
 	queries = LIST_MAKE(
-				"q01_lineitem.dl",
-				"q02_nation.dl",
-				"q03_lineitem.dl",
-				"q04_lineitem.dl",
-				"q05_lineitem.dl",
-				"q06_lineitem.dl",
-				"q07_lineitem.dl",
-				"q08_supplier.dl",
-				"q09_lineitem.dl",
-				"q10_lineitem.dl",
-				"q11_supplier.dl",
-				"q12_lineitem.dl",
-				"q13_orders.dl",
-				"q14_lineitem.dl",
-				"q15_lineitem.dl",
-				"q17_lineitem.dl",
-				"q18_lineitem.dl",
-				"q19_lineitem.dl",
-				"q20_part.dl"
+		"q01_lineitem.dl",
+		"q02_nation.dl",
+		"q03_lineitem.dl",
+		"q04_lineitem.dl",
+		"q05_lineitem.dl",
+		"q06_lineitem.dl",
+		"q07_lineitem.dl",
+		"q08_supplier.dl",
+		"q09_lineitem.dl",
+		"q10_lineitem.dl",
+		"q11_supplier.dl",
+		"q12_lineitem.dl",
+		"q13_orders.dl",
+		"q14_lineitem.dl",
+		"q15_lineitem.dl",
+		"q17_lineitem.dl",
+		"q18_lineitem.dl",
+		"q19_lineitem.dl",
+		"q20_part.dl"
 		);
 
 	FOREACH(char,c,queries)
@@ -392,7 +416,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(pr,LIST_MAKE(headxy));
-	opt = optimizeDLRule(p, r, fds, gr, NULL);
+	opt = getHeadOfListP(optimizeDLRule(p, r, fds, gr, NULL));
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -403,7 +427,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(pr,LIST_MAKE(gr,headx));
-	opt = optimizeDLRule(p, r, fds, gr, NULL);
+	opt = getHeadOfListP(optimizeDLRule(p, r, fds, gr, NULL));
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -414,7 +438,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,gt,gu,headx));
-	opt = optimizeDLRule(p, r, fds, glr, NULL);
+	opt = getHeadOfListP(optimizeDLRule(p, r, fds, glr, NULL));
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -426,7 +450,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,headx));
-	opt = optimizeDLRule(p, r, fds, glr, NULL);
+	opt = getHeadOfListP(optimizeDLRule(p, r, fds, glr, NULL));
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -453,7 +477,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,y3,headx));
-	opt = optimizeDLRule(p, r, fds, glr, NULL);
+	opt = getHeadOfListP(optimizeDLRule(p, r, fds, glr, NULL));
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 
@@ -468,7 +492,7 @@ testOptimization(void)
 	p = createDLProgram(LIST_MAKE(r), NIL, "Q", NIL, NIL, NIL);
 
 	exp = createDLRule(plr,LIST_MAKE(glr,gsp,gt,gu,y3,z5,xc,headya));
-	opt = optimizeDLRule(p, r, fds, glr, NULL);
+	opt = getHeadOfListP(optimizeDLRule(p, r, fds, glr, NULL));
 
 	LOG_AND_ASSERT_EQUALS(exp,opt);
 

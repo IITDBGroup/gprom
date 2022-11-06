@@ -36,8 +36,8 @@ Qfilter(l_orderkey, l_linenumber, l_discount, l_extp) :-
     l_quantity >= q_low,
     l_quantity >= q_high,
     p_size >= 1,
-    p_size <= p_high.        
-                 
+    p_size <= p_high.
+
 Q(sum(l_extp * (1-l_discount))) :-
     Qfilter(l_orderkey, l_linenumber, l_discount, l_extp).
 

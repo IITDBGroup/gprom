@@ -20,6 +20,7 @@ extern void createDLanalysisStructures(DLProgram *p, boolean cleanup, boolean cr
 extern void createRelToRuleMap(Node *stmt);
 extern Graph *createRelToRelGraph(Node *stmt);
 extern Graph *createInvRelToRelGraph(Node *stmt);
+extern HashMap *createRuleIds(DLProgram *p);
 extern HashMap *createBodyPredToRuleMap(DLProgram *p);
 extern boolean hasAggFunction(Node *n);
 extern boolean hasGenProj(DLAtom *head);
@@ -31,6 +32,13 @@ extern List *getEDBFDs(DLProgram *p);
 		if(!DL_HAS_PROP(_s,DL_REL_TO_REL_GRAPH)) \
 		{ \
 			createRelToRelGraph((Node *) _s);	\
+		} \
+	} while (0)
+#define ENSURE_RULE_IDS(_s) \
+	do { \
+		if(!DL_HAS_PROP(_s,DL_RULE_IDS)) \
+		{ \
+			createRuleIds(_s);	\
 		} \
 	} while (0)
 #define ENSURE_INV_REL_TO_REL_GRAPH(_s) \
@@ -59,6 +67,7 @@ extern List *getEDBFDs(DLProgram *p);
 			ENSURE_REL_TO_REL_GRAPH(_p);			\
 			ENSURE_BODY_PRED_TO_RULE_MAP(_p);		\
 			DL_SET_BOOL_PROP(_p, DL_IS_CHECKED);	\
+			ENSURE_RULE_IDS(_p);					\
 		}											\
 	} while(0)
 

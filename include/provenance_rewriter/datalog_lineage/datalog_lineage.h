@@ -20,9 +20,10 @@
 
 #include "model/datalog/datalog_model.h"
 #include "model/graph/graph.h"
+#include "model/set/hashmap.h"
 
 extern DLProgram *rewriteDLForLinageCapture(DLProgram *p);
-extern DLRule *createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *goalToHeadPred);
-extern DLRule *createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred, DLAtom *goal, Graph *goalToHeadPred);
+extern List *createCaptureRule(DLRule *r, DLAtom *targetAtom, char *filterAnswerPred, Graph *goalToHeadPred, HashMap *ruleids);
+extern List *createCaptureRuleForTable(DLRule *r, char *table, char *filterAnswerPred, DLAtom *goal, Graph *goalToHeadPred, HashMap *ruleids);
 
 #endif /* _DATALOG_LINEAGE_H_ */

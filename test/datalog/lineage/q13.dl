@@ -1,8 +1,8 @@
 Q1(c_custkey, count(o_orderkey)) :-
-customer(c_custkey,c1,c2,c3,c4,c5,c6,c7),
-orders(o_orderkey,c_custkey,o1, o2, o3,o4, o5,o6,o7).
+    customer(c_custkey,c1,c2,c3,c4,c5,c6,c7),
+    orders(o_orderkey,c_custkey,o1, o2, o3,o4, o5,o6,o7).
 
 Q(c_count, count(1)) :-
-Q1(q1, c_count).
+    Q1(q1, c_count).
 
 ANS: Q.

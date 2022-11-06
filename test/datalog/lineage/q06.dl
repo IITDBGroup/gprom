@@ -1,9 +1,9 @@
 Q(sum(l_ep * l_d)):-
-lineitem(l1,l2,l3,l4,l_q,l_ep,l_d,l5,l6,l7,l_sd,l8,l9,l10,l11,l12),
-l_sd >= '1994-01-01',
-l_sd < '1995-01-01',
-l_d >= 0.05,
-l_d <= 0.07,
-l_q < 24.
+    lineitem(l1,l2,l3,l4,l_q,l_ep,l_d,l5,l6,l7,l_sd,l8,l9,l10,l11,l12),
+    l_sd >= '1994-01-01',
+    l_sd < '1995-01-01',
+    l_d >= 0.05,
+    l_d <= 0.07,
+    l_q < 24.
 
 ANS: Q.

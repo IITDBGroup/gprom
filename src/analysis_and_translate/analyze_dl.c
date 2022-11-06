@@ -227,6 +227,25 @@ createBodyPredToRuleMap(DLProgram *p)
 	return map;
 }
 
+HashMap *
+createRuleIds(DLProgram *p)
+{
+	HashMap *ruleids = NEW_MAP(DLRule, Constant);
+	int cnt = 0;
+
+	FOREACH(DLNode,n,p->rules)
+	{
+		if(isA(n,DLRule))
+		{
+			addToMap(ruleids, (Node *) n, (Node *) createConstInt(cnt++));
+		}
+	}
+
+	DL_SET_PROP(p, DL_RULE_IDS, ruleids);
+
+	return ruleids;
+}
+
 static DLProgram *
 analyzeDLProgram(DLProgram *p)
 {
@@ -239,7 +258,7 @@ analyzeDLProgram(DLProgram *p)
 
 	// reset functions
 	p->func = NIL;
-	
+
     // extract summarization options
     analyzeSummerizationBasics(p);
 
