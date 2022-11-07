@@ -59,7 +59,7 @@ Node *dlParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> NEGATION RULE_IMPLICATION IMPLIES ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS
-%token <stringVal> SCORE AS THRESHOLDS TOP FOR RESULTS FROM FAILURE SUMMARIZED BY WITH SAMPLE LINEAGE KEYWORD_FD
+%token <stringVal> SCORE AS THRESHOLDS TOP FOR RESULTS FROM FAILURE SUMMARIZED BY WITH SAMPLE LINEAGE KEYWORD_FD CAST
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -67,7 +67,7 @@ Node *dlParseResult = NULL;
 %token <stringVal> stringConst
 
 /* comparison and arithmetic operators */
-%token <stringVal> comparisonOp
+%token <stringVal> comparisonOp 
 
 /*
  * Declare token for operators specify their associativity and precedence
@@ -90,8 +90,8 @@ Node *dlParseResult = NULL;
 
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison parenComparison ansrelation provStatement rpqStatement associateDomain
 %type <node> functional_dependency
-%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions caseExpression caseWhen optionalCaseElse 
-%type <node> optionalFPattern
+%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions caseExpression caseWhen optionalCaseElse castExpression
+%type <node> optionalFPattern 
 %type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds nameList caseWhenList
 %type <stringVal> optProvFormat
 
@@ -616,8 +616,18 @@ expression:
 				RULELOG("expression:comparison");
                 $$ = (Node *) ((DLComparison *) $1)->opExpr;
 		  }
+		| castExpression { RULELOG("expression::castExpression"); }
+
     ;
 
+castExpression:
+				CAST '(' expression AS name ')'
+				{
+                     RULELOG("expression::cast");
+                     $$ = (Node *) createCastExpr($3, SQLdataTypeToDataType($5));
+				}
+				;
+				
 /*
  * Parse operator expression
  */

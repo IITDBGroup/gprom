@@ -106,6 +106,8 @@ castOpSchema (QueryOperator *op, List *dts)
 static void
 addCastsToExpressions(QueryOperator *q)
 {
+    adaptAttributeRefList(q, q->inputs);
+	
     switch(q->type)
     {
         case T_TableAccessOperator:
@@ -165,14 +167,13 @@ addCastsToExpressions(QueryOperator *q)
             FATAL_LOG("not a query operator %s", beatify(nodeToString(q)));
     }
 
-    adaptAttributeRefList(q, q->inputs);
     adaptOpSchema(q);
 
     DEBUG_OP_LOG("after casting op is:", q);
 }
 
 static void
-adaptOpSchema (QueryOperator *q)
+adaptOpSchema(QueryOperator *q)
 {
     List *dts = inferOpResultDTs(q);
     ListCell *dtCell = dts->head;
@@ -184,7 +185,7 @@ adaptOpSchema (QueryOperator *q)
 }
 
 static void
-adaptAttributeRefList (QueryOperator *parent, List *children)
+adaptAttributeRefList(QueryOperator *parent, List *children)
 {
     List *attrRefs = queryOperatorGetAttrRefs(parent);
 

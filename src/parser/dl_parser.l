@@ -100,8 +100,8 @@ MINUS					'-'
 STAR					'*'
 MOD						'%'
 STRCONCAT				"||"
-
-comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+						
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">="|"!=")
 LOG_IMPLIES             "->"
 
 /* KEYWORDS */
@@ -172,6 +172,7 @@ FROM                "FROM"
 (?i:END)			UPCASE_TOK(END)
 (?i:ELSE)			UPCASE_TOK(ELSE)
 (?i:NOT)			TOK(NEGATION)
+(?i:CAST)           UPCASE_TOK(CAST)
 
 	/* aggregation functions */
 (?i:AVG)	TOK(AMMSC)
