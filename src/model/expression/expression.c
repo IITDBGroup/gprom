@@ -1091,7 +1091,7 @@ castFunctionArgs(FunctionCall *f)
 }
 
 DataType
-lcaType (DataType l, DataType r)
+lcaType(DataType l, DataType r)
 {
     Set *lCasts = INTSET();
     Set *rCasts = INTSET();

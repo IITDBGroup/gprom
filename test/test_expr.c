@@ -200,5 +200,8 @@ testAutoCasting (void)
 
     ASSERT_EQUALS_NODE(exp,result,"1.0 * (2 + 1.0)  = 2 -> \"1\" = 1.0 * (CAST(2 AS FLOAT) + 1.0)");
 
+	// check case expression
+	
+	
     return PASS;
 }
