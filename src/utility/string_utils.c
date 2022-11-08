@@ -244,6 +244,18 @@ strRemPostfix(char *str, int postFixSize)
     return result;
 }
 
+char *
+strRemPrefix(char *str, int postFixSize)
+{
+   ASSERT(postFixSize < strlen(str));
+   int len = strlen(str) - postFixSize;
+   char *result = MALLOC(len + 1);
+   memcpy(result, str + postFixSize, len);
+   result[len] = '\0';
+   return result;
+}
+
+
 boolean
 isPrefix(char *str, char *prefix)
 {
