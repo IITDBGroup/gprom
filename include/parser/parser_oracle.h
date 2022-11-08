@@ -15,6 +15,7 @@
 
 extern Node *parseStreamOracle (FILE *stream);
 extern Node *parseFromStringOracle (char *input);
+extern Node *parseExprFromStringOracle (char *input);
 extern const char *languageHelpOracle(void);
 
 #endif /* PARSER_ORACLE_H_ */

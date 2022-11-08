@@ -15,6 +15,8 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
+#include "utility/string_utils.h"
+#include "parser/parser_oracle.h"
 
 /* internal tests */
 static rc testAttributeReference (void);
@@ -24,6 +26,9 @@ static rc testOperator (void);
 static rc testExpressionToSQL (void);
 static rc testAutoCasting (void);
 static rc testMinMaxForConstants (void);
+
+static Node *parseAndType(char *str);
+static boolean typeExpression(Node *expr, void *context);
 
 /* check expression model */
 rc
@@ -204,4 +209,52 @@ testAutoCasting (void)
 	
 	
     return PASS;
+}
+
+
+static Node *
+parseAndType(char *str)
+{
+	Node *expr = parseExprFromStringOracle(str);
+	typeExpression(expr, NULL);
+	DEBUG_LOG("created expression %s", beatify(nodeToString(expr)));
+	return expr;
+}
+
+
+static boolean
+typeExpression(Node *expr, void *context)
+{
+	if (expr == NULL)
+		return TRUE;
+
+	if (isA(expr,AttributeReference))
+	{
+		AttributeReference *a = (AttributeReference *) expr;
+		char *name = strRemPrefix(a->name,1);
+		char type = a->name[0];
+
+		a->name = name;
+		switch(type)
+		{
+		case 'i':
+			a->attrType = DT_INT;
+			break;
+		case 'f':
+			a->attrType = DT_FLOAT;
+			break;
+		case 's':
+			a->attrType = DT_STRING;
+			break;
+		case 'b':
+			a->attrType = DT_BOOL;
+			break;
+		case 'l':
+			a->attrType = DT_LONG;
+			break;
+		}
+		return TRUE;
+	}
+
+	return visit(expr, typeExpression, context);
 }

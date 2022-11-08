@@ -71,6 +71,16 @@ parseFromStringOracle (char *input)
     return parseInternalOracle();
 }
 
+Node *
+parseExprFromStringOracle (char *input)
+{
+	INFO_LOG("parse expr:\n%s", input);
+	char *wrappedInput = CONCAT_STRINGS("[", input, "]");
+	oracleSetupStringInput(wrappedInput);
+
+	return getHeadOfListP((List *) parseInternalOracle());
+}
+
 const char *
 languageHelpOracle (void)
 {
