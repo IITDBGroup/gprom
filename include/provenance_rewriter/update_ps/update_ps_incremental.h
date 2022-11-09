@@ -4,6 +4,7 @@
 #define INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_UPDATE_PS_INCREMENTAL_H_
 
 #include "model/set/vector.h"
+#include "model/bitset/bitset.h"
 #include "model/query_operator/query_operator.h"
 
 #define DATA_CHUNK_PROP "DATA_CHUNK"
@@ -15,12 +16,19 @@ typedef struct DataChunk
 	/*
 	 *  updateIdentifier:
 	 *  	a Vector
-	 * 			storing chars "+"/"-" indicates "insert" or "delete";
+	 * 			storing chars "+"/"-" indicates "insert" or "delete"; 1 / -1;
 	 *
 	 *  tuples:
 	 *  	a Vector
 	 *  		each vector node of tuples is a vector storing the tuples' data;
 	 *  		each vector node should be a vector which is a column of table values of same data type;
+	 * (1, 2) (3, 4) (5, 6)
+	 * (1, 3, 5);
+	 * (2, 4, 6);
+	 *
+	 * need vecLong/ vecFloat/ vecDouble to be more efficient to access data;
+	 *
+	 *
 	 *
 	 *  fragmentsInfo:
 	 *  	a HashMap
@@ -54,6 +62,22 @@ typedef struct DataChunk
 
 } DataChunk;
 
+
+// for evaluation > <, return a bit vector identify YES or NO;
+typedef struct ColumnChunk
+{
+	NodeTag type;
+	boolean isBit;
+	union
+	{
+		BitSet *bs;
+		Vector *v;
+	} data;
+	int length;
+	DataType dataType;
+} ColumnChunk;
+
+
 extern DataChunk* initDataChunk();
 
 /*
@@ -63,10 +87,23 @@ extern DataChunk* initDataChunk();
  * 	direction: "1" to head or "-1" to end;
  * 	removeLast: "TRUE" for remove element from heap;
  */
+
+
 extern void heapifyListSiftUp(List *list, int pos, char *type, DataType valDataType, int valuePos);
 extern void heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType, int valuePos);
 extern void heapInsert(List *list, char* type, Node *ele);
 extern void heapDelete(List *list, char* type, Node *ele);
+extern int getIntValueFromDataChunk(DataChunk *dc, int row, int col);
+//extern float getFloatValueFromDataChunk(DataChunk *dc, int pos);
+//extern gprom_long getLongValueFromDataChunk(DataChunk *dc, int pos);
+//extern char *getStringValueFromDataChunk(DataChunk *dc, int pos);
+//extern boolean *getBooleanValueFromDataChunk(DataChunk *dc, int pos);
+
+extern int* getIntArrayFromDataChunk(DataChunk *dc, int col);
+//extern gprom_float* getFloatArray(DataChunk *dc, int col);
+//extern int* getIntArray(DataChunk *dc, int col);
+//extern int* getIntArray(DataChunk *dc, int col);
+//extern int* getIntArray(DataChunk *dc, int col);
 
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_UPDATE_PS_INCREMENTAL_H_ */

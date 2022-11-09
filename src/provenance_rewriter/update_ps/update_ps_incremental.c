@@ -59,6 +59,48 @@ static int compareTwoValues(Constant *a, Constant *b, DataType dt);
 static void swapListCell(List *list, int pos1, int pos2);
 static BitSet *setFragmentToBitSet(int value, List *rangeList);
 static ConstRelOperator *getConstRelOpFromDataChunk(DataChunk *dataChunk);
+static ColumnChunk *makeColumnChunk(DataType dataType, size_t len);
+static ColumnChunk *evaluateExprOnDataChunk(Node *expr, DataChunk *dc);
+static ColumnChunk *evaluateOperatorOnDataChunk(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorPlus(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorMinus(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorMult(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorDiv(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorMod(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorAnd(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorOr(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorNot(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorEq(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorLt(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorLe(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorGt(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorGe(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorNeq(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorNeqHat(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorConcat(Operator *op, DataChunk *dc);
+static ColumnChunk *evaluateOperatorLike(Operator *op, DataChunk *dc);
+static ColumnChunk *getColumnChunkOfAttr(char *attrName, DataChunk *dataChunk);
+static ColumnChunk *getColumnChunkOfConst(Constant *c, DataChunk *dc);
+static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType);
+static Vector *columnChunkToVector(ColumnChunk *cc);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //static void setNumberToEachOperator(QueryOperator *operator);
 
 #define SQL_PRE backendifyIdentifier("SELECT * FROM ")
@@ -696,37 +738,35 @@ updateProjection(QueryOperator* op)
 	resultDC->tupleFields = LIST_LENGTH(op->schema->attrDefs);
 
 	List *attrDefs = op->schema->attrDefs;
+	List *projExprs = ((ProjectionOperator *) op)->projExprs;
 
 	int pos = 0;
-	FOREACH(AttributeDef, ad, attrDefs) {
-		resultDC->attrNames = appendToTailOfList(resultDC->attrNames, (AttributeDef *) copyObject(ad));
+	FOREACH(Node, node, projExprs) {
+		// get projection attribute def;
+		AttributeDef *ad = (AttributeDef *) getNthOfListP(attrDefs, pos);
+		resultDC->attrNames = appendToTailOfList(resultDC->attrNames, copyObject(ad));
 
+		// add to map the name, datatype, pos;
 		addToMap(resultDC->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
 		addToMap(resultDC->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
 
-		int oldPos = INT_VALUE((Constant *) getMapString(dataChunk->attriToPos, ad->attrName));
-		Vector *vector = (Vector *) getVecNode(dataChunk->tuples, oldPos);
-		vecAppendNode(resultDC->tuples, (Node *) copyObject(vector));
+		if (isA(node, Operator)) { // node is an expression, evaluate it;
 
+			ColumnChunk *evaluatedValue = (ColumnChunk *) evaluateExprOnDataChunk(node, dataChunk);
+//			DEBUG_NODE_BEATIFY_LOG("COLUMN CHUNK", evaluatedValue);// TODO: ERROR;
+			Vector *vector = columnChunkToVector(evaluatedValue);
+			vecAppendNode(resultDC->tuples, (Node *) copyObject(vector));
+
+		} else if (isA(node, AttributeReference)){ // node is an attribute, direct copy;
+
+			AttributeReference *af = (AttributeReference *) node;
+			int oldPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, af->name));
+			Vector *vector = (Vector *) getVecNode(dataChunk->tuples, oldPos);
+			vecAppendNode(resultDC->tuples, (Node *) copyObject(vector));
+		}
 		pos++;
 	}
 
-
-	// TODO: check if projExpr contains function call, operator,
-	// mod(a, b): function;
-	// +,-,*,/,||, : operators
-//	List *projExprs = ((ProjectionOperator *) op)->projExprs;
-//	boolean has_OP_FC = FALSE;
-//	for (int i = 0; i < LIST_LENGTH(projExprs); i++)
-//	{
-//		Node *expr = getNthOfListP(projExprs, i);
-//		if (isA(expr, Operator) || isA(expr, FunctionCall))
-//		{
-//			DEBUG_NODE_BEATIFY_LOG("fc or op:", expr);
-//			has_OP_FC = TRUE;
-////			Node * value = evaluateExpr(expr);
-//		}
-//	}
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR PROJECTION OPERATOR: ", resultDC);
 
@@ -1812,9 +1852,10 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 {
 	// TODO: use ConstrelOperator;
 	DEBUG_NODE_BEATIFY_LOG("DISPLAY DATACHUNK: ", dataChunk);
-	int choice = 1;
+	int choice = 2;
 	char *sql = NULL;
 	if (choice == 1) {
+		// if this is locally used, it is fine to build this string.
 		StringInfo strInfoSQL = makeStringInfo();
 		appendStringInfo(strInfoSQL, "%s( %s", SQL_PRE, VALUES_IDENT);
 
@@ -1902,69 +1943,6 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 		// serialization query;
 		sql = serializeQuery((QueryOperator *) projOp);
 		INFO_LOG("SQL %s", sql);
-//		List *values = NIL;
-//		List *attrNames = (List *) getAttrDefNames(dataChunk->attrNames);
-//		List *dataTypes = NIL;
-//		List *updateType = NIL;
-//
-//		for (int col = 0; col < dataChunk->tupleFields; col++) {
-//			List *colValues = NIL;
-//
-//			// get value from each vector cell;
-//			Vector *vec = (Vector *) getVecNode(dataChunk->tuples, col);
-//			for (int index = 0; index < VEC_LENGTH(vec); index++) {
-//				colValues = appendToTailOfList(colValues, getVecNode(vec, index));
-//			}
-//
-//			values = appendToTailOfList(values, colValues);
-//			dataTypes = appendToTailOfListInt(dataTypes, INT_VALUE((Constant *) getMapInt(dataChunk->posToDatatype, col)));
-//		}
-//
-//		// build list for sketch string;
-//		FOREACH_HASH_KEY(Node, key, dataChunk->fragmentsInfo) {
-//			List *bitsetList = NIL;
-//			List *bitsets = (List *) getMapString(dataChunk->fragmentsInfo, STRING_VALUE((Constant *) key));
-//			FOREACH(BitSet, bs, bitsets) {
-//				bitsetList = appendToTailOfList(bitsetList, createConstString(bitSetToString(bs)));
-//			}
-//			values = appendToTailOfList(values, bitsetList);
-////			attrNames = appendToTailOfList(attrNames, createAttributeDef(STRING_VALUE((Constant *) key), DT_STRING));
-//			attrNames = appendToTailOfList(attrNames, STRING_VALUE((Constant *) key));
-//			dataTypes = appendToTailOfListInt(dataTypes, DT_STRING);
-//		}
-//
-//		// build list for update type;
-//		for (int index = 0; index < VEC_LENGTH(dataChunk->updateIdentifier); index++) {
-//			updateType = appendToTailOfList(updateType, createConstInt(getVecInt(dataChunk->updateIdentifier, index)));
-//		}
-//		values = appendToTailOfList(values, updateType);
-//		attrNames = appendToTailOfList(attrNames, backendifyIdentifier("udpate_type"));
-//		dataTypes = appendToTailOfListInt(dataTypes, DT_INT);
-//
-//		// create a constant real operator;
-//		ConstRelOperator *constRelOp = createConstRelOp(values, NIL, deepCopyStringList(attrNames), dataTypes);
-//		DEBUG_NODE_BEATIFY_LOG("CONST REL OP", constRelOp);
-//
-//		// create a selection operator;
-//		SelectionOperator *selOp = createSelectionOp(condition, (QueryOperator *) constRelOp, NIL, attrNames);
-//		constRelOp->op.parents = singleton(selOp);
-//		DEBUG_NODE_BEATIFY_LOG("SEL OP", selOp);
-//
-//		// create a projection operator;
-//		List *projExpr = NIL;
-//		Schema *selSchema = selOp->op.schema;
-//		for (int index = 0; index < LIST_LENGTH(selSchema->attrDefs); index++) {
-//			AttributeDef *ad = (AttributeDef *) getNthOfListP(selSchema->attrDefs, index);
-//			AttributeReference *af = createFullAttrReference(ad->attrName, 0, index, 0, ad->dataType);
-//			projExpr = appendToTailOfList(projExpr, af);
-//		}
-//		ProjectionOperator *projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, getAttrNames(selOp->op.schema));
-//		selOp->op.parents = singleton(projOp);
-//		DEBUG_NODE_BEATIFY_LOG("PROJ", projOp);
-//
-//		// serialization query;
-//		sql = serializeQuery((QueryOperator *) projOp);
-//		INFO_LOG("SQL %s", sql);
 	}
 
 	Relation* filterResult = getQueryResult(sql);
@@ -2191,4 +2169,662 @@ executeQueryWithoutResult(char* sql)
 	} else if(getBackend() == BACKEND_ORACLE) {
 
 	}
+}
+
+static ColumnChunk *
+evaluateExprOnDataChunk(Node *expr, DataChunk *dc)
+{
+	switch (expr->type) {
+		case T_Operator: {
+			return evaluateOperatorOnDataChunk((Operator *) expr, dc);
+		}
+//		break;
+		case T_AttributeReference: {
+			return getColumnChunkOfAttr(((AttributeReference *) expr)->name, dc);
+		}
+//		break;
+		case T_Constant: {
+			return getColumnChunkOfConst((Constant *) expr, dc);
+		}
+		break;
+		default:
+			FATAL_LOG("cannot evaluate this expr");
+	}
+
+	return 0;
+}
+
+static ColumnChunk *
+getColumnChunkOfConst(Constant *c, DataChunk *dc)
+{
+	// column chunk length;
+	int length = dc->numTuples;
+
+	// create a new column chunk;
+	ColumnChunk *cc = makeColumnChunk(c->constType, (size_t) length);
+
+
+	switch (c->constType) {
+		case DT_INT: {
+			int *ccValue = VEC_TO_IA(cc->data.v);
+			for (int i = 0; i < length; i++) {
+				ccValue[i] = INT_VALUE(c);
+			}
+		}
+		break;
+		case DT_FLOAT: {
+		}
+		break;
+		case DT_LONG: {
+		}
+		break;
+		case DT_STRING:
+		case DT_VARCHAR2: {
+			char **ccValue = VEC_TO_ARR(cc->data.v, char);
+			for (int i = 0; i < length; i++) {
+				ccValue[i] = STRING_VALUE(c);
+			}
+		}
+		break;
+		case DT_BOOL: {
+			BitSet *bs = newBitSet(length);
+			for (int i = 0; i < length; i++) {
+				if (TRUE == BOOL_VALUE(c)) {
+					setBit(bs, i, TRUE);
+				}
+			}
+			cc->data.bs = copyObject(bs);
+		}
+		break;
+		default:
+			FATAL_LOG("data type %d is not supported", c->constType);
+	}
+
+	return cc;
+
+}
+
+static ColumnChunk *
+getColumnChunkOfAttr(char *attrName, DataChunk *dataChunk)
+{
+	// get column vector of this attribute;
+	int pos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, attrName));
+	Vector *vec = (Vector *) getVecNode(dataChunk->tuples, pos);
+
+	// create the result column chunk of this datatype;
+	DataType dataType = (DataType) INT_VALUE((Constant *) MAP_GET_INT(dataChunk->posToDatatype, pos));
+	ColumnChunk *cc = makeColumnChunk(dataType, dataChunk->numTuples);
+
+	// get original column values from data chunk;
+	Constant ** consts = VEC_TO_ARR(vec, Constant);
+
+	switch (dataType) {
+		case DT_INT: {
+			int *ccValues = VEC_TO_IA(cc->data.v);
+			for (int i = 0; i < cc->length; i++) {
+				ccValues[i] = INT_VALUE(consts[i]);
+			}
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_STRING:
+		case DT_VARCHAR2: {
+			char **ccValues = (char **) VEC_TO_ARR(cc->data.v, char);
+			for (int i = 0; i < cc->length; i++) {
+				ccValues[i] = STRING_VALUE(consts[i]);
+			}
+		}
+		break;
+		case DT_BOOL: {
+			BitSet *bs = newBitSet(cc->length);
+			for (int i = 0; i < cc->length; i++) {
+				if (TRUE == BOOL_VALUE(consts[i])) {
+					setBit(bs, i, TRUE);
+				}
+			}
+			cc->data.bs = (BitSet *) copyObject;
+		}
+		break;
+		default:
+			FATAL_LOG("datatype %d is not supported", dataType);
+			break;
+	}
+	return cc;
+}
+
+static ColumnChunk *
+evaluateOperatorOnDataChunk(Operator *op, DataChunk *dc)
+{
+	ColumnChunk *result = NULL;
+	if (streq(op->name, OPNAME_ADD)) { // arithmetic operators;
+		// "a + b"
+		return evaluateOperatorPlus(op, dc);
+	} else if (streq(op->name, OPNAME_MINUS)) {
+		// "a - b"
+		return evaluateOperatorMinus(op, dc);
+	} else if (streq(op->name, OPNAME_DIV)) {
+		// "a / b"
+		return evaluateOperatorDiv(op, dc);
+	} else if (streq(op->name, OPNAME_MULT)) {
+		// "a * b"
+		return evaluateOperatorMult(op, dc);
+	} else if (streq(op->name, OPNAME_MOD)) {
+		// "a % b"
+		return evaluateOperatorMod(op, dc);
+	} else if (streq(op->name, OPNAME_AND)) { // logic operators;
+		// "a AND b"
+		return evaluateOperatorAnd(op, dc);
+	} else if (streq(op->name, OPNAME_OR)) {
+		// "a OR b"
+		return evaluateOperatorOr(op, dc);
+	} else if (streq(op->name, OPNAME_NOT)) {
+		// "NOT a"
+		return evaluateOperatorNot(op, dc);
+	} else if (streq(op->name, OPNAME_not)) {
+		// "not a"
+		return evaluateOperatorNot(op, dc);
+	} else if (streq(op->name, OPNAME_EQ)) {
+		// "a = b"
+		return evaluateOperatorEq(op, dc);
+	} else if (streq(op->name, OPNAME_LT)) {
+		// "a < b"
+		return evaluateOperatorLt(op, dc);
+	} else if (streq(op->name, OPNAME_LE)) {
+		// "a <= b"
+		return evaluateOperatorLe(op, dc);
+	} else if (streq(op->name, OPNAME_GT)) {
+		// "a > b"
+		return evaluateOperatorGt(op, dc);
+	} else if (streq(op->name, OPNAME_GE)) {
+		// "a >= b"
+		return evaluateOperatorGe(op, dc);
+	} else if (streq(op->name, OPNAME_NEQ)) {
+		// "a <> b"
+		return evaluateOperatorNeq(op, dc);
+	} else if (streq(op->name, OPNAME_NEQ_BANG)) {
+		// "a != b"
+		return evaluateOperatorNeq(op, dc);
+	} else if (streq(op->name, OPNAME_NEQ_HAT)) {
+		// "????
+		return evaluateOperatorNeqHat(op, dc);
+	} else if (streq(op->name, OPNAME_STRING_CONCAT)) { // string operators;
+		// "a || b";
+		return evaluateOperatorConcat(op, dc);
+	} else if (streq(op->name, OPNAME_CONCAT)) {
+		// "concat(a, b)"
+		return evaluateOperatorConcat(op, dc);
+	} else if (streq(op->name, OPNAME_LIKE)) {
+		// "a like b"
+		return evaluateOperatorLike(op, dc);
+	}
+
+	return result;
+}
+
+static ColumnChunk *
+makeColumnChunk(DataType dataType, size_t len)
+{
+	ColumnChunk *columnChunk = makeNode(ColumnChunk);
+	columnChunk->dataType = dataType;
+	columnChunk->length = len;
+	columnChunk->isBit = FALSE;
+
+	switch (dataType) {
+		case DT_INT: {
+			columnChunk->data.v = makeVectorOfSize(VECTOR_INT, T_Vector, len);
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_STRING:
+		case DT_VARCHAR2: {
+			columnChunk->data.v = makeVectorOfSize(VECTOR_STRING, T_Vector, len);
+		}
+		break;
+		case DT_BOOL: {
+			columnChunk->isBit = TRUE;
+			columnChunk->data.bs = newBitSet(len);
+		}
+		break;
+	}
+
+	return columnChunk;
+}
+
+static ColumnChunk *
+evaluateOperatorPlus(Operator *op, DataChunk *dc)
+{
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	int len = left->length;
+
+	DataType resultDataType = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+
+	switch (resultDataType) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(left->data.v);
+			int *rightV = VEC_TO_IA(right->data.v);
+			int *resV = VEC_TO_IA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] + rightV[i];
+			}
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_STRING: // not applicable for "-"
+		case DT_VARCHAR2:// not applicable for "-"
+		case DT_BOOL:// not applicable for "-"
+		default:
+			FATAL_LOG("not supported for data type %d", resultDataType);
+	}
+
+	return resultCC;
+}
+
+static ColumnChunk *
+evaluateOperatorMinus(Operator *op, DataChunk *dc)
+{
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	int len = left->length;
+
+	DataType resultDataType = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+
+	switch (resultDataType) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(left->data.v);
+			int *rightV = VEC_TO_IA(right->data.v);
+			int *resV = VEC_TO_IA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] - rightV[i];
+			}
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_STRING: // not applicable for "-"
+		case DT_VARCHAR2:// not applicable for "-"
+		case DT_BOOL:// not applicable for "-"
+		default:
+			FATAL_LOG("not supported for data type %d", resultDataType);
+	}
+
+	return resultCC;
+}
+
+static ColumnChunk *
+evaluateOperatorMult(Operator *op, DataChunk *dc)
+{
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	int len = left->length;
+
+	DataType resultDataType = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+
+	switch (resultDataType) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(left->data.v);
+			int *rightV = VEC_TO_IA(right->data.v);
+			int *resV = VEC_TO_IA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] * rightV[i];
+			}
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_STRING: // not applicable for "*"
+		case DT_VARCHAR2:// not applicable for "*"
+		case DT_BOOL:// not applicable for "*"
+		default:
+			FATAL_LOG("not supported for data type %d", resultDataType);
+	}
+
+	return resultCC;
+}
+
+static ColumnChunk *
+evaluateOperatorDiv(Operator *op, DataChunk *dc)
+{
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	int len = left->length;
+
+	DataType resultDataType = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+
+	switch (resultDataType) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(left->data.v);
+			int *rightV = VEC_TO_IA(right->data.v);
+			int *resV = VEC_TO_IA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				if (rightV[i] == 0)
+					FATAL_LOG("division by zero");
+
+				resV[i] = leftV[i] / rightV[i];
+			}
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_STRING: // not applicable for "*"
+		case DT_VARCHAR2:// not applicable for "*"
+		case DT_BOOL:// not applicable for "*"
+		default:
+			FATAL_LOG("not supported for data type %d", resultDataType);
+	}
+
+	return resultCC;
+}
+
+static ColumnChunk *
+evaluateOperatorMod(Operator *op, DataChunk *dc)
+{
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	int len = left->length;
+
+	DataType resultDataType = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+
+	switch (resultDataType) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(left->data.v);
+			int *rightV = VEC_TO_IA(right->data.v);
+			int *resV = VEC_TO_IA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				if (rightV[i] == 0)
+					FATAL_LOG("division by zero");
+
+				resV[i] = leftV[i] % rightV[i];
+			}
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_STRING: // not applicable for "*"
+		case DT_VARCHAR2:// not applicable for "*"
+		case DT_BOOL:// not applicable for "*"
+		default:
+			FATAL_LOG("not supported for data type %d", resultDataType);
+	}
+	return resultCC;
+}
+
+static ColumnChunk *
+evaluateOperatorAnd(Operator *op, DataChunk *dc)
+{
+	// both left and right operand are bitset;
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	left->data.bs = bitAnd(left->data.bs, right->data.bs);
+
+	return left;
+}
+
+static ColumnChunk *
+evaluateOperatorOr(Operator *op, DataChunk *dc)
+{
+	// both left and right operand are bitset;
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	left->data.bs = bitOr(left->data.bs, right->data.bs);
+
+	return left;
+}
+
+static ColumnChunk *
+evaluateOperatorNot(Operator *op, DataChunk *dc)
+{
+	// both left and right operand are bitset;
+	// only have one "NOT(EXPR)"
+	List *inputs = op->args;
+	ColumnChunk *cc = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+
+	cc->data.bs = bitNot(cc->data.bs);
+	return cc;
+}
+
+static ColumnChunk *
+evaluateOperatorEq(Operator *op, DataChunk *dc)
+{
+	return NULL;
+}
+
+static ColumnChunk *
+evaluateOperatorLt(Operator *op, DataChunk *dc)
+{
+	return NULL;
+}
+
+static ColumnChunk *
+evaluateOperatorLe(Operator *op, DataChunk *dc)
+{
+	return NULL;
+}
+
+static ColumnChunk *
+evaluateOperatorGt(Operator *op, DataChunk *dc)
+{
+	return NULL;
+}
+
+static ColumnChunk *
+evaluateOperatorGe(Operator *op, DataChunk *dc)
+{
+	return NULL;
+}
+
+static ColumnChunk *
+evaluateOperatorNeq(Operator *op, DataChunk *dc)
+{
+	return NULL;
+}
+
+static ColumnChunk *
+evaluateOperatorNeqHat(Operator *op, DataChunk *dc)
+{
+	return NULL;
+}
+
+static ColumnChunk *
+evaluateOperatorConcat(Operator *op, DataChunk *dc)
+{
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk(getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk(getNthOfListP(inputs, 1), dc);
+
+	int length = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_STRING, length);
+
+	ColumnChunk *castLeft = NULL;
+	if (DT_STRING != left->dataType && DT_VARCHAR2 != left->dataType) {
+		castLeft = castColumnChunk(left, left->dataType, DT_STRING);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight = NULL;
+	if (DT_STRING != right->dataType && DT_VARCHAR2 != right->dataType) {
+		castRight = castColumnChunk(right, right->dataType, DT_STRING);
+	} else {
+		castRight = right;
+	}
+
+	char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+	char **rightV = VEC_TO_ARR(castRight->data.v, char);
+	char **resultV = VEC_TO_ARR(resultCC->data.v, char);
+
+	for (int i = 0; i < length; i++) {
+		resultV[i] = CONCAT_STRINGS(leftV[i], rightV[i]);
+	}
+
+	return resultCC;
+}
+
+static ColumnChunk *
+evaluateOperatorLike(Operator *op, DataChunk *dc)
+{
+//	List *inputs = op->args;
+
+//	ColumnChunk *left = evaluateExprOnDataChunk(op, dc);
+	return NULL;
+}
+
+static ColumnChunk *
+castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType)
+{
+	// so far, this supports  int, float, long, bool -> char*
+	if (fromType == toType) {
+		return (ColumnChunk *) copyObject(cc);
+	}
+
+	ColumnChunk *result = makeColumnChunk(toType, cc->length);
+	char **resV = VEC_TO_ARR(result->data.v, char);
+	int length = cc->length;
+
+	switch (toType) {
+		case DT_INT:
+		break;
+		case DT_FLOAT:
+		break;
+		case DT_LONG:
+		break;
+		case DT_BOOL:
+		break;
+		case DT_STRING:
+		case DT_VARCHAR2: {
+			if (DT_INT == fromType) {
+				int *vals = VEC_TO_IA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = gprom_itoa(vals[i]);
+				}
+			} else if (DT_FLOAT == fromType) {
+
+			} else if (DT_LONG == fromType) {
+
+			} else if (DT_BOOL == fromType) {
+				BitSet *bs = cc->data.bs;
+				char *bStr = bitSetToString(bs);
+				for (int i = 0; i < length; i++) {
+					char c = bStr[i];
+					if (getBackend() == BACKEND_POSTGRES) {
+						resV[i] = strdup(c == '1' ? "t" : "f");
+					}
+				}
+			}
+		}
+		break;
+		default:
+			FATAL_LOG("cast from %d to %d is not supported now", fromType, toType);
+	}
+
+	return result;
+}
+
+static Vector *
+columnChunkToVector(ColumnChunk *cc) {
+	int length = cc->length;
+	Vector *v = makeVectorOfSize(VECTOR_NODE, T_Vector, length);
+
+	switch (cc->dataType) {
+		case DT_INT: {
+			int *ccVals = VEC_TO_IA(cc->data.v);
+			for (int i = 0; i < length; i++) {
+				vecAppendNode(v, (Node *) createConstInt(ccVals[i]));
+			}
+		}
+		break;
+		case DT_LONG: {
+
+		}
+		break;
+		case DT_FLOAT: {
+
+		}
+		break;
+		case DT_STRING:
+		case DT_VARCHAR2: {
+			char **ccVals = VEC_TO_ARR(cc->data.v, char);
+			for (int i = 0; i < length; i++) {
+				vecAppendNode(v, (Node *) createConstString(ccVals[i]));
+			}
+		}
+		break;
+		case DT_BOOL: {
+			BitSet *bs = cc->data.bs;
+			char * bstr = bitSetToString(bs);
+			for (int i = 0; i < length; i++) {
+				char c = bstr[i];
+				vecAppendNode(v, (Node *) createConstBool((c == '1' ? TRUE : FALSE)));
+			}
+		}
+		break;
+		default:
+			FATAL_LOG("data type %d is not support", cc->dataType);
+	}
+	return v;
 }

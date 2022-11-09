@@ -153,7 +153,7 @@ static psInfoCell *copyPSInfoCell(psInfoCell *from, OperatorMap **opMap);
 
 /* copy structure for update provenance sketch */
 static DataChunk* copyDataChunk(DataChunk * from, OperatorMap **opMap);
-
+static ColumnChunk *copyColumnChunk(ColumnChunk * from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -640,6 +640,18 @@ copyDataChunk(DataChunk * from, OperatorMap **opMap)
 	COPY_SCALAR_FIELD(tupleFields);
 	COPY_NODE_FIELD(attriToPos);
 	COPY_NODE_FIELD(posToDatatype);
+
+	return new;
+}
+
+static ColumnChunk *
+copyColumnChunk(ColumnChunk * from, OperatorMap **opMap)
+{
+	COPY_INIT(ColumnChunk);
+	COPY_NODE_FIELD(data.v);
+	COPY_NODE_FIELD(data.bs);
+	COPY_SCALAR_FIELD(length);
+	COPY_SCALAR_FIELD(dataType);
 
 	return new;
 }
@@ -1488,6 +1500,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_DataChunk:
         	retval = copyDataChunk(from, opMap);
+        	break;
+        case T_ColumnChunk:
+        	retval = copyColumnChunk(from, opMap);
         	break;
         default:
             retval = NULL;

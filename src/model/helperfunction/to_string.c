@@ -139,6 +139,7 @@ static void outPSInfoCell(StringInfo str, psInfoCell *node);
 
 // for update provenance sketch
 static void outDataChunk(StringInfo str, DataChunk *node);
+static void outColumnChunk(StringInfo str, ColumnChunk *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -1239,6 +1240,17 @@ outDataChunk(StringInfo str, DataChunk *node)
 	WRITE_NODE_FIELD(posToDatatype);
 }
 
+static void
+outColumnChunk(StringInfo str, ColumnChunk *node)
+{
+	WRITE_NODE_TYPE(COLUMNCHUNK);
+	WRITE_NODE_FIELD(data.v);
+	WRITE_NODE_FIELD(data.bs);
+	WRITE_INT_FIELD(isBit);
+	WRITE_INT_FIELD(length);
+	WRITE_INT_FIELD(dataType);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1496,6 +1508,8 @@ outNode(StringInfo str, void *obj)
 		    case T_DataChunk:
 		    	outDataChunk(str, (DataChunk *) obj);
 		    	break;
+		    case T_ColumnChunk:
+		    	outColumnChunk(str, (ColumnChunk *) obj);
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
