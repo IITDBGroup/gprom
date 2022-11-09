@@ -206,7 +206,10 @@ testAutoCasting (void)
     ASSERT_EQUALS_NODE(exp,result,"1.0 * (2 + 1.0)  = 2 -> \"1\" = 1.0 * (CAST(2 AS FLOAT) + 1.0)");
 
 	// check case expression
-	ASSERT_EQUALS_INT(DT_FLOAT, typeOf(parseAndType("CASE WHEN iA < 5 THEN iB * 0.1 ELSE 0 END")),
+	ASSERT_EQUALS_ENUM(DataType, DT_FLOAT, typeOf(parseAndType("CASE WHEN iA < 5 THEN fB ELSE 0 END")),
+		"CASE WHEN iA < 5 THEN fB ELSE 0 END => DT_FLOAT");
+
+    ASSERT_EQUALS_ENUM(DataType, DT_FLOAT, typeOf(parseAndType("CASE WHEN iA < 5 THEN iB * 0.1 ELSE 0 END")),
 		"CASE WHEN iA < 5 THEN iB * 0.1 ELSE 0 END => DT_FLOAT");
 	
     return PASS;

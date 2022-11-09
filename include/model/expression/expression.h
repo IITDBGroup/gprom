@@ -265,6 +265,7 @@ extern char *backendifyIdentifier(char *name);
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
 extern Node *addCastsToExpr(Node *expr, boolean errorOnFailure);
+extern DataType lcaTypes(List *types);
 extern DataType lcaType (DataType l, DataType r);
 
 extern DataType SQLdataTypeToDataType (char *dt);

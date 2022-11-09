@@ -173,9 +173,10 @@ extern int getListLength(List *list);
 
 /* get certain elements */
 extern ListCell *getHeadOfList(List *list);
-extern int getHeadOfListInt (List *list);
-extern void *getHeadOfListP (List *list);
-extern void *popHeadOfListP (List *list);
+extern int getHeadOfListInt(List *list);
+extern int popHeadOfListInt(List *list);
+extern void *getHeadOfListP(List *list);
+extern void *popHeadOfListP(List *list);
 extern ListCell *popHeadOfList(List *list);
 
 extern ListCell *getTailOfList(List *list);

@@ -265,7 +265,7 @@ postgrescast    "::"
 {comparisonOps}		TOK(comparisonOps)
 {strconcat}			TOK(STRINGCONCAT)
 {postgrescast}      TOK(POSTGRESCAST)
-[-+*%/^~&|!]		TOKSELF()
+[-+*%/^~&|![\]]		TOKSELF()
 
 
 

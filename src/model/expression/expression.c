@@ -1091,6 +1091,20 @@ castFunctionArgs(FunctionCall *f)
 }
 
 DataType
+lcaTypes(List *types)
+{
+	List *ts = copyList(types);
+	DataType result = popHeadOfListInt(ts);
+
+	FOREACH_INT(dt, ts)
+	{
+		result = lcaType(result, dt);
+	}
+
+	return result;
+}
+
+DataType
 lcaType(DataType l, DataType r)
 {
     Set *lCasts = INTSET();
@@ -1194,8 +1208,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 
     // logical operators
     if (streq(upCaseOpName,OPNAME_OR)
-            || streq(upCaseOpName,OPNAME_AND)
-            )
+            || streq(upCaseOpName,OPNAME_AND))
     {
         if (dLeft == dRight && dLeft == DT_BOOL)
             return DT_BOOL;
@@ -1273,7 +1286,7 @@ typeOfArgs(List* args)
 
 /* figure out function return type */
 static DataType
-typeOfFunc (FunctionCall *f)
+typeOfFunc(FunctionCall *f)
 {
     List *argDTs = NIL;
     boolean fExists = FALSE;
@@ -1293,7 +1306,7 @@ typeOfFunc (FunctionCall *f)
 }
 
 static boolean
-funcExists (char *fName, List *argDTs)
+funcExists(char *fName, List *argDTs)
 {
     boolean fExists = FALSE;
 

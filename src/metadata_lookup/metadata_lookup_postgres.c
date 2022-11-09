@@ -647,7 +647,8 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;
-
+	List *candidates = NIL;
+	
     *opExists = FALSE;
     ACQUIRE_MEM_CONTEXT(memContext);
 
@@ -660,18 +661,47 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
         char *retType = PQgetvalue(res,i,1);
         char *candArgTypes = PQgetvalue(res,i,0);
         List *argDTs = oidVecToDTList(candArgTypes);
-
+		DataType retDT = postgresOidToDT(retType);
+			
+		candidates = appendToHeadOfList(candidates,
+										createNodeKeyValue((Node *) argDTs,
+														   (Node *) createConstInt(retDT)));
         DEBUG_LOG("argDTs: %s, argTypes: %s", nodeToString(argDTs), nodeToString(argTypes));
         if (equal(argDTs, argTypes)) //TODO compatible data types
         {
             RELEASE_MEM_CONTEXT();
-            DataType retDT = postgresOidToDT(retType);
             DEBUG_LOG("return type %s for %s(%s)", DataTypeToString(retDT), oName, nodeToString(argTypes));
             *opExists = TRUE;
             resType = retDT;
         }
     }
 
+	// now try lca types
+	if(!*opExists)
+	{
+		List *lcaedtypes = NIL;
+		DataType lcaTyp;
+
+		lcaTyp = lcaTypes(argTypes);
+
+	    for(int i = 0; i < LIST_LENGTH(argTypes); i++)
+		{
+			lcaedtypes = appendToTailOfListInt(lcaedtypes, lcaTyp);
+		}
+		
+		FOREACH(KeyValue,c,candidates)
+		{
+			DataType retType = INT_VALUE(c->value);
+			List *argDTs = (List *) c->key;
+
+			if(equal(argDTs, lcaedtypes))
+			{
+				*opExists = TRUE;
+				resType = retType;
+			}
+		}
+	}
+	
     PQclear(res);
     RELEASE_MEM_CONTEXT();
 

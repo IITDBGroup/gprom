@@ -43,21 +43,21 @@ checkList(const List *list)
 boolean
 isPtrList(List *list)
 {
-	if (list == NIL)
-		return TRUE;
-	if (list->type == T_List)
-		return TRUE;
-	return FALSE;
+    if (list == NIL)
+        return TRUE;
+    if (list->type == T_List)
+        return TRUE;
+    return FALSE;
 }
 
 boolean
 isIntList(List *list)
 {
-	if (list == NIL)
-		return TRUE;
-	if (list->type == T_IntList)
-		return TRUE;
-	return FALSE;
+    if (list == NIL)
+        return TRUE;
+    if (list->type == T_IntList)
+        return TRUE;
+    return FALSE;
 }
 
 List *
@@ -83,24 +83,24 @@ newList(NodeTag type)
 int
 getListLength(List *list)
 {
-	if (list == NIL)
-		return 0;
-	if (list->length != -1)
-		return list->length;
+    if (list == NIL)
+        return 0;
+    if (list->length != -1)
+        return list->length;
 
-	ListCell *node;
+    ListCell *node;
 
     node = list->head;
-	list->length = 0;
+    list->length = 0;
 
-	if (node != NULL)
-	{
-		do
-			list->length++;
-		while ((node = node->next) != NULL);
-	}
+    if (node != NULL)
+    {
+        do
+            list->length++;
+        while ((node = node->next) != NULL);
+    }
 
-	return list->length;
+    return list->length;
 }
 
 ListCell *
@@ -112,11 +112,29 @@ getHeadOfList(List *list)
 int
 getHeadOfListInt (List *list)
 {
-	ASSERT(isIntList(list));
+    ASSERT(isIntList(list));
     ListCell *head;
 
     head = getHeadOfList(list);
     return head ? head->data.int_value : -1;
+}
+
+int
+popHeadOfListInt(List *list)
+{
+    ListCell *head;
+    int result = -1;
+    
+    ASSERT(isIntList(list) && LIST_LENGTH(list) > 0);    
+    head = popHeadOfList(list);
+    
+    if (head != NULL)
+    {
+        result = head->data.int_value;
+        FREE(head);
+    }
+
+    return result;
 }
 
 void *
@@ -138,10 +156,10 @@ popHeadOfList(List *list)
     {
         list->length--;
         list->head = result->next;
-		if(list->head == NULL)
-		{
-			list->tail = NULL;
-		}
+        if(list->head == NULL)
+        {
+            list->tail = NULL;
+        }
     }
 
     return result;
@@ -209,17 +227,17 @@ getNthOfListInt(List *list, int n)
 ListCell *
 getNthOfList(List *list, int n)
 {
-	if (list == NIL)
-		return NULL;
-	ASSERT(getListLength(list) >= n);
+    if (list == NIL)
+        return NULL;
+    ASSERT(getListLength(list) >= n);
 
-	ListCell * node;
+    ListCell * node;
 
     node = list->head;
-	while (node != NULL && n--)
-	{
-		node = node->next;
-	}
+    while (node != NULL && n--)
+    {
+        node = node->next;
+    }
 
     return node ? node : NULL;
 }
@@ -228,23 +246,23 @@ getNthOfList(List *list, int n)
 List *
 singletonInt(int value)
 {
-	List *list;
+    List *list;
 
-	list = newList(T_IntList);
-	list->head->data.int_value = value;
+    list = newList(T_IntList);
+    list->head->data.int_value = value;
 
-	return list;
+    return list;
 }
 
 List *
 singleton(void *value)
 {
-	List *list;
+    List *list;
 
-	list = newList(T_List);
-	list->head->data.ptr_value = value;
+    list = newList(T_List);
+    list->head->data.ptr_value = value;
 
-	return list;
+    return list;
 }
 
 List *
@@ -283,9 +301,13 @@ appendToTailOfList(List *list, void *value)
     ASSERT(isPtrList(list));
 
     if (list == NIL || list->length == 0)
-		list = newList(T_List);
-	else
+    {
+        list = newList(T_List);
+    }
+    else
+    {
         newListTail(list);
+    }
 
     list->tail->data.ptr_value = value;
 
@@ -311,16 +333,16 @@ appendToTailOfListInt(List *list, int value)
 List *
 appendAllToTail(List *l, List *new)
 {
-	if(LIST_EMPTY(l))
-	{
-		return new;
-	}
-	if(LIST_EMPTY(new))
-	{
-		return l;
-	}
+    if(LIST_EMPTY(l))
+    {
+        return new;
+    }
+    if(LIST_EMPTY(new))
+    {
+        return l;
+    }
 
-	return CONCAT_LISTS(l,new);
+    return CONCAT_LISTS(l,new);
 }
 
 
@@ -368,35 +390,35 @@ appendToHeadOfListInt (List *list, int value)
 List *
 replaceNode(List *list, void *n1, void *n2)
 {
-	FOREACH_LC(lc,list)
-	{
-		if (lc->data.ptr_value == n1)
-			lc->data.ptr_value = n2;
-	}
+    FOREACH_LC(lc,list)
+    {
+        if (lc->data.ptr_value == n1)
+            lc->data.ptr_value = n2;
+    }
 
-	return list;
+    return list;
 }
 
 void
 reverseList(List *list)
 {
-	if (list == NULL || getListLength(list) == 0)
-		return;
+    if (list == NULL || getListLength(list) == 0)
+        return;
 
-	ListCell *tail  = list->head;
-	ListCell *prev  = list->head;
-	ListCell *curr  = list->head->next;
+    ListCell *tail  = list->head;
+    ListCell *prev  = list->head;
+    ListCell *curr  = list->head->next;
 
-	tail->next = NULL;
-	while (curr != NULL)
-	{
-		ListCell *temp = curr->next;
-		curr->next = prev;
-		prev = curr;
-		curr = temp;
-	}
-	list->head = prev;
-	list->tail = tail;
+    tail->next = NULL;
+    while (curr != NULL)
+    {
+        ListCell *temp = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = temp;
+    }
+    list->head = prev;
+    list->tail = tail;
     ASSERT(checkList(list));
 }
 
@@ -429,20 +451,20 @@ sortList(List *list, int (*sm) (const void *, const void *))
 List *
 copyList(List *list)
 {
-	List *listCopy = NIL;
+    List *listCopy = NIL;
 
-	if (list == NULL)
-	    return NULL;
+    if (list == NULL)
+        return NULL;
 
-	FOREACH_LC(lc, list)
-	{
-	    if (list->type == T_List)
-	        listCopy = appendToTailOfList(listCopy, LC_P_VAL(lc));
-	    else
-	        listCopy = appendToTailOfListInt(listCopy, LC_INT_VAL(lc));
-	}
+    FOREACH_LC(lc, list)
+    {
+        if (list->type == T_List)
+            listCopy = appendToTailOfList(listCopy, LC_P_VAL(lc));
+        else
+            listCopy = appendToTailOfListInt(listCopy, LC_INT_VAL(lc));
+    }
 
-	return listCopy; /* keep compiler quiet for now */
+    return listCopy; /* keep compiler quiet for now */
 }
 
 List *
@@ -515,36 +537,36 @@ stringListToConstList(List *list)
 List *
 constStringListToStringList(List *list)
 {
-	List *result = NIL;
+    List *result = NIL;
 
-	FOREACH(Constant,el,list)
-		result = appendToTailOfList(result, STRING_VALUE(el));
+    FOREACH(Constant,el,list)
+        result = appendToTailOfList(result, STRING_VALUE(el));
 
-	return result;
+    return result;
 }
 
 List *
 concatTwoLists(List *lista, List*listb)
 {
     if (lista == listb)
-	{
+    {
         listb = copyList(listb);
-	}
+    }
 
-	if (lista == NIL)
-	{
-		return  listb;
-	}
-	if (listb == NIL)
-	{
-		return lista;
-	}
+    if (lista == NIL)
+    {
+        return  listb;
+    }
+    if (listb == NIL)
+    {
+        return lista;
+    }
 
     ASSERT(lista->type == listb->type);
 
-	lista->tail->next = listb->head;
-	lista->tail = listb->tail;
-	lista->length += listb->length;
+    lista->tail->next = listb->head;
+    lista->tail = listb->tail;
+    lista->length += listb->length;
 
     ASSERT(checkList(lista));
     FREE(listb);
@@ -612,11 +634,11 @@ genericSublist(List *l, boolean (*pred) (void *, void *), void *context)
 List *
 mapList(List *l, void * (*f) (void *))
 {
-	List *result = NIL;
-	FOREACH(void,el,l)
-		result = appendToTailOfList(result,f(el));
+    List *result = NIL;
+    FOREACH(void,el,l)
+        result = appendToTailOfList(result,f(el));
 
-	return result;
+    return result;
 }
 
 boolean
@@ -639,19 +661,19 @@ searchListInt(List *list, int value)
     ASSERT(isIntList(list));
 
     if (list == NIL)
-		return FALSE;
+        return FALSE;
 
-	ListCell *lc;
+    ListCell *lc;
 
     lc = list->head;
     while (lc != NULL)
-	{
-		if (lc->data.int_value == value)
-			return TRUE;
+    {
+        if (lc->data.int_value == value)
+            return TRUE;
         lc = lc->next;
     }
 
-	return FALSE;
+    return FALSE;
 }
 
 boolean
@@ -736,34 +758,34 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 //List *
 //removeFromTail(List *X)
 //{
-//	int len = LIST_LENGTH(X);
-//	int c = 0;
+//    int len = LIST_LENGTH(X);
+//    int c = 0;
 //
-//	List *result = NIL;
+//    List *result = NIL;
 //
-//	if(len == 1)
-//		result = NIL;
-//	else
-//	{
-//		FOREACH_INT(lc, X)
+//    if(len == 1)
+//        result = NIL;
+//    else
+//    {
+//        FOREACH_INT(lc, X)
 //        {
-//			result = appendToTailOfListInt(result, lc);
-//			c++;
-//			if(c + 1 == len)
-//				break;
+//            result = appendToTailOfListInt(result, lc);
+//            c++;
+//            if(c + 1 == len)
+//                break;
 //        }
-//	}
-//	return result;
+//    }
+//    return result;
 //}
 
 List *
 removeFromTail(List *X)
 {
-	//DEBUG_LOG("remove from list %s", nodeToString(X));
-	List *result = NIL;
-	ListCell *el;
-	int l = LIST_LENGTH(X);
-	boolean isInt = isIntList(X);
+    //DEBUG_LOG("remove from list %s", nodeToString(X));
+    List *result = NIL;
+    ListCell *el;
+    int l = LIST_LENGTH(X);
+    boolean isInt = isIntList(X);
 
     if (l <= 1)
         return NIL;
@@ -777,10 +799,10 @@ removeFromTail(List *X)
         else
             result = appendToTailOfList(result, LC_P_VAL(el));
 
-    	el = el->next;
+        el = el->next;
     }
 
-	return result;
+    return result;
 }
 
 List *

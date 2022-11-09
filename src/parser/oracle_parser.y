@@ -55,7 +55,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> boolConst
 %token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' STRINGCONCAT POSTGRESCAST
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '=' '[' ']' STRINGCONCAT POSTGRESCAST
 
 /*
  * Tokens for in-built keywords
@@ -118,7 +118,8 @@ Node *oracleParseResult = NULL;
 %left '*' '/' '%'
 %left '^'
 %nonassoc '(' ')'
-
+%nonassoc '[' ']'
+						
 %left NATURAL JOIN CROSS LEFT FULL RIGHT INNER
 
 /*
@@ -171,6 +172,12 @@ stmtList:
 				$$ = appendToTailOfList($1, $2);
 				oracleParseResult = (Node *) $$;
 			}
+		| '[' whereExpression ']'
+		{
+			RULELOG("stmt::expression");
+			$$ = singleton($2);
+			oracleParseResult = (Node *) $$;
+		}
 	;
 
 stmt:

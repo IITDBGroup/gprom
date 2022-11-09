@@ -34,7 +34,7 @@ $(GPROM_MAN_HTML): $(GPROM_MAN)
 # sed -e 's/[*]*//g' > $(GPROM_MAN_HTML)
 
 $(GPROM_MAN_MD): $(GPROM_MAN_HTML)
-	pandoc -f html -t markdown_github $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD) || (echo "pandoc with markdown_github failed $$?")
+	pandoc -f html -t gfm $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD) || (echo "pandoc with markdown_github failed $$?")
 	@if test -f $(GPROM_MAN_MD); then :; else \
 		pandoc -f html -t markdown $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD); \
 	fi
