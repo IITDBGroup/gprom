@@ -30,8 +30,6 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
 
-
-
 // update for each operator;
 static void updateByOperators(QueryOperator * op);
 static void updateProvenanceComputation(QueryOperator* op);
@@ -42,6 +40,8 @@ static void updateJoin(QueryOperator* op);
 static void updateAggregation(QueryOperator* op);
 static void updateDuplicateRemoval(QueryOperator* op);
 static void updateSet(QueryOperator* op) ;
+static void buildStateAggregation(QueryOperator *op);
+static void buildStateDuplicateRemoval(QueryOperator *op);
 // OrderOperator
 // LimitOperator
 
@@ -76,31 +76,13 @@ static ColumnChunk *evaluateOperatorLe(Operator *op, DataChunk *dc);
 static ColumnChunk *evaluateOperatorGt(Operator *op, DataChunk *dc);
 static ColumnChunk *evaluateOperatorGe(Operator *op, DataChunk *dc);
 static ColumnChunk *evaluateOperatorNeq(Operator *op, DataChunk *dc);
-static ColumnChunk *evaluateOperatorNeqHat(Operator *op, DataChunk *dc);
 static ColumnChunk *evaluateOperatorConcat(Operator *op, DataChunk *dc);
 static ColumnChunk *evaluateOperatorLike(Operator *op, DataChunk *dc);
 static ColumnChunk *getColumnChunkOfAttr(char *attrName, DataChunk *dataChunk);
 static ColumnChunk *getColumnChunkOfConst(Constant *c, DataChunk *dc);
 static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType);
 static Vector *columnChunkToVector(ColumnChunk *cc);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
 //static void setNumberToEachOperator(QueryOperator *operator);
 
 #define SQL_PRE backendifyIdentifier("SELECT * FROM ")
@@ -110,9 +92,11 @@ static Vector *columnChunkToVector(ColumnChunk *cc);
 #define RIGHT_BRANCH_OF_JOIN backendifyIdentifier("RIGHT_BRANCH_OF_JOIN")
 #define LEFT_UPDATE_IDENTIFIER backendifyIdentifier("LEFT_UPDATE_TYPE")
 #define RIGHT_UPDATE_IDENTIFIER backendifyIdentifier("RIGHT_UPDATE_TYPE")
+#define NULLVALUE backendifyIdentifier("null");
 
 #define MIN_HEAP "MIN_HEAP"
 #define MAX_HEAP "MAX_HEAP"
+
 #define OPERATOR_NUMBER "OPERATOR_NUMBER"
 #define PROV_BIT_STRING "PROV_BIT_STRING"
 #define DATA_STRUCTURE_STATE "DATA_STRUCTURE_STATE"
@@ -134,71 +118,79 @@ static psInfo *PS_INFO = NULL;
 static ProvenanceComputation *PC = NULL;
 //static HashMap *coarseGrainedRangeList = NULL;
 
-void
+List *
 heapInsert(List *list, char *type, Node *ele)
 {
+	// append to tail of list;
 	list = appendToTailOfList(list, ele);
-	Constant *value = (Constant *) getHeadOfListP((List *) ele);
-	heapifyListSiftUp(list, LIST_LENGTH(list) - 1, type, value->constType, 0);
+
+	// heapify -- sift up;
+	heapifyListSiftUp(list, LIST_LENGTH(list) - 1, type, ((Constant *) ele)->constType);
+
+	return list;
 }
 
-void
-heapifyListSiftUp(List *list, int pos, char *type, DataType valDataType, int valuePos)
+List *
+heapifyListSiftUp(List *list, int pos, char *type, DataType valDataType)
 {
 	while (pos > 0) {
 		int parentPos = PARENT_POS(pos);
 
-		List *curr = (List *) getNthOfListP(list, pos);
-		Constant *currVal = (Constant *) getNthOfListP(curr, 0);
+		// get current value;
+		Constant *currVal = (Constant *) getNthOfListP(list, pos);
 
-		List *parent = (List *) getNthOfListP(list, parentPos);
-		Constant *parentVal = (Constant *) getNthOfListP(parent, 0);
+		// get parent value;
+		Constant *parentVal = (Constant *) getNthOfListP(list, parentPos);
 
+		// compare two value;
 		int compTwoVal = compareTwoValues(currVal, parentVal, valDataType);
 
 		if (compTwoVal < 0) {
 			if (strcmp(type, MIN_HEAP) == 0) { // current < parent, for min heap, continue;
 				swapListCell(list, pos, parentPos);
 			} else { // terminate for max heap when current < parent;
-				return;
+				return list;
 			}
 		} else if (compTwoVal > 0) {
 			if (strcmp(type, MAX_HEAP) == 0) { // current > parent, for max heap, continue;
 				swapListCell(list, pos, parentPos);
 			} else { // terminate for min heap when min heap;
-				return;
+				return list;
 			}
 		} else { // terminate for both min and max heap when current == parent;
-			return;
+			return list;
 		}
 
 		pos = parentPos;
 	}
+
+	return list;
 }
 
 
-void
+List *
 heapDelete(List *list, char *type, Node *ele)
 {
 	for (int i = 0; i < LIST_LENGTH(list); i++) {
 		if (equal((Node *) getNthOfListP(list, i), ele)) {
-			heapifyListSiftDown(list, i, type, ((Constant *) getHeadOfListP((List *) ele))->constType, 0);
+			list = heapifyListSiftDown(list, i, type, ((Constant *) ele)->constType);
 			break;
 		}
 	}
+	return list;
 }
 
-void
-heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType, int valuePos)
+List *
+heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType)
 {
 	while (LCHILD_POS(pos) < LIST_LENGTH(list)) {
 		// get lChild;
-		List *lChild = (List *) getNthOfListP(list, LCHILD_POS(pos));
-		Constant *lChildVal = (Constant *) getNthOfListP(lChild, 0);
+//		List *lChild = (List *) getNthOfListP(list, LCHILD_POS(pos));
+		Constant *lChildVal = (Constant *) getNthOfListP(list, LCHILD_POS(pos));
 
 		if (RCHILD_POS(pos) < LIST_LENGTH(list)) { // has two children
-			List *rChild = (List *) getNthOfListP(list, RCHILD_POS(pos));
-			Constant *rChildVal = (Constant *) getNthOfListP(rChild, 0);
+//			List *rChild = (List *) getNthOfListP(list, RCHILD_POS(pos));
+			Constant *rChildVal = (Constant *) getNthOfListP(list, RCHILD_POS(pos));
 
 			int compTwoVal = compareTwoValues(lChildVal, rChildVal, valDataType);
 
@@ -234,7 +226,6 @@ heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType, int v
 		}
 	}
 
-
 	// re-heapify from "pos" since it is the last removed position;
 	List *newList = NIL;
 	for (int i = 0; i < LIST_LENGTH(list); i++) {
@@ -246,11 +237,11 @@ heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType, int v
 		newList = appendToTailOfList(newList, (List *) copyObject((List *) getNthOfListP(list, i)));
 
 		if (i > pos) {
-			heapifyListSiftUp(newList, i, type, valDataType, valuePos);
+			heapifyListSiftUp(newList, i, type, valDataType);
 		}
 	}
 
-	list = newList;
+	return newList;
 }
 
 static void
@@ -295,6 +286,7 @@ DataChunk*
 initDataChunk()
 {
 	DataChunk* dc = makeNode(DataChunk);
+
 	dc->attrNames = NIL;
 	dc->updateIdentifier = makeVector(VECTOR_INT, T_Vector);
 	dc->tuples = makeVector(VECTOR_NODE, T_Vector);
@@ -303,18 +295,46 @@ initDataChunk()
 	dc->tupleFields = 0;
 	dc->attriToPos = NEW_MAP(Constant, Constant);
 	dc->posToDatatype = NEW_MAP(Constant, Constant);
+	dc->isNull = makeVector(VECTOR_NODE, T_Vector);
+
 	return dc;
+}
+
+GBHeaps *
+makeGBHeaps()
+{
+	GBHeaps *gbHeaps = makeNode(GBHeaps);
+
+	gbHeaps->fragCount = NEW_MAP(Constant, Constant);
+	gbHeaps->heapLists = NEW_MAP(Constant, Node);
+	gbHeaps->provSketchs = NEW_MAP(Constant, Node);
+	gbHeaps->heapType = NULL;
+	gbHeaps->valType = 0;
+
+	return gbHeaps;
+}
+
+GBACSs *
+makeGBACSs()
+{
+	GBACSs *acs = makeNode(GBACSs);
+
+	acs->provSketchs = NEW_MAP(Constant, Node);
+	acs->map = NEW_MAP(Constant, Node);
+	acs->fragCount = NEW_MAP(Constant, Node);
+
+	return acs;
 }
 
 char *
 update_ps_incremental(QueryOperator* operator){
-
 	// get partition information;
 	PC = (ProvenanceComputation *) copyObject(operator);
 	PS_INFO = createPSInfo((Node *) getStringProperty(operator, PROP_PC_COARSE_GRAINED));
 
 
 	DEBUG_NODE_BEATIFY_LOG("CURRENT PROVENANCE COMPUTATION OPERATOR: \n", operator);
+	INFO_OP_LOG("CURRENT PROVENANCE COMPUTATION OPERATOR", operator);
 	strInfo = makeStringInfo();
 
 	// left  child: update statement;
@@ -324,21 +344,8 @@ update_ps_incremental(QueryOperator* operator){
 
 	operator->inputs = singleton(rChild);
 
-////	DEBUG_NODE_BEATIFY_LOG("root operator:", operator);
-////	INFO_OP_LOG("root operator:", operator);
-////
-////	QueryOperator *qOp = captureRewrite(rChild);
-////	DEBUG_NODE_BEATIFY_LOG("QOP", qOp);
-////	INFO_OP_LOG("QOP", qOp);
-//
-//	char *sqlll = serializeQuery(qOp);
-//	INFO_LOG("SQLLL %s", sqlll);
-
 	// build state for each aggregation operator
-//	if(2 != 2) {
-//		return "FINISH";
-		buildState((Node *) operator);
-//	}
+	buildState((Node *) operator);
 
 	if (1 != 1) {
 		return "FINISH";
@@ -364,266 +371,635 @@ buildState(Node *node)
 
 	// build data structure for aggregation operator;
 	if (isA(node, AggregationOperator)) {
-		AggregationOperator *aggOp = (AggregationOperator *) node;
-		DEBUG_NODE_BEATIFY_LOG("CURRENT AGG", aggOp);
-		INFO_OP_LOG("CURRENT AGG", aggOp);
-
-		// get aggregation operator args and groupbys;
-		List *aggrFCs = (List *) copyObject(aggOp->aggrs);
-		List *aggrGBs = (List *) copyObject(aggOp->groupBy);
-
-		// split this aggOp into two cagetories: min/max and avg/count/sum;
-		List *min_max = NIL;
-		List *min_max_attNames = NIL;
-
-		List *avg_sum_count = NIL;
-		List *avg_sum_count_attNames = NIL;
-
-		DEBUG_NODE_BEATIFY_LOG("aggrs list", aggrFCs);
-		for (int i = 0; i < LIST_LENGTH(aggrFCs); i++) {
-			FunctionCall * fc = (FunctionCall *) getNthOfListP(aggrFCs, i);
-			DEBUG_NODE_BEATIFY_LOG("function call:\n", fc);
-
-			char * fcName = fc->functionname;
-			AttributeDef *ad = copyObject(getNthOfListP(((QueryOperator *) aggOp)->schema->attrDefs, i));
-
-			// find all min/max function calls;
-			if (strcmp(fcName, MIN_FUNC_NAME) == 0 || strcmp(fcName, MAX_FUNC_NAME) == 0) {
-				min_max = appendToTailOfList(min_max, copyObject((FunctionCall *) fc));
-				min_max_attNames = appendToTailOfList(min_max_attNames, ad);
-			}
-
-			// find all avg/count/sum function calls;
-			if (strcmp(fcName, AVG_FUNC_NAME) == 0 || strcmp(fcName, SUM_FUNC_NAME) == 0
-			 || strcmp(fcName, COUNT_FUNC_NAME) == 0) {
-				// add current function call;
-				avg_sum_count = appendToTailOfList(avg_sum_count, copyObject((FunctionCall *) fc));
-				avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, ad->attrName);
-
-				// add function calls sum and count for avg;
-				if (strcmp(fcName, AVG_FUNC_NAME) == 0) {
-					// add function call sum;
-					FunctionCall *fc_sum = createFunctionCall(SUM_FUNC_NAME, copyList(fc->args));
-					avg_sum_count = appendToTailOfList(avg_sum_count, fc_sum);
-
-					StringInfo sum_fc_name = makeStringInfo();
-					appendStringInfo(sum_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, SUM_FUNC_NAME, ad->attrName);
-					avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, sum_fc_name->data);
-
-					// add function call count;
-					FunctionCall *fc_cnt = createFunctionCall(COUNT_FUNC_NAME, copyList(fc->args));
-					avg_sum_count = appendToTailOfList(avg_sum_count, fc_cnt);
-
-					StringInfo cnt_fc_name = makeStringInfo();
-					appendStringInfo(cnt_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, COUNT_FUNC_NAME, ad->attrName);
-					avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, cnt_fc_name->data);
-				}
-			}
-		}
-
-		DEBUG_NODE_BEATIFY_LOG("min max fc list", min_max);
-		DEBUG_NODE_BEATIFY_LOG("avg, sum, count fc list", avg_sum_count);
-
-		// get min_max rewrite;
-		// for min and max function: run capture-rewritted child;
-		// insert into the min/max heap based on group by attribute(s);
-		if (LIST_LENGTH(min_max) != 0) {
-			// get child operator;
-			QueryOperator *child = OP_LCHILD(aggOp);
-
-			// get capture rewrite
-			QueryOperator *rewrOp = captureRewrite((QueryOperator *) copyObject(child));
-			DEBUG_NODE_BEATIFY_LOG("REWR OP", rewrOp);
-			INFO_OP_LOG("REWR OP", rewrOp);
-			// searialize operator;
-			char *sql = serializeQuery(rewrOp);
-
-			// get tuples;
-			Relation *resultRel = NULL;
-			resultRel = executeQuery(sql);
-
-			// get prov attr name;
-			QueryOperator *auxOP = captureRewrite((QueryOperator *) copyObject(aggOp));
-			HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
-
-			// append to each map value a "prov attr pos in result"
-			DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
-			FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-				int pos = listPosString(resultRel->schema, STRING_VALUE(c));
-				List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-				l = appendToTailOfList(l, createConstInt(pos));
-			}
-			DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
-
-			// for each min or max function call, build a heap for this attribute;
-			// heap: gb-> frag
-			//     :      list(value, frag);
-			for (int i = 0; i < LIST_LENGTH(min_max); i++) {
-				// heap for this min/max attr;
-				HashMap *heap = NEW_MAP(Node, Node);
-
-				FunctionCall *fc = (FunctionCall *) getNthOfListP(min_max, i);
-				AttributeReference *attrRef = (AttributeReference *) getNthOfListP(fc->args, 0);
-
-				char *heapType = NULL;
-				if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
-					heapType = MIN_HEAP;
-				} else {
-					heapType = MAX_HEAP;
-				}
-
-				// get function call attribute position in result;
-				int fcAttrPos = listPosString(resultRel->schema, attrRef->name);
-				INFO_LOG("fc attr: %d", fcAttrPos);
-
-				// get group by attribute(s) position in result with the datatype;
-				// pos + datatype
-				List *gbPosList = NIL;
-				FOREACH(AttributeReference, ar, aggrGBs) {
-					int pos = listPosString(resultRel->schema, ar->name);
-					gbPosList = appendToTailOfList(gbPosList, createConstInt(pos));
-					gbPosList = appendToTailOfList(gbPosList, createConstInt(ar->attrType));
-				}
-
-				DEBUG_NODE_BEATIFY_LOG("list", gbPosList);
-
-				for (int row = 0; row < LIST_LENGTH(resultRel->tuples); row++) {
-					List *tuple = (List *) getNthOfListP(resultRel->tuples, row);
-
-					// get group by
-					StringInfo gbs = makeStringInfo();
-					for (int idx = 0; idx < LIST_LENGTH(gbPosList); idx += 2) {
-						appendStringInfo(gbs, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbPosList, idx))));
-					}
-					INFO_LOG("gbs %s", gbs->data);
-					// get group by map;
-					// gbMap:
-					//        "group by value" -> list(value, map(prov -> bits))
-					//        "provs_bit"          -> map ( prov_name -> bits);
-					HashMap *gbMap = NULL;
-					HashMap *groupBitSetMap = NULL;
-					if (MAP_HAS_STRING_KEY(heap, gbs->data)) {
-						gbMap = (HashMap *) MAP_GET_STRING(heap, gbs->data);
-						groupBitSetMap = (HashMap *) MAP_GET_STRING(gbMap, PROV_BIT_STRING);
-					}
-
-					// create heapNode;
-					List *heapNode = NIL;
-
-					// get attr value;
-					char *val = (char *) getNthOfListP(tuple, fcAttrPos);
-					Constant *value = makeValue(attrRef->attrType, val);
-
-					heapNode = appendToTailOfList(heapNode, value);
-
-					// get prov infos;
-					// create prov value map for this "tuple";
-					HashMap *provs_bit = NEW_MAP(Constant, Node);
-					FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-						List * levelNumPos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-
-						int level = INT_VALUE((Constant *) getNthOfListP(levelNumPos, 0));
-						int numFrag = INT_VALUE((Constant *) getNthOfListP(levelNumPos, 1));
-						int pos = INT_VALUE((Constant *) getNthOfListP(levelNumPos, 1));
-
-						// create this tuple bitset;
-						char *bits = (char *) getNthOfListP(tuple, pos);
-						BitSet *bitSet = NULL;
-						if (level < 2) { // ps is an integer;
-							bitSet = newBitSet(numFrag);
-							setBit(bitSet, atoi(bits), TRUE);
-						} else { // bitset is a string;
-							bitSet = stringToBitset(bits);
-						}
-
-						addToMap(provs_bit, (Node *) c, (Node *) bitSet);
-
-						// bit or with this group's bits;
-						BitSet *gBitSet = NULL;
-						if (MAP_HAS_STRING_KEY(groupBitSetMap, STRING_VALUE(c))) {
-							gBitSet = (BitSet *) MAP_GET_STRING(groupBitSetMap, STRING_VALUE(c));
-							gBitSet = bitOr(gBitSet, bitSet);
-						} else {
-							gBitSet = (BitSet *) copyObject(bitSet);
-							addToMap(groupBitSetMap, (Node *) c, (Node *) gBitSet);
-						}
-					}
-
-					// append this row's prov info;
-					heapNode = appendToTailOfList(heapNode, provs_bit);
-
-					if (MAP_HAS_STRING_KEY(heap, gbs->data)) {
-						List *heapList = (List *) MAP_GET_STRING(heap, gbs->data);
-						heapInsert(heapList, heapType, (Node *) heapNode);
-					} else {
-						List *heapList = NIL;
-						appendToTailOfList (heapList, heapNode);
-						addToMap(heap, (Node *) createConstString(gbs->data), (Node *) heapNode);
-					}
-				}
-
-				// add this heap to aggOp's state map;
-				HashMap *opState = NULL;
-				KeyValue *kv = createNodeKeyValue((Node *) createConstString(fc->functionname), (Node *) createConstString(attrRef->name));
-				if (HAS_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE)) {
-					opState = (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE);
-					addToMap(opState, (Node *)kv, (Node *) heap);
-				} else {
-					opState = NEW_MAP(Node, Node);
-					addToMap(opState, (Node *)kv, (Node *) heap);
-					SET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE, opState);
-				}
-			}
-
-		}
-
-		// get avg/sum/count rewrite;
-		if (LIST_LENGTH(avg_sum_count) != 0) {
-			INFO_LOG("rewrite new agg");
-
-			// get current aggregation input;
-			QueryOperator *child = copyObject(OP_LCHILD(aggOp));
-			INFO_OP_LOG("child", child);
-
-			// append group by list to attrNames;
-			FOREACH(AttributeReference, a, aggOp->groupBy) {
-				avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, a->name);
-			}
-
-			// create a nwe aggregation operator;
-			AggregationOperator *newAgg = createAggregationOp(avg_sum_count, (List *) copyList(aggOp->groupBy), child, NIL, avg_sum_count_attNames);
-			child->parents = singleton(newAgg);
-
-			// set a property "AGG_UPDATE_PS"
-			SET_STRING_PROP((QueryOperator *) newAgg, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS, createConstBool(TRUE));
-
-			INFO_OP_LOG("NEW AGG BUILT", (QueryOperator *) newAgg);
-			// DEBUG_NODE_BEATIFY_LOG("new AGG", newAgg);
-
-			// rewrite capture;
-//			ProvenanceComputation * newPC = copyObject(pc);
-//			newPC->op.inputs = singleton(newAgg);
-//			newAgg->op.parents = singleton(newPC);
-//			DEBUG_NODE_BEATIFY_LOG("NEW PC:", newPC);
-
-			QueryOperator * rewriteOP = captureRewrite((QueryOperator *) newAgg);
-			DEBUG_NODE_BEATIFY_LOG("avg_sum_count agg", rewriteOP);
-			INFO_OP_LOG("rewrite op avg_sum_cont: ", rewriteOP);
-
-//			char *sql = serializeOperatorModel((Node *) rewriteOP);
-			char *sql = serializeQuery(rewriteOP);
-			INFO_LOG("sql %s", sql);
-
-			Relation *relation = NULL;
-			relation = executeQuery(sql);
-
-			// get the level of aggregation
-			HashMap *aggLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewriteOP), PROP_LEVEL_AGGREGATION_MARK), 0);
-			DEBUG_NODE_BEATIFY_LOG("LEVEL AND NUM FRAG", aggLevel);
-		}
-
-		DEBUG_NODE_BEATIFY_LOG("STATE", (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE));
+		buildStateAggregation((QueryOperator *) node);
+	} else if (isA(node, DuplicateRemoval)) {
+		buildStateDuplicateRemoval((QueryOperator *) node);
 	}
+}
+
+static void
+buildStateDuplicateRemoval(QueryOperator *op)
+{
+	// for duplicate remove: rewrite like group by no agg
+	DuplicateRemoval *dupRem = (DuplicateRemoval *) op;
+
+	// create gb list;
+	List *gbList = (List *) copyObject(dupRem->attrs);
+	List *attrNames = (List *) getAttrNames(dupRem->op.schema);
+
+	AggregationOperator *aggOp = createAggregationOp(NIL, gbList, (QueryOperator *) copyObject(OP_LCHILD(op)), NIL, attrNames);
+	SET_STRING_PROP((QueryOperator *) aggOp, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS, createConstBool(TRUE));
+	OP_LCHILD((QueryOperator *) aggOp)->parents = singleton(aggOp);
+
+	QueryOperator *rewrOp = captureRewrite((QueryOperator *) aggOp);
+
+	char *sql = serializeQuery(rewrOp);
+
+	Relation *resultRel = executeQuery(sql);
+
+	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
+	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
+		List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+		l = appendToTailOfList(l, createConstInt(pos));
+	}
+
+	// make data structure;
+	GBACSs *acs = makeGBACSs();
+	List *gbAttrPos = NIL;
+	FOREACH(AttributeReference, ar, gbList) {
+		int pos = listPosString(resultRel->schema, ar->name);
+		gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
+	}
+
+	int	groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
+
+	for (int i = 0; i < LIST_LENGTH(resultRel->tuples); i++) {
+		List *tuple = (List *) getNthOfListP(resultRel->tuples, i);
+
+		// build gb identifier;
+		StringInfo gbVals = makeStringInfo();
+		for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
+			appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+		}
+
+		List *l = NIL;
+		List *newL = NIL;
+
+		if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
+			l = (List *) MAP_GET_STRING(acs->map, gbVals->data);
+		} else {
+			l = appendToTailOfList(l, createConstInt(0));
+		}
+
+		int cnt = INT_VALUE((Constant *) getNthOfListP(l, 0));
+		newL = appendToTailOfList(newL, createConstInt(cnt + 1));
+		addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
+
+		// for provenance sketch;
+		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+			List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+			int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
+			int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
+			int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
+
+			// get group provcesketch;
+			BitSet *gbProvSketch = NULL;
+			if (MAP_HAS_STRING_KEY(acs->provSketchs, STRING_VALUE(c))) {
+				gbProvSketch = (BitSet *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
+			} else {
+				gbProvSketch = newBitSet(provNumFrag);
+			}
+
+			// get group fragment count map;
+			HashMap *gbFragCount = NULL;
+			if (MAP_HAS_STRING_KEY(acs->fragCount, STRING_VALUE(c))) {
+				gbFragCount = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
+			} else {
+				gbFragCount = NEW_MAP(Constant, Constant);
+			}
+
+			char *prov = (char *) getNthOfListP(tuple, provPos);
+			int groupCount = atoi((char *) getNthOfListP(tuple, groupCountPos));
+
+			if (provLevel < 2) {
+				int fragNo = atoi(prov);
+				if (MAP_HAS_INT_KEY(gbFragCount, fragNo)) {
+					int gCnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, fragNo));
+					addToMap(gbFragCount, (Node *) createConstInt(fragNo), (Node *) createConstInt(gCnt + groupCount));
+				} else {
+					addToMap(gbFragCount, (Node *) createConstInt(fragNo), (Node *) createConstInt(groupCount));
+				}
+
+				setBit(gbProvSketch, fragNo, TRUE);
+			} else {
+				for (int psIdx = 0; psIdx < strlen(prov); psIdx++) {
+					if (prov[psIdx] == '1') {
+						if (MAP_HAS_INT_KEY(gbFragCount, psIdx)) {
+							int gCnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, psIdx));
+							gCnt += groupCount;
+							addToMap(gbFragCount, (Node *) createConstInt(psIdx), (Node *) createConstInt(gCnt));
+						} else {
+							addToMap(gbFragCount, (Node *) createConstInt(psIdx), (Node *) createConstInt(groupCount));
+						}
+					}
+				}
+
+				gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
+			}
+
+			addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) copyObject(gbProvSketch));
+			addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) copyObject(gbFragCount));
+		}
+	}
+
+	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, (Node *) acs);
+}
+
+static void
+buildStateAggregation(QueryOperator *op)
+{
+	AggregationOperator *aggOp = (AggregationOperator *) op;
+	DEBUG_NODE_BEATIFY_LOG("CURRENT AGG", aggOp);
+	INFO_OP_LOG("CURRENT AGG", aggOp);
+
+	// get aggregation operator args and groupbys;
+	List *aggrFCs = (List *) copyObject(aggOp->aggrs);
+	List *aggrGBs = (List *) copyObject(aggOp->groupBy);
+
+	// split this aggOp into two cagetories: min/max and avg/count/sum;
+	List *min_max = NIL;
+	List *min_max_attNames = NIL;
+
+	List *avg_sum_count = NIL;
+	List *avg_sum_count_attNames = NIL;
+
+	DEBUG_NODE_BEATIFY_LOG("aggrs list", aggrFCs);
+	for (int i = 0; i < LIST_LENGTH(aggrFCs); i++) {
+		FunctionCall * fc = (FunctionCall *) getNthOfListP(aggrFCs, i);
+		DEBUG_NODE_BEATIFY_LOG("function call:\n", fc);
+
+		char * fcName = fc->functionname;
+		AttributeDef *ad = copyObject(getNthOfListP(((QueryOperator *) aggOp)->schema->attrDefs, i));
+
+		// find all min/max function calls;
+		if (strcmp(fcName, MIN_FUNC_NAME) == 0 || strcmp(fcName, MAX_FUNC_NAME) == 0) {
+			min_max = appendToTailOfList(min_max, copyObject((FunctionCall *) fc));
+			min_max_attNames = appendToTailOfList(min_max_attNames, ad);
+		}
+
+		// find all avg/count/sum function calls;
+		if (strcmp(fcName, AVG_FUNC_NAME) == 0 || strcmp(fcName, SUM_FUNC_NAME) == 0
+		 || strcmp(fcName, COUNT_FUNC_NAME) == 0) {
+			// add current function call;
+			avg_sum_count = appendToTailOfList(avg_sum_count, copyObject((FunctionCall *) fc));
+			avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, strdup(ad->attrName));
+
+			// add function calls sum and count for avg;
+			if (strcmp(fcName, AVG_FUNC_NAME) == 0) {
+				// add function call sum;
+				FunctionCall *fc_sum = createFunctionCall(SUM_FUNC_NAME, copyList(fc->args));
+				avg_sum_count = appendToTailOfList(avg_sum_count, fc_sum);
+
+				StringInfo sum_fc_name = makeStringInfo();
+				appendStringInfo(sum_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, SUM_FUNC_NAME, backendifyIdentifier(ad->attrName));
+				avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, sum_fc_name->data);
+
+				// add function call count; not need this anymore since there is a "count_per_group";
+				// FunctionCall *fc_cnt = createFunctionCall(COUNT_FUNC_NAME, copyList(fc->args));
+				// avg_sum_count = appendToTailOfList(avg_sum_count, fc_cnt);
+
+				// StringInfo cnt_fc_name = makeStringInfo();
+				// appendStringInfo(cnt_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, COUNT_FUNC_NAME, ad->attrName);
+				// avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, cnt_fc_name->data);
+			}
+		}
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("min max fc list", min_max);
+	DEBUG_NODE_BEATIFY_LOG("avg, sum, count fc list", avg_sum_count);
+
+	// get min_max rewrite;
+	// for min and max function: run capture-rewritted child;
+	// insert into the min/max heap based on group by attribute(s);
+	if (LIST_LENGTH(min_max) != 0) {
+		// get child operator;
+		QueryOperator *child = OP_LCHILD(aggOp);
+
+		// get capture rewrite
+		QueryOperator *rewrOp = captureRewrite((QueryOperator *) copyObject(child));
+		DEBUG_NODE_BEATIFY_LOG("REWR OP", rewrOp);
+		INFO_OP_LOG("REWR OP", rewrOp);
+		// searialize operator;
+		char *sql = serializeQuery(rewrOp);
+
+		// get tuples;
+		Relation *resultRel = NULL;
+		resultRel = executeQuery(sql);
+		INFO_LOG("schema name: %s", stringListToString(resultRel->schema));
+
+
+
+		// get prov attr name;
+		QueryOperator *auxOP = captureRewrite((QueryOperator *) copyObject(aggOp));
+		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
+
+		// append to each map value a "prov_attr_pos_in_result" indicating this pos in "resultRel"
+//		DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
+		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+			int pos = listPosString(resultRel->schema, STRING_VALUE(c));
+			List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+			l = appendToTailOfList(l, createConstInt(pos));
+		}
+//		DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
+
+		for (int i = 0; i < LIST_LENGTH(min_max); i++) {
+
+			// get this function call;
+			FunctionCall *fc = (FunctionCall *) getNthOfListP(min_max, i);
+			AttributeReference *attrRef = (AttributeReference *) getNthOfListP(fc->args, 0);
+
+			// set this min/max heap a name like: min_a, max_b
+			Constant *heapName = createConstString(CONCAT_STRINGS(fc->functionname, "_", attrRef->name));
+
+			// make a GBHeaps for this function call;
+			GBHeaps *gbHeaps = makeGBHeaps();
+
+			// set value type:
+			gbHeaps->valType = attrRef->attrType;
+
+			// set heap type: MIN or MAX;
+			if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+				gbHeaps->heapType = createConstString(MIN_HEAP);
+			} else {
+				gbHeaps->heapType = createConstString(MAX_HEAP);
+			}
+
+			// get function call attribute position in result "relResult"
+			int fcAttrPos = listPosString(resultRel->schema, backendifyIdentifier(attrRef->name));
+			INFO_LOG("fc attr pos %d", fcAttrPos);
+			// get group by attributes positions in result "resultRel";
+			// get the pos and its type; so if iterate, +2;
+			List *gbAttrPos = NIL;
+			FOREACH(AttributeReference, ar, aggrGBs) {
+				int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
+				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
+//				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
+			}
+
+			// iterate over result "resultRel" to build the heap;
+			for (int ii = 0; ii < LIST_LENGTH(resultRel->tuples); ii++) {
+				List *tuple = (List *) getNthOfListP(resultRel->tuples, ii);
+				INFO_LOG("tuple values: %s", stringListToString(tuple));
+				// get group by value of this tuple; TODO: isNULL
+				StringInfo gbVals = makeStringInfo();
+				for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
+					appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+				}
+
+				// check if gbHeaps has this group by value;
+				List *heapList = NIL;
+				if (MAP_HAS_STRING_KEY(gbHeaps->heapLists, gbVals->data)) {
+					heapList = (List *) MAP_GET_STRING(gbHeaps->heapLists, gbVals->data);
+				}
+
+				// get min/max attribute value;
+				char *val = (char *) getNthOfListP(tuple, fcAttrPos);
+				Constant *value = makeValue(attrRef->attrType, val);
+				DEBUG_NODE_BEATIFY_LOG("CONSTANT", value);
+				DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
+				// insert this value to heap and heapify
+				heapList = heapInsert(heapList, STRING_VALUE(gbHeaps->heapType), (Node *) value);
+
+				DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
+				// heap list done, add to map;
+				addToMap(gbHeaps->heapLists, (Node *) createConstString(gbVals->data), (Node *) copyObject(heapList));
+
+				// BELOW: DEALING WITH PROVENANCE SKETCHS;
+
+				// get all provenance sketch attrs;
+				FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+					// get provenance sketch info:
+					List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+					int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
+					int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
+					int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
+
+					// get group provenance sketch;
+					BitSet *gbProvSketch = NULL;
+					if (MAP_HAS_STRING_KEY(gbHeaps->provSketchs, STRING_VALUE(c))) {
+						gbProvSketch = (BitSet *) MAP_GET_STRING(gbHeaps->provSketchs, STRING_VALUE(c));
+					} else {
+						gbProvSketch = newBitSet(provNumFrag);
+					}
+
+					// get group fragment count map;
+					HashMap *gbFragCount = NULL;
+					if (MAP_HAS_STRING_KEY(gbHeaps->fragCount, STRING_VALUE(c))) {
+						gbFragCount = (HashMap *) MAP_GET_STRING(gbHeaps->fragCount, STRING_VALUE(c));
+					} else {
+						gbFragCount = NEW_MAP(Constant, Constant);
+					}
+
+					// get provenance sketch value:
+					char *prov = (char *) getNthOfListP(tuple, provPos);
+
+					// dealing with group provenance sketch and fragment-count;
+					if (provLevel < 2) { // prov is an integer;
+						// get fragment number;
+						int whichFrag = atoi(prov);
+						if (MAP_HAS_INT_KEY(gbFragCount, whichFrag)) {
+							int cnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, whichFrag)) + 1;
+							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(cnt));
+						} else {
+							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(1));
+						}
+
+						// dealing with group provenance sketch;
+						setBit(gbProvSketch, whichFrag, TRUE);
+					} else { // prov is a string;
+						for (int k = 0; k < strlen(prov); k++) {
+							if (prov[k] == '1') {
+								// dealing with frag-count;
+								if (MAP_HAS_INT_KEY(gbFragCount, k)) {
+									int cnt = INT_VALUE(MAP_GET_INT(gbFragCount, k)) + 1;
+									addToMap(gbFragCount, (Node *) createConstInt(k), (Node *) createConstInt(cnt));
+								} else {
+									addToMap(gbFragCount, (Node *) createConstInt(k), (Node *) createConstInt(1));
+								}
+							}
+						}
+
+						// BitOr prov bits and gbProvSketch bits;
+						gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
+					}
+
+					addToMap(gbHeaps->fragCount, (Node *) copyObject(c), (Node *) copyObject(gbFragCount));
+					addToMap(gbHeaps->provSketchs, (Node *) copyObject(c), (Node *) copyObject(gbProvSketch));
+				}
+			}
+
+			HashMap *dataStructures = NULL;
+			if (HAS_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE)) {
+				dataStructures = (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE);
+			} else {
+				dataStructures = NEW_MAP(Constant, Node);
+			}
+			addToMap(dataStructures, (Node *) heapName, (Node *) gbHeaps);
+			SET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE, (Node *) dataStructures);
+		}
+	}
+
+	// get avg/sum/count rewrite;
+	if (LIST_LENGTH(avg_sum_count) != 0) {
+		INFO_LOG("rewrite new agg");
+
+		// get current aggregation input;
+		QueryOperator *child = copyObject(OP_LCHILD(aggOp));
+		INFO_OP_LOG("child", child);
+
+		// append group by list to attrNames;
+		FOREACH(AttributeReference, a, aggOp->groupBy) {
+			avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, a->name);
+		}
+
+		// create a nwe aggregation operator;
+		AggregationOperator *newAgg = createAggregationOp(avg_sum_count, (List *) copyList(aggOp->groupBy), child, NIL, avg_sum_count_attNames);
+		child->parents = singleton(newAgg);
+
+		// set a property "AGG_UPDATE_PS"
+		SET_STRING_PROP((QueryOperator *) newAgg, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS, createConstBool(TRUE));
+
+		INFO_OP_LOG("NEW AGG BUILT", (QueryOperator *) newAgg);
+		// DEBUG_NODE_BEATIFY_LOG("new AGG", newAgg);
+
+		// rewrite capture;
+//		ProvenanceComputation * newPC = copyObject(pc);
+//		newPC->op.inputs = singleton(newAgg);
+//		newAgg->op.parents = singleton(newPC);
+//		DEBUG_NODE_BEATIFY_LOG("NEW PC:", newPC);
+
+		QueryOperator * rewriteOP = captureRewrite((QueryOperator *) newAgg);
+		DEBUG_NODE_BEATIFY_LOG("avg_sum_count agg", rewriteOP);
+		INFO_OP_LOG("rewrite op avg_sum_cont: ", rewriteOP);
+
+//		char *sql = serializeOperatorModel((Node *) rewriteOP);
+		char *sql = serializeQuery(rewriteOP);
+		INFO_LOG("sql %s", sql);
+
+		Relation *resultRel = NULL;
+		resultRel = executeQuery(sql);
+
+		// get the level of aggregation
+		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewriteOP), PROP_LEVEL_AGGREGATION_MARK), 0);
+		DEBUG_NODE_BEATIFY_LOG("LEVEL AND NUM FRAG", psAttrAndLevel);
+
+//		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
+
+		// append to each map value a "prov_attr_pos_in_result" indicating this pos in "resultRel"
+		DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
+		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+			int pos = listPosString(resultRel->schema, STRING_VALUE(c));
+			List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+			l = appendToTailOfList(l, createConstInt(pos));
+		}
+		DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
+
+		for (int i = 0; i < LIST_LENGTH(aggrFCs); i++) {
+			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggrFCs, i);
+
+			// only focus on avg, count, sum;
+			if (strcmp(fc->functionname, AVG_FUNC_NAME) != 0
+			 && strcmp(fc->functionname, SUM_FUNC_NAME) != 0
+			 && strcmp(fc->functionname, COUNT_FUNC_NAME) != 0) {
+				continue;
+			}
+
+			// get function call attribute reference;
+			AttributeReference *attrRef = (AttributeReference *) getNthOfListP(fc->args, 0);
+
+			// set a name to this function call like : sum_a, avg_b, count_c used in outer map;
+			Constant *ACSsName = createConstString(CONCAT_STRINGS(fc->functionname, "_", attrRef->name));
+//			DEBUG_NODE_BEATIFY_LOG("ACSsName", ACSsName);
+
+			// make a GBACSs;
+			GBACSs *acs = makeGBACSs();
+
+			// get function call attribute pos in result "resultRel"
+			DEBUG_NODE_BEATIFY_LOG("agg schema", aggOp->op.schema);
+			List *attrDefs = (List *) copyObject(aggOp->op.schema->attrDefs);
+
+			List *namesAndPoss = NIL;
+
+			// append fc call name in resultRel;
+			char *aggFCName = backendifyIdentifier(((AttributeDef *) getNthOfListP(attrDefs, i))->attrName);
+//			namesAndPoss = appendToTailOfList(namesAndPoss, createConstString(((AttributeDef *) getNthOfListP(attrDefs, i))->attrName));
+
+			// append pos in resultRel;
+			int pos = listPosString(resultRel->schema, backendifyIdentifier(aggFCName));
+			namesAndPoss = appendToTailOfList(namesAndPoss, createConstInt(pos));
+
+			// if it is a avg, there should be sum in the result;
+			if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+				StringInfo sum_fc_name = makeStringInfo();
+				appendStringInfo(sum_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, SUM_FUNC_NAME, backendifyIdentifier(aggFCName));
+				pos = listPosString(resultRel->schema, sum_fc_name->data);
+
+//				appendToTailOfList(namesAndPoss, createConstString(sum_fc_name->data));
+				appendToTailOfList(namesAndPoss, createConstInt(pos));
+			}
+
+			DEBUG_NODE_BEATIFY_LOG("namesANDposs", namesAndPoss);
+
+			// get group by attributes positions in result "resultRel";
+			List *gbAttrPos = NIL;
+			FOREACH(AttributeReference, ar, aggrGBs) {
+				int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
+				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
+//				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
+			}
+
+			for (int j = 0; j < LIST_LENGTH(resultRel->schema); j++) {
+				INFO_LOG("result name: %s", (char *) getNthOfListP(resultRel->schema, j));
+			}
+
+			// get group count for avg and sum
+			int groupCountPos = -1;
+			if (strcmp(fc->functionname, COUNT_FUNC_NAME) != 0) {
+				groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
+			}
+			DEBUG_NODE_BEATIFY_LOG("gb list", gbAttrPos);
+
+			for (int j = 0; j < LIST_LENGTH(resultRel->tuples); j++) {
+				List *tuple = (List *) getNthOfListP(resultRel->tuples, j);
+
+				// get the group by values;
+				StringInfo gbVals = makeStringInfo();
+				for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
+					appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+				}
+
+				// value list;
+				List *l = NIL;
+				List *newL = NIL;
+				if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
+					l = (List *) MAP_GET_STRING(acs->map, gbVals->data);
+				} else {
+					if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+						l = appendToTailOfList(l, createConstFloat((double) 0));
+						l = appendToTailOfList(l, createConstFloat((double) 0));
+						l = appendToTailOfList(l, createConstInt(0));
+					} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
+						l = appendToTailOfList(l, createConstFloat((double) 0));
+						l = appendToTailOfList(l, createConstInt(0));
+					} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+						l = appendToTailOfList(l, createConstInt(0));
+					}
+				}
+
+				if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+					// get avg, sum and cont;
+					double avg = FLOAT_VALUE((Constant *) getNthOfListP(l, 0));
+					double sum = FLOAT_VALUE((Constant *) getNthOfListP(l, 1));
+					int count = INT_VALUE((Constant *) getNthOfListP(l, 2));
+
+					// compute new avg, sum, count;
+					int newSumPos = INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 1));
+					double newSum = atof((char *) getNthOfListP(tuple, newSumPos));
+					sum += newSum;
+					count += atoi((char *) getNthOfListP(tuple, groupCountPos));
+					avg = sum / count;
+
+					// make a new list;
+
+//					l = listMake(createConstFloat(avg), createConstFloat(sum), createConstInt(count));
+					newL = appendToTailOfList(newL, createConstFloat(avg));
+					newL = appendToTailOfList(newL, createConstFloat(sum));
+					newL = appendToTailOfList(newL, createConstInt(count));
+				} else if (strcmp(fc->functionname, SUM_FUNC_NAME)) {
+					// get previous sum and count;
+					double sum = FLOAT_VALUE((Constant *) getNthOfListP(l, 0));
+					int count = INT_VALUE((Constant *) getNthOfListP(l, 1));
+
+					// compute new sum and count;
+					int newSumPos = INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0));
+					sum += atof((char *) getNthOfListP(tuple, newSumPos));
+					count += atoi((char *) getNthOfListP(tuple, groupCountPos));
+
+					// make a new list;
+//					l = listMake(createConstFloat(sum), createConstInt(count));
+
+					newL = appendToTailOfList(newL, createConstFloat(sum));
+					newL = appendToTailOfList(newL, createConstInt(count));
+				} else if (strcmp(fc->functionname, COUNT_FUNC_NAME)) {
+					// previous count;
+					int count = INT_VALUE((Constant *) getNthOfListP(l, 0));
+
+					// get new count;
+					count += atoi((char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0))));
+
+					// make a new list;
+//					l = singleton(createConstInt(count));
+					newL = appendToTailOfList(newL, createConstInt(count));
+				}
+
+				// add this key-value to map;
+				addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
+
+
+				// BELOW DEALING WITH PROVENANCE SKETCH;
+				FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+					List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+					int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
+					int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
+					int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
+
+					// get group provenance sketch;
+					BitSet *gbProvSketch = NULL;
+					if (MAP_HAS_STRING_KEY(acs->provSketchs, STRING_VALUE(c))) {
+						gbProvSketch = (BitSet *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
+					} else {
+						gbProvSketch = newBitSet(provNumFrag);
+					}
+
+					// get group fragment count map;
+					HashMap *gbFragCount = NULL;
+					if (MAP_HAS_STRING_KEY(acs->fragCount, STRING_VALUE(c))) {
+						gbFragCount = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
+					} else {
+						gbFragCount = NEW_MAP(Constant, Constant);
+					}
+
+					// get prov string or int;
+					char *prov = (char *) getNthOfListP(tuple, provPos);
+					int groupCount = atoi((char *) getNthOfListP(tuple, groupCountPos));
+					if (provLevel < 2) {
+						int whichFrag = atoi(prov);
+						if (MAP_HAS_INT_KEY(gbFragCount, whichFrag)) {
+							int cnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, whichFrag));
+							cnt += groupCount;
+							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(cnt));
+						} else {
+							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(groupCount));
+						}
+
+						// set whichFrag pos to '1'
+						setBit(gbProvSketch, whichFrag, TRUE);
+					} else {
+						for (int provIdx = 0; provIdx < strlen(prov); provIdx++) {
+							if (prov[provIdx] == '1') {
+								if (MAP_HAS_INT_KEY(gbFragCount, provIdx)) {
+									int cnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, provIdx));
+									cnt += groupCount;
+									addToMap(gbFragCount, (Node *) createConstInt(provIdx), (Node *) createConstInt(cnt));
+								} else {
+									addToMap(gbFragCount, (Node *) createConstInt(provIdx), (Node *) createConstInt(groupCount));
+								}
+							}
+						}
+
+						// BITOR prov and this string;
+						gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
+					}
+
+					addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) copyObject(gbProvSketch));
+					addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) copyObject(gbFragCount));
+				}
+			}
+
+			HashMap *dataStructures = NULL;
+			if (HAS_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE)) {
+				dataStructures = (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE);
+			} else {
+				dataStructures = NEW_MAP(Constant, Node);
+			}
+
+			addToMap(dataStructures, (Node *) ACSsName, (Node *) acs);
+			SET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE, (Node *) dataStructures);
+		}
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("STATE", (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE));
 }
 
 static QueryOperator*
@@ -751,18 +1127,27 @@ updateProjection(QueryOperator* op)
 		addToMap(resultDC->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
 
 		if (isA(node, Operator)) { // node is an expression, evaluate it;
-
+			// calculate value of this operator;
 			ColumnChunk *evaluatedValue = (ColumnChunk *) evaluateExprOnDataChunk(node, dataChunk);
-//			DEBUG_NODE_BEATIFY_LOG("COLUMN CHUNK", evaluatedValue);// TODO: ERROR;
+
 			Vector *vector = columnChunkToVector(evaluatedValue);
+
 			vecAppendNode(resultDC->tuples, (Node *) copyObject(vector));
+
+			// compute isNull;
+			BitSet *bs = NULL;
+			bs = computeIsNullBitSet(node, dataChunk);
+//			vecAppendNode(resultDC->isNull, (Node *) copyObject(bs));
 
 		} else if (isA(node, AttributeReference)){ // node is an attribute, direct copy;
-
+			// get value of this attribute reference;
 			AttributeReference *af = (AttributeReference *) node;
-			int oldPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, af->name));
-			Vector *vector = (Vector *) getVecNode(dataChunk->tuples, oldPos);
+			int attPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, af->name));
+			Vector *vector = (Vector *) getVecNode(dataChunk->tuples, attPos);
 			vecAppendNode(resultDC->tuples, (Node *) copyObject(vector));
+
+			// get isNull;
+//			vecAppendNode(resultDC->isNull, (Node *) copyObject(getVecNode(dataChunk->isNull, pos)));
 		}
 		pos++;
 	}
@@ -1397,7 +1782,6 @@ updateJoin(QueryOperator* op)
 				}
 			}
 		}
-
 	}
 
 	setStringProperty(op, DATA_CHUNK_PROP, (Node *) resultDC);
@@ -1423,10 +1807,358 @@ updateAggregation(QueryOperator* op)
 		return;
 	}
 
+	// get child's data chunk;
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(child, DATA_CHUNK_PROP);
 
-	appendStringInfo(strInfo, "%s ", "UpdateAggregation");
+	// init return data chunk;
+	List *attrDefs = (List *) copyObject(op->schema->attrDefs);
+	DataChunk *resultDC = initDataChunk();
 
+	// set some fields for result data chunk;
+	resultDC->attrNames = copyObject(attrDefs);
+	int pos = 0;
+	FOREACH(AttributeDef, ad, resultDC->attrNames) {
+		addToMap(resultDC->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
+		addToMap(resultDC->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
+		pos++;
+
+		vecAppendNode(resultDC->tuples, (Node *) makeVector(VECTOR_NODE, T_Vector));
+	}
+	resultDC->tupleFields = LIST_LENGTH(resultDC->attrNames);
+
+
+
+	// get lists of group by, agg functions;
+	List *aggrFCs = (List *) copyObject(((AggregationOperator *) op)->aggrs);
+	List *aggrGBs = (List *) copyObject(((AggregationOperator *) op)->groupBy);
+
+	// get stored data structures;
+	HashMap *dataStructures = (HashMap *) GET_STRING_PROP(op, DATA_STRUCTURE_STATE);
+
+	int length = dataChunk->numTuples;
+	for (int i = 0; i < length; i++) {
+		// get gb values;
+		StringInfo gbVals = makeStringInfo();
+		for (int j = 0; j < LIST_LENGTH(aggrGBs); j++) {
+			// get value of this gb attribute;
+			AttributeReference *ar = (AttributeReference *) getNthOfListP(aggrGBs, j);
+
+			// find position and datatype of this attribute value;
+			int attrPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+			DataType dt = INT_VALUE((Constant *) MAP_GET_INT(dataChunk->posToDatatype, attrPos));
+
+			// get the constaint value;
+			Constant *value = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, attrPos), j);
+
+			switch(dt) {
+				case DT_INT:
+					appendStringInfo(gbVals, "%s#", gprom_itoa(INT_VALUE(value)));
+					break;
+				case DT_LONG:
+					appendStringInfo(gbVals, "%s#", gprom_ltoa(INT_VALUE(value)));
+					break;
+				case DT_FLOAT:
+					appendStringInfo(gbVals, "%s#", gprom_ftoa(INT_VALUE(value)));
+					break;
+				case DT_BOOL:
+					// this is for postgresql
+					appendStringInfo(gbVals, "%s#", (BOOL_VALUE(value) == 1 ? 't' : 'f'));
+					break;
+				case DT_STRING:
+				case DT_VARCHAR2:
+					appendStringInfo(gbVals, "%s#", STRING_VALUE(value));
+					break;
+				default:
+					FATAL_LOG("data type %d is not support", dt);
+					break;
+			}
+		}
+
+		// get update type;
+		int updateType = getVecInt(dataChunk->updateIdentifier, i);
+
+		// identifierType:
+		// 0: - +
+		// 1: -
+		// 2: +
+		int identifierType = -1;
+
+		// iterate over all aggregation functions to fetch values: 1. old aggregation values, 2, new aggregation values;
+		for (int j = 0; j < LIST_LENGTH(aggrFCs); j++) {
+			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggrFCs, j);
+			AttributeReference *ar = (AttributeReference *) getNthOfListP(fc->args, 0);
+
+			// get fc name in data structure;
+			Constant *nameInDS = createConstString(CONCAT_STRINGS(fc->functionname, "_", ar->name));
+
+			// get value pos in result data chunk;
+			AttributeDef *ad = (AttributeDef *) getNthOfListP(attrDefs, j);
+			int resPos = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, ad->attrName));
+			DataType resDT = INT_VALUE((Constant *) MAP_GET_INT(resultDC->posToDatatype, resPos));
+
+			// get result vector for this position;
+			Vector *v = (Vector *) getVecNode(resultDC->tuples, resPos);
+
+			// get value pos in input data chunk;
+			int inpPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+
+			// get insertd value;
+			Constant *insertV = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, inpPos), i);
+
+			///////////////////////////////////////////////////////////////////////////////////
+			//																				 //
+			// HERE SHOULD CONSIDER A EXTERME CASE:                                          //
+			//           IN SOME STAGE: ALL THE VALUE OF DATA STRUCTURE ARE GONE(EMPTY)      //
+			//           FOR FOLLOWING TUPLES, SHOULD REBUILD THE DATA STRUCTURE             //
+			//                                                                               //
+			///////////////////////////////////////////////////////////////////////////////////
+
+			if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0
+			 || strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+
+				GBHeaps *heap = (GBHeaps *) MAP_GET_STRING(dataStructures, STRING_VALUE(nameInDS));
+				if (updateType == 1) {
+					if (MAP_HAS_STRING_KEY(heap->heapLists, gbVals->data)) { // has previous value of this group;
+						// 1. old value;
+						// get heap list;
+						List *heapList = (List *) MAP_GET_STRING(heap->heapLists, gbVals->data);
+						if (LIST_LENGTH(heapList) > 0) {
+							identifierType = 0;
+							// get old value;
+							Constant *oldV = (Constant *) getNthOfListP(heapList, 0);
+
+							// add to result data chunk;
+							vecAppendNode(v, (Node *) copyObject(oldV));
+						} else {
+							identifierType = 2;
+						}
+
+						// 2. add insert value to heap, and re-heapify;
+						heapList = heapInsert(heapList, STRING_VALUE(heap->heapType), (Node *) insertV);
+
+						// 3. get new min/max and add to result vector;
+						Constant *newV = (Constant *) getNthOfListP(heapList, 0);
+						vecAppendNode(v, (Node *) copyObject(newV));
+
+					} else { // no previous value, this is a new group;
+						identifierType = 2;
+
+						// new heapList;
+						List *heapList = NIL;
+
+						// add value;
+						heapList = heapInsert(heapList, STRING_VALUE(heap->heapType), (Node *) insertV);
+
+						Constant *newV = (Constant *) getNthOfListP(heapList, 0);
+						vecAppendNode(v, (Node *) copyObject(newV));
+
+						addToMap(heap->heapLists, (Node *) createConstString(gbVals->data), (Node *) copyObject(heapList));
+					}
+				} else {
+					// in this case, in theory, the heap must contain this value;
+					List *heapList = (List *) MAP_GET_STRING(heap->heapLists, gbVals->data);
+
+					Constant *oldV = (Constant *) getNthOfListP(heapList, 0);
+
+					vecAppendNode(v, (Node *) copyObject(oldV));
+
+					if (LIST_LENGTH(heapList) < 2) {
+						removeMapStringElem(heap->heapLists, gbVals->data);
+						identifierType = 1;
+					} else {
+						heapList = heapDelete(heapList, STRING_VALUE(heap->heapType), (Node *) oldV);
+
+						Constant *newV = (Constant *) getNthOfListP(heapList, 0);
+						vecAppendNode(v, (Node *) copyObject(newV));
+						identifierType = 0;
+					}
+				}
+			} else {
+				GBACSs *acs = (GBACSs *) MAP_GET_STRING(dataStructures, STRING_VALUE(nameInDS));
+				DEBUG_NODE_BEATIFY_LOG("acs", acs);
+
+				if (updateType == 1) {
+					List *acsList = NIL;
+					List *newL = NIL;
+					if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
+						acsList = (List *) MAP_GET_STRING(acs->map, gbVals->data);
+						if (identifierType != -1) {
+							identifierType = 0;
+						}
+
+						if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+							double avg = FLOAT_VALUE((Constant *) getNthOfListP(acsList, 0));
+							double sum = FLOAT_VALUE((Constant *) getNthOfListP(acsList, 1));
+							int count = INT_VALUE((Constant *) getNthOfListP(acsList, 2)) + 1;
+
+							// append old value;
+							vecAppendNode(v, (Node *) createConstFloat(avg));
+
+							switch(insertV->constType) {
+								case DT_INT:
+									sum += INT_VALUE(insertV);
+									break;
+								case DT_LONG:
+									sum += LONG_VALUE(insertV);
+									break;
+								case DT_FLOAT:
+									sum += FLOAT_VALUE(insertV);
+									break;
+								default:
+									FATAL_LOG("data type %d is not supported for avg", insertV->constType);
+							}
+
+							avg = sum / count;
+
+							// new Value;
+							vecAppendNode(v, (Node *) createConstFloat(avg));
+
+							// update acslist;
+							newL = appendToTailOfList(newL, createConstFloat(avg));
+							newL = appendToTailOfList(newL, createConstFloat(sum));
+							newL = appendToTailOfList(newL, createConstInt(count));
+							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
+						} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
+							double oSum = FLOAT_VALUE((Constant *) getNthOfListP(acsList, 0));
+							double nSum = oSum;
+							int count = INT_VALUE((Constant *) getNthOfListP(acsList, 1)) + 1;
+
+							switch(insertV->constType) {
+								case DT_INT:
+									nSum += INT_VALUE(insertV);
+									break;
+								case DT_LONG:
+									nSum += LONG_VALUE(insertV);
+									break;
+								case DT_FLOAT:
+									nSum += FLOAT_VALUE(insertV);
+									break;
+								default:
+									FATAL_LOG("data type %d is not supported for avg", insertV->constType);
+							}
+
+							newL = appendToTailOfList(newL, createConstFloat(nSum));
+							newL = appendToTailOfList(newL, createConstInt(count));
+							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
+
+							// compare sum type with result dc type
+							// since we use double when building the datastructure;
+							Constant *oldV = NULL;
+							Constant *newV = NULL;
+							if (resDT == DT_INT) {
+								oldV = createConstInt((int) oSum);
+								newV = createConstInt((int) nSum);
+							} else if(resDT == DT_LONG) {
+								oldV = createConstLong((gprom_long_t) oSum);
+								newV = createConstLong((gprom_long_t) nSum);
+							} else if(resDT == DT_FLOAT) {
+								oldV = createConstFloat(oSum);
+								newV = createConstFloat(nSum);
+							}
+
+							vecAppendNode(v, (Node *) oldV);
+							vecAppendNode(v, (Node *) newV);
+						} else if (strcmp(fc->functionname, COUNT_FUNC_NAME)) {
+							int count = INT_VALUE((Constant *) getNthOfListP(acsList, 0));
+							vecAppendNode(v, (Node *) createConstInt(count));
+							vecAppendNode(v, (Node *) createConstInt(count + 1));
+							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) singleton(createConstInt(count + 1)));
+						}
+					} else { // new group
+						if (identifierType != -1) {
+							identifierType = 2;
+						}
+
+						if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+							double avg = (double) 0;
+							double sum = (double) 0;
+
+							switch(insertV->constType) {
+								case DT_INT: {
+									int insV = INT_VALUE(insertV);
+									avg = (double) insV;
+									sum = (double) insV;
+								}
+									break;
+								case DT_LONG: {
+									gprom_long_t insV = LONG_VALUE(insertV);
+									avg = (double) insV;
+									sum = (double) insV;
+								}
+									break;
+								case DT_FLOAT: {
+									sum = FLOAT_VALUE(insertV);
+									avg = FLOAT_VALUE(insertV);
+								}
+									break;
+								default:
+									FATAL_LOG("datatype %d is not supported for avg()", insertV->constType);
+							}
+
+							newL = appendToTailOfList(newL, createConstFloat(avg));
+							newL = appendToTailOfList(newL, createConstFloat(sum));
+							newL = appendToTailOfList(newL, createConstInt(1));
+							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
+
+							Constant *newV = NULL;
+							if (resDT == DT_INT) {
+								newV = createConstInt((int) avg);
+							} else if(resDT == DT_LONG) {
+								newV = createConstLong((gprom_long_t) avg);
+							} else if(resDT == DT_FLOAT) {
+								newV = createConstFloat(avg);
+							}
+							vecAppendNode(v, (Node *) newV);
+						} else if(strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
+							double sum = (double) 0;
+
+							switch(insertV->constType) {
+								case DT_INT: {
+									int insV = INT_VALUE(insertV);
+									sum = (double) insV;
+								}
+									break;
+								case DT_LONG: {
+									gprom_long_t insV = LONG_VALUE(insertV);
+									sum = (double) insV;
+								}
+									break;
+								case DT_FLOAT: {
+									sum = FLOAT_VALUE(insertV);
+								}
+									break;
+								default:
+									FATAL_LOG("datatype %d is not supported for sum()", insertV->constType);
+							}
+
+							newL = appendToTailOfList(newL, createConstFloat(sum));
+							newL = appendToTailOfList(newL, createConstInt(1));
+							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
+
+							Constant *newV = NULL;
+							if (resDT == DT_INT) {
+								newV = createConstInt((int) sum);
+							} else if(resDT == DT_LONG) {
+								newV = createConstLong((gprom_long_t) sum);
+							} else if(resDT == DT_FLOAT) {
+								newV = createConstFloat(sum);
+							}
+							vecAppendNode(v, (Node *) newV);
+						} else if(strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+							newL = appendToTailOfList(newL, createConstInt(1));
+							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
+							vecAppendNode(v, (Node *) createConstInt(1));
+						}
+					}
+				} else {
+				}
+			}
+		}
+	}
+
+	// remove data chunk from child operator;
 	removeStringProperty(child, DATA_CHUNK_PROP);
+	appendStringInfo(strInfo, "%s ", "UpdateAggregation");
 }
 
 
@@ -1660,20 +2392,19 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 		}
 	}
 
-//	DEBUG_NODE_BEATIFY_LOG("pos->dt: ", dataChunk->posToDatatype);
-//	DEBUG_NODE_BEATIFY_LOG("att->pos: ", dataChunk->attriToPos);
 	dataChunk->attrNames = (List *) copyObject(schema->attrDefs);
 	dataChunk->numTuples = LIST_LENGTH(relation->tuples);
 	dataChunk->tupleFields = LIST_LENGTH(relation->schema);
 
 	// fill tuples
-	for(int col = 0; col < dataChunk->tupleFields; col++)
+	for(int col = 0; col < LIST_LENGTH(relation->tuples); col++)
 	{
 		int dataType = INT_VALUE((Constant*)getMapInt(dataChunk->posToDatatype, col));
 		INFO_LOG("data type: %d", dataType);
-		Vector* colValues = makeVector(VECTOR_NODE, T_Vector);
+		Vector *colValues = makeVector(VECTOR_NODE, T_Vector);
 		for(int row = 0; row < dataChunk->numTuples; row++)
 		{
+//			char *val = (char *) getNthOfListP((List *) getNthOfListP(relation->tuples, row), col);
 			Constant* value = makeValue(dataType, (char *) getNthOfListP((List *)getNthOfListP(relation->tuples, row), col));
 			vecAppendNode(colValues, (Node*) value);
 		}
@@ -1682,7 +2413,7 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 	}
 
 	// fill identifier of update "-1"
-	for(int row = 0; row < dataChunk->numTuples; row++)
+	for (int row = 0; row < dataChunk->numTuples; row++)
 	{
 		vecAppendInt(dataChunk->updateIdentifier, -1);
 	}
@@ -2171,6 +2902,36 @@ executeQueryWithoutResult(char* sql)
 	}
 }
 
+static BitSet *
+computeIsNullBitSet(Node *expr, DataChunk *dc)
+{
+	BitSet *result;
+	switch(expr->type) {
+		case T_Operator:{
+//			List *inputs = ((Operator *) expr)->args;
+//			BitSet *left = computeIsNullBitSet((Node *) getNthOfListP(inputs, 0), dc);
+//			BitSet *right = computeIsNullBitSet((Node *) getNthOfListP(inputs, 1), dc);
+//			result = bitOr(left, right);
+			return newBitSet(10);// just for pass;
+		}
+		break;
+		case T_AttributeReference: {
+			int pos = INT_VALUE((Constant *) MAP_GET_STRING(dc->attriToPos, ((AttributeReference *) expr)->name));
+			BitSet *bs = (BitSet *) getVecNode(dc->isNull, pos);
+			result = (BitSet *) copyObject(bs);
+		}
+		break;
+		case T_Constant: {
+			result = newBitSet(dc->numTuples);
+		}
+		break;
+		default:
+			FATAL_LOG("cannot evaluate isNull for this operator");
+	}
+
+	return result;
+}
+
 static ColumnChunk *
 evaluateExprOnDataChunk(Node *expr, DataChunk *dc)
 {
@@ -2186,7 +2947,7 @@ evaluateExprOnDataChunk(Node *expr, DataChunk *dc)
 		case T_Constant: {
 			return getColumnChunkOfConst((Constant *) expr, dc);
 		}
-		break;
+//		break;
 		default:
 			FATAL_LOG("cannot evaluate this expr");
 	}
@@ -2213,9 +2974,17 @@ getColumnChunkOfConst(Constant *c, DataChunk *dc)
 		}
 		break;
 		case DT_FLOAT: {
+			double *ccValue = VEC_TO_FA(cc->data.v);
+			for (int i = 0; i < length; i++) {
+				ccValue[i] = FLOAT_VALUE(c);
+			}
 		}
 		break;
 		case DT_LONG: {
+			gprom_long_t *ccValue = VEC_TO_LA(cc->data.v);
+			for (int i = 0; i < length; i++) {
+				ccValue[i] = LONG_VALUE(c);
+			}
 		}
 		break;
 		case DT_STRING:
@@ -2256,7 +3025,7 @@ getColumnChunkOfAttr(char *attrName, DataChunk *dataChunk)
 	ColumnChunk *cc = makeColumnChunk(dataType, dataChunk->numTuples);
 
 	// get original column values from data chunk;
-	Constant ** consts = VEC_TO_ARR(vec, Constant);
+	Constant **consts = VEC_TO_ARR(vec, Constant);
 
 	switch (dataType) {
 		case DT_INT: {
@@ -2267,11 +3036,17 @@ getColumnChunkOfAttr(char *attrName, DataChunk *dataChunk)
 		}
 		break;
 		case DT_FLOAT: {
-
+			double *ccValues = VEC_TO_FA(cc->data.v);
+			for (int i = 0; i < cc->length; i++) {
+				ccValues[i] = FLOAT_VALUE(consts[i]);
+			}
 		}
 		break;
 		case DT_LONG: {
-
+			gprom_long_t *ccValues = VEC_TO_LA(cc->data.v);
+			for (int i = 0; i < cc->length; i++) {
+				ccValues[i] = LONG_VALUE(consts[i]);
+			}
 		}
 		break;
 		case DT_STRING:
@@ -2352,8 +3127,9 @@ evaluateOperatorOnDataChunk(Operator *op, DataChunk *dc)
 		// "a != b"
 		return evaluateOperatorNeq(op, dc);
 	} else if (streq(op->name, OPNAME_NEQ_HAT)) {
-		// "????
-		return evaluateOperatorNeqHat(op, dc);
+		// "^=" do not work for postgres; try ORACLE;
+//		return evaluateOperatorNeqHat(op, dc);
+		return evaluateOperatorNeq(op, dc);
 	} else if (streq(op->name, OPNAME_STRING_CONCAT)) { // string operators;
 		// "a || b";
 		return evaluateOperatorConcat(op, dc);
@@ -2379,19 +3155,23 @@ makeColumnChunk(DataType dataType, size_t len)
 	switch (dataType) {
 		case DT_INT: {
 			columnChunk->data.v = makeVectorOfSize(VECTOR_INT, T_Vector, len);
+			columnChunk->data.v->length = len;
 		}
 		break;
 		case DT_FLOAT: {
-
+			columnChunk->data.v = makeVectorOfSize(VECTOR_FLOAT, T_Vector, len);
+			columnChunk->data.v->length = len;
 		}
 		break;
 		case DT_LONG: {
-
+			columnChunk->data.v = makeVectorOfSize(VECTOR_LONG, T_Vector, len);
+			columnChunk->data.v->length = len;
 		}
 		break;
 		case DT_STRING:
 		case DT_VARCHAR2: {
 			columnChunk->data.v = makeVectorOfSize(VECTOR_STRING, T_Vector, len);
+			columnChunk->data.v->length = len;
 		}
 		break;
 		case DT_BOOL: {
@@ -2411,15 +3191,34 @@ evaluateOperatorPlus(Operator *op, DataChunk *dc)
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
 
+	ASSERT(left->length == right->length);
+
 	int len = left->length;
 
-	DataType resultDataType = typeOf((Node *) op);
-	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+	DataType resultDT = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDT, len);
 
-	switch (resultDataType) {
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	// future, if have isNULL bitset, get bitset to identify null
+	// two options: 1. accurately get if is null
+	//				2. just calculate the value for +/-/*/ but we do not care the result.
+	switch (resultDT) {
 		case DT_INT: {
-			int *leftV = VEC_TO_IA(left->data.v);
-			int *rightV = VEC_TO_IA(right->data.v);
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
 			int *resV = VEC_TO_IA(resultCC->data.v);
 			for (int i = 0; i < len; i++) {
 				resV[i] = leftV[i] + rightV[i];
@@ -2427,18 +3226,28 @@ evaluateOperatorPlus(Operator *op, DataChunk *dc)
 		}
 		break;
 		case DT_LONG: {
-
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			gprom_long_t *resV = VEC_TO_LA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] + rightV[i];
+			}
 		}
 		break;
 		case DT_FLOAT: {
-
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			double *resV = VEC_TO_FA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] + rightV[i];
+			}
 		}
 		break;
 		case DT_STRING: // not applicable for "-"
 		case DT_VARCHAR2:// not applicable for "-"
 		case DT_BOOL:// not applicable for "-"
 		default:
-			FATAL_LOG("not supported for data type %d", resultDataType);
+			FATAL_LOG("operator '+' is not supported for data type %d", resultDT);
 	}
 
 	return resultCC;
@@ -2451,15 +3260,31 @@ evaluateOperatorMinus(Operator *op, DataChunk *dc)
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
 
+	ASSERT(left->length == right->length);
+
 	int len = left->length;
 
-	DataType resultDataType = typeOf((Node *) op);
-	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+	DataType resultDT = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDT, len);
 
-	switch (resultDataType) {
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch (resultDT) {
 		case DT_INT: {
-			int *leftV = VEC_TO_IA(left->data.v);
-			int *rightV = VEC_TO_IA(right->data.v);
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
 			int *resV = VEC_TO_IA(resultCC->data.v);
 			for (int i = 0; i < len; i++) {
 				resV[i] = leftV[i] - rightV[i];
@@ -2467,18 +3292,28 @@ evaluateOperatorMinus(Operator *op, DataChunk *dc)
 		}
 		break;
 		case DT_LONG: {
-
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			gprom_long_t *resV = VEC_TO_LA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] - rightV[i];
+			}
 		}
 		break;
 		case DT_FLOAT: {
-
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			double *resV = VEC_TO_FA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] - rightV[i];
+			}
 		}
 		break;
 		case DT_STRING: // not applicable for "-"
 		case DT_VARCHAR2:// not applicable for "-"
 		case DT_BOOL:// not applicable for "-"
 		default:
-			FATAL_LOG("not supported for data type %d", resultDataType);
+			FATAL_LOG("operator '-' is not supported for data type %d", resultDT);
 	}
 
 	return resultCC;
@@ -2491,15 +3326,31 @@ evaluateOperatorMult(Operator *op, DataChunk *dc)
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
 
+	ASSERT(left->length == right->length);
+
 	int len = left->length;
 
-	DataType resultDataType = typeOf((Node *) op);
-	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+	DataType resultDT = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDT, len);
 
-	switch (resultDataType) {
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch (resultDT) {
 		case DT_INT: {
-			int *leftV = VEC_TO_IA(left->data.v);
-			int *rightV = VEC_TO_IA(right->data.v);
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
 			int *resV = VEC_TO_IA(resultCC->data.v);
 			for (int i = 0; i < len; i++) {
 				resV[i] = leftV[i] * rightV[i];
@@ -2507,18 +3358,28 @@ evaluateOperatorMult(Operator *op, DataChunk *dc)
 		}
 		break;
 		case DT_LONG: {
-
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			gprom_long_t *resV = VEC_TO_LA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] * rightV[i];
+			}
 		}
 		break;
 		case DT_FLOAT: {
-
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			double *resV = VEC_TO_FA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				resV[i] = leftV[i] * rightV[i];
+			}
 		}
 		break;
 		case DT_STRING: // not applicable for "*"
 		case DT_VARCHAR2:// not applicable for "*"
 		case DT_BOOL:// not applicable for "*"
 		default:
-			FATAL_LOG("not supported for data type %d", resultDataType);
+			FATAL_LOG("operator '*' is not supported for data type %d", resultDT);
 	}
 
 	return resultCC;
@@ -2531,37 +3392,72 @@ evaluateOperatorDiv(Operator *op, DataChunk *dc)
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
 
+	ASSERT(left->length == right->length);
+
 	int len = left->length;
 
-	DataType resultDataType = typeOf((Node *) op);
-	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+	DataType resultDT = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDT, len);
 
-	switch (resultDataType) {
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch (resultDT) {
 		case DT_INT: {
-			int *leftV = VEC_TO_IA(left->data.v);
-			int *rightV = VEC_TO_IA(right->data.v);
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
 			int *resV = VEC_TO_IA(resultCC->data.v);
 			for (int i = 0; i < len; i++) {
-				if (rightV[i] == 0)
+				if (rightV[i] == 0) {
 					FATAL_LOG("division by zero");
+				}
 
 				resV[i] = leftV[i] / rightV[i];
 			}
 		}
 		break;
 		case DT_LONG: {
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			gprom_long_t *resV = VEC_TO_LA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				if (rightV[i] == (gprom_long_t) 0) {
+					FATAL_LOG("division by zero");
+				}
 
+				resV[i] = leftV[i] / rightV[i];
+			}
 		}
 		break;
 		case DT_FLOAT: {
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			double *resV = VEC_TO_FA(resultCC->data.v);
+			for (int i = 0; i < len; i++) {
+				if (rightV[i] == (double) 0) {
+					FATAL_LOG("division by zero");
+				}
 
+				resV[i] = leftV[i] / rightV[i];
+			}
 		}
 		break;
 		case DT_STRING: // not applicable for "*"
 		case DT_VARCHAR2:// not applicable for "*"
 		case DT_BOOL:// not applicable for "*"
 		default:
-			FATAL_LOG("not supported for data type %d", resultDataType);
+			FATAL_LOG("operator '/' is not supported for data type %d", resultDT);
 	}
 
 	return resultCC;
@@ -2574,37 +3470,48 @@ evaluateOperatorMod(Operator *op, DataChunk *dc)
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
 
+	ASSERT(left->length == right->length);
+
 	int len = left->length;
 
-	DataType resultDataType = typeOf((Node *) op);
-	ColumnChunk *resultCC = makeColumnChunk(resultDataType, len);
+	DataType resultDT = typeOf((Node *) op);
+	ColumnChunk *resultCC = makeColumnChunk(resultDT, len);
 
-	switch (resultDataType) {
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch (resultDT) {
 		case DT_INT: {
-			int *leftV = VEC_TO_IA(left->data.v);
-			int *rightV = VEC_TO_IA(right->data.v);
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
 			int *resV = VEC_TO_IA(resultCC->data.v);
 			for (int i = 0; i < len; i++) {
-				if (rightV[i] == 0)
+				if (rightV[i] == 0) {
 					FATAL_LOG("division by zero");
+				}
 
 				resV[i] = leftV[i] % rightV[i];
 			}
 		}
 		break;
-		case DT_LONG: {
-
-		}
-		break;
-		case DT_FLOAT: {
-
-		}
-		break;
-		case DT_STRING: // not applicable for "*"
-		case DT_VARCHAR2:// not applicable for "*"
-		case DT_BOOL:// not applicable for "*"
+		case DT_LONG:
+		case DT_FLOAT:
+		case DT_STRING: // not applicable for "%"
+		case DT_VARCHAR2:// not applicable for "%"
+		case DT_BOOL:// not applicable for "%"
 		default:
-			FATAL_LOG("not supported for data type %d", resultDataType);
+			FATAL_LOG("operator '%' is not supported for data type %d", resultDT);
 	}
 	return resultCC;
 }
@@ -2616,6 +3523,8 @@ evaluateOperatorAnd(Operator *op, DataChunk *dc)
 	List *inputs = op->args;
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
 
 	left->data.bs = bitAnd(left->data.bs, right->data.bs);
 
@@ -2629,6 +3538,8 @@ evaluateOperatorOr(Operator *op, DataChunk *dc)
 	List *inputs = op->args;
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
 
 	left->data.bs = bitOr(left->data.bs, right->data.bs);
 
@@ -2650,43 +3561,465 @@ evaluateOperatorNot(Operator *op, DataChunk *dc)
 static ColumnChunk *
 evaluateOperatorEq(Operator *op, DataChunk *dc)
 {
-	return NULL;
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
+
+	DataType resultDT = lcaType(left->dataType, right->dataType);
+	int len = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_BOOL, len);
+
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch(resultDT) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] == rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_FLOAT: {
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] == rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_LONG: {
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] == rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+
+		}
+		break;
+		case DT_STRING: {
+			char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+			char **rightV = VEC_TO_ARR(castRight->data.v, char);
+			for (int i = 0; i < len; i++) {
+				if (strcmp(leftV[i], rightV[i]) == 0) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_BOOL:
+		default:
+			FATAL_LOG("operator '=' is not supported for datatype %d", resultDT);
+	}
+
+	return resultCC;
 }
 
 static ColumnChunk *
 evaluateOperatorLt(Operator *op, DataChunk *dc)
 {
-	return NULL;
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
+
+	DataType resultDT = lcaType(left->dataType, right->dataType);
+	int len = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_BOOL, len);
+
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch(resultDT) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] < rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_FLOAT: {
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] < rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_LONG: {
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] < rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_STRING: {
+			char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+			char **rightV = VEC_TO_ARR(castRight->data.v, char);
+			for (int i = 0; i < len; i++) {
+				if (strcmp(leftV[i], rightV[i]) < 0) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_BOOL:
+		default:
+			FATAL_LOG("operator '<' is not supported for datatype %d", resultDT);
+	}
+
+	return resultCC;
 }
 
 static ColumnChunk *
 evaluateOperatorLe(Operator *op, DataChunk *dc)
 {
-	return NULL;
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
+
+	DataType resultDT = lcaType(left->dataType, right->dataType);
+	int len = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_BOOL, len);
+
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch(resultDT) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] <= rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_FLOAT: {
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] <= rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_LONG: {
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] <= rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_STRING: {
+			char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+			char **rightV = VEC_TO_ARR(castRight->data.v, char);
+			for (int i = 0; i < len; i++) {
+				if (strcmp(leftV[i], rightV[i]) <= 0) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_BOOL:
+		default:
+			FATAL_LOG("operator '<=' is not supported for datatype %d", resultDT);
+	}
+
+	return resultCC;
 }
 
 static ColumnChunk *
 evaluateOperatorGt(Operator *op, DataChunk *dc)
 {
-	return NULL;
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
+
+	DataType resultDT = lcaType(left->dataType, right->dataType);
+	int len = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_BOOL, len);
+
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch(resultDT) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] > rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_FLOAT: {
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] > rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_LONG: {
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] > rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+
+		}
+		break;
+		case DT_STRING: {
+			char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+			char **rightV = VEC_TO_ARR(castRight->data.v, char);
+			for (int i = 0; i < len; i++) {
+				if (strcmp(leftV[i], rightV[i]) > 0) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_BOOL:
+		default:
+			FATAL_LOG("operator '>' is not supported for datatype %d", resultDT);
+	}
+
+	return resultCC;
 }
 
 static ColumnChunk *
 evaluateOperatorGe(Operator *op, DataChunk *dc)
 {
-	return NULL;
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
+
+	DataType resultDT = lcaType(left->dataType, right->dataType);
+	int len = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_BOOL, len);
+
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch(resultDT) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] >= rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_FLOAT: {
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] >= rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_LONG: {
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] >= rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_STRING: {
+			char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+			char **rightV = VEC_TO_ARR(castRight->data.v, char);
+			for (int i = 0; i < len; i++) {
+				if (strcmp(leftV[i], rightV[i]) >= 0) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_BOOL:
+		default:
+			FATAL_LOG("operator '>' is not supported for datatype %d", resultDT);
+	}
+
+	return resultCC;
 }
 
 static ColumnChunk *
 evaluateOperatorNeq(Operator *op, DataChunk *dc)
 {
-	return NULL;
-}
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
 
-static ColumnChunk *
-evaluateOperatorNeqHat(Operator *op, DataChunk *dc)
-{
-	return NULL;
+	ASSERT(left->length == right->length);
+
+	DataType resultDT = lcaType(left->dataType, right->dataType);
+	int len = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_BOOL, len);
+
+	ColumnChunk *castLeft;
+	if (left->dataType != resultDT) {
+		castLeft = castColumnChunk(left, left->dataType, resultDT);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight;
+	if (right->dataType != resultDT) {
+		castRight = castColumnChunk(right, right->dataType, resultDT);
+	} else {
+		castRight = right;
+	}
+
+	switch(resultDT) {
+		case DT_INT: {
+			int *leftV = VEC_TO_IA(castLeft->data.v);
+			int *rightV = VEC_TO_IA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] != rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_FLOAT: {
+			double *leftV = VEC_TO_FA(castLeft->data.v);
+			double *rightV = VEC_TO_FA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] != rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_LONG: {
+			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
+			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
+			for (int i = 0; i < len; i++) {
+				if (leftV[i] != rightV[i]) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_STRING: {
+			char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+			char **rightV = VEC_TO_ARR(castRight->data.v, char);
+			for (int i = 0; i < len; i++) {
+				if (strcmp(leftV[i], rightV[i]) != 0) {
+					setBit(resultCC->data.bs, i, TRUE);
+				}
+			}
+		}
+		break;
+		case DT_BOOL:
+		default:
+			FATAL_LOG("operator '!=' is not supported for datatype %d", resultDT);
+	}
+
+	return resultCC;
 }
 
 static ColumnChunk *
@@ -2695,6 +4028,8 @@ evaluateOperatorConcat(Operator *op, DataChunk *dc)
 	List *inputs = op->args;
 	ColumnChunk *left = evaluateExprOnDataChunk(getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk(getNthOfListP(inputs, 1), dc);
+
+	ASSERT(left->length == right->length);
 
 	int length = left->length;
 
@@ -2728,44 +4063,111 @@ evaluateOperatorConcat(Operator *op, DataChunk *dc)
 static ColumnChunk *
 evaluateOperatorLike(Operator *op, DataChunk *dc)
 {
-//	List *inputs = op->args;
+	// two wildcards: '%' and '_';
+	List *inputs = op->args;
+	ColumnChunk *left = evaluateExprOnDataChunk(getNthOfListP(inputs, 0), dc);
+	ColumnChunk *right = evaluateExprOnDataChunk(getNthOfListP(inputs, 1), dc);
 
-//	ColumnChunk *left = evaluateExprOnDataChunk(op, dc);
-	return NULL;
+	ASSERT(left->length == right->length);
+
+	int length = left->length;
+
+	ColumnChunk *resultCC = makeColumnChunk(DT_BOOL, length);
+
+	ColumnChunk *castLeft = NULL;
+	if (DT_STRING != left->dataType && DT_VARCHAR2 != left->dataType) {
+		castLeft = castColumnChunk(left, left->dataType, DT_STRING);
+	} else {
+		castLeft = left;
+	}
+
+	ColumnChunk *castRight = NULL;
+	if (DT_STRING != right->dataType && DT_VARCHAR2 != right->dataType) {
+		castRight = castColumnChunk(right, right->dataType, DT_STRING);
+	} else {
+		castRight = right;
+	}
+
+	ASSERT(castLeft->dataType == DT_STRING && castRight->dataType == DT_STRING);
+
+	char **leftV = VEC_TO_ARR(castLeft->data.v, char);
+	char **rightV = VEC_TO_ARR(castRight->data.v, char);
+
+	// 0 -> like 'aaa'
+	// 1 -> like '%aaa'
+	// 2 -> like 'aaa%'
+	// 3 -> like '%aaa%'
+	int matchType = -1;
+	char *pattern = rightV[0];
+	if (pattern[0] == '%' && pattern[strlen(pattern) - 1] == '%') {
+		matchType = 3;
+	} else if (pattern[0] == '%') {
+		matchType = 1;
+	} else if (pattern[strlen(pattern) - 1] == '%') {
+		matchType = 2;
+	} else {
+		matchType = 0;
+	}
+
+	for (int i = 0; i < length; i++) {
+		if (matchType == 0) {
+			if (strcmp(leftV[i], rightV[i]) == 0) {
+				setBit(resultCC->data.bs, i, TRUE);
+			}
+		} else if(matchType == 1) {
+			if (isSuffix(leftV[i], substr(rightV[i], 0, strlen(rightV[i]) - 2))) {
+				setBit(resultCC->data.bs, i, TRUE);
+			}
+		} else if(matchType == 2) {
+			if (isPrefix(leftV[i], substr(rightV[i], 1, strlen(rightV[i]) - 1))) {
+				setBit(resultCC->data.bs, i, TRUE);
+			}
+		} else if(matchType == 3) {
+			if (isSubstr(leftV[i], substr(rightV[i], 1, strlen(rightV[i]) - 1))) {
+				setBit(resultCC->data.bs, i, TRUE);
+			}
+//			if (regExMatch(leftV[i], substr(rightV[i], 1, strlen(rightV[i]) - 1))) {
+//				setBit(resultCC->data.bs, i, TRUE);
+//			}
+		}
+	}
+
+	return resultCC;
 }
 
 static ColumnChunk *
 castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType)
 {
 	// so far, this supports  int, float, long, bool -> char*
-	if (fromType == toType) {
+	if (fromType == toType
+	|| (fromType == DT_STRING && toType == DT_VARCHAR2)
+	|| (fromType == DT_VARCHAR2 && toType == DT_STRING)) {
 		return (ColumnChunk *) copyObject(cc);
 	}
 
-	ColumnChunk *result = makeColumnChunk(toType, cc->length);
-	char **resV = VEC_TO_ARR(result->data.v, char);
+	ColumnChunk *resultCC = makeColumnChunk(toType, cc->length);
 	int length = cc->length;
 
 	switch (toType) {
-		case DT_INT:
-		break;
-		case DT_FLOAT:
-		break;
-		case DT_LONG:
-		break;
-		case DT_BOOL:
-		break;
 		case DT_STRING:
 		case DT_VARCHAR2: {
+			char **resV = VEC_TO_ARR(resultCC->data.v, char);
+
 			if (DT_INT == fromType) {
 				int *vals = VEC_TO_IA(cc->data.v);
 				for (int i = 0; i < length; i++) {
 					resV[i] = gprom_itoa(vals[i]);
 				}
 			} else if (DT_FLOAT == fromType) {
-
+				double *vals = VEC_TO_FA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = gprom_ftoa(vals[i]);
+				}
 			} else if (DT_LONG == fromType) {
-
+				gprom_long_t *vals = VEC_TO_LA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = gprom_ltoa(vals[i]);
+				}
 			} else if (DT_BOOL == fromType) {
 				BitSet *bs = cc->data.bs;
 				char *bStr = bitSetToString(bs);
@@ -2773,16 +4175,100 @@ castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType)
 					char c = bStr[i];
 					if (getBackend() == BACKEND_POSTGRES) {
 						resV[i] = strdup(c == '1' ? "t" : "f");
+					} else if (getBackend() == BACKEND_ORACLE) {
+						// since oracle does not support boolean datatype
+						// here we use the same as postgresql;
+						resV[i] = strdup(c == '1' ? "t" : "f");
 					}
 				}
 			}
 		}
 		break;
+		case DT_INT: {
+			int *resV = VEC_TO_IA(resultCC->data.v);
+
+			if (DT_FLOAT == fromType) {
+				double *vals = VEC_TO_FA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = (int) vals[i];
+				}
+			} else if (DT_LONG == fromType) {
+				gprom_long_t *vals = VEC_TO_LA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = (int) vals[i];
+				}
+			} else if (DT_BOOL == fromType) {
+				BitSet *bs = cc->data.bs;
+				char *bStr = bitSetToString(bs);
+
+				for (int i = 0; i < length; i++) {
+					char c = bStr[i];
+					resV[i] = (c == '1' ? 1 : 0);
+				}
+			} else if (DT_STRING == fromType) {
+				// TODO:
+			}
+		}
+		break;
+		case DT_FLOAT: {
+			double *resV = VEC_TO_FA(resultCC->data.v);
+
+			if (DT_INT == fromType) {
+				int *vals = VEC_TO_IA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = (double) vals[i];
+				}
+			} else if (DT_LONG == fromType) {
+				gprom_long_t *vals = VEC_TO_LA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = (double) vals[i];
+				}
+			} else if (DT_BOOL == fromType) {
+				BitSet *bs = cc->data.bs;
+				char *bStr = bitSetToString(bs);
+
+				for (int i = 0; i < length; i++) {
+					char c = bStr[i];
+					resV[i] = (c == '1' ? (double) 1 : (double) 0);
+				}
+			} else if (DT_STRING == fromType) {
+				// TODO:
+			}
+		}
+		break;
+		case DT_LONG: {
+			gprom_long_t *resV = VEC_TO_LA(resultCC->data.v);
+			if (DT_INT == fromType) {
+				int *vals = VEC_TO_IA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = (gprom_long_t) vals[i];
+				}
+			} else if (DT_FLOAT == fromType) {
+				double *vals = VEC_TO_FA(cc->data.v);
+				for (int i = 0; i < length; i++) {
+					resV[i] = (gprom_long_t) vals[i];
+				}
+			} else if (DT_BOOL == fromType) {
+				BitSet *bs = cc->data.bs;
+				char *bStr = bitSetToString(bs);
+
+				for (int i = 0; i < length; i++) {
+					char c = bStr[i];
+					resV[i] = (c == '1' ? (gprom_long_t) 1 : (gprom_long_t) 0);
+				}
+			} else if (DT_STRING == fromType) {
+				// TODO:
+			}
+		}
+		break;
+		case DT_BOOL: {
+			// TODO:
+		}
 		default:
 			FATAL_LOG("cast from %d to %d is not supported now", fromType, toType);
 	}
 
-	return result;
+	return resultCC;
 }
 
 static Vector *
@@ -2799,11 +4285,17 @@ columnChunkToVector(ColumnChunk *cc) {
 		}
 		break;
 		case DT_LONG: {
-
+			gprom_long_t *ccVals = VEC_TO_LA(cc->data.v);
+			for (int i = 0; i < length; i++) {
+				vecAppendNode(v, (Node *) createConstLong(ccVals[i]));
+			}
 		}
 		break;
 		case DT_FLOAT: {
-
+			double *ccVals = VEC_TO_FA(cc->data.v);
+			for (int i = 0; i < length; i++) {
+				vecAppendNode(v, (Node *) createConstFloat(ccVals[i]));
+			}
 		}
 		break;
 		case DT_STRING:

@@ -11,6 +11,7 @@
  */
 
 
+#include "log/logger.h"
 #include "test_main.h"
 
 #include "model/node/nodetype.h"
@@ -18,19 +19,23 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 
-static rc testIntVector(void);
-static rc testNodeVector(void);
-//static rc testStringVector(void);
+//static rc testIntVector(void);
+//static rc testNodeVector(void);
+static rc testStringVector(void);
 //static rc testVectorIteration(void);
 //static rc testVectorEquals(void);
 //static rc testVectorOperations(void);
+static rc testLongVector();
+static rc testFloatVector();
 
 rc
 testVector()
 {
-    RUN_TEST(testIntVector(), "test integer vectors");
-    RUN_TEST(testNodeVector(), "test node vectors");
-////    RUN_TEST(testStringVector(), "test node vectors");
+//    RUN_TEST(testIntVector(), "test integer vectors");
+//    RUN_TEST(testNodeVector(), "test node vectors");
+    RUN_TEST(testLongVector(), "test long vectors");
+    RUN_TEST(testFloatVector(), "test float vectors");
+    RUN_TEST(testStringVector(), "test node vectors");
 //    RUN_TEST(testVectorIteration(), "test set iteration");
 //    RUN_TEST(testVectorEquals(), "test equal function on sets");
 //    RUN_TEST(testVectorOperations(), "test set operations");
@@ -38,6 +43,31 @@ testVector()
     return PASS;
 }
 
+static rc
+testLongVector()
+{
+	Vector *a = MAKE_VEC_LONG((gprom_long_t) 1, (gprom_long_t) 2, (gprom_long_t) 3);
+	Vector *b = MAKE_VEC_LONG((gprom_long_t) 1, (gprom_long_t) 2, (gprom_long_t) 3, (gprom_long_t) 4);
+
+	ASSERT_EQUALS_INT(3, VEC_LENGTH(a), "vector size = 3");
+	ASSERT_EQUALS_INT(4, VEC_LENGTH(b), "vector size = 4");
+
+
+	return PASS;
+}
+
+static rc
+testFloatVector()
+{
+	Vector *a = MAKE_VEC_LONG(1.0,2.0,3.0);
+	Vector *b = MAKE_VEC_LONG(1.0,2.0,3.0,4.0);
+
+	ASSERT_EQUALS_INT(3, VEC_LENGTH(a), "vector size = 3");
+	ASSERT_EQUALS_INT(4, VEC_LENGTH(b), "vector size = 4");
+	return PASS;
+}
+
+/*
 static rc
 testIntVector(void)
 {
@@ -124,30 +154,31 @@ testNodeVector(void)
 
     return PASS;
 }
+*/
 //
-//static rc
-//testStringVector(void)
-//{
+static rc
+testStringVector(void)
+{
 //    Vector *a = MAKE_STR_SET(strdup("abc"), strdup("a"));
 //    Vector *b = MAKE_STR_SET(strdup("ab"), strdup("bc"));
+
+//    ASSERT_EQUALS_INT(2, setSize(a), "set a is of size 2");
+//    ASSERT_EQUALS_INT(2, setSize(b), "set b is of size 2");
 //
-////    ASSERT_EQUALS_INT(2, setSize(a), "set a is of size 2");
-////    ASSERT_EQUALS_INT(2, setSize(b), "set b is of size 2");
-////
-////    ASSERT_TRUE(hasVectorElem(a, "abc"), "set a has abc");
-////    ASSERT_TRUE(hasVectorElem(a, "a"), "set a has a");
-////    ASSERT_FALSE(hasVectorElem(a, "ab"), "set a has not ab");
-////
-////    ASSERT_TRUE(hasVectorElem(b, "ab"), "set a has ab");
-////    ASSERT_TRUE(hasVectorElem(b, "bc"), "set a has bc");
-////    ASSERT_FALSE(hasVectorElem(b, "abc"), "set b has not abc");
-////
-////    removeVectorElem(b, "ab");
-////    ASSERT_EQUALS_INT(1, setSize(b), "set b is of size 1");
-////    ASSERT_FALSE(hasVectorElem(b, "ab"), "set b has not ab");
+//    ASSERT_TRUE(hasVectorElem(a, "abc"), "set a has abc");
+//    ASSERT_TRUE(hasVectorElem(a, "a"), "set a has a");
+//    ASSERT_FALSE(hasVectorElem(a, "ab"), "set a has not ab");
 //
-//    return PASS;
-//}
+//    ASSERT_TRUE(hasVectorElem(b, "ab"), "set a has ab");
+//    ASSERT_TRUE(hasVectorElem(b, "bc"), "set a has bc");
+//    ASSERT_FALSE(hasVectorElem(b, "abc"), "set b has not abc");
+//
+//    removeVectorElem(b, "ab");
+//    ASSERT_EQUALS_INT(1, setSize(b), "set b is of size 1");
+//    ASSERT_FALSE(hasVectorElem(b, "ab"), "set b has not ab");
+
+    return PASS;
+}
 //
 //
 //static rc

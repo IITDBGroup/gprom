@@ -23,6 +23,7 @@
 #include "model/rpq/rpq_model.h"
 #include "log/logger.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "provenance_rewriter/update_ps/update_ps_incremental.h"
 
 #define EQUAL_CONTEXT_NAME "EQUAL_CONTEXT"
 
@@ -128,6 +129,11 @@ static boolean equalPSInfo(psInfo *a, psInfo *b, HashMap *seenOps, MemContext *c
 static boolean equalPSAttrInfo(psAttrInfo *a, psAttrInfo *b, HashMap *seenOps, MemContext *c);
 static boolean equalPSInfoCell(psInfoCell *a, psInfoCell *b, HashMap *seenOps, MemContext *c);
 
+// equal functions for data/column chunks;
+static boolean equalDataChunk(DataChunk *a, DataChunk *b, HashMap *seenOps, MemContext *c);
+static boolean equalColumnChunk(ColumnChunk *a, ColumnChunk *b, HashMap *seenOps, MemContext *c);
+static boolean equalGBHeaps(GBHeaps *a, GBHeaps *b, HashMap *seenOps, MemContext *c);
+static boolean equalGBACSs(GBACSs *a, GBACSs *b, HashMap *seenOps, MemContext *c);
 /* use these macros to compare fields */
 
 /* compare one simple scalar field(int, boolean, float, etc)*/
@@ -627,6 +633,28 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
             for(int i = 0; i < VEC_LENGTH(a); i++)
                 if (equal(aA[i],bA[i]) != 0)
                     return FALSE;
+        }
+        break;
+        case VECTOR_LONG:
+        {
+        	gprom_long_t *aA, *bA;
+        	aA = VEC_TO_LA(a);
+        	bA = VEC_TO_LA(b);
+
+        	for (int i = 0; i < VEC_LENGTH(a); i++)
+        		if (aA[i] != bA[i])
+        			return FALSE;
+        }
+        break;
+        case VECTOR_FLOAT:
+        {
+        	double *aA, *bA;
+        	aA = VEC_TO_FA(a);
+           	bA = VEC_TO_FA(b);
+
+          	for (int i = 0; i < VEC_LENGTH(a); i++)
+        		if (aA[i] != bA[i])
+           			return FALSE;
         }
         break;
     }
@@ -1191,6 +1219,59 @@ equalPSInfoCell(psInfoCell *a, psInfoCell *b, HashMap *seenOps, MemContext *c)
 }
 
 static boolean
+equalDataChunk(DataChunk *a, DataChunk *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_NODE_FIELD(attrNames);
+	COMPARE_NODE_FIELD(updateIdentifier);
+	COMPARE_NODE_FIELD(tuples);
+	COMPARE_NODE_FIELD(fragmentsInfo);
+	COMPARE_SCALAR_FIELD(numTuples);
+	COMPARE_SCALAR_FIELD(tupleFields);
+	COMPARE_NODE_FIELD(attriToPos);
+	COMPARE_NODE_FIELD(posToDatatype);
+	COMPARE_NODE_FIELD(isNull);
+
+	return TRUE;
+}
+
+static boolean
+equalColumnChunk(ColumnChunk *a, ColumnChunk *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_SCALAR_FIELD(length);
+	COMPARE_SCALAR_FIELD(dataType);
+	COMPARE_SCALAR_FIELD(isBit);
+	if (a->isBit) {
+		COMPARE_NODE_FIELD(data.bs);
+	} else {
+		COMPARE_NODE_FIELD(data.v);
+	}
+
+	return TRUE;
+}
+
+static boolean
+equalGBHeaps(GBHeaps *a, GBHeaps *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_SCALAR_FIELD(valType);
+	COMPARE_NODE_FIELD(heapType);
+	COMPARE_NODE_FIELD(provSketchs);
+	COMPARE_NODE_FIELD(heapLists);
+	COMPARE_NODE_FIELD(fragCount);
+
+	return TRUE;
+}
+
+static boolean
+equalGBACSs(GBACSs *a, GBACSs *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_NODE_FIELD(map);
+	COMPARE_NODE_FIELD(provSketchs);
+	COMPARE_NODE_FIELD(fragCount);
+
+	return TRUE;
+}
+
+static boolean
 equalDistinctClause(DistinctClause *a,  DistinctClause *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(distinctExprs);
@@ -1487,6 +1568,18 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
 	    case T_psInfoCell:
 			retval = equalPSInfoCell(a, b, seenOps, c);
 			break;
+	    case T_DataChunk:
+	    	retval = equalDataChunk(a, b, seenOps, c);
+	    	break;
+	    case T_ColumnChunk:
+	    	retval = equalColumnChunk(a, b, seenOps, c);
+	    	break;
+	    case T_GBHeaps:
+	    	retval = equalGBHeaps(a, b, seenOps, c);
+	    	break;
+	    case T_GBACSs:
+	    	retval = equalGBACSs(a, b, seenOps, c);
+	    	break;
         default:
             retval = FALSE;
             break;

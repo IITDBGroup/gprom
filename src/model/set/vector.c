@@ -44,6 +44,12 @@ makeVectorOfSize(VectorType type, NodeTag nodeType, int numElem)
             case VECTOR_INT:
                 result->data = MALLOC(sizeof(int) * numElem);
                 break;
+            case VECTOR_LONG:
+            	result->data = MALLOC(sizeof(gprom_long_t) * numElem);
+            	break;
+            case VECTOR_FLOAT:
+				result->data = MALLOC(sizeof(double) * numElem);
+            	break;
             default:
                 result->data = MALLOC(sizeof(void *) * numElem);
                 break;
@@ -75,7 +81,7 @@ makeVectorFromElem(VectorType type, NodeTag nodeType, void *elem, ...)
 Vector *
 makeVectorIntFromElem(int elem, ...)
 {
-    Vector *result = makeVector(VECTOR_INT, T_Invalid);
+	Vector *result = makeVector(VECTOR_INT, T_Invalid);
     va_list args;
     int arg;
 
@@ -119,6 +125,45 @@ makeVectorFromList (List *input)
 
     return result;
 }
+Vector *
+makeVectorLongFromElem(gprom_long_t elem, ...)
+{
+	Vector *result = makeVector(VECTOR_LONG, T_Invalid);
+    va_list args;
+    gprom_long_t arg;
+
+    va_start(args, elem);
+
+    for(arg = elem; arg >= 0; arg = va_arg(args,gprom_long_t))
+    {
+        TRACE_LOG("add long %ld to set", arg);
+        vecAppendLong(result, arg);
+    }
+
+    va_end(args);
+
+    return result;
+}
+
+Vector *
+makeVectorFloatFromElem(double elem, ...)
+{
+	Vector *result = makeVector(VECTOR_FLOAT, T_Invalid);
+    va_list args;
+    double arg;
+
+    va_start(args, elem);
+
+    for(arg = elem; arg >= 0; arg = va_arg(args,double))
+    {
+        TRACE_LOG("add int %f to set", arg);
+        vecAppendFloat(result, arg);
+    }
+
+    va_end(args);
+
+    return result;
+}
 
 size_t
 getVecElemSize(Vector *v)
@@ -127,6 +172,10 @@ getVecElemSize(Vector *v)
     {
         case VECTOR_INT:
             return sizeof(int);
+        case VECTOR_LONG:
+        	return sizeof(gprom_long_t);
+        case VECTOR_FLOAT:
+        	return sizeof(double);
         default:
             return sizeof(void *);
     }
@@ -154,6 +203,24 @@ vecAppendInt(Vector *v, int el)
         extendVector(v);
 
     VEC_TO_IA(v)[v->length++] = el;
+}
+
+void
+vecAppendLong(Vector *v, gprom_long_t el)
+{
+	if (v->maxLength == v->length)
+		extendVector(v);
+
+	VEC_TO_LA(v)[v->length++] = el;
+}
+
+void
+vecAppendFloat(Vector *v, double el)
+{
+	if (v->maxLength == v->length)
+		extendVector(v);
+
+	VEC_TO_FA(v)[v->length++] = el;
 }
 
 static void
@@ -193,6 +260,22 @@ getVecString(Vector *v, int pos)
 	return VEC_TO_ARR(v,char)[pos];
 }
 
+gprom_long_t
+getVecLong(Vector *v, int pos)
+{
+	ASSERT(pos >=0 && pos < VEC_LENGTH(v));
+
+	return VEC_TO_LA(v)[pos];
+}
+
+double
+getVecFloat(Vector *v, int pos)
+{
+	ASSERT(pos >=0 && pos < VEC_LENGTH(v));
+
+	return VEC_TO_FA(v)[pos];
+}
+
 boolean
 findVecNode(Vector *v, Node *el)
 {
@@ -228,6 +311,33 @@ findVecString(Vector *v, char *el)
 		}
 	}
 
+	return FALSE;
+}
+
+boolean
+findVecLong(Vector *v, gprom_long_t el)
+{
+	FOREACH_VEC_LONG(e, v)
+	{
+		if (e == el)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+boolean
+findVecFloat(Vector *v, double el)
+{
+	FOREACH_VEC_FLOAT(e, v)
+	{
+		if (e == el)
+		{
+			return TRUE;
+		}
+	}
 	return FALSE;
 }
 
@@ -276,6 +386,29 @@ popVecString(Vector *v)
 
 	return result;
 }
+
+gprom_long_t
+popVecLong(Vector *v)
+{
+	ASSERT(v->length > 0);
+
+	gprom_long_t result = getVecLong(v, v->length - 1);
+	v->length--;
+
+	return result;
+}
+
+double
+popVecFloat(Vector *v)
+{
+	ASSERT(v->length > 0);
+
+	double result = getVecFloat(v, v->length - 1);
+	v->length--;
+
+	return result;
+}
+
 
 void
 freeVec (Vector *v)

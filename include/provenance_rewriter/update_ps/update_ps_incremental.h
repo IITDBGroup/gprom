@@ -59,6 +59,7 @@ typedef struct DataChunk
 	int    	tupleFields;
 	HashMap *attriToPos;
 	HashMap *posToDatatype;
+	Vector  *isNull;
 
 } DataChunk;
 
@@ -77,8 +78,32 @@ typedef struct ColumnChunk
 	DataType dataType;
 } ColumnChunk;
 
+// heap
+typedef struct GBHeaps
+{
+	NodeTag  type;
+	DataType valType;
+	HashMap  *heapLists; // key: gb value like "2", value: all values of same gb value like: (1,2,8)
+	HashMap   *provSketchs; // key: prov_r_a, prov_s_b, value: '111', '101'
+	Constant *heapType;
+	HashMap  *fragCount; // key: prov_attr_string, Value: HashMap(fragNumber, tuple count);
 
-extern DataChunk* initDataChunk();
+} GBHeaps;
+
+// group by avg, count, sum : use same data structure GBACSs
+typedef struct GBACSs
+{
+	NodeTag type;
+	HashMap *map; // key: gb, value: for cnt: one value-- count// for sum : a list of two values -- sum, count of the group;// for avg: a list of three values: avg, sum, count;
+	HashMap *provSketchs;
+	HashMap *fragCount;
+} GBACSs;
+
+
+
+extern DataChunk *initDataChunk();
+extern GBHeaps *makeGBHeaps();
+extern GBACSs *makeGBACSs();
 
 /*
  * 	type: "MIN" or "MAX";
@@ -89,17 +114,18 @@ extern DataChunk* initDataChunk();
  */
 
 
-extern void heapifyListSiftUp(List *list, int pos, char *type, DataType valDataType, int valuePos);
-extern void heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType, int valuePos);
-extern void heapInsert(List *list, char* type, Node *ele);
-extern void heapDelete(List *list, char* type, Node *ele);
-extern int getIntValueFromDataChunk(DataChunk *dc, int row, int col);
+extern List *heapifyListSiftUp(List *list, int pos, char *type, DataType valDataType);
+extern List *heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType);
+extern List *heapInsert(List *list, char* type, Node *ele);
+extern List *heapDelete(List *list, char* type, Node *ele);
+
+//extern int getIntValueFromDataChunk(DataChunk *dc, int row, int col);
 //extern float getFloatValueFromDataChunk(DataChunk *dc, int pos);
 //extern gprom_long getLongValueFromDataChunk(DataChunk *dc, int pos);
 //extern char *getStringValueFromDataChunk(DataChunk *dc, int pos);
 //extern boolean *getBooleanValueFromDataChunk(DataChunk *dc, int pos);
 
-extern int* getIntArrayFromDataChunk(DataChunk *dc, int col);
+//extern int* getIntArrayFromDataChunk(DataChunk *dc, int col);
 //extern gprom_float* getFloatArray(DataChunk *dc, int col);
 //extern int* getIntArray(DataChunk *dc, int col);
 //extern int* getIntArray(DataChunk *dc, int col);

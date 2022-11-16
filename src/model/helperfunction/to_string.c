@@ -140,6 +140,7 @@ static void outPSInfoCell(StringInfo str, psInfoCell *node);
 // for update provenance sketch
 static void outDataChunk(StringInfo str, DataChunk *node);
 static void outColumnChunk(StringInfo str, ColumnChunk *node);
+static void outGBHeaps(StringInfo str, GBHeaps *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -380,8 +381,32 @@ outVector(StringInfo str, Vector *node)
             }
             break;
         case VECTOR_STRING:
-            FATAL_LOG("TODO");
+            FOREACH_VEC(char, c, node)
+			{
+            	appendStringInfo(str, "%s", c);
+                appendStringInfo(str, "%s", VEC_IS_LAST(c,node) ? ", " : "");
+			}
             break;
+        case VECTOR_LONG:
+        {
+        	int j = 0;
+        	FOREACH_VEC_LONG(l,node)
+			{
+        		appendStringInfo(str, "%s", gprom_ltoa(l));
+        		appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
+			}
+        }
+        	break;
+        case VECTOR_FLOAT:
+        {
+        	int j = 0;
+        	FOREACH_VEC_FLOAT(f, node)
+        	{
+        		appendStringInfo(str, "%s", gprom_ftoa(f));
+        		appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
+        	}
+        }
+        	break;
     }
 
     appendStringInfo(str, "]");
@@ -664,8 +689,8 @@ outConstant (StringInfo str, Constant *node)
                 appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
                 break;
             case DT_VARCHAR2:
-	        appendStringInfo(str, "'%s'", (char *) node->value);
-	        break;
+            	appendStringInfo(str, "'%s'", (char *) node->value);
+            	break;
         }
 
     WRITE_BOOL_FIELD(isNull);
@@ -1238,17 +1263,41 @@ outDataChunk(StringInfo str, DataChunk *node)
 	WRITE_INT_FIELD(tupleFields);
 	WRITE_NODE_FIELD(attriToPos);
 	WRITE_NODE_FIELD(posToDatatype);
+	WRITE_NODE_FIELD(isNull);
 }
 
 static void
 outColumnChunk(StringInfo str, ColumnChunk *node)
 {
 	WRITE_NODE_TYPE(COLUMNCHUNK);
-	WRITE_NODE_FIELD(data.v);
-	WRITE_NODE_FIELD(data.bs);
+	if (node->isBit) {
+		WRITE_NODE_FIELD(data.bs);
+	} else {
+		WRITE_NODE_FIELD(data.v);
+	}
 	WRITE_INT_FIELD(isBit);
 	WRITE_INT_FIELD(length);
 	WRITE_INT_FIELD(dataType);
+}
+
+static void
+outGBHeaps(StringInfo str, GBHeaps *node)
+{
+	WRITE_NODE_TYPE(GBHEAPS);
+	WRITE_INT_FIELD(valType);
+	WRITE_NODE_FIELD(heapLists);
+	WRITE_NODE_FIELD(provSketchs);
+	WRITE_NODE_FIELD(heapType);
+	WRITE_NODE_FIELD(fragCount);
+}
+
+static void
+outGBACSs(StringInfo str, GBACSs *node)
+{
+	WRITE_NODE_TYPE(GBACSS);
+	WRITE_NODE_FIELD(map);
+	WRITE_NODE_FIELD(provSketchs);
+	WRITE_NODE_FIELD(fragCount);
 }
 
 void
@@ -1279,7 +1328,6 @@ outNode(StringInfo str, void *obj)
 		    case T_BitSet:
 				outBitSet(str, (BitSet *) obj);
 			    break;
-
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);
                 break;
@@ -1510,6 +1558,13 @@ outNode(StringInfo str, void *obj)
 		    	break;
 		    case T_ColumnChunk:
 		    	outColumnChunk(str, (ColumnChunk *) obj);
+		    	break;
+		    case T_GBHeaps:
+				outGBHeaps(str, (GBHeaps *) obj);
+				break;
+		    case T_GBACSs:
+		    	outGBACSs(str, (GBACSs *) obj);
+		    	break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
@@ -1667,6 +1722,32 @@ gprom_itoa(int value)
     FREE(str);
 
     return result;
+}
+
+char *
+gprom_ftoa(double value)
+{
+	StringInfo str = makeStringInfo();
+	char *result;
+
+	appendStringInfo(str, "%f", value);
+	result = str->data;
+	FREE(str);
+
+	return result;
+}
+
+char *
+gprom_ltoa(gprom_long_t value)
+{
+	StringInfo str = makeStringInfo();
+	char *result;
+
+	appendStringInfo(str, "%ld", value);
+	result = str->data;
+	FREE(str);
+
+	return result;
 }
 
 char *

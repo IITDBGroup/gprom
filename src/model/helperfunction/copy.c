@@ -154,6 +154,8 @@ static psInfoCell *copyPSInfoCell(psInfoCell *from, OperatorMap **opMap);
 /* copy structure for update provenance sketch */
 static DataChunk* copyDataChunk(DataChunk * from, OperatorMap **opMap);
 static ColumnChunk *copyColumnChunk(ColumnChunk * from, OperatorMap **opMap);
+static GBHeaps *copyGBHeaps(GBHeaps *from, OperatorMap **opMap);
+static GBACSs *copyGBACSs(GBACSs *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -265,11 +267,18 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
             new->length = 0;
             FOREACH_VEC(Node,n,from)
                 VEC_ADD_NODE(new, copyObject(n));
-//                VEC_ADD_NODE(new, copyObject(*n));
             break;
         case VECTOR_STRING:
-        	// string copy;
+        	new->length = 0;
+        	FOREACH_VEC(char,c,from)
+        		VEC_ADD_NODE(new, strdup(c));
             break;
+        case VECTOR_LONG:
+        	memcpy(new->data, from->data, getVecDataSize(from));
+        	break;
+        case VECTOR_FLOAT:
+        	memcpy(new->data, from->data, getVecDataSize(from));
+        	break;
     }
 
     return new;
@@ -640,6 +649,7 @@ copyDataChunk(DataChunk * from, OperatorMap **opMap)
 	COPY_SCALAR_FIELD(tupleFields);
 	COPY_NODE_FIELD(attriToPos);
 	COPY_NODE_FIELD(posToDatatype);
+	COPY_NODE_FIELD(isNull);
 
 	return new;
 }
@@ -652,6 +662,30 @@ copyColumnChunk(ColumnChunk * from, OperatorMap **opMap)
 	COPY_NODE_FIELD(data.bs);
 	COPY_SCALAR_FIELD(length);
 	COPY_SCALAR_FIELD(dataType);
+
+	return new;
+}
+
+static GBHeaps *
+copyGBHeaps(GBHeaps *from, OperatorMap **opMap)
+{
+	COPY_INIT(GBHeaps);
+	COPY_SCALAR_FIELD(valType);
+	COPY_NODE_FIELD(heapLists);
+	COPY_NODE_FIELD(provSketchs);
+	COPY_NODE_FIELD(heapType);
+	COPY_NODE_FIELD(fragCount);
+
+	return new;
+}
+
+static GBACSs *
+copyGBACSs(GBACSs *from, OperatorMap **opMap)
+{
+	COPY_INIT(GBACSs);
+	COPY_NODE_FIELD(map);
+	COPY_NODE_FIELD(provSketchs);
+	COPY_NODE_FIELD(fragCount);
 
 	return new;
 }
@@ -1503,6 +1537,12 @@ copyInternal(void *from, OperatorMap **opMap)
         	break;
         case T_ColumnChunk:
         	retval = copyColumnChunk(from, opMap);
+        	break;
+        case T_GBHeaps:
+        	retval = copyGBHeaps(from, opMap);
+        	break;
+        case T_GBACSs:
+        	retval = copyGBACSs(from, opMap);
         	break;
         default:
             retval = NULL;

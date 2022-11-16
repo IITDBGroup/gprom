@@ -119,7 +119,9 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 
 	/* update provenance sketch*/
 	T_DataChunk,
-	T_ColumnChunk
+	T_ColumnChunk,
+	T_GBHeaps,
+	T_GBACSs
 );
 
 typedef struct Node{
@@ -237,6 +239,8 @@ extern char *operatorToOverviewString(void *op);
 extern char *singleOperatorToOverview (void *op);
 extern char *datalogToOverviewString(void *n);
 extern char *gprom_itoa(int value);
+extern char *gprom_ftoa(double value);
+extern char *gprom_ltoa(gprom_long_t value);
 extern void indentString(StringInfo str, int level);
 
 /* get a dot script for a query operator graph or query block tree */

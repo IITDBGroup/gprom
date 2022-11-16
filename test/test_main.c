@@ -65,30 +65,30 @@ static HashMap *testMap;
 void
 testSuites(void)
 {
-    RUN_TEST(testLogger(), "Logger test");
-    RUN_TEST(testMemManager(), "Memory manager test");
-    RUN_TEST(testList(), "List model");
-    RUN_TEST(testSet(), "Set");
+//    RUN_TEST(testLogger(), "Logger test");
+//    RUN_TEST(testMemManager(), "Memory manager test");
+//    RUN_TEST(testList(), "List model");
+//    RUN_TEST(testSet(), "Set");
     RUN_TEST(testVector(), "Vector");
-	RUN_TEST(testBitset(), "Bitset");
-    RUN_TEST(testHashMap(), "HashMap");
-    RUN_TEST(testExpr(), "Expression model");
-    RUN_TEST(testCopy(), "Test generic copy function");
-    RUN_TEST(testEqual(), "Test generic equality function");
-    RUN_TEST(testStringUtils(), "Test String utilities");
-    RUN_TEST(testToString(), "Test generic toString function");
-    RUN_TEST(testString(), "Test stringinfo");
-    RUN_TEST(testException(), "Exception handling");
-    RUN_TEST(testParse(), "Test parser");
-    RUN_TEST(testMetadataLookup(), "Test metadata lookup");
-    RUN_TEST(testMetadataLookupPostgres(), "Test metadata lookup - Postgres");
-    RUN_TEST(testParameter(), "Test SQL parameter functions");
-    RUN_TEST(testDatalogModel(), "Test datalog model features");
-    RUN_TEST(testHash(), "Test hash computation for nodes");
+//	RUN_TEST(testBitset(), "Bitset");
+//    RUN_TEST(testHashMap(), "HashMap");
+//    RUN_TEST(testExpr(), "Expression model");
+//    RUN_TEST(testCopy(), "Test generic copy function");
+//    RUN_TEST(testEqual(), "Test generic equality function");
+//    RUN_TEST(testStringUtils(), "Test String utilities");
+//    RUN_TEST(testToString(), "Test generic toString function");
+//    RUN_TEST(testString(), "Test stringinfo");
+//    RUN_TEST(testException(), "Exception handling");
+//    RUN_TEST(testParse(), "Test parser");
+//    RUN_TEST(testMetadataLookup(), "Test metadata lookup");
+//    RUN_TEST(testMetadataLookupPostgres(), "Test metadata lookup - Postgres");
+//    RUN_TEST(testParameter(), "Test SQL parameter functions");
+//    RUN_TEST(testDatalogModel(), "Test datalog model features");
+//    RUN_TEST(testHash(), "Test hash computation for nodes");
 //    RUN_TEST(testLibGProM(), "Test gprom dynamic link library"); make this work
-    RUN_TEST(testRPQ(), "Test regular path query features");
-    RUN_TEST(testAutocast(), "Test automatic casting");
-	RUN_TEST(testZ3(), "Testing Z3 constraint solving.");
+//    RUN_TEST(testRPQ(), "Test regular path query features");
+//    RUN_TEST(testAutocast(), "Test automatic casting");
+//	RUN_TEST(testZ3(), "Testing Z3 constraint solving.");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

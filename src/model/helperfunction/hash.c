@@ -23,6 +23,7 @@
 #include "model/list/list.h"
 #include "log/logger.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include <stdint.h>
 
 // hash constants
@@ -127,6 +128,12 @@ static uint64_t hashDLComparison (uint64_t cur, DLComparison *node);
 static uint64_t hashPSInfo (uint64_t cur, psInfo *node);
 static uint64_t hashPSAttrInfo (uint64_t cur, psAttrInfo *node);
 static uint64_t hashPSInfoCell (uint64_t cur, psInfoCell *node);
+
+// hash functions for data/column chunks;
+static uint64_t hashDataChunk (uint64_t cur, DataChunk *node);
+static uint64_t hashColumnChunk (uint64_t cur, ColumnChunk *node);
+static uint64_t hashGBHeaps(uint64_t cur, GBHeaps *node);
+static uint64_t hashGBACSs(uint64_t, GBACSs *node);
 
 // hash function entry point
 static uint64_t hashValueInternal(uint64_t h, void *a);
@@ -268,12 +275,20 @@ hashVector (uint64_t cur, Vector *node)
             FOREACH_VEC(Node,n,node)
                 hashValueInternal(cur, n);
 //                hashValueInternal(cur, *n);
-            break;
+        break;
         case VECTOR_STRING:
             FOREACH_VEC(char,c,node)
                 hashString(cur, c);
 //                hashString(cur, *c);
-            break;
+        break;
+        case VECTOR_LONG:
+        	FOREACH_VEC_LONG(l, node)
+				hashLong(cur, l);
+        break;
+        case VECTOR_FLOAT:
+        	FOREACH_VEC_FLOAT(f, node)
+				hashFloat(cur, f);
+        break;
     }
 
     HASH_RETURN();
@@ -1017,7 +1032,58 @@ hashPSInfoCell (uint64_t cur, psInfoCell *node)
 	HASH_RETURN();
 }
 
+static uint64_t
+hashDataChunk (uint64_t cur, DataChunk *node)
+{
+	HASH_NODE(attrNames);
+	HASH_NODE(updateIdentifier);
+	HASH_NODE(tuples);
+	HASH_NODE(fragmentsInfo);
+	HASH_INT(numTuples);
+	HASH_INT(tupleFields);
+	HASH_NODE(attriToPos);
+	HASH_NODE(posToDatatype);
+	HASH_NODE(isNull);
 
+	HASH_RETURN();
+}
+
+static uint64_t
+hashColumnChunk (uint64_t cur, ColumnChunk *node)
+{
+	HASH_INT(isBit);
+	HASH_INT(length);
+	HASH_INT(dataType);
+	if (node->isBit) {
+		HASH_NODE(data.bs);
+	} else {
+		HASH_NODE(data.v);
+	}
+
+	HASH_RETURN();
+}
+
+static uint64_t
+hashGBHeaps(uint64_t cur, GBHeaps *node)
+{
+	HASH_INT(valType);
+	HASH_NODE(heapLists);
+	HASH_NODE(provSketchs);
+	HASH_NODE(heapType);
+	HASH_NODE(fragCount);
+
+	HASH_RETURN();
+}
+
+static uint64_t
+hashGBACSs(uint64_t cur, GBACSs *node)
+{
+	HASH_NODE(map);
+	HASH_NODE(provSketchs);
+	HASH_NODE(fragCount);
+
+	HASH_RETURN();
+}
 
 /* generic hash function */
 static uint64_t
@@ -1177,6 +1243,14 @@ hashValueInternal(uint64_t h, void *a)
       		return hashPSAttrInfo(h, (psAttrInfo *)n );
 	    case T_psInfoCell:
       		return hashPSInfoCell(h, (psInfoCell *)n );
+	    case T_DataChunk:
+	    	return hashDataChunk(h, (DataChunk *) n);
+	    case T_ColumnChunk:
+	    	return hashColumnChunk(h, (ColumnChunk *) n);
+	    case T_GBHeaps:
+	    	return hashGBHeaps(h, (GBHeaps *) n);
+	    case T_GBACSs:
+	    	return hashGBACSs(h, (GBACSs *) n);
         default:
             FATAL_LOG("unknown node type");
             break;
