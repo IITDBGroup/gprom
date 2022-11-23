@@ -387,7 +387,7 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
     if(isQBUpdate(stmt) || isQBQuery(stmt))
         enumerateParameters(stmt);
 
-    DEBUG_NODE_BEATIFY_LOG("RESULT OF ANALYSIS IS:", stmt);
+    // DEBUG_NODE_BEATIFY_LOG("RESULT OF ANALYSIS IS:", stmt);
 }
 
 static void

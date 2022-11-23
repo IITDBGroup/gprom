@@ -79,6 +79,7 @@ static boolean equalOrderOperator(OrderOperator *a, OrderOperator *b, HashMap *s
 static boolean equalLimitOperator(LimitOperator *a, LimitOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalExecPreparedOperator(ExecPreparedOperator *a, ExecPreparedOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalDMLorDDLOperator(DLMorDDLOperator *a, DLMorDDLOperator *b, HashMap *seenOps, MemContext *c);
+static boolean equalConstRelMultiListsOperator(ConstRelMultiListsOperator *a, ConstRelMultiListsOperator *b, HashMap *seenOps, MemContext *c);
 
 // Json
 static boolean equalFromJsonTable(FromJsonTable *a, FromJsonTable *b, HashMap *seenOps, MemContext *c);
@@ -831,6 +832,15 @@ equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b, HashMap *seenOps
 }
 
 static boolean
+equalConstRelMultiListsOperator(ConstRelMultiListsOperator *a, ConstRelMultiListsOperator *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_QUERY_OP();
+    COMPARE_NODE_FIELD(values);
+
+    return TRUE;
+}
+
+static boolean
 equalNestingOperator(NestingOperator *a, NestingOperator *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
@@ -1532,6 +1542,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_JsonPath:
         	retval = equalJsonPath(a,b, seenOps, c);
         	break;
+        case T_ConstRelMultiListsOperator:
+            retval = equalConstRelMultiListsOperator(a, b, seenOps, c);
+            break;
         /* datalog model */
         case T_DLAtom:
             retval = equalDLAtom(a,b, seenOps, c);

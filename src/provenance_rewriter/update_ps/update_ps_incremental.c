@@ -39,11 +39,13 @@ static void updateSelection(QueryOperator* op);
 static void updateJoin(QueryOperator* op);
 static void updateAggregation(QueryOperator* op);
 static void updateDuplicateRemoval(QueryOperator* op);
-static void updateSet(QueryOperator* op) ;
+static void updateSet(QueryOperator* op);
+static void updateOrder(QueryOperator *op);
+static void updateLimit(QueryOperator * op);
 static void buildStateAggregation(QueryOperator *op);
 static void buildStateDuplicateRemoval(QueryOperator *op);
+static void buildStateLimit(QueryOperator *op);
 // OrderOperator
-// LimitOperator
 
 static DataChunk *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAccessOp);
 static void getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
@@ -83,6 +85,8 @@ static ColumnChunk *getColumnChunkOfConst(Constant *c, DataChunk *dc);
 static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType);
 static Vector *columnChunkToVector(ColumnChunk *cc);
 static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
+static int limitCmp(const void **a, const void **b);
+static char *constToString(Constant *c);
 //static void setNumberToEachOperator(QueryOperator *operator);
 
 #define SQL_PRE backendifyIdentifier("SELECT * FROM ")
@@ -93,6 +97,8 @@ static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
 #define LEFT_UPDATE_IDENTIFIER backendifyIdentifier("LEFT_UPDATE_TYPE")
 #define RIGHT_UPDATE_IDENTIFIER backendifyIdentifier("RIGHT_UPDATE_TYPE")
 #define NULLVALUE backendifyIdentifier("null");
+// #define INSERT 1;
+// #define DELETE -1;
 
 #define MIN_HEAP "MIN_HEAP"
 #define MAX_HEAP "MAX_HEAP"
@@ -105,10 +111,12 @@ static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
 #define RCHILD_POS(pos) (2 * pos + 2)
 #define PARENT_POS(pos) ((pos - 1) / 2)
 /*
- *  TODO
- *  1. check if the inut is null
- * 		YES: nothing to update in this branch
- * 		NO : update
+ *  TODO:
+ *	1. datachunk isNull: in multiple place: a. TableAccess, state+update: Join, Aggregation, Update: evaluate operators functions.
+ *  2. add Option for Vasudha's capture data only: if having this option, for operators not TableAccess, just pass.
+ * 		2.1: if having this option, need to backup the original table when first time get data,
+ * 		2.2: when update, for those table access for join, agg, use the backuped table + dalta data.
+ *  3.
  */
 
 // dummy result
@@ -116,6 +124,8 @@ static StringInfo strInfo;
 static QueryOperator* updateStatement = NULL;
 static psInfo *PS_INFO = NULL;
 static ProvenanceComputation *PC = NULL;
+static HashMap *limitAttrPoss;
+static List *limitOrderBys;
 //static HashMap *coarseGrainedRangeList = NULL;
 
 List *
@@ -185,11 +195,11 @@ heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType)
 {
 	while (LCHILD_POS(pos) < LIST_LENGTH(list)) {
 		// get lChild;
-//		List *lChild = (List *) getNthOfListP(list, LCHILD_POS(pos));
+		// List *lChild = (List *) getNthOfListP(list, LCHILD_POS(pos));
 		Constant *lChildVal = (Constant *) getNthOfListP(list, LCHILD_POS(pos));
 
 		if (RCHILD_POS(pos) < LIST_LENGTH(list)) { // has two children
-//			List *rChild = (List *) getNthOfListP(list, RCHILD_POS(pos));
+			// List *rChild = (List *) getNthOfListP(list, RCHILD_POS(pos));
 			Constant *rChildVal = (Constant *) getNthOfListP(list, RCHILD_POS(pos));
 
 			int compTwoVal = compareTwoValues(lChildVal, rChildVal, valDataType);
@@ -326,6 +336,21 @@ makeGBACSs()
 	return acs;
 }
 
+LMTChunk *
+makeLMTChunk()
+{
+	LMTChunk *lmtC = makeNode(LMTChunk);
+
+	lmtC->attrToPos = NEW_MAP(Constant, Constant);
+	lmtC->posToDatatype = NEW_MAP(Constant, Constant);
+	lmtC->vals = NIL;
+	lmtC->provToPos = NEW_MAP(Constant, Constant);
+	lmtC->tupleFields = 0;
+	lmtC->numTuples = 0;
+
+	return lmtC;
+}
+
 char *
 update_ps_incremental(QueryOperator* operator){
 	// get partition information;
@@ -374,7 +399,91 @@ buildState(Node *node)
 		buildStateAggregation((QueryOperator *) node);
 	} else if (isA(node, DuplicateRemoval)) {
 		buildStateDuplicateRemoval((QueryOperator *) node);
+	} else if (isA(node, LimitOperator)) {
+		buildStateLimit((QueryOperator *) node);
 	}
+}
+
+static void
+buildStateLimit(QueryOperator *op)
+{
+	/* support ONLY for ORDER BY - LIMIT */
+	/* only LIMIT without ORDER BY is not supported */
+	DEBUG_NODE_BEATIFY_LOG("limit Op", op);
+
+	QueryOperator *lchild = (QueryOperator *) copyObject(OP_LCHILD(op));
+	/* if lchild is not a OrderOperator, not support currently */
+	if(!isA(lchild, OrderOperator)) {
+		return;
+	}
+
+	QueryOperator *rewrOp = captureRewrite(lchild);
+
+	char *sql = serializeQuery(rewrOp);
+
+	// get data;
+	Relation *resultRel = resultRel = executeQuery(sql);
+
+	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
+	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
+		List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+		l = appendToTailOfList(l, createConstInt(pos));
+	}
+
+	List *attrDefs = (List *) copyObject(lchild->schema->attrDefs);
+
+	LMTChunk *limitC = makeLMTChunk();
+	limitC->numTuples = LIST_LENGTH(resultRel->tuples);
+	limitC->tupleFields = LIST_LENGTH(attrDefs);
+
+	List *vals = NIL;
+	int fields = LIST_LENGTH(attrDefs);
+
+	for (int row = 0; row < LIST_LENGTH(resultRel->tuples); row++) {
+		List *tuple = (List *) getNthOfListP(resultRel->tuples, row);
+		List *val = NIL;
+		for (int col = 0; col < fields; col++) {
+			DataType dt = ((AttributeDef *) getNthOfListP(attrDefs, col))->dataType;
+			if (row == 0) {
+				addToMap(limitC->attrToPos, (Node *) createConstString((char *) getNthOfListP(resultRel->schema, col)), (Node *) createConstInt(col));
+				addToMap(limitC->posToDatatype, (Node *) createConstInt(col), (Node *) createConstInt(dt));
+			}
+			Constant *c = makeValue(dt, (char *) getNthOfListP(tuple, col));
+			val = appendToTailOfList(val, c);
+		}
+
+		// prove sketch;
+		for (int col = fields; col < LIST_LENGTH(resultRel->schema); col++) {
+
+			char *provName = (char *) getNthOfListP(resultRel->schema, col);
+			char *prov = (char *) getNthOfListP(tuple, col);
+
+			if (row == 0) {
+				addToMap(limitC->provToPos, (Node *) createConstString(provName), (Node *) createConstInt(col));
+			}
+
+			List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, provName);
+			int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
+			int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
+
+			BitSet *provBit = NULL;
+			if (provLevel < 2) {
+				provBit = newBitSet(provNumFrag);
+				setBit(provBit, atoi(prov), TRUE);
+			} else {
+				provBit = stringToBitset(prov);
+			}
+
+			val = appendToTailOfList(val, provBit);
+		}
+
+		vals = appendToTailOfList(vals, val);
+	}
+	limitC->vals = vals;
+
+	// set data structure prop;
+	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, limitC);
 }
 
 static void
@@ -384,14 +493,22 @@ buildStateDuplicateRemoval(QueryOperator *op)
 	DuplicateRemoval *dupRem = (DuplicateRemoval *) op;
 
 	// create gb list;
-	List *gbList = (List *) copyObject(dupRem->attrs);
+	List *gbList = NIL;
+	int pos = 0;
+	FOREACH(AttributeDef, ad, op->schema->attrDefs) {
+		AttributeReference *ar = createFullAttrReference(ad->attrName, 0, pos, 0, ad->dataType);
+		gbList = appendToTailOfList(gbList, ar);
+		pos++;
+	}
 	List *attrNames = (List *) getAttrNames(dupRem->op.schema);
 
 	AggregationOperator *aggOp = createAggregationOp(NIL, gbList, (QueryOperator *) copyObject(OP_LCHILD(op)), NIL, attrNames);
 	SET_STRING_PROP((QueryOperator *) aggOp, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS, createConstBool(TRUE));
 	OP_LCHILD((QueryOperator *) aggOp)->parents = singleton(aggOp);
 
+	DEBUG_NODE_BEATIFY_LOG("NEW AGG", aggOp);
 	QueryOperator *rewrOp = captureRewrite((QueryOperator *) aggOp);
+	DEBUG_NODE_BEATIFY_LOG("REWR AGG", rewrOp);
 
 	char *sql = serializeQuery(rewrOp);
 
@@ -576,22 +693,20 @@ buildStateAggregation(QueryOperator *op)
 		// get tuples;
 		Relation *resultRel = NULL;
 		resultRel = executeQuery(sql);
-		INFO_LOG("schema name: %s", stringListToString(resultRel->schema));
-
-
+		// INFO_LOG("schema name: %s", stringListToString(resultRel->schema));
 
 		// get prov attr name;
 		QueryOperator *auxOP = captureRewrite((QueryOperator *) copyObject(aggOp));
 		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
 
 		// append to each map value a "prov_attr_pos_in_result" indicating this pos in "resultRel"
-//		DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
+		// DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
 		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
 			int pos = listPosString(resultRel->schema, STRING_VALUE(c));
 			List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
 			l = appendToTailOfList(l, createConstInt(pos));
 		}
-//		DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
+		// DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
 
 		for (int i = 0; i < LIST_LENGTH(min_max); i++) {
 
@@ -617,20 +732,20 @@ buildStateAggregation(QueryOperator *op)
 
 			// get function call attribute position in result "relResult"
 			int fcAttrPos = listPosString(resultRel->schema, backendifyIdentifier(attrRef->name));
-			INFO_LOG("fc attr pos %d", fcAttrPos);
+			// INFO_LOG("fc attr pos %d", fcAttrPos);
 			// get group by attributes positions in result "resultRel";
 			// get the pos and its type; so if iterate, +2;
 			List *gbAttrPos = NIL;
 			FOREACH(AttributeReference, ar, aggrGBs) {
 				int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
 				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
-//				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
+				// gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
 			}
 
 			// iterate over result "resultRel" to build the heap;
 			for (int ii = 0; ii < LIST_LENGTH(resultRel->tuples); ii++) {
 				List *tuple = (List *) getNthOfListP(resultRel->tuples, ii);
-				INFO_LOG("tuple values: %s", stringListToString(tuple));
+				// INFO_LOG("tuple values: %s", stringListToString(tuple));
 				// get group by value of this tuple; TODO: isNULL
 				StringInfo gbVals = makeStringInfo();
 				for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
@@ -645,13 +760,14 @@ buildStateAggregation(QueryOperator *op)
 
 				// get min/max attribute value;
 				char *val = (char *) getNthOfListP(tuple, fcAttrPos);
+				// INFO_LOG("val str %s", val);
 				Constant *value = makeValue(attrRef->attrType, val);
-				DEBUG_NODE_BEATIFY_LOG("CONSTANT", value);
-				DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
+				// DEBUG_NODE_BEATIFY_LOG("CONSTANT", value);
+				// DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
 				// insert this value to heap and heapify
 				heapList = heapInsert(heapList, STRING_VALUE(gbHeaps->heapType), (Node *) value);
 
-				DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
+				// DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
 				// heap list done, add to map;
 				addToMap(gbHeaps->heapLists, (Node *) createConstString(gbVals->data), (Node *) copyObject(heapList));
 
@@ -754,16 +870,16 @@ buildStateAggregation(QueryOperator *op)
 		// DEBUG_NODE_BEATIFY_LOG("new AGG", newAgg);
 
 		// rewrite capture;
-//		ProvenanceComputation * newPC = copyObject(pc);
-//		newPC->op.inputs = singleton(newAgg);
-//		newAgg->op.parents = singleton(newPC);
-//		DEBUG_NODE_BEATIFY_LOG("NEW PC:", newPC);
+		// ProvenanceComputation * newPC = copyObject(pc);
+		// newPC->op.inputs = singleton(newAgg);
+		// newAgg->op.parents = singleton(newPC);
+		// DEBUG_NODE_BEATIFY_LOG("NEW PC:", newPC);
 
 		QueryOperator * rewriteOP = captureRewrite((QueryOperator *) newAgg);
-		DEBUG_NODE_BEATIFY_LOG("avg_sum_count agg", rewriteOP);
+		// DEBUG_NODE_BEATIFY_LOG("avg_sum_count agg", rewriteOP);
 		INFO_OP_LOG("rewrite op avg_sum_cont: ", rewriteOP);
 
-//		char *sql = serializeOperatorModel((Node *) rewriteOP);
+		// char *sql = serializeOperatorModel((Node *) rewriteOP);
 		char *sql = serializeQuery(rewriteOP);
 		INFO_LOG("sql %s", sql);
 
@@ -772,18 +888,18 @@ buildStateAggregation(QueryOperator *op)
 
 		// get the level of aggregation
 		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewriteOP), PROP_LEVEL_AGGREGATION_MARK), 0);
-		DEBUG_NODE_BEATIFY_LOG("LEVEL AND NUM FRAG", psAttrAndLevel);
+		// DEBUG_NODE_BEATIFY_LOG("LEVEL AND NUM FRAG", psAttrAndLevel);
 
-//		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
+		// HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
 
 		// append to each map value a "prov_attr_pos_in_result" indicating this pos in "resultRel"
-		DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
+		// DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
 		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
 			int pos = listPosString(resultRel->schema, STRING_VALUE(c));
 			List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
 			l = appendToTailOfList(l, createConstInt(pos));
 		}
-		DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
+		// DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
 
 		for (int i = 0; i < LIST_LENGTH(aggrFCs); i++) {
 			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggrFCs, i);
@@ -800,20 +916,20 @@ buildStateAggregation(QueryOperator *op)
 
 			// set a name to this function call like : sum_a, avg_b, count_c used in outer map;
 			Constant *ACSsName = createConstString(CONCAT_STRINGS(fc->functionname, "_", attrRef->name));
-//			DEBUG_NODE_BEATIFY_LOG("ACSsName", ACSsName);
+			// DEBUG_NODE_BEATIFY_LOG("ACSsName", ACSsName);
 
 			// make a GBACSs;
 			GBACSs *acs = makeGBACSs();
 
 			// get function call attribute pos in result "resultRel"
-			DEBUG_NODE_BEATIFY_LOG("agg schema", aggOp->op.schema);
+			// DEBUG_NODE_BEATIFY_LOG("agg schema", aggOp->op.schema);
 			List *attrDefs = (List *) copyObject(aggOp->op.schema->attrDefs);
 
 			List *namesAndPoss = NIL;
 
 			// append fc call name in resultRel;
 			char *aggFCName = backendifyIdentifier(((AttributeDef *) getNthOfListP(attrDefs, i))->attrName);
-//			namesAndPoss = appendToTailOfList(namesAndPoss, createConstString(((AttributeDef *) getNthOfListP(attrDefs, i))->attrName));
+			// namesAndPoss = appendToTailOfList(namesAndPoss, createConstString(((AttributeDef *) getNthOfListP(attrDefs, i))->attrName));
 
 			// append pos in resultRel;
 			int pos = listPosString(resultRel->schema, backendifyIdentifier(aggFCName));
@@ -825,23 +941,23 @@ buildStateAggregation(QueryOperator *op)
 				appendStringInfo(sum_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, SUM_FUNC_NAME, backendifyIdentifier(aggFCName));
 				pos = listPosString(resultRel->schema, sum_fc_name->data);
 
-//				appendToTailOfList(namesAndPoss, createConstString(sum_fc_name->data));
+				// appendToTailOfList(namesAndPoss, createConstString(sum_fc_name->data));
 				appendToTailOfList(namesAndPoss, createConstInt(pos));
 			}
 
-			DEBUG_NODE_BEATIFY_LOG("namesANDposs", namesAndPoss);
+			// DEBUG_NODE_BEATIFY_LOG("namesANDposs", namesAndPoss);
 
 			// get group by attributes positions in result "resultRel";
 			List *gbAttrPos = NIL;
 			FOREACH(AttributeReference, ar, aggrGBs) {
 				int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
 				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
-//				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
+				// gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
 			}
 
-			for (int j = 0; j < LIST_LENGTH(resultRel->schema); j++) {
-				INFO_LOG("result name: %s", (char *) getNthOfListP(resultRel->schema, j));
-			}
+			// for (int j = 0; j < LIST_LENGTH(resultRel->schema); j++) {
+			// 	INFO_LOG("result name: %s", (char *) getNthOfListP(resultRel->schema, j));
+			// }
 
 			// get group count for avg and sum
 			int groupCountPos = -1;
@@ -892,7 +1008,7 @@ buildStateAggregation(QueryOperator *op)
 
 					// make a new list;
 
-//					l = listMake(createConstFloat(avg), createConstFloat(sum), createConstInt(count));
+					// l = listMake(createConstFloat(avg), createConstFloat(sum), createConstInt(count));
 					newL = appendToTailOfList(newL, createConstFloat(avg));
 					newL = appendToTailOfList(newL, createConstFloat(sum));
 					newL = appendToTailOfList(newL, createConstInt(count));
@@ -907,7 +1023,7 @@ buildStateAggregation(QueryOperator *op)
 					count += atoi((char *) getNthOfListP(tuple, groupCountPos));
 
 					// make a new list;
-//					l = listMake(createConstFloat(sum), createConstInt(count));
+					// l = listMake(createConstFloat(sum), createConstInt(count));
 
 					newL = appendToTailOfList(newL, createConstFloat(sum));
 					newL = appendToTailOfList(newL, createConstInt(count));
@@ -919,7 +1035,7 @@ buildStateAggregation(QueryOperator *op)
 					count += atoi((char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0))));
 
 					// make a new list;
-//					l = singleton(createConstInt(count));
+					// l = singleton(createConstInt(count));
 					newL = appendToTailOfList(newL, createConstInt(count));
 				}
 
@@ -998,7 +1114,6 @@ buildStateAggregation(QueryOperator *op)
 			SET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE, (Node *) dataStructures);
 		}
 	}
-
 	DEBUG_NODE_BEATIFY_LOG("STATE", (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE));
 }
 
@@ -1026,13 +1141,13 @@ captureRewrite(QueryOperator *operator)
 	// bottom up propagate;
 	bottomUpPropagateLevelAggregation((QueryOperator*) newPC, psPara2);
 
-//	DEBUG_NODE_BEATIFY_LOG("BEFORE REQEIRE", newPC);
-//	INFO_OP_LOG("BEFORE REQEIRE", newPC);
+	// DEBUG_NODE_BEATIFY_LOG("BEFORE REQEIRE", newPC);
+	// INFO_OP_LOG("BEFORE REQEIRE", newPC);
 
 	// rewrite query;
 	result = rewritePI_CS(newPC);
-//	DEBUG_NODE_BEATIFY_LOG("AFTER REQEIRE", newPC);
-//	INFO_OP_LOG("AFTER REQEIRE", newPC);
+	// DEBUG_NODE_BEATIFY_LOG("AFTER REQEIRE", newPC);
+	// INFO_OP_LOG("AFTER REQEIRE", newPC);
 	return result;
 }
 
@@ -1041,10 +1156,6 @@ updateByOperators(QueryOperator * op)
 {
 	switch(op->type)
 	{
-//		case T_DuplicateRemoval:
-//			INFO_LOG("update duplicate remove");
-//			updateDuplicateRemoval(op);
-//			break;
 		case T_ProvenanceComputation:
 			INFO_LOG("update provenance computation");
 			updateProvenanceComputation(op);
@@ -1076,6 +1187,13 @@ updateByOperators(QueryOperator * op)
 		case T_SetOperator:
 			INFO_LOG("update set");
 			updateSet(op);
+			break;
+		case T_LimitOperator:
+			INFO_LOG("update limit");
+			updateLimit(op);
+			break;
+		case T_OrderOperator:
+			updateOrder(op);
 			break;
 		default:
 			FATAL_LOG("update for %s not implemented", NodeTagToString(op->type));
@@ -1137,7 +1255,7 @@ updateProjection(QueryOperator* op)
 			// compute isNull;
 			BitSet *bs = NULL;
 			bs = computeIsNullBitSet(node, dataChunk);
-//			vecAppendNode(resultDC->isNull, (Node *) copyObject(bs));
+			// vecAppendNode(resultDC->isNull, (Node *) copyObject(bs));
 
 		} else if (isA(node, AttributeReference)){ // node is an attribute, direct copy;
 			// get value of this attribute reference;
@@ -1147,11 +1265,10 @@ updateProjection(QueryOperator* op)
 			vecAppendNode(resultDC->tuples, (Node *) copyObject(vector));
 
 			// get isNull;
-//			vecAppendNode(resultDC->isNull, (Node *) copyObject(getVecNode(dataChunk->isNull, pos)));
+			// vecAppendNode(resultDC->isNull, (Node *) copyObject(getVecNode(dataChunk->isNull, pos)));
 		}
 		pos++;
 	}
-
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR PROJECTION OPERATOR: ", resultDC);
 
@@ -1160,7 +1277,6 @@ updateProjection(QueryOperator* op)
 	// remove child data chunk;
 	removeStringProperty(child, DATA_CHUNK_PROP);
 }
-
 
 static void
 updateSelection(QueryOperator* op)
@@ -1196,9 +1312,7 @@ updateSelection(QueryOperator* op)
 	removeStringProperty(child, DATA_CHUNK_PROP);
 }
 
-
-
-// TODO: join should use the capture to get tuple with their sketch;
+// TODO: IN ORDER NOT TO WRITE BACK DATA TO DB, JUST CREATE A CONSTRELOPERATOR WITH A LIST OF INPUT DATA
 static void
 updateJoin(QueryOperator* op)
 {
@@ -1260,15 +1374,15 @@ updateJoin(QueryOperator* op)
 
 		// write back datachunk and join;
 		INFO_LOG("create table\n", leftTableSQL);
-//		executeQueryIgnoreResult(leftTableSQL); // TODO: this line has ERROR;
-//		executeQueryWithoutResult(leftTableSQL);
+		// executeQueryIgnoreResult(leftTableSQL); // TODO: this line has ERROR;
+		// executeQueryWithoutResult(leftTableSQL);
 
 		// insert values to LEFT_BRANCH_OF_JOIN;
 		// create bulk insert for all data in datachunk;
 		List * insertQuery = NIL;
 
 		for (int row = 0; row < dataChunk->numTuples; row++) {
-//			StringInfo insSQL = makeStringInfo();
+			// StringInfo insSQL = makeStringInfo();
 			List *tup = NIL;
 
 			// append tuple value;
@@ -1330,17 +1444,16 @@ updateJoin(QueryOperator* op)
 		INFO_OP_LOG("BEFORE REPLACE", childOp);
 
 		// replace left branch with delta table access's proj;
-//		replaceNode(childOp->inputs, OP_LCHILD(childOp), leftProjOp);
-//		leftProjOp->op.parents = singleton(rewrOP);
-//		DEBUG_NODE_BEATIFY_LOG("AFTER REPLACE", childOp);
-//		INFO_OP_LOG("AFTER REPLACE", childOp);
+		// replaceNode(childOp->inputs, OP_LCHILD(childOp), leftProjOp);
+		// leftProjOp->op.parents = singleton(rewrOP);
+		// DEBUG_NODE_BEATIFY_LOG("AFTER REPLACE", childOp);
+		// INFO_OP_LOG("AFTER REPLACE", childOp);
 
 
 		// replace lchild with new proj;
 		replaceNode(childOp->inputs, OP_LCHILD(childOp), leftProjOp);
 		leftProjOp->op.parents = singleton(childOp);
-		DEBUG_NODE_BEATIFY_LOG("NEW JOIN", childOp);
-//		//
+		// DEBUG_NODE_BEATIFY_LOG("NEW JOIN", childOp);
 
 		// modify prov attr datatype for left branch from DT_INT to DT_STRING;
 		FOREACH(AttributeDef, ad, childOp->schema->attrDefs) {
@@ -1401,7 +1514,7 @@ updateJoin(QueryOperator* op)
 			for (int col = 0; col < LIST_LENGTH(tuple); col++) {
 				char *name = (char *) getNthOfListP(resultRel->schema, col);
 				char *val = (char *) getNthOfListP(tuple, col);
-				if(MAP_HAS_STRING_KEY(psAttrAndLevelMap, name)) {
+				if (MAP_HAS_STRING_KEY(psAttrAndLevelMap, name)) {
 					List *bitsetList = (List *) getMapString(resultDC->fragmentsInfo, name);
 					BitSet *bitset = NULL;
 					if (MAP_HAS_STRING_KEY(dataChunk->fragmentsInfo, name)) { // from left delta, it is already a string;
@@ -1466,15 +1579,15 @@ updateJoin(QueryOperator* op)
 
 		// write back datachunk and join;
 		INFO_LOG("create table\n", rightTableSQL);
-//		executeQueryIgnoreResult(leftTableSQL); // TODO: this line has ERROR;
-//		executeQueryWithoutResult(leftTableSQL);
+		// executeQueryIgnoreResult(leftTableSQL); // TODO: this line has ERROR;
+		// executeQueryWithoutResult(leftTableSQL);
 
 		// insert values to RIGHT_BRANCH_OF_JOIN;
 		// create bulk insert for all data in datachunk;
 		List * insertQuery = NIL;
 
 		for (int row = 0; row < dataChunk->numTuples; row++) {
-//			StringInfo insSQL = makeStringInfo();
+			// StringInfo insSQL = makeStringInfo();
 			List *tup = NIL;
 
 			// append tuple value;
@@ -1496,7 +1609,7 @@ updateJoin(QueryOperator* op)
 			insertQuery = appendToTailOfList(insertQuery, tup);
 		}
 
-		DEBUG_NODE_BEATIFY_LOG("ATTRDEFS", attrDefs);
+		// DEBUG_NODE_BEATIFY_LOG("ATTRDEFS", attrDefs);
 		Insert *insert = createInsert(RIGHT_BRANCH_OF_JOIN, (Node *) insertQuery, getAttrDefNames(attrDefs));
 		DLMorDDLOperator* dlm = createDMLDDLOp((Node *) insert);
 		char *insSQL = serializeQuery((QueryOperator *) dlm);
@@ -1536,13 +1649,13 @@ updateJoin(QueryOperator* op)
 		INFO_OP_LOG("BEFORE REPLACE", childOp);
 
 		// replace left branch with delta table access's proj;
-//		replaceNode(childOp->inputs, OP_LCHILD(childOp), rightProjOp);
-//		rightProjOp->op.parents = singleton(rewrOP);
-//		DEBUG_NODE_BEATIFY_LOG("AFTER REPLACE", childOp);
-//		INFO_OP_LOG("AFTER REPLACE", childOp);
+		// replaceNode(childOp->inputs, OP_LCHILD(childOp), rightProjOp);
+		// rightProjOp->op.parents = singleton(rewrOP);
+		// DEBUG_NODE_BEATIFY_LOG("AFTER REPLACE", childOp);
+		// INFO_OP_LOG("AFTER REPLACE", childOp);
 
 
-//		// replace lchild with new proj;
+		// replace lchild with new proj;
 		replaceNode(childOp->inputs, OP_RCHILD(childOp), rightProjOp);
 		rightProjOp->op.parents = singleton(childOp);
 		DEBUG_NODE_BEATIFY_LOG("NEW JOIN", childOp);
@@ -1588,7 +1701,7 @@ updateJoin(QueryOperator* op)
 
 		// build datachunk map for pos and dt;
 
-		if(branchWithDeltaCnt == 1) { // if > 1, it already build in left branch
+		if (branchWithDeltaCnt == 1) { // if > 1, it already build in left branch
 			resultDC->numTuples = LIST_LENGTH(resultRel->tuples);
 			resultDC->tupleFields = LIST_LENGTH(resultRel->schema) - mapSize(psAttrAndLevelMap);
 
@@ -1614,7 +1727,7 @@ updateJoin(QueryOperator* op)
 			for (int col = 0; col < LIST_LENGTH(tuple); col++) {
 				char *name = (char *) getNthOfListP(resultRel->schema, col);
 				char *val = (char *) getNthOfListP(tuple, col);
-				if(MAP_HAS_STRING_KEY(psAttrAndLevelMap, name)) { // fill prov bit set
+				if (MAP_HAS_STRING_KEY(psAttrAndLevelMap, name)) { // fill prov bit set
 					List *bitsetList = (List *) getMapString(resultDC->fragmentsInfo, name);
 					BitSet *bitset = NULL;
 					if (MAP_HAS_STRING_KEY(dataChunk->fragmentsInfo, name)) { // from left delta, it is already a string;
@@ -1848,7 +1961,7 @@ updateAggregation(QueryOperator* op)
 			DataType dt = INT_VALUE((Constant *) MAP_GET_INT(dataChunk->posToDatatype, attrPos));
 
 			// get the constaint value;
-			Constant *value = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, attrPos), j);
+			Constant *value = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, attrPos), i);
 
 			switch(dt) {
 				case DT_INT:
@@ -1957,7 +2070,8 @@ updateAggregation(QueryOperator* op)
 				} else {
 					// in this case, in theory, the heap must contain this value;
 					List *heapList = (List *) MAP_GET_STRING(heap->heapLists, gbVals->data);
-
+					INFO_LOG("gb values %s", gbVals->data);
+					DEBUG_NODE_BEATIFY_LOG("heapListsssss", heapList);
 					Constant *oldV = (Constant *) getNthOfListP(heapList, 0);
 
 					vecAppendNode(v, (Node *) copyObject(oldV));
@@ -2048,10 +2162,10 @@ updateAggregation(QueryOperator* op)
 							if (resDT == DT_INT) {
 								oldV = createConstInt((int) oSum);
 								newV = createConstInt((int) nSum);
-							} else if(resDT == DT_LONG) {
+							} else if (resDT == DT_LONG) {
 								oldV = createConstLong((gprom_long_t) oSum);
 								newV = createConstLong((gprom_long_t) nSum);
-							} else if(resDT == DT_FLOAT) {
+							} else if (resDT == DT_FLOAT) {
 								oldV = createConstFloat(oSum);
 								newV = createConstFloat(nSum);
 							}
@@ -2103,13 +2217,13 @@ updateAggregation(QueryOperator* op)
 							Constant *newV = NULL;
 							if (resDT == DT_INT) {
 								newV = createConstInt((int) avg);
-							} else if(resDT == DT_LONG) {
+							} else if (resDT == DT_LONG) {
 								newV = createConstLong((gprom_long_t) avg);
-							} else if(resDT == DT_FLOAT) {
+							} else if (resDT == DT_FLOAT) {
 								newV = createConstFloat(avg);
 							}
 							vecAppendNode(v, (Node *) newV);
-						} else if(strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
+						} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
 							double sum = (double) 0;
 
 							switch(insertV->constType) {
@@ -2138,13 +2252,13 @@ updateAggregation(QueryOperator* op)
 							Constant *newV = NULL;
 							if (resDT == DT_INT) {
 								newV = createConstInt((int) sum);
-							} else if(resDT == DT_LONG) {
+							} else if (resDT == DT_LONG) {
 								newV = createConstLong((gprom_long_t) sum);
-							} else if(resDT == DT_FLOAT) {
+							} else if (resDT == DT_FLOAT) {
 								newV = createConstFloat(sum);
 							}
 							vecAppendNode(v, (Node *) newV);
-						} else if(strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+						} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
 							newL = appendToTailOfList(newL, createConstInt(1));
 							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
 							vecAppendNode(v, (Node *) createConstInt(1));
@@ -2166,6 +2280,107 @@ static void
 updateDuplicateRemoval(QueryOperator* op)
 {
 	updateByOperators(OP_LCHILD(op));
+	INFO_LOG("UPDATE DUREM");
+	QueryOperator *lchild = OP_LCHILD(op);
+	if (!HAS_STRING_PROP(lchild, DATA_CHUNK_PROP)) {
+		return;
+	}
+	List* dupAttrs = (List *) copyObject(op->schema->attrDefs);
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, DATA_CHUNK_PROP);
+
+
+	DataChunk *dc = initDataChunk();
+	int len = LIST_LENGTH(dupAttrs);
+	dc->attrNames = (List *) copyObject(dupAttrs);
+	dc->tupleFields = len;
+	for (int i = 0; i < len; i++) {
+		AttributeDef *ad = (AttributeDef *) getNthOfListP(dupAttrs, i);
+		addToMap(dc->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(i));
+		addToMap(dc->posToDatatype, (Node *) createConstInt(i), (Node *) createConstInt(ad->dataType));
+	}
+
+	GBACSs *acs = (GBACSs *) GET_STRING_PROP(op, DATA_STRUCTURE_STATE);
+
+	len = dataChunk->numTuples;
+	for (int row = 0; row < len; row++) {
+		StringInfo info = makeStringInfo();
+		List *values = NIL;
+		FOREACH(AttributeDef, ad, dupAttrs) {
+			int pos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ad->attrName));
+			Constant *value = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, pos), row);
+			values = appendToTailOfList(values, value);
+			appendStringInfo(info, "%s#", constToString(value));
+		}
+
+		int updType = getVecInt(dataChunk->updateIdentifier, row);
+
+		if (updType == 1) {
+			if (MAP_HAS_STRING_KEY(acs->map, info->data)) {
+				// get old chunk;
+				for (int index = 0; index < LIST_LENGTH(values); index++) {
+					vecAppendNode((Vector *) getVecNode(dc->tuples, index), (Node *) copyObject(getNthOfListP(values, index)));
+				}
+				vecAppendInt(dc->updateIdentifier, -1);
+				(dc->numTuples)++;
+				FOREACH_HASH_KEY(char, ps, dataChunk->fragmentsInfo) {
+					// dealing with ps; just copy to dst datachunk;
+				}
+
+				List *l = (List *) MAP_GET_STRING(acs->map, info->data);
+				int count = INT_VALUE((Constant *) getNthOfListP(l, 0));
+				addToMap(acs->map, (Node *) createConstString(info->data), (Node *) createConstInt(count + 1));
+			} else {
+				addToMap(acs->map, (Node *) createConstString(info->data), (Node *) createConstInt(1));
+			}
+
+			// get new chunk;
+			for (int index = 0; index < LIST_LENGTH(values); index++) {
+				vecAppendNode((Vector *) getVecNode(dc->tuples, index), (Node *) copyObject(getNthOfListP(values, index)));
+			}
+			vecAppendInt(dc->updateIdentifier, 1);
+			(dc->numTuples)++;
+			FOREACH_HASH_KEY(char, ps, dataChunk->fragmentsInfo) {
+				// dealing with ps; just copy to dst datachunk;
+			}
+		} else {
+			// there must be such group;
+			for (int index = 0; index < LIST_LENGTH(values); index++) {
+				vecAppendNode((Vector *) getVecNode(dc->tuples, index), (Node *) copyObject(getNthOfListP(values, index)));
+			}
+			vecAppendInt(dc->updateIdentifier, -1);
+			(dc->numTuples)++;
+			FOREACH_HASH_KEY(char, ps, dataChunk->fragmentsInfo) {
+				// dealing with ps; just copy to dst datachunk;
+			}
+
+			List *l = (List *) MAP_GET_STRING(acs->map, info->data);
+			int count = INT_VALUE((Constant *) getNthOfListP(l, 0));
+			if (count < 2) {
+				removeMapStringElem(acs->map, info->data);
+			} else {
+				for (int index = 0; index < LIST_LENGTH(values); index++) {
+					vecAppendNode((Vector *) getVecNode(dc->tuples, index), (Node *) copyObject(getNthOfListP(values, index)));
+				}
+				vecAppendInt(dc->updateIdentifier, 1);
+				(dc->numTuples)++;
+				FOREACH_HASH_KEY(char, ps, dataChunk->fragmentsInfo) {
+					// dealing with ps; just copy to dst datachunk;
+				}
+				addToMap(acs->map, (Node *) createConstString(info->data), (Node *) createConstInt(count - 1));
+			}
+		}
+
+
+	}
+
+	// set the refreshed data structure;
+	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, (Node *) acs);
+
+	// set datachunk to operator;
+	SET_STRING_PROP(op, DATA_CHUNK_PROP, (Node *) dc);
+
+	// remove child's datachunk;
+	removeStringProperty(lchild, DATA_CHUNK_PROP);
 	appendStringInfo(strInfo, "%s ", "UpdateDuplicatiRemoval");
 }
 
@@ -2176,6 +2391,91 @@ updateSet(QueryOperator* op)
 	updateByOperators(OP_LCHILD(op));
 	updateByOperators(OP_RCHILD(op));
 	appendStringInfo(strInfo, "%s ", "UpdateSet");
+}
+
+
+static void
+updateOrder(QueryOperator *op)
+{
+	updateByOperators(OP_LCHILD(op));
+
+	QueryOperator *lchild = OP_LCHILD(op);
+
+	if (!HAS_STRING_PROP(lchild, DATA_CHUNK_PROP)) {
+		return;
+	}
+
+	// for order operator, we do nothing, just copy the data chunk and pass to next level;
+	DataChunk *dc = (DataChunk *) copyObject((DataChunk *) GET_STRING_PROP(lchild, DATA_CHUNK_PROP));
+	SET_STRING_PROP(op, DATA_CHUNK_PROP, dc);
+
+	removeStringProperty(lchild, DATA_CHUNK_PROP);
+}
+
+static void
+updateLimit(QueryOperator *op)
+{
+	updateByOperators(OP_LCHILD(op));
+
+	INFO_LOG("LIMIT OPERATOR");
+	QueryOperator *lchild = OP_LCHILD(op);
+
+	if (!HAS_STRING_PROP(lchild, DATA_CHUNK_PROP)) {
+		return;
+	}
+
+	// if no data strcutre, indicate no order by lower;
+	if (!HAS_STRING_PROP(op, DATA_STRUCTURE_STATE)) {
+		return;
+	}
+
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, DATA_CHUNK_PROP);
+	DataChunk *dc = initDataChunk;
+	dc->tupleFields = dataChunk->tupleFields;
+	dc->attrNames = (List *) copyObject(dataChunk->attrNames);
+	dc->attriToPos = (HashMap *) copyObject(dataChunk->attriToPos);
+	dc->posToDatatype = (HashMap *) copyObject(dataChunk->posToDatatype);
+	LMTChunk *lmtc = (LMTChunk *) GET_STRING_PROP(op, DATA_CHUNK_PROP);
+
+	/*
+	 *	HERE, CURRENTL PAUSE:
+	 *  IF WE USE LIST AS DONE NOW, TIME WILL BE HIGHT, SINCE sortList() -> qsort() WILL TAKE O(n lg n);
+	 *  TRANSFER TO RED-BLACK TREE:
+	*/
+
+	// sort the data limit list;
+	limitAttrPoss = (HashMap *) copyObject(lmtc->attrToPos);
+	limitOrderBys = (List *) copyObject(((OrderOperator *) lchild)->orderExprs);
+
+	// add value from datachunk;
+
+	lmtc->vals = sortList(lmtc->vals, (int (*)(const void **, const void **)) limitCmp);
+
+	// find the top-k;
+}
+
+static int
+limitCmp(const void **a, const void **b) {
+	List *la = (List *) *a;
+	List *lb = (List *) *b;
+
+	int res = 0;
+	FOREACH(OrderExpr, oe, limitOrderBys) {
+		AttributeReference *ar = (AttributeReference *) oe->expr;
+		int pos = INT_VALUE((Constant *) MAP_GET_STRING(limitAttrPoss, ar->name));
+
+		int cmp = compareTwoValues((Constant *) getNthOfListP(la, pos), (Constant *) getNthOfListP(lb, pos), ar->attrType);
+		if (cmp) {
+			if (oe->order == SORT_DESC) {
+				res -= cmp;
+			} else {
+				res = cmp;
+			}
+			break;
+		}
+	}
+
+	return res;
 }
 
 static void
@@ -2206,7 +2506,7 @@ updateTableAccess(QueryOperator * op)
 			break;
 	}
 
-	if(strcmp(updatedTableName, tableName) != 0) {
+	if (strcmp(updatedTableName, tableName) != 0) {
 		return;
 	}
 
@@ -2299,7 +2599,7 @@ getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 
 	for (int col = 0; col < LIST_LENGTH(tupleRow); col++)
 	{
-//		DataType dataType = INT_VALUE((Constant*)getMapInt(dataChunk->posToDatatype, col));
+		// DataType dataType = INT_VALUE((Constant*)getMapInt(dataChunk->posToDatatype, col));
 		Constant *value = (Constant *) getNthOfListP(tupleRow, col);
 		vecAppendNode((Vector *) getVecNode(dataChunk->tuples, col), (Node *) value);
 
@@ -2310,10 +2610,10 @@ getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 			if (MAP_HAS_STRING_KEY(dataChunk->fragmentsInfo, psName)) {
 				psList = (List *) getMapString(dataChunk->fragmentsInfo, psName);
 				psList = appendToTailOfList(psList, bitset);
-//				addToMap(dataChunk->fragmentsInfo, createConstString(psName), (Node *) psList);
+				// addToMap(dataChunk->fragmentsInfo, createConstString(psName), (Node *) psList);
 			} else {
 				psList = singleton(bitset);
-//				addToMap(dataChunk->fragmentsInfo, createConstStrign(psName), (Node *) psList);
+				// addToMap(dataChunk->fragmentsInfo, createConstStrign(psName), (Node *) psList);
 			}
 			addToMap(dataChunk->fragmentsInfo, (Node *) createConstString(psName), (Node *) psList);
 		}
@@ -2404,7 +2704,7 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 		Vector *colValues = makeVector(VECTOR_NODE, T_Vector);
 		for(int row = 0; row < dataChunk->numTuples; row++)
 		{
-//			char *val = (char *) getNthOfListP((List *) getNthOfListP(relation->tuples, row), col);
+			// char *val = (char *) getNthOfListP((List *) getNthOfListP(relation->tuples, row), col);
 			Constant* value = makeValue(dataType, (char *) getNthOfListP((List *)getNthOfListP(relation->tuples, row), col));
 			vecAppendNode(colValues, (Node*) value);
 		}
@@ -2568,7 +2868,7 @@ getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 			}
 		}
 
-//		check the ps attribute, get the value, and set fragment info;
+		// check the ps attribute, get the value, and set fragment info;
 		vecAppendInt(dataChunk->updateIdentifier, -1);
 		vecAppendInt(dataChunk->updateIdentifier, 1);
 	}
@@ -2622,7 +2922,7 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 
 			// append this tuple to sql string;
 			appendStringInfo(strInfoSQL, tmp->data);
-			if(row != dataChunk->numTuples - 1) {
+			if (row != dataChunk->numTuples - 1) {
 				appendStringInfo(strInfoSQL, ",\n");
 			}
 		}
@@ -2799,7 +3099,7 @@ getConstRelOpFromDataChunk(DataChunk *dataChunk)
 			bitsetList = appendToTailOfList(bitsetList, createConstString(bitSetToString(bs)));
 		}
 		values = appendToTailOfList(values, bitsetList);
-//		attrNames = appendToTailOfList(attrNames, createAttributeDef(STRING_VALUE((Constant *) key), DT_STRING));
+		// attrNames = appendToTailOfList(attrNames, createAttributeDef(STRING_VALUE((Constant *) key), DT_STRING));
 		attrNames = appendToTailOfList(attrNames, STRING_VALUE((Constant *) key));
 		dataTypes = appendToTailOfListInt(dataTypes, DT_STRING);
 	}
@@ -2885,7 +3185,7 @@ getQueryResult(char* sql)
 	// get query result
 	if (getBackend() == BACKEND_POSTGRES) {
 		relation = postgresExecuteQuery(sql);
-	} else if(getBackend() == BACKEND_ORACLE) {
+	} else if (getBackend() == BACKEND_ORACLE) {
 
 	}
 
@@ -2897,7 +3197,7 @@ executeQueryWithoutResult(char* sql)
 {
 	if (getBackend() == BACKEND_POSTGRES) {
 		postgresExecuteStatement(sql);
-	} else if(getBackend() == BACKEND_ORACLE) {
+	} else if (getBackend() == BACKEND_ORACLE) {
 
 	}
 }
@@ -2908,10 +3208,10 @@ computeIsNullBitSet(Node *expr, DataChunk *dc)
 	BitSet *result;
 	switch(expr->type) {
 		case T_Operator:{
-//			List *inputs = ((Operator *) expr)->args;
-//			BitSet *left = computeIsNullBitSet((Node *) getNthOfListP(inputs, 0), dc);
-//			BitSet *right = computeIsNullBitSet((Node *) getNthOfListP(inputs, 1), dc);
-//			result = bitOr(left, right);
+			// List *inputs = ((Operator *) expr)->args;
+			// BitSet *left = computeIsNullBitSet((Node *) getNthOfListP(inputs, 0), dc);
+			// BitSet *right = computeIsNullBitSet((Node *) getNthOfListP(inputs, 1), dc);
+			// result = bitOr(left, right);
 			return newBitSet(10);// just for pass;
 		}
 		break;
@@ -2936,18 +3236,12 @@ static ColumnChunk *
 evaluateExprOnDataChunk(Node *expr, DataChunk *dc)
 {
 	switch (expr->type) {
-		case T_Operator: {
+		case T_Operator:
 			return evaluateOperatorOnDataChunk((Operator *) expr, dc);
-		}
-//		break;
-		case T_AttributeReference: {
+		case T_AttributeReference:
 			return getColumnChunkOfAttr(((AttributeReference *) expr)->name, dc);
-		}
-//		break;
-		case T_Constant: {
+		case T_Constant:
 			return getColumnChunkOfConst((Constant *) expr, dc);
-		}
-//		break;
 		default:
 			FATAL_LOG("cannot evaluate this expr");
 	}
@@ -3128,7 +3422,6 @@ evaluateOperatorOnDataChunk(Operator *op, DataChunk *dc)
 		return evaluateOperatorNeq(op, dc);
 	} else if (streq(op->name, OPNAME_NEQ_HAT)) {
 		// "^=" do not work for postgres; try ORACLE;
-//		return evaluateOperatorNeqHat(op, dc);
 		return evaluateOperatorNeq(op, dc);
 	} else if (streq(op->name, OPNAME_STRING_CONCAT)) { // string operators;
 		// "a || b";
@@ -4063,7 +4356,11 @@ evaluateOperatorConcat(Operator *op, DataChunk *dc)
 static ColumnChunk *
 evaluateOperatorLike(Operator *op, DataChunk *dc)
 {
-	// two wildcards: '%' and '_';
+	/*
+	 * Now support two wildcards:
+	 *	1. %;
+	 * 	2. _;
+	 */
 	List *inputs = op->args;
 	ColumnChunk *left = evaluateExprOnDataChunk(getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk(getNthOfListP(inputs, 1), dc);
@@ -4093,42 +4390,108 @@ evaluateOperatorLike(Operator *op, DataChunk *dc)
 	char **leftV = VEC_TO_ARR(castLeft->data.v, char);
 	char **rightV = VEC_TO_ARR(castRight->data.v, char);
 
-	// 0 -> like 'aaa'
-	// 1 -> like '%aaa'
-	// 2 -> like 'aaa%'
-	// 3 -> like '%aaa%'
-	int matchType = -1;
-	char *pattern = rightV[0];
-	if (pattern[0] == '%' && pattern[strlen(pattern) - 1] == '%') {
-		matchType = 3;
-	} else if (pattern[0] == '%') {
-		matchType = 1;
-	} else if (pattern[strlen(pattern) - 1] == '%') {
-		matchType = 2;
-	} else {
-		matchType = 0;
+	StringInfo pattern = makeStringInfo();
+	appendStringInfo(pattern, "%s", rightV[0]);
+
+	// matchMod: 0. pure string, 1. only "_", 2. only "%", 3. "_" and "%"
+	int matchMode = 0;
+	StringInfo regExPtn= makeStringInfo(); // only use for matchMode is 3;
+
+	// modMode: 1. "%aaa", 2. "aaa%", 3. "%aaa%", 4. arbitrary: "%";
+	// Suppose the pattern contains at least one normal character, and cannot contains only "%"s;
+	int modMode = 0;
+
+	for (int i = 0; i < strlen(pattern->data); i++) {
+		if (pattern->data[i] == '_') {
+			if (matchMode == 0) {
+				matchMode = 1;
+			} else if (matchMode == 2) {
+				matchMode = 3;
+			}
+
+			appendStringInfo(regExPtn, ".");
+		} else if (pattern->data[i] == '%') {
+			if (matchMode == 0) {
+				matchMode = 2;
+			} else if (matchMode == 1) {
+				matchMode = 3;
+			}
+
+			appendStringInfo(regExPtn, ".*");
+
+			// dealing with "%" mode;
+			if (i == 0) {
+				modMode = 1;
+			} else if (i == strlen(pattern->data) - 1) {
+				if (modMode == 1) {
+					modMode = 3;
+				} else if(modMode == 0) {
+					modMode = 2;
+				}
+			} else {
+				modMode = 4;
+			}
+		}
+	}
+
+	StringInfo modPtn = makeStringInfo();
+	if (matchMode == 2) {
+		if (modMode == 1) {
+			appendStringInfo(modPtn, "%s", strRemPrefix(pattern->data, 1));
+		} else if (modMode == 2) {
+			appendStringInfo(modPtn, "%s", strRemPostfix(pattern->data, strlen(pattern->data) - 1));
+		} else if (modMode == 3) {
+			char *tmp = strRemPrefix(pattern->data, 1);
+			appendStringInfo(modPtn, "%s", strRemPostfix(tmp, strlen(tmp) - 1));
+		}
 	}
 
 	for (int i = 0; i < length; i++) {
-		if (matchType == 0) {
-			if (strcmp(leftV[i], rightV[i]) == 0) {
-				setBit(resultCC->data.bs, i, TRUE);
+		boolean res = TRUE;;
+
+		if (matchMode == 0) {
+			res = ((strlen(leftV[i]) == strlen(rightV[i])) && (streq(leftV[i], rightV[i])));
+		} else if (matchMode == 1) {
+			if (strlen(leftV[i]) == strlen(rightV[i])) {
+				for (int j = 0; j < strlen(pattern->data); j++) {
+					if (pattern->data[j] == '_') {
+						continue;
+					}
+
+					if (!streq(leftV[i], rightV[i])) {
+						res = FALSE;
+						break;
+					}
+				}
+			} else {
+				res = FALSE;
 			}
-		} else if(matchType == 1) {
-			if (isSuffix(leftV[i], substr(rightV[i], 0, strlen(rightV[i]) - 2))) {
-				setBit(resultCC->data.bs, i, TRUE);
+		} else if (matchMode == 2) {
+			if (modMode == 1) {
+				if (!isSuffix(leftV[i], modPtn->data)) {
+					res = FALSE;
+				}
+			} else if (modMode == 2) {
+				if (!isPrefix(leftV[i], modPtn->data)) {
+					res = FALSE;
+				}
+			} else if (modMode == 3) {
+				if (!isSubstr(leftV[i], modPtn->data)) {
+					res = FALSE;
+				}
+			} else { // more than 2 '%', use regExMatch();
+				if (!regExMatch(regExPtn->data, leftV[i])) {
+					res = FALSE;
+				}
 			}
-		} else if(matchType == 2) {
-			if (isPrefix(leftV[i], substr(rightV[i], 1, strlen(rightV[i]) - 1))) {
-				setBit(resultCC->data.bs, i, TRUE);
+		} else if (matchMode == 3) {
+			if (!regExMatch(regExPtn->data, leftV[i])) {
+				res = FALSE;
 			}
-		} else if(matchType == 3) {
-			if (isSubstr(leftV[i], substr(rightV[i], 1, strlen(rightV[i]) - 1))) {
-				setBit(resultCC->data.bs, i, TRUE);
-			}
-//			if (regExMatch(leftV[i], substr(rightV[i], 1, strlen(rightV[i]) - 1))) {
-//				setBit(resultCC->data.bs, i, TRUE);
-//			}
+		}
+
+		if (res) {
+			setBit(resultCC->data.bs, i, res);
 		}
 	}
 
@@ -4319,4 +4682,32 @@ columnChunkToVector(ColumnChunk *cc) {
 			FATAL_LOG("data type %d is not support", cc->dataType);
 	}
 	return v;
+}
+
+static char *
+constToString(Constant *c)
+{
+	StringInfo info = makeStringInfo();
+
+	switch(c->constType) {
+		case DT_INT:
+			appendStringInfo(info, "%s", gprom_itoa(INT_VALUE(c)));
+			break;
+		case DT_FLOAT:
+			appendStringInfo(info, "%s", gprom_ftoa(FLOAT_VALUE(c)));
+			break;
+		case DT_LONG:
+			appendStringInfo(info, "%s", gprom_ltoa(LONG_VALUE(c)));
+			break;
+		case DT_STRING:
+			appendStringInfo(info, "%s", STRING_VALUE(c));
+			break;
+		case DT_BOOL:
+			appendStringInfo(info, "%s", BOOL_VALUE(c) == 1 ? "t" : "f");
+			break;
+		default:
+			FATAL_LOG("datatype %d is not supported", c->constType);
+	}
+
+	return info->data;
 }

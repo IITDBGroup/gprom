@@ -116,6 +116,12 @@ typedef struct ConstRelOperator
     List *values;
 } ConstRelOperator;
 
+typedef struct ConstRelMultiListsOperator
+{
+    QueryOperator op;
+    List *values; // list of list;
+} ConstRelMultiListsOperator;
+
 typedef struct NestingOperator
 {
 	QueryOperator op;
@@ -255,6 +261,8 @@ extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
         List *parents);
 extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents);
 extern DLMorDDLOperator *createDMLDDLOp(Node *stmt);
+extern ConstRelMultiListsOperator *createConstRelMultiListOperator(List *values, List *parents, List*attrNames, List *dataTypes);
+
 /* navigation functions */
 #define OP_LCHILD(op) \
     ((QueryOperator *) getHeadOfListP(((QueryOperator*) op)->inputs))

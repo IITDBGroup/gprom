@@ -2615,6 +2615,7 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
 
     // finish add new aggattr (for the cnt-th reference to operator)
 //    HashMap *map = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(rewr, PROP_LEVEL_AGGREGATION_MARK), 0);
+	boolean hasAppendNewFunc = FALSE;
     FOREACH(char, c, provList)
     {
 //    	List *levelandNumFrags =  (List *) getMapString(map, c);
@@ -2646,10 +2647,15 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
 
     	// create new function call
     	FunctionCall *fc = createFunctionCall(COUNT_FUNC_NAME, singleton(ar));
-    	agg = appendToHeadOfList(agg, fc);
-//
-    	a->op.schema->attrDefs = appendToHeadOfList(a->op.schema->attrDefs, createAttributeDef(backendifyIdentifier("count_per_group"), DT_INT));
-//
+
+		// count per group needs only once;
+		if (!hasAppendNewFunc) {
+    		agg = appendToHeadOfList(agg, fc);
+    		a->op.schema->attrDefs = appendToHeadOfList(a->op.schema->attrDefs, createAttributeDef(backendifyIdentifier("count_per_group"), DT_INT));
+			hasAppendNewFunc = TRUE;
+		}
+
+		// group by sketch needs all prov attr;
     	a->groupBy = appendToHeadOfList(a->groupBy, ar);
     }
 

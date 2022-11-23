@@ -144,7 +144,7 @@ translateParseOracle (Node *q)
 
     //DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
     INFO_OP_LOG("result of translation overview is", result);
-    DEBUG_NODE_BEATIFY_LOG("RESULT OF TRANSLATION OVERVIEW IS:\n", result);
+    // DEBUG_NODE_BEATIFY_LOG("RESULT OF TRANSLATION OVERVIEW IS:\n", result);
     ASSERT(equal(result, copyObject(result)));
 
     return result;
@@ -675,16 +675,16 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
     {
     	case PROV_INPUT_UPDATEPS:
     	{
-    		int index = 1;
+    		// int index = 1;
     		INFO_LOG("THE LENGTH OF UPDATEPS_PROV_STME:%d\n", getListLength((List*) prov->query));
     		FOREACH(Node, n, (List*) prov->query)
     		{
     			// translate and add update as child to provenance computation
-    			DEBUG_LOG("updateps: start translate %d th child\n", index);
+    			// DEBUG_LOG("updateps: start translate %d th child\n", index);
     			child = translateQueryOracleInternal(n, attrsOffsetsList);
-    			DEBUG_NODE_BEATIFY_LOG("WHT IS THE CHILD:\n", child);
+    			// DEBUG_NODE_BEATIFY_LOG("WHT IS THE CHILD:\n", child);
     			addChildOperator((QueryOperator*) result, child);
-    			DEBUG_LOG("updateps: finish translate %d th child\n", index++);
+    			// DEBUG_LOG("updateps: finish translate %d th child\n", index++);
     		}
     	}
     	break;

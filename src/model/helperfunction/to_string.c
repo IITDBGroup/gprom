@@ -106,7 +106,8 @@ static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
 static void outOrderOperator(StringInfo str, OrderOperator *node);
 static void outLimitOperator(StringInfo str, LimitOperator *node);
-static void outDLMorDDLOperator(StringInfo str, DLMorDDLOperator* node);
+static void outDLMorDDLOperator(StringInfo str, DLMorDDLOperator *node);
+static void outConstRelMultiListsOperator(StringInfo str, ConstRelMultiListsOperator *node);
 
 //json
 static void outFromJsonTable(StringInfo str, FromJsonTable *node);
@@ -141,6 +142,7 @@ static void outPSInfoCell(StringInfo str, psInfoCell *node);
 static void outDataChunk(StringInfo str, DataChunk *node);
 static void outColumnChunk(StringInfo str, ColumnChunk *node);
 static void outGBHeaps(StringInfo str, GBHeaps *node);
+static void outLMTChunk(StringInfo str, LMTChunk *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -1122,6 +1124,15 @@ outConstRelOperator(StringInfo str, ConstRelOperator *node)
 }
 
 static void
+outConstRelMultiListsOperator(StringInfo str, ConstRelMultiListsOperator *node)
+{
+    WRITE_NODE_TYPE(CONST_REL_MULTI_LISTS_OPERATOR);
+
+    WRITE_QUERY_OPERATOR();
+    WRITE_NODE_FIELD(values);
+}
+
+static void
 outNestingOperator(StringInfo str, NestingOperator *node)
 {
 	WRITE_NODE_TYPE(NESTING_OPERATOR);
@@ -1298,6 +1309,18 @@ outGBACSs(StringInfo str, GBACSs *node)
 	WRITE_NODE_FIELD(map);
 	WRITE_NODE_FIELD(provSketchs);
 	WRITE_NODE_FIELD(fragCount);
+}
+
+static void
+outLMTChunk(StringInfo str, LMTChunk *node)
+{
+    WRITE_NODE_TYPE(LMTChunk);
+    WRITE_INT_FIELD(tupleFields);
+    WRITE_INT_FIELD(numTuples);
+    WRITE_NODE_FIELD(attrToPos);
+    WRITE_NODE_FIELD(posToDatatype);
+    WRITE_NODE_FIELD(vals);
+    WRITE_NODE_FIELD(provToPos);
 }
 
 void
@@ -1485,6 +1508,9 @@ outNode(StringInfo str, void *obj)
             case T_ConstRelOperator:
             	outConstRelOperator(str, (ConstRelOperator *) obj);
             	break;
+            case T_ConstRelMultiListsOperator:
+                outConstRelMultiListsOperator(str, (ConstRelMultiListsOperator *) obj);
+                break;
             case T_NestingOperator:
             	outNestingOperator(str, (NestingOperator *) obj);
             	break;
@@ -1565,6 +1591,9 @@ outNode(StringInfo str, void *obj)
 		    case T_GBACSs:
 		    	outGBACSs(str, (GBACSs *) obj);
 		    	break;
+            case T_LMTChunk:
+                outLMTChunk(str, (LMTChunk *) obj);
+                break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);

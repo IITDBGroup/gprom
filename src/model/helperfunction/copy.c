@@ -105,7 +105,8 @@ static LimitOperator *copyLimitOperator(LimitOperator *from, OperatorMap **opMap
 static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
 static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap **opMap);
 static ExecPreparedOperator *copyExecPreparedOperator(ExecPreparedOperator *from, OperatorMap **opMap);
-static DLMorDDLOperator* copyDMLorDDLOperator(DLMorDDLOperator *from, OperatorMap **opMap);
+static DLMorDDLOperator *copyDMLorDDLOperator(DLMorDDLOperator *from, OperatorMap **opMap);
+static ConstRelMultiListsOperator *copyConstRelMultiListsOperator(ConstRelMultiListsOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -868,6 +869,16 @@ copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static ConstRelMultiListsOperator *
+copyConstRelMultiListsOperator(ConstRelMultiListsOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(ConstRelMultiListsOperator);
+    COPY_OPERATOR();
+    COPY_NODE_FIELD(values);
+
+    return new;
+}
+
 static NestingOperator *
 copyNestingOperator(NestingOperator *from, OperatorMap **opMap)
 {
@@ -1490,6 +1501,9 @@ copyInternal(void *from, OperatorMap **opMap)
 	    case T_DLMorDDLOperator:
 	    	retval = copyDMLorDDLOperator(from, opMap);
 	    	break;
+        case T_ConstRelMultiListsOperator:
+            retval = copyConstRelMultiListsOperator(from, opMap);
+            break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);

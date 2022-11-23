@@ -84,7 +84,7 @@ typedef struct GBHeaps
 	NodeTag  type;
 	DataType valType;
 	HashMap  *heapLists; // key: gb value like "2", value: all values of same gb value like: (1,2,8)
-	HashMap   *provSketchs; // key: prov_r_a, prov_s_b, value: '111', '101'
+	HashMap   *provSketchs; // key: prov_r_a, prov_s_b, value: '111', '101' TODO: Need modify the implementation to key: gbvalue, keys: hashMap(key, prov_r_a, prov_t_b, values: "101", "010")
 	Constant *heapType;
 	HashMap  *fragCount; // key: prov_attr_string, Value: HashMap(fragNumber, tuple count);
 
@@ -99,11 +99,21 @@ typedef struct GBACSs
 	HashMap *fragCount;
 } GBACSs;
 
-
+typedef struct LMTChunk
+{
+	NodeTag type;
+	HashMap *attrToPos;
+	HashMap *posToDatatype;
+	List 	*vals;
+	int 	tupleFields;
+	int 	numTuples;
+	HashMap *provToPos;
+} LMTChunk;
 
 extern DataChunk *initDataChunk();
 extern GBHeaps *makeGBHeaps();
 extern GBACSs *makeGBACSs();
+extern LMTChunk *makeLMTChunk();
 
 /*
  * 	type: "MIN" or "MAX";

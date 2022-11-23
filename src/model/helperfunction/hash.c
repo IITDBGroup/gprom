@@ -115,6 +115,7 @@ static uint64_t hashWindowOperator (uint64_t cur, WindowOperator *node);
 static uint64_t hashOrderOperator (uint64_t cur, OrderOperator *node);
 static uint64_t hashLimitOperator (uint64_t cur, LimitOperator *node);
 static uint64_t hashExecPreparedOperator (uint64_t cur, ExecPreparedOperator *node);
+static uint64_t hashConstRelMultiListsOperator(uint64_t cur, ConstRelMultiListsOperator *node);
 
 // hash functions for datalog model
 static uint64_t hashDLNode (uint64_t cur, DLNode *node);
@@ -876,6 +877,13 @@ hashConstRelOperator (uint64_t cur, ConstRelOperator *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashConstRelMultiListsOperator(uint64_t cur, ConstRelMultiListsOperator *node)
+{
+    HASH_QO();
+    HASH_NODE(values);
+    HASH_RETURN();
+}
 
 static uint64_t
 hashNestingOperator (uint64_t cur, NestingOperator *node)
@@ -1223,6 +1231,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashLimitOperator(h, (LimitOperator *) n);
 	    case T_ExecPreparedOperator:
             return hashExecPreparedOperator(h, (ExecPreparedOperator *) n);
+        case T_ConstRelMultiListsOperator:
+            return hashConstRelMultiListsOperator(h, (ConstRelMultiListsOperator *) n);
 
             /* datalog model */
         case T_DLAtom:
