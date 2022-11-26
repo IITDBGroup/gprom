@@ -754,18 +754,39 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     asq->schema->attrDefs = schema;
     asq->provAttrs = copyObject(outer->provAttrs);
 
-    QueryOperator *projection = createProjOnAllAttrs(asq);
+	QueryOperator *pOp = createProjOnAllAttrs(asq);
+    ProjectionOperator *projection = (ProjectionOperator *) pOp;
+	List *proj = NIL, *provProj = NIL;
+	int pos = 0;
 
-    projection->schema = nestingSchema;
-    projection->provAttrs = NIL;
-    projection->provAttrs = appendToTailOfListInt(projection->provAttrs, getListLength(projection->schema->attrDefs)-2);
-    projection->provAttrs = appendToTailOfListInt(projection->provAttrs, getListLength(projection->schema->attrDefs)-1);
+	FOREACH(AttributeReference,a,projection->projExprs)
+	{
+		if(searchListInt(asq->provAttrs, pos++))
+		{
+			provProj = appendToTailOfList(provProj, a);
+		}
+		else
+		{
+			proj = appendToTailOfList(proj, a);
+		}
+	}
 
-    addChildOperator(projection, asq);
-    switchSubtrees(asq, projection);
+	projection->projExprs = CONCAT_LISTS(proj, provProj);
+
+    pOp->schema = nestingSchema;
+    pOp->provAttrs = NIL;
+    pOp->provAttrs = appendToTailOfListInt(
+		pOp->provAttrs,
+		getListLength(pOp->schema->attrDefs)-2);
+    pOp->provAttrs = appendToTailOfListInt(
+		pOp->provAttrs,
+		getListLength(pOp->schema->attrDefs)-1);
+
+    addChildOperator(pOp, asq);
+    switchSubtrees(asq, pOp);
 
     LOG_RESULT("after rewriting:", projection);
-    return projection;
+    return pOp;
 }
 
 static QueryOperator *
@@ -1394,7 +1415,7 @@ addCoalesce (QueryOperator *input)
     AttributeReference *t3ProjNOpen2 = copyObject(t3ProjNOpen1);
     AttributeReference *t3ProjW02 = getAttrRefByName(t3w2Op, "winf_1");
     Operator *t3O2 = createOpExpr("-", LIST_MAKE(t3ProjNOpen2,t3ProjW02));
-    FunctionCall *t3Projfc2 = createFunctionCall(FUNCNAME_COALESCE,LIST_MAKE(t3O2,copyObject(c6)));
+    FunctionCall *t3Projfc2 = createFunctionCall(COALESCE_FUNC_NAME,LIST_MAKE(t3O2,copyObject(c6)));
     t3ProjExpr = appendToTailOfList(t3ProjExpr, t3Projfc2);
 
     //numOpen, TS
@@ -1823,7 +1844,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     //topProj
     AttributeReference *topProjE = getAttrRefByName(topWOp,TEND_NAME);
     AttributeReference *topProjwin = getAttrRefByName(topWOp,topFuncName);
-    FunctionCall *topProjFunc = createFunctionCall(FUNCNAME_COALESCE,LIST_MAKE(topProjwin,topProjE));
+    FunctionCall *topProjFunc = createFunctionCall(COALESCE_FUNC_NAME,LIST_MAKE(topProjwin,topProjE));
     List *topProjExprs = NIL;
     List *topProjNames = NIL;
 

@@ -22,6 +22,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
 #include "model/integrity_constraints/integrity_constraints.h"
+#include "model/relation/relation.h"
 #include "model/rpq/rpq_model.h"
 #include "log/logger.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
@@ -40,6 +41,7 @@ static boolean equalHashMap (HashMap *a, HashMap *b, HashMap *seenOps, MemContex
 static boolean equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c);
 static boolean equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c);
 static boolean equalGraph (Graph *a, Graph *b, HashMap *seenOps, MemContext *c);
+static boolean equalRelation(Relation *a, Relation *b,  HashMap *seenOps, MemContext *c);
 
 /* equal functions for expression types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext *c);
@@ -660,7 +662,31 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
 }
 
 static boolean
-equalBitset(BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c)
+equalRelation(Relation *a, Relation *b,  HashMap *seenOps, MemContext *c)
+{
+	HashMap *aset, *bset;
+
+	aset = NEW_MAP(List,Constant);
+	bset = NEW_MAP(List,Constant);
+
+	FOREACH(List,tuple,a->tuples)
+	{
+		mapIncr(aset, (Node *) tuple);
+	}
+
+	FOREACH(List,tuple,b->tuples)
+	{
+		mapIncr(bset, (Node *) tuple);
+	}
+
+	//maybe map tuples into string constants
+
+	return equal(a->schema, b->schema)
+		&& equal(aset, bset);
+}
+
+static boolean
+equalBitset (BitSet *a, BitSet *b, HashMap *seenOps, MemContext *c)
 {
 	return bitsetEquals(a,b);
 }
@@ -1283,6 +1309,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_Vector:
             retval = equalVector(a,b, seenOps, c);
             break;
+	case T_Relation:
+		retval = equalRelation(a,b,seenOps, c);
+		break;
 	    case T_BitSet:
 			retval = equalBitset(a, b, seenOps, c);
 			break;

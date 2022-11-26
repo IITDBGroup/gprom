@@ -246,6 +246,7 @@ extern List *genericSublist(List *l, boolean (*pred) (void *, void *), void *con
 
 /* higher-order functions */
 extern List *mapList(List *, void * (*f) (void *));
+extern List *mapToIntList(List *, int (*f) (void *));
 
 /* serialize to string */
 extern char *stringListToString (List *node);

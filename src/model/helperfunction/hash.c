@@ -18,6 +18,7 @@
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
 #include "model/integrity_constraints/integrity_constraints.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"

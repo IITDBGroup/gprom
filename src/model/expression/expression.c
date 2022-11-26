@@ -1345,9 +1345,9 @@ typeOfFunc(FunctionCall *f)
     boolean fExists = FALSE;
     DataType result;
 
-	if (strieq(f->functionname, FUNC_NAME_COALESCE))
+	if (strieq(f->functionname, COALESCE_FUNC_NAME))
 	{
-		return lcaType(DataType l, DataType r)
+		return lcaTypes(mapToIntList(f->args, (int (*) (void *)) typeOf));
 	}
 
     if (strieq(f->functionname, UNCERTAIN_MAKER_FUNC_NAME))

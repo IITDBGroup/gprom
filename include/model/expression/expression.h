@@ -47,8 +47,6 @@ typedef struct Operator {
 #define OPNAME_MINUS "-"
 #define OPNAME_MOD "%"
 
-#define FUNCNAME_COALESCE "COALESCE"
-
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
     DT_LONG,
@@ -314,5 +312,7 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define COUNT_FUNC_NAME backendifyIdentifier("count")
 #define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 #define DENSE_RANK_FUNC_NAME backendifyIdentifier("dense_rank")
+
+#define COALESCE_FUNC_NAME backendifyIdentifier("COALESCE")
 
 #endif /* EXPRESSION_H */

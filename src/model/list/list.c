@@ -688,6 +688,17 @@ mapList(List *l, void * (*f) (void *))
     return result;
 }
 
+List *
+mapToIntList(List *l, int (*f) (void *))
+{
+	List *result = NIL;
+
+	FOREACH(void,el,l)
+		result = appendToTailOfListInt(result, f(el));
+
+	return result;
+}
+
 boolean
 searchList(List *list, void *value)
 {
