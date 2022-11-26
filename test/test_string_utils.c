@@ -18,6 +18,7 @@ static rc testEndTok(void);
 static rc testMatchingSubstring(void);
 static rc testSplit(void);
 static rc testPrefixSuffix(void);
+static rc testReadingFiles(void);
 
 rc
 testStringUtils(void)
@@ -27,6 +28,7 @@ testStringUtils(void)
     RUN_TEST(testMatchingSubstring(), "Test getMatchingSubstring function");
     RUN_TEST(testSplit(), "Test split string");
     RUN_TEST(testPrefixSuffix(), "Test isPrefix and isSuffix");
+	RUN_TEST(testReadingFiles(), "Test reading files into strings");
 
     return PASS;
 }
@@ -101,4 +103,19 @@ testPrefixSuffix(void)
     ASSERT_FALSE(isSuffix(input,"c"), "c is not suffix");
 
     return PASS;
+}
+
+static rc
+testReadingFiles(void)
+{
+	ASSERT_EQUALS_STRING("This is a one line file. This is a one line file. This is a one line file. This is a one line file. This is a one line file.\n",
+						 readStringFromFile("./stringutils/test.txt"),
+						 "reading from file <test.txt>");
+
+	ASSERT_EQUALS_STRING("This is a one line file. This is a one line file. This is a one line file. This is a one line file. This is a one line file.\n\nWith multiple lines.\n",
+						 readStringFromFile("./stringutils/test2.txt"),
+						 "reading from file <test2.txt>");
+
+	
+	return PASS;
 }

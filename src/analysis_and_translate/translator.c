@@ -53,7 +53,7 @@ translateParse(Node *q)
     ASSERT(plugin);
 
     NEW_AND_ACQUIRE_MEMCONTEXT("TRANSLATOR_CONTEXT");
-    analyzeParseModel(q);
+    q = analyzeParseModel(q);
     result = plugin->translateParse(q);
 
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);

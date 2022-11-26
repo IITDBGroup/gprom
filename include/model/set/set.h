@@ -57,10 +57,12 @@ extern Set *makeSetLong(gprom_long_t elem, ...);
 #define MAKE_INT_SET(...) makeSetInt(__VA_ARGS__, -1)
 #define MAKE_STR_SET(...) makeSet(SET_TYPE_STRING, -1, NULL, NULL, __VA_ARGS__, NULL)
 
+extern Set *makeStringSetFromConstSet(Set *s);
 
 // turn lists into sets
 extern Set *makeStrSetFromList(List *strList);
 extern Set *makeNodeSetFromList(List *list);
+extern List *makeNodeListFromSet(Set *s);
 
 // iterate through sets
 #define DUMMY_INT_FOR_COND_SET(_name_) _name_##_stupid_int_
@@ -78,6 +80,8 @@ extern Set *makeNodeSetFromList(List *list);
                 		_elem_ = (_type_ *)(((DUMMY_SETEL(_elem_) = \
             		   DUMMY_SETEL(_elem_)->hh.next) != NULL) ? \
             				   DUMMY_SETEL(_elem_)->data : NULL))
+
+#define FOREACH_SET_HAS_MORE(_elem_) (DUMMY_SETEL(_elem_)->hh.next != NULL)
 
 #define FOREACH_SET_INT(_elem_,_set) \
         INJECT_VAR_SET(SetElem*,DUMMY_SETEL(_elem_)) \
@@ -102,6 +106,33 @@ extern Set *makeNodeSetFromList(List *list);
 
 #define FOREACH_SET_HAS_NEXT(_elem_) (DUMMY_SETEL(_elem_)->hh.next != NULL)
 
+#define MAP_SET_STR(_set_,_expr_)										\
+	do {																\
+		Set *_result_ = STRSET();										\
+		SetElem *_elem_;												\
+		char *newIt;													\
+		for(_elem_ = _set_->elem; _elem_ != NULL; _elem_ = _elem_->hh.next) { \
+			char *it = (char *)(_elem_->data);								\
+			newIt = _expr_;												\
+			addToSet(_result_, newIt);									\
+		}																\
+		_set_ = _result_;												\
+	} while(0)
+
+#define MAP_SET_NODE(_set_,_expr_)										\
+	do {																\
+		Set *_result_ = NODESET();										\
+		SetElem *_elem_;												\
+	    Node *newIt;													\
+		for(_elem_ = _set_->elem; _elem_ != NULL; _elem_ = _elem_->hh.next) { \
+		    Node *it = (Node *)(_elem_->data);								\
+			newIt = (Node *) _expr_;										\
+			addToSet(_result_, newIt);									\
+		}																\
+		_set_ = _result_;												\
+	} while(0)
+
+
 extern boolean hasSetElem (Set *set, void *_el);
 extern boolean hasSetIntElem (Set *set, int _el);
 extern boolean hasSetLongElem (Set *set, gprom_long_t _el);
@@ -122,6 +153,9 @@ extern Set *setDifference(Set *left, Set *right);
 
 extern boolean overlapsSet(Set *left, Set *right);
 extern boolean containsSet(Set *left, Set *right);
+
+extern void *popSet(Set *set);
+extern void *peekSet(Set *set);
 
 extern int setSize (Set *set);
 #define EMPTY_SET(set) (setSize(set) == 0)

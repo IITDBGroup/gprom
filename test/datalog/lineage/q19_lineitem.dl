@@ -1,0 +1,48 @@
+Qquantities(1,1,11).
+Qquantities(2,10,20).
+Qquantities(3,20,30).
+
+Qpsize(1,5).
+Qpsize(2,10).
+Qpsize(3,15).
+
+Qbrand(1,'Brand#12').
+Qbrand(2,'Brand#23').
+Qbrand(3,'Brand#34').
+
+Qcontainer(1,'SM CASE').
+Qcontainer(1,'SM BOX').
+Qcontainer(1,'SM PACK').
+Qcontainer(1,'SM PKG').
+Qcontainer(2,'MED BAG').
+Qcontainer(2,'MED BOX').
+Qcontainer(2,'MED PACK').
+Qcontainer(2,'MED PKG').
+Qcontainer(3,'LG CASE').
+Qcontainer(3,'LG BOX').
+Qcontainer(3,'LG PACK').
+Qcontainer(3,'LG PKG').
+
+Qoptions(x1,x2,x3,x4,x5) :- Qquantities(id,x1,x2), Qcontainer(id,x3), Qpsize(id,x4), Qbrand(id,x5).
+
+Qshipmodes('AIR').
+Qshipmodes('AIR REG').
+
+Qfilter(l_orderkey, l_linenumber, l_discount, l_extp) :-
+    lineitem(l_orderkey,p_partkey,l2,l_linenumber,l_quantity,l_extp,l_discount,l4,l5,l6,l7,l8,l9,'DELIVER IN PERSON',l_shipmode,l10),
+    part(p_partkey,p1,p2,p_brand,p3,p_size,p_container,p4,p5),
+    Qshipmodes(l_shipmode),
+    Qoptions(q_low, q_high, p_container, p_high, p_brand),
+    l_quantity >= q_low,
+    l_quantity >= q_high,
+    p_size >= 1,
+    p_size <= p_high.        
+                 
+Q(sum(l_extp * (1-l_discount))) :-
+    Qfilter(l_orderkey, l_linenumber, l_discount, l_extp).
+
+ANS: Q.
+
+RP(x1) :- rtpcq19(x1).
+
+LINEAGE FOR lineitem FOR RESULTS FROM RP.

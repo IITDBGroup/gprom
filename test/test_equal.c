@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_equal.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: Hao
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -15,6 +15,9 @@
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
+#include "model/datalog/datalog_model.h"
+#include "analysis_and_translate/analyze_dl.h"
+#include "parser/parser_dl.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
@@ -22,8 +25,8 @@
 static rc testequalFunctionCall (void);
 static rc testequalAttributeReference (void);
 static rc testequalConstant(void);
-static rc testequalList (void);
-
+static rc testequalList(void);
+static rc testequalDL(void);
 
 /* check equal model */
 rc
@@ -33,7 +36,7 @@ testEqual (void)
     RUN_TEST(testequalAttributeReference(), "test equal AttibuteReference");
     RUN_TEST(testequalConstant(), "test equal Constant");
     RUN_TEST(testequalList(), "test equal List");
-
+	RUN_TEST(testequalDL(), "test equal for Datalog nodes");
     return PASS;
 }
 
@@ -124,9 +127,34 @@ testequalList (void)
     return PASS;
 }
 
+#define TEST_EQUAL_DL(ep)											\
+	do {															\
+		DLProgram *_ep, *_ap;										\
+		_ep = (DLProgram *) parseFromStringdl(ep);					\
+		_ap = (DLProgram *) parseFromStringdl(ep);					\
+		ASSERT_EQUALS_NODE(_ep,_ap,"Datalog programs equal:\n" ep);	\
+	} while(0)
 
+#define TEST_EQUAL_DL_WITH_ANALYZE(ep)											\
+	do {															\
+		DLProgram *_ep, *_ap;										\
+		_ep = (DLProgram *) parseFromStringdl(ep);					\
+		_ap = (DLProgram *) parseFromStringdl(ep);					\
+		analyzeDLModel((Node *) _ep);								\
+		analyzeDLModel((Node *) _ap);										\
+		ASSERT_EQUALS_NODE(_ep,_ap,"Datalog programs equal:\n" ep);	\
+	} while(0)
 
+static rc
+testequalDL(void)
+{
+	TEST_EQUAL_DL("Q(X) :- R(X,Y), S(Y,Z).");
+	TEST_EQUAL_DL("Q(X) :- R(X,Y), X < 5.");
+	TEST_EQUAL_DL("Q(X) :- R(X,Y), S(Y,Z), X < 5. Q2(X) :- Q(X), Q(X). ANS : Q2.");
 
+	TEST_EQUAL_DL_WITH_ANALYZE("Q(X) :- R(X,Y), S(Y,Z).");
+	TEST_EQUAL_DL_WITH_ANALYZE("Q(X) :- R(X,Y), X < 5.");
+	TEST_EQUAL_DL_WITH_ANALYZE("Q(X) :- R(X,Y), S(Y,Z), X < 5. Q2(X) :- Q(X), Q(X). ANS : Q2.");
 
-
-
+	return PASS;
+}

@@ -1,0 +1,32 @@
+Q(sum(l_extp*(1-l_discount))) :-
+part(p_partkey,p1,p2,'Brand#12',p3,p_size,p_container,p4,p5),
+lineitem(l1,p_partkey,l2,l3,l_quantity,l_extp,l_discount,l4,l5,l6,l7,l8,l9,'DELIVER IN PERSON',l_shipmode,l10),
+l_quantity >= 1,
+l_quantity <= 11,
+p_size >= 1,
+p_size <=5.
+
+
+Q(sum(l_extp*(1-l_discount))) :-
+part(p_partkey,p1,p2,'Brand#23',p3,p_size,p_container,p4,p5),
+lineitem(l1,p_partkey,l2,l3,l_quantity,l_extp,l_discount,l4,l5,l6,l7,l8,l9,'DELIVER IN PERSON',l_shipmode,l10),
+l_quantity >= 10,
+l_quantity <= 20,
+p_size >= 1,
+p_size <=10.
+
+
+Q(sum(l_extp*(1-l_discount))) :-
+part(p_partkey,p1,p2,'Brand#34',p3,p_size,p_container,p4,p5),
+lineitem(l1,p_partkey,l2,l3,l_quantity,l_extp,l_discount,l4,l5,l6,l7,l8,l9,'DELIVER IN PERSON',l_shipmode,l10),
+l_quantity >= 20,
+l_quantity <= 30,
+p_size >= 1,
+p_size <=15.
+
+
+ANS: Q.
+
+RP(x1) :- rtpcq19(x1).
+
+LINEAGE FOR part FOR RESULTS FROM RP.

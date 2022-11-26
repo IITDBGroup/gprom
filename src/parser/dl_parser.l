@@ -1,4 +1,4 @@
-%option prefix="dl" 
+%option prefix="dl"
 %option outfile="dl_parser.lex.c"
 
 /*
@@ -7,7 +7,7 @@
 
 
 /*******************************************************************************
- * options section 
+ * options section
  ******************************************************************************/
 
 /* set lexer options */
@@ -52,13 +52,13 @@
 %}
 
 /********************************************************************
- * lexer states 
+ * lexer states
  */
 
 %s SQL
 
 /********************************************************************
- * predefined regular expressions 
+ * predefined regular expressions
  */
 
 /* whitespace */
@@ -88,9 +88,9 @@ variable		{variableStart}{identContinue}*
 
 /* operators */
 dot						'.'
-colon					':' 
-comma					',' 
-semicolon				';' 
+colon					':'
+comma					','
+semicolon				';'
 
 IMPLIES					":-"
 
@@ -100,34 +100,39 @@ MINUS					'-'
 STAR					'*'
 MOD						'%'
 STRCONCAT				"||"
-
-comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+						
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">="|"!=")
+LOG_IMPLIES             "->"
 
 /* KEYWORDS */
 ANS					"ANS"
-WHY					"WHY"
-WHYNOT				"WHYNOT"
-GP					"GP"
-RPQ					"RPQ"
-FORMAT				"FORMAT"
-OF					"OF"
-IS					"IS"
-USERDOMAIN			"USERDOMAIN"
-TOP					"TOP"
-FOR					"FOR"
-FAILURE				"FAILURE"
-SUMMARIZED			"SUMMARIZED"
+AS					"AS"
 BY					"BY"
-WITH				"WITH"
+FAILURE				"FAILURE"
+FD                  "FD"
+FOR					"FOR"
+FORMAT				"FORMAT"
+GP					"GP"
+IS					"IS"
+LINEAGE             "LINEAGE"
+OF					"OF"
+RPQ					"RPQ"
 SAMPLE				"SAMPLE"
 SCORE				"SCORE"
-AS					"AS"
+SUMMARIZED			"SUMMARIZED"
 THRESHOLDS			"THRESHOLDS"
+TOP					"TOP"
+USERDOMAIN			"USERDOMAIN"
+WHY					"WHY"
+WHYNOT				"WHYNOT"
+WITH				"WITH"
+RESULTS             "RESULTS"
+FROM                "FROM"
 
 /* LITERAL ONES */
 
 /*******************************************************************************
- * Token definitions and actions 
+ * Token definitions and actions
  ******************************************************************************/
 %%
 
@@ -135,19 +140,22 @@ THRESHOLDS			"THRESHOLDS"
 {whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", dltext); /* ignore it */ }
 
 	/* literal keyword tokens */
-(?i:not)			TOK(NEGATION)
+(?i:LIKE)           TOK(LIKE)
 {IMPLIES}			TOK(RULE_IMPLICATION)
+{LOG_IMPLIES}       TOK(IMPLIES)
+{FD}                TOK(KEYWORD_FD)
 {ANS}				TOK(ANS)
 {GP}				TOK(GP)
 {WHY}				TOK(WHYPROV)
 {WHYNOT}			TOK(WHYNOTPROV)
+{LINEAGE}           TOK(LINEAGE)
+{FOR}               TOK(FOR)
 {RPQ}				TOK(RPQ)
 {FORMAT}			TOK(FORMAT)
 {OF}				TOK(OF)
 {IS}				TOK(IS)
 {USERDOMAIN}		TOK(USERDOMAIN)
 {TOP}				TOK(TOP)
-{FOR}				TOK(FOR)
 {FAILURE}			TOK(FAILURE)
 {SUMMARIZED}		TOK(SUMMARIZED)
 {BY}				TOK(BY)
@@ -156,7 +164,15 @@ THRESHOLDS			"THRESHOLDS"
 {SCORE}				TOK(SCORE)
 {AS}				TOK(AS)
 {THRESHOLDS}		TOK(THRESHOLDS)
-
+{RESULTS}           TOK(RESULTS)
+{FROM}              TOK(FROM)
+(?i:CASE)			UPCASE_TOK(CASE)
+(?i:WHEN)			UPCASE_TOK(WHEN)
+(?i:THEN)			UPCASE_TOK(THEN)
+(?i:END)			UPCASE_TOK(END)
+(?i:ELSE)			UPCASE_TOK(ELSE)
+(?i:NOT)			TOK(NEGATION)
+(?i:CAST)           UPCASE_TOK(CAST)
 
 	/* aggregation functions */
 (?i:AVG)	TOK(AMMSC)
@@ -165,20 +181,6 @@ THRESHOLDS			"THRESHOLDS"
 (?i:SUM)	TOK(AMMSC)
 (?i:COUNT)	TOK(AMMSC)
 
-	/* identifier types */
-{identifier}	UPCASE_TOK(IDENT)
-	/* {variable}	 	UPCASE_TOK(VARIDENT)*/
-
-{quotedIdentifier}   { 		
-		dllval.stringVal = MALLOC(strlen(dltext) - 1);
-		memcpy(dllval.stringVal, dltext + 1, strlen(dltext) - 2);
-		dllval.stringVal[strlen(dltext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", dltext);
-		return IDENT;
-	}	
-
-[(),.;:] 			TOKSELF()
-
 	/* comparisons */
 {comparisonOps}		TOK(comparisonOp)
 
@@ -186,11 +188,18 @@ THRESHOLDS			"THRESHOLDS"
 [-+*%/]				TOKSELF()
 {STRCONCAT}		TOK(STRCONCAT)
 
+	/* identifier types */
+{identifier}	TOK(IDENT)
+
+{quotedIdentifier}   TOK(IDENT)
+
+[(),.;:] 			TOKSELF()
+
 	/* constants */
 {integer}	TOKSAVE(intConst,intVal,atoi)
 {float}		TOKSAVE(floatConst,floatVal,atof)
 
-	
+
 '[^'\n]*'	{
 		dllval.stringVal = MALLOC(strlen(dltext) - 1);
 		memcpy(dllval.stringVal, dltext + 1, strlen(dltext) - 2);
@@ -199,7 +208,7 @@ THRESHOLDS			"THRESHOLDS"
 		return stringConst;
 	}
 
-		
+
 '[^'\n]*$	{ dlerror("Unterminated string"); }
 
 . 			{ dlerror("not matching any token"); }

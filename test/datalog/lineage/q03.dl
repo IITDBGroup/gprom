@@ -1,0 +1,7 @@
+Q(l_orderkey,o_orderdate,o_shippriority,sum(l_extendedprice*(1 - l_discount))) :- 
+	customer(c_custkey, C1, C2, C3, C4, C5, 'BUILDING', C6),
+	orders(l_orderkey, c_custkey, O1, O2, o_orderdate, O3, O4, o_shippriority, O5),
+	lineitem(l_orderkey, X1, X2, X3, X4, l_extendedprice, l_discount, X5, X6, X7, l_shipdate, X8, X9, X10, X11, X12),
+        o_orderdate < '1995-03-15', l_shipdate > '1995-03-15'.
+
+ANS: Q.

@@ -66,7 +66,6 @@ static void adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeRefere
 static void adaptAttributeRefs(List* attrRefs, List* parentFroms);
 static boolean findAttrReferences (Node *node, List **state);
 static void enumerateParameters (Node *stmt);
-static boolean findFunctionCall (Node *node, List **state);
 static boolean findAttrRefInFrom (AttributeReference *a, List *fromClauses);
 static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
 static int findAttrInFromItem (FromItem *fromItem, AttributeReference *attr);
@@ -462,7 +461,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                     DEBUG_LOG("view: %s", view);
                     StringInfo s = makeStringInfo();
                     appendStringInfoString(s,view);
-                    appendStringInfoString(s,";");
+					if(!regExMatch(".*[;].*$", view))
+					{
+						appendStringInfoString(s,";");
+					}
                     view = s->data;
                     Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
                     FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
@@ -1164,8 +1166,8 @@ findNestedSubqueries (Node *node, List **state)
     return visit(node, findNestedSubqueries, state);
 }
 
-static boolean
-findFunctionCall (Node *node, List **state)
+boolean
+findFunctionCall(Node *node, List **state)
 {
     if(node == NULL)
         return TRUE;

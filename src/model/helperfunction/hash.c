@@ -13,16 +13,17 @@
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "model/graph/graph.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
 #include "model/bitset/bitset.h"
 #include "model/list/list.h"
 #include "log/logger.h"
-#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include <stdint.h>
 
 // hash constants
@@ -54,6 +55,7 @@ static uint64_t hashVector (uint64_t cur, Vector *node);
 static uint64_t hashBitSet (uint64_t cur, BitSet *node);
 static uint64_t hashKeyValue (uint64_t cur, KeyValue *node);
 static uint64_t hashBitSet (uint64_t cur, BitSet *node);
+static uint64_t hashGraph(uint64_t cur, Graph *node);
 
 // hash for expression nodes
 static uint64_t hashConstant (uint64_t cur, Constant *node);
@@ -66,6 +68,10 @@ static uint64_t hashWindowBound (uint64_t cur, WindowBound *node);
 static uint64_t hashWindowFrame (uint64_t cur, WindowFrame *node);
 static uint64_t hashWindowDef (uint64_t cur, WindowDef *node);
 static uint64_t hashWindowFunction (uint64_t cur, WindowFunction *node);
+
+// hash functions for integrity constraints
+static uint64_t hashFD(uint64_t cur, FD *node);
+static uint64_t hashFOdep(uint64_t cur, FOdep *node);
 
 // hash functions for query block model
 static uint64_t hashFunctionCall (uint64_t cur, FunctionCall *node);
@@ -406,8 +412,24 @@ hashWindowFunction (uint64_t cur, WindowFunction *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashFD(uint64_t cur, FD *node)
+{
+	HASH_STRING(table);
+	HASH_NODE(lhs);
+	HASH_NODE(rhs);
 
+	HASH_RETURN();
+}
 
+static uint64_t
+hashFOdep(uint64_t cur, FOdep *node)
+{
+	HASH_NODE(lhs);
+	HASH_NODE(rhs);
+
+	HASH_RETURN();
+}
 
 static uint64_t
 hashKeyValue (uint64_t cur, KeyValue *node)
@@ -418,6 +440,14 @@ hashKeyValue (uint64_t cur, KeyValue *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashGraph(uint64_t cur, Graph *node)
+{
+	HASH_NODE(nodes);
+	HASH_NODE(edges);
+
+	HASH_RETURN();
+}
 
 static uint64_t
 hashFunctionCall (uint64_t cur, FunctionCall *node)
@@ -1046,6 +1076,8 @@ hashValueInternal(uint64_t h, void *a)
       		return hashBitSet(h, (BitSet *)n );
         case T_KeyValue:
             return hashKeyValue(h, (KeyValue *) n);
+    	case T_Graph:
+    		return hashGraph(h, (Graph *) n);
         case T_Constant:
             return hashConstant(h,(Constant *) n);
         case T_AttributeReference:
@@ -1078,6 +1110,11 @@ hashValueInternal(uint64_t h, void *a)
             return hashQuantifiedComparison(h, (QuantifiedComparison *) n);
         case T_CastExpr:
             return hashCastExpr(h, (CastExpr *) n);
+			/* integrity constraints */
+        case T_FD:
+            return hashFD(h, (FD *) n);
+        case T_FOdep:
+            return hashFOdep(h, (FOdep *) n);
             /* query block nodes */
         case T_SetQuery:
             return hashSetQuery(h, (SetQuery *) n);

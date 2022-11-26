@@ -61,7 +61,7 @@ extern List *getKeys(HashMap *map);
 extern List *getEntries(HashMap *map);
 
 // add elements to map
-extern boolean addToMap (HashMap *map, Node *key, Node *value);
+extern boolean addToMap(HashMap *map, Node *key, Node *value);
 #define ADD_TO_MAP(map, keyvalue) \
 	do { \
 	    KeyValue *_kv = (keyvalue); \
@@ -73,6 +73,8 @@ extern boolean addToMap (HashMap *map, Node *key, Node *value);
 #define MAP_ADD_LONG_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong(key), (Node *) value)
 #define MAP_ADD_POINTER_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong((gprom_long_t) key), (Node *) value)
 #define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (gprom_long_t) p, val)
+extern void addToMapValueList(HashMap *map, Node *key, Node *item, boolean unique);
+#define MAP_ADD_STRING_KEY_TO_VALUE_LIST(map,key,value,unique) addToMapValueList((HashMap *) map, (Node *) createConstString(key), (Node *) value, unique)
 
 extern int mapIncr(HashMap *map, Node *key);
 extern int mapIncrString(HashMap *map, char *key);
@@ -81,7 +83,7 @@ extern int mapIncrPointer(HashMap *map, void *key);
 
 // remove elements from map
 extern void removeAndFreeMapElem (HashMap *map, Node *key);
-extern void removeMapElem (HashMap *map, Node *key);
+extern void removeMapElem(HashMap *map, Node *key);
 extern void removeMapStringElem (HashMap *map, char *key);
 
 // map size

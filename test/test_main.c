@@ -46,16 +46,30 @@ static TestNameToFunc testFuncs [] = {
         { "list", testList },
         { "logger", testLogger },
         { "mem_mgr", testMemManager },
+        { "exception", testException },
+        { "list", testList },
+        { "set", testSet },
+        { "vector", testVector },
+		{ "bitset", testBitset },
+        { "hashmap", testHashMap },
+		{ "graph", testGraph },
+        { "expr", testExpr },
+		{ "ICs", testIntegrityConstraints },
+        { "copy", testCopy },
+        { "equal", testEqual },
+        { "stringutils", testStringUtils },
+        { "tostring", testToString },
+        { "dynstring", testString },
+        { "parse", testParse },
         { "metadatalookup", testMetadataLookup },
         { "metadatalookup_postgres", testMetadataLookupPostgres },
         { "parameter", testParameter },
         { "parse", testParse },
         { "rpq", testRPQ },
-        { "set", testSet },
-        { "stringutils", testStringUtils },
-        { "temporal", testTemporal },
-        { "tostring", testToString },
-        { "vector", testVector },
+        { "autocast", testAutocast },
+		{ "semantic_optimization", testSemanticOptimization },
+		{ "dl", testDatalogModel },
+		{ "temporal", testTemporal },
 		{ "z3", testZ3 },
         { NULL, NULL }
 };
@@ -73,7 +87,9 @@ testSuites(void)
     RUN_TEST(testVector(), "Vector");
 	RUN_TEST(testBitset(), "Bitset");
     RUN_TEST(testHashMap(), "HashMap");
+	RUN_TEST(testGraph(), "Graph");
     RUN_TEST(testExpr(), "Expression model");
+	RUN_TEST(testIntegrityConstraints(), "Integrity constraints.");
     RUN_TEST(testCopy(), "Test generic copy function");
     RUN_TEST(testEqual(), "Test generic equality function");
     RUN_TEST(testStringUtils(), "Test String utilities");
@@ -91,6 +107,7 @@ testSuites(void)
     RUN_TEST(testAutocast(), "Test automatic casting");
     RUN_TEST(testTemporal(), "Test temporal rewriting");
 	RUN_TEST(testZ3(), "Testing Z3 constraint solving.");
+	RUN_TEST(testSemanticOptimization(), "Test semantic optimization of provenance capture for DL");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

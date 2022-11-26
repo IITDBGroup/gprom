@@ -21,23 +21,48 @@
 #include "provenance_rewriter/prov_utility.h"
 
 /* internal tests */
-static rc testCastExprs (void);
-static rc testCastSetOp (void);
+static rc testLcaType(void);
+static rc testCastExprs(void);
+static rc testCastSetOp(void);
 
 #define SIN(_dt) singletonInt(_dt)
 
 /* check equal model */
 rc
-testAutocast (void)
+testAutocast(void)
 {
+	RUN_TEST(testLcaType(), "test inferring the lowest comman ancestor type of two types");
     RUN_TEST(testCastExprs(), "test casting in expressions of algebra operators");
     RUN_TEST(testCastSetOp(), "test making inputs of set operators union compatible");
 
     return PASS;
 }
 
+
 static rc
-testCastExprs (void)
+testLcaType(void)
+{
+	DataType types[] = { DT_INT, DT_FLOAT, DT_BOOL, DT_LONG, DT_STRING };
+	
+	for(int i = 0; i < 5; i++)
+	{
+		ASSERT_EQUALS_INT(lcaType(types[i], types[i]), types[i], "reflexivity");
+	}
+
+	// string is the most general
+	for(int i = 0; i < 5; i++)
+	{
+		ASSERT_EQUALS_INT(lcaType(types[i], DT_STRING), DT_STRING, "string is top type");
+	}
+	
+	ASSERT_EQUALS_INT(lcaType(DT_FLOAT, DT_INT), DT_FLOAT, "int,float -> float");
+	ASSERT_EQUALS_INT(lcaType(DT_INT, DT_FLOAT), DT_FLOAT, "float,int -> float");
+	
+	return PASS;
+}
+
+static rc
+testCastExprs(void)
 {
     QueryOperator *p, *eP;
     QueryOperator *t;

@@ -20,6 +20,7 @@
 
 static rc testIntList(void);
 static rc testPList(void);
+static rc testPopList(void);
 static rc testListConstruction(void);
 static rc testListOperations(void);
 static rc testListGenericOps(void);
@@ -36,6 +37,7 @@ testList()
     RUN_TEST(testPList(), "test pointer lists");
     RUN_TEST(testListConstruction(), "test list construction");
     RUN_TEST(testListOperations(), "test list operations");
+	RUN_TEST(testPopList(), "test pop from list");
     RUN_TEST(testListGenericOps(), "test generic list operations");
 	RUN_TEST(testSort(), "test generic list sorting");
 	RUN_TEST(testUnique(), "test duplicate elimination");
@@ -162,6 +164,13 @@ testListOperations(void)
     ASSERT_EQUALS_INT(1, LIST_LENGTH(l2), "... of length 1");
 
     // reverse list
+	l = LIST_MAKE("a","b","c");
+	reverseList(l);
+	l2 = LIST_MAKE("c","b","a");
+
+	ASSERT_EQUALS_STRING(stringListToString(l2),
+						 stringListToString(l),
+						 "reverse list");
 
     // search list
     CREATE_INT_SEQ(l,0,5,1);
@@ -176,6 +185,23 @@ testListOperations(void)
     ASSERT_FALSE(searchListString(l,"d"), "d not in (a,b,c)");
 
     return PASS;
+}
+
+static rc
+testPopList(void)
+{
+	List  *l = LIST_MAKE("a","b","c");
+	List *l2 = LIST_MAKE("c");
+
+	ASSERT_EQUALS_STRING("a", popHeadOfListP(l), "pop a");
+	ASSERT_EQUALS_STRING("b", popHeadOfListP(l), "pop b");
+
+	ASSERT_EQUALS_STRING(stringListToString(l2), stringListToString(l), "after poping two elements = (c)");
+
+	ASSERT_EQUALS_STRING("c", popHeadOfListP(l), "pop c");
+	ASSERT_TRUE(LIST_EMPTY(l), "is empty");
+
+	return PASS;
 }
 
 static rc

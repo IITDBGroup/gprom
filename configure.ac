@@ -927,11 +927,13 @@ AC_CONFIG_FILES([
 	src/model/helperfunction/Makefile
 	src/model/list/Makefile
 	src/model/bitset/Makefile
+    src/model/integrity_constraints/Makefile
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
 	src/model/rpq/Makefile
 	src/model/set/Makefile
+    src/model/graph/Makefile
     src/operator_optimizer/Makefile
     src/parameterized_queries/Makefile
 	src/parser/Makefile
@@ -947,6 +949,8 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/xml_rewrites/Makefile
 	src/provenance_rewriter/lateral_rewrites/Makefile
 	src/provenance_rewriter/unnest_rewrites/Makefile
+    src/provenance_rewriter/datalog_lineage/Makefile
+    src/provenance_rewriter/semantic_optimization/Makefile
     src/provenance_sketches/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile

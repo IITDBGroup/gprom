@@ -12,11 +12,14 @@
 
 #include "common.h"
 #include "log/logger.h"
-#include "model/list/list.h"
-//#include "model/set/set.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
+#include "model/set/set.h"
+#include "model/set/hashmap.h"
+#include "model/graph/graph.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
@@ -80,12 +83,36 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         case T_IntList:
         	break;
     	case T_KeyValue:
-		{
+	    {
 			PREP_VISIT(KeyValue);
 			VISIT(key);
 			VISIT(value);
+        	break;
+		}
+      	case T_Set:
+		{
+			Set *s = (Set *) node;
+			FOREACH_SET(Node,el,s)
+			{
+				VISIT_NODE(el);
+			}
 		}
 		break;
+    	case T_HashMap:
+    	{
+    		HashMap *h = (HashMap *) node;
+    		FOREACH_HASH_ENTRY(kv,h)
+    		{
+    			VISIT_NODE(kv);
+    		}
+    	}
+    	case T_Graph:
+    	{
+    		Graph *g = (Graph *) node;
+    		VISIT_NODE(g->nodes);
+    		VISIT_NODE(g->edges);
+    	}
+
         /* expression nodes */
         case T_Constant:
         	{
@@ -176,6 +203,16 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(exprList);
             }
         break;
+        /* integrity constraint nodes */
+    	case T_FD:
+    		break;
+    	case T_FOdep:
+    	{
+    		PREP_VISIT(FOdep);
+    		VISIT(lhs);
+    		VISIT(rhs);
+		}
+		break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -430,6 +467,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             PREP_VISIT(DLProgram);
             VISIT(rules);
             VISIT(facts);
+			VISIT(func);
         }
         break;
 
@@ -512,13 +550,25 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         	break;
         case T_IntList:
         	return node;
-        /* set nodes */
-//        case T_Set:
-//        	{
-//        		NEWN(Set);
-//        		MUTATE(SetElem, elem);
-//        	}
-//        	break;
+	    case T_Set:
+		{
+			Set *s = (Set *) node;
+			if (s->setType == SET_TYPE_NODE)
+			{
+				Set *out = NODESET();
+
+				FOREACH_SET(Node,n,s)
+				{
+					addToSet(out,
+							 modifyNode(n, state));
+				}
+
+				return (Node *) out;
+			}
+
+			return node;
+		}
+
         /* expression nodes */
         case T_Constant:
             return node;
@@ -606,6 +656,16 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,exprList);
             }
         break;
+		/* integrity constraint nodes */
+    	case T_FD:
+			return node;
+    	case T_FOdep:
+    	{
+    		NEWN(FOdep);
+    		MUTATE(List,lhs);
+    		MUTATE(List,rhs);
+    	}
+		break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -934,6 +994,15 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
             break;
         case T_IntList:
             break;
+			// sets and hashmaps do not work
+    	case T_Graph:
+    	{
+    		PREP_VISIT_P(Graph);
+    		VISIT_P(nodes);
+    		VISIT_P(edges);
+    	}
+		break;
+
         /* expression nodes */
         case T_Constant:
             {
@@ -1024,6 +1093,15 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(exprList);
             }
         break;
+		/* integrity constraints */
+    	case T_FD:
+    		break;
+    	case T_FOdep:
+    	{
+    		PREP_VISIT_P(FOdep);
+    		VISIT_P(lhs);
+    		VISIT_P(rhs);
+    	}
         /* query block model nodes */
         case T_SetQuery:
             {

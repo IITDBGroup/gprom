@@ -194,7 +194,7 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
 
     DEBUG_LOG("projection expressions: %s", nodeToString((Node*) projExprs));
 
-    p = createProjectionOp (projExprs, NULL, NIL, attrNames);
+    p = createProjectionOp(projExprs, NULL, NIL, attrNames);
     p->op.provAttrs = copyObject(op->provAttrs); //TODO create real prov attrs list
 
     return (QueryOperator *) p;

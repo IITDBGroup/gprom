@@ -16,11 +16,13 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/graph/graph.h"
 #include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/rpq/rpq_model.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
@@ -59,6 +61,7 @@ static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
 static BitSet *deepCopyBitSet(BitSet *from, OperatorMap **opMap);
+static Graph *deepCopyGraph(Graph *from, OperatorMap **opMap);
 
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
@@ -77,6 +80,10 @@ static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
 static QuantifiedComparison *copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap);
 static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
+
+/* integrity constraints */
+static FD *copyFD(FD *from, OperatorMap **opMap);
+static FOdep *copyFOdep(FOdep *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -271,6 +278,17 @@ static BitSet *
 deepCopyBitSet(BitSet *from, OperatorMap **opMap)
 {
 	BitSet *new = copyBitSet(from);
+
+	return new;
+}
+
+static Graph *
+deepCopyGraph(Graph *from, OperatorMap **opMap)
+{
+	COPY_INIT(Graph);
+
+	COPY_NODE_FIELD(nodes);
+	COPY_NODE_FIELD(edges);
 
 	return new;
 }
@@ -556,6 +574,29 @@ copyCastExpr(CastExpr *from, OperatorMap **opMap)
 
     return new;
 }
+
+static FD *
+copyFD(FD *from, OperatorMap **opMap)
+{
+	COPY_INIT(FD);
+
+	COPY_STRING_FIELD(table);
+	COPY_NODE_FIELD(lhs);
+	COPY_NODE_FIELD(rhs);
+
+	return new;
+}
+static FOdep *
+copyFOdep(FOdep *from, OperatorMap **opMap)
+{
+	COPY_INIT(FOdep);
+
+	COPY_NODE_FIELD(lhs);
+	COPY_NODE_FIELD(rhs);
+
+	return new;
+}
+
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -1226,7 +1267,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_BitSet:
             retval = deepCopyBitSet(from, opMap);
             break;
-
+	    case T_Graph:
+			retval = deepCopyGraph(from, opMap);
+			break;
         /* expression model */
         case T_AttributeReference:
             retval = copyAttributeReference(from, opMap);
@@ -1282,6 +1325,12 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_CastExpr:
             retval = copyCastExpr(from, opMap);
             break;
+     	case T_FD:
+     		retval = copyFD(from, opMap);
+     		break;
+     	case T_FOdep:
+     		retval = copyFOdep(from, opMap);
+     		break;
             /* query block model nodes */
 //        case T_SetOp:
 //            retval = copySetOp(from, opMap);

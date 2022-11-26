@@ -11,7 +11,7 @@ bin_PROGRAMS = testexprcplex
 
 # testcplex
 
-testmain_SOURCES = test_main.c \
+testmain_SOURCES =
 	test_autocast.c \
 	test_bitset.c \
 	test_common.c \
@@ -20,10 +20,13 @@ testmain_SOURCES = test_main.c \
 	test_equal.c \
 	test_exception.c \
 	test_expr.c \
+	test_graph.c \
 	test_hash.c \
 	test_hashmap.c \
+	test_ic.c \
 	test_list.c \
 	test_logger.c \
+	test_main.c \
 	test_main.h \
 	test_mem_mgr.c \
 	test_metadata_lookup.c \
@@ -31,6 +34,7 @@ testmain_SOURCES = test_main.c \
 	test_parameter.c \
 	test_parse.c \
 	test_rpq.c \
+	test_semantic_optimization.c
 	test_set.c \
 	test_string.c \
 	test_string_utils.c \

@@ -83,7 +83,6 @@ parseExprFromStringOracle (char *input)
 	return getHeadOfListP((List *) parseInternalOracle());
 }
 
-
 const char *
 languageHelpOracle (void)
 {

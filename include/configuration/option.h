@@ -68,6 +68,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
+#define OPTION_ALWAYS_TREEIFY "always_treeify"
 #define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
 #define OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW "pi_cs_rewrite_agg_window"
 #define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
@@ -135,6 +136,11 @@ NEW_ENUM_WITH_TO_STRING(
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"
 #define RANGE_COMPRESSION_RATE "range_compression_rate"
 
+/* dl rewrite options */
+#define OPTION_WHYNOT_ADV "whynot_adv"
+#define OPTION_DL_SEMANTIC_OPT "dl_semantic_opt"
+#define OPTION_DL_MERGE_RULES "dl_merge_rules"
+#define OPTION_DL_FETCH_PK_FDS_FROM_DB "dl_load_fds"
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(
@@ -150,8 +156,6 @@ NEW_ENUM_WITH_TO_STRING(
 // encapsulates option state
 typedef struct option_state OptionState;
 
-/* dl rewrite options */
-#define OPTION_WHYNOT_ADV "whynot_adv"
 
 // declare option fields
 // show help only

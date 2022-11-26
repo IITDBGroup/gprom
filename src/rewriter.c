@@ -47,6 +47,7 @@
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
+static void treeifyAll(Node *rewrittenPlan);
 static void setupPlugin(const char *pluginType);
 //static void summarizationPlan(Node *parse);
 //static List *summOpts = NIL;
@@ -276,6 +277,36 @@ setupPlugin(const char *pluginType)
     }
 }
 
+static void
+treeifyAll(Node *rewrittenPlan)
+{
+	if (isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY))
+	{
+		if(isA(rewrittenPlan,List))
+		{
+			FOREACH(Node,n,(List *) rewrittenPlan)
+			{
+				if(IS_OP(n))
+				{
+					QueryOperator *q = (QueryOperator *) n;
+					treeify(q);
+					INFO_OP_LOG("treeified operator model:", q);
+					DEBUG_NODE_BEATIFY_LOG("treeified operator model:", q);
+					ASSERT(isTree(q));
+				}
+			}
+		}
+		else if (IS_OP(rewrittenPlan))
+		{
+			QueryOperator *q = (QueryOperator *) rewrittenPlan;
+			treeify((QueryOperator *) q);
+			INFO_OP_LOG("treeified operator model:", q);
+			DEBUG_NODE_BEATIFY_LOG("treeified operator model:", q);
+			ASSERT(isTree((QueryOperator *) q));
+		}
+	}
+}
+
 void
 resetupPluginsFromOptions (void)
 {
@@ -345,7 +376,7 @@ shutdownApplication(void)
 }
 
 void
-processInput(char *input)
+processInput(char *input, FILE *stream)
 {
     char *q = NULL;
     Node *parse;
@@ -353,7 +384,14 @@ processInput(char *input)
     TRY
     {
         NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
-        parse = parseFromString(input);
+		if(stream == NULL)
+		{
+			parse = parseFromString(input);
+		}
+		else
+		{
+			parse = parseStream(stream);
+		}
         q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
         execute(q);
         FREE_AND_RELEASE_CUR_MEM_CONTEXT();
@@ -532,10 +570,13 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    		}
 	    	}
 	    }
-
+	
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
 
+	// turn operator graph into a tree if the users asked for it
+	treeifyAll(rewrittenTree);
+	
 	START_TIMER("SQLcodeGen");
 	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
 	STOP_TIMER("SQLcodeGen");

@@ -121,6 +121,24 @@ getHeadOfListInt (List *list)
     return head ? head->data.int_value : -1;
 }
 
+int
+popHeadOfListInt(List *list)
+{
+    ListCell *head;
+    int result = -1;
+
+    ASSERT(isIntList(list) && LIST_LENGTH(list) > 0);
+    head = popHeadOfList(list);
+
+    if (head != NULL)
+    {
+        result = head->data.int_value;
+        FREE(head);
+    }
+
+    return result;
+}
+
 void *
 getHeadOfListP (List *list)
 {
@@ -140,6 +158,10 @@ popHeadOfList(List *list)
     {
         list->length--;
         list->head = result->next;
+        if(list->head == NULL)
+        {
+            list->tail = NULL;
+        }
     }
 
     return result;
@@ -281,9 +303,13 @@ appendToTailOfList(List *list, void *value)
     ASSERT(isPtrList(list));
 
     if (list == NIL || list->length == 0)
+    {
         list = newList(T_List);
+    }
     else
+    {
         newListTail(list);
+    }
 
     list->tail->data.ptr_value = value;
 
@@ -305,6 +331,22 @@ appendToTailOfListInt(List *list, int value)
     ASSERT(checkList(list));
     return list;
 }
+
+List *
+appendAllToTail(List *l, List *new)
+{
+    if(LIST_EMPTY(l))
+    {
+        return new;
+    }
+    if(LIST_EMPTY(new))
+    {
+        return l;
+    }
+
+    return CONCAT_LISTS(l,new);
+}
+
 
 void
 newListHead(List *list)

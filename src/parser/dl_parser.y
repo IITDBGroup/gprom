@@ -10,12 +10,13 @@
 #include "parser/parse_internal_dl.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 
 #define RULELOG(grule) \
     { \
         TRACE_LOG("Parsing grammer rule <%s>", #grule); \
     }
-    
+
 #undef free
 #undef malloc
 
@@ -25,7 +26,7 @@ Node *dlParseResult = NULL;
 %define api.prefix {dl}
 
 %union {
-    /* 
+    /*
      * Declare some C structure those will be used as data type
      * for various tokens used in grammar rules.
      */
@@ -43,21 +44,22 @@ Node *dlParseResult = NULL;
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
 %token <stringVal> FORMAT
+%token	<stringVal>	CASE WHEN THEN ELSE END LIKE NOT
 
-/* 
- * Functions and operators 
- */ 
+/*
+ * Functions and operators
+ */
 %token <stringVal> AMMSC
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' ')' '(' ':'
-%token <stringVal> STRCONCAT 
+%token <stringVal> STRCONCAT
 
 /*
  * Tokens for in-built keywords
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS 
-%token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE
+%token <stringVal> NEGATION RULE_IMPLICATION IMPLIES ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS
+%token <stringVal> SCORE AS THRESHOLDS TOP FOR RESULTS FROM FAILURE SUMMARIZED BY WITH SAMPLE LINEAGE KEYWORD_FD CAST
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -65,7 +67,7 @@ Node *dlParseResult = NULL;
 %token <stringVal> stringConst
 
 /* comparison and arithmetic operators */
-%token <stringVal> comparisonOp
+%token <stringVal> comparisonOp 
 
 /*
  * Declare token for operators specify their associativity and precedence
@@ -81,16 +83,17 @@ Node *dlParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-/* statements and their parts */ 
-%type <stringVal> name
+/* statements and their parts */
+%type <stringVal> name comparisonOperator
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
-%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType
+%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison parenComparison ansrelation provStatement rpqStatement associateDomain
+%type <node> functional_dependency
+%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions caseExpression caseWhen optionalCaseElse castExpression
 %type <node> optionalFPattern 
-%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds
-%type <stringVal> optProvFormat 
+%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds nameList caseWhenList
+%type <stringVal> optProvFormat
 
 /* start symbol */
 %start program
@@ -102,7 +105,7 @@ Node *dlParseResult = NULL;
 
 program:
 		stmtList summarizationStatement
-			{ 
+			{
 				RULELOG("program::stmtList");
 				$$ = (Node *) createDLProgram ($1, NULL, NULL, NULL, NULL, $2);
 				dlParseResult = (Node *) $$;
@@ -111,16 +114,16 @@ program:
 		;
 
 /* Rule for all types of statements */
-stmtList: 
+stmtList:
 		statement
-			{ 
-				RULELOG("stmtList::statement"); 
+			{
+				RULELOG("stmtList::statement");
 				$$ = singleton($1);
 			}
-		| stmtList statement 
+		| stmtList statement
 			{
 				RULELOG("stmtList::stmtList::statement");
-				$$ = appendToTailOfList($1, $2); 
+				$$ = appendToTailOfList($1, $2);
 			}
 	;
 
@@ -139,10 +142,11 @@ statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
 		| fact { RULELOG("statement::fact"); $$ = $1; }
 		| ansrelation { RULELOG("statement::ansrelation"); $$ = $1; }
-		| associateDomain { RULELOG("statement::associateDomain"); $$ = $1; }		
+		| associateDomain { RULELOG("statement::associateDomain"); $$ = $1; }
 		| provStatement { RULELOG("statement::prov"); $$ = $1; }
 		| rpqStatement { RULELOG("statement::rpq"); $$ = $1; }
-	;
+		| functional_dependency { RULELOG("statement::fd"); $$ = $1; }
+    ;
 
 rpqStatement:
 		RPQ '(' stringConst ',' IDENT ',' IDENT ',' IDENT ')' '.'
@@ -151,9 +155,9 @@ rpqStatement:
 			$$ = (Node *) makeRPQQuery($3, $5, $7, $9);
 		}
 	;
-	
+
 provStatement:
-		WHYPROV '(' relAtom ')' optProvFormat '.' 
+		WHYPROV '(' relAtom ')' optProvFormat '.'
 		{
 			RULELOG("provStatement::WHY");
 			char *str = $5 ? CONCAT_STRINGS("WHY_PROV-", $5) : "WHY_PROV";
@@ -171,7 +175,31 @@ provStatement:
 			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "GP";
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), NULL);
 		}
+		| LINEAGE optLineageOptions '.'
+		{
+			RULELOG("provStatement::LINEAGE");
+			$$ = (Node *) createNodeKeyValue(
+				(Node *) createConstString(DL_PROV_LINEAGE),
+				(Node *) $2);
+		}
 	;
+
+optLineageOptions:
+				/* EMPTY */ { $$ = NULL; }
+		|		FOR name
+				{
+					$$ = (Node *) createNodeKeyValue((Node *) createConstString($2), NULL);
+				}
+		|		FOR name FOR RESULTS FROM name
+				{
+					$$ = (Node *) createNodeKeyValue((Node *) createConstString($2),
+													 (Node *) createConstString($6));
+				}
+		|		OF name
+				{
+					$$ = (Node *) createNodeKeyValue(NULL, (Node *) createConstString($2));
+				}
+		;
 
 /* optProv:
 		optProvFormat optProvSummarize
@@ -183,36 +211,36 @@ optProvSummarize:
 	;
 */
 
-	
+
 summarizationStatement:
 		/* EMPTY */ { $$ = NIL; }
 		| optionalTopK optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3); }
 		| optionalTopK optionalFPattern optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3,$4); }
 		| optionalScore optionalTopK optionalSumType optionalSumSample
-		{ 
-			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4)); 
+		{
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4));
 		}
 		| optionalScore optionalTopK optionalFPattern optionalSumType optionalSumSample
-		{ 
-			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4,$5)); 
+		{
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4,$5));
 		}
 		| optionalThresholds optionalTopK optionalSumType optionalSumSample
-		{ 
-			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4)); 
+		{
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4));
 		}
 		| optionalThresholds optionalTopK optionalFPattern optionalSumType optionalSumSample
-		{ 
-			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4,$5)); 
+		{
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4,$5));
 		}
 		| optionalScore optionalThresholds optionalTopK optionalSumType optionalSumSample
-		{ 
-			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5)); 
+		{
+			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5));
 		}
-		| optionalScore optionalThresholds optionalTopK optionalFPattern optionalSumType optionalSumSample 
-		{ 
-			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5,$6)); 
+		| optionalScore optionalThresholds optionalTopK optionalFPattern optionalSumType optionalSumSample
+		{
+			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5,$6));
 		}
-		
+
 /*
 		| FOR TOP intConst SUMMARIZED BY name WITH SAMPLE '(' intConst ')' '.'
 		{
@@ -222,8 +250,8 @@ summarizationStatement:
 			Node *samp = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($10));
 			$$ = LIST_MAKE(topk, type, samp);
 		}
-*/		
-	;	
+*/
+	;
 
 
 optionalScore:
@@ -259,15 +287,15 @@ optionalScore:
 			$$ = singleton(kv);
 		}
  */
-		SCORE AS '(' floatConst '*' name ')' 
-		{ 
+		SCORE AS '(' floatConst '*' name ')'
+		{
 			RULELOG("optionalScore::score");
 			char *key = CONCAT_STRINGS("sc_",$6);
 			Node *score = (Node *) createNodeKeyValue((Node *) createConstString(key), (Node *) createConstFloat($4));
 			$$ = singleton(score);
 		}
-		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name ')' 
-		{ 
+		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name ')'
+		{
 			RULELOG("optionalScore::score");
 			char *key1 = CONCAT_STRINGS("sc_",$6);
 			char *key2 = CONCAT_STRINGS("sc_",$10);
@@ -275,8 +303,8 @@ optionalScore:
 			Node *score2 = (Node *) createNodeKeyValue((Node *) createConstString(key2), (Node *) createConstFloat($8));
 			$$ = LIST_MAKE(score1,score2);
 		}
-		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name '+' floatConst '*' name ')'  
-		{ 
+		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name '+' floatConst '*' name ')'
+		{
 			RULELOG("optionalScore::score");
 			char *key1 = CONCAT_STRINGS("sc_",$6);
 			char *key2 = CONCAT_STRINGS("sc_",$10);
@@ -285,20 +313,20 @@ optionalScore:
 			Node *score2 = (Node *) createNodeKeyValue((Node *) createConstString(key2), (Node *) createConstFloat($8));
 			Node *score3 = (Node *) createNodeKeyValue((Node *) createConstString(key3), (Node *) createConstFloat($12));
 			$$ = LIST_MAKE(score1,score2,score3);
-		}	
+		}
 	;
 
 
 optionalThresholds:
-		THRESHOLDS '(' name ':' floatConst ')' 
-		{ 
+		THRESHOLDS '(' name ':' floatConst ')'
+		{
 			RULELOG("optionalScore::thresholds");
 			char *key = CONCAT_STRINGS("th_",$3);
 			Node *threshold = (Node *) createNodeKeyValue((Node *) createConstString(key),(Node *) createConstFloat($5));
 			$$ = singleton(threshold);
 		}
-		| THRESHOLDS '(' name ':' floatConst ',' name ':' floatConst ')' 
-		{ 
+		| THRESHOLDS '(' name ':' floatConst ',' name ':' floatConst ')'
+		{
 			RULELOG("optionalScore::thresholds");
 			char *key1 = CONCAT_STRINGS("th_",$3);
 			char *key2 = CONCAT_STRINGS("th_",$7);
@@ -306,8 +334,8 @@ optionalThresholds:
 			Node *thresh2 = (Node *) createNodeKeyValue((Node *) createConstString(key2),(Node *) createConstFloat($9));
 			$$ = LIST_MAKE(thresh1,thresh2);
 		}
-		| THRESHOLDS '(' name ':' floatConst ',' name ':' floatConst ',' name ':' floatConst ')'  
-		{ 
+		| THRESHOLDS '(' name ':' floatConst ',' name ':' floatConst ',' name ':' floatConst ')'
+		{
 			RULELOG("optionalScore::thresholds");
 			char *key1 = CONCAT_STRINGS("th_",$3);
 			char *key2 = CONCAT_STRINGS("th_",$7);
@@ -316,13 +344,13 @@ optionalThresholds:
 			Node *thresh2 = (Node *) createNodeKeyValue((Node *) createConstString(key2),(Node *) createConstFloat($9));
 			Node *thresh3 = (Node *) createNodeKeyValue((Node *) createConstString(key3),(Node *) createConstFloat($13));
 			$$ = LIST_MAKE(thresh1,thresh2,thresh3);
-		}	
+		}
     ;
 
 
 optionalTopK:
-		TOP intConst 
-		{ 
+		TOP intConst
+		{
 			RULELOG("optionalTopK::topk");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString("topk"),(Node *) createConstInt($2));
 		}
@@ -330,14 +358,14 @@ optionalTopK:
 
 
 optionalFPattern:
-		FOR FAILURE OF '(' intConstList ')' 
-		{ 
+		FOR FAILURE OF '(' intConstList ')'
+		{
 			RULELOG("optionalFPattern::intConstList");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString("fpattern"),(Node *) $5);
 		}
     ;
-    
-    
+
+
 intConstList:
 		intConst
 		{
@@ -349,40 +377,53 @@ intConstList:
 			RULELOG("intConstList::intConst");
 			$$ = appendToTailOfList($1,createConstBool($3));
 		}
-	;  
-    
+	;
+
 
 optionalSumType:
-		SUMMARIZED BY name 
-		{ 
+		SUMMARIZED BY name
+		{
 			RULELOG("optionalSumType::sumType");
 			$$ = (Node *) createStringKeyValue(strdup("sumtype"),strdup($3));
-		} 
+		}
 	;
-	
-	
+
+
 optionalSumSample:
 		WITH SAMPLE '(' intConst ')' '.'
-		{ 
+		{
 			RULELOG("optionalSumSample::sumSamp");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($4));	
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($4));
 		}
  	;
- 	
+
 
 optProvFormat:
 		/* EMPTY */ { $$ = NULL; }
 		| FORMAT name { $$ = $2; }
-	;	
-	
+	;
+
+/* ******************************************************************************** */
+// Integrity contrainsts
+functional_dependency:
+		KEYWORD_FD name ':' nameList IMPLIES nameList '.'
+		{
+			RULELOG("rule::FD");
+			$$ = (Node *) createFD($2, makeStrSetFromList($4), makeStrSetFromList($6));
+		}
+   ;
+
+
+/* ******************************************************************************** */
+// rules and facts
 rule:
-		rulehead RULE_IMPLICATION rulebody '.' 
-		{ 
-			RULELOG("rule::head::body"); 
-			$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
+		rulehead RULE_IMPLICATION rulebody '.'
+		{
+			RULELOG("rule::head::body");
+			$$ = (Node *) createDLRule((DLAtom *) $1,$3);
 		}
 	;
-	
+
 fact:
 		rulehead '.' { RULELOG("fact::rulehead"); $$ = $1; }
 	;
@@ -397,27 +438,27 @@ ansrelation:
 
 /*
 domainSet:
- 		domainList 
- 			{ 
- 				RULELOG("domainSet::domainList"); 
- 				$$ = (Node *) $1; 
- 			}		
+ 		domainList
+ 			{
+ 				RULELOG("domainSet::domainList");
+ 				$$ = (Node *) $1;
+ 			}
 	;
-			
+
 domainList:
-		associateDomain		
+		associateDomain
 			{
 				RULELOG("domainList::associateDomain");
-				$$ = singleton($1); 
-			}   	
- 		| domainList ',' associateDomain 
+				$$ = singleton($1);
+			}
+ 		| domainList ',' associateDomain
 			{
 				RULELOG("domainList::associateDomain");
-				$$ = appendToTailOfList($1,$3); 
+				$$ = appendToTailOfList($1,$3);
 			}
 	;
 */
-		
+
 associateDomain:
 		USERDOMAIN OF name '.' name IS name '.'
 		{
@@ -429,11 +470,11 @@ associateDomain:
 rulehead:
 		headatom  { RULELOG("rulehead::atom"); $$ = $1; }
 	;
-	
+
 rulebody:
 		bodyAtomList { RULELOG("rulebody::atomList"); $$ = $1; }
 	;
-	
+
 /* we allow for expressions in the head atom, e.g., Q(X + 1) :- R(X,Y); */
 headatom:
 		name '(' exprList ')'
@@ -442,23 +483,23 @@ headatom:
 				$$ = (Node *) createDLAtom($1, $3, FALSE);
 			}
 	;
-	
+
 bodyAtomList:
 		bodyAtomList ',' bodyAtom
 			{
 				RULELOG("atomList::bodyAtom");
-				$$ = appendToTailOfList($1,$3); 
+				$$ = appendToTailOfList($1,$3);
 			}
 		| bodyAtom
 			{
 				RULELOG("atomList::atom");
-				$$ = singleton($1); 
+				$$ = singleton($1);
 			}
 	;
 
 bodyAtom:
  		relAtom { RULELOG("bodyAtom::relAtom"); $$ = $1; }
-		| comparison
+		| parenComparison
 			{
 				RULELOG("atom::comparison");
 				$$ = (Node *) $1;
@@ -466,74 +507,90 @@ bodyAtom:
  	;
 
 relAtom:
- 		NEGATION name '(' argList ')' 
- 			{ 
+ 		NEGATION name '(' argList ')'
+ 			{
  				RULELOG("relAtom::negative");
- 				$$ = (Node *) createDLAtom($2, $4, TRUE); 
+ 				$$ = (Node *) createDLAtom($2, $4, TRUE);
 			}
- 		| name '(' argList ')' 
+ 		| name '(' argList ')'
  			{
  				RULELOG("relAtom::positive");
- 				$$ = (Node *) createDLAtom($1, $3, FALSE); 
-			}		
+ 				$$ = (Node *) createDLAtom($1, $3, FALSE);
+			}
 	;
-	
+
 /*
 constAtom:
-		IDENT '(' constList ')' 
+		IDENT '(' constList ')'
 			{
 				RULELOG("constAtom");
-				$$ = createDLAtom($1,$3,FALSE); 
+				$$ = createDLAtom($1,$3,FALSE);
 			}
 	;
 */
 
 argList:
- 		argList ',' arg 
+ 		argList ',' arg
  			{
  				RULELOG("argList::argList::arg");
- 				$$ = appendToTailOfList($1,$3); 
+ 				$$ = appendToTailOfList($1,$3);
 			}
- 		| arg		
+ 		| arg
  			{
  				RULELOG("argList::arg");
- 				$$ = singleton($1); 
+ 				$$ = singleton($1);
 			}
  	;
 
-/* 	
+/*
 constList:
 		constList ',' constant { $$ = appendToTailOfList($1,$2); }
 		| constant { $$ = singleton($1); }
 	;
 */
 
+parenComparison:
+				'(' parenComparison ')'
+				{
+				    RULELOG("parenComparison::parenComparison");
+				    $$ = $2;
+				}
+		|       comparison {{ $$ = $1; }}		 
+				
+		;
+
 comparison:
-		arg comparisonOp arg
+		arg comparisonOperator arg
 			{
 				RULELOG("comparison::arg::op::arg");
 				$$ = (Node *) createDLComparison($2, $1, $3);
 			}
 	;
 
-/* args */ 	
+comparisonOperator:
+		comparisonOp
+		| LIKE
+		| NEGATION LIKE { $$="NOT LIKE"; }
+	;
+
+/* args */
 arg:
- 		variable 
+ 		variable
  			{
  				RULELOG("arg:variable");
- 		 		$$ = $1; 
+ 		 		$$ = $1;
 	 		}
- 		| constant 
- 			{ 
+ 		| constant
+ 			{
  				RULELOG("arg:constant");
- 				$$ = $1; 
+ 				$$ = $1;
 			}
 	;
 
 /*
  * Rule to parse an expression list
  */
-exprList: 
+exprList:
         expression        { RULELOG("exprList::SINGLETON"); $$ = singleton($1); }
         | exprList ',' expression
              {
@@ -542,23 +599,40 @@ exprList:
              }
     ;
 
-	
+
+//TODO allow conditional expressions in head
 /*
  * Rule to parse expressions used in various lists
  */
 expression:
-		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; } 
+		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; }
 		| constant     				   	{ RULELOG("expression::constant"); }
         | variable 	        		  	{ RULELOG("expression::variable"); }
-        | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
+        | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); }
+		| caseExpression                { RULELOG("expression::caseExpression"); }
         | functionCall	        		{ RULELOG("expression::functionCall"); }
+		| comparison
+		  {
+				RULELOG("expression:comparison");
+                $$ = (Node *) ((DLComparison *) $1)->opExpr;
+		  }
+		| castExpression { RULELOG("expression::castExpression"); }
+
     ;
 
+castExpression:
+				CAST '(' expression AS name ')'
+				{
+                     RULELOG("expression::cast");
+                     $$ = (Node *) createCastExpr($3, SQLdataTypeToDataType($5));
+				}
+				;
+				
 /*
  * Parse operator expression
  */
- 
-binaryOperatorExpression: 
+
+binaryOperatorExpression:
 
     /* Arithmatic Operations */
         expression '+' expression
@@ -606,19 +680,64 @@ binaryOperatorExpression:
             }
     ;
 
+/*
+ * Rule to parser CASE expressions
+ */
+caseExpression:
+		CASE expression caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::expression::whens:else:END");
+				$$ = (Node *) createCaseExpr($2, $3, $4);
+			}
+		| CASE caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::whens::else::END");
+				$$ = (Node *) createCaseExpr(NULL, $2, $3);
+			}
+	;
+
+caseWhenList:
+		caseWhenList caseWhen
+			{
+				RULELOG("caseWhenList::list::caseWhen");
+				$$ = appendToTailOfList($1, $2);
+			}
+		| caseWhen
+			{
+				RULELOG("caseWhenList::caseWhen");
+				$$ = singleton($1);
+			}
+	;
+
+caseWhen:
+		WHEN expression THEN expression
+			{
+				RULELOG("caseWhen::WHEN::expression::THEN::expression");
+				$$ = (Node *) createCaseWhen($2,$4);
+			}
+	;
+
+optionalCaseElse:
+		/* empty */				{ RULELOG("optionalCaseElse::NULL"); $$ = NULL; }
+		| ELSE expression
+			{
+				RULELOG("optionalCaseElse::ELSE::expression");
+				$$ = $2;
+			}
+	;
 
 /*
  * Rule to parse function calls (provision for aggregation)
  */
-functionCall: 
-        name '(' exprList ')'          
+functionCall:
+        name '(' exprList ')'
             {
                 RULELOG("functionCall::IDENTIFIER::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);
 				f->isAgg = TRUE;
 				$$ = (Node *) f;
             }
-		| AMMSC '(' exprList ')'          
+		| AMMSC '(' exprList ')'
             {
                 RULELOG("functionCall::AMMSC::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);
@@ -627,34 +746,39 @@ functionCall:
             }
     ;
 
-	
+
 variable:
-		IDENT 
+		IDENT
 			{
-				RULELOG("variable"); 
-				$$ = (Node *) createDLVar($1, DT_STRING); 
+				RULELOG("variable");
+				$$ = (Node *) createDLVar($1, DT_STRING);
 			}
 	;
-	
-constant: 
-		intConst 
+
+constant:
+		intConst
 			{
-				RULELOG("constant::intConst"); 
-				$$ = (Node *) createConstInt($1); 
+				RULELOG("constant::intConst");
+				$$ = (Node *) createConstInt($1);
 			}
 		| floatConst
 			{
-				RULELOG("constant::floatConst"); 
-				$$ = (Node *) createConstFloat($1); 
+				RULELOG("constant::floatConst");
+				$$ = (Node *) createConstFloat($1);
 			}
-		| stringConst 
+		| stringConst
 			{
 				RULELOG("constant::stringConst");
-				$$ = (Node *) createConstString($1); 
+				$$ = (Node *) createConstString($1);
 			}
 	;
-	
+
+nameList:
+			    name { $$ = singleton($1); }
+		|  		nameList ',' name { $$ = appendToTailOfList($1,$3); }
+		;
+
 name:
 		IDENT { RULELOG("name::IDENT"); $$ = $1; }
 		| VARIDENT { RULELOG("name::VARIDENT"); $$ = $1; }
-	;	
+	;

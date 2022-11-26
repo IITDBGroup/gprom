@@ -15,8 +15,9 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_HashMap,
     T_Vector,
 	T_BitSet,
+    T_Graph,
 
-    /* options */
+	/* options */
     T_KeyValue,
 
     /* expression nodes */
@@ -36,6 +37,10 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_OrderExpr,
     T_CastExpr,
 	T_QuantifiedComparison,
+
+    /* integrity constraint */
+	T_FD,
+	T_FOdep,
 
     /* query block model nodes */
     T_SetQuery,

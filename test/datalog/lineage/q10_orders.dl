@@ -1,0 +1,13 @@
+Q(c_ck,c_n,sum(l_ep * (1-l_d)),c_ab,n_n,c_a,c_p,c_c) :- 
+customer(c_ck,c_n,c_a,c_nk,c_p,c_ab,c1,c_c),
+orders(o_ok,c_ck,o1,o2,o_od,o3,o4,o5,o6),
+lineitem(o_ok,l1,l2,l3,l4,l_ep,l_d,l5,'R',l6,l7,l8,l9,l10,l11,l12),
+nation(c_nk,n_n,n2,n3),
+o_od >= '1993-10-01',
+o_od < '1994-01-01'.
+
+ANS: Q. 
+
+RP(x1, x2, x3, x4, x5, x6, x7, x8) :- rtpcq10(x1, x2, x3, x4, x5, x6, x7, x8).
+
+LINEAGE FOR orders FOR RESULTS FROM RP.

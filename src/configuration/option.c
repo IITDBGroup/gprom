@@ -128,6 +128,7 @@ boolean opt_show_query_result = TRUE;
 boolean opt_aggressive_model_checking = FALSE;
 boolean opt_update_only_conditions = FALSE;
 boolean opt_treeify_opterator_model = FALSE;
+boolean opt_treeify_all = FALSE;
 boolean opt_only_updated_use_history = FALSE;
 boolean opt_pi_cs_composable = FALSE;
 boolean opt_pi_cs_rewrite_agg_window = FALSE;
@@ -208,6 +209,9 @@ struct option_state {
 
 // dl rewrite options
 boolean opt_whynot_adv = FALSE;
+boolean opt_dl_min_with_fds = FALSE;
+boolean opt_merge_dl = FALSE;
+boolean opt_load_fds = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -613,6 +617,11 @@ OptionInfo opts[] =
                 "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
                 opt_treeify_opterator_model,
                 TRUE),
+        aRewriteOption(OPTION_ALWAYS_TREEIFY,
+                "-treeify-all",
+                "Turn AGM graph into a tree passing it to serializer.",
+                opt_treeify_all,
+                FALSE),		
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
                 "-prov_use_composable",
                 "Use composable version of PI-CS provenance that adds additional columns which"
@@ -944,6 +953,30 @@ OptionInfo opts[] =
 				OPTION_BOOL,
 				wrapOptionBool(&opt_whynot_adv),
 				defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_SEMANTIC_OPT,
+			"-Osemantic_opt",
+			"Use functional dependencies to minimizing a provenance capture datalog query.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_dl_min_with_fds),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_MERGE_RULES,
+			"-Oflatten_dl",
+			"Merge Datalog rules by substituting idb predicates in bodies with the rules that define them.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_merge_dl),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_FETCH_PK_FDS_FROM_DB,
+			"-dl_load_fds",
+			"Merge Datalog rules by substituting idb predicates in bodies with the rules that define them.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_load_fds),
+			defOptionBool(FALSE)
 		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
                 "-Cdata_structure_consistency",

@@ -144,9 +144,9 @@ extern int databaseConnectionClose(void);
 extern boolean isInitialized (void);
 extern char *getConnectionDescription (void);
 
-extern boolean catalogTableExists (char * tableName);
-extern boolean catalogViewExists (char * viewName);
-extern List *getAttributes (char *tableName);
+extern boolean catalogTableExists(char * tableName);
+extern boolean catalogViewExists(char * viewName);
+extern List *getAttributes(char *tableName);
 extern List *getAttributeNames (char *tableName);
 extern List *getHist (char *tableName, char *attrName, int numPartitions);
 extern HashMap *getPS (char *sql, List *attrNames);

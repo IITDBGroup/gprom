@@ -1,0 +1,36 @@
+Qsizes(49).
+Qsizes(14).
+Qsizes(23).
+Qsizes(45).
+Qsizes(19).
+Qsizes(3).
+Qsizes(36).
+Qsizes(9).
+
+Q(p_brand,p_type,p_size,count(s_suppkey)) :-
+    Qaggin(p_brand,p_type,p_size,s_suppkey).
+
+Qaggin(p_brand,p_type,p_size,ps_suppkey) :-
+    Qfilter(p_brand,p_type,p_size,ps_suppkey),
+    Qttlcom(ps_suppkey, 0).
+
+Qttlcom(ps_suppkey, sum(cnt)) :- Qcomplaints(ps_suppkey, cnt).
+
+Qcomplaints(s_suppkey,1) :-
+    supplier(s_suppkey,s1,s2,s3,s4,s5,s_comment),
+    s_comment LIKE '%Customer%Complaints%'.
+
+Qcomplaints(ps_suppkey,0) :- Qfilter(x1,x2,x3,ps_suppkey).
+
+Qfilter(p_brand,p_type,p_size,ps_suppkey) :-    
+    partsupp(p_partkey,ps_suppkey,ps1,ps2,ps3),
+    part(p_partkey,p1,p2,p_brand,p_type,p_size,p3,p4,p5),
+    QSizes(p_size),
+    p_brand != 'Brand#45',
+    p_type NOT LIKE 'MEDIUM POLISHED%'.
+
+ANS: Q.
+
+RP(x1, x2, x3, x4) :- rtpcq16(x1, x2, x3, x4).
+
+LINEAGE FOR part FOR RESULTS FROM RP.

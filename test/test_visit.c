@@ -52,7 +52,9 @@ static boolean
 visitTheNode(Node *node, void *state)
 {
     if (node == NULL)
+	{
         return TRUE;
+	}
 
 	switch (node->type) {
 	case T_Invalid: printf("The type of the node is Invalid\n"); break;

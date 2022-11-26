@@ -262,6 +262,7 @@ extern DataType typeOf(Node *expr);
 extern DataType typeOfInOpModel(Node *expr, List *inputOperators);
 extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
+extern boolean isAggFunction(Node *expr);
 
 /* expression node type accessors */
 extern char *getAttributeReferenceName(AttributeReference *a);
@@ -272,7 +273,8 @@ extern char *backendifyIdentifier(char *name);
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
 extern Node *addCastsToExpr(Node *expr, boolean errorOnFailure);
-extern DataType lcaType(DataType l, DataType r);
+extern DataType lcaTypes(List *types);
+extern DataType lcaType (DataType l, DataType r);
 
 extern DataType SQLdataTypeToDataType(char *dt);
 

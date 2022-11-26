@@ -3948,7 +3948,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					// create unique variable names for both rule atoms
 					dummyRule = createDLRule(ruleGoal, singleton(atCopy));
-					makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
+					makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule), TRUE);
 
 					DEBUG_LOG("after making names unique:\n%s\n%s",
 							datalogToOverviewString((Node *) goalGoal),

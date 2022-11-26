@@ -18,9 +18,11 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/graph/graph.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/rpq/rpq_model.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "model/set/vector.h"
@@ -38,6 +40,7 @@ static void outSet(StringInfo str, Set *node);
 static void outVector(StringInfo str, Vector *node);
 static void outHashMap(StringInfo str, HashMap *node);
 static void outBitSet(StringInfo str, BitSet *node);
+static void outGraph(StringInfo str, Graph *node);
 
 // expression types
 static void outConstant (StringInfo str, Constant *node);
@@ -56,6 +59,10 @@ static void outWindowFunction (StringInfo str, WindowFunction *node);
 static void outRowNumExpr (StringInfo str, RowNumExpr *node);
 static void outOrderExpr (StringInfo str, OrderExpr *node);
 static void outCastExpr (StringInfo str, CastExpr *node);
+
+// integrity constraints
+static void outFD(StringInfo str, FD *node);
+static void outFOdep(StringInfo str, FOdep *node);
 
 // query block model
 static void outQueryBlock (StringInfo str, QueryBlock *node);
@@ -418,6 +425,15 @@ outBitSet(StringInfo str, BitSet *node)
 
 	appendStringInfoChar(str, ']');
 	appendStringInfo(str, " (len:%d)", node->length);
+}
+
+static void
+outGraph(StringInfo str, Graph *node)
+{
+	WRITE_NODE_TYPE(GRAPH);
+
+	WRITE_NODE_FIELD(nodes);
+	WRITE_NODE_FIELD(edges);
 }
 
 // datalog model
@@ -822,6 +838,26 @@ outCastExpr (StringInfo str, CastExpr *node)
     WRITE_INT_FIELD(num);
 
 }
+
+static void
+outFD(StringInfo str, FD *node)
+{
+	WRITE_NODE_TYPE(FD);
+
+	WRITE_STRING_FIELD(table);
+	WRITE_NODE_FIELD(lhs);
+	WRITE_NODE_FIELD(rhs);
+}
+
+static void
+outFOdep(StringInfo str, FOdep *node)
+{
+	WRITE_NODE_TYPE(FODEP);
+
+	WRITE_NODE_FIELD(lhs);
+	WRITE_NODE_FIELD(rhs);
+}
+
 
 static void
 outSelectItem (StringInfo str, SelectItem *node)
@@ -1237,6 +1273,9 @@ outNode(StringInfo str, void *obj)
 		    case T_BitSet:
 				outBitSet(str, (BitSet *) obj);
 			    break;
+		    case T_Graph:
+				outGraph(str, (Graph *) obj);
+			    break;
 
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);
@@ -1283,7 +1322,13 @@ outNode(StringInfo str, void *obj)
             case T_CastExpr:
                 outCastExpr(str, (CastExpr *) obj);
                 break;
-            case T_SetQuery:
+            case T_FD:
+                outFD(str, (FD *) obj);
+                break;
+            case T_FOdep:
+                outFOdep(str, (FOdep *) obj);
+                break;
+		    case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);
                 break;
             case T_ProvenanceStmt:
@@ -1737,6 +1782,17 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             if (p->ans)
                 appendStringInfo(str, "ANSWER RELATION:\n\t%s\n",
                         p->ans);
+			if(DL_HAS_PROP(p, DL_PROG_FDS))
+			{
+				List *fds = (List *) getDLProp((DLNode *) p, DL_PROG_FDS);
+
+				appendStringInfoString(str, "FDS:\n");
+				FOREACH(FD,f,fds)
+				{
+					appendStringInfo(str, "\t%s\n", icToString((Node *) f));
+				}
+			}
+
             if (DL_HAS_PROP(p,DL_PROV_WHY) || DL_HAS_PROP(p,DL_PROV_WHYNOT))
             {
                 char *prop = DL_HAS_PROP(p,DL_PROV_WHY) ? DL_PROV_WHY : DL_PROV_WHYNOT;
@@ -1746,6 +1802,18 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
                 appendStringInfo(str, "%s (%s):\n\t", prop, format);
                 datalogToStrInternal(str,(Node *) question, 4);
             }
+			if (DL_HAS_PROP(p,DL_PROV_LINEAGE))
+			{
+				char *lin = CONCAT_STRINGS("COMPUTING LINEAGE OF: ", (p->ans ? p->ans : " ALL IDB PREDICATES "), "\n");
+				char *forstr = DL_HAS_PROP(p,DL_PROV_LINEAGE_RESULT_FILTER_TABLE) ?
+					CONCAT_STRINGS("ONLY FOR RESULTS STORED IN PREDICATE: ", STRING_VALUE(DL_GET_PROP(p, DL_PROV_LINEAGE_RESULT_FILTER_TABLE)), "\n") :
+					"";
+				char *target = DL_HAS_PROP(p,DL_PROV_LINEAGE_TARGET_TABLE) ?
+					CONCAT_STRINGS("SHOW LINEAGE FOR EDB RELATION: ", STRING_VALUE(DL_GET_PROP(p, DL_PROV_LINEAGE_TARGET_TABLE)), "\n") :
+					"";
+				appendStringInfo(str, "%s%s%s\n\t", lin, forstr, target);
+			}
+			//TODO print FDS
         }
         break;
         case T_Constant:

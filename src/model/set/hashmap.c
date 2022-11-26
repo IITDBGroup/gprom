@@ -178,7 +178,7 @@ getEntries(HashMap *map)
 }
 
 boolean
-addToMap (HashMap *map, Node *key, Node *value)
+addToMap(HashMap *map, Node *key, Node *value)
 {
     HashElem *entry = getHashElem(map, key);
 
@@ -201,6 +201,24 @@ addToMap (HashMap *map, Node *key, Node *value)
 
         return FALSE;
     }
+}
+
+void
+addToMapValueList(HashMap *map, Node *key, Node *item, boolean dupl)
+{
+	if(!hasMapKey(map, key))
+	{
+		List *l = singleton(item);
+		addToMap(map, key, (Node *) l);
+	}
+	else
+	{
+		List *l = (List *) getMap(map, key);
+		if(!(dupl && searchListNode(l, item)))
+		{
+			appendToTailOfList(l, item);
+		}
+	}
 }
 
 int
