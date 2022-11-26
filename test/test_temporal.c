@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_temporal.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: felix
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -15,7 +15,7 @@
 static rc testNormalization(void);
 
 rc
-testSet()
+testTemporal()
 {
     RUN_TEST(testNormalization(), "test normalization");
 

@@ -1320,6 +1320,11 @@ typeOfFunc (FunctionCall *f)
     boolean fExists = FALSE;
     DataType result;
 
+	if (strieq(f->functionname, FUNC_NAME_COALESCE))
+	{
+		return lcaType(DataType l, DataType r)
+	}
+
     if (strieq(f->functionname, UNCERTAIN_MAKER_FUNC_NAME))
     {
         return getNthOfListInt(typeOfArgs(f->args), 0);

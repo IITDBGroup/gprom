@@ -47,6 +47,8 @@ typedef struct Operator {
 #define OPNAME_MINUS "-"
 #define OPNAME_MOD "%"
 
+#define FUNCNAME_COALESCE "COALESCE"
+
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
     DT_LONG,

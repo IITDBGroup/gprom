@@ -747,7 +747,7 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     inner->parents = appendToTailOfList(inner->parents, selection);
     switchSubtrees(inner, selection);
 
-    // return a projection on top of "asq" to reorder schema 
+    // return a projection on top of "asq" to reorder schema
 
     Schema *nestingSchema = copyObject(asq->schema);
 
@@ -1394,7 +1394,7 @@ addCoalesce (QueryOperator *input)
     AttributeReference *t3ProjNOpen2 = copyObject(t3ProjNOpen1);
     AttributeReference *t3ProjW02 = getAttrRefByName(t3w2Op, "winf_1");
     Operator *t3O2 = createOpExpr("-", LIST_MAKE(t3ProjNOpen2,t3ProjW02));
-    FunctionCall *t3Projfc2 = createFunctionCall("COALESCE",LIST_MAKE(t3O2,copyObject(c6)));
+    FunctionCall *t3Projfc2 = createFunctionCall(FUNCNAME_COALESCE,LIST_MAKE(t3O2,copyObject(c6)));
     t3ProjExpr = appendToTailOfList(t3ProjExpr, t3Projfc2);
 
     //numOpen, TS
@@ -1823,7 +1823,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     //topProj
     AttributeReference *topProjE = getAttrRefByName(topWOp,TEND_NAME);
     AttributeReference *topProjwin = getAttrRefByName(topWOp,topFuncName);
-    FunctionCall *topProjFunc = createFunctionCall("COALESCE",LIST_MAKE(topProjwin,topProjE));
+    FunctionCall *topProjFunc = createFunctionCall(FUNCNAME_COALESCE,LIST_MAKE(topProjwin,topProjE));
     List *topProjExprs = NIL;
     List *topProjNames = NIL;
 
