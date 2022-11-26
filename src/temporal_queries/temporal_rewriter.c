@@ -728,8 +728,8 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     rBegin = getNthOfListP(tempAttrDefs2, 0);
     rEnd =  getNthOfListP(tempAttrDefs2, 1);
 
-    rBegin->outerLevelsUp = 1;
-    rEnd->outerLevelsUp = 1;
+    lBegin->outerLevelsUp = 1;
+    lEnd->outerLevelsUp = 1;
 
 	// interval overlap join condition
     correlation = AND_EXPRS(
@@ -1603,7 +1603,7 @@ markTemporalAttrsAsProv (QueryOperator *op)
 QueryOperator *
 addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrNames)
 {
-	if(attrNames->length == 1 && streq(getHeadOfListP(attrNames),"!EMPTY!"))
+	if(LIST_LENGTH(attrNames) == 1 && streq(getHeadOfListP(attrNames),"!EMPTY!"))
 		attrNames = NIL;
 
 	QueryOperator *left = input;

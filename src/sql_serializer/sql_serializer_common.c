@@ -216,6 +216,11 @@ printFromAttrsContext(FromAttrsContext *fac)
 	}
 	else
 		DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
+
+	if(fac->nestAttrMap)
+	{
+	    DEBUG_LOG("FromAttrsContext->nestAttrMap: %s", nodeToString(fac->nestAttrMap));
+	}
 }
 
 static HashMap *
