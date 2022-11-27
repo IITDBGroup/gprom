@@ -13,6 +13,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 
@@ -199,7 +200,7 @@ extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames,
         List *dataTypes);
 extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
-extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
+extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name, boolean adaptProvAttrs);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
 extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs);
@@ -338,6 +339,10 @@ extern List *getProjResultAttrNamesForProjExpr(ProjectionOperator *op, Node *exp
 
 extern List *getNestingResultAttributeNames(NestingOperator *op);
 extern char *getSingleNestingResultAttribute(NestingOperator *op);
+extern Set *getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery);
+
+/* change operator schema and adapt references in parents */
+extern void removeAttrFromOp(QueryOperator *op, char *attr);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);

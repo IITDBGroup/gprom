@@ -49,6 +49,8 @@ static char *createAttrName (char *name, int fItem, FromAttrsContext *fac);
 static HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api);
 static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api);
 static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
+static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr);
+
 
 
 /*
@@ -56,7 +58,7 @@ static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatch
  */
 
 SerializeClausesAPI *
-createAPIStub (void)
+createAPIStub(void)
 {
     SerializeClausesAPI *api = NEW(SerializeClausesAPI);
 
@@ -104,7 +106,7 @@ serLocationsToString(int serloc)
 }
 
 void
-genQuoteAttributeNames (Node *q)
+genQuoteAttributeNames(Node *q)
 {
     // quote ident names if necessary
     ASSERT(IS_OP(q) || isA(q,List));
@@ -118,13 +120,13 @@ genQuoteAttributeNames (Node *q)
 }
 
 static boolean
-quoteAttributeNamesVisitQO (QueryOperator *op, void *context)
+quoteAttributeNamesVisitQO(QueryOperator *op, void *context)
 {
     return quoteAttributeNames((Node *) op, op);
 }
 
 static boolean
-quoteAttributeNames (Node *node, void *context)
+quoteAttributeNames(Node *node, void *context)
 {
      if (node == NULL)
         return TRUE;
@@ -153,7 +155,7 @@ quoteAttributeNames (Node *node, void *context)
 }
 
 FromAttrsContext *
-initializeFromAttrsContext ()
+initializeFromAttrsContext()
 {
   	struct FromAttrsContext *fac;
   	fac =  CALLOC(sizeof(FromAttrsContext),1);
@@ -658,7 +660,7 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
  *
  * for some systems 2) and 3) may require modifications to the nesting operator
  *
- * results are as a property PROP_NESTING_LOCATIONS of the operator
+ * results are sroted as a property PROP_NESTING_LOCATIONS of the operator
  *
  * @param qbMatch operators that will go into the current query block
  * @param op operator to check (skip if this is no nesting operator)
@@ -690,12 +692,18 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 			}
 			if (inMatchedSel && !inNonSelOrNonMatched) //TODO should we allow simultanous serialization to WHERE/HAVING and elsewhere?
 			{
-				serLocations = NEST_SER_SELECTION;
+				serLocations |= NEST_SER_SELECTION;
 			}
 			else
 			{
 				serLocations &= ~NEST_SER_SELECTION; // cannot put into a selection
 			}
+		}
+
+		if(serLocations & NEST_SER_SELECTION)
+		{
+			// remove the attribute from other operators to avoid problems later
+			removeNestingAttributeFromOperators(op, getSingleNestingResultAttribute(n));
 		}
 
 		setStringProperty(op, PROP_NESTING_LOCATIONS, (Node *) createConstInt(serLocations));
@@ -712,6 +720,58 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 		}
 	}
 }
+
+
+
+/**
+ * @brief Remove nested subquery result attribute from parents of a nesting operator.
+ *
+ * This is called when we want to serialize the nested subquery into WHERE or
+ * HAVING, so the subquery result will not be available to other operator.
+ *
+ * @param op the operator whose parents we want to remove the attribute from
+ * @param nestingAttr the attribute to be removed
+ */
+
+static void
+removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr)
+{
+	AttributeDef *ad = getAttrDefByName(op, nestingAttr);
+	int pos;
+	char *newAttr = nestingAttr;
+
+	if(ad == NULL)
+		return;
+
+	pos = getAttrPos(op, nestingAttr);
+
+	if(isA(op,ProjectionOperator))
+	{
+	    ProjectionOperator *p = (ProjectionOperator *) op;
+
+		p->projExprs = removeListElemAtPos(p->projExprs, pos);
+	}
+
+	// delete the attribute
+	deleteAttrFromSchemaByName(op, nestingAttr, !isA(op, NestingOperator));
+
+	// remove attribute from parents
+	FOREACH(QueryOperator,p,op->parents)
+	{
+		if(!(isA(p,SelectionOperator)))
+		{
+			resetPosOfAttrRefBaseOnBelowLayerSchema(p,op);
+		}
+		removeNestingAttributeFromOperators(p, newAttr);
+	}
+
+	// add back attribute for nesting operators
+	if(isA(op,NestingOperator))
+	{
+		op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, ad);
+	}
+}
+
 
 /**
  * @brief Find operators which use the result attribute of NestingOperator.
@@ -880,7 +940,7 @@ genGetNestedSerializationLocations(NestingOperator *n, SerializeClausesAPI *api)
 	{
 		return NEST_SER_FROM;
 	}
-	return NEST_SER_SELECTION | NEST_SER_SELECT;
+	return NEST_SER_SELECTION | NEST_SER_SELECT | NEST_SER_FROM;
 }
 
 void
@@ -938,12 +998,15 @@ genSerializeFromItem(QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
 					  serLocationsToString(location));
 
 			// only serialize to FROM clause if we do not serialize elsewhere
-			if(location & NEST_SER_FROM)
+			if((location & NEST_SER_FROM) && !(location & NEST_SER_SELECTION))
 			{
 				QueryOperator *outer = OP_LCHILD(nest);
 				QueryOperator *subquery = OP_RCHILD(nest);
 				FromAttrsContext *subqueryFac;
 				List *subqueryNames;
+
+				//TODO translate into lateral when necessary
+				ASSERT(nest->nestingType == NESTQ_LATERAL);
 
 				// serialize left input (the outer query)
 				api->serializeFromItem(fromRoot, outer, from, curFromItem, attrOffset, fac, api);

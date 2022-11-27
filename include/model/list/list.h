@@ -167,7 +167,9 @@ extern List *newList(NodeTag type);
 extern List *singletonInt(int value);
 extern List *singleton(void *value);
 #define LIST_MAKE(...) listMake(__VA_ARGS__, NULL)
+#define LIST_MAKE_INT(...) listMakeInt(__VA_ARGS__, -1)
 extern List *listMake(void *elem, ...);
+extern List *listMakeInt(int elem, ...);
 
 /* length of list */
 extern int getListLength(List *list);
@@ -224,6 +226,8 @@ extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), voi
 
 extern int listPosString (List *list, char *value);
 extern int genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
+extern int listPosInt (List *list, int val);
+#define LIST_POS_NODE(_l,_val) genericListPos(_l,equal,_val);
 
 /* replace list elements */
 extern List *replaceNode(List *list, void *n1, void *n2);
@@ -231,6 +235,7 @@ extern List *replaceNode(List *list, void *n1, void *n2);
 /* remove element from list */
 extern List *removeListElementsFromAnotherList(List *l1, List *l2);
 extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
+extern List *removeFromListInt(List *l, int el);
 extern List *removeFromTail(List *X);
 extern List *removeFromHead(List *X);
 extern List *removeListElemAtPos (List *list, int pos);

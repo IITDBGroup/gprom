@@ -17,6 +17,7 @@
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "parser/parser_oracle.h"
+#include "utility/string_utils.h"
 
 /* internal tests */
 static rc testAttributeReference (void);

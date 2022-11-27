@@ -284,6 +284,24 @@ listMake(void *elem, ...)
     return result;
 }
 
+List *
+listMakeInt(int elem, ...)
+{
+    List *result = singletonInt(elem);
+    va_list args;
+    int p;
+
+    va_start(args, elem);
+
+    while((p = va_arg(args, int)) != -1)
+        result = appendToTailOfListInt(result, p);
+
+    va_end(args);
+
+    return result;
+}
+
+
 void
 newListTail(List *list)
 {
@@ -777,6 +795,21 @@ genericListPos (List *list, boolean (*eq) (void *, void *), void *value)
     return -1;
 }
 
+int
+listPosInt(List *list, int val)
+{
+   ASSERT(isIntList(list));
+   int pos = 0;
+   
+   FOREACH_INT(item,list)
+   {
+	   if (item == val)
+		   return pos;
+	   pos++;
+   }
+
+    return -1;
+}
 
 int
 listPosString (List *list, char *value)
@@ -835,6 +868,24 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 //    }
 //    return result;
 //}
+
+List *
+removeFromListInt(List *l, int el)
+{
+	int pos;
+
+	if(LIST_LENGTH(l) == 0)
+		return l;
+
+	pos = listPosInt(l, el);
+
+	if(pos != -1)
+	{
+		l = removeListElemAtPos(l, pos);
+	}
+
+	return l;
+}
 
 List *
 removeFromTail(List *X)

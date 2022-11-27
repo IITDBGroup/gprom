@@ -2960,11 +2960,6 @@ computeReqColProp(QueryOperator *root)
 	{
 		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), icols);
 		MERGE_INTO_CHILD_ICOLS(OP_RCHILD(root), icols); //FIXME attributes of right input may be named differently!
-		/* Set *elicols = copyObject(icols); */
-		/* Set *ericols = copyObject(icols); */
-
-		/* setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)elicols); */
-		/* setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)ericols); */
 	}
 
 	// for a nesting operator we need the columns to compute its expression as
@@ -2976,10 +2971,15 @@ computeReqColProp(QueryOperator *root)
 	    Set *condCols = makeStrSetFromList(
 			attrRefListToStringList(
 				getAttrReferences(n->cond)));
+		Set *correlatedAttrs;
 
 		// add all attributes from condition (if the nesting op has one) into icols
 		unionIntoSet(icols, condCols);
-		//TODO find correlated attributes in right input. They have to be added to LHS icols to make sure the correlation can be computed
+
+		//find correlated attributes in right input. They have to be added to LHS icols to make sure the correlation can be computed
+		correlatedAttrs = getNestingCorrelatedAttributes(n, FALSE);
+
+		unionIntoSet(icols, correlatedAttrs);
 	}
 
 	DEBUG_LOG("ICOLS: %s for [%s]", nodeToString(icols), singleOperatorToOverview(root));

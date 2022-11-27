@@ -13,6 +13,7 @@
 #include "test_main.h"
 #include "common.h"
 #include "model/bitset/bitset.h"
+#include "utility/string_utils.h"
 
 static rc testCreateBitset(void);
 static rc testBitsetAndGet(void);

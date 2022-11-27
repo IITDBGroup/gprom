@@ -26,6 +26,7 @@ static rc testListOperations(void);
 static rc testListGenericOps(void);
 static rc testSort(void);
 static rc testUnique(void);
+static rc testRemove(void);
 
 static boolean eqConstFirst (void *a, void *b);
 static int cmpConstFirst (const void **a, const void **b);
@@ -41,6 +42,7 @@ testList()
     RUN_TEST(testListGenericOps(), "test generic list operations");
 	RUN_TEST(testSort(), "test generic list sorting");
 	RUN_TEST(testUnique(), "test duplicate elimination");
+	RUN_TEST(testRemove(), "test removing list elements");
 
     return PASS;
 }
@@ -256,6 +258,30 @@ testUnique(void)
 
 	return PASS;
 }
+
+#define CS(s) createConstString(s)
+
+static rc
+testRemove(void)
+{
+	List *l = LIST_MAKE_INT(1,2,3,5,6);
+
+	l = removeFromListInt(l, 3);
+	l = removeFromListInt(l, 7);
+	l = removeFromListInt(l, 4);
+
+	ASSERT_EQUALS_NODE(LIST_MAKE_INT(1,2,5,6), l, "(1,2,5,6)");
+
+	l = LIST_MAKE(CS("a"), CS("b"), CS("c"));
+
+	l = REMOVE_FROM_LIST_NODE(l, CS("b"));
+	l = REMOVE_FROM_LIST_NODE(l, CS("d"));
+
+	ASSERT_EQUALS_NODE(LIST_MAKE(CS("a"), CS("c")), l, "(a,c)");
+
+	return PASS;
+}
+
 
 static boolean
 eqConstFirst (void *a, void *b)

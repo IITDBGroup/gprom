@@ -23,6 +23,12 @@
 #include "utility/string_utils.h"
 #include "model/query_operator/query_operator_model_checker.h"
 
+typedef struct CorrelatedAttrsState {
+	int curDepth;
+	Set *result;
+	boolean corrInsideSubquery;
+} CorrelatedAttrsState;
+
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
 static unsigned numOpsInTreeInternal (QueryOperator *q, unsigned int *count);
@@ -30,6 +36,7 @@ static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
 static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
         Set *haveSeen);
+static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
 
 
 QueryOperator *
@@ -176,16 +183,33 @@ addAttrToSchema(QueryOperator *op, char *name, DataType dt)
 }
 
 void
-deleteAttrFromSchemaByName(QueryOperator *op, char *name)
+deleteAttrFromSchemaByName(QueryOperator *op, char *name, boolean adaptProvAttrs)
 {
+	int pos = -1;
+	boolean found = FALSE;
+
     FOREACH(AttributeDef,a,op->schema->attrDefs)
     {
+		pos++;
         if (streq(a->attrName,name))
         {
             op->schema->attrDefs = REMOVE_FROM_LIST_PTR(op->schema->attrDefs, a);
+			found = TRUE;
             break;
         }
     }
+
+	if(adaptProvAttrs && found)
+	{
+		op->provAttrs = removeFromListInt(op->provAttrs, pos);
+		FOREACH_LC(lc, op->provAttrs)
+		{
+		    if(lc->data.int_value > pos)
+			{
+				lc->data.int_value = lc->data.int_value - 1;
+			}
+		}
+	}
 }
 
 void
@@ -1501,6 +1525,59 @@ getSingleNestingResultAttribute(NestingOperator *op)
 	ASSERT(getNumAttrs(OP_LCHILD(op)) + 1 == getNumAttrs((QueryOperator *) op));
 	return getTailOfListP(getQueryOperatorAttrNames((QueryOperator *) op));
 }
+
+
+/**
+ * @brief Determine all correlated attributes from the outer query.
+ *
+ * The default is to only look at correlatations with the op's outer query.
+ *
+ * @param op the nesting operator
+ * @param corrInSubquery if TRUE, then also find correlation within the nested query itself
+ * @return set of correlated attribute names
+ */
+
+Set *
+getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery)
+{
+	Set *result = STRSET();
+	CorrelatedAttrsState state = { 1, result, corrInSubquery };
+
+	findCorrelatedAttrsVisitor((Node *) OP_LCHILD(op), &state);
+
+	return result;
+}
+
+
+static boolean
+findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
+{
+	if (n == NULL)
+		return TRUE;
+
+	if(isA(n, AttributeReference))
+	{
+		AttributeReference *a = (AttributeReference *) n;
+
+		if(a->outerLevelsUp == state->curDepth
+		   || (a->outerLevelsUp > 0 && state->corrInsideSubquery))
+		{
+			addToSet(state->result, strdup(a->name));
+		}
+	}
+	if(isA(n, NestingOperator))
+	{
+		NestingOperator *no = (NestingOperator *) n;
+		CorrelatedAttrsState newState = *state;
+		newState.curDepth++;
+
+		visit(no->cond, findCorrelatedAttrsVisitor, state);
+		return visit((Node *) OP_LCHILD(no), findCorrelatedAttrsVisitor, &newState);
+	}
+
+	return visit(n, findCorrelatedAttrsVisitor, state);
+}
+
 
 void
 treeify(QueryOperator *op)

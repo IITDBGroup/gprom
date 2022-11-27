@@ -7,11 +7,13 @@ AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(top_srcdir)/\"
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
 				testrpq testlibgprom testuncert
-bin_PROGRAMS = testexprcplex
+bin_PROGRAMS = testexprcplex testmain
 
 # testcplex
 
-testmain_SOURCES =
+testmain_SOURCES = \
+	test_main.h \
+	test_main.c \
 	test_autocast.c \
 	test_bitset.c \
 	test_common.c \
@@ -26,22 +28,21 @@ testmain_SOURCES =
 	test_ic.c \
 	test_list.c \
 	test_logger.c \
-	test_main.c \
-	test_main.h \
 	test_mem_mgr.c \
 	test_metadata_lookup.c \
 	test_metadata_postgres.c \
 	test_parameter.c \
 	test_parse.c \
 	test_rpq.c \
-	test_semantic_optimization.c
+	test_semantic_optimization.c \
 	test_set.c \
 	test_string.c \
 	test_string_utils.c \
 	test_temporal.c \
 	test_to_string.c \
 	test_vector.c \
-	test_z3.c
+	test_z3.c 
+
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
 

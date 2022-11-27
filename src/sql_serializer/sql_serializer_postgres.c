@@ -283,6 +283,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //    List *secondProjs = NIL;
     List *resultAttrs = NIL;
 
+	//TODO remove result attributes for nested subqueries from projection when these subqueries are serialized into WHERE or HAVING
+
     // either window funtions or regular aggregations but not both
     ASSERT(!m->windowRoot || !m->aggregation);
 
