@@ -263,6 +263,8 @@ extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOper
 #define getAttrDef(op,aPos) \
     ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
+extern QueryOperator *getFirstRoot(QueryOperator *op);
+
 /* deal with properties */
 extern void setProperty(QueryOperator *op, Node *key, Node *value);
 extern Node *getProperty(QueryOperator *op, Node *key);

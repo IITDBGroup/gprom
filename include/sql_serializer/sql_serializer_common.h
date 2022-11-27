@@ -48,16 +48,16 @@ typedef struct QueryBlockMatch {
 #define OUT_BLOCK_MATCH(_level,_m,_message) \
     do { \
         _level ## _LOG ("\n================================================================================\n\t\tMATCH INFO: %s\n================================================================================", _message); \
-        _level ## _LOG ("distinct: %s", operatorToOverviewString((Node *) _m->distinct)); \
-        _level ## _LOG ("firstProj: %s", operatorToOverviewString((Node *) _m->firstProj)); \
-        _level ## _LOG ("having: %s", operatorToOverviewString((Node *) _m->having)); \
-        _level ## _LOG ("aggregation: %s", operatorToOverviewString((Node *) _m->aggregation)); \
-        _level ## _LOG ("secondProj: %s", operatorToOverviewString((Node *) _m->secondProj)); \
-        _level ## _LOG ("where: %s", operatorToOverviewString((Node *) _m->where)); \
-        _level ## _LOG ("fromRoot: %s", operatorToOverviewString((Node *) _m->fromRoot)); \
-        _level ## _LOG ("windowRoot: %s", operatorToOverviewString((Node *) _m->windowRoot)); \
-        _level ## _LOG ("orderBy: %s", operatorToOverviewString((Node *) _m->orderBy)); \
-		_level ## _LOG ("limitOffset: %s", operatorToOverviewString((Node *) _m->limitOffset)); \
+        _level ## _LOG ("distinct: %s", singleOperatorToOverview((Node *) _m->distinct)); \
+        _level ## _LOG ("firstProj: %s", singleOperatorToOverview((Node *) _m->firstProj)); \
+        _level ## _LOG ("having: %s", singleOperatorToOverview((Node *) _m->having)); \
+        _level ## _LOG ("aggregation: %s", singleOperatorToOverview((Node *) _m->aggregation)); \
+        _level ## _LOG ("secondProj: %s", singleOperatorToOverview((Node *) _m->secondProj)); \
+        _level ## _LOG ("where: %s", singleOperatorToOverview((Node *) _m->where)); \
+        _level ## _LOG ("fromRoot: %s", singleOperatorToOverview((Node *) _m->fromRoot)); \
+        _level ## _LOG ("windowRoot: %s", singleOperatorToOverview((Node *) _m->windowRoot)); \
+        _level ## _LOG ("orderBy: %s", singleOperatorToOverview((Node *) _m->orderBy)); \
+		_level ## _LOG ("limitOffset: %s", singleOperatorToOverview((Node *) _m->limitOffset)); \
 		_level ## _LOG ("\n================================================================================\n\n================================================================================"); \
     } while(0)
 

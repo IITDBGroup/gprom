@@ -306,7 +306,7 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 	StringInfo limitOffsetSuffixString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
-    List *attrNames = getAttrNames(q->schema);
+    List *attrNames;
     boolean topMaterialize = HAS_STRING_PROP(cur,PROP_MATERIALIZE);
 
     // do the matching
@@ -574,7 +574,8 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 
 	// determine for any nested subquery part of this block where it should be serialized to
 	genMarkSubqueriesSerializationLocation(matchInfo, matchInfo->fromRoot, api);
-
+	attrNames = getAttrNames(q->schema);
+	
     // translate each clause
     DEBUG_LOG("serializeFrom");
     FromAttrsContext *cfac = copyFromAttrsContext(fac);

@@ -1921,7 +1921,12 @@ char *
 singleOperatorToOverview (void *op)
 {
     StringInfo str = makeStringInfo();
-    operatorToOverviewInternal(str,(QueryOperator *) op, 0, NULL, FALSE);
+
+	if(op)
+	{
+		operatorToOverviewInternal(str,(QueryOperator *) op, 0, NULL, FALSE);
+	}
+	
     return str->data;
 }
 

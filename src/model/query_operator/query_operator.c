@@ -948,6 +948,16 @@ createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *par
 	return o;
 }
 
+QueryOperator *
+getFirstRoot(QueryOperator *op)
+{
+	if(LIST_LENGTH(op->parents) > 0)
+	{
+		return getFirstRoot(getHeadOfListP(op->parents));
+	}
+	return op;
+}
+
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {
