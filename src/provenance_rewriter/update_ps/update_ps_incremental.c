@@ -42,9 +42,11 @@ static void updateDuplicateRemoval(QueryOperator* op);
 static void updateSet(QueryOperator* op);
 static void updateOrder(QueryOperator *op);
 static void updateLimit(QueryOperator * op);
+static void buildState(Node *node);
 static void buildStateAggregation(QueryOperator *op);
 static void buildStateDuplicateRemoval(QueryOperator *op);
 static void buildStateLimit(QueryOperator *op);
+static void buildStateFinal(QueryOperator *op);
 // OrderOperator
 
 static DataChunk *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAccessOp);
@@ -55,7 +57,6 @@ static Relation *getQueryResult(char* sql);
 static Constant *makeValue(DataType dataType, char* value);
 static void executeQueryWithoutResult(char* sql);
 static DataChunk *filterDataChunk(DataChunk* dataChunk, Node* condition);
-static void buildState(Node *node);
 static QueryOperator *captureRewrite(QueryOperator *operator);
 static int compareTwoValues(Constant *a, Constant *b, DataType dt);
 static void swapListCell(List *list, int pos1, int pos2);
@@ -351,6 +352,16 @@ makeLMTChunk()
 	return lmtC;
 }
 
+PSMap *
+makePSMap()
+{
+	PSMap *map = makeNode(PSMap);
+
+	map->psMaps = NEW_MAP(Constant, Node);
+
+	return map;
+}
+
 char *
 update_ps_incremental(QueryOperator* operator){
 	// get partition information;
@@ -372,9 +383,6 @@ update_ps_incremental(QueryOperator* operator){
 	// build state for each aggregation operator
 	buildState((Node *) operator);
 
-	if (1 != 1) {
-		return "FINISH";
-	}
 	updateByOperators((QueryOperator*) OP_LCHILD(operator));
 	return strInfo->data;
 }
@@ -392,8 +400,6 @@ buildState(Node *node)
 		buildState(n);
 	}
 
-	INFO_LOG("NODE: %d", node->type);
-
 	// build data structure for aggregation operator;
 	if (isA(node, AggregationOperator)) {
 		buildStateAggregation((QueryOperator *) node);
@@ -401,7 +407,73 @@ buildState(Node *node)
 		buildStateDuplicateRemoval((QueryOperator *) node);
 	} else if (isA(node, LimitOperator)) {
 		buildStateLimit((QueryOperator *) node);
+	} else if (isA(node, ProvenanceComputation)) {
+		buildStateFinal((QueryOperator *) node);
 	}
+}
+
+static void
+buildStateFinal(QueryOperator *op) {
+	/* this is the final state keep a map of fragNo -> count*/
+	DEBUG_NODE_BEATIFY_LOG("provenance computation op", op);
+
+	QueryOperator *child = (QueryOperator *) copyObject(OP_LCHILD(op));
+	QueryOperator *rewrOp = captureRewrite(child);
+	DEBUG_NODE_BEATIFY_LOG("rewr pc op", rewrOp);
+	char *sql = serializeQuery(rewrOp);
+
+
+	/* get Relation */
+	Relation *resultRel = NULL;
+	resultRel = executeQuery(sql);
+	PSMap *psMap = makePSMap();
+
+	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(rewrOp, PROP_LEVEL_AGGREGATION_MARK), 0);
+	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
+		List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+		l = appendToTailOfList(l, createConstInt(pos));
+	}
+
+	int len = LIST_LENGTH(resultRel->tuples);
+
+	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
+		List *l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+		int level = INT_VALUE((Constant *) getNthOfListP(l, 0));
+		// int fragNo = INT_VALUE((Constant *) getNthOfListP(l, 1));
+
+		HashMap *fragCnt = NEW_MAP(Constant, Constant);
+		for (int i = 0; i < len; i++) {
+			List *tuple = (List *) getNthOfListP(resultRel->tuples, i);
+			char *psValue = (char *) getNthOfListP(tuple, pos);
+
+			if (level < 2) { // a integer;
+				int val = atoi(psValue);
+				if (MAP_HAS_INT_KEY(fragCnt, val)) {
+					int cnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, val));
+					addToMap(fragCnt, (Node *) createConstInt(val), (Node *) createConstInt(cnt + 1));
+				} else {
+					addToMap(fragCnt, (Node *) createConstInt(val), (Node *) createConstInt(1));
+				}
+			} else { // a string;
+				for (int j = 0; j < strlen(psValue); j++) {
+					if (psValue[j] == '1') {
+						if (MAP_HAS_INT_KEY(fragCnt, j)) {
+							int cnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, j));
+							addToMap(fragCnt, (Node *) createConstInt(j), (Node *) createConstInt(cnt + 1));
+						} else {
+							addToMap(fragCnt, (Node *) createConstInt(j), (Node *) createConstInt(1));
+						}
+					}
+				}
+			}
+		}
+
+		addToMap(psMap->psMaps, (Node *) copyObject(c), (Node *) fragCnt);
+	}
+
+	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, psMap);
 }
 
 static void
@@ -422,7 +494,7 @@ buildStateLimit(QueryOperator *op)
 	char *sql = serializeQuery(rewrOp);
 
 	// get data;
-	Relation *resultRel = resultRel = executeQuery(sql);
+	Relation *resultRel = executeQuery(sql);
 
 	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
 	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
@@ -1205,6 +1277,56 @@ static void
 updateProvenanceComputation(QueryOperator* op)
 {
 	appendStringInfo(strInfo, "%s ", "UpdtateProvenanceComputation");
+
+	QueryOperator *childOp = OP_LCHILD(op);
+
+	if (!HAS_STRING_PROP(childOp, DATA_CHUNK_PROP)) {
+		return;
+	}
+
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(childOp, DATA_CHUNK_PROP);
+
+	// get delta ps list;
+	HashMap *map = dataChunk->fragmentsInfo;
+
+	PSMap *psMap = (PSMap *) GET_STRING_PROP(op, DATA_STRUCTURE_STATE);
+
+	FOREACH_HASH_KEY(Constant, c, psMap->psMaps) {
+		List *l = (List *) MAP_GET_STRING(map, STRING_VALUE(c));
+		HashMap *m = (HashMap *) MAP_GET_STRING(psMap->psMaps, STRING_VALUE(c));
+
+		for (int i = 0; i < LIST_LENGTH(l); i++) {
+			int type = getVecInt(dataChunk->updateIdentifier, i);
+
+			BitSet *bitset = (BitSet *) getNthOfListP(l, i);
+
+			for (int j = 0; j < bitset->length; j++) {
+				if (isBitSet(bitset, j)) {
+					if (type == 1) {
+						if (MAP_HAS_INT_KEY(m, j)) {
+							int cnt = INT_VALUE((Constant *) MAP_GET_INT(m, j));
+							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(cnt + 1));
+						} else {
+							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(1));
+						}
+					} else {
+						if (MAP_HAS_INT_KEY(m, j)) {
+							int cnt = INT_VALUE((Constant *) MAP_GET_INT(m, j));
+							// Here, cnt - 1 could be negative; but finally it will be >= 0, because, if we execute delete first
+							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(cnt - 1));
+						} else {
+							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(-1));
+						}
+					}
+				}
+			}
+		}
+
+		addToMap(psMap->psMaps, (Node *) c, (Node *) m);
+	}
+
+	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, (Node *) psMap);
+	removeStringProperty(childOp, DATA_CHUNK_PROP);
 }
 
 static void
@@ -1216,8 +1338,7 @@ updateProjection(QueryOperator* op)
 	INFO_OP_LOG("CURRENT OPERATOR", op);
 	QueryOperator *child = OP_LCHILD(op);
 
-	if (!HAS_STRING_PROP(child, DATA_CHUNK_PROP))
-	{
+	if (!HAS_STRING_PROP(child, DATA_CHUNK_PROP)) {
 		return;
 	}
 
@@ -2430,7 +2551,7 @@ updateLimit(QueryOperator *op)
 	}
 
 	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, DATA_CHUNK_PROP);
-	DataChunk *dc = initDataChunk;
+	DataChunk *dc = initDataChunk();
 	dc->tupleFields = dataChunk->tupleFields;
 	dc->attrNames = (List *) copyObject(dataChunk->attrNames);
 	dc->attriToPos = (HashMap *) copyObject(dataChunk->attriToPos);
@@ -3078,18 +3199,46 @@ getConstRelOpFromDataChunk(DataChunk *dataChunk)
 	List *dataTypes = NIL;
 	List *updateType = NIL;
 
-	for (int col = 0; col < dataChunk->tupleFields; col++) {
-		List *colValues = NIL;
+	int lenRow = dataChunk->numTuples;
+	int lenCol = dataChunk->tupleFields;
 
-		// get value from each vector cell;
-		Vector *vec = (Vector *) getVecNode(dataChunk->tuples, col);
-		for (int index = 0; index < VEC_LENGTH(vec); index++) {
-			colValues = appendToTailOfList(colValues, getVecNode(vec, index));
+	// append value;
+	for (int row = 0; row < lenRow; row++) {
+		List *valList = NIL;
+		for (int col = 0; col < lenCol; col++) {
+			Constant *val = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, col), row);
+			valList = appendToTailOfList(valList, val);
 		}
 
-		values = appendToTailOfList(values, colValues);
-		dataTypes = appendToTailOfListInt(dataTypes, INT_VALUE((Constant *) getMapInt(dataChunk->posToDatatype, col)));
+		values = appendToTailOfList(values, valList);
 	}
+
+	// append ps string;
+	FOREACH_HASH_KEY(Constant, c, dataChunk->fragmentsInfo) {
+		List *bitsetList = (List *) MAP_GET_STRING(dataChunk->fragmentsInfo, STRING_VALUE(c));
+		for (int row = 0; row < LIST_LENGTH(bitsetList); row++) {
+			List *l = NIL;
+			l = (List *) getNthOfListP(values, row);
+
+		}
+	}
+
+
+
+
+
+	// for (int col = 0; col < dataChunk->tupleFields; col++) {
+	// 	List *colValues = NIL;
+
+	// 	// get value from each vector cell;
+	// 	Vector *vec = (Vector *) getVecNode(dataChunk->tuples, col);
+	// 	for (int index = 0; index < VEC_LENGTH(vec); index++) {
+	// 		colValues = appendToTailOfList(colValues, getVecNode(vec, index));
+	// 	}
+
+	// 	values = appendToTailOfList(values, colValues);
+	// 	dataTypes = appendToTailOfListInt(dataTypes, INT_VALUE((Constant *) getMapInt(dataChunk->posToDatatype, col)));
+	// }
 
 	// build list for sketch string;
 	FOREACH_HASH_KEY(Node, key, dataChunk->fragmentsInfo) {
@@ -3113,9 +3262,10 @@ getConstRelOpFromDataChunk(DataChunk *dataChunk)
 	dataTypes = appendToTailOfListInt(dataTypes, DT_INT);
 
 	// create a constant real operator;
-	ConstRelOperator *constRelOp = createConstRelOp(values, NIL, deepCopyStringList(attrNames), dataTypes);
+	// ConstRelMultiListsOperator *constRel = createConstRelOp(values, NIL, deepCopyStringList(attrNames), dataTypes);
+	ConstRelMultiListsOperator *constRel = createConstRelMultiListsOp(values, NIL, deepCopyStringList(attrNames), dataTypes);
 
-	return constRelOp;
+	return (ConstRelOperator *) constRel;
 }
 
 static BitSet *

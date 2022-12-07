@@ -261,7 +261,7 @@ extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
         List *parents);
 extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents);
 extern DLMorDDLOperator *createDMLDDLOp(Node *stmt);
-extern ConstRelMultiListsOperator *createConstRelMultiListOperator(List *values, List *parents, List*attrNames, List *dataTypes);
+extern ConstRelMultiListsOperator *createConstRelMultiListsOp(List *values, List *parents, List*attrNames, List *dataTypes);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

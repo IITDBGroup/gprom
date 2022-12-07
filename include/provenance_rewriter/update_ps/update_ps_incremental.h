@@ -32,7 +32,7 @@ typedef struct DataChunk
 	 *
 	 *  fragmentsInfo:
 	 *  	a HashMap
-	 *  		ps_attr -> bitset
+	 *  		ps_attr -> bitset list;
 	 *
 	 *  numTuples:
 	 *  	integer
@@ -110,10 +110,17 @@ typedef struct LMTChunk
 	HashMap *provToPos;
 } LMTChunk;
 
+typedef struct PSMap
+{
+	NodeTag type;
+	HashMap *psMaps; // key: ps name string, value: hash map(key: fragno, value: count);
+} PSMap;
+
 extern DataChunk *initDataChunk();
 extern GBHeaps *makeGBHeaps();
 extern GBACSs *makeGBACSs();
 extern LMTChunk *makeLMTChunk();
+extern PSMap *makePSMap();
 
 /*
  * 	type: "MIN" or "MAX";

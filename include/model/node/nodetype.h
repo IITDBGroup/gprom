@@ -123,7 +123,10 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 	T_GBHeaps,
 	T_GBACSs,
     T_ConstRelMultiListsOperator,
-    T_LMTChunk
+    T_LMTChunk,
+    T_RBTNode,
+    T_RBTRoot,
+    T_PSMap
 );
 
 typedef struct Node{

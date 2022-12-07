@@ -852,7 +852,7 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
 }
 
 ConstRelMultiListsOperator *
-createConstRelMultiListsOperator(List *values, List *parents, List*attrNames, List *dataTypes)
+createConstRelMultiListsOp(List *values, List *parents, List*attrNames, List *dataTypes)
 {
     ConstRelMultiListsOperator *co = NEW(ConstRelMultiListsOperator);
 

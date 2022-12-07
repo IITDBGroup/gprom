@@ -8,42 +8,57 @@
 
 #include "model/node/nodetype.h"
 
+// TNIL
+#define TNIL NULL
+
 // color;
-#define RBTREE_RED 0
-#define RBTREE_BLACK 1
+#define RBT_RED 0
+#define RBT_BLACK 1
 
 // parent;
-#define RBTREE_PARENT(n) ((n)->parent)
-#define RBTREE_SET_PARENT(n, p) ((n)->parent = (p))
+#define RBT_PARENT(n) ((n)->parent)
+#define RBT_SET_PARENT(n, p) ((n)->parent = (p))
 
 // child
-#define RBTREE_LCHILD(n) ((n)->left)
-#define RBTREE_RCHILD(n) ((n)->right)
+#define RBT_LCHILD(n) ((n)->left)
+#define RBT_RCHILD(n) ((n)->right)
 
 // color
-#define RBTREE_COLOR(n) ((n)->color)
-#define RBTREE_SET_COLOR(n, c) ((n)->color = (c))
-#define RBTREE_IS_RED(n) ((n)->color == RBTREE_RED)
-#define RBTREE_SET_RED(n) ((n)->color == RBTREE_RED)
-#define RBTREE_IS_BLACK(n) ((n)->color == RBTREE_BLACK)
-#define RBTREE_SET_BLACK(n) ((n)->color == RBTREE_BLACK)
+#define RBT_COLOR(n) ((n)->color)
+#define RBT_SET_COLOR(n, c) ((n)->color = (c))
+#define RBT_IS_RED(n) ((n)->color == RBTREE_RED)
+#define RBT_SET_RED(n) ((n)->color = RBTREE_RED)
+#define RBT_IS_BLACK(n) ((n)->color == RBTREE_BLACK)
+#define RBT_SET_BLACK(n) ((n)->color = RBTREE_BLACK)
+
+
+
+// TRY: SKIP LIST for limit oeprator;
+// db: min heap, for top k, then compare new value wit min-heap,
+// TODO: if applicable of RB tree, replace RB tree with heap in min/max;
 
 // treenode;
-typedef struct RBTreeNode
+typedef struct RBTNode
 {
-    Node *key;                  // key;
-    struct RBTreeNode *left;    // left child;
-    struct RBTreeNode *right;   // right child;
-    struct RBTreeNode *parent;  // parent ;
-    unsigned char color;        // color: RBTREE_RED or RBTREE_BLACK;
-} RBTreeNode;
+    Node *key;               // key;
+    struct RBTNode *left;    // left child;
+    struct RBTNode *right;   // right child;
+    struct RBTNode *parent;  // parent ;
+    unsigned char color;     // color: RBTREE_RED or RBTREE_BLACK;
+} RBTNode;
 
 // tree;
-typedef struct RBTree
+typedef struct RBTRoot
 {
     RBTNode *root;
-} RBTree;
+} RBTRoot;
 
-extern void RBTreeInsert(RBTreeNode **root, RBTreeNode *node);
-extern void RBTreeDelete(RBTreeNode **root, RBTreeNode *node);
+extern RBTRoot *makeRBT();
+extern RBTNode *makeRBTNode(Node *node);
+extern void RBTInsert(RBTRoot *root, RBTNode *node, int (*cmp) (const void **, const void **) cmp);
+extern void RBTDelete(RBTRoot *root, RBTNode *node, int (*cmp) (const void **, const void **) cmp);
+extern RBTNode *RBTSearch(RBTRoot *root, Node *key, int (*cmp) (const void **, const void **) cmp);
+extern List* RBTGetFirstK(RBTRoot *root, int k, int (*cmp) (const void **, const void **) cmp);
+extern Node *RBTGetMin(RBTRoot *root);
+extern Node *RBTGetMax(RBTRoot *root);
 #endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_RBTREE_H_ */
