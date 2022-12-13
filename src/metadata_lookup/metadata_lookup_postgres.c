@@ -1977,6 +1977,7 @@ postgresExecuteQuery(char *query)
 {
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");
+    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     Relation *r = makeNode(Relation);
     PGresult *rs = execQuery(query);
     int numRes = PQntuples(rs);
