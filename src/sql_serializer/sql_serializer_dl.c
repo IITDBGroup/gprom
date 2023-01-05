@@ -109,10 +109,12 @@ datalogToStr(StringInfo str, Node *n, int indent)
             FOREACH(Node,f,p->facts)
             {
                 datalogToStr(str,(Node *) f, 0);
+				appendStringInfoString(str, ".\n");
             }
             FOREACH(Node,r,p->rules)
             {
                 datalogToStr(str,(Node *) r, 0);
+				appendStringInfoString(str, "\n");
             }
         }
         break;

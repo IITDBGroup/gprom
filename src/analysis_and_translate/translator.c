@@ -27,6 +27,7 @@
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "analysis_and_translate/translator_dl.h"
+#include "analysis_and_translate/translate_dl_to_dl.h"
 
 #include "parser/parser.h"
 
@@ -40,6 +41,7 @@ static TranslatorPlugin *assembleOraclePlugin(void);
 static TranslatorPlugin *assemblePostgresPlugin(void);
 static TranslatorPlugin *assembleHivePlugin(void);
 static TranslatorPlugin *assembleDLPlugin(void);
+static TranslatorPlugin *assembleDLToDLPlugin(void);
 static TranslatorPlugin *assembleDummyPlugin(void);
 
 static Node *echoNode (Node *in);
@@ -88,6 +90,9 @@ chooseTranslatorPlugin(TranslatorPluginType type)
         case TRANSLATOR_PLUGIN_DL:
             plugin = assembleDLPlugin();
             break;
+	    case TRANSLATOR_PLUGIN_DL_TO_DL:
+			plugin = assembleDLToDLPlugin();
+			break;
         case TRANSLATOR_PLUGIN_DUMMY:
             plugin = assembleDummyPlugin();
             break;
@@ -137,6 +142,18 @@ assembleDLPlugin(void)
 }
 
 static TranslatorPlugin *
+assembleDLToDLPlugin(void)
+{
+    TranslatorPlugin *p = NEW(TranslatorPlugin);
+
+    p->translateParse = translateParseDLToDL;
+    p->translateQuery = translateQueryDLToDL;
+
+    return p;
+}
+
+
+static TranslatorPlugin *
 assembleDummyPlugin(void)
 {
     TranslatorPlugin *p = NEW(TranslatorPlugin);
@@ -173,6 +190,8 @@ chooseTranslatorPluginFromString(char *type)
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_HIVE);
     else if (streq(type,"dl"))
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DL);
+    else if (streq(type,"dl-to-dl"))
+        chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DL_TO_DL);
     else if (streq(type,"dummy"))
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DUMMY);
     else

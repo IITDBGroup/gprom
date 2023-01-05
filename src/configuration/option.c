@@ -597,7 +597,7 @@ OptionInfo opts[] =
                 "-treeify-all",
                 "Turn AGM graph into a tree passing it to serializer.",
                 opt_treeify_all,
-                FALSE),		
+                FALSE),
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
                 "-prov_use_composable",
                 "Use composable version of PI-CS provenance that adds additional columns which"
@@ -938,6 +938,15 @@ BackendInfo backends[]  = {
             "sqlite",    // sqlserializer
             "oracle"   // translator
         },
+		{
+			BACKEND_DATALOG,
+			"datalog", //name
+            "dl",   // analyzer
+            "dl",   // parser
+            "sqlite",   // metadata
+            "dl",    // sqlserializer
+            "dl-to-dl"   // translator
+		},
         {
             BACKEND_ORACLE, STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
