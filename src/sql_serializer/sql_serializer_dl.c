@@ -47,6 +47,11 @@ datalogToStr(StringInfo str, Node *n, int indent)
 
     switch(n->type)
     {
+        case T_FD:
+        {
+            DEBUG_NODE_BEATIFY_LOG("ignore FD", n);
+        }
+        break;
         case T_DLAtom:
         {
             DLAtom *a = (DLAtom *) n;
@@ -109,12 +114,12 @@ datalogToStr(StringInfo str, Node *n, int indent)
             FOREACH(Node,f,p->facts)
             {
                 datalogToStr(str,(Node *) f, 0);
-				appendStringInfoString(str, ".\n");
+                appendStringInfoString(str, ".\n");
             }
             FOREACH(Node,r,p->rules)
             {
                 datalogToStr(str,(Node *) r, 0);
-				appendStringInfoString(str, "\n");
+                appendStringInfoString(str, "\n");
             }
         }
         break;

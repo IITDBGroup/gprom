@@ -45,7 +45,7 @@ translateParseDLToDL(Node *q)
     else
         FATAL_LOG("currently only DLProgram node type translation supported");
 
-    INFO_OP_LOG("rewritten DL program:\n", result);
+    INFO_DL_LOG("rewritten DL program:\n", result);
 
     return (Node *) result;
 }
