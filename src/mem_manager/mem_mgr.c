@@ -629,9 +629,9 @@ createChunk (MemContext *mc, size_t size, const char *file, unsigned line)
     mc->unusedBytes += unused;
 
     // round up to multiple of default chunk size
-    if (size % DEFAULT_CHUNK_SIZE != 0)
+    if (actualSize % DEFAULT_CHUNK_SIZE != 0)
     {
-        size += (DEFAULT_CHUNK_SIZE - (size % DEFAULT_CHUNK_SIZE));
+        actualSize += (DEFAULT_CHUNK_SIZE - (actualSize % DEFAULT_CHUNK_SIZE));
     }
     mem = malloc(actualSize);
 
@@ -641,7 +641,7 @@ createChunk (MemContext *mc, size_t size, const char *file, unsigned line)
     }
     else
     {
-        GENERIC_LOG(LOG_TRACE, file, line, "%ld bytes memory @%p allocated.", size,
+        GENERIC_LOG(LOG_TRACE, file, line, "%ld bytes memory @%p allocated.", actualSize,
                 mem);
     }
 

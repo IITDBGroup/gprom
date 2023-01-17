@@ -120,7 +120,7 @@ rewritePI_CS (ProvenanceComputation  *op)
 }
 
 static QueryOperator *
-rewritePI_CSOperator (QueryOperator *op)
+rewritePI_CSOperator(QueryOperator *op)
 {
 	boolean combinerAggrOpt = HAS_STRING_PROP(op,  PROP_PC_SC_AGGR_OPT);
     boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
