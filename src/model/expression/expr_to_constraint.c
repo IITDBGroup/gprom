@@ -44,8 +44,8 @@ newConstraintTranslationCtx ()
     ctx->deletes = NIL;
     ctx->root = NULL;
 
-    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(20000));
-    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-20000)); //TODO: There is definitely a better way to be doing this.
+    MAP_ADD_STRING_KEY(ctx->variableMap, "M", createConstInt(20000000));
+    MAP_ADD_STRING_KEY(ctx->variableMap, "-M", createConstInt(-20000000)); //TODO: There is definitely a better way to be doing this.
 
     return ctx;
 }
@@ -708,8 +708,8 @@ newLPProblem (ConstraintTranslationCtx* ctx)
 			problem->types[i] = 'B';
 			break;
 		default:
-			problem->lb[i] = -19000;
-			problem->ub[i] = 19000;
+			problem->lb[i] = -20000000;
+			problem->ub[i] = 20000000;
 			problem->types[i] = 'C';
         }
     }
