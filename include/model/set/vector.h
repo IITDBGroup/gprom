@@ -56,6 +56,7 @@ extern size_t getVecDataSize(Vector *v);
 // append something to the end of a vector
 extern void vecAppendNode(Vector *v, Node *el);
 extern void vecAppendInt(Vector *v, int el);
+extern void vecAppendString(Vector *v, char *el);
 #define VEC_ADD_NODE(v,el) vecAppendNode((Vector *) v, (Node *) el)
 
 // get elements from a vector

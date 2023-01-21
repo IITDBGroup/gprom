@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/relation/relation.h"
+#include "model/set/vector.h"
 #include "parser/parser.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "utility/string_utils.h"
@@ -1541,7 +1542,7 @@ oracleExecuteAsTransactionAndGetXID(List *statements, IsolationLevel isoLevel) {
 
 Relation *
 oracleGenExecQuery(char *query) {
-	List *rel = NIL;
+	Vector *rel = makeVector(VECTOR_NODE, T_Vector);
 	int numAttrs;
 	OCI_Resultset *rs;
 	Relation *r = makeNode(Relation);
@@ -1559,13 +1560,15 @@ oracleGenExecQuery(char *query) {
 
 	// fetch tuples
 	while (OCI_FetchNext(rs)) {
-		List *tuple = NIL;
+	    Vector *tuple = makeVectorOfSize(VECTOR_STRING, -1, LIST_LENGTH(r->schema));
 
 		for (int i = 1; i <= numAttrs; i++)
-			tuple = appendToTailOfList(tuple,
-					strdup((char * ) OCI_GetString(rs, i)));
+		{
+			vecAppendString(tuple, strdup((char * ) OCI_GetString(rs, i)));
+		}
 
-		rel = appendToTailOfList(rel, tuple);
+		VEC_ADD_NODE(rel, tuple);
+		/* rel = appendToTailOfList(rel, tuple); */
 	}
 	r->tuples = rel;
 

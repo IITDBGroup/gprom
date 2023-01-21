@@ -148,6 +148,15 @@ vecAppendNode(Vector *v, Node *el)
 }
 
 void
+vecAppendString(Vector *v, char *el)
+{
+	if (v->maxLength == v->length)
+		extendVector(v);
+
+	VEC_TO_ARR(v,char)[v->length++] = el;
+}
+
+void
 vecAppendInt(Vector *v, int el)
 {
     if (v->maxLength == v->length)
