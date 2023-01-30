@@ -1666,22 +1666,51 @@ void runSelectivity2(Node *qbModel) {
 //////////////////////////////////////////////////////
 	//int count0 = 0;
 	//List *samples_test = NIL;
-	char *ps[] = {"L_ORDERKEY","L_SUPPKEY","L_PARTKEY","L_EXTENDEDPRICE"};
-	for(int i=0; i<sizeof(ps)/sizeof(ps[0]); i++){
+	//char *ps[] = {"ZIP_CODES","BEAT","COMMUNITY_AREA","WARD"};
+	//for(int i=0; i<sizeof(ps)/sizeof(ps[0]); i++){
 		//char* sampleName_5 = CONCAT_STRINGS("SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
 		//char* sampleName_10 = CONCAT_STRINGS("SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
-		char* partsampleName_5 = CONCAT_STRINGS("PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
-		char* partsampleName_10 = CONCAT_STRINGS("PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
-		char* statpartsampleName_5 = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
-		char* statpartsampleName_10 = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
-		dropTable(partsampleName_5);
-		dropTable(partsampleName_10);
-		dropTable(statpartsampleName_5);
-		dropTable(statpartsampleName_10);
+		//char* partsampleName_5 = CONCAT_STRINGS("PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
+		//char* partsampleName_10 = CONCAT_STRINGS("PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
+		//char* statpartsampleName_5 = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5");
+		//char* statpartsampleName_10 = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10");
+		//char* statpartsampleName_5_agg = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","5_AGG_",aggrName);
+		//char* statpartsampleName_10_agg = CONCAT_STRINGS("STAT_PARTIAL_SAMPLE_", groupbyAttr1_groupbyAttr2, "_PS_",ps[i],"_","10_AGG_",aggrName);
+		//char* new = CONCAT_STRINGS("STAT_SAMPLE_CRIMES#", ps[i],"_BID_5_",groupbyAttr1_groupbyAttr2,"_AGG_",aggrName);
+		//char* new2 = CONCAT_STRINGS("STAT_PARTIAL_JOIN_COUNT_PARTIAL_",groupbyAttr1_groupbyAttr2,"_",aggrName,"_PS_",ps[i],"_5");
+		//char* new3 = CONCAT_STRINGS("STAT_PARTIAL_JOIN_COUNT_PARTIAL_",groupbyAttr1_groupbyAttr2,"_",aggrName,"_PS_",ps[i]);
+		//dropTable(partsampleName_5);
+		//dropTable(partsampleName_10);
+		//dropTable(statpartsampleName_5);
+		//dropTable(statpartsampleName_10);
+		//dropTable(statpartsampleName_5_agg);
+		//dropTable(statpartsampleName_10_agg);
+	//	dropTable(new);
+		//dropTable(new2);
+		//dropTable(new3);
 
+//	}
+
+	char *ps[] = {"STAT_SAMPLE_CRIMES#BEAT_BID_5_BEAT_CLOCK_AGG_LONGITUDE",
+			"STAT_SAMPLE_CRIMES#COMMUNITY_AREA_BID_5_COMMUNITY_AREA_CLOCK_AGG_LONGITUDE",
+			"STAT_SAMPLE_CRIMES#COMMUNITY_AREA_BID_5_WARD_COMMUNITY_AREA_AGG_LONGITUDE",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_5_ZIP_CODES_PRIMARY_TYPE_AGG_LONCITUDE",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_5_ZIP_CODES_WARD_AGG_LONGITUDE",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_5_ZIP_CODES_X_COORDINATE_AGG_LONGITUDE",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_5_ZIP_CODES_Y_COORDINATE_AGG_LONGITUDE",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_BEAT_WARD_AGG_DISTRICT",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_BEAT_WARD_AGG_ZIP_CODES",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_DISTRICT_BEAT_AGG_ZIP_CODES",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_DISTRICT_WARD_AGG_BEAT",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_DISTRICT_WARD_AGG_ZIP_CODES",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_ZIP_CODES_BEAT_AGG_DISTRICT",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_ZIP_CODES_BEAT_AGG_WARD",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_ZIP_CODES_DISTRICT_AGG_BEAT",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_ZIP_CODES_WARD_AGC_BEAT",
+			"STAT_SAMPLE_CRIMES#ZIP_CODES_BID_ZIP_CODES_WARD_AGG_DISTRICT"};
+	for(int i=0; i<sizeof(ps)/sizeof(ps[0]); i++){
+		dropTable(ps[i]);
 	}
-
-
 
  /* List *partialSamples_test = NIL;
 	char *ps[] = {"L_ORDERKEY","L_SUPPKEY","L_PARTKEY","L_EXTENDEDPRICE"};
@@ -2063,7 +2092,7 @@ generateQuery() {
 									char *sel_query = printQuery(max, 0.7,
 											query, aggr[i], lineitem[j][0]);
 									char *path = CONCAT_STRINGS(
-											"/Users/liuziyu/gprom/lzy2/",
+											"/Users/liuziyu/gprom/lzy2_postgres/",
 											aggr[i], "_", lineitem[j][0], "_",
 											lineitem[k][0], "_", lineitem[m][0],
 											"_1");
@@ -2074,7 +2103,7 @@ generateQuery() {
 									char *sel_query2 = printQuery(max, 0.8,
 											query, aggr[i], lineitem[j][0]);
 									char *path2 = CONCAT_STRINGS(
-											"/Users/liuziyu/gprom/lzy2/",
+											"/Users/liuziyu/gprom/lzy2_postgres/",
 											aggr[i], "_", lineitem[j][0], "_",
 											lineitem[k][0], "_", lineitem[m][0],
 											"_2");
@@ -2085,7 +2114,7 @@ generateQuery() {
 									char *sel_query3 = printQuery(max, 0.9,
 											query, aggr[i], lineitem[j][0]);
 									char *path3 = CONCAT_STRINGS(
-											"/Users/liuziyu/gprom/lzy2/",
+											"/Users/liuziyu/gprom/lzy2_postgres/",
 											aggr[i], "_", lineitem[j][0], "_",
 											lineitem[k][0], "_", lineitem[m][0],
 											"_3");
@@ -2102,7 +2131,7 @@ generateQuery() {
 	}
 
 }
-
+/*
 char*
 printQuery(char *value, double percent, char *query, char *agg, char* agg_attr) {
 	double max = atof(value);
@@ -2110,6 +2139,17 @@ printQuery(char *value, double percent, char *query, char *agg, char* agg_attr) 
 	char t[100];
 	sprintf(t, "%.0f", v);
 	char *sel_query =  CONCAT_STRINGS("\"",query, "WHERE ",agg,"_",agg_attr," > ", t,";\"");
+	DEBUG_LOG("lZY IS %s", sel_query);
+	return sel_query;
+}*/
+
+char*
+printQuery(char *value, double percent, char *query, char *agg, char* agg_attr) {
+	double max = atof(value);
+	double v = max * percent;
+	char t[100];
+	sprintf(t, "%.0f", v);
+	char *sel_query =  CONCAT_STRINGS(query, "aaa WHERE ",agg,"_",agg_attr," > ", t);
 	DEBUG_LOG("lZY IS %s", sel_query);
 	return sel_query;
 }

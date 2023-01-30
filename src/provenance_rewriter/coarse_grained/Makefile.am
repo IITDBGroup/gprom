@@ -3,4 +3,5 @@ AM_CFLAGS = @GPROM_CFLAGS@
 
 noinst_LTLIBRARIES        			= libcoarse_grained_rewrites.la
 libcoarse_grained_rewrites_la_SOURCES		= coarse_grained_rewrites.c\
-											  ps_safety_check.c
+											  ps_safety_check.c\
+											  experiment.c

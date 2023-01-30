@@ -33,6 +33,7 @@
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "execution/executor.h"
 #include "provenance_rewriter/prov_utility.h"
+
 #include "utility/string_utils.h"
 
 #include "instrumentation/timing_instrumentation.h"
@@ -43,6 +44,7 @@
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
+#include "provenance_rewriter/coarse_grained/experiment.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
@@ -456,9 +458,9 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	//char *query = serializeQueryOracle(root);
 	//DEBUG_LOG("LZY is %s", query);
 	//generateQuery_CRIMES();
-	runSelectivity3(oModel);
+	//runSelectivity3(oModel);
 	//runSelectivity2(oModel);
-	//generateQuery();
+	generateQuery_Parking();
 	//Ziyu Liu
 
     if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))

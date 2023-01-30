@@ -46,6 +46,9 @@ extern DataType postgresBackendSQLTypeToDT (char *sqlType);
 extern char * postgresBackendDatatypeToSQL (DataType dt);
 extern HashMap *postgresGetMinAndMax(char* tableName, char* colName);
 
+extern char*postgresSelectivty2(char * stateName, char *psAttribute, char *aggregation, char *aggregationAttribute, char *groupbyAttribute, char *tableName, char *constant ,char* res, char *query, char *SampleRate);
+
+
 extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);

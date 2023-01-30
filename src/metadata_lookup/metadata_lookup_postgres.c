@@ -237,8 +237,15 @@ assemblePostgresMetadataLookupPlugin (void)
     p->sqlTypeToDT = postgresBackendSQLTypeToDT;
     p->dataTypeToSQL = postgresBackendDatatypeToSQL;
 	p->getMinAndMax = postgresGetMinAndMax;
+	p->storeSelectivty2 = postgresSelectivty2;
 
     return p;
+}
+char *
+postgresSelectivty2(char * stateName, char *psAttribute, char *aggregation,
+		char *aggregationAttribute, char *groupbyAttribute, char *tableName,
+		char *constant, char* res, char *query, char *SampleRate){
+	return NULL;
 }
 
 /* plugin methods */

@@ -1769,6 +1769,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     Constant* hvalue = NULL;
     int lowValue = 0;
     int highValue = 0;
+    DEBUG_LOG("rangeLen is %d", rangeLen);
     /*
     		structure: R-> {"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
     		structure: R-> {"PTYPE"->"PAGE", "ATTRS"-> null, "HVALUE"->32}
