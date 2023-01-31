@@ -154,9 +154,9 @@ isMergeSafe(Vector *opRef, Vector *childRef)
 {
     FOREACH_VEC(Vector,curV,opRef)
     {
-        int *curA = VEC_TO_IA(*curV);
+        int *curA = VEC_TO_IA(curV);
 
-        for(int i = 0; i < VEC_LENGTH(*curV); i++)
+        for(int i = 0; i < VEC_LENGTH(curV); i++)
         {
             Vector *childV;
             int refCount = curA[i];
@@ -167,7 +167,7 @@ isMergeSafe(Vector *opRef, Vector *childRef)
                 childV = (Vector *) getVecNode(childRef, i);
                 FOREACH_VEC_INT(childCount,childV)
                 {
-                    if (*childCount > 1)
+                    if (childCount > 1)
                         return FALSE;
                 }
             }

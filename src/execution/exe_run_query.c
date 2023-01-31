@@ -135,10 +135,10 @@ outputResult(Relation *res)
         colSizes[i++] = strlen(a) + 2;
     }
 
-    FOREACH(List,t,res->tuples)
+    FOREACH_VEC(Vector,t,res->tuples)
     {
         i = 0;
-        FOREACH(char,a,t)
+        FOREACH_VEC(char,a,t)
         {
             int len = a ? strlen(a) : 4;
             colSizes[i] = colSizes[i] < len + 2 ? len + 2 : colSizes[i];
@@ -165,21 +165,38 @@ outputResult(Relation *res)
     printf("\n");
 
     // output results
-    FOREACH(List,t,res->tuples)
-    {
-        i = 0;
-        FOREACH(char,a,t)
-        {
+	FOREACH_VEC(Vector,t,res->tuples)
+	{
+		i = 0;
+		FOREACH_VEC(char,a,t)
+		{
             char *out = a ? a : "NULL";
             printf(" %s", out);
             for(int j = strlen(out) + 1; j < colSizes[i]; j++)
                 printf(" ");
             printf("|");
             i++;
-        }
-        printf("\n");
-
+		}
+		printf("\n");
+				
         if ((l++ % 1000) == 0)
             fflush(stdout);
-    }
+	}
+    /* FOREACH(List,t,res->tuples) */
+    /* { */
+    /*     i = 0; */
+    /*     FOREACH(char,a,t) */
+    /*     { */
+    /*         char *out = a ? a : "NULL"; */
+    /*         printf(" %s", out); */
+    /*         for(int j = strlen(out) + 1; j < colSizes[i]; j++) */
+    /*             printf(" "); */
+    /*         printf("|"); */
+    /*         i++; */
+    /*     } */
+    /*     printf("\n"); */
+
+    /*     if ((l++ % 1000) == 0) */
+    /*         fflush(stdout); */
+    /* } */
 }

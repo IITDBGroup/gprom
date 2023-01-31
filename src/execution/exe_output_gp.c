@@ -125,7 +125,7 @@ executeOutputGP(void *sql)
     StringInfo script = makeStringInfo();
     StringInfo edges = makeStringInfo();
     HashMap *noteTypes = NEW_MAP(Constant,Set);
-    List *queryRes;
+    Vector *queryRes;
     Relation *r;
 
     for (int i = 0; i < NUM_ELEM_GPNodeType; i++)
@@ -144,18 +144,19 @@ executeOutputGP(void *sql)
 	int i = 0;
 	List *existingNodes = NIL;
 
-    FOREACH(List,t,queryRes)
+    FOREACH_VEC(Vector,t,queryRes)
     {
         Set *nodes;
+		char **tuplev = VEC_TO_ARR(t, char);
 
-        char *lRawId = (char *) getNthOfListP(t,0);
+        char *lRawId = tuplev[0];
         lRawId = strtrim(lRawId);
         GPNodeType lType = getNodeType(lRawId);
         char *lId = getNodeId(lRawId);
         nodes = (Set *) MAP_GET_INT(noteTypes, lType);
         addToSet(nodes, lRawId);
 
-        char *rRawId = (char *) getNthOfListP(t,1);
+        char *rRawId = (char *) tuplev[1];
         rRawId = strtrim(rRawId);
         GPNodeType rType = getNodeType(rRawId);
         char *rId = getNodeId(rRawId);

@@ -637,7 +637,7 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
             bA = VEC_TO_ARR(b,Node);
 
             for(int i = 0; i < VEC_LENGTH(a); i++)
-                if (equal(aA[i],bA[i]) != 0)
+                if (!equal(aA[i],bA[i]))
                     return FALSE;
         }
         break;
