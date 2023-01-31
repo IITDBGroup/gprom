@@ -218,14 +218,14 @@ setVecInt(Vector *v, int pos, int newEl)
 
 int
 incrVecInt(Vector *v, int pos, int amount)
-	(VEC_TO_IA(v)[pos]) += amount;
+{
+    (VEC_TO_IA(v)[pos]) += amount;
 
-	return VEC_TO_IA(v)[pos];
+    return VEC_TO_IA(v)[pos];
 }
 
 char *
 getVecString(Vector *v, int pos)
-
 {
 	ASSERT(pos >= 0 && pos < VEC_LENGTH(v));
 
