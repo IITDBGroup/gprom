@@ -98,13 +98,25 @@ addNullCasts(Node *n, Set *visited, void **parentPointer)
 
         if (c->isNull)
         {
-            cast = createCastExpr((Node *) c, c->constType);
+            cast = createCastExpr((Node *) c, NULL, c->constType);
             *parentPointer = cast;
         }
 
         return TRUE;
-    }
+	}
 
+	// const rel operators are used in unions which creates problems with these casts
+	//TODO this is not safe in general as it depends on what the other union inputs are, a safe option would be to analyse unions and mark const rel operators based on whether they need casts
+	/* if(isA(n,ConstRelOperator)) */
+	/* { */
+	/* 	return TRUE; */
+	/* } */
+
+	if(isA(n, CastExpr))
+	{
+		return TRUE;
+	}
+	
     return visitWithPointers(n, addNullCasts, parentPointer, visited);
 }
 

@@ -444,6 +444,7 @@ createCache(void)
 
     result->tableAttrs = NEW_MAP(Constant,List);
     result->tableAttrDefs = NEW_MAP(Constant,List);
+    result->attrDefaults = NEW_MAP(Constant,Constant);
     result->viewAttrs = NEW_MAP(Constant,List);
     result->viewDefs = NEW_MAP(Constant,Constant);
     result->viewNames = STRSET();

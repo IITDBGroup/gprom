@@ -144,6 +144,7 @@ typedef struct WindowFunction {
 typedef struct CastExpr {
     NodeTag type;
     DataType resultDT;
+    char *sqlDT;
     Node *expr;
 } CastExpr;
 
@@ -205,7 +206,7 @@ extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
-extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
+extern CastExpr *createCastExpr (Node *expr, char *sqlDT, DataType resultDt);
 extern Node *concatExprList (List *exprs);
 extern Node *andExprList (List *exprs);
 extern Node *orExprList (List *exprs);

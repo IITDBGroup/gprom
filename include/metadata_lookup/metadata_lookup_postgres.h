@@ -34,6 +34,7 @@ extern boolean postgresCatalogTableExists (char * tableName);
 extern boolean postgresCatalogViewExists (char * viewName);
 extern List *postgresGetAttributes (char *tableName);
 extern List *postgresGetAttributeNames (char *tableName);
+extern Node *postgresGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern boolean postgresIsAgg(char *functionName);
 extern boolean postgresIsWindowFunction(char *functionName);
 extern DataType postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);

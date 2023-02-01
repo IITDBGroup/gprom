@@ -341,6 +341,7 @@ static boolean
 equalCastExpr (CastExpr *a, CastExpr *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_SCALAR_FIELD(resultDT);
+	COMPARE_STRING_FIELD(sqlDT);
     COMPARE_NODE_FIELD(expr);
 
     return TRUE;
@@ -685,7 +686,8 @@ equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext
 {
     COMPARE_STRING_FIELD(attrName);
     //COMPARE_SCALAR_FIELD(dataType);
-
+	COMPARE_STRING_FIELD(realDT);
+	
     return TRUE;
 }
 

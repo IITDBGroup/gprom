@@ -2592,7 +2592,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         if (dt != typeOf(projExpr))
         {
             ListCell *pCell = getNthOfList(((ProjectionOperator *) finalOp)->projExprs, aggPos);
-            pCell->data.ptr_value = createCastExpr(projExpr, dt);
+			pCell->data.ptr_value = createCastExpr(projExpr, NULL, dt);
             AttributeDef *a = getNthOfListP(finalOp->schema->attrDefs, aggPos);
             a->dataType = dt;
         }

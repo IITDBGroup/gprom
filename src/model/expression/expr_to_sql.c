@@ -395,8 +395,15 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries)
         {
             appendStringInfoString(str, "(");
             exprToSQLString(str, c->expr, nestedSubqueries);
-            appendStringInfoString(str, ")::");
-            dataTypeToSQL(str, c->resultDT);
+			appendStringInfoString(str, ")::");
+			if(c->sqlDT)
+			{
+				appendStringInfoString(str, c->sqlDT);
+			}
+			else
+			{
+				dataTypeToSQL(str, c->resultDT);
+			}
         }
         break;
         default:
@@ -404,7 +411,14 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries)
             appendStringInfoString(str, "CAST (");
             exprToSQLString(str, c->expr, nestedSubqueries);
             appendStringInfoString(str, " AS ");
-            dataTypeToSQL(str, c->resultDT);
+			if(c->sqlDT)
+			{
+				appendStringInfoString(str, c->sqlDT);
+			}
+			else
+			{
+				dataTypeToSQL(str, c->resultDT);
+			}
             appendStringInfoString(str, ")");
         }
     }

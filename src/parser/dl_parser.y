@@ -624,7 +624,7 @@ castExpression:
 				CAST '(' expression AS name ')'
 				{
                      RULELOG("expression::cast");
-                     $$ = (Node *) createCastExpr($3, SQLdataTypeToDataType($5));
+                     $$ = (Node *) createCastExpr($3, strdup($5), SQLdataTypeToDataType($5));
 				}
 				;
 				

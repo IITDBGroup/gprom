@@ -27,6 +27,8 @@
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "parser/parser.h"
+#include "parser/parser_oracle.h"
 
 #if HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
@@ -65,13 +67,19 @@
 
 #define NAME_TABLE_GET_ATTRS "GPRoM_GetTableAttributeNames"
 #define PARAMS_TABLE_GET_ATTRS 1
-#define QUERY_TABLE_GET_ATTRS "SELECT attname, atttypid " \
-		"FROM pg_class c, pg_attribute a " \
-		"WHERE c.oid = a.attrelid " \
-		"AND relkind = 'r' " \
-		"AND relname = $1::text " \
-	    "AND attisdropped = false " \
-		"AND attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');"
+#define QUERY_TABLE_GET_ATTRS "SELECT attname, atttypid, typname "		\
+	"FROM pg_class c, pg_attribute a, pg_type t "						\
+	"WHERE c.oid = a.attrelid "											\
+	"AND t.oid = atttypid "												\
+	"AND relkind = 'r' "												\
+	"AND relname = $1::text "											\
+	"AND attisdropped = false "											\
+	"AND attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');"
+
+#define NAME_ATTR_GET_DEFAULT "GPRoM_GetAttrDefaultValue"
+#define PARAMS_ATTR_GET_DEFAULT 2
+#define QUERY_ATTR_GET_DEFAULT "SELECT COALESCE(column_default,'NULL') AS column_default " \
+        "FROM information_schema.columns WHERE table_name = $1::text AND column_name = $2::text;"
 
 #define NAME_TABLE_EXISTS "GPRoM_CheckTableExists"
 #define PARAMS_TABLE_EXISTS 1
@@ -232,6 +240,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->catalogViewExists = postgresCatalogViewExists;
     p->getAttributes = postgresGetAttributes;
     p->getAttributeNames = postgresGetAttributeNames;
+    p->getAttributeDefaultVal = postgresGetAttributeDefaultVal;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
     p->getFuncReturnType = postgresGetFuncReturnType;
@@ -451,6 +460,7 @@ prepareLookupQueries(void)
 		PREP_QUERY(QUERY_GET_COST);
 	}
     PREP_QUERY(TABLE_GET_ATTRS);
+    PREP_QUERY(ATTR_GET_DEFAULT);
     PREP_QUERY(TABLE_EXISTS);
     PREP_QUERY(VIEW_GET_ATTRS);
     PREP_QUERY(VIEW_EXISTS);
@@ -649,7 +659,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
     PGresult *res = NULL;
     DataType resType = DT_STRING;
 	List *candidates = NIL;
-	
+
     *opExists = FALSE;
     ACQUIRE_MEM_CONTEXT(memContext);
 
@@ -663,7 +673,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
         char *candArgTypes = PQgetvalue(res,i,0);
         List *argDTs = oidVecToDTList(candArgTypes);
 		DataType retDT = postgresOidToDT(retType);
-			
+
 		candidates = appendToHeadOfList(candidates,
 										createNodeKeyValue((Node *) argDTs,
 														   (Node *) createConstInt(retDT)));
@@ -689,7 +699,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 		{
 			lcaedtypes = appendToTailOfListInt(lcaedtypes, lcaTyp);
 		}
-		
+
 		FOREACH(KeyValue,c,candidates)
 		{
 			DataType retType = INT_VALUE(c->value);
@@ -702,7 +712,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 			}
 		}
 	}
-	
+
     PQclear(res);
     RELEASE_MEM_CONTEXT();
 
@@ -810,10 +820,11 @@ postgresGetAttributes (char *tableName)
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
     {
+		char *realDT = strdup(PQgetvalue(res,i,2));
         AttributeDef *a = createAttributeDef(
                 strdup(PQgetvalue(res,i,0)),
-                postgresOidToDT(strdup(PQgetvalue(res,i,1)))
-                );
+                postgresOidToDT(strdup(PQgetvalue(res,i,1))));
+        a->realDT = strdup(realDT);
         attrs = appendToTailOfList(attrs, a);
     }
 
@@ -826,6 +837,39 @@ postgresGetAttributes (char *tableName)
     RELEASE_MEM_CONTEXT();
 
     return attrs;
+}
+
+Node *
+postgresGetAttributeDefaultVal(char *schema, char *tableName, char *attrName)
+{
+    PGresult *res = NULL;
+    ASSERT(postgresCatalogTableExists(tableName));
+    Node *result = NULL;
+    char *tabPlusAttr;
+    tabPlusAttr = CONCAT_STRINGS(tableName, ".", attrName);
+
+    // caching
+    if (MAP_HAS_STRING_KEY(plugin->plugin.cache->attrDefaults, tabPlusAttr))
+        return (Node *) (MAP_GET_STRING(plugin->plugin.cache->attrDefaults,tabPlusAttr));
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    res = execPrepared(NAME_ATTR_GET_DEFAULT, LIST_MAKE(createConstString(tableName), createConstString(attrName)));
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++)
+    {
+        result = parseExprFromStringOracle(PQgetvalue(res, i, 0));
+    }
+
+    // clear result
+    PQclear(res);
+    MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrDefs, strdup(tabPlusAttr), result);
+
+    RELEASE_MEM_CONTEXT();
+
+    return result;
 }
 
 List *
@@ -1301,18 +1345,20 @@ postgresTypenameToDT (char *typName)
 
     // integer data types
     if (streq(typName,"int2")
-            || streq(typName,"int4"))
+        || streq(typName,"int4")
+        || streq(typName, "integer")
+        || streq(typName, "int"))
         return DT_INT;
 
     // long data types
-    if (streq(typName, "int8"))
+    if (streq(typName, "int8")
+        || streq(typName, "bigint"))
         return DT_LONG;
 
     // numeric data types
     if (streq(typName, "float4")
             || streq(typName, "float8")
-            || streq(typName, "numeric")
-            )
+            || streq(typName, "numeric"))
         return DT_FLOAT;
 
     // boolean
@@ -1456,6 +1502,12 @@ List *
 postgresGetAttributes (char *tableName)
 {
     return NIL;
+}
+
+Node *
+postgresGetAttributeDefaultVal(char *schema, char *tableName, char *attrName)
+{
+    return NULL;
 }
 
 List *

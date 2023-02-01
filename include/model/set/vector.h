@@ -93,6 +93,13 @@ extern boolean findVecString(Vector *v, char *el);
             ((DUMMY_ARR(_elem_) - VEC_TO_IA(_vec_)) < VEC_LENGTH(_vec_)); \
             (_elem_ = *(++DUMMY_ARR(_elem_))))
 
+#define FOREACH_VEC_STR(_elem_,_vec_)								\
+	INJECT_VAR(char **,DUMMY_ARR(_elem_))								\
+		for(char*_elem_ = ((DUMMY_ARR(_elem_) = ((_vec_ == NULL) ? NULL : VEC_TO_ARR(_vec_,char))) != NULL ? *DUMMY_ARR(_elem_) : NULL); \
+			((DUMMY_ARR(_elem_) - VEC_TO_ARR(_vec_,char)) < VEC_LENGTH(_vec_)); \
+			(_elem_ = *(++DUMMY_ARR(_elem_))))
+
+
 #define VEC_IS_LAST(_elem_,_vec_) (VEC_TO_ARR(_vec_,void)[_vec_->length - 1] == _elem_)
 
 // remove elements from a vector

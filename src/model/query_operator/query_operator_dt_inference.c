@@ -96,7 +96,7 @@ castOpSchema (QueryOperator *op, List *dts)
         DataType targetDt = getNthOfListInt(dts, pos++);
         if (typeOf(e) != targetDt)
         {
-            LC_P_VAL(e_his_cell) = createCastExpr(e, targetDt);
+				LC_P_VAL(e_his_cell) = createCastExpr(e, NULL, targetDt);
         }
     }
 

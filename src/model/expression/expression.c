@@ -100,11 +100,12 @@ createFullAttrReference (char *name, int fromClause, int attrPos,
 }
 
 CastExpr *
-createCastExpr (Node *expr, DataType resultDt)
+createCastExpr (Node *expr, char *sqlDT, DataType resultDt)
 {
     CastExpr *result = makeNode(CastExpr);
 
     result->expr = expr;
+    result->sqlDT = sqlDT;
     result->resultDT = resultDt;
 
     return result;
@@ -883,11 +884,11 @@ createCasts(Node *lExpr, Node *rExpr)
 
     // one is DT_STRING, cast the other one
     if (lType == DT_STRING)
-        return LIST_MAKE(lExpr, createCastExpr(rExpr, DT_STRING));
+        return LIST_MAKE(lExpr, createCastExpr(rExpr, NULL, DT_STRING));
     if (rType == DT_STRING)
-        return LIST_MAKE(createCastExpr(lExpr, DT_STRING), rExpr);
+        return LIST_MAKE(createCastExpr(lExpr, NULL, DT_STRING), rExpr);
 
-    return LIST_MAKE(createCastExpr(lExpr, DT_STRING), createCastExpr(rExpr, DT_STRING));
+    return LIST_MAKE(createCastExpr(lExpr, NULL, DT_STRING), createCastExpr(rExpr, NULL, DT_STRING));
 }
 
 Node *
@@ -972,7 +973,7 @@ addCastsMutator (Node *node, boolean errorOnFailure)
             {
                 if(whenLca != typeOf(w->then))
                 {
-                    w->then = (Node *) createCastExpr(w->then, whenLca);
+					w->then = (Node *) createCastExpr(w->then, NULL, whenLca);
                 }
             }
 
@@ -1031,7 +1032,7 @@ castOperatorArgs(Operator *o)
             FOREACH(Node,arg,o->args)
             {
                 if (typeOf(arg) != commonLca)
-                    arg_his_cell->data.ptr_value = createCastExpr(arg, commonLca);
+                    arg_his_cell->data.ptr_value = createCastExpr(arg, NULL, commonLca);
             }
             return;
         }
@@ -1079,7 +1080,7 @@ castFunctionArgs(FunctionCall *f)
         {
             FOREACH(Node,arg,f->args)
             {
-                arg_his_cell->data.ptr_value = createCastExpr(arg, commonLca);
+                arg_his_cell->data.ptr_value = createCastExpr(arg, NULL, commonLca);
             }
             return;
         }

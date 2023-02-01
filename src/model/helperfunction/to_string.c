@@ -351,21 +351,28 @@ outVector(StringInfo str, Vector *node)
             int j = 0;
             FOREACH_VEC_INT(i,node)
             {
-                appendStringInfo(str, "%s", gprom_itoa(i));
-                appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
+                 appendStringInfo(str, "%s", gprom_itoa(i));
+                 appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? "" : ", ");
             }
         }
-            break;
+        break;
         case VECTOR_NODE:
-            FOREACH_VEC(Node,n,node)
-            {
-                outNode(str, n);
-                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? ", " : "");
-            }
-            break;
-        case VECTOR_STRING:
-            FATAL_LOG("TODO");
-            break;
+        {
+             FOREACH_VEC(Node,n,node)
+             {
+                  outNode(str, n);
+                  appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? "" : ", ");
+             }
+             break;
+        }
+	    case VECTOR_STRING:
+		{
+			FOREACH_VEC_STR(s,node)
+			{
+				appendStringInfo(str, "%s%s", s, VEC_IS_LAST(s,node) ? "" : ", ");
+			}      
+        }
+		break;
     }
 
     appendStringInfo(str, "]");
@@ -791,6 +798,7 @@ outCastExpr (StringInfo str, CastExpr *node)
     WRITE_NODE_TYPE(CAST_EXPR);
 
     WRITE_ENUM_FIELD(resultDT,DataType);
+	WRITE_STRING_FIELD(sqlDT);
     WRITE_NODE_FIELD(expr);
 }
 
@@ -951,6 +959,7 @@ outAttributeDef (StringInfo str, AttributeDef *node)
 
     WRITE_ENUM_FIELD(dataType, DataType);
     WRITE_STRING_FIELD(attrName);
+	WRITE_STRING_FIELD(realDT);
 }
 
 #define WRITE_QUERY_OPERATOR() outQueryOperator(str, (QueryOperator *) node)

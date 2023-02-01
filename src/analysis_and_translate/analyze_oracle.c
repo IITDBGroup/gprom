@@ -1339,9 +1339,10 @@ analyzeInsert(Insert * f)
     List *dataTypes = NIL;
     List *attrDefs = NIL;
     HashMap *attrPos = NULL;
-    Set *attrNameSet = makeStrSetFromList(attrNames);
+    Set *attrNameSet;
 
     getTableSchema(f->insertTableName, &attrDefs, &attrNames, &dataTypes);
+    attrNameSet = makeStrSetFromList(attrNames);
     f->schema = copyObject(attrDefs);
 
     // if user has given no attribute list, then get it from table definition
@@ -1394,11 +1395,19 @@ analyzeInsert(Insert * f)
                             (char *) getNthOfListP(nameParts, 1),
                             a->attrName); //TODO get schema
 
-                    if (def == NULL)
+					if (def == NULL)
+					{
                         val = (Node *) createNullConst(a->dataType);
+					}
                     else
+					{
                         val = def;
+					}
                 }
+				if (a->realDT)
+				{
+					val = (Node *) createCastExpr(val, strdup(a->realDT), ((Constant *) a)->constType);
+				}
                 newValues = appendToTailOfList(newValues, val);
             }
 

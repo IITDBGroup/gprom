@@ -557,6 +557,7 @@ copyCastExpr(CastExpr *from, OperatorMap **opMap)
     COPY_INIT(CastExpr);
 
     COPY_SCALAR_FIELD(resultDT);
+	COPY_STRING_FIELD(sqlDT);
     COPY_NODE_FIELD(expr);
 
     return new;
@@ -591,7 +592,8 @@ copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
     COPY_INIT(AttributeDef);
     COPY_SCALAR_FIELD(dataType);
     COPY_STRING_FIELD(attrName);
-
+	COPY_STRING_FIELD(realDT);
+	
     return new;
 }
 

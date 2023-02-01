@@ -493,6 +493,7 @@ static uint64_t
 hashCastExpr (uint64_t cur, CastExpr *node)
 {
     HASH_INT(resultDT);
+	HASH_STRING(sqlDT);
     HASH_NODE(expr);
 
     HASH_RETURN();
@@ -719,7 +720,8 @@ hashAttributeDef (uint64_t cur, AttributeDef *node)
 {
     HASH_INT(dataType);
     HASH_STRING(attrName);
-
+	HASH_STRING(realDT);
+	
     HASH_RETURN();
 }
 
