@@ -570,19 +570,23 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
 
     QueryOperator *distinct = translateDistinct((DistinctClause *) qb->distinct,
             project);
-    if (distinct != project)
+    if (distinct != project) {
         LOG_TRANSLATED_OP("translatedDistinct is", distinct);
+    }
 
     QueryOperator *orderBy = translateOrderBy(qb, distinct, attrsOffsets);
-    if (orderBy != distinct)
+    if (orderBy != distinct) {
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
+    }
 
 	QueryOperator *limitAndOffset = translateLimitOffset(qb, orderBy, attrsOffsets);
-	if (limitAndOffset != orderBy)
+	if (limitAndOffset != orderBy) {
 		LOG_TRANSLATED_OP("translatedLimitAndOffset is", limitAndOffset);
+    }
 
-    if(summaryType != NULL)
+    if(summaryType != NULL) {
     	prop = (Node *) limitAndOffset;
+    }
 
     return limitAndOffset;
 }
@@ -952,6 +956,20 @@ constructLPProblem (List *slice)
             }
             ctx->constraints = appendToTailOfList(ctx->constraints, c2);
         }
+    } else if(getListLength(ctx->caseConds) == 1 && getListLength(ctx->deletes) > 0) {
+
+        SQLParameter *i = (SQLParameter *)getHeadOfListP(ctx->caseConds);
+        SQLParameter *j = (SQLParameter *)getTailOfListP(ctx->deletes);
+
+        Constraint *c = makeNode(Constraint);
+        c->sense = CONSTRAINT_E;
+        c->rhs = createConstInt(2);
+        c->terms = LIST_MAKE(
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)i),
+            createNodeKeyValue((Node*)createConstInt(1), (Node*)j)
+        );
+
+        ctx->constraints = appendToTailOfList(ctx->constraints, c);
     }
     else
     {

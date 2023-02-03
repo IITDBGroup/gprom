@@ -1134,21 +1134,24 @@ execQuery(char *query)
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQexec(c, "BEGIN TRANSACTION;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
+        }
     PQclear(res);
 
     DEBUG_LOG("create cursor for %s", query);
     res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
+    }
     PQclear(res);
 
     res = PQexec(c, "FETCH ALL in myportal");
-    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
+    }
 
 	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
@@ -1200,9 +1203,10 @@ execPrepared(char *qName, List *values)
             NULL,
             0);
 
-    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         CLOSE_RES_CONN_AND_FATAL(res, "query %s failed:\n%s", qName,
                 PQresultErrorMessage(res));
+    }
 
 	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 

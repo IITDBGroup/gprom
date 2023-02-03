@@ -205,6 +205,15 @@ historyToCaseExprsFreshVars (List *history, ConstraintTranslationCtx *translatio
             }
         } else if(isA(n, Delete)) {
             Delete *d = (Delete *)n;
+
+            HashMap *rhsMap = NEW_MAP(Constant, Constant);
+            FOREACH_HASH_KEY(Constant, k, rhsMap) {
+                if(MAP_HAS_STRING_KEY(seen, STRING_VALUE(k))) {
+                    ADD_TO_MAP(rhsMap, getMapEntry(current, (Node *)k));
+                }
+            }
+
+            if(d->cond) visit(d->cond, renameParameters, rhsMap);
             caseExprs = appendToTailOfList(caseExprs, d); // pass delete directly through if delete
         }
     }
@@ -789,10 +798,11 @@ newLPProblem (ConstraintTranslationCtx* ctx)
     }*/
 
     int current = 0, i = 0;
-	HashMap *varsToPos = NEW_MAP(SQLParameter, Constant);
+	HashMap *varsToPos = NEW_MAP(Constant, Constant);
 	FOREACH(SQLParameter,v,ctx->variables)
 	{
-		addToMap(varsToPos, (Node *) v, (Node *) createConstInt(i));
+        MAP_ADD_STRING_KEY(varsToPos, v->name, (Node *)createConstInt(i));
+		//addToMap(varsToPos, (Node *) v, (Node *) createConstInt(i));
         i++;
 	}
 
@@ -803,7 +813,7 @@ newLPProblem (ConstraintTranslationCtx* ctx)
         FOREACH(KeyValue, kv, c->terms) {
             problem->rmatval[i] = INT_VALUE(kv->key);
             /* problem->rmatind[i] = genericListPos(ctx->variables, equal, kv->value); */
-			problem->rmatind[i] = INT_VALUE(getMap(varsToPos, kv->value));
+			problem->rmatind[i] = INT_VALUE(MAP_GET_STRING(varsToPos, ((SQLParameter *)(kv->value))->name));
             if(problem->rmatind[i] == -1)
             {
                 ERROR_LOG("Something very wrong happened. Variable not found.");
