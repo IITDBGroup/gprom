@@ -2660,7 +2660,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 		if(strcmp(((FunctionCall *)n)->functionname, MIN_FUNC_NAME)==0){
 			Node *bgfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname)));
 			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);
-			Node *ubfunc = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, fname_ub)));
+			Node *ubfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname_ub)));
 			new_aggr_List = appendToTailOfList(new_aggr_List, ubfunc);
 			Node *lbfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname_lb)));
 			new_aggr_List = appendToTailOfList(new_aggr_List, lbfunc);
@@ -2674,7 +2674,7 @@ rewrite_RangeAggregation(QueryOperator *op){
 			new_aggr_List = appendToTailOfList(new_aggr_List, bgfunc);
 			Node *ubfunc = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, fname_ub)));
 			new_aggr_List = appendToTailOfList(new_aggr_List, ubfunc);
-			Node *lbfunc = (Node *)createFunctionCall(MIN_FUNC_NAME, singleton(getAttrRefByName(proj, fname_lb)));
+			Node *lbfunc = (Node *)createFunctionCall(MAX_FUNC_NAME, singleton(getAttrRefByName(proj, fname_lb)));
 			new_aggr_List = appendToTailOfList(new_aggr_List, lbfunc);
 			char *outname = (char *)getNthOfListP(aggr_out_names, pos);
 			namelist_aggr = appendToTailOfList(namelist_aggr, outname);
