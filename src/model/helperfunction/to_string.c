@@ -27,6 +27,7 @@
 #include "utility/string_utils.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
+#include "provenance_rewriter/update_ps/update_ps_build_state.h"
 #include "model/relation/relation.h"
 
 /* functions to output specific node types */
@@ -1323,6 +1324,14 @@ outLMTChunk(StringInfo str, LMTChunk *node)
     WRITE_NODE_FIELD(provToPos);
 }
 
+static void
+outPSMap(StringInfo str, PSMap *node)
+{
+    WRITE_NODE_TYPE(PSMap);
+    WRITE_NODE_FIELD(provSketchs);
+    WRITE_NODE_FIELD(fragCnts);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1593,6 +1602,9 @@ outNode(StringInfo str, void *obj)
 		    	break;
             case T_LMTChunk:
                 outLMTChunk(str, (LMTChunk *) obj);
+                break;
+            case T_PSMap:
+                outPSMap(str, (PSMap *) obj);
                 break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));

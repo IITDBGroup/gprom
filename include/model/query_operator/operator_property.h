@@ -202,4 +202,9 @@
 
 #define PROP_STORE_POSSIBLE_TREE "STORE SPLICED POSSIBLE ALGEBRA TREE"
 
+/* properties for update provenance sketch */
+#define PROP_DATA_STRUCTURE_STATE "PROP_DATA_STRUCTURE_STATE" // mark the operator who has a state with materialized data;
+#define PROP_DATA_CHUNK "PROP_DATA_CHUNK" // mark the operator who has the delta data chunk;
+#define PROP_HAS_DATA_STRUCTURE_BUILT "PROP_HAS_DATA_STRUCTURE_BUILT" // mark the top operator(now is a provenance computation op) for checking whether data stat is built?
+
 #endif /* OPERATOR_PROPERTY_H_ */

@@ -2576,6 +2576,50 @@ rewriteCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteState *state
 static QueryOperator *
 rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteState *state)
 {
+
+	REWR_UNARY_SETUP_COARSE(Aggregation);
+	AggregationOperator *a;
+	mapIncrPointer(state->coarseGrainedOpRefCount, op);
+
+	// add semiring options;
+	addSCOptionToChild((QueryOperator *) op, OP_LCHILD(op));
+
+	// rewrite child first;
+	REWR_UNARY_CHILD_PI();
+	a = (AggregationOperator *) rewr;
+
+	// get prov attr list;
+	List *provList = getOpProvenanceAttrNames(OP_LCHILD(rewr));
+
+	// append prov attr to group by list;
+	FOREACH(char, c, provList) {
+		AttributeReference *ar = createAttrsRefByName(OP_LCHILD(rewr), c);
+		a->groupBy = appendToTailOfList(a->groupBy, ar);
+		a->op.schema->attrDefs = appendToTailOfList(a->op.schema->attrDefs, createAttributeDef(ar->name, ar->attrType));
+	}
+
+	// create proj attr name and expr lists;
+	List *projExprList = NIL;
+	List *projAttrList = NIL;
+
+	int idx = 0;
+	// create projAttr and projExpr lists
+	FOREACH(AttributeDef, ad, rewr->schema->attrDefs) {
+		projAttrList = appendToTailOfList(projAttrList, strdup(ad->attrName));
+		projExprList = appendToTailOfList(projExprList, createFullAttrReference(strdup(ad->attrName), 0, idx, 0, ad->dataType));
+		idx++;
+	}
+
+	// create a projection operator;
+	ProjectionOperator *projOp = createProjectionOp(projExprList, rewr, NIL, projAttrList);
+	rewr->parents = singleton(projOp);
+
+	// return projection operator
+	rewr = (QueryOperator *) projOp;
+
+	LOG_RESULT_AND_RETURN(Aggregation-CoarseGrained);
+
+/*
 	REWR_UNARY_SETUP_COARSE(Aggregation);
 	AggregationOperator *a;
 	mapIncrPointer(state->coarseGrainedOpRefCount, op);
@@ -2588,7 +2632,7 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
 	a = (AggregationOperator *) rewr;
 
     //prepare add new aggattr
-    List *agg = a->aggrs;
+    // List *agg = a->aggrs;
     List *provList = getOpProvenanceAttrNames(OP_LCHILD(rewr));
 
     ///addProvenanceAttrsToSchema
@@ -2601,10 +2645,12 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
 
     List *newProvAttrDefs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(rewr)));
     int newProvAttrDefsLen = LIST_LENGTH(newProvAttrDefs);
+	INFO_OP_LOG("before concat list", rewr);
 
-    List *newAttrDefs = CONCAT_LISTS(aggDefs, newProvAttrDefs, groupbyDefs);
-    rewr->schema->attrDefs = newAttrDefs;
-
+	// here, concat the list of rewr agg defs with prov attr defs. error comes from here.
+    // List *newAttrDefs = CONCAT_LISTS(aggDefs, newProvAttrDefs, groupbyDefs);
+    // rewr->schema->attrDefs = newAttrDefs;
+	INFO_OP_LOG("before new prov defs", rewr);
     List *newProvAttrs = NIL;
     int provAttrDefsPos = aggDefsLen;
     for(int i=0; i< newProvAttrDefsLen; i++)
@@ -2616,49 +2662,45 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
     // finish add new aggattr (for the cnt-th reference to operator)
 //    HashMap *map = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(rewr, PROP_LEVEL_AGGREGATION_MARK), 0);
 	boolean hasAppendNewFunc = FALSE;
+
     FOREACH(char, c, provList)
     {
 //    	List *levelandNumFrags =  (List *) getMapString(map, c);
 //    	int level = INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 0));
 //    	int numFrags = INT_VALUE((Constant *) getNthOfListP(levelandNumFrags, 1));
     	AttributeReference *ar = createAttrsRefByName(OP_LCHILD(rewr), c);
-
-//    	FunctionCall *f = NULL;
-
-//    	if(getBackend() == BACKEND_ORACLE)
-//    	{
-//    		f = createFunctionCall(ORACLE_SKETCH_AGG_FUN, singleton(a));
-//    	}
-//    	else if(getBackend() == BACKEND_POSTGRES)
-//    	{
-//    		//if(getBoolOption(OPTION_PS_SET_BITS))
-//    		if(level == 1)
-//    		{
-//    			f = createFunctionCall(POSTGRES_SET_BITS_FUN, singleton(a));
-//    			CastExpr *c = createCastExprOtherDT((Node *) f, POSTGRES_BIT_DT, numFrags, DT_STRING);
-//    			agg = appendToTailOfList(agg, c);
-//    		}
-//    		else
-//    		{
-//    			f = createFunctionCall(POSTGRES_FAST_BITOR_FUN, singleton(a));
-//    			agg = appendToTailOfList(agg, f);
-//    		}
-//    	}
-
-    	// create new function call
-    	FunctionCall *fc = createFunctionCall(COUNT_FUNC_NAME, singleton(ar));
-
 		// count per group needs only once;
 		if (!hasAppendNewFunc) {
-    		agg = appendToHeadOfList(agg, fc);
-    		a->op.schema->attrDefs = appendToHeadOfList(a->op.schema->attrDefs, createAttributeDef(backendifyIdentifier("count_per_group"), DT_INT));
+    		// create new function call
+			// List *newSchemaDef = NIL;
+			// for (int i = 0; i < LIST_LENGTH(agg); i++) {
+			// 	newSchemaDef = appendToTailOfList(newSchemaDef, (AttributeDef *) copyObject(getNthOfListP(a->op.schema->attrDefs, i)));
+			// }
+
+    		// FunctionCall *fc = createFunctionCall(COUNT_FUNC_NAME, singleton(ar));
+			// fc->isAgg = TRUE;
+    		// agg = appendToTailOfList(agg, fc);
+			// newSchemaDef = appendToTailOfList(newSchemaDef, createAttributeDef(backendifyIdentifier("count_per_group"), DT_INT));
+
+			// for (int i = LIST_LENGTH(agg); i < LIST_LENGTH(a->op.schema->attrDefs); i++) {
+			// 	newSchemaDef = appendToTailOfList(newSchemaDef, (AttributeDef *) copyObject(getNthOfListP(a->op.schema->attrDefs, i)));
+			// }
+			// a->op.schema->attrDefs = newSchemaDef;
+
+			// FunctionCall *fc = createFunctionCall(COUNT_FUNC_NAME, singleton(ar));
+  		  	// fc->isAgg = TRUE;
+    		// agg = appendToTailOfList(agg, fc);
+    		// a->op.schema->attrDefs = appendToTailOfList(a->op.schema->attrDefs, createAttributeDef(backendifyIdentifier("count_per_group"), DT_INT));
 			hasAppendNewFunc = TRUE;
 		}
 
-		// group by sketch needs all prov attr;
-    	a->groupBy = appendToHeadOfList(a->groupBy, ar);
+		// group by sketch needs all prov attr, and add to attrDefs of schema
+		a->groupBy = appendToTailOfList(a->groupBy, ar);
+		a->op.schema->attrDefs = appendToTailOfList(a->op.schema->attrDefs, createAttributeDef(ar->name, ar->attrType));
     }
 
+	DEBUG_NODE_BEATIFY_LOG("before add proj: ", rewr);
+	INFO_OP_LOG("before add prjection", rewr);
     //finish adapt schema (adapt provattrs)
     rewr->provAttrs = newProvAttrs;
 
@@ -2710,6 +2752,8 @@ rewriteUpdatePSCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteStat
  	COPY_PROV_INFO(rewr, rewrInput);
 
 	LOG_RESULT_AND_RETURN(Aggregation-CoarseGrained);
+	*/
+
 }
 
 static QueryOperator *

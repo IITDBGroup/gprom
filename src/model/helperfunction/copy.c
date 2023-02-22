@@ -24,6 +24,7 @@
 #include "model/rpq/rpq_model.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
+#include "provenance_rewriter/update_ps/update_ps_build_state.h"
 
 /* data structures for copying operator nodes */
 typedef struct OperatorMap
@@ -157,6 +158,7 @@ static DataChunk* copyDataChunk(DataChunk * from, OperatorMap **opMap);
 static ColumnChunk *copyColumnChunk(ColumnChunk * from, OperatorMap **opMap);
 static GBHeaps *copyGBHeaps(GBHeaps *from, OperatorMap **opMap);
 static GBACSs *copyGBACSs(GBACSs *from, OperatorMap **opMap);
+static PSMap *copyPSMap(PSMap *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -689,6 +691,16 @@ copyGBACSs(GBACSs *from, OperatorMap **opMap)
 	COPY_NODE_FIELD(fragCount);
 
 	return new;
+}
+
+static PSMap *
+copyPSMap(PSMap *from, OperatorMap **opMap)
+{
+    COPY_INIT(PSMap);
+    COPY_NODE_FIELD(provSketchs);
+    COPY_NODE_FIELD(fragCnts);
+
+    return new;
 }
 
 /*functions to copy query_operator*/
@@ -1558,6 +1570,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_GBACSs:
         	retval = copyGBACSs(from, opMap);
         	break;
+        case T_PSMap:
+            retval = copyPSMap(from, opMap);
+            break;
         default:
             retval = NULL;
             break;

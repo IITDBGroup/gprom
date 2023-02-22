@@ -1,4 +1,3 @@
-
 /*
  * Header files
  */
@@ -29,6 +28,7 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "provenance_rewriter/update_ps/table_compress.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
+#include "provenance_rewriter/update_ps/update_ps_build_state.h"
 
 /*
  * Macro
@@ -91,9 +91,53 @@ char*
 update_ps(ProvenanceComputation *qbModel)
 {
 
+	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
+	INFO_OP_LOG("qbModel", qbModel);
 
-	return update_ps_incremental((QueryOperator *) qbModel);
+	/*
+	 *	two children
+	 * 	left: update statements (one or list of statements)
+	 *	right: query
+	 */
+	ASSERT(LIST_LENGTH(((QueryOperator *) qbModel)->inputs) == 2);
 
+	// get left and right children;
+	DLMorDDLOperator *leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
+	QueryOperator *rightChild = OP_RCHILD((QueryOperator *) qbModel);
+
+	// remove left child from provenance computation;
+	((QueryOperator *) qbModel)->inputs = singleton(rightChild);
+
+	// build state;
+	// check if there has been the built data state
+	// if not, build for the algebra tree
+	if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {
+		qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
+		setStringProperty((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, (Node *) createConstBool(TRUE));
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
+
+	// update provenance sketch
+	// check it is a statement of a list of statement
+	if (isA(leftChild->stmt, List)) {
+		// a list of updates;
+		List *updateStmts = (List *) leftChild->stmt;
+
+		FOREACH(DLMorDDLOperator, stmt, updateStmts) {
+			DEBUG_NODE_BEATIFY_LOG("::UPDATE STATEMENT::\n", stmt);
+		}
+	} else {
+		START_TIMER(INCREMENTAL_UPDATE_TIMER);
+		update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
+		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
+	}
+
+	// return update_ps_incremental((QueryOperator *) qbModel);
+
+	/* ################################## */
+	/* ## CODES BELOW CAN BE DISCARDED ## */
+	/* ################################## */
 
 //	return update_ps_incremental( qbModel);
 

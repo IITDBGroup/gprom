@@ -29,6 +29,7 @@
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
+#include "provenance_rewriter/update_ps/update_ps_build_state.h"
 
 // update for each operator;
 static void updateByOperators(QueryOperator * op);
@@ -42,11 +43,11 @@ static void updateDuplicateRemoval(QueryOperator* op);
 static void updateSet(QueryOperator* op);
 static void updateOrder(QueryOperator *op);
 static void updateLimit(QueryOperator * op);
-static void buildState(Node *node);
-static void buildStateAggregation(QueryOperator *op);
-static void buildStateDuplicateRemoval(QueryOperator *op);
-static void buildStateLimit(QueryOperator *op);
-static void buildStateFinal(QueryOperator *op);
+// static void buildState(Node *node);
+// static void buildStateAggregation(QueryOperator *op);
+// static void buildStateDuplicateRemoval(QueryOperator *op);
+// static void buildStateLimit(QueryOperator *op);
+// static void buildStateFinal(QueryOperator *op);
 // OrderOperator
 
 static DataChunk *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAccessOp);
@@ -54,14 +55,14 @@ static void getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, 
 static void getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static void getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static Relation *getQueryResult(char* sql);
-static Constant *makeValue(DataType dataType, char* value);
+// static Constant *makeValue(DataType dataType, char* value);
 static void executeQueryWithoutResult(char* sql);
 static DataChunk *filterDataChunk(DataChunk* dataChunk, Node* condition);
 static QueryOperator *captureRewrite(QueryOperator *operator);
-static int compareTwoValues(Constant *a, Constant *b, DataType dt);
-static void swapListCell(List *list, int pos1, int pos2);
+// static int compareTwoValues(Constant *a, Constant *b, DataType dt);
+// static void swapListCell(List *list, int pos1, int pos2);
 static BitSet *setFragmentToBitSet(int value, List *rangeList);
-static ConstRelOperator *getConstRelOpFromDataChunk(DataChunk *dataChunk);
+// static ConstRelOperator *getConstRelOpFromDataChunk(DataChunk *dataChunk);
 static ColumnChunk *makeColumnChunk(DataType dataType, size_t len);
 static ColumnChunk *evaluateExprOnDataChunk(Node *expr, DataChunk *dc);
 static ColumnChunk *evaluateOperatorOnDataChunk(Operator *op, DataChunk *dc);
@@ -108,16 +109,10 @@ static char *constToString(Constant *c);
 #define PROV_BIT_STRING "PROV_BIT_STRING"
 #define DATA_STRUCTURE_STATE "DATA_STRUCTURE_STATE"
 
-#define LCHILD_POS(pos) (2 * pos + 1)
-#define RCHILD_POS(pos) (2 * pos + 2)
-#define PARENT_POS(pos) ((pos - 1) / 2)
+
 /*
  *  TODO:
- *	1. datachunk isNull: in multiple place: a. TableAccess, state+update: Join, Aggregation, Update: evaluate operators functions.
- *  2. add Option for Vasudha's capture data only: if having this option, for operators not TableAccess, just pass.
- * 		2.1: if having this option, need to backup the original table when first time get data,
- * 		2.2: when update, for those table access for join, agg, use the backuped table + dalta data.
- *  3.
+ *	datachunk isNull: in multiple place: a. TableAccess, state+update: Join, Aggregation, Update: evaluate operators functions.
  */
 
 // dummy result
@@ -128,170 +123,6 @@ static ProvenanceComputation *PC = NULL;
 static HashMap *limitAttrPoss;
 static List *limitOrderBys;
 //static HashMap *coarseGrainedRangeList = NULL;
-
-List *
-heapInsert(List *list, char *type, Node *ele)
-{
-	// append to tail of list;
-	list = appendToTailOfList(list, ele);
-
-	// heapify -- sift up;
-	heapifyListSiftUp(list, LIST_LENGTH(list) - 1, type, ((Constant *) ele)->constType);
-
-	return list;
-}
-
-List *
-heapifyListSiftUp(List *list, int pos, char *type, DataType valDataType)
-{
-	while (pos > 0) {
-		int parentPos = PARENT_POS(pos);
-
-		// get current value;
-		Constant *currVal = (Constant *) getNthOfListP(list, pos);
-
-		// get parent value;
-		Constant *parentVal = (Constant *) getNthOfListP(list, parentPos);
-
-		// compare two value;
-		int compTwoVal = compareTwoValues(currVal, parentVal, valDataType);
-
-		if (compTwoVal < 0) {
-			if (strcmp(type, MIN_HEAP) == 0) { // current < parent, for min heap, continue;
-				swapListCell(list, pos, parentPos);
-			} else { // terminate for max heap when current < parent;
-				return list;
-			}
-		} else if (compTwoVal > 0) {
-			if (strcmp(type, MAX_HEAP) == 0) { // current > parent, for max heap, continue;
-				swapListCell(list, pos, parentPos);
-			} else { // terminate for min heap when min heap;
-				return list;
-			}
-		} else { // terminate for both min and max heap when current == parent;
-			return list;
-		}
-
-		pos = parentPos;
-	}
-
-	return list;
-}
-
-
-List *
-heapDelete(List *list, char *type, Node *ele)
-{
-	for (int i = 0; i < LIST_LENGTH(list); i++) {
-		if (equal((Node *) getNthOfListP(list, i), ele)) {
-			list = heapifyListSiftDown(list, i, type, ((Constant *) ele)->constType);
-			break;
-		}
-	}
-	return list;
-}
-
-List *
-heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType)
-{
-	while (LCHILD_POS(pos) < LIST_LENGTH(list)) {
-		// get lChild;
-		// List *lChild = (List *) getNthOfListP(list, LCHILD_POS(pos));
-		Constant *lChildVal = (Constant *) getNthOfListP(list, LCHILD_POS(pos));
-
-		if (RCHILD_POS(pos) < LIST_LENGTH(list)) { // has two children
-			// List *rChild = (List *) getNthOfListP(list, RCHILD_POS(pos));
-			Constant *rChildVal = (Constant *) getNthOfListP(list, RCHILD_POS(pos));
-
-			int compTwoVal = compareTwoValues(lChildVal, rChildVal, valDataType);
-
-			if (compTwoVal == 0) {
-				// two children have the same value, either one is ok;
-				swapListCell(list, pos, LCHILD_POS(pos));
-				pos = LCHILD_POS(pos);
-
-			} else if (compTwoVal < 0) {
-				// lChild is smaller, MIN_HEAP: lChild, MAX_HEAP: rChild;
-				if (strcmp(type, MIN_HEAP) == 0) {
-					swapListCell(list, pos, LCHILD_POS(pos));
-					pos = LCHILD_POS(pos);
-
-				} else {
-					swapListCell(list, pos, RCHILD_POS(pos));
-					pos = RCHILD_POS(pos);
-				}
-			} else {
-				// lChild is larger,
-				if (strcmp(type, MIN_HEAP) == 0) {
-					swapListCell(list, pos, RCHILD_POS(pos));
-					pos = RCHILD_POS(pos);
-
-				} else {
-					swapListCell(list, pos, LCHILD_POS(pos));
-					pos = LCHILD_POS(pos);
-				}
-			}
-		} else { // only has left child;
-			swapListCell(list, pos, LCHILD_POS(pos));
-			pos = LCHILD_POS(pos);
-		}
-	}
-
-	// re-heapify from "pos" since it is the last removed position;
-	List *newList = NIL;
-	for (int i = 0; i < LIST_LENGTH(list); i++) {
-		// skip value at pos;
-		if (i == pos) {
-			continue;
-		}
-
-		newList = appendToTailOfList(newList, (List *) copyObject((List *) getNthOfListP(list, i)));
-
-		if (i > pos) {
-			heapifyListSiftUp(newList, i, type, valDataType);
-		}
-	}
-
-	return newList;
-}
-
-static void
-swapListCell(List *list, int pos1, int pos2)
-{
-	ListCell *lc1 = getNthOfList(list, pos1);
-	ListCell *lc2 = getNthOfList(list, pos2);
-
-	void *ptr = lc1->data.ptr_value;
-	lc1->data.ptr_value = lc2->data.ptr_value;
-	lc2->data.ptr_value = ptr;
-}
-
-static int
-compareTwoValues(Constant *a, Constant *b, DataType dt)
-{
-	int result = 0;
-	switch (dt) {
-		case DT_INT:
-			result = INT_VALUE(a) - INT_VALUE(b);
-			break;
-		case DT_LONG:
-			result = (LONG_VALUE(a) - LONG_VALUE(b) < 0 ? -1 : 1);
-			break;
-		case DT_FLOAT:
-			result = (FLOAT_VALUE(a) - FLOAT_VALUE(b) < 0 ? -1 : 1);
-			break;
-		case DT_STRING:
-		case DT_VARCHAR2:
-			result = strcmp(STRING_VALUE(a), STRING_VALUE(b));
-			break;
-		case DT_BOOL:
-			result = BOOL_VALUE(a) - BOOL_VALUE(b);
-			break;
-		default:
-			ERROR_LOG("data type %d is not supported", dt);
-	}
-	return result;
-}
 
 DataChunk*
 initDataChunk()
@@ -311,59 +142,9 @@ initDataChunk()
 	return dc;
 }
 
-GBHeaps *
-makeGBHeaps()
-{
-	GBHeaps *gbHeaps = makeNode(GBHeaps);
-
-	gbHeaps->fragCount = NEW_MAP(Constant, Constant);
-	gbHeaps->heapLists = NEW_MAP(Constant, Node);
-	gbHeaps->provSketchs = NEW_MAP(Constant, Node);
-	gbHeaps->heapType = NULL;
-	gbHeaps->valType = 0;
-
-	return gbHeaps;
-}
-
-GBACSs *
-makeGBACSs()
-{
-	GBACSs *acs = makeNode(GBACSs);
-
-	acs->provSketchs = NEW_MAP(Constant, Node);
-	acs->map = NEW_MAP(Constant, Node);
-	acs->fragCount = NEW_MAP(Constant, Node);
-
-	return acs;
-}
-
-LMTChunk *
-makeLMTChunk()
-{
-	LMTChunk *lmtC = makeNode(LMTChunk);
-
-	lmtC->attrToPos = NEW_MAP(Constant, Constant);
-	lmtC->posToDatatype = NEW_MAP(Constant, Constant);
-	lmtC->vals = NIL;
-	lmtC->provToPos = NEW_MAP(Constant, Constant);
-	lmtC->tupleFields = 0;
-	lmtC->numTuples = 0;
-
-	return lmtC;
-}
-
-PSMap *
-makePSMap()
-{
-	PSMap *map = makeNode(PSMap);
-
-	map->psMaps = NEW_MAP(Constant, Node);
-
-	return map;
-}
-
 char *
-update_ps_incremental(QueryOperator* operator){
+update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
+{
 	// get partition information;
 	PC = (ProvenanceComputation *) copyObject(operator);
 	PS_INFO = createPSInfo((Node *) getStringProperty(operator, PROP_PC_COARSE_GRAINED));
@@ -373,820 +154,11 @@ update_ps_incremental(QueryOperator* operator){
 	INFO_OP_LOG("CURRENT PROVENANCE COMPUTATION OPERATOR", operator);
 	strInfo = makeStringInfo();
 
-	// left  child: update statement;
-	// right child: query;
-	updateStatement = (QueryOperator *) OP_LCHILD(operator);
-	QueryOperator *rChild = OP_RCHILD(operator);
-
-	operator->inputs = singleton(rChild);
-
-	// build state for each aggregation operator
-	buildState((Node *) operator);
-
+	INFO_LOG("Start update");
+	DEBUG_NODE_BEATIFY_LOG("update stmt", updateStmt);
+	updateStatement = updateStmt;
 	updateByOperators((QueryOperator*) OP_LCHILD(operator));
 	return strInfo->data;
-}
-
-static void
-buildState(Node *node)
-{
-	// return when it is a table access operator;
-	if (isA(node, TableAccessOperator)) {
-		return ;
-	}
-
-	// post order traverse;
-	FOREACH(Node, n, ((QueryOperator *) node)->inputs) {
-		buildState(n);
-	}
-
-	// build data structure for aggregation operator;
-	if (isA(node, AggregationOperator)) {
-		buildStateAggregation((QueryOperator *) node);
-	} else if (isA(node, DuplicateRemoval)) {
-		buildStateDuplicateRemoval((QueryOperator *) node);
-	} else if (isA(node, LimitOperator)) {
-		buildStateLimit((QueryOperator *) node);
-	} else if (isA(node, ProvenanceComputation)) {
-		buildStateFinal((QueryOperator *) node);
-	}
-}
-
-static void
-buildStateFinal(QueryOperator *op) {
-	/* this is the final state keep a map of fragNo -> count*/
-	DEBUG_NODE_BEATIFY_LOG("provenance computation op", op);
-
-	QueryOperator *child = (QueryOperator *) copyObject(OP_LCHILD(op));
-	QueryOperator *rewrOp = captureRewrite(child);
-	DEBUG_NODE_BEATIFY_LOG("rewr pc op", rewrOp);
-	char *sql = serializeQuery(rewrOp);
-
-
-	/* get Relation */
-	Relation *resultRel = NULL;
-	resultRel = executeQuery(sql);
-	PSMap *psMap = makePSMap();
-
-	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(rewrOp, PROP_LEVEL_AGGREGATION_MARK), 0);
-	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
-		List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-		l = appendToTailOfList(l, createConstInt(pos));
-	}
-
-	int len = LIST_LENGTH(resultRel->tuples);
-
-	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
-		List *l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-		int level = INT_VALUE((Constant *) getNthOfListP(l, 0));
-		// int fragNo = INT_VALUE((Constant *) getNthOfListP(l, 1));
-
-		HashMap *fragCnt = NEW_MAP(Constant, Constant);
-		for (int i = 0; i < len; i++) {
-			List *tuple = (List *) getNthOfListP(resultRel->tuples, i);
-			char *psValue = (char *) getNthOfListP(tuple, pos);
-
-			if (level < 2) { // a integer;
-				int val = atoi(psValue);
-				if (MAP_HAS_INT_KEY(fragCnt, val)) {
-					int cnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, val));
-					addToMap(fragCnt, (Node *) createConstInt(val), (Node *) createConstInt(cnt + 1));
-				} else {
-					addToMap(fragCnt, (Node *) createConstInt(val), (Node *) createConstInt(1));
-				}
-			} else { // a string;
-				for (int j = 0; j < strlen(psValue); j++) {
-					if (psValue[j] == '1') {
-						if (MAP_HAS_INT_KEY(fragCnt, j)) {
-							int cnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, j));
-							addToMap(fragCnt, (Node *) createConstInt(j), (Node *) createConstInt(cnt + 1));
-						} else {
-							addToMap(fragCnt, (Node *) createConstInt(j), (Node *) createConstInt(1));
-						}
-					}
-				}
-			}
-		}
-
-		addToMap(psMap->psMaps, (Node *) copyObject(c), (Node *) fragCnt);
-	}
-
-	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, psMap);
-}
-
-static void
-buildStateLimit(QueryOperator *op)
-{
-	/* support ONLY for ORDER BY - LIMIT */
-	/* only LIMIT without ORDER BY is not supported */
-	DEBUG_NODE_BEATIFY_LOG("limit Op", op);
-
-	QueryOperator *lchild = (QueryOperator *) copyObject(OP_LCHILD(op));
-	/* if lchild is not a OrderOperator, not support currently */
-	if(!isA(lchild, OrderOperator)) {
-		return;
-	}
-
-	QueryOperator *rewrOp = captureRewrite(lchild);
-
-	char *sql = serializeQuery(rewrOp);
-
-	// get data;
-	Relation *resultRel = executeQuery(sql);
-
-	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
-	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
-		List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-		l = appendToTailOfList(l, createConstInt(pos));
-	}
-
-	List *attrDefs = (List *) copyObject(lchild->schema->attrDefs);
-
-	LMTChunk *limitC = makeLMTChunk();
-	limitC->numTuples = LIST_LENGTH(resultRel->tuples);
-	limitC->tupleFields = LIST_LENGTH(attrDefs);
-
-	List *vals = NIL;
-	int fields = LIST_LENGTH(attrDefs);
-
-	for (int row = 0; row < LIST_LENGTH(resultRel->tuples); row++) {
-		List *tuple = (List *) getNthOfListP(resultRel->tuples, row);
-		List *val = NIL;
-		for (int col = 0; col < fields; col++) {
-			DataType dt = ((AttributeDef *) getNthOfListP(attrDefs, col))->dataType;
-			if (row == 0) {
-				addToMap(limitC->attrToPos, (Node *) createConstString((char *) getNthOfListP(resultRel->schema, col)), (Node *) createConstInt(col));
-				addToMap(limitC->posToDatatype, (Node *) createConstInt(col), (Node *) createConstInt(dt));
-			}
-			Constant *c = makeValue(dt, (char *) getNthOfListP(tuple, col));
-			val = appendToTailOfList(val, c);
-		}
-
-		// prove sketch;
-		for (int col = fields; col < LIST_LENGTH(resultRel->schema); col++) {
-
-			char *provName = (char *) getNthOfListP(resultRel->schema, col);
-			char *prov = (char *) getNthOfListP(tuple, col);
-
-			if (row == 0) {
-				addToMap(limitC->provToPos, (Node *) createConstString(provName), (Node *) createConstInt(col));
-			}
-
-			List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, provName);
-			int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
-			int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
-
-			BitSet *provBit = NULL;
-			if (provLevel < 2) {
-				provBit = newBitSet(provNumFrag);
-				setBit(provBit, atoi(prov), TRUE);
-			} else {
-				provBit = stringToBitset(prov);
-			}
-
-			val = appendToTailOfList(val, provBit);
-		}
-
-		vals = appendToTailOfList(vals, val);
-	}
-	limitC->vals = vals;
-
-	// set data structure prop;
-	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, limitC);
-}
-
-static void
-buildStateDuplicateRemoval(QueryOperator *op)
-{
-	// for duplicate remove: rewrite like group by no agg
-	DuplicateRemoval *dupRem = (DuplicateRemoval *) op;
-
-	// create gb list;
-	List *gbList = NIL;
-	int pos = 0;
-	FOREACH(AttributeDef, ad, op->schema->attrDefs) {
-		AttributeReference *ar = createFullAttrReference(ad->attrName, 0, pos, 0, ad->dataType);
-		gbList = appendToTailOfList(gbList, ar);
-		pos++;
-	}
-	List *attrNames = (List *) getAttrNames(dupRem->op.schema);
-
-	AggregationOperator *aggOp = createAggregationOp(NIL, gbList, (QueryOperator *) copyObject(OP_LCHILD(op)), NIL, attrNames);
-	SET_STRING_PROP((QueryOperator *) aggOp, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS, createConstBool(TRUE));
-	OP_LCHILD((QueryOperator *) aggOp)->parents = singleton(aggOp);
-
-	DEBUG_NODE_BEATIFY_LOG("NEW AGG", aggOp);
-	QueryOperator *rewrOp = captureRewrite((QueryOperator *) aggOp);
-	DEBUG_NODE_BEATIFY_LOG("REWR AGG", rewrOp);
-
-	char *sql = serializeQuery(rewrOp);
-
-	Relation *resultRel = executeQuery(sql);
-
-	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
-	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
-		List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-		l = appendToTailOfList(l, createConstInt(pos));
-	}
-
-	// make data structure;
-	GBACSs *acs = makeGBACSs();
-	List *gbAttrPos = NIL;
-	FOREACH(AttributeReference, ar, gbList) {
-		int pos = listPosString(resultRel->schema, ar->name);
-		gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
-	}
-
-	int	groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
-
-	for (int i = 0; i < LIST_LENGTH(resultRel->tuples); i++) {
-		List *tuple = (List *) getNthOfListP(resultRel->tuples, i);
-
-		// build gb identifier;
-		StringInfo gbVals = makeStringInfo();
-		for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
-			appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
-		}
-
-		List *l = NIL;
-		List *newL = NIL;
-
-		if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
-			l = (List *) MAP_GET_STRING(acs->map, gbVals->data);
-		} else {
-			l = appendToTailOfList(l, createConstInt(0));
-		}
-
-		int cnt = INT_VALUE((Constant *) getNthOfListP(l, 0));
-		newL = appendToTailOfList(newL, createConstInt(cnt + 1));
-		addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
-
-		// for provenance sketch;
-		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-			List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-			int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
-			int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
-			int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
-
-			// get group provcesketch;
-			BitSet *gbProvSketch = NULL;
-			if (MAP_HAS_STRING_KEY(acs->provSketchs, STRING_VALUE(c))) {
-				gbProvSketch = (BitSet *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
-			} else {
-				gbProvSketch = newBitSet(provNumFrag);
-			}
-
-			// get group fragment count map;
-			HashMap *gbFragCount = NULL;
-			if (MAP_HAS_STRING_KEY(acs->fragCount, STRING_VALUE(c))) {
-				gbFragCount = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
-			} else {
-				gbFragCount = NEW_MAP(Constant, Constant);
-			}
-
-			char *prov = (char *) getNthOfListP(tuple, provPos);
-			int groupCount = atoi((char *) getNthOfListP(tuple, groupCountPos));
-
-			if (provLevel < 2) {
-				int fragNo = atoi(prov);
-				if (MAP_HAS_INT_KEY(gbFragCount, fragNo)) {
-					int gCnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, fragNo));
-					addToMap(gbFragCount, (Node *) createConstInt(fragNo), (Node *) createConstInt(gCnt + groupCount));
-				} else {
-					addToMap(gbFragCount, (Node *) createConstInt(fragNo), (Node *) createConstInt(groupCount));
-				}
-
-				setBit(gbProvSketch, fragNo, TRUE);
-			} else {
-				for (int psIdx = 0; psIdx < strlen(prov); psIdx++) {
-					if (prov[psIdx] == '1') {
-						if (MAP_HAS_INT_KEY(gbFragCount, psIdx)) {
-							int gCnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, psIdx));
-							gCnt += groupCount;
-							addToMap(gbFragCount, (Node *) createConstInt(psIdx), (Node *) createConstInt(gCnt));
-						} else {
-							addToMap(gbFragCount, (Node *) createConstInt(psIdx), (Node *) createConstInt(groupCount));
-						}
-					}
-				}
-
-				gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
-			}
-
-			addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) copyObject(gbProvSketch));
-			addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) copyObject(gbFragCount));
-		}
-	}
-
-	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, (Node *) acs);
-}
-
-static void
-buildStateAggregation(QueryOperator *op)
-{
-	AggregationOperator *aggOp = (AggregationOperator *) op;
-	DEBUG_NODE_BEATIFY_LOG("CURRENT AGG", aggOp);
-	INFO_OP_LOG("CURRENT AGG", aggOp);
-
-	// get aggregation operator args and groupbys;
-	List *aggrFCs = (List *) copyObject(aggOp->aggrs);
-	List *aggrGBs = (List *) copyObject(aggOp->groupBy);
-
-	// split this aggOp into two cagetories: min/max and avg/count/sum;
-	List *min_max = NIL;
-	List *min_max_attNames = NIL;
-
-	List *avg_sum_count = NIL;
-	List *avg_sum_count_attNames = NIL;
-
-	DEBUG_NODE_BEATIFY_LOG("aggrs list", aggrFCs);
-	for (int i = 0; i < LIST_LENGTH(aggrFCs); i++) {
-		FunctionCall * fc = (FunctionCall *) getNthOfListP(aggrFCs, i);
-		DEBUG_NODE_BEATIFY_LOG("function call:\n", fc);
-
-		char * fcName = fc->functionname;
-		AttributeDef *ad = copyObject(getNthOfListP(((QueryOperator *) aggOp)->schema->attrDefs, i));
-
-		// find all min/max function calls;
-		if (strcmp(fcName, MIN_FUNC_NAME) == 0 || strcmp(fcName, MAX_FUNC_NAME) == 0) {
-			min_max = appendToTailOfList(min_max, copyObject((FunctionCall *) fc));
-			min_max_attNames = appendToTailOfList(min_max_attNames, ad);
-		}
-
-		// find all avg/count/sum function calls;
-		if (strcmp(fcName, AVG_FUNC_NAME) == 0 || strcmp(fcName, SUM_FUNC_NAME) == 0
-		 || strcmp(fcName, COUNT_FUNC_NAME) == 0) {
-			// add current function call;
-			avg_sum_count = appendToTailOfList(avg_sum_count, copyObject((FunctionCall *) fc));
-			avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, strdup(ad->attrName));
-
-			// add function calls sum and count for avg;
-			if (strcmp(fcName, AVG_FUNC_NAME) == 0) {
-				// add function call sum;
-				FunctionCall *fc_sum = createFunctionCall(SUM_FUNC_NAME, copyList(fc->args));
-				avg_sum_count = appendToTailOfList(avg_sum_count, fc_sum);
-
-				StringInfo sum_fc_name = makeStringInfo();
-				appendStringInfo(sum_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, SUM_FUNC_NAME, backendifyIdentifier(ad->attrName));
-				avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, sum_fc_name->data);
-
-				// add function call count; not need this anymore since there is a "count_per_group";
-				// FunctionCall *fc_cnt = createFunctionCall(COUNT_FUNC_NAME, copyList(fc->args));
-				// avg_sum_count = appendToTailOfList(avg_sum_count, fc_cnt);
-
-				// StringInfo cnt_fc_name = makeStringInfo();
-				// appendStringInfo(cnt_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, COUNT_FUNC_NAME, ad->attrName);
-				// avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, cnt_fc_name->data);
-			}
-		}
-	}
-
-	DEBUG_NODE_BEATIFY_LOG("min max fc list", min_max);
-	DEBUG_NODE_BEATIFY_LOG("avg, sum, count fc list", avg_sum_count);
-
-	// get min_max rewrite;
-	// for min and max function: run capture-rewritted child;
-	// insert into the min/max heap based on group by attribute(s);
-	if (LIST_LENGTH(min_max) != 0) {
-		// get child operator;
-		QueryOperator *child = OP_LCHILD(aggOp);
-
-		// get capture rewrite
-		QueryOperator *rewrOp = captureRewrite((QueryOperator *) copyObject(child));
-		DEBUG_NODE_BEATIFY_LOG("REWR OP", rewrOp);
-		INFO_OP_LOG("REWR OP", rewrOp);
-		// searialize operator;
-		char *sql = serializeQuery(rewrOp);
-
-		// get tuples;
-		Relation *resultRel = NULL;
-		resultRel = executeQuery(sql);
-		// INFO_LOG("schema name: %s", stringListToString(resultRel->schema));
-
-		// get prov attr name;
-		QueryOperator *auxOP = captureRewrite((QueryOperator *) copyObject(aggOp));
-		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
-
-		// append to each map value a "prov_attr_pos_in_result" indicating this pos in "resultRel"
-		// DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
-		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-			int pos = listPosString(resultRel->schema, STRING_VALUE(c));
-			List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-			l = appendToTailOfList(l, createConstInt(pos));
-		}
-		// DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
-
-		for (int i = 0; i < LIST_LENGTH(min_max); i++) {
-
-			// get this function call;
-			FunctionCall *fc = (FunctionCall *) getNthOfListP(min_max, i);
-			AttributeReference *attrRef = (AttributeReference *) getNthOfListP(fc->args, 0);
-
-			// set this min/max heap a name like: min_a, max_b
-			Constant *heapName = createConstString(CONCAT_STRINGS(fc->functionname, "_", attrRef->name));
-
-			// make a GBHeaps for this function call;
-			GBHeaps *gbHeaps = makeGBHeaps();
-
-			// set value type:
-			gbHeaps->valType = attrRef->attrType;
-
-			// set heap type: MIN or MAX;
-			if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
-				gbHeaps->heapType = createConstString(MIN_HEAP);
-			} else {
-				gbHeaps->heapType = createConstString(MAX_HEAP);
-			}
-
-			// get function call attribute position in result "relResult"
-			int fcAttrPos = listPosString(resultRel->schema, backendifyIdentifier(attrRef->name));
-			// INFO_LOG("fc attr pos %d", fcAttrPos);
-			// get group by attributes positions in result "resultRel";
-			// get the pos and its type; so if iterate, +2;
-			List *gbAttrPos = NIL;
-			FOREACH(AttributeReference, ar, aggrGBs) {
-				int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
-				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
-				// gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
-			}
-
-			// iterate over result "resultRel" to build the heap;
-			for (int ii = 0; ii < LIST_LENGTH(resultRel->tuples); ii++) {
-				List *tuple = (List *) getNthOfListP(resultRel->tuples, ii);
-				// INFO_LOG("tuple values: %s", stringListToString(tuple));
-				// get group by value of this tuple; TODO: isNULL
-				StringInfo gbVals = makeStringInfo();
-				for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
-					appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
-				}
-
-				// check if gbHeaps has this group by value;
-				List *heapList = NIL;
-				if (MAP_HAS_STRING_KEY(gbHeaps->heapLists, gbVals->data)) {
-					heapList = (List *) MAP_GET_STRING(gbHeaps->heapLists, gbVals->data);
-				}
-
-				// get min/max attribute value;
-				char *val = (char *) getNthOfListP(tuple, fcAttrPos);
-				// INFO_LOG("val str %s", val);
-				Constant *value = makeValue(attrRef->attrType, val);
-				// DEBUG_NODE_BEATIFY_LOG("CONSTANT", value);
-				// DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
-				// insert this value to heap and heapify
-				heapList = heapInsert(heapList, STRING_VALUE(gbHeaps->heapType), (Node *) value);
-
-				// DEBUG_NODE_BEATIFY_LOG("HEAPLIST", heapList);
-				// heap list done, add to map;
-				addToMap(gbHeaps->heapLists, (Node *) createConstString(gbVals->data), (Node *) copyObject(heapList));
-
-				// BELOW: DEALING WITH PROVENANCE SKETCHS;
-
-				// get all provenance sketch attrs;
-				FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-					// get provenance sketch info:
-					List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-					int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
-					int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
-					int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
-
-					// get group provenance sketch;
-					BitSet *gbProvSketch = NULL;
-					if (MAP_HAS_STRING_KEY(gbHeaps->provSketchs, STRING_VALUE(c))) {
-						gbProvSketch = (BitSet *) MAP_GET_STRING(gbHeaps->provSketchs, STRING_VALUE(c));
-					} else {
-						gbProvSketch = newBitSet(provNumFrag);
-					}
-
-					// get group fragment count map;
-					HashMap *gbFragCount = NULL;
-					if (MAP_HAS_STRING_KEY(gbHeaps->fragCount, STRING_VALUE(c))) {
-						gbFragCount = (HashMap *) MAP_GET_STRING(gbHeaps->fragCount, STRING_VALUE(c));
-					} else {
-						gbFragCount = NEW_MAP(Constant, Constant);
-					}
-
-					// get provenance sketch value:
-					char *prov = (char *) getNthOfListP(tuple, provPos);
-
-					// dealing with group provenance sketch and fragment-count;
-					if (provLevel < 2) { // prov is an integer;
-						// get fragment number;
-						int whichFrag = atoi(prov);
-						if (MAP_HAS_INT_KEY(gbFragCount, whichFrag)) {
-							int cnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, whichFrag)) + 1;
-							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(cnt));
-						} else {
-							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(1));
-						}
-
-						// dealing with group provenance sketch;
-						setBit(gbProvSketch, whichFrag, TRUE);
-					} else { // prov is a string;
-						for (int k = 0; k < strlen(prov); k++) {
-							if (prov[k] == '1') {
-								// dealing with frag-count;
-								if (MAP_HAS_INT_KEY(gbFragCount, k)) {
-									int cnt = INT_VALUE(MAP_GET_INT(gbFragCount, k)) + 1;
-									addToMap(gbFragCount, (Node *) createConstInt(k), (Node *) createConstInt(cnt));
-								} else {
-									addToMap(gbFragCount, (Node *) createConstInt(k), (Node *) createConstInt(1));
-								}
-							}
-						}
-
-						// BitOr prov bits and gbProvSketch bits;
-						gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
-					}
-
-					addToMap(gbHeaps->fragCount, (Node *) copyObject(c), (Node *) copyObject(gbFragCount));
-					addToMap(gbHeaps->provSketchs, (Node *) copyObject(c), (Node *) copyObject(gbProvSketch));
-				}
-			}
-
-			HashMap *dataStructures = NULL;
-			if (HAS_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE)) {
-				dataStructures = (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE);
-			} else {
-				dataStructures = NEW_MAP(Constant, Node);
-			}
-			addToMap(dataStructures, (Node *) heapName, (Node *) gbHeaps);
-			SET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE, (Node *) dataStructures);
-		}
-	}
-
-	// get avg/sum/count rewrite;
-	if (LIST_LENGTH(avg_sum_count) != 0) {
-		INFO_LOG("rewrite new agg");
-
-		// get current aggregation input;
-		QueryOperator *child = copyObject(OP_LCHILD(aggOp));
-		INFO_OP_LOG("child", child);
-
-		// append group by list to attrNames;
-		FOREACH(AttributeReference, a, aggOp->groupBy) {
-			avg_sum_count_attNames = appendToTailOfList(avg_sum_count_attNames, a->name);
-		}
-
-		// create a nwe aggregation operator;
-		AggregationOperator *newAgg = createAggregationOp(avg_sum_count, (List *) copyList(aggOp->groupBy), child, NIL, avg_sum_count_attNames);
-		child->parents = singleton(newAgg);
-
-		// set a property "AGG_UPDATE_PS"
-		SET_STRING_PROP((QueryOperator *) newAgg, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS, createConstBool(TRUE));
-
-		INFO_OP_LOG("NEW AGG BUILT", (QueryOperator *) newAgg);
-		// DEBUG_NODE_BEATIFY_LOG("new AGG", newAgg);
-
-		// rewrite capture;
-		// ProvenanceComputation * newPC = copyObject(pc);
-		// newPC->op.inputs = singleton(newAgg);
-		// newAgg->op.parents = singleton(newPC);
-		// DEBUG_NODE_BEATIFY_LOG("NEW PC:", newPC);
-
-		QueryOperator * rewriteOP = captureRewrite((QueryOperator *) newAgg);
-		// DEBUG_NODE_BEATIFY_LOG("avg_sum_count agg", rewriteOP);
-		INFO_OP_LOG("rewrite op avg_sum_cont: ", rewriteOP);
-
-		// char *sql = serializeOperatorModel((Node *) rewriteOP);
-		char *sql = serializeQuery(rewriteOP);
-		INFO_LOG("sql %s", sql);
-
-		Relation *resultRel = NULL;
-		resultRel = executeQuery(sql);
-
-		// get the level of aggregation
-		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewriteOP), PROP_LEVEL_AGGREGATION_MARK), 0);
-		// DEBUG_NODE_BEATIFY_LOG("LEVEL AND NUM FRAG", psAttrAndLevel);
-
-		// HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(auxOP), PROP_LEVEL_AGGREGATION_MARK), 0);
-
-		// append to each map value a "prov_attr_pos_in_result" indicating this pos in "resultRel"
-		// DEBUG_NODE_BEATIFY_LOG("BEFORE APPEND", psAttrAndLevel);
-		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-			int pos = listPosString(resultRel->schema, STRING_VALUE(c));
-			List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-			l = appendToTailOfList(l, createConstInt(pos));
-		}
-		// DEBUG_NODE_BEATIFY_LOG("AFTER APPEND", psAttrAndLevel);
-
-		for (int i = 0; i < LIST_LENGTH(aggrFCs); i++) {
-			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggrFCs, i);
-
-			// only focus on avg, count, sum;
-			if (strcmp(fc->functionname, AVG_FUNC_NAME) != 0
-			 && strcmp(fc->functionname, SUM_FUNC_NAME) != 0
-			 && strcmp(fc->functionname, COUNT_FUNC_NAME) != 0) {
-				continue;
-			}
-
-			// get function call attribute reference;
-			AttributeReference *attrRef = (AttributeReference *) getNthOfListP(fc->args, 0);
-
-			// set a name to this function call like : sum_a, avg_b, count_c used in outer map;
-			Constant *ACSsName = createConstString(CONCAT_STRINGS(fc->functionname, "_", attrRef->name));
-			// DEBUG_NODE_BEATIFY_LOG("ACSsName", ACSsName);
-
-			// make a GBACSs;
-			GBACSs *acs = makeGBACSs();
-
-			// get function call attribute pos in result "resultRel"
-			// DEBUG_NODE_BEATIFY_LOG("agg schema", aggOp->op.schema);
-			List *attrDefs = (List *) copyObject(aggOp->op.schema->attrDefs);
-
-			List *namesAndPoss = NIL;
-
-			// append fc call name in resultRel;
-			char *aggFCName = backendifyIdentifier(((AttributeDef *) getNthOfListP(attrDefs, i))->attrName);
-			// namesAndPoss = appendToTailOfList(namesAndPoss, createConstString(((AttributeDef *) getNthOfListP(attrDefs, i))->attrName));
-
-			// append pos in resultRel;
-			int pos = listPosString(resultRel->schema, backendifyIdentifier(aggFCName));
-			namesAndPoss = appendToTailOfList(namesAndPoss, createConstInt(pos));
-
-			// if it is a avg, there should be sum in the result;
-			if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
-				StringInfo sum_fc_name = makeStringInfo();
-				appendStringInfo(sum_fc_name, "%s_%s_%s", ADD_FUNC_PREFIX, SUM_FUNC_NAME, backendifyIdentifier(aggFCName));
-				pos = listPosString(resultRel->schema, sum_fc_name->data);
-
-				// appendToTailOfList(namesAndPoss, createConstString(sum_fc_name->data));
-				appendToTailOfList(namesAndPoss, createConstInt(pos));
-			}
-
-			// DEBUG_NODE_BEATIFY_LOG("namesANDposs", namesAndPoss);
-
-			// get group by attributes positions in result "resultRel";
-			List *gbAttrPos = NIL;
-			FOREACH(AttributeReference, ar, aggrGBs) {
-				int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
-				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
-				// gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
-			}
-
-			// for (int j = 0; j < LIST_LENGTH(resultRel->schema); j++) {
-			// 	INFO_LOG("result name: %s", (char *) getNthOfListP(resultRel->schema, j));
-			// }
-
-			// get group count for avg and sum
-			int groupCountPos = -1;
-			if (strcmp(fc->functionname, COUNT_FUNC_NAME) != 0) {
-				groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
-			}
-			DEBUG_NODE_BEATIFY_LOG("gb list", gbAttrPos);
-
-			for (int j = 0; j < LIST_LENGTH(resultRel->tuples); j++) {
-				List *tuple = (List *) getNthOfListP(resultRel->tuples, j);
-
-				// get the group by values;
-				StringInfo gbVals = makeStringInfo();
-				for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
-					appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
-				}
-
-				// value list;
-				List *l = NIL;
-				List *newL = NIL;
-				if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
-					l = (List *) MAP_GET_STRING(acs->map, gbVals->data);
-				} else {
-					if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
-						l = appendToTailOfList(l, createConstFloat((double) 0));
-						l = appendToTailOfList(l, createConstFloat((double) 0));
-						l = appendToTailOfList(l, createConstInt(0));
-					} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
-						l = appendToTailOfList(l, createConstFloat((double) 0));
-						l = appendToTailOfList(l, createConstInt(0));
-					} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
-						l = appendToTailOfList(l, createConstInt(0));
-					}
-				}
-
-				if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
-					// get avg, sum and cont;
-					double avg = FLOAT_VALUE((Constant *) getNthOfListP(l, 0));
-					double sum = FLOAT_VALUE((Constant *) getNthOfListP(l, 1));
-					int count = INT_VALUE((Constant *) getNthOfListP(l, 2));
-
-					// compute new avg, sum, count;
-					int newSumPos = INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 1));
-					double newSum = atof((char *) getNthOfListP(tuple, newSumPos));
-					sum += newSum;
-					count += atoi((char *) getNthOfListP(tuple, groupCountPos));
-					avg = sum / count;
-
-					// make a new list;
-
-					// l = listMake(createConstFloat(avg), createConstFloat(sum), createConstInt(count));
-					newL = appendToTailOfList(newL, createConstFloat(avg));
-					newL = appendToTailOfList(newL, createConstFloat(sum));
-					newL = appendToTailOfList(newL, createConstInt(count));
-				} else if (strcmp(fc->functionname, SUM_FUNC_NAME)) {
-					// get previous sum and count;
-					double sum = FLOAT_VALUE((Constant *) getNthOfListP(l, 0));
-					int count = INT_VALUE((Constant *) getNthOfListP(l, 1));
-
-					// compute new sum and count;
-					int newSumPos = INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0));
-					sum += atof((char *) getNthOfListP(tuple, newSumPos));
-					count += atoi((char *) getNthOfListP(tuple, groupCountPos));
-
-					// make a new list;
-					// l = listMake(createConstFloat(sum), createConstInt(count));
-
-					newL = appendToTailOfList(newL, createConstFloat(sum));
-					newL = appendToTailOfList(newL, createConstInt(count));
-				} else if (strcmp(fc->functionname, COUNT_FUNC_NAME)) {
-					// previous count;
-					int count = INT_VALUE((Constant *) getNthOfListP(l, 0));
-
-					// get new count;
-					count += atoi((char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0))));
-
-					// make a new list;
-					// l = singleton(createConstInt(count));
-					newL = appendToTailOfList(newL, createConstInt(count));
-				}
-
-				// add this key-value to map;
-				addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
-
-
-				// BELOW DEALING WITH PROVENANCE SKETCH;
-				FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-					List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-					int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
-					int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
-					int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
-
-					// get group provenance sketch;
-					BitSet *gbProvSketch = NULL;
-					if (MAP_HAS_STRING_KEY(acs->provSketchs, STRING_VALUE(c))) {
-						gbProvSketch = (BitSet *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
-					} else {
-						gbProvSketch = newBitSet(provNumFrag);
-					}
-
-					// get group fragment count map;
-					HashMap *gbFragCount = NULL;
-					if (MAP_HAS_STRING_KEY(acs->fragCount, STRING_VALUE(c))) {
-						gbFragCount = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
-					} else {
-						gbFragCount = NEW_MAP(Constant, Constant);
-					}
-
-					// get prov string or int;
-					char *prov = (char *) getNthOfListP(tuple, provPos);
-					int groupCount = atoi((char *) getNthOfListP(tuple, groupCountPos));
-					if (provLevel < 2) {
-						int whichFrag = atoi(prov);
-						if (MAP_HAS_INT_KEY(gbFragCount, whichFrag)) {
-							int cnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, whichFrag));
-							cnt += groupCount;
-							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(cnt));
-						} else {
-							addToMap(gbFragCount, (Node *) createConstInt(whichFrag), (Node *) createConstInt(groupCount));
-						}
-
-						// set whichFrag pos to '1'
-						setBit(gbProvSketch, whichFrag, TRUE);
-					} else {
-						for (int provIdx = 0; provIdx < strlen(prov); provIdx++) {
-							if (prov[provIdx] == '1') {
-								if (MAP_HAS_INT_KEY(gbFragCount, provIdx)) {
-									int cnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, provIdx));
-									cnt += groupCount;
-									addToMap(gbFragCount, (Node *) createConstInt(provIdx), (Node *) createConstInt(cnt));
-								} else {
-									addToMap(gbFragCount, (Node *) createConstInt(provIdx), (Node *) createConstInt(groupCount));
-								}
-							}
-						}
-
-						// BITOR prov and this string;
-						gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
-					}
-
-					addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) copyObject(gbProvSketch));
-					addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) copyObject(gbFragCount));
-				}
-			}
-
-			HashMap *dataStructures = NULL;
-			if (HAS_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE)) {
-				dataStructures = (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE);
-			} else {
-				dataStructures = NEW_MAP(Constant, Node);
-			}
-
-			addToMap(dataStructures, (Node *) ACSsName, (Node *) acs);
-			SET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE, (Node *) dataStructures);
-		}
-	}
-	DEBUG_NODE_BEATIFY_LOG("STATE", (HashMap *) GET_STRING_PROP((QueryOperator *) aggOp, DATA_STRUCTURE_STATE));
 }
 
 static QueryOperator*
@@ -1280,53 +252,82 @@ updateProvenanceComputation(QueryOperator* op)
 
 	QueryOperator *childOp = OP_LCHILD(op);
 
-	if (!HAS_STRING_PROP(childOp, DATA_CHUNK_PROP)) {
+	if (!HAS_STRING_PROP(childOp, PROP_DATA_CHUNK)) {
 		return;
 	}
 
-	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(childOp, DATA_CHUNK_PROP);
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(childOp, PROP_DATA_CHUNK);
 
 	// get delta ps list;
-	HashMap *map = dataChunk->fragmentsInfo;
+	HashMap *dcPsMaps = dataChunk->fragmentsInfo;
 
-	PSMap *psMap = (PSMap *) GET_STRING_PROP(op, DATA_STRUCTURE_STATE);
+	PSMap *psMap = (PSMap *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
 
-	FOREACH_HASH_KEY(Constant, c, psMap->psMaps) {
-		List *l = (List *) MAP_GET_STRING(map, STRING_VALUE(c));
-		HashMap *m = (HashMap *) MAP_GET_STRING(psMap->psMaps, STRING_VALUE(c));
+	FOREACH_HASH_KEY(Constant, c, psMap->fragCnts) {
+		List *bitsetList = (List *) MAP_GET_STRING(dcPsMaps, STRING_VALUE(c));
+		BitSet *bitset = NULL;
+		if (MAP_HAS_STRING_KEY(psMap->provSketchs, STRING_VALUE(c))) {
+			bitset = (BitSet *) MAP_GET_STRING(psMap->provSketchs, STRING_VALUE(c));
+		} else {
+			bitset = newBitSet(((BitSet *) getNthOfListP(bitsetList, 0))->length);
+		}
 
-		for (int i = 0; i < LIST_LENGTH(l); i++) {
-			int type = getVecInt(dataChunk->updateIdentifier, i);
+		// get frag cnt map;
+		HashMap *fragCnt = NULL;
+		if (MAP_HAS_STRING_KEY(psMap->fragCnts, STRING_VALUE(c))) {
+			fragCnt = (HashMap *) MAP_GET_STRING(psMap->fragCnts, STRING_VALUE(c));
+		} else {
+			fragCnt = NEW_MAP(Constant, Constant);
+		}
 
-			BitSet *bitset = (BitSet *) getNthOfListP(l, i);
+		// for insert;
+		for (int i = 0; i < LIST_LENGTH(bitsetList); i++) {
+			int updateType = getVecInt(dataChunk->updateIdentifier, i);
+			if (updateType == -1) {
+				continue;
+			}
 
-			for (int j = 0; j < bitset->length; j++) {
-				if (isBitSet(bitset, j)) {
-					if (type == 1) {
-						if (MAP_HAS_INT_KEY(m, j)) {
-							int cnt = INT_VALUE((Constant *) MAP_GET_INT(m, j));
-							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(cnt + 1));
-						} else {
-							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(1));
-						}
+			BitSet *currBitset = (BitSet *) getNthOfListP(bitsetList, i);
+			for (int bitIndex = 0; bitIndex < currBitset->length; bitIndex++) {
+				if (isBitSet(currBitset, bitIndex)) {
+					if (MAP_HAS_INT_KEY(fragCnt, bitIndex)) {
+						int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
+						addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt + 1));
 					} else {
-						if (MAP_HAS_INT_KEY(m, j)) {
-							int cnt = INT_VALUE((Constant *) MAP_GET_INT(m, j));
-							// Here, cnt - 1 could be negative; but finally it will be >= 0, because, if we execute delete first
-							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(cnt - 1));
-						} else {
-							addToMap(m, (Node *) createConstInt(j), (Node *) createConstInt(-1));
-						}
+						addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
+					}
+					setBit(bitset, bitIndex, TRUE);
+				}
+			}
+		}
+
+		// for delete;
+		for (int i = 0; i < LIST_LENGTH(bitsetList); i++) {
+			int updateType = getVecInt(dataChunk->updateIdentifier, i);
+			if (updateType == 1) {
+				continue;
+			}
+
+			BitSet *currBitset = (BitSet *) getNthOfListP(bitsetList, i);
+			for (int bitIndex = 0; bitIndex < currBitset->length; bitIndex++) {
+				if (isBitSet(currBitset, bitIndex)) {
+					int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
+					if (oriCnt <= 1) {
+						removeMapElem(fragCnt, (Node *) createConstInt(bitIndex));
+						setBit(bitset, bitIndex, FALSE);
+					} else {
+						addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt - 1));
 					}
 				}
 			}
 		}
 
-		addToMap(psMap->psMaps, (Node *) c, (Node *) m);
+		addToMap(psMap->fragCnts, (Node *) copyObject(c), (Node *) fragCnt);
+		addToMap(psMap->provSketchs, (Node *) copyObject(c), (Node *) bitset);
 	}
 
-	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, (Node *) psMap);
-	removeStringProperty(childOp, DATA_CHUNK_PROP);
+	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE, (Node *) psMap);
+	removeStringProperty(childOp, PROP_DATA_CHUNK);
 }
 
 static void
@@ -1338,12 +339,12 @@ updateProjection(QueryOperator* op)
 	INFO_OP_LOG("CURRENT OPERATOR", op);
 	QueryOperator *child = OP_LCHILD(op);
 
-	if (!HAS_STRING_PROP(child, DATA_CHUNK_PROP)) {
+	if (!HAS_STRING_PROP(child, PROP_DATA_CHUNK)) {
 		return;
 	}
 
 	DataChunk *dataChunk = NULL;
-	dataChunk = (DataChunk *) getStringProperty(child, DATA_CHUNK_PROP);
+	dataChunk = (DataChunk *) getStringProperty(child, PROP_DATA_CHUNK);
 
 	DataChunk *resultDC = initDataChunk();
 
@@ -1393,10 +394,10 @@ updateProjection(QueryOperator* op)
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR PROJECTION OPERATOR: ", resultDC);
 
-	setStringProperty(op, DATA_CHUNK_PROP, (Node*) resultDC);
+	setStringProperty(op, PROP_DATA_CHUNK, (Node*) resultDC);
 
 	// remove child data chunk;
-	removeStringProperty(child, DATA_CHUNK_PROP);
+	removeStringProperty(child, PROP_DATA_CHUNK);
 }
 
 static void
@@ -1410,27 +411,27 @@ updateSelection(QueryOperator* op)
 	QueryOperator *child = OP_LCHILD(op);
 
 	// TODO: another property to identify if it is only capture delta data;
-	if (!HAS_STRING_PROP(child, DATA_CHUNK_PROP)) {
+	if (!HAS_STRING_PROP(child, PROP_DATA_CHUNK)) {
 		return;
 	}
 
 	appendStringInfo(strInfo, "%s ", "UpdateSelection");
-	DataChunk * dataChunk = (DataChunk *) getStringProperty(child, DATA_CHUNK_PROP);
+	DataChunk * dataChunk = (DataChunk *) getStringProperty(child, PROP_DATA_CHUNK);
 
 	Node * selCond = ((SelectionOperator *) op)->cond;
 
 	DataChunk* selDataChunk = filterDataChunk(dataChunk, selCond);
 
-	if (selDataChunk == NULL) {
-		removeStringProperty(child, DATA_CHUNK_PROP);
+	if (selDataChunk->numTuples == 0) {
+		removeStringProperty(child, PROP_DATA_CHUNK);
 		return;
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR SELECTION OPERATOR: ", selDataChunk);
-	setStringProperty(op, DATA_CHUNK_PROP, (Node*) selDataChunk);
+	setStringProperty(op, PROP_DATA_CHUNK, (Node*) selDataChunk);
 
 	// remove child's data chunk;
-	removeStringProperty(child, DATA_CHUNK_PROP);
+	removeStringProperty(child, PROP_DATA_CHUNK);
 }
 
 // TODO: IN ORDER NOT TO WRITE BACK DATA TO DB, JUST CREATE A CONSTRELOPERATOR WITH A LIST OF INPUT DATA
@@ -1438,18 +439,17 @@ static void
 updateJoin(QueryOperator* op)
 {
 	INFO_OP_LOG("CURRENT JOIN", op);
+	// update two children first;
 	updateByOperators(OP_LCHILD(op));
 	updateByOperators(OP_RCHILD(op));
 
 	DEBUG_NODE_BEATIFY_LOG("CURRENT JOIN OPERATOR", op);
 
-	// TODO: for future Vasudha's suggestion, we only capture delta tuples, can terminate here;
-
 	QueryOperator *lChild = OP_LCHILD(op);
 	QueryOperator *rChild = OP_RCHILD(op);
 
-	if ((!HAS_STRING_PROP(lChild, DATA_CHUNK_PROP))
-	 && (!HAS_STRING_PROP(rChild, DATA_CHUNK_PROP))) {
+	if ((!HAS_STRING_PROP(lChild, PROP_DATA_CHUNK))
+	 && (!HAS_STRING_PROP(rChild, PROP_DATA_CHUNK))) {
 		return;
 	}
 
@@ -1464,11 +464,11 @@ updateJoin(QueryOperator* op)
 	DataChunk *resultDC = initDataChunk();
 	int branchWithDeltaCnt = 0;
 	// left delta join right;
-	if (HAS_STRING_PROP(lChild, DATA_CHUNK_PROP)) {
+	if (HAS_STRING_PROP(lChild, PROP_DATA_CHUNK)) {
 		// increase delta branch of join;
 		branchWithDeltaCnt++;
 
-		DataChunk *dataChunk = (DataChunk *) getStringProperty(lChild, DATA_CHUNK_PROP);
+		DataChunk *dataChunk = (DataChunk *) getStringProperty(lChild, PROP_DATA_CHUNK);
 		DEBUG_NODE_BEATIFY_LOG("DATA_CHUNK LEFT", dataChunk);
 
 		// create a temp table for left delta;
@@ -1669,11 +669,11 @@ updateJoin(QueryOperator* op)
 	}
 
 	// right delta join left;
-	if (HAS_STRING_PROP(rChild, DATA_CHUNK_PROP)) {
+	if (HAS_STRING_PROP(rChild, PROP_DATA_CHUNK)) {
 		// increase delta branch of join;
 		branchWithDeltaCnt++;
 
-		DataChunk *dataChunk = (DataChunk *) getStringProperty(lChild, DATA_CHUNK_PROP);
+		DataChunk *dataChunk = (DataChunk *) getStringProperty(lChild, PROP_DATA_CHUNK);
 		DEBUG_NODE_BEATIFY_LOG("DATA CHUNK RIGHT", dataChunk);
 
 		// create a temp table for left delta;
@@ -1883,7 +883,7 @@ updateJoin(QueryOperator* op)
 
 	if (branchWithDeltaCnt == 2) {
 		// create left branch;
-		DataChunk *lDC = (DataChunk *) getStringProperty(lChild, DATA_CHUNK_PROP);
+		DataChunk *lDC = (DataChunk *) getStringProperty(lChild, PROP_DATA_CHUNK);
 		List *leftAttrDefs = (List *) copyObject(lDC->attrNames);
 		TableAccessOperator *leftTaOp = createTableAccessOp(strdup(LEFT_BRANCH_OF_JOIN), NULL, strdup(LEFT_BRANCH_OF_JOIN), NIL, getAttrDefNames(leftAttrDefs), getAttrDataTypes(leftAttrDefs));
 		INFO_OP_LOG("LEFT TA", leftTaOp);
@@ -1903,7 +903,7 @@ updateJoin(QueryOperator* op)
 
 
 		// create right branch;
-		DataChunk *rDC = (DataChunk *) getStringProperty(rChild, DATA_CHUNK_PROP);
+		DataChunk *rDC = (DataChunk *) getStringProperty(rChild, PROP_DATA_CHUNK);
 		List *rightAttrDefs = (List *) copyObject(rDC->attrNames);
 		TableAccessOperator *rightTaOp = createTableAccessOp(strdup(RIGHT_BRANCH_OF_JOIN), NULL, strdup(RIGHT_BRANCH_OF_JOIN), NIL, getAttrDefNames(rightAttrDefs), getAttrDataTypes(rightAttrDefs));
 
@@ -2018,384 +1018,895 @@ updateJoin(QueryOperator* op)
 		}
 	}
 
-	setStringProperty(op, DATA_CHUNK_PROP, (Node *) resultDC);
+	setStringProperty(op, PROP_DATA_CHUNK, (Node *) resultDC);
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR JOIN OPERATOR");
 
 	// remove children's data chunk;
-	removeStringProperty(lChild, DATA_CHUNK_PROP);
-	removeStringProperty(rChild, DATA_CHUNK_PROP);
+	removeStringProperty(lChild, PROP_DATA_CHUNK);
+	removeStringProperty(rChild, PROP_DATA_CHUNK);
 }
 
-
 static void
-updateAggregation(QueryOperator* op)
+updateAggregation(QueryOperator *op)
 {
 	updateByOperators(OP_LCHILD(op));
 
-	DEBUG_NODE_BEATIFY_LOG("CURRENT AGGREGATION OPERATOR", op);
-
 	// check if child has data chunk;
-	QueryOperator *child = OP_LCHILD(op);
-	if (!HAS_STRING_PROP(child, DATA_CHUNK_PROP))
-	{
+	QueryOperator *lChild = OP_LCHILD(op);
+	if (!HAS_STRING_PROP(lChild, PROP_DATA_CHUNK)) {
 		return;
 	}
 
-	// get child's data chunk;
-	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(child, DATA_CHUNK_PROP);
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lChild, PROP_DATA_CHUNK);
 
-	// init return data chunk;
-	List *attrDefs = (List *) copyObject(op->schema->attrDefs);
+	// init result data chunk;
 	DataChunk *resultDC = initDataChunk();
-
-	// set some fields for result data chunk;
-	resultDC->attrNames = copyObject(attrDefs);
+	resultDC->attrNames = (List *) copyObject(op->schema->attrDefs);
+	resultDC->tupleFields = LIST_LENGTH(resultDC->attrNames);
+	// set fields for result data chunk;
 	int pos = 0;
-	FOREACH(AttributeDef, ad, resultDC->attrNames) {
+	FOREACH (AttributeDef, ad, resultDC->attrNames) {
 		addToMap(resultDC->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
 		addToMap(resultDC->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
 		pos++;
-
 		vecAppendNode(resultDC->tuples, (Node *) makeVector(VECTOR_NODE, T_Vector));
 	}
-	resultDC->tupleFields = LIST_LENGTH(resultDC->attrNames);
 
+	// get group by and agg function list;
+	List *aggGBList = (List *) copyObject(((AggregationOperator *) op)->groupBy);
+	List *aggFCList = (List *) copyObject(((AggregationOperator *) op)->aggrs);
 
+	// match function and group by names to schema names;
+	// 	since in GProM rewrite min(a) as min_a, sum(b) as sum_b group by c, d -> in aggop schema (aggr_0, aggr_1, group_0, group_1)
+	//	and in upper level, it will translate aggr_0, aggr_1, group_0, group_1 to min_a, sum_b, c, d;
+	HashMap *mapFCsToSchemas = NEW_MAP(Constant, Constant);
+	pos = 0;
+	FOREACH (FunctionCall, fc, aggFCList) {
+		AttributeReference *ar = (AttributeReference *) getNthOfListP(fc->args, 0);
+		Constant *nameInFC = createConstString(CONCAT_STRINGS(strdup(fc->functionname), "_", strdup(ar->name)));
+		Constant *nameInSchema = createConstString(((AttributeDef *) getNthOfListP(resultDC->attrNames, pos))->attrName);
+		addToMap(mapFCsToSchemas, (Node *) nameInFC, (Node *) nameInSchema);
+		pos++;
+	}
+	FOREACH (AttributeReference, ar, aggGBList) {
+		Constant *nameInFC = createConstString(CONCAT_STRINGS(strdup(ar->name)));
+		Constant *nameInSchema = createConstString(((AttributeDef *) getNthOfListP(resultDC->attrNames, pos))->attrName);
+		addToMap(mapFCsToSchemas, (Node *) nameInFC, (Node *) nameInSchema);
+		pos++;
+	}
 
-	// get lists of group by, agg functions;
-	List *aggrFCs = (List *) copyObject(((AggregationOperator *) op)->aggrs);
-	List *aggrGBs = (List *) copyObject(((AggregationOperator *) op)->groupBy);
+	// get stored data structure state;
+	HashMap *dataStructure = (HashMap *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
 
-	// get stored data structures;
-	HashMap *dataStructures = (HashMap *) GET_STRING_PROP(op, DATA_STRUCTURE_STATE);
-
+	// go through all tuple in data chunk;
 	int length = dataChunk->numTuples;
+	// update state and get value for return data chunk;
+	// first update: insert (+1);
+	// then update : delete (-1);
+
+	// update insert;
 	for (int i = 0; i < length; i++) {
-		// get gb values;
-		StringInfo gbVals = makeStringInfo();
-		for (int j = 0; j < LIST_LENGTH(aggrGBs); j++) {
-			// get value of this gb attribute;
-			AttributeReference *ar = (AttributeReference *) getNthOfListP(aggrGBs, j);
+		if (getVecInt(dataChunk->updateIdentifier, i) == -1) {
+			continue;
+		}
+		// 1. get group by value of this tuple;
+		StringInfo gbValues = makeStringInfo();
+		for (int gbIndex = 0; gbIndex < LIST_LENGTH(aggGBList); gbIndex++) {
+			// locate the datatype of current attribute;
+			AttributeReference *ar = (AttributeReference *) getNthOfListP(aggGBList, gbIndex);
+			int attPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+			DataType dt = INT_VALUE((Constant *) MAP_GET_INT(dataChunk->posToDatatype, attPos));
 
-			// find position and datatype of this attribute value;
-			int attrPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
-			DataType dt = INT_VALUE((Constant *) MAP_GET_INT(dataChunk->posToDatatype, attrPos));
-
-			// get the constaint value;
-			Constant *value = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, attrPos), i);
-
+			// get this group by attribute value;
+			Constant *value = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, attPos), i);
 			switch(dt) {
 				case DT_INT:
-					appendStringInfo(gbVals, "%s#", gprom_itoa(INT_VALUE(value)));
+					appendStringInfo(gbValues, "%s#", gprom_itoa(INT_VALUE(value)));
 					break;
 				case DT_LONG:
-					appendStringInfo(gbVals, "%s#", gprom_ltoa(INT_VALUE(value)));
+					appendStringInfo(gbValues, "%s#", gprom_ltoa(INT_VALUE(value)));
 					break;
 				case DT_FLOAT:
-					appendStringInfo(gbVals, "%s#", gprom_ftoa(INT_VALUE(value)));
+					appendStringInfo(gbValues, "%s#", gprom_ftoa(INT_VALUE(value)));
 					break;
 				case DT_BOOL:
-					// this is for postgresql
-					appendStringInfo(gbVals, "%s#", (BOOL_VALUE(value) == 1 ? 't' : 'f'));
+					// for postgresql;
+					appendStringInfo(gbValues, "%s#", (BOOL_VALUE(value) == 1 ? 't' : 'f'));
 					break;
-				case DT_STRING:
 				case DT_VARCHAR2:
-					appendStringInfo(gbVals, "%s#", STRING_VALUE(value));
+				case DT_STRING:
+					appendStringInfo(gbValues, "%s#", STRING_VALUE(value));
 					break;
 				default:
-					FATAL_LOG("data type %d is not support", dt);
-					break;
+					FATAL_LOG("data type %d is not supported", dt);
 			}
 		}
 
-		// get update type;
-		int updateType = getVecInt(dataChunk->updateIdentifier, i);
+		// get update type: here it must be 1 since it is an insert;
+		// int updateType = 1;
 
-		// identifierType:
-		// 0: - +
-		// 1: -
-		// 2: +
-		int identifierType = -1;
+		// set return update type:
+		// 0: delete, insert: the data structure store previous group;
+		// 1: insert only; no previous group value in the data structure;
+		int resUpdateType = -1;
 
-		// iterate over all aggregation functions to fetch values: 1. old aggregation values, 2, new aggregation values;
-		for (int j = 0; j < LIST_LENGTH(aggrFCs); j++) {
-			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggrFCs, j);
+		// identifier for ps
+		boolean hasBuildGroupPS = FALSE;
+
+		// 2. iterate over all agg function to update data structure and get data chunk;
+		for (int aggIndex = 0; aggIndex < LIST_LENGTH(aggFCList); aggIndex++) {
+			// get the name stored in the data structure;
+			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggFCList, aggIndex);
 			AttributeReference *ar = (AttributeReference *) getNthOfListP(fc->args, 0);
+			Constant *nameInDS = createConstString(CONCAT_STRINGS(strdup(fc->functionname), "_", strdup(ar->name)));
 
-			// get fc name in data structure;
-			Constant *nameInDS = createConstString(CONCAT_STRINGS(fc->functionname, "_", ar->name));
+			// get inserted value;
+			int insertPosFromDataChunk = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+			Constant *insertV = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, insertPosFromDataChunk), i);
 
-			// get value pos in result data chunk;
-			AttributeDef *ad = (AttributeDef *) getNthOfListP(attrDefs, j);
-			int resPos = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, ad->attrName));
-			DataType resDT = INT_VALUE((Constant *) MAP_GET_INT(resultDC->posToDatatype, resPos));
-
-			// get result vector for this position;
-			Vector *v = (Vector *) getVecNode(resultDC->tuples, resPos);
-
-			// get value pos in input data chunk;
-			int inpPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
-
-			// get insertd value;
-			Constant *insertV = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, inpPos), i);
-
-			///////////////////////////////////////////////////////////////////////////////////
-			//																				 //
-			// HERE SHOULD CONSIDER A EXTERME CASE:                                          //
-			//           IN SOME STAGE: ALL THE VALUE OF DATA STRUCTURE ARE GONE(EMPTY)      //
-			//           FOR FOLLOWING TUPLES, SHOULD REBUILD THE DATA STRUCTURE             //
-			//                                                                               //
-			///////////////////////////////////////////////////////////////////////////////////
 
 			if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0
 			 || strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+				// get heaps;
+				GBHeaps *gbHeap = (GBHeaps *) MAP_GET_STRING(dataStructure, STRING_VALUE(nameInDS));
 
-				GBHeaps *heap = (GBHeaps *) MAP_GET_STRING(dataStructures, STRING_VALUE(nameInDS));
-				if (updateType == 1) {
-					if (MAP_HAS_STRING_KEY(heap->heapLists, gbVals->data)) { // has previous value of this group;
-						// 1. old value;
-						// get heap list;
-						List *heapList = (List *) MAP_GET_STRING(heap->heapLists, gbVals->data);
-						if (LIST_LENGTH(heapList) > 0) {
-							identifierType = 0;
-							// get old value;
-							Constant *oldV = (Constant *) getNthOfListP(heapList, 0);
+				// get vector position of return datachunk;
+				Constant *nameInResDC = (Constant *) MAP_GET_STRING(mapFCsToSchemas, STRING_VALUE(nameInDS));
+				int posInResDC = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, STRING_VALUE(nameInResDC)));
 
-							// add to result data chunk;
-							vecAppendNode(v, (Node *) copyObject(oldV));
+				if (MAP_HAS_STRING_KEY(gbHeap->heapLists, gbValues->data)) {
+					// get heap list of this group;
+					List *heap = (List *) MAP_GET_STRING(gbHeap->heapLists, gbValues->data);
+
+					if (heap == NIL || LIST_LENGTH(heap) == 0) {
+						resUpdateType = 1;
+						heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) insertV);
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) insertV);
+					} else {
+						resUpdateType = 0;
+						Constant *oldV = (Constant *) getNthOfListP(heap, 0);
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) oldV);
+						heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) insertV);
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) getNthOfListP(heap, 0));
+					}
+					addToMap(gbHeap->heapLists, (Node *) createConstString(gbValues->data), (Node *) heap);
+				} else { // new group heap
+					resUpdateType = 1;
+
+					// create new heap list;
+					List *heap = NIL;
+					heap = appendToTailOfList(heap, insertV);
+					addToMap(gbHeap->heapLists, (Node *) createConstString(gbValues->data), (Node *) copyObject(heap));
+					vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) insertV);
+				}
+				// addToMap(dataStructure, (Node*) nameInDS, (Node *) gbHeap);
+
+				// dealing with ps;
+				FOREACH_HASH_KEY(Constant, c, dataChunk->fragmentsInfo) {
+					// delta tuples ps list;
+					List *psList = (List *) MAP_GET_STRING(dataChunk->fragmentsInfo, STRING_VALUE(c));
+					// delta tuple bitset;
+					BitSet *bitset = (BitSet *) getNthOfListP(psList, i);
+
+					List *resPsList = NIL;
+					if (MAP_HAS_STRING_KEY(resultDC->fragmentsInfo, STRING_VALUE(c))) {
+						resPsList = (List *) MAP_GET_STRING(resultDC->fragmentsInfo, STRING_VALUE(c));
+					}
+
+					BitSet *resBitset = newBitSet(bitset->length);
+					if (resUpdateType == 0) {
+						// append old ps from GBHeaps
+						HashMap *psMapInGBHeaps = NULL;
+						if (MAP_HAS_STRING_KEY(gbHeap->provSketchs, STRING_VALUE(c))) {
+							psMapInGBHeaps = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
 						} else {
-							identifierType = 2;
+							psMapInGBHeaps = NEW_MAP(Constant, Node);
+						}
+						BitSet *bitsetInHeap = (BitSet *) MAP_GET_STRING(psMapInGBHeaps, gbValues->data);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, (BitSet *) copyObject(bitsetInHeap));
 						}
 
-						// 2. add insert value to heap, and re-heapify;
-						heapList = heapInsert(heapList, STRING_VALUE(heap->heapType), (Node *) insertV);
+						// update frag->count;
+						HashMap *gbFragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(gbHeap->fragCount, STRING_VALUE(c))) {
+							gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->fragCount, STRING_VALUE(c));
+						} else {
+							gbFragCnt = NEW_MAP(Constant, Node);
+						}
 
-						// 3. get new min/max and add to result vector;
-						Constant *newV = (Constant *) getNthOfListP(heapList, 0);
-						vecAppendNode(v, (Node *) copyObject(newV));
+						HashMap *fragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(gbFragCnt, gbValues->data)) {
+							fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbValues->data);
+						} else {
+							fragCnt = NEW_MAP(Constant, Constant);
+						}
 
-					} else { // no previous value, this is a new group;
-						identifierType = 2;
+						char *bitStr = bitSetToString(bitset);
 
-						// new heapList;
-						List *heapList = NIL;
+						for (int bitIndex = 0; bitIndex < strlen(bitStr); bitIndex++) {
+							if (bitStr[bitIndex] == '1') {
+								int oriCnt = 0;
+								if (MAP_HAS_INT_KEY(fragCnt, bitIndex)) {
+									oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
+									// setBit(resBitset, bitIndex, TRUE);
+									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt + 1));
+								} else {
+									// setBit(resBitset, bitIndex, TRUE);
+									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
+								}
+							}
+						}
 
-						// add value;
-						heapList = heapInsert(heapList, STRING_VALUE(heap->heapType), (Node *) insertV);
+						resBitset = bitOr(bitset, bitsetInHeap);
 
-						Constant *newV = (Constant *) getNthOfListP(heapList, 0);
-						vecAppendNode(v, (Node *) copyObject(newV));
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, copyObject(resBitset));
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
 
-						addToMap(heap->heapLists, (Node *) createConstString(gbVals->data), (Node *) copyObject(heapList));
-					}
-				} else {
-					// in this case, in theory, the heap must contain this value;
-					List *heapList = (List *) MAP_GET_STRING(heap->heapLists, gbVals->data);
-					INFO_LOG("gb values %s", gbVals->data);
-					DEBUG_NODE_BEATIFY_LOG("heapListsssss", heapList);
-					Constant *oldV = (Constant *) getNthOfListP(heapList, 0);
+						addToMap(psMapInGBHeaps, (Node *) createConstString(gbValues->data), (Node *) copyObject(resBitset));
+						addToMap(gbHeap->provSketchs, (Node *) copyObject(c), (Node *) psMapInGBHeaps);
+						addToMap(gbFragCnt, (Node *) createConstString(gbValues->data), (Node *) fragCnt);
+						addToMap(gbHeap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+						// addToMap(dataStructure, (Node *) createConstString(nameInDS), (Node *) gbHeap);
+					} else if (resUpdateType == 1) {
+						resBitset = (BitSet *) copyObject(bitset);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, resBitset);
+							// add ps list to result data chunk;
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
 
-					vecAppendNode(v, (Node *) copyObject(oldV));
+						// add this group ps to gb heaps;
+						HashMap *psMapInGBHeap = NULL;
+						if (MAP_HAS_STRING_KEY(gbHeap->provSketchs, STRING_VALUE(c))) {
+							psMapInGBHeap = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
+						} else {
+							psMapInGBHeap = NEW_MAP(Constant, Node);
+						}
 
-					if (LIST_LENGTH(heapList) < 2) {
-						removeMapStringElem(heap->heapLists, gbVals->data);
-						identifierType = 1;
-					} else {
-						heapList = heapDelete(heapList, STRING_VALUE(heap->heapType), (Node *) oldV);
 
-						Constant *newV = (Constant *) getNthOfListP(heapList, 0);
-						vecAppendNode(v, (Node *) copyObject(newV));
-						identifierType = 0;
+						addToMap(psMapInGBHeap, (Node *) createConstString(gbValues->data), (Node *) copyObject(resBitset));
+						addToMap(gbHeap->provSketchs, (Node *) copyObject(c), (Node *) psMapInGBHeap);
+
+						HashMap *gbFragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(gbHeap->fragCount, STRING_VALUE(c))) {
+							gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->fragCount, STRING_VALUE(c));
+						} else {
+							gbFragCnt = NEW_MAP(Constant, Node);
+						}
+
+						HashMap *fragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(gbFragCnt, gbValues->data)) {
+							fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbValues->data);
+						} else {
+							NEW_MAP(Constant, Constant);
+						}
+						// since this is a new group;
+						char *bitStr = bitSetToString(resBitset);
+						for (int bitIndex = 0; bitIndex < strlen(bitStr); bitIndex++) {
+							if (bitStr[bitIndex] == '1') {
+								addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
+							}
+						}
+
+						addToMap(gbFragCnt, (Node *) createConstString(gbValues->data), (Node *) fragCnt);
+						addToMap(gbHeap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+
+
 					}
 				}
-			} else {
-				GBACSs *acs = (GBACSs *) MAP_GET_STRING(dataStructures, STRING_VALUE(nameInDS));
-				DEBUG_NODE_BEATIFY_LOG("acs", acs);
 
-				if (updateType == 1) {
-					List *acsList = NIL;
-					List *newL = NIL;
-					if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
-						acsList = (List *) MAP_GET_STRING(acs->map, gbVals->data);
-						if (identifierType != -1) {
-							identifierType = 0;
+				if (!hasBuildGroupPS) {
+					hasBuildGroupPS = TRUE;
+				}
+				// }
+			} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0
+				|| strcmp(fc->functionname, AVG_FUNC_NAME) == 0
+				|| strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+				// get acs;
+				GBACSs *acs = (GBACSs *) MAP_GET_STRING(dataStructure, STRING_VALUE(nameInDS));
+
+				// get vector position of return data chunk;
+				Constant *nameInResDC = (Constant *) MAP_GET_STRING(mapFCsToSchemas, STRING_VALUE(nameInDS));
+				int posInResDC = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, STRING_VALUE(nameInResDC)));
+
+				if (MAP_HAS_STRING_KEY(acs->map, gbValues->data)) {
+					resUpdateType = 0;
+					List *oldList = (List *) MAP_GET_STRING(acs->map, gbValues->data);
+					List *newList = NIL;
+
+					if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+						double avg = FLOAT_VALUE((Constant *) getNthOfListP(oldList, 0));
+						double sum = FLOAT_VALUE((Constant *) getNthOfListP(oldList, 1));
+						int cnt = INT_VALUE((Constant *) getNthOfListP(oldList, 2));
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(avg));
+
+						switch (insertV->constType) {
+							case DT_INT:
+								sum += INT_VALUE(insertV);
+								break;
+							case DT_FLOAT:
+								sum += FLOAT_VALUE(insertV);
+								break;
+							case DT_LONG:
+								sum += LONG_VALUE(insertV);
+							default:
+								FATAL_LOG("data type %d is not supported for avg", insertV->constType);
 						}
 
-						if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
-							double avg = FLOAT_VALUE((Constant *) getNthOfListP(acsList, 0));
-							double sum = FLOAT_VALUE((Constant *) getNthOfListP(acsList, 1));
-							int count = INT_VALUE((Constant *) getNthOfListP(acsList, 2)) + 1;
-
-							// append old value;
-							vecAppendNode(v, (Node *) createConstFloat(avg));
-
-							switch(insertV->constType) {
-								case DT_INT:
-									sum += INT_VALUE(insertV);
-									break;
-								case DT_LONG:
-									sum += LONG_VALUE(insertV);
-									break;
-								case DT_FLOAT:
-									sum += FLOAT_VALUE(insertV);
-									break;
-								default:
-									FATAL_LOG("data type %d is not supported for avg", insertV->constType);
-							}
-
-							avg = sum / count;
-
-							// new Value;
-							vecAppendNode(v, (Node *) createConstFloat(avg));
-
-							// update acslist;
-							newL = appendToTailOfList(newL, createConstFloat(avg));
-							newL = appendToTailOfList(newL, createConstFloat(sum));
-							newL = appendToTailOfList(newL, createConstInt(count));
-							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
-						} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
-							double oSum = FLOAT_VALUE((Constant *) getNthOfListP(acsList, 0));
-							double nSum = oSum;
-							int count = INT_VALUE((Constant *) getNthOfListP(acsList, 1)) + 1;
-
-							switch(insertV->constType) {
-								case DT_INT:
-									nSum += INT_VALUE(insertV);
-									break;
-								case DT_LONG:
-									nSum += LONG_VALUE(insertV);
-									break;
-								case DT_FLOAT:
-									nSum += FLOAT_VALUE(insertV);
-									break;
-								default:
-									FATAL_LOG("data type %d is not supported for avg", insertV->constType);
-							}
-
-							newL = appendToTailOfList(newL, createConstFloat(nSum));
-							newL = appendToTailOfList(newL, createConstInt(count));
-							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
-
-							// compare sum type with result dc type
-							// since we use double when building the datastructure;
-							Constant *oldV = NULL;
-							Constant *newV = NULL;
-							if (resDT == DT_INT) {
-								oldV = createConstInt((int) oSum);
-								newV = createConstInt((int) nSum);
-							} else if (resDT == DT_LONG) {
-								oldV = createConstLong((gprom_long_t) oSum);
-								newV = createConstLong((gprom_long_t) nSum);
-							} else if (resDT == DT_FLOAT) {
-								oldV = createConstFloat(oSum);
-								newV = createConstFloat(nSum);
-							}
-
-							vecAppendNode(v, (Node *) oldV);
-							vecAppendNode(v, (Node *) newV);
-						} else if (strcmp(fc->functionname, COUNT_FUNC_NAME)) {
-							int count = INT_VALUE((Constant *) getNthOfListP(acsList, 0));
-							vecAppendNode(v, (Node *) createConstInt(count));
-							vecAppendNode(v, (Node *) createConstInt(count + 1));
-							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) singleton(createConstInt(count + 1)));
-						}
-					} else { // new group
-						if (identifierType != -1) {
-							identifierType = 2;
+						cnt += 1;
+						avg = sum / cnt;
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(avg));
+						newList = appendToTailOfList(newList, createConstFloat(avg));
+						newList = appendToTailOfList(newList, createConstFloat(sum));
+						newList = appendToTailOfList(newList, createConstInt(cnt));
+					} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
+						double sum = FLOAT_VALUE((Constant *) getNthOfListP(oldList, 0));
+						int cnt = INT_VALUE((Constant *) getNthOfListP(oldList, 1));
+						double newSum = (double) 0;
+						switch (insertV->constType) {
+							case DT_INT:
+								newSum = sum + INT_VALUE(insertV);
+								break;
+							case DT_FLOAT:
+								newSum = sum + FLOAT_VALUE(insertV);
+								break;
+							case DT_LONG:
+								newSum = sum + LONG_VALUE(insertV);
+								break;
+							default:
+								FATAL_LOG("data type %d is not supported for sum", insertV->constType);
 						}
 
-						if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
-							double avg = (double) 0;
-							double sum = (double) 0;
-
-							switch(insertV->constType) {
-								case DT_INT: {
-									int insV = INT_VALUE(insertV);
-									avg = (double) insV;
-									sum = (double) insV;
-								}
-									break;
-								case DT_LONG: {
-									gprom_long_t insV = LONG_VALUE(insertV);
-									avg = (double) insV;
-									sum = (double) insV;
-								}
-									break;
-								case DT_FLOAT: {
-									sum = FLOAT_VALUE(insertV);
-									avg = FLOAT_VALUE(insertV);
-								}
-									break;
-								default:
-									FATAL_LOG("datatype %d is not supported for avg()", insertV->constType);
-							}
-
-							newL = appendToTailOfList(newL, createConstFloat(avg));
-							newL = appendToTailOfList(newL, createConstFloat(sum));
-							newL = appendToTailOfList(newL, createConstInt(1));
-							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
-
-							Constant *newV = NULL;
-							if (resDT == DT_INT) {
-								newV = createConstInt((int) avg);
-							} else if (resDT == DT_LONG) {
-								newV = createConstLong((gprom_long_t) avg);
-							} else if (resDT == DT_FLOAT) {
-								newV = createConstFloat(avg);
-							}
-							vecAppendNode(v, (Node *) newV);
-						} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
-							double sum = (double) 0;
-
-							switch(insertV->constType) {
-								case DT_INT: {
-									int insV = INT_VALUE(insertV);
-									sum = (double) insV;
-								}
-									break;
-								case DT_LONG: {
-									gprom_long_t insV = LONG_VALUE(insertV);
-									sum = (double) insV;
-								}
-									break;
-								case DT_FLOAT: {
-									sum = FLOAT_VALUE(insertV);
-								}
-									break;
-								default:
-									FATAL_LOG("datatype %d is not supported for sum()", insertV->constType);
-							}
-
-							newL = appendToTailOfList(newL, createConstFloat(sum));
-							newL = appendToTailOfList(newL, createConstInt(1));
-							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
-
-							Constant *newV = NULL;
-							if (resDT == DT_INT) {
-								newV = createConstInt((int) sum);
-							} else if (resDT == DT_LONG) {
-								newV = createConstLong((gprom_long_t) sum);
-							} else if (resDT == DT_FLOAT) {
-								newV = createConstFloat(sum);
-							}
-							vecAppendNode(v, (Node *) newV);
-						} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
-							newL = appendToTailOfList(newL, createConstInt(1));
-							addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
-							vecAppendNode(v, (Node *) createConstInt(1));
+						DataType resDT = ((AttributeDef *) getNthOfListP(resultDC->attrNames, posInResDC))->dataType;
+						if (DT_INT == resDT) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt((int) sum));
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt((int) newSum));
+						} else if (DT_LONG == resDT) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstLong((gprom_long_t) sum));
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstLong((gprom_long_t) newSum));
+						} else if (DT_FLOAT == resDT) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(sum));
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(newSum));
 						}
+
+						newList = appendToTailOfList(newList, createConstFloat(newSum));
+						newList = appendToTailOfList(newList, createConstInt(cnt + 1));
+					} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+						int cnt = INT_VALUE((Constant *) getNthOfListP(oldList, 0));
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt(cnt));
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt(cnt + 1));
+						newList = appendToTailOfList(newList, createConstInt(cnt + 1));
 					}
+					addToMap(acs->map, (Node *) createConstString(gbValues->data), (Node *) copyObject(newList));
 				} else {
+					// new group acs;
+					resUpdateType = 1;
+
+					List *newList = NIL;
+
+					double sum_avg = (double) 0;
+
+					// based on insertV type to increase avg_sum;
+					switch (insertV->constType) {
+						case DT_INT:
+							sum_avg += (double) INT_VALUE(insertV);
+							break;
+						case DT_FLOAT:
+							sum_avg += (double) FLOAT_VALUE(insertV);
+							break;
+						case DT_LONG:
+							sum_avg += (double) LONG_VALUE(insertV);
+							break;
+						default:
+							FATAL_LOG("data type is not supported here");
+					}
+
+					if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+						newList = appendToTailOfList(newList, createConstFloat(sum_avg));
+						newList = appendToTailOfList(newList, createConstFloat(sum_avg));
+						newList = appendToTailOfList(newList, createConstInt(1));
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(sum_avg));
+					} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
+						newList = appendToTailOfList(newList, createConstFloat(sum_avg));
+						newList = appendToTailOfList(newList, createConstInt(1));
+						DataType resDT = ((AttributeDef *) getNthOfListP(resultDC->attrNames, posInResDC))->dataType;
+						if (DT_INT == resDT) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt((int) sum_avg));
+						} else if (DT_LONG == resDT) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstLong((gprom_long_t) sum_avg));
+						} else if (DT_FLOAT == resDT) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(sum_avg));
+						}
+					} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+						newList = appendToTailOfList(newList, createConstInt(1));
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt(1));
+					}
+					addToMap(acs->map, (Node *) createConstString(gbValues->data), (Node *) newList);
+				}
+
+				// dealing with ps;
+				FOREACH_HASH_KEY (Constant, c, dataChunk->fragmentsInfo) {
+					List * psList = (List *) MAP_GET_STRING(dataChunk->fragmentsInfo, STRING_VALUE(c));
+					// delta bitset;
+					BitSet *bitSet = (BitSet *) getNthOfListP(psList, i);
+
+					List *resPsList = NIL;
+					if (MAP_HAS_STRING_KEY(resultDC->fragmentsInfo, STRING_VALUE(c))) {
+						resPsList = (List *) MAP_GET_STRING(resultDC->fragmentsInfo, STRING_VALUE(c));
+					}
+					BitSet *resBitset = newBitSet(bitSet->length);
+					if (resUpdateType == 0) {
+						HashMap *psMapInACS = NULL;
+
+						if (MAP_HAS_STRING_KEY(acs->provSketchs, STRING_VALUE(c))) {
+							psMapInACS = (HashMap *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
+						} else {
+							psMapInACS = NEW_MAP(Constant, Node);
+						}
+
+						// old bitset;
+						BitSet *bitSetInACS = (BitSet *) MAP_GET_STRING(psMapInACS, gbValues->data);
+
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, (BitSet *) copyObject(bitSetInACS));
+						}
+
+						// get gb fragcnt
+						HashMap *gbFragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(acs->fragCount, STRING_VALUE(c))) {
+							gbFragCnt = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
+						} else {
+							gbFragCnt = NEW_MAP(Constant, Node);
+						}
+
+						HashMap *fragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(gbFragCnt, gbValues->data)) {
+							fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbValues->data);
+						} else {
+							fragCnt = NEW_MAP(Constant, Constant);
+						}
+
+						char *bitStr = bitSetToString(bitSet);
+						for (int bitIndex = 0; bitIndex < strlen(bitStr); bitIndex++) {
+							if (bitStr[bitIndex] == '1') {
+								if (MAP_HAS_INT_KEY(fragCnt, bitIndex)) {
+									int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
+									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt + 1));
+								} else {
+									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
+								}
+							}
+						}
+
+						resBitset = bitOr(bitSet, bitSetInACS);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, copyObject(resBitset));
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
+
+						addToMap(psMapInACS, (Node *) createConstString(gbValues->data), (Node *) copyObject(resBitset));
+						addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) psMapInACS);
+
+						addToMap(gbFragCnt, (Node *) createConstString(gbValues->data), (Node *) fragCnt);
+						addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+
+					} else if (resUpdateType == 1) {
+						resBitset = (BitSet *) copyObject(bitSet);
+
+						// append to ps list in result data chunk;
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, resBitset);
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
+
+						HashMap *psMapInACS = NULL;
+						if (MAP_HAS_STRING_KEY(acs->provSketchs, STRING_VALUE(c))) {
+							psMapInACS = (HashMap *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
+						} else {
+							psMapInACS = NEW_MAP(Constant, Node);
+						}
+
+						addToMap(psMapInACS, (Node *) createConstString(gbValues->data), (Node *) copyObject(resBitset));
+
+						HashMap *gbFragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(acs->fragCount, STRING_VALUE(c))) {
+							gbFragCnt = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
+						} else {
+							gbFragCnt = NEW_MAP(Constant, Node);
+						}
+
+						HashMap *fragCnt = NULL;
+						if (MAP_HAS_STRING_KEY(gbFragCnt, gbValues->data)) {
+							fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbValues->data);
+						} else {
+							fragCnt = NEW_MAP(Constant, Constant);
+						}
+
+						char *bitStr = bitSetToString(resBitset);
+						for (int bitIndex = 0; bitIndex < strlen(bitStr); bitIndex++) {
+							if (bitStr[bitIndex] == '1') {
+								addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
+							}
+						}
+
+						addToMap(gbFragCnt, (Node *) createConstString(gbValues->data), (Node *) fragCnt);
+						addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+					}
+				}
+				if (!hasBuildGroupPS) {
+					hasBuildGroupPS = TRUE;
 				}
 			}
 		}
+
+		// get group by attributes;
+		FOREACH (AttributeReference, ar, aggGBList) {
+			// get inserted value;
+			int posInFromDataChunk = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+			Constant *insertV = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, posInFromDataChunk), i);
+			Constant *nameInResDC = (Constant *) MAP_GET_STRING(mapFCsToSchemas, ar->name);
+			int posInResDataChunk = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, STRING_VALUE(nameInResDC)));
+			if (resUpdateType == 0) {
+				// -, +, append two constants to this vector with same value;
+				vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDataChunk), (Node *) copyObject(insertV));
+				vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDataChunk), (Node *) copyObject(insertV));
+			} else if (resUpdateType == 1) {
+				vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDataChunk), (Node *) copyObject(insertV));
+			}
+		}
+
+		// dealing with resUpdateIdentifier;
+		if (resUpdateType == 0) {
+			vecAppendInt(resultDC->updateIdentifier, -1);
+			vecAppendInt(resultDC->updateIdentifier, 1);
+		} else if (resUpdateType == 1) {
+			vecAppendInt(resultDC->updateIdentifier, 1);
+		}
 	}
 
-	// remove data chunk from child operator;
-	removeStringProperty(child, DATA_CHUNK_PROP);
-	appendStringInfo(strInfo, "%s ", "UpdateAggregation");
-}
+	// update delete;
+	for (int i = 0; i < length; i++) {
+		if (getVecInt(dataChunk->updateIdentifier, i) == 1) {
+			continue;
+		}
 
+		// 1. get group by value;
+		StringInfo gbValues = makeStringInfo();
+		for (int gbIndex = 0; gbIndex < LIST_LENGTH(aggGBList); gbIndex++) {
+			// locate currrent attr datatype
+			AttributeReference *ar = (AttributeReference *) getNthOfListP(aggGBList, gbIndex);
+			int attPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+			DataType dt = INT_VALUE((Constant *) MAP_GET_INT(dataChunk->posToDatatype, attPos));
+
+			// get this group by value;
+			Constant *value = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, attPos), i);
+
+			switch (dt) {
+				case DT_INT:
+					appendStringInfo(gbValues, "%s#", gprom_itoa(INT_VALUE(value)));
+					break;
+				case DT_LONG:
+					appendStringInfo(gbValues, "%s#", gprom_ltoa(INT_VALUE(value)));
+					break;
+				case DT_FLOAT:
+					appendStringInfo(gbValues, "%s#", gprom_ftoa(INT_VALUE(value)));
+					break;
+				case DT_BOOL:
+					// for postgresql;
+					appendStringInfo(gbValues, "%s#", (BOOL_VALUE(value) == 1 ? 't' : 'f'));
+					break;
+				case DT_VARCHAR2:
+				case DT_STRING:
+					appendStringInfo(gbValues, "%s#", STRING_VALUE(value));
+					break;
+				default:
+					FATAL_LOG("data type %d is not supported", dt);
+			}
+		}
+
+		// set return update type;
+		// 0: delete insert: find previous group in data structure;
+		// -1: delete only; no data afterwards;
+		int resUpdateType = 1;
+		boolean hasBuildGroupPS = FALSE;
+		// identifier for ps;
+		for (int aggIndex = 0; aggIndex < LIST_LENGTH(aggFCList); aggIndex++) {
+			// get store data structure;
+			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggFCList, aggIndex);
+			AttributeReference *ar = (AttributeReference *) getNthOfListP(fc->args, 0);
+			Constant *nameInDS = createConstString(CONCAT_STRINGS(strdup(fc->functionname), "_", strdup(ar->name)));
+
+			// get inserted value;
+			int delPosFromDataChunk = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+			Constant *delV = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, delPosFromDataChunk), i);
+
+			if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0
+			|| strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+				GBHeaps *gbHeap = (GBHeaps *) MAP_GET_STRING(dataStructure, STRING_VALUE(nameInDS));
+
+				// vec of return;
+				Constant * nameInResDC = (Constant *) MAP_GET_STRING(mapFCsToSchemas, STRING_VALUE(nameInDS));
+				int posInResDC = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, STRING_VALUE(nameInResDC)));
+
+				List *heap = (List *) MAP_GET_STRING(gbHeap->heapLists, gbValues->data);
+
+				if (LIST_LENGTH(heap) == 1) {
+					resUpdateType = -1;
+					vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) getNthOfListP(heap, 0));
+					removeMapStringElem(gbHeap->heapLists, gbValues->data);
+				} else if (LIST_LENGTH(heap) > 1) {
+					resUpdateType = 0;
+					Constant *oldV = (Constant *) getNthOfListP(heap, 0);
+					vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) oldV);
+					heap = heapDelete(heap, STRING_VALUE(gbHeap->heapType), (Node *) delV);
+					vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) getNthOfListP(heap, 0));
+				}
+				addToMap(gbHeap->heapLists, (Node *) createConstString(gbValues->data), (Node *) heap);
+
+				// dealing with ps;
+				FOREACH_HASH_KEY(Constant, c, dataChunk->fragmentsInfo) {
+					List *psList = (List *) MAP_GET_STRING(dataChunk->fragmentsInfo, STRING_VALUE(c));
+					BitSet *bitset = (BitSet *) getNthOfListP(psList, i);
+
+					List *resPsList = NIL;
+					if (MAP_HAS_STRING_KEY(resultDC->fragmentsInfo, STRING_VALUE(c))) {
+						resPsList = (List *) MAP_GET_STRING(resultDC->fragmentsInfo, STRING_VALUE(c));
+					}
+
+					// BitSet *resBitset = newBitSet(bitset->length);
+					if (resUpdateType == -1) {
+						HashMap *psMapInGBHeap = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
+
+						BitSet *bitsetInHeap = (BitSet *) MAP_GET_STRING(psMapInGBHeap, gbValues->data);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, (BitSet *) copyObject(bitsetInHeap));
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
+
+						// -1 means this is the last of the heap, remove ps, fg-cnt
+						removeMapStringElem(psMapInGBHeap, gbValues->data);
+						addToMap(gbHeap->provSketchs, (Node *) copyObject(c), (Node *) psMapInGBHeap);
+
+						// remove fgcnt;
+						HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->fragCount, STRING_VALUE(c));
+						removeMapStringElem(gbFragCnt, gbValues->data);
+						addToMap(gbHeap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+					} else if (resUpdateType == 0) {
+						HashMap *psMapInGBHeap = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
+
+						BitSet *bitsetInHeap = (BitSet *) MAP_GET_STRING(psMapInGBHeap, gbValues->data);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, copyObject(bitsetInHeap));
+						}
+
+						HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->fragCount, STRING_VALUE(c));
+						HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbValues->data);
+
+						char *bitStr = bitSetToString(bitset);
+						for (int bitIndex = 0; bitIndex < strlen(bitStr); bitIndex++) {
+							if (bitStr[bitIndex] == 1) {
+								int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
+								if (oriCnt == 1) {
+									setBit(bitsetInHeap, bitIndex, FALSE);
+									removeMapElem(fragCnt, (Node *) createConstInt(bitIndex));
+								} else if (oriCnt > 1) {
+									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt - 1));
+								}
+							}
+						}
+
+						addToMap(gbFragCnt, (Node *) createConstString(gbValues->data), (Node *) fragCnt);
+						addToMap(gbHeap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, copyObject(bitsetInHeap));
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
+					}
+				}
+
+				if (!hasBuildGroupPS) {
+					hasBuildGroupPS = TRUE;
+				}
+			} else if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0
+				|| strcmp(fc->functionname, SUM_FUNC_NAME) == 0
+				|| strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+				// get acs;
+				GBACSs *acs = (GBACSs *) MAP_GET_STRING(dataStructure, STRING_VALUE(nameInDS));
+
+				// get vector pos of return dc;
+				Constant *nameInResDC = (Constant *) MAP_GET_STRING(mapFCsToSchemas, STRING_VALUE(nameInDS));
+				int posInResDC = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, STRING_VALUE(nameInResDC)));
+
+				List *oldList = (List *) MAP_GET_STRING(acs->map, gbValues->data);
+				List *newList = NIL;
+
+				if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
+					double avg = FLOAT_VALUE((Constant *) getNthOfListP(oldList, 0));
+					double sum = FLOAT_VALUE((Constant *) getNthOfListP(oldList, 1));
+					int cnt = INT_VALUE((Constant *) getNthOfListP(oldList, 2));
+					vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(avg));
+
+					if (cnt == 1) {
+						removeMapStringElem(acs->map, gbValues->data);
+						resUpdateType = -1;
+					} else if (cnt > 1) {
+						resUpdateType = 0;
+						switch (delV->constType) {
+							case DT_INT:
+								sum -= (double) INT_VALUE(delV);
+								break;
+							case DT_LONG:
+								sum -= (double) LONG_VALUE(delV);
+								break;
+							case DT_FLOAT:
+								sum -= FLOAT_VALUE(delV);
+								break;
+							default:
+								FATAL_LOG("data type is not supported");
+						}
+
+						cnt -= 1;
+						avg = sum / cnt;
+						newList = appendToTailOfList(newList, createConstFloat(avg));
+						newList = appendToTailOfList(newList, createConstFloat(sum));
+						newList = appendToTailOfList(newList, createConstInt(cnt));
+						addToMap(acs->map, (Node *) createConstString(gbValues->data), (Node *) newList);
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(avg));
+					}
+				} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
+					double sum = FLOAT_VALUE((Constant *) getNthOfListP(oldList, 0));
+					int cnt = INT_VALUE((Constant *) getNthOfListP(oldList, 1)) - 1;
+					double newSum = (double) 0;
+					switch(delV->constType) {
+						case DT_INT:
+							newSum = sum - INT_VALUE(delV);
+							break;
+						case DT_FLOAT:
+							newSum = sum - FLOAT_VALUE(delV);
+							break;
+						case DT_LONG:
+							newSum = sum - LONG_VALUE(delV);
+							break;
+						default:
+							FATAL_LOG("data type %d is not supported for sum", delV->constType);
+					}
+					newList = appendToTailOfList(newList, createConstFloat(newSum));
+					newList = appendToTailOfList(newList, createConstInt(cnt));
+
+					// based on return type to cast sum to correct type;
+					DataType resDT = ((AttributeDef *) getNthOfListP(resultDC->attrNames, posInResDC))->dataType;
+
+					if (cnt <= 0) {
+						resUpdateType = -1;
+						removeMapStringElem(acs->map, gbValues->data);
+					} else {
+						resUpdateType = 0;
+						addToMap(acs->map, (Node *) createConstString(gbValues->data), (Node *) newList);
+					}
+
+					if (DT_INT == resDT) {
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt((int) sum));
+						if (cnt > 0) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt((int) newSum));
+						}
+					} else if (DT_LONG == resDT) {
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstLong((gprom_long_t) sum));
+						if (cnt > 0) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstLong((gprom_long_t) newSum));
+						}
+					} else if (DT_FLOAT == resDT) {
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(sum));
+						if (cnt > 0) {
+							vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstFloat(newSum));
+						}
+					}
+				} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+					int cnt = INT_VALUE(getNthOfListP(oldList, 0));
+					vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt(cnt));
+					if (cnt > 1) {
+						resUpdateType = 0;
+						vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) createConstInt(cnt - 1));
+						newList = appendToTailOfList(newList, createConstInt(cnt - 1));
+						addToMap(acs->map, (Node *) createConstString(gbValues->data), (Node *) newList);
+					} else {
+						resUpdateType = -1;
+						removeMapStringElem(acs->map, gbValues->data);
+					}
+				}
+				// dealing with ps;
+				FOREACH_HASH_KEY(Constant, c, dataChunk->fragmentsInfo) {
+					List *psList = (List *) MAP_GET_STRING(dataChunk->fragmentsInfo, STRING_VALUE(c));
+					BitSet *bitset = (BitSet *) getNthOfListP(psList, i);
+
+					List *resPsList = NIL;
+					if (MAP_HAS_STRING_KEY(resultDC->fragmentsInfo, STRING_VALUE(c))) {
+						resPsList = (List *) MAP_GET_STRING(resultDC->fragmentsInfo, STRING_VALUE(c));
+					}
+
+					BitSet *resBitSet = newBitSet(bitset->length);
+
+					if (resUpdateType == -1) {
+						HashMap *psMapInACS = (HashMap *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
+						resBitSet = (BitSet *) MAP_GET_STRING(psMapInACS, gbValues->data);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, copyObject(resBitSet));
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
+
+						removeMapStringElem(psMapInACS, gbValues->data);
+						HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
+						removeMapStringElem(gbFragCnt, gbValues->data);
+						addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+						addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) psMapInACS)	;
+					} else if (resUpdateType == 0) {
+						HashMap *psMapInACS = (HashMap *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c)) ;
+						resBitSet = (BitSet *) MAP_GET_STRING(psMapInACS, gbValues->data);
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, copyObject(resBitSet));
+						}
+
+						HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
+						HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbValues->data);
+
+						char *bitStr = bitSetToString(bitset);
+						for (int bitIndex = 0; bitIndex < strlen(bitStr); bitIndex++) {
+							if (bitStr[bitIndex] == '1') {
+								int cnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
+
+								if (cnt == 1) {
+									setBit(resBitSet, bitIndex, FALSE);
+									removeMapElem(fragCnt, (Node *) createConstInt(bitIndex));
+								} else if (cnt > 1) {
+									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(cnt - 1));
+								}
+							}
+						}
+
+						addToMap(gbFragCnt, (Node *) createConstString(gbValues->data), (Node *) fragCnt);
+						addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+
+						if (!hasBuildGroupPS) {
+							resPsList = appendToTailOfList(resPsList, copyObject(resBitSet));
+							addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) resPsList);
+						}
+					}
+				}
+
+				if (!hasBuildGroupPS) {
+					hasBuildGroupPS = TRUE;
+				}
+			}
+		}
+
+		// gb attri;
+		FOREACH (AttributeReference, ar, aggGBList) {
+			int posInFromDataChunk = INT_VALUE((Constant *) MAP_GET_STRING(dataChunk->attriToPos, ar->name));
+			Constant *delV = (Constant *) getVecNode((Vector *) getVecNode(dataChunk->tuples, posInFromDataChunk), i);
+			Constant *nameInResDC = (Constant *) MAP_GET_STRING(mapFCsToSchemas, ar->name);
+			int posInResDC = INT_VALUE((Constant *) MAP_GET_STRING(resultDC->attriToPos, STRING_VALUE(nameInResDC)));
+			if (resUpdateType == -1) {
+				vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) copyObject(delV));
+			} else if (resUpdateType == 0) {
+				vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) copyObject(delV));
+				vecAppendNode((Vector *) getVecNode(resultDC->tuples, posInResDC), (Node *) copyObject(delV));
+			}
+		}
+
+		// dealing with res update indntifier;
+		if (resUpdateType == -1) {
+			vecAppendInt(resultDC->updateIdentifier, -1);
+		} else if (resUpdateType == 0) {
+			vecAppendInt(resultDC->updateIdentifier, -1);
+			vecAppendInt(resultDC->updateIdentifier, 1);
+		}
+	}
+
+	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+	setStringProperty(op, PROP_DATA_CHUNK, (Node *) resultDC);
+}
 
 static void
 updateDuplicateRemoval(QueryOperator* op)
@@ -2403,11 +1914,11 @@ updateDuplicateRemoval(QueryOperator* op)
 	updateByOperators(OP_LCHILD(op));
 	INFO_LOG("UPDATE DUREM");
 	QueryOperator *lchild = OP_LCHILD(op);
-	if (!HAS_STRING_PROP(lchild, DATA_CHUNK_PROP)) {
+	if (!HAS_STRING_PROP(lchild, PROP_DATA_CHUNK)) {
 		return;
 	}
 	List* dupAttrs = (List *) copyObject(op->schema->attrDefs);
-	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, DATA_CHUNK_PROP);
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, PROP_DATA_CHUNK);
 
 
 	DataChunk *dc = initDataChunk();
@@ -2420,7 +1931,7 @@ updateDuplicateRemoval(QueryOperator* op)
 		addToMap(dc->posToDatatype, (Node *) createConstInt(i), (Node *) createConstInt(ad->dataType));
 	}
 
-	GBACSs *acs = (GBACSs *) GET_STRING_PROP(op, DATA_STRUCTURE_STATE);
+	GBACSs *acs = (GBACSs *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
 
 	len = dataChunk->numTuples;
 	for (int row = 0; row < len; row++) {
@@ -2495,13 +2006,13 @@ updateDuplicateRemoval(QueryOperator* op)
 	}
 
 	// set the refreshed data structure;
-	SET_STRING_PROP(op, DATA_STRUCTURE_STATE, (Node *) acs);
+	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE, (Node *) acs);
 
 	// set datachunk to operator;
-	SET_STRING_PROP(op, DATA_CHUNK_PROP, (Node *) dc);
+	SET_STRING_PROP(op, PROP_DATA_CHUNK, (Node *) dc);
 
 	// remove child's datachunk;
-	removeStringProperty(lchild, DATA_CHUNK_PROP);
+	removeStringProperty(lchild, PROP_DATA_CHUNK);
 	appendStringInfo(strInfo, "%s ", "UpdateDuplicatiRemoval");
 }
 
@@ -2522,15 +2033,15 @@ updateOrder(QueryOperator *op)
 
 	QueryOperator *lchild = OP_LCHILD(op);
 
-	if (!HAS_STRING_PROP(lchild, DATA_CHUNK_PROP)) {
+	if (!HAS_STRING_PROP(lchild, PROP_DATA_CHUNK)) {
 		return;
 	}
 
 	// for order operator, we do nothing, just copy the data chunk and pass to next level;
-	DataChunk *dc = (DataChunk *) copyObject((DataChunk *) GET_STRING_PROP(lchild, DATA_CHUNK_PROP));
-	SET_STRING_PROP(op, DATA_CHUNK_PROP, dc);
+	DataChunk *dc = (DataChunk *) copyObject((DataChunk *) GET_STRING_PROP(lchild, PROP_DATA_CHUNK));
+	SET_STRING_PROP(op, PROP_DATA_CHUNK, dc);
 
-	removeStringProperty(lchild, DATA_CHUNK_PROP);
+	removeStringProperty(lchild, PROP_DATA_CHUNK);
 }
 
 static void
@@ -2541,22 +2052,22 @@ updateLimit(QueryOperator *op)
 	INFO_LOG("LIMIT OPERATOR");
 	QueryOperator *lchild = OP_LCHILD(op);
 
-	if (!HAS_STRING_PROP(lchild, DATA_CHUNK_PROP)) {
+	if (!HAS_STRING_PROP(lchild, PROP_DATA_CHUNK)) {
 		return;
 	}
 
 	// if no data strcutre, indicate no order by lower;
-	if (!HAS_STRING_PROP(op, DATA_STRUCTURE_STATE)) {
+	if (!HAS_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE)) {
 		return;
 	}
 
-	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, DATA_CHUNK_PROP);
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, PROP_DATA_CHUNK);
 	DataChunk *dc = initDataChunk();
 	dc->tupleFields = dataChunk->tupleFields;
 	dc->attrNames = (List *) copyObject(dataChunk->attrNames);
 	dc->attriToPos = (HashMap *) copyObject(dataChunk->attriToPos);
 	dc->posToDatatype = (HashMap *) copyObject(dataChunk->posToDatatype);
-	LMTChunk *lmtc = (LMTChunk *) GET_STRING_PROP(op, DATA_CHUNK_PROP);
+	LMTChunk *lmtc = (LMTChunk *) GET_STRING_PROP(op, PROP_DATA_CHUNK);
 
 	/*
 	 *	HERE, CURRENTL PAUSE:
@@ -2610,7 +2121,7 @@ updateTableAccess(QueryOperator * op)
 	 */
 	char* tableName = ((TableAccessOperator *) op)->tableName;
 	char* updatedTableName = NULL;
-
+	DEBUG_NODE_BEATIFY_LOG("what is stmt", updateStatement);
 	Node* stmt = ((DLMorDDLOperator *) updateStatement)->stmt;
 	switch(stmt->type) {
 		case T_Update:
@@ -2636,7 +2147,7 @@ updateTableAccess(QueryOperator * op)
 	// we might use a list to store all the updates,
 
 	DataChunk* dataChunk = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
-	setStringProperty(op, DATA_CHUNK_PROP, (Node *) dataChunk);
+	setStringProperty(op, PROP_DATA_CHUNK, (Node *) dataChunk);
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FRO TABLEACCESS OPERATOR", dataChunk);
 }
@@ -2818,9 +2329,9 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 	dataChunk->tupleFields = LIST_LENGTH(relation->schema);
 
 	// fill tuples
-	for(int col = 0; col < LIST_LENGTH(relation->tuples); col++)
+	for(int col = 0; col < LIST_LENGTH(relation->schema); col++)
 	{
-		int dataType = INT_VALUE((Constant*)getMapInt(dataChunk->posToDatatype, col));
+		int dataType = INT_VALUE((Constant*) getMapInt(dataChunk->posToDatatype, col));
 		INFO_LOG("data type: %d", dataType);
 		Vector *colValues = makeVector(VECTOR_NODE, T_Vector);
 		for(int row = 0; row < dataChunk->numTuples; row++)
@@ -2972,7 +2483,7 @@ getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 	}
 	INFO_LOG("psAttrCol %d", psAttrCol);
 
-	// fill tuples
+	// fill tuples:
 	List *psAttrList = NIL;
 	for (int index = 0; index < LIST_LENGTH(relation->tuples); index++) {
 		List *row = (List *) getNthOfListP(relation->tuples, index);
@@ -3002,8 +2513,64 @@ getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 static DataChunk*
 filterDataChunk(DataChunk* dataChunk, Node* condition)
 {
+
 	// TODO: use ConstrelOperator;
 	DEBUG_NODE_BEATIFY_LOG("DISPLAY DATACHUNK: ", dataChunk);
+
+	ColumnChunk *filterResult = evaluateExprOnDataChunk(condition, dataChunk);
+
+	// new a result data chunk AND set fields except numTuples;
+	DataChunk* resultDC = initDataChunk();
+
+	// identifier to indicate first meeting value in result data chunk;
+	boolean initField = FALSE;
+
+	// result is True or False stored in a bitset;
+	BitSet *bits = filterResult->data.bs;
+	char *bitString = bitSetToString(bits);
+	int length = strlen(bitString);
+
+	for (int i = 0; i < length; i++) {
+		if (bitString[i] == '1') {
+			if (!initField) {
+				resultDC->attrNames = (List*) copyList(dataChunk->attrNames);
+				resultDC->attriToPos = (HashMap*) copyObject(dataChunk->attriToPos);
+				resultDC->posToDatatype = (HashMap*) copyObject(dataChunk->posToDatatype);
+				resultDC->tupleFields = dataChunk->tupleFields;
+				for (int col = 0; col < resultDC->tupleFields; col++) {
+					Vector *colVec = makeVector(VECTOR_NODE, T_Vector);
+					vecAppendNode(resultDC->tuples, (Node *) colVec);
+				}
+				initField = TRUE;
+			}
+
+			// append data;
+			for (int col = 0; col < resultDC->tupleFields; col++) {
+				Vector *dstVec = (Vector *) getVecNode(resultDC->tuples, col);
+				Vector *srcVec = (Vector *) getVecNode(dataChunk->tuples, col);
+				vecAppendNode(dstVec, (Node *) copyObject(getVecNode(srcVec, i)));
+			}
+
+			// append update type;
+			vecAppendInt(resultDC->updateIdentifier, getVecInt(dataChunk->updateIdentifier, i));
+
+			// append provenance sketch;
+			FOREACH_HASH_KEY(Constant, c, dataChunk->fragmentsInfo) {
+				List *srcList = (List *) MAP_GET_STRING(dataChunk->fragmentsInfo, STRING_VALUE(c));
+				List *dstList = NIL;
+				if (resultDC->numTuples > 0) {
+					dstList = (List *) MAP_GET_STRING(resultDC->fragmentsInfo, STRING_VALUE(c));
+				}
+				dstList = appendToTailOfList(dstList, copyObject((BitSet *) getNthOfListP(srcList, i)));
+				addToMap(resultDC->fragmentsInfo, (Node *) c, (Node *) dstList);
+			}
+			resultDC->numTuples += 1;
+		}
+	}
+
+	return resultDC;
+
+	/*
 	int choice = 2;
 	char *sql = NULL;
 	if (choice == 1) {
@@ -3157,9 +2724,10 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR SELECTION/HAVING FILTER", resultDC);
 
 	return resultDC;
+	*/
 }
 
-
+/*
 static Constant *
 makeValue(DataType dataType, char* value)
 {
@@ -3190,7 +2758,9 @@ makeValue(DataType dataType, char* value)
 
 	return c;
 }
+*/
 
+/*
 static ConstRelOperator *
 getConstRelOpFromDataChunk(DataChunk *dataChunk)
 {
@@ -3267,6 +2837,7 @@ getConstRelOpFromDataChunk(DataChunk *dataChunk)
 
 	return (ConstRelOperator *) constRel;
 }
+*/
 
 static BitSet *
 setFragmentToBitSet(int value, List *rangeList)
@@ -3316,7 +2887,7 @@ setFragmentToBitSet(int value, List *rangeList)
 		if (value < startVal1) {
 			fragNo = 0;
 		} else if (value >= endVal2) {
-			fragNo = LIST_LENGTH(rangeList) - 1;
+			fragNo = LIST_LENGTH(rangeList) - 2;
 		}
 	}
 

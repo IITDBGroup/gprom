@@ -66,15 +66,14 @@ provRewriteQBModel (Node *qbModel)
         if(isA(getHeadOfListP((List*)qbModel), ProvenanceComputation)) {
         	ProvenanceComputation* pc = (ProvenanceComputation*) getHeadOfListP((List*) qbModel);
         	if(pc->inputType == PROV_INPUT_UPDATEPS){
-        		DEBUG_LOG("START UPDATEPS\n");
-        		char * ps = update_ps(pc);
-        		//TODO add time consumption
         		START_TIMER("UPDATEPS");
+        		char * ps = update_ps(pc);
         		Constant* result = createConstString(ps);
         		STOP_TIMER("UPDATEPS");
         		return (Node*) result;
         	}
      	}
+
         return (Node *) provRewriteQueryList((List *) qbModel);
     }
     else if (IS_OP(qbModel))

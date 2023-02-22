@@ -24,6 +24,7 @@
 #include "log/logger.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
+#include "provenance_rewriter/update_ps/update_ps_build_state.h"
 
 #define EQUAL_CONTEXT_NAME "EQUAL_CONTEXT"
 

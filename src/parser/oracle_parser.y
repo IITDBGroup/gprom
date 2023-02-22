@@ -528,6 +528,19 @@ provStmt:
 
             $$ = (Node*) p;
         }
+		|  UPDATEPS '(' stmtList ')' PROVENANCE optionalProvWith OF '(' stmt ')' optionalTranslate
+		{
+			RULELOG("provStmt::UpdatePSStmtLists");
+			List *stmtList = $3;
+			Node *query = $9;
+			List *list = LIST_MAKE(stmtList, query);
+			ProvenanceStmt *p = createProvenanceStmt((Node *) list);
+			p->options = concatTwoLists($6, $11);
+			p->inputType = PROV_INPUT_UPDATEPS;
+			p->provType = PROV_TYPE_UPDATEPS;
+
+			$$ = (Node *) p;
+		}
         | CANUSE PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
         {
             RULELOG("provStmt::stmt");

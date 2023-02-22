@@ -8,8 +8,8 @@
 #include "model/query_operator/query_operator.h"
 
 #define DATA_CHUNK_PROP "DATA_CHUNK"
-
-extern char* update_ps_incremental(QueryOperator * qbModel);
+#define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update"
+extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);
 
 typedef struct DataChunk
 {
@@ -77,7 +77,7 @@ typedef struct ColumnChunk
 	int length;
 	DataType dataType;
 } ColumnChunk;
-
+/*
 // heap
 typedef struct GBHeaps
 {
@@ -115,13 +115,14 @@ typedef struct PSMap
 	NodeTag type;
 	HashMap *psMaps; // key: ps name string, value: hash map(key: fragno, value: count);
 } PSMap;
-
+*/
 extern DataChunk *initDataChunk();
+/*
 extern GBHeaps *makeGBHeaps();
 extern GBACSs *makeGBACSs();
 extern LMTChunk *makeLMTChunk();
 extern PSMap *makePSMap();
-
+*/
 /*
  * 	type: "MIN" or "MAX";
  * 	valueType: list cell value type;
@@ -130,12 +131,12 @@ extern PSMap *makePSMap();
  * 	removeLast: "TRUE" for remove element from heap;
  */
 
-
+/*
 extern List *heapifyListSiftUp(List *list, int pos, char *type, DataType valDataType);
 extern List *heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType);
 extern List *heapInsert(List *list, char* type, Node *ele);
 extern List *heapDelete(List *list, char* type, Node *ele);
-
+*/
 //extern int getIntValueFromDataChunk(DataChunk *dc, int row, int col);
 //extern float getFloatValueFromDataChunk(DataChunk *dc, int pos);
 //extern gprom_long getLongValueFromDataChunk(DataChunk *dc, int pos);
