@@ -107,7 +107,7 @@ static QueryOperator *rewrite_RangeJoinOptimized(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation2(QueryOperator *op);
 static QueryOperator *rewrite_RangeSort(QueryOperator *op);
-static QueryOperator *rewrite_RangeSortForWindow(QueryOperator *op);
+// static QueryOperator *rewrite_RangeSortForWindow(QueryOperator *op);
 static QueryOperator *rewrite_RangeWindow(QueryOperator *op);
 
 static QueryOperator *spliceToBG(QueryOperator *op);
@@ -5090,153 +5090,153 @@ rewrite_RangeSort(QueryOperator *op)
 	return final_proj;
 }
 
-static QueryOperator *
-rewrite_RangeSortForWindow(QueryOperator *op)
-{
-	ASSERT(OP_LCHILD(op));
+// static QueryOperator *
+// rewrite_RangeSortForWindow(QueryOperator *op)
+// {
+// 	ASSERT(OP_LCHILD(op));
 
-	// push down min max attr property if there are any
-	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
-	{
-		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
-		// removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
-		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
-		// INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
-		// INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
-		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
-		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
-	}
+// 	// push down min max attr property if there are any
+// 	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+// 	{
+// 		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+// 		// removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+// 		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
+// 		// INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
+// 		// INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
+// 		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+// 		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+// 	}
 
-	//record original info
-	// List *projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
-	// List *attrName = getNormalAttrNames(OP_LCHILD(op));
+// 	//record original info
+// 	// List *projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
+// 	// List *attrName = getNormalAttrNames(OP_LCHILD(op));
 
-    //rewrite child first
-    rewriteRange(OP_LCHILD(op));
+//     //rewrite child first
+//     rewriteRange(OP_LCHILD(op));
 
-    return op;
+//     return op;
 
-	// HashMap * hmp = NEW_MAP(Node, Node);
+// 	// HashMap * hmp = NEW_MAP(Node, Node);
 
-	// List *proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
-	// List *proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
-	// List *proj_projExpr2 = getProjExprsForAllAttrs(OP_LCHILD(op));
+// 	// List *proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+// 	// List *proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+// 	// List *proj_projExpr2 = getProjExprsForAllAttrs(OP_LCHILD(op));
 
-	// HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+// 	// HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
 
-	// Node *orderExpr = (Node *)getHeadOfListP(((WindowOperator *)op)->orderBy);
-	// char *orderName = ((AttributeReference *)((OrderExpr *)orderExpr)->expr)->name;
-	// char *lb_orderName = getLBString(orderName);
-	// char *ub_orderName = getUBString(orderName);
+// 	// Node *orderExpr = (Node *)getHeadOfListP(((WindowOperator *)op)->orderBy);
+// 	// char *orderName = ((AttributeReference *)((OrderExpr *)orderExpr)->expr)->name;
+// 	// char *lb_orderName = getLBString(orderName);
+// 	// char *ub_orderName = getUBString(orderName);
 
-	// // INFO_LOG("order by: %s", orderName);
+// 	// // INFO_LOG("order by: %s", orderName);
 
-	// Node *lb_ref = (Node *)getAttrRefByName(OP_LCHILD(op), lb_orderName);
-	// Node *ub_ref = (Node *)getAttrRefByName(OP_LCHILD(op), ub_orderName);
+// 	// Node *lb_ref = (Node *)getAttrRefByName(OP_LCHILD(op), lb_orderName);
+// 	// Node *ub_ref = (Node *)getAttrRefByName(OP_LCHILD(op), ub_orderName);
 
-	// appendToTailOfList(proj_projExpr, lb_ref);
-	// appendToTailOfList(proj_projName, ATTR_POINT);
-	// appendToTailOfList(proj_projExpr, createConstInt(0));
-	// appendToTailOfList(proj_projExpr, createConstInt(1));
-	// appendToTailOfList(proj_projName, ATTR_ISEND);
-	// appendToTailOfList(proj_projName, ATTR_NOTEND);
+// 	// appendToTailOfList(proj_projExpr, lb_ref);
+// 	// appendToTailOfList(proj_projName, ATTR_POINT);
+// 	// appendToTailOfList(proj_projExpr, createConstInt(0));
+// 	// appendToTailOfList(proj_projExpr, createConstInt(1));
+// 	// appendToTailOfList(proj_projName, ATTR_ISEND);
+// 	// appendToTailOfList(proj_projName, ATTR_NOTEND);
 
-	// appendToTailOfList(proj_projExpr2, ub_ref);
-	// appendToTailOfList(proj_projExpr2, createConstInt(1));
-	// appendToTailOfList(proj_projExpr2, createConstInt(0));
+// 	// appendToTailOfList(proj_projExpr2, ub_ref);
+// 	// appendToTailOfList(proj_projExpr2, createConstInt(1));
+// 	// appendToTailOfList(proj_projExpr2, createConstInt(0));
 
-	// // INFO_LOG("proj_projName: %s", stringListToString(proj_projName));
-	// FOREACH(Node, nd, proj_projExpr){
-	// 	INFO_LOG("ref: %s", nodeToString(nd));
-	// }
+// 	// // INFO_LOG("proj_projName: %s", stringListToString(proj_projName));
+// 	// FOREACH(Node, nd, proj_projExpr){
+// 	// 	INFO_LOG("ref: %s", nodeToString(nd));
+// 	// }
 
-	// QueryOperator *child_copy = (QueryOperator *)copyObject(OP_LCHILD(op));
+// 	// QueryOperator *child_copy = (QueryOperator *)copyObject(OP_LCHILD(op));
 
-	// QueryOperator *proj = (QueryOperator *)createProjectionOp(proj_projExpr, OP_LCHILD(op), NIL, proj_projName);
-	// OP_LCHILD(op)->parents = singleton(proj);
-	// setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
-	// markUncertAttrsAsProv(proj);
+// 	// QueryOperator *proj = (QueryOperator *)createProjectionOp(proj_projExpr, OP_LCHILD(op), NIL, proj_projName);
+// 	// OP_LCHILD(op)->parents = singleton(proj);
+// 	// setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+// 	// markUncertAttrsAsProv(proj);
 
-	// QueryOperator *proj2 = (QueryOperator *)createProjectionOp(proj_projExpr2, child_copy, NIL, proj_projName);
-	// child_copy->parents = singleton(proj2);
-	// setStringProperty(proj2, UNCERT_MAPPING_PROP, (Node *)hmpIn);
-	// markUncertAttrsAsProv(proj2);
+// 	// QueryOperator *proj2 = (QueryOperator *)createProjectionOp(proj_projExpr2, child_copy, NIL, proj_projName);
+// 	// child_copy->parents = singleton(proj2);
+// 	// setStringProperty(proj2, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+// 	// markUncertAttrsAsProv(proj2);
 
-	// QueryOperator * unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(proj, proj2), NIL, proj_projName);
-	// proj->parents = singleton(unionop);
-	// proj2->parents = singleton(unionop);
+// 	// QueryOperator * unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(proj, proj2), NIL, proj_projName);
+// 	// proj->parents = singleton(unionop);
+// 	// proj2->parents = singleton(unionop);
 
-	// setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *)hmpIn);
-	// markUncertAttrsAsProv(unionop);
+// 	// setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+// 	// markUncertAttrsAsProv(unionop);
 
-	// Node *sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(unionop, ATTR_ISEND)));
+// 	// Node *sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(unionop, ATTR_ISEND)));
 
-	// Node *orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(unionop,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
+// 	// Node *orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(unionop,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
 
-	// QueryOperator * windowop_lb = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getLBString(ATTR_RANK), unionop, NIL);
-	// unionop->parents = singleton(windowop_lb);
+// 	// QueryOperator * windowop_lb = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getLBString(ATTR_RANK), unionop, NIL);
+// 	// unionop->parents = singleton(windowop_lb);
 
-	// sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_lb, ATTR_ISEND)));
+// 	// sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_lb, ATTR_ISEND)));
 
-	// orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_lb,orderName), SORT_ASC, SORT_NULLS_LAST);
+// 	// orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_lb,orderName), SORT_ASC, SORT_NULLS_LAST);
 
-	// QueryOperator * windowop_sg = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, ATTR_RANK, windowop_lb, NIL);
-	// windowop_lb->parents = singleton(windowop_sg);
+// 	// QueryOperator * windowop_sg = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, ATTR_RANK, windowop_lb, NIL);
+// 	// windowop_lb->parents = singleton(windowop_sg);
 
-	// sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_sg, ATTR_NOTEND)));
+// 	// sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_sg, ATTR_NOTEND)));
 
-	// orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_sg,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
+// 	// orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_sg,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
 
-	// QueryOperator *windowop_ub = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getUBString(ATTR_RANK), windowop_sg, NIL);
-	// windowop_sg->parents = singleton(windowop_ub);
+// 	// QueryOperator *windowop_ub = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getUBString(ATTR_RANK), windowop_sg, NIL);
+// 	// windowop_sg->parents = singleton(windowop_ub);
 
-	// proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
-	// proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+// 	// proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+// 	// proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
 
-	// Node *lb_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getLBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_NOTEND)));
-	// Node *sg_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,ATTR_RANK),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
-	// Node *ub_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getUBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
+// 	// Node *lb_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getLBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_NOTEND)));
+// 	// Node *sg_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,ATTR_RANK),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
+// 	// Node *ub_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getUBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
 
-	// appendToTailOfList(proj_projExpr, lb_rank);
-	// appendToTailOfList(proj_projExpr, sg_rank);
-	// appendToTailOfList(proj_projExpr, ub_rank);
+// 	// appendToTailOfList(proj_projExpr, lb_rank);
+// 	// appendToTailOfList(proj_projExpr, sg_rank);
+// 	// appendToTailOfList(proj_projExpr, ub_rank);
 
-	// appendToTailOfList(proj_projName, getLBString(ATTR_RANK));
-	// appendToTailOfList(proj_projName, ATTR_RANK);
-	// appendToTailOfList(proj_projName, getUBString(ATTR_RANK));
+// 	// appendToTailOfList(proj_projName, getLBString(ATTR_RANK));
+// 	// appendToTailOfList(proj_projName, ATTR_RANK);
+// 	// appendToTailOfList(proj_projName, getUBString(ATTR_RANK));
 
-	// QueryOperator *endpoint_proj = (QueryOperator *)createProjectionOp(proj_projExpr, windowop_ub, NIL, proj_projName);
-	// windowop_ub->parents = singleton(endpoint_proj);
+// 	// QueryOperator *endpoint_proj = (QueryOperator *)createProjectionOp(proj_projExpr, windowop_ub, NIL, proj_projName);
+// 	// windowop_ub->parents = singleton(endpoint_proj);
 
-	// proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
-	// proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
-	// proj_projName = CONCAT_LISTS(LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)),proj_projName);
+// 	// proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+// 	// proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+// 	// proj_projName = CONCAT_LISTS(LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)),proj_projName);
 
-	// Node *lb_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getLBString(ATTR_RANK))));
-	// Node *sg_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, ATTR_RANK)));
-	// Node *ub_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getUBString(ATTR_RANK))));
+// 	// Node *lb_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getLBString(ATTR_RANK))));
+// 	// Node *sg_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, ATTR_RANK)));
+// 	// Node *ub_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getUBString(ATTR_RANK))));
 
-	// QueryOperator *agg = (QueryOperator *)createAggregationOp(LIST_MAKE(lb_sum,sg_sum,ub_sum), proj_projExpr, endpoint_proj, NIL, proj_projName);
-	// endpoint_proj->parents = singleton(agg);
+// 	// QueryOperator *agg = (QueryOperator *)createAggregationOp(LIST_MAKE(lb_sum,sg_sum,ub_sum), proj_projExpr, endpoint_proj, NIL, proj_projName);
+// 	// endpoint_proj->parents = singleton(agg);
 
-	// proj_projExpr = NIL;
-	// proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
-	// proj_projName = CONCAT_LISTS(proj_projName,LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)));
-	// FOREACH(char, n, proj_projName){
-	// 	proj_projExpr = appendToTailOfList(proj_projExpr, (Node *)getAttrRefByName(agg, n));
-	// }
-	// QueryOperator *final_proj = (QueryOperator *)createProjectionOp(proj_projExpr, agg, NIL, proj_projName);
-	// agg->parents = singleton(final_proj);
+// 	// proj_projExpr = NIL;
+// 	// proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+// 	// proj_projName = CONCAT_LISTS(proj_projName,LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)));
+// 	// FOREACH(char, n, proj_projName){
+// 	// 	proj_projExpr = appendToTailOfList(proj_projExpr, (Node *)getAttrRefByName(agg, n));
+// 	// }
+// 	// QueryOperator *final_proj = (QueryOperator *)createProjectionOp(proj_projExpr, agg, NIL, proj_projName);
+// 	// agg->parents = singleton(final_proj);
 
-	// ADD_TO_MAP(hmpIn, createNodeKeyValue((Node *)getAttrRefByName(final_proj, ATTR_RANK), (Node *)LIST_MAKE((Node *)getAttrRefByName(final_proj, getUBString(ATTR_RANK)), (Node *)getAttrRefByName(final_proj, getLBString(ATTR_RANK)))));
+// 	// ADD_TO_MAP(hmpIn, createNodeKeyValue((Node *)getAttrRefByName(final_proj, ATTR_RANK), (Node *)LIST_MAKE((Node *)getAttrRefByName(final_proj, getUBString(ATTR_RANK)), (Node *)getAttrRefByName(final_proj, getLBString(ATTR_RANK)))));
 
-	// // switchSubtrees(op, final_proj);
+// 	// // switchSubtrees(op, final_proj);
 
-	// setStringProperty(final_proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
-	// markUncertAttrsAsProv(final_proj);
+// 	// setStringProperty(final_proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+// 	// markUncertAttrsAsProv(final_proj);
 
-	// return final_proj;
-}
+// 	// return final_proj;
+// }
 
 static QueryOperator *
 rewrite_RangeWindow(QueryOperator *op)
