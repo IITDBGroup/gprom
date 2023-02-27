@@ -4686,8 +4686,10 @@ rewrite_RangeSelection(QueryOperator *op)
     ((ProjectionOperator *)proj)->projExprs = removeFromTail(((ProjectionOperator *)proj)->projExprs);
     ((ProjectionOperator *)proj)->projExprs = removeFromTail(((ProjectionOperator *)proj)->projExprs);
     //add row conditions
-    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(lbCond));
-    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, (Node *)createCaseOperator(cond));
+    Operator *cetSel = createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(op,ROW_CERTAIN), (Node *)createCaseOperator(lbCond)));
+    Operator *bstSel = createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(op,ROW_BESTGUESS), (Node *)createCaseOperator(cond)));
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, cetSel);
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, bstSel);
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs,pos_cond);
     setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
