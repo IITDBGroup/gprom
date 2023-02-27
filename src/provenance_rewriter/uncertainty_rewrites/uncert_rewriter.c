@@ -5260,99 +5260,101 @@ rewrite_RangeWindow(QueryOperator *op)
 	// List *attrName = getNormalAttrNames(OP_LCHILD(op));
 
     //rewrite child first
-    // rewriteRange(OP_LCHILD(op));
+    rewriteRange(OP_LCHILD(op));
 
-	INFO_LOG("REWRITE-RANGE - Window");
-	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    return op;
 
-	Node *orderExpr = (Node *)getHeadOfListP(((WindowOperator *)op)->orderBy);
-	char *orderName = ((AttributeReference *)((OrderExpr *)orderExpr)->expr)->name;
-	Node *aggFunc = (Node *)getHeadOfListP(((WindowOperator *)op)->fCall);
-	Node *aggRef = (Node *)getHeadOfListP((FunctionCall *)aggFunc->args);
-	char *aggName = ((AttributeReference *)aggRef)->name;
+	// INFO_LOG("REWRITE-RANGE - Window");
+	// DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
-	WindowFrame *frameDef = ((WindowOperator *)op)->frameDef;
-	WindowBoundType lbType = frameDef->lower->bType;
-	WindowBoundType ubType = frameDef->higher->bType;
-	//assume window specs are constants
-	Node *lbExpr = frameDef->lower->expr;
-	Node *ubExpr = frameDef->higher->expr;
+	// Node *orderExpr = (Node *)getHeadOfListP(((WindowOperator *)op)->orderBy);
+	// char *orderName = ((AttributeReference *)((OrderExpr *)orderExpr)->expr)->name;
+	// Node *aggFunc = (Node *)getHeadOfListP(((WindowOperator *)op)->fCall);
+	// Node *aggRef = (Node *)getHeadOfListP((FunctionCall *)aggFunc->args);
+	// char *aggName = ((AttributeReference *)aggRef)->name;
 
-	QueryOperator *q1 = rewrite_RangeSortForWindow(op);
-	QueryOperator *q2 = rewrite_RangeSortForWindow(op);
+	// WindowFrame *frameDef = ((WindowOperator *)op)->frameDef;
+	// WindowBoundType lbType = frameDef->lower->bType;
+	// WindowBoundType ubType = frameDef->higher->bType;
+	// //assume window specs are constants
+	// Node *lbExpr = frameDef->lower->expr;
+	// Node *ubExpr = frameDef->higher->expr;
 
-	//projection: need rank, aggregation attribute and row ranges for RHS join.
+	// QueryOperator *q1 = rewrite_RangeSortForWindow(op);
+	// QueryOperator *q2 = rewrite_RangeSortForWindow(op);
 
-	List* projExpr = NIL;
-	List* projNames = NIL;
+	// //projection: need rank, aggregation attribute and row ranges for RHS join.
 
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ATTR_RANK));
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getUBString(ATTR_RANK)));
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getLBString(ATTR_RANK)));
-	appendToTailOfList(projNames, RANK_ATTR_RENAME);
-	appendToTailOfList(projNames, getUBString(RANK_ATTR_RENAME));
-	appendToTailOfList(projNames, getLBString(RANK_ATTR_RENAME));
+	// List* projExpr = NIL;
+	// List* projNames = NIL;
 
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, aggName));
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getUBString(aggName)));
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getLBString(aggName)));
-	appendToTailOfList(projNames, AGG_ATTR_RENAME);
-	appendToTailOfList(projNames, getUBString(AGG_ATTR_RENAME));
-	appendToTailOfList(projNames, getLBString(AGG_ATTR_RENAME));
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ATTR_RANK));
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getUBString(ATTR_RANK)));
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getLBString(ATTR_RANK)));
+	// appendToTailOfList(projNames, RANK_ATTR_RENAME);
+	// appendToTailOfList(projNames, getUBString(RANK_ATTR_RENAME));
+	// appendToTailOfList(projNames, getLBString(RANK_ATTR_RENAME));
 
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_CERTAIN));
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_BESTGUESS));
-	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_POSSIBLE));
-	appendToTailOfList(projNames, ROW_CERTAIN_TWO);
-	appendToTailOfList(projNames, ROW_CERTAIN_TWO);
-	appendToTailOfList(projNames, ROW_CERTAIN_TWO);
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, aggName));
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getUBString(aggName)));
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getLBString(aggName)));
+	// appendToTailOfList(projNames, AGG_ATTR_RENAME);
+	// appendToTailOfList(projNames, getUBString(AGG_ATTR_RENAME));
+	// appendToTailOfList(projNames, getLBString(AGG_ATTR_RENAME));
 
-	QueryOperator *prefilterProj = (QueryOperator *)createProjectionOp(projExpr, q2, NIL, projNames);
-	q2->parents = singleton(prefilterProj);
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_CERTAIN));
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_BESTGUESS));
+	// appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_POSSIBLE));
+	// appendToTailOfList(projNames, ROW_CERTAIN_TWO);
+	// appendToTailOfList(projNames, ROW_CERTAIN_TWO);
+	// appendToTailOfList(projNames, ROW_CERTAIN_TWO);
 
-	//interval overlap join on possible windows
+	// QueryOperator *prefilterProj = (QueryOperator *)createProjectionOp(projExpr, q2, NIL, projNames);
+	// q2->parents = singleton(prefilterProj);
 
-	Node *window_ub_right = (Node *)getAttrRefByName(prefilterProj, getUBString(RANK_ATTR_RENAME));
-	((AttributeReference *)window_ub_right)->fromClauseItem = 1;
-	Node *window_lb_right = (Node *)getAttrRefByName(prefilterProj, getLBString(RANK_ATTR_RENAME));
-	((AttributeReference *)window_lb_right)->fromClauseItem = 1;
-	Node *window_ub_left = (Node *)getAttrRefByName(q1, getUBString(ATTR_RANK));
-	Node *window_lb_left = (Node *)getAttrRefByName(q1, getLBString(ATTR_RANK));
-	Node *cond1 = (Node *)createOpExpr(OPNAME_LE, LIST_MAKE((Node *)createOpExpr(OPNAME_MINUS, LIST_MAKE(window_lb_left, lbExpr)), window_ub_right));
-	Node *cond2 = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE((Node *)createOpExpr(OPNAME_ADD, LIST_MAKE(window_ub_left, ubExpr)), window_lb_right));
-	Node *joinExpr = (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2));
-	INFO_LOG(nodeToString(joinExpr));
+	// //interval overlap join on possible windows
 
-	List *attrNames = CONCAT_LISTS(getQueryOperatorAttrNames(q1), deepCopyStringList(projNames));
+	// Node *window_ub_right = (Node *)getAttrRefByName(prefilterProj, getUBString(RANK_ATTR_RENAME));
+	// ((AttributeReference *)window_ub_right)->fromClauseItem = 1;
+	// Node *window_lb_right = (Node *)getAttrRefByName(prefilterProj, getLBString(RANK_ATTR_RENAME));
+	// ((AttributeReference *)window_lb_right)->fromClauseItem = 1;
+	// Node *window_ub_left = (Node *)getAttrRefByName(q1, getUBString(ATTR_RANK));
+	// Node *window_lb_left = (Node *)getAttrRefByName(q1, getLBString(ATTR_RANK));
+	// Node *cond1 = (Node *)createOpExpr(OPNAME_LE, LIST_MAKE((Node *)createOpExpr(OPNAME_MINUS, LIST_MAKE(window_lb_left, lbExpr)), window_ub_right));
+	// Node *cond2 = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE((Node *)createOpExpr(OPNAME_ADD, LIST_MAKE(window_ub_left, ubExpr)), window_lb_right));
+	// Node *joinExpr = (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2));
+	// INFO_LOG(nodeToString(joinExpr));
 
-	QueryOperator *crossjoin = (QueryOperator *)createJoinOp(JOIN_INNER, joinExpr, LIST_MAKE(q1, prefilterProj), NIL, List *attrNames);
-	q1->parents = singleton(crossjoin);
-	prefilterProj->parents = singleton(crossjoin);
+	// List *attrNames = CONCAT_LISTS(getQueryOperatorAttrNames(q1), deepCopyStringList(projNames));
 
-	//projection on certain window flag
+	// QueryOperator *crossjoin = (QueryOperator *)createJoinOp(JOIN_INNER, joinExpr, LIST_MAKE(q1, prefilterProj), NIL, List *attrNames);
+	// q1->parents = singleton(crossjoin);
+	// prefilterProj->parents = singleton(crossjoin);
 
-	projExpr = getProjExprsForAllAttrs(crossjoin);
-	projNames = getQueryOperatorAttrNames(crossjoin);
+	// //projection on certain window flag
 
-	window_ub_right = (Node *)getAttrRefByName(crossjoin, getUBString(RANK_ATTR_RENAME));
-	window_lb_right = (Node *)getAttrRefByName(crossjoin, getLBString(RANK_ATTR_RENAME));
-	window_ub_left = (Node *)getAttrRefByName(crossjoin, getUBString(ATTR_RANK));
-	window_lb_left = (Node *)getAttrRefByName(crossjoin, getLBString(ATTR_RANK));
-	cond1 = (Node *)createOpExpr(OPNAME_LE, LIST_MAKE((Node *)createOpExpr(OPNAME_MINUS, LIST_MAKE(window_lb_left, lbExpr)), window_lb_right));
-	cond2 = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE((Node *)createOpExpr(OPNAME_ADD, LIST_MAKE(window_ub_left, ubExpr)), window_ub_right));
-	Node *casewhen = createCaseWhen((Node *)createOpExpr(OPNAME_AND,LIST_MAKE(cond1, cond2)),(Node *)createConstInt(1));
-	appendToTailOfList(projExpr, (Node *)createCaseExpr(NULL,singleton(casewhen),(Node *)createConstInt(0)));
-	appendToTailOfList(projNames, ATTR_ISCERT);
-	QueryOperator *certproj = (QueryOperator *)createProjectionOp(projExpr, crossjoin, NIL, projNames);
-	crossjoin->parents = singleton(certproj);
+	// projExpr = getProjExprsForAllAttrs(crossjoin);
+	// projNames = getQueryOperatorAttrNames(crossjoin);
 
-	//rank each window on certain flag then value.
+	// window_ub_right = (Node *)getAttrRefByName(crossjoin, getUBString(RANK_ATTR_RENAME));
+	// window_lb_right = (Node *)getAttrRefByName(crossjoin, getLBString(RANK_ATTR_RENAME));
+	// window_ub_left = (Node *)getAttrRefByName(crossjoin, getUBString(ATTR_RANK));
+	// window_lb_left = (Node *)getAttrRefByName(crossjoin, getLBString(ATTR_RANK));
+	// cond1 = (Node *)createOpExpr(OPNAME_LE, LIST_MAKE((Node *)createOpExpr(OPNAME_MINUS, LIST_MAKE(window_lb_left, lbExpr)), window_lb_right));
+	// cond2 = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE((Node *)createOpExpr(OPNAME_ADD, LIST_MAKE(window_ub_left, ubExpr)), window_ub_right));
+	// Node *casewhen = createCaseWhen((Node *)createOpExpr(OPNAME_AND,LIST_MAKE(cond1, cond2)),(Node *)createConstInt(1));
+	// appendToTailOfList(projExpr, (Node *)createCaseExpr(NULL,singleton(casewhen),(Node *)createConstInt(0)));
+	// appendToTailOfList(projNames, ATTR_ISCERT);
+	// QueryOperator *certproj = (QueryOperator *)createProjectionOp(projExpr, crossjoin, NIL, projNames);
+	// crossjoin->parents = singleton(certproj);
 
-	//selection: filter out unwanted candidates.
+	// //rank each window on certain flag then value.
 
-	//projection: if uncertain only condier positive contributers for upperbound and negative contributers for lowerbound
+	// //selection: filter out unwanted candidates.
 
-	//aggregation: final window result.
+	// //projection: if uncertain only condier positive contributers for upperbound and negative contributers for lowerbound
 
-	return certproj;
+	// //aggregation: final window result.
+
+	// return certproj;
 }
