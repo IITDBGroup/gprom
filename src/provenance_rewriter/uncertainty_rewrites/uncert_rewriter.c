@@ -45,6 +45,14 @@ NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
 #define ATTR_UNCERT_PFX backendifyIdentifier("U_")
 #define SELFJOIN_AFFIX backendifyIdentifier("1")//differentiate attr names when selfjoin
 
+/* rank and window attributes */
+#define ATTR_ISEND backendifyIdentifier("ISEND")
+#define ATTR_NOTEND backendifyIdentifier("NOTEND")
+#define ATTR_POINT backendifyIdentifier("P")
+#define ATTR_RANK backendifyIdentifier("RANK")
+#define AGG_ATTR_RENAME backendifyIdentifier("AGG_ATTR")
+#define RANK_ATTR_RENAME backendifyIdentifier("RANKR")
+
 #define UNCERT_MAPPING_PROP "UNCERT_MAPPING"
 
 /* function declarations */
@@ -98,6 +106,9 @@ static QueryOperator *rewrite_RangeJoin(QueryOperator *op);
 static QueryOperator *rewrite_RangeJoinOptimized(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation2(QueryOperator *op);
+static QueryOperator *rewrite_RangeSort(QueryOperator *op);
+static QueryOperator *rewrite_RangeSortForWindow(QueryOperator *op);
+static QueryOperator *rewrite_RangeWindow(QueryOperator *op);
 
 static QueryOperator *spliceToBG(QueryOperator *op);
 static QueryOperator *spliceToBGAggr(QueryOperator *op);
@@ -153,31 +164,31 @@ rewriteUncert(QueryOperator * op)
 	        rewrittenOp = rewriteUncertProvComp(op, TRUE);
 	        break;
 		case T_TableAccessOperator:
-			rewrittenOp =rewrite_UncertTableAccess(op, TRUE);;
+			rewrittenOp =rewrite_UncertTableAccess(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite TableAccess:", rewrittenOp);
 			break;
 		case T_SelectionOperator:
-			rewrittenOp = rewrite_UncertSelection(op, TRUE);;
+			rewrittenOp = rewrite_UncertSelection(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Selection:", rewrittenOp);
 			break;
 		case T_ProjectionOperator:
-			rewrittenOp = rewrite_UncertProjection(op, TRUE);;
+			rewrittenOp = rewrite_UncertProjection(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Projection:", rewrittenOp);
 			break;
 		case T_JoinOperator:
-			rewrittenOp = rewrite_UncertJoin(op, TRUE);;
+			rewrittenOp = rewrite_UncertJoin(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Join:", rewrittenOp);
 			break;
 		case T_AggregationOperator:
-			rewrittenOp = rewrite_UncertAggregation(op, TRUE);;
+			rewrittenOp = rewrite_UncertAggregation(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Aggregation:", rewrittenOp);
 			break;
 		case T_DuplicateRemoval:
-			rewrittenOp = rewrite_UncertDuplicateRemoval(op, TRUE);;
+			rewrittenOp = rewrite_UncertDuplicateRemoval(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite DuplicateRemoval:", rewrittenOp);
 			break;
 		case T_SetOperator:
-			rewrittenOp = rewrite_UncertSet(op, TRUE);;
+			rewrittenOp = rewrite_UncertSet(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
 		default:
@@ -330,8 +341,16 @@ rewriteRange(QueryOperator * op)
 			rewrittenOp = rewrite_UncertSet(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
+		case T_WindowOperator:
+			rewrittenOp = rewrite_RangeWindow(op);
+			INFO_OP_LOG("Range Rewrite window:", rewrittenOp);
+			break;
+		case T_OrderOperator:
+			rewrittenOp = rewrite_RangeSort(op);
+			INFO_OP_LOG("Range Rewrite sorting:", rewrittenOp);
+			break;
 		default:
-			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));
+			FATAL_LOG("Range rewrite for %s not implemented", NodeTagToString(op->type));
 			rewrittenOp = NULL;
 			break;
 	}
@@ -4918,4 +4937,418 @@ addRangeRowToSchema(HashMap *hmp, QueryOperator *target)
 	ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_BESTGUESS), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
 	addAttrToSchema(target, ROW_POSSIBLE, DT_INT);
 	ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+}
+
+static QueryOperator *
+rewrite_RangeSort(QueryOperator *op)
+{
+	ASSERT(OP_LCHILD(op));
+
+	// push down min max attr property if there are any
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		// removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
+		// INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
+		// INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
+		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+	}
+
+	//record original info
+	// List *projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
+	// List *attrName = getNormalAttrNames(OP_LCHILD(op));
+
+    //rewrite child first
+    rewriteRange(OP_LCHILD(op));
+
+	INFO_LOG("REWRITE-RANGE - Sort");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	// HashMap * hmp = NEW_MAP(Node, Node);
+
+	List *proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+	List *proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+	List *proj_projExpr2 = getProjExprsForAllAttrs(OP_LCHILD(op));
+
+	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+
+	Node *orderExpr = (Node *)getHeadOfListP(((OrderOperator *)op)->orderExprs);
+	char *orderName = ((AttributeReference *)((OrderExpr *)orderExpr)->expr)->name;
+	char *lb_orderName = getLBString(orderName);
+	char *ub_orderName = getUBString(orderName);
+
+	// INFO_LOG("order by: %s", orderName);
+
+	Node *lb_ref = (Node *)getAttrRefByName(OP_LCHILD(op), lb_orderName);
+	Node *ub_ref = (Node *)getAttrRefByName(OP_LCHILD(op), ub_orderName);
+
+	appendToTailOfList(proj_projExpr, lb_ref);
+	appendToTailOfList(proj_projName, ATTR_POINT);
+	appendToTailOfList(proj_projExpr, createConstInt(0));
+	appendToTailOfList(proj_projExpr, createConstInt(1));
+	appendToTailOfList(proj_projName, ATTR_ISEND);
+	appendToTailOfList(proj_projName, ATTR_NOTEND);
+
+	appendToTailOfList(proj_projExpr2, ub_ref);
+	appendToTailOfList(proj_projExpr2, createConstInt(1));
+	appendToTailOfList(proj_projExpr2, createConstInt(0));
+
+	// INFO_LOG("proj_projName: %s", stringListToString(proj_projName));
+	FOREACH(Node, nd, proj_projExpr){
+		INFO_LOG("ref: %s", nodeToString(nd));
+	}
+
+	QueryOperator *child_copy = (QueryOperator *)copyObject(OP_LCHILD(op));
+
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(proj_projExpr, OP_LCHILD(op), NIL, proj_projName);
+	OP_LCHILD(op)->parents = singleton(proj);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(proj);
+
+	QueryOperator *proj2 = (QueryOperator *)createProjectionOp(proj_projExpr2, child_copy, NIL, proj_projName);
+	child_copy->parents = singleton(proj2);
+	setStringProperty(proj2, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(proj2);
+
+	QueryOperator * unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(proj, proj2), NIL, proj_projName);
+	proj->parents = singleton(unionop);
+	proj2->parents = singleton(unionop);
+
+	setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(unionop);
+
+	Node *sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(unionop, ATTR_ISEND)));
+
+	Node *orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(unionop,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
+
+	QueryOperator * windowop_lb = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getLBString(ATTR_RANK), unionop, NIL);
+	unionop->parents = singleton(windowop_lb);
+
+	sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_lb, ATTR_ISEND)));
+
+	orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_lb,orderName), SORT_ASC, SORT_NULLS_LAST);
+
+	QueryOperator * windowop_sg = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, ATTR_RANK, windowop_lb, NIL);
+	windowop_lb->parents = singleton(windowop_sg);
+
+	sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_sg, ATTR_NOTEND)));
+
+	orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_sg,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
+
+	QueryOperator *windowop_ub = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getUBString(ATTR_RANK), windowop_sg, NIL);
+	windowop_sg->parents = singleton(windowop_ub);
+
+	proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+	proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+
+	Node *lb_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getLBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_NOTEND)));
+	Node *sg_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,ATTR_RANK),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
+	Node *ub_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getUBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
+
+	appendToTailOfList(proj_projExpr, lb_rank);
+	appendToTailOfList(proj_projExpr, sg_rank);
+	appendToTailOfList(proj_projExpr, ub_rank);
+
+	appendToTailOfList(proj_projName, getLBString(ATTR_RANK));
+	appendToTailOfList(proj_projName, ATTR_RANK);
+	appendToTailOfList(proj_projName, getUBString(ATTR_RANK));
+
+	QueryOperator *endpoint_proj = (QueryOperator *)createProjectionOp(proj_projExpr, windowop_ub, NIL, proj_projName);
+	windowop_ub->parents = singleton(endpoint_proj);
+
+	proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+	proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+	proj_projName = CONCAT_LISTS(LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)),proj_projName);
+
+	Node *lb_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getLBString(ATTR_RANK))));
+	Node *sg_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, ATTR_RANK)));
+	Node *ub_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getUBString(ATTR_RANK))));
+
+	QueryOperator *agg = (QueryOperator *)createAggregationOp(LIST_MAKE(lb_sum,sg_sum,ub_sum), proj_projExpr, endpoint_proj, NIL, proj_projName);
+	endpoint_proj->parents = singleton(agg);
+
+	proj_projExpr = NIL;
+	proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+	proj_projName = CONCAT_LISTS(proj_projName,LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)));
+	FOREACH(char, n, proj_projName){
+		proj_projExpr = appendToTailOfList(proj_projExpr, (Node *)getAttrRefByName(agg, n));
+	}
+	QueryOperator *final_proj = (QueryOperator *)createProjectionOp(proj_projExpr, agg, NIL, proj_projName);
+	agg->parents = singleton(final_proj);
+
+	ADD_TO_MAP(hmpIn, createNodeKeyValue((Node *)getAttrRefByName(final_proj, ATTR_RANK), (Node *)LIST_MAKE((Node *)getAttrRefByName(final_proj, getUBString(ATTR_RANK)), (Node *)getAttrRefByName(final_proj, getLBString(ATTR_RANK)))));
+
+	switchSubtrees(op, final_proj);
+
+	setStringProperty(final_proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(final_proj);
+
+	return final_proj;
+}
+
+static QueryOperator *
+rewrite_RangeSortForWindow(QueryOperator *op)
+{
+	ASSERT(OP_LCHILD(op));
+
+	// push down min max attr property if there are any
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		// removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
+		// INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
+		// INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
+		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+	}
+
+	//record original info
+	// List *projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
+	// List *attrName = getNormalAttrNames(OP_LCHILD(op));
+
+    //rewrite child first
+    rewriteRange(OP_LCHILD(op));
+
+	// HashMap * hmp = NEW_MAP(Node, Node);
+
+	List *proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+	List *proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+	List *proj_projExpr2 = getProjExprsForAllAttrs(OP_LCHILD(op));
+
+	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+
+	Node *orderExpr = (Node *)getHeadOfListP(((WindowOperator *)op)->orderBy);
+	char *orderName = ((AttributeReference *)((OrderExpr *)orderExpr)->expr)->name;
+	char *lb_orderName = getLBString(orderName);
+	char *ub_orderName = getUBString(orderName);
+
+	// INFO_LOG("order by: %s", orderName);
+
+	Node *lb_ref = (Node *)getAttrRefByName(OP_LCHILD(op), lb_orderName);
+	Node *ub_ref = (Node *)getAttrRefByName(OP_LCHILD(op), ub_orderName);
+
+	appendToTailOfList(proj_projExpr, lb_ref);
+	appendToTailOfList(proj_projName, ATTR_POINT);
+	appendToTailOfList(proj_projExpr, createConstInt(0));
+	appendToTailOfList(proj_projExpr, createConstInt(1));
+	appendToTailOfList(proj_projName, ATTR_ISEND);
+	appendToTailOfList(proj_projName, ATTR_NOTEND);
+
+	appendToTailOfList(proj_projExpr2, ub_ref);
+	appendToTailOfList(proj_projExpr2, createConstInt(1));
+	appendToTailOfList(proj_projExpr2, createConstInt(0));
+
+	// INFO_LOG("proj_projName: %s", stringListToString(proj_projName));
+	FOREACH(Node, nd, proj_projExpr){
+		INFO_LOG("ref: %s", nodeToString(nd));
+	}
+
+	QueryOperator *child_copy = (QueryOperator *)copyObject(OP_LCHILD(op));
+
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(proj_projExpr, OP_LCHILD(op), NIL, proj_projName);
+	OP_LCHILD(op)->parents = singleton(proj);
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(proj);
+
+	QueryOperator *proj2 = (QueryOperator *)createProjectionOp(proj_projExpr2, child_copy, NIL, proj_projName);
+	child_copy->parents = singleton(proj2);
+	setStringProperty(proj2, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(proj2);
+
+	QueryOperator * unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(proj, proj2), NIL, proj_projName);
+	proj->parents = singleton(unionop);
+	proj2->parents = singleton(unionop);
+
+	setStringProperty(unionop, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(unionop);
+
+	Node *sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(unionop, ATTR_ISEND)));
+
+	Node *orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(unionop,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
+
+	QueryOperator * windowop_lb = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getLBString(ATTR_RANK), unionop, NIL);
+	unionop->parents = singleton(windowop_lb);
+
+	sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_lb, ATTR_ISEND)));
+
+	orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_lb,orderName), SORT_ASC, SORT_NULLS_LAST);
+
+	QueryOperator * windowop_sg = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, ATTR_RANK, windowop_lb, NIL);
+	windowop_lb->parents = singleton(windowop_sg);
+
+	sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(windowop_sg, ATTR_NOTEND)));
+
+	orderexp = (Node *)createOrderExpr((Node *)getAttrRefByName(windowop_sg,ATTR_POINT), SORT_ASC, SORT_NULLS_LAST);
+
+	QueryOperator *windowop_ub = (QueryOperator *)createWindowOp(sum, NIL, singleton(orderexp), NULL, getUBString(ATTR_RANK), windowop_sg, NIL);
+	windowop_sg->parents = singleton(windowop_ub);
+
+	proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+	proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+
+	Node *lb_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getLBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_NOTEND)));
+	Node *sg_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,ATTR_RANK),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
+	Node *ub_rank = (Node *)createOpExpr("*",LIST_MAKE((Node *)getAttrRefByName(windowop_ub,getUBString(ATTR_RANK)),(Node *)getAttrRefByName(windowop_ub,ATTR_ISEND)));
+
+	appendToTailOfList(proj_projExpr, lb_rank);
+	appendToTailOfList(proj_projExpr, sg_rank);
+	appendToTailOfList(proj_projExpr, ub_rank);
+
+	appendToTailOfList(proj_projName, getLBString(ATTR_RANK));
+	appendToTailOfList(proj_projName, ATTR_RANK);
+	appendToTailOfList(proj_projName, getUBString(ATTR_RANK));
+
+	QueryOperator *endpoint_proj = (QueryOperator *)createProjectionOp(proj_projExpr, windowop_ub, NIL, proj_projName);
+	windowop_ub->parents = singleton(endpoint_proj);
+
+	proj_projExpr = getProjExprsForAllAttrs(OP_LCHILD(op));
+	proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+	proj_projName = CONCAT_LISTS(LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)),proj_projName);
+
+	Node *lb_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getLBString(ATTR_RANK))));
+	Node *sg_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, ATTR_RANK)));
+	Node *ub_sum = (Node *)createFunctionCall(SUM_FUNC_NAME,singleton((Node *)getAttrRefByName(endpoint_proj, getUBString(ATTR_RANK))));
+
+	QueryOperator *agg = (QueryOperator *)createAggregationOp(LIST_MAKE(lb_sum,sg_sum,ub_sum), proj_projExpr, endpoint_proj, NIL, proj_projName);
+	endpoint_proj->parents = singleton(agg);
+
+	proj_projExpr = NIL;
+	proj_projName = getQueryOperatorAttrNames(OP_LCHILD(op));
+	proj_projName = CONCAT_LISTS(proj_projName,LIST_MAKE(getLBString(ATTR_RANK),ATTR_RANK,getUBString(ATTR_RANK)));
+	FOREACH(char, n, proj_projName){
+		proj_projExpr = appendToTailOfList(proj_projExpr, (Node *)getAttrRefByName(agg, n));
+	}
+	QueryOperator *final_proj = (QueryOperator *)createProjectionOp(proj_projExpr, agg, NIL, proj_projName);
+	agg->parents = singleton(final_proj);
+
+	ADD_TO_MAP(hmpIn, createNodeKeyValue((Node *)getAttrRefByName(final_proj, ATTR_RANK), (Node *)LIST_MAKE((Node *)getAttrRefByName(final_proj, getUBString(ATTR_RANK)), (Node *)getAttrRefByName(final_proj, getLBString(ATTR_RANK)))));
+
+	// switchSubtrees(op, final_proj);
+
+	setStringProperty(final_proj, UNCERT_MAPPING_PROP, (Node *)hmpIn);
+	markUncertAttrsAsProv(final_proj);
+
+	return final_proj;
+}
+
+static QueryOperator *
+rewrite_RangeWindow(QueryOperator *op)
+{
+	ASSERT(OP_LCHILD(op));
+
+	// push down min max attr property if there are any
+	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
+	{
+		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		// removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
+		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
+		// INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
+		// INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
+		// setStringProperty(op, PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
+	}
+
+	//record original info
+	// List *projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
+	// List *attrName = getNormalAttrNames(OP_LCHILD(op));
+
+    //rewrite child first
+    // rewriteRange(OP_LCHILD(op));
+
+	INFO_LOG("REWRITE-RANGE - Window");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	Node *orderExpr = (Node *)getHeadOfListP(((WindowOperator *)op)->orderBy);
+	char *orderName = ((AttributeReference *)((OrderExpr *)orderExpr)->expr)->name;
+	Node *aggFunc = (Node *)getHeadOfListP(((WindowOperator *)op)->fCall);
+	Node *aggRef = (Node *)getHeadOfListP((FunctionCall *)aggFunc->args);
+	char *aggName = ((AttributeReference *)aggRef)->name;
+
+	WindowFrame *frameDef = ((WindowOperator *)op)->frameDef;
+	WindowBoundType lbType = frameDef->lower->bType;
+	WindowBoundType ubType = frameDef->higher->bType;
+	//assume window specs are constants
+	Node *lbExpr = frameDef->lower->expr;
+	Node *ubExpr = frameDef->higher->expr;
+
+	QueryOperator *q1 = rewrite_RangeSortForWindow(op);
+	QueryOperator *q2 = rewrite_RangeSortForWindow(op);
+
+	//projection: need rank, aggregation attribute and row ranges for RHS join.
+
+	List* projExpr = NIL;
+	List* projNames = NIL;
+
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ATTR_RANK));
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getUBString(ATTR_RANK)));
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getLBString(ATTR_RANK)));
+	appendToTailOfList(projNames, RANK_ATTR_RENAME);
+	appendToTailOfList(projNames, getUBString(RANK_ATTR_RENAME));
+	appendToTailOfList(projNames, getLBString(RANK_ATTR_RENAME));
+
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, aggName));
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getUBString(aggName)));
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, getLBString(aggName)));
+	appendToTailOfList(projNames, AGG_ATTR_RENAME);
+	appendToTailOfList(projNames, getUBString(AGG_ATTR_RENAME));
+	appendToTailOfList(projNames, getLBString(AGG_ATTR_RENAME));
+
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_CERTAIN));
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_BESTGUESS));
+	appendToTailOfList(projExpr, (Node *)getAttrRefByName(q2, ROW_POSSIBLE));
+	appendToTailOfList(projNames, ROW_CERTAIN_TWO);
+	appendToTailOfList(projNames, ROW_CERTAIN_TWO);
+	appendToTailOfList(projNames, ROW_CERTAIN_TWO);
+
+	QueryOperator *prefilterProj = (QueryOperator *)createProjectionOp(projExpr, q2, NIL, projNames);
+	q2->parents = singleton(prefilterProj);
+
+	//interval overlap join on possible windows
+
+	Node *window_ub_right = (Node *)getAttrRefByName(prefilterProj, getUBString(RANK_ATTR_RENAME));
+	((AttributeReference *)window_ub_right)->fromClauseItem = 1;
+	Node *window_lb_right = (Node *)getAttrRefByName(prefilterProj, getLBString(RANK_ATTR_RENAME));
+	((AttributeReference *)window_lb_right)->fromClauseItem = 1;
+	Node *window_ub_left = (Node *)getAttrRefByName(q1, getUBString(ATTR_RANK));
+	Node *window_lb_left = (Node *)getAttrRefByName(q1, getLBString(ATTR_RANK));
+	Node *cond1 = (Node *)createOpExpr(OPNAME_LE, LIST_MAKE((Node *)createOpExpr(OPNAME_MINUS, LIST_MAKE(window_lb_left, lbExpr)), window_ub_right));
+	Node *cond2 = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE((Node *)createOpExpr(OPNAME_ADD, LIST_MAKE(window_ub_left, ubExpr)), window_lb_right));
+	Node *joinExpr = (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(cond1, cond2));
+	INFO_LOG(nodeToString(joinExpr));
+
+	List *attrNames = CONCAT_LISTS(getQueryOperatorAttrNames(q1), deepCopyStringList(projNames));
+
+	QueryOperator *crossjoin = (QueryOperator *)createJoinOp(JOIN_INNER, joinExpr, LIST_MAKE(q1, prefilterProj), NIL, List *attrNames);
+	q1->parents = singleton(crossjoin);
+	prefilterProj->parents = singleton(crossjoin);
+
+	//projection on certain window flag
+
+	projExpr = getProjExprsForAllAttrs(crossjoin);
+	projNames = getQueryOperatorAttrNames(crossjoin);
+
+	window_ub_right = (Node *)getAttrRefByName(crossjoin, getUBString(RANK_ATTR_RENAME));
+	window_lb_right = (Node *)getAttrRefByName(crossjoin, getLBString(RANK_ATTR_RENAME));
+	window_ub_left = (Node *)getAttrRefByName(crossjoin, getUBString(ATTR_RANK));
+	window_lb_left = (Node *)getAttrRefByName(crossjoin, getLBString(ATTR_RANK));
+	cond1 = (Node *)createOpExpr(OPNAME_LE, LIST_MAKE((Node *)createOpExpr(OPNAME_MINUS, LIST_MAKE(window_lb_left, lbExpr)), window_lb_right));
+	cond2 = (Node *)createOpExpr(OPNAME_GE, LIST_MAKE((Node *)createOpExpr(OPNAME_ADD, LIST_MAKE(window_ub_left, ubExpr)), window_ub_right));
+	Node *casewhen = createCaseWhen((Node *)createOpExpr(OPNAME_AND,LIST_MAKE(cond1, cond2)),(Node *)createConstInt(1));
+	appendToTailOfList(projExpr, (Node *)createCaseExpr(NULL,singleton(casewhen),(Node *)createConstInt(0)));
+	appendToTailOfList(projNames, ATTR_ISCERT);
+	QueryOperator *certproj = (QueryOperator *)createProjectionOp(projExpr, crossjoin, NIL, projNames);
+	crossjoin->parents = singleton(certproj);
+
+	//rank each window on certain flag then value.
+
+	//selection: filter out unwanted candidates.
+
+	//projection: if uncertain only condier positive contributers for upperbound and negative contributers for lowerbound
+
+	//aggregation: final window result.
+
+	return certproj;
 }
