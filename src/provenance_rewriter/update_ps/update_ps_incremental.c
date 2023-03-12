@@ -427,7 +427,7 @@ updateProjection(QueryOperator* op)
 	if (mapSize(resChunkMaps) > 0) {
 		setStringProperty(op, PROP_DATA_CHUNK, (Node*) resChunkMaps);
 	}
-
+	DEBUG_NODE_BEATIFY_LOG("projection output chunks", resChunkMaps);
 	// remove child data chunk;
 	removeStringProperty(child, PROP_DATA_CHUNK);
 }
@@ -445,7 +445,7 @@ updateSelection(QueryOperator* op)
 
 	appendStringInfo(strInfo, "%s ", "UpdateSelection");
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
-
+	DEBUG_NODE_BEATIFY_LOG("selection input chunks", chunkMaps);
 	Node * selCond = ((SelectionOperator *) op)->cond;
 	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
 	DataChunk *dataChunkIns = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_INSERT);
@@ -468,6 +468,7 @@ updateSelection(QueryOperator* op)
 		setStringProperty(op, PROP_DATA_CHUNK, (Node *) resChunkMaps);
 	}
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+	DEBUG_NODE_BEATIFY_LOG("selection output chunks", resChunkMaps);
 }
 
 static void
@@ -2959,6 +2960,7 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 
 	ColumnChunk *filterResult = evaluateExprOnDataChunk(condition, dataChunk);
 
+	DEBUG_NODE_BEATIFY_LOG("output columnchunk", filterResult);
 	// new a result data chunk AND set fields except numTuples;
 	DataChunk* resultDC = initDataChunk();
 	resultDC->attrNames = (List*) copyList(dataChunk->attrNames);
@@ -2969,6 +2971,9 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 	// result is True or False stored in a bitset;
 	Vector *isTrue = filterResult->data.v;
 	int *trueOrFalse = VEC_TO_IA(isTrue);
+	for (int i = 0; i < isTrue->length; i++) {
+		INFO_LOG("iden: %d", trueOrFalse[i]);
+	}
 	Vector *undateIden = makeVector(VECTOR_INT, T_Vector);
 
 	for (int col = 0; col < dataChunk->tupleFields; col++) {
@@ -3038,6 +3043,9 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 				FATAL_LOG("not supported");
 		}
 		vecAppendNode(resultDC->tuples, (Node *) toVec);
+		if (col == 0) {
+			resultDC->updateIdentifier = undateIden;
+		}
 	}
 	resultDC->numTuples = resultDC->updateIdentifier->length;
 	FOREACH_HASH_KEY(Constant, c, dataChunk->fragmentsInfo) {
@@ -3051,6 +3059,7 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 
 		addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) toPSVec);
 	}
+	DEBUG_NODE_BEATIFY_LOG("output chunk in selection", resultDC);
 	return resultDC;
 }
 
