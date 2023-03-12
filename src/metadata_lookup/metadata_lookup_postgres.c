@@ -26,6 +26,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
+#include "model/set/vector.h"
 
 #if HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
@@ -1992,24 +1993,30 @@ postgresExecuteQuery(char *query)
     }
 
     // read rows
-    r->tuples = NIL;
+    // r->tuples = NIL;
+    r->tuples = makeVector(VECTOR_NODE, T_Vector);
     for(int i = 0; i < numRes; i++)
     {
-        List *tuple = NIL;
+        // List *tuple = NIL;
+        Vector *tuple = makeVectorOfSize(VECTOR_STRING, -1, numFields);
         for (int j = 0; j < numFields; j++)
         {
             if (PQgetisnull(rs,i,j))
             {
-                tuple = appendToTailOfList(tuple, strdup("NULL"));
+                // tuple = appendToTailOfList(tuple, strdup("NULL"));
+                vecAppendString(tuple, strdup("NULL"));
             }
             else
             {
                 char *val = PQgetvalue(rs,i,j);
-                tuple = appendToTailOfList(tuple, strdup(val));
+                // tuple = appendToTailOfList(tuple, strdup(val));
+                vecAppendString(tuple, strdup(val));
             }
         }
-        r->tuples = appendToTailOfList(r->tuples, tuple);
-        DEBUG_LOG("read tuple <%s>", stringListToString(tuple));
+        // r->tuples = appendToTailOfList(r->tuples, tuple);
+        // DEBUG_LOG("read tuple <%s>", stringListToString(tuple));
+        VEC_ADD_NODE(r->tuples, tuple);
+        DEBUG_NODE_LOG("read tuple <%s>", tuple);
     }
     PQclear(rs);
     execCommit();

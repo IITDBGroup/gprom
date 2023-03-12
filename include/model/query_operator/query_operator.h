@@ -119,7 +119,7 @@ typedef struct ConstRelOperator
 typedef struct ConstRelMultiListsOperator
 {
     QueryOperator op;
-    List *values; // list of list;
+    List *values; // list of list(Constant);
 } ConstRelMultiListsOperator;
 
 typedef struct NestingOperator

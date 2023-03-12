@@ -9,6 +9,9 @@
 
 #define DATA_CHUNK_PROP "DATA_CHUNK"
 #define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update"
+#define INCREMENTAL_FETCHING_DATA_TIMER "module - update provenance sketch - incremental update fetching data"
+#define JOIN_LEFT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_LEFT_TUPLE_IDENTIFIER")
+#define JOIN_RIGHT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_RIGHT_TUPLE_IDENTIFIER")
 extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);
 
 typedef struct DataChunk
@@ -31,8 +34,10 @@ typedef struct DataChunk
 	 *
 	 *
 	 *  fragmentsInfo:
-	 *  	a HashMap
+	 *  	a HashMap(key: prov_r_a1, value: list of bitset) -> insert tuple:(1, 2, 4) its bitset: 10000,
+	 * 			two problems: keep a pointer of current element,
 	 *  		ps_attr -> bitset list;
+	 * 		a HashMap(key: prov_r_a1, value: vector of bitset);
 	 *
 	 *  numTuples:
 	 *  	integer

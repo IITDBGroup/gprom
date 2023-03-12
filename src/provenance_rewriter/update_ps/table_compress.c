@@ -51,7 +51,7 @@ static void getCDBDeleteUsingRules(StringInfo str, int dataType, List *cdbTupleL
  */
 
 /*
- *	The method check whether it needs to create and initialize the corresponding compressed table. 
+ *	The method check whether it needs to create and initialize the corresponding compressed table.
  */
 void
 tableCompress(char *tablename, char *psAttr, List *ranges)
@@ -276,7 +276,7 @@ updateCompressedTable(QueryOperator *updateQuery, char *tablename,
 		psAttrInfo *attrInfo)
 {
 	// 1. update compressed table;
-	
+
 	boolean hasUpdatedBaseTable = FALSE; // only for update;
 
 	switch (nodeTag(((DLMorDDLOperator* )updateQuery)->stmt)) {
@@ -352,7 +352,7 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 	Relation *rel = executeQueryLocal(query->data);
 //	INFO_LOG("rel info: ", rel->schema, rel->)
 	// no tuples, it is deleted previouse
-	if(getListLength(rel->tuples) == 0) {
+	if(rel->tuples->length == 0) {
 		// compressed the insert tuple locally;
 		StringInfo updQ = makeStringInfo();
 		appendStringInfo(updQ, "insert into compressedtable_%s values(", insert->insertTableName);
@@ -361,14 +361,14 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 			Constant* constVal = (Constant*) getNthOfListP((List*) insert->query, i);
 			appendStringInfo(updQ, ", %s, %s, 1, 1, %s", exprToSQL((Node*) constVal, NULL, FALSE), exprToSQL((Node*) constVal, NULL, FALSE), exprToSQL((Node*) constVal, NULL, FALSE));
 		}
-		
+
 		appendStringInfo(updQ, ");");
 		// INFO_LOG("WHAT IS THE SQL: %s\n", updQ->data);
 		executeStatementLocal(updQ->data);
 		return;
 	}
 
-	for (int i = 0; i < getListLength(rel->tuples); i++) {
+	for (int i = 0; i < rel->tuples->length; i++) {
 		StringInfo updQ = makeStringInfo();
 		appendStringInfo(updQ, "update compressedtable_%s set ", tablename);
 
@@ -387,8 +387,8 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 			INFO_LOG("attr %s, attrPos: %d, cbdPos: %d", (char*) getNthOfListP(insert->schema, oriTblIdx), oriTblIdx, attIndex);
 			int type = ((AttributeDef*) getNthOfListP(insert->schema, oriTblIdx))->dataType;
 			getCDBInsertUpdateUsingRule(updQ, type,
-					getNthOfListP((List*) insert->query, oriTblIdx), attIndex, 
-					getNthOfListP(rel->tuples, i), rel->schema);
+					getNthOfListP((List*) insert->query, oriTblIdx), attIndex,
+					(Vector *) getVecNode(rel->tuples, i), rel->schema);
 			attIndex += 6;
 			oriTblIdx += 1;
 			INFO_LOG("current attindex: %d", attIndex);
@@ -402,7 +402,7 @@ updateCDBInsertion(QueryOperator *insertQ, char *tablename,
 
 static void
 getCDBInsertUpdateUsingRule(StringInfo str, int dataType, Constant *insertV,
-		int index, List *tuples, List *schema)
+		int index, Vector *tuples, List *schema)
 {
 	// DataType
 	// DT_INT, DT_LONG, DT_STRING, DT_FLOAT, DT_BOOL, DT_VARCHAR2
@@ -936,8 +936,8 @@ updateCDBUpdate(QueryOperator *updateQ, char *tablenam, psAttrInfo *attrInfo, bo
 		*hasUpdatedBaseTable = TRUE;
 		return;
 	}
-	
-	// Build a del for update	
+
+	// Build a del for update
 	Delete* delete = createDelete(update->updateTableName, update->cond);
 	delete->schema = copyList(update->schema);
 	DLMorDDLOperator* dmlOp = createDMLDDLOp((Node*) delete);

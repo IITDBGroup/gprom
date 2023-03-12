@@ -51,6 +51,9 @@ static void serializeCreateTable(StringInfo str, CreateTable* c);
 static void serializeDelete(StringInfo str, Delete* d);
 static void serializeInsert(StringInfo str, Insert* i);
 static void serializeUpdate(StringInfo str, Update* u);
+static void serializeConstRelMultiListsOperator(StringInfo from, ConstRelMultiListsOperator *t, FromAttrsContext *fac,
+        int *curFromItem, SerializeClausesAPI *api);
+
 char *
 serializeOperatorModelPostgres(Node *q)
 {
@@ -275,6 +278,7 @@ createAPI (void)
         api->serializeTableAccess = serializeTableAccess;
         api->serializeConstRel = serializeConstRel;
         api->serializeJoinOperator = serializeJoinOperator;
+        api->serializeConstRelMultiListsOperator = serializeConstRelMultiListsOperator;
     }
 }
 
@@ -663,6 +667,103 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
 
     appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
 }
+
+static void
+serializeConstRelMultiListsOperator(StringInfo from, ConstRelMultiListsOperator *t, FromAttrsContext *fac,
+        int* curFromItem, SerializeClausesAPI *api)
+{
+    // SELECT * FROM (VALUES (1, 'one'), (2, 'two'), (3, 'three')) AS t (num,letter);
+    // SELECT num, letter FROM (VALUES (1, 'one'), (2, 'two'), (3, 'three')) AS t (num,letter);
+    // int pos = 0;
+    List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+    fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+    fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
+    appendStringInfoString(from, "(SELECT ");
+    int pos = 0;
+    // append attrNames;
+    FOREACH (char, c, attrNames) {
+        if (pos++ != 0)
+            appendStringInfoString(from, ", ");
+
+        appendStringInfo(from, "%s", c);
+    }
+
+    appendStringInfoString(from, " FROM( VALUES ");
+
+    // append values;
+    int row = 0;
+    FOREACH (List, list, t->values) {
+        if (row++ != 0)
+            appendStringInfoString(from, ", ");
+
+        appendStringInfoString(from, "(");
+        int col = 0;
+        FOREACH(Node, n, list) {
+            if (col++ != 0)
+                appendStringInfoString(from, ",");
+
+            appendStringInfo(from, "%s", exprToSQL(n, NULL, FALSE));
+
+        }
+        appendStringInfoString(from, ")");
+    }
+    appendStringInfoString(from, ") AS DUALS (");
+
+    pos = 0;
+    FOREACH(char, c, attrNames) {
+        if (pos++ != 0)
+            appendStringInfoString(from, ", ");
+
+        appendStringInfo(from, "%s", c);
+    }
+    appendStringInfo(from, ")) F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+
+
+
+
+
+
+    // int pos = 0;
+    // FOREACH(char, ch, attrNames) {
+    //     if (pos++ != 0) {
+    //         appendStringInfoString(from, ", ");
+    //     }
+    //     appendStringInfo(from, "%s", ch);
+    // }
+    // // appendStringInfoString(from, stringListToString(attrNames));
+    // INFO_LOG("ATTRS TO STR %s", stringListToString);
+    // appendStringInfoString(from, " FROM (VALUES ");
+    // int row = 0;
+    // FOREACH(List, l, t->values) {
+    //     // int pos = 0;
+    //     if (row != 0) {
+    //         appendStringInfoString(from, ", ");
+    //     }
+    //     row++;
+    //     appendStringInfoString(from, "(");
+    //     int col = 0;
+    //     FOREACH(Node, c, l) {
+    //         if (col != 0) {
+    //             appendStringInfoString(from, ",");
+    //         }
+    //         col++;
+    //         appendStringInfo(from, "%s", exprToSQL(c, NULL, FALSE));
+    //     }
+    //     appendStringInfoString(from, ")");
+    // }
+
+    // appendStringInfo(from, ") AS F%u_%u (", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
+    // // appendStringInfoString(from, stringListToString(attrNames));
+    // pos = 0;
+    // FOREACH(char, ch, attrNames) {
+    //     if (pos++ != 0) {
+    //         appendStringInfoString(from, ", ");
+    //     }
+    //     appendStringInfo(from, "%s", ch);
+    // }
+    // appendStringInfoString(from, ")");
+}
+
 
 //static void
 //serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,

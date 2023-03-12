@@ -58,6 +58,7 @@ createAPIStub (void)
     api->serializeFromItem = genSerializeFromItem;
     api->serializeTableAccess = NULL;
     api->serializeConstRel = NULL;
+    api->serializeConstRelMultiListsOperator = NULL;
     api->serializeJoinOperator = NULL;
 	api->serializeLimitOperator = genSerializeLimitOperator;
 	api->serializeOrderByOperator = genSerializeOrderByOperator;
@@ -282,6 +283,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
             case T_JoinOperator:
             case T_TableAccessOperator:
             case T_ConstRelOperator :
+            case T_ConstRelMultiListsOperator:
             case T_SetOperator:
             case T_JsonTableOperator:
             case T_NestingOperator:
@@ -519,7 +521,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, FromAttrsContext *fac,
         cur = OP_LCHILD(cur);
     }
 
-    OUT_BLOCK_MATCH(DEBUG,matchInfo, "query block full match");
+    OUT_BLOCK_MATCH(DEBUG, matchInfo, "query block full match");
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
@@ -629,6 +631,13 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             {
                 ConstRelOperator *t = (ConstRelOperator *) q;
                 api->serializeConstRel(from, t, fac, curFromItem, api);
+            }
+            break;
+            // A contant relation, select a, b, c from (values (1,2,3)...()) AS tname (a, b, c)
+            case T_ConstRelMultiListsOperator:
+            {
+                ConstRelMultiListsOperator *t = (ConstRelMultiListsOperator *) q;
+                api->serializeConstRelMultiListsOperator(from, t, fac, curFromItem, api);
             }
             break;
             case T_NestingOperator:

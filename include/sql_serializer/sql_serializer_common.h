@@ -128,6 +128,8 @@ typedef struct SerializeClausesAPI {
 	void (*serializeExecPreparedOperator) (ExecPreparedOperator *q, StringInfo exec);
     List *(*createTempView) (QueryOperator *q, StringInfo str,
             QueryOperator *parent, FromAttrsContext *fac, struct SerializeClausesAPI *api);
+    void (*serializeConstRelMultiListsOperator) (StringInfo from, ConstRelMultiListsOperator *t, FromAttrsContext *fac,
+            int *curFromItem, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
     int viewCounter;
 } SerializeClausesAPI;

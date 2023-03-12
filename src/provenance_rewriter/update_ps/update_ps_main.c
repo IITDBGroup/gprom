@@ -114,6 +114,7 @@ update_ps(ProvenanceComputation *qbModel)
 	if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {
 		qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
 		setStringProperty((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, (Node *) createConstBool(TRUE));
+		DEBUG_NODE_BEATIFY_LOG("BUILD STATE", GET_STRING_PROP((QueryOperator *) qbModel, PROP_DATA_STRUCTURE_STATE));
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
@@ -130,6 +131,7 @@ update_ps(ProvenanceComputation *qbModel)
 	} else {
 		START_TIMER(INCREMENTAL_UPDATE_TIMER);
 		update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
+		DEBUG_NODE_BEATIFY_LOG("UPDATED PS", GET_STRING_PROP((QueryOperator *) qbModel, PROP_DATA_STRUCTURE_STATE));
 		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 	}
 

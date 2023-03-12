@@ -67,6 +67,7 @@ extern void vecAppendNode(Vector *v, Node *el);
 extern void vecAppendInt(Vector *v, int el);
 extern void vecAppendLong(Vector *v, gprom_long_t el);
 extern void vecAppendFloat(Vector *, double el);
+extern void vecAppendString(Vector *v, char *el);
 #define VEC_ADD_NODE(v,el) vecAppendNode((Vector *) v, (Node *) el)
 
 // get elements from a vector

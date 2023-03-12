@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * exe_run_query.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -18,6 +18,7 @@
 #include "utility/string_utils.h"
 #include "configuration/option.h"
 #include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
+#include "model/set/vector.h"
 
 static void outputResult(Relation *res);
 static void printDBsample(List *stmts);
@@ -32,7 +33,7 @@ exeRunQuery (void *code)
     boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
     struct timeval st;
     struct timeval et;
-    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);	
+    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);
     int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
 	// replace \n with new line in format string
@@ -45,7 +46,7 @@ exeRunQuery (void *code)
 		printDBsample(codes);
 		return;
 	}
-	
+
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
 
@@ -135,10 +136,12 @@ outputResult(Relation *res)
         colSizes[i++] = strlen(a) + 2;
     }
 
-    FOREACH(List,t,res->tuples)
+    // FOREACH(List,t,res->tuples)
+    FOREACH_VEC(Vector,t,res->tuples)
     {
         i = 0;
-        FOREACH(char,a,t)
+        // FOREACH(char,a,t)
+        FOREACH_VEC(char,a,t)
         {
             int len = a ? strlen(a) : 4;
             colSizes[i] = colSizes[i] < len + 2 ? len + 2 : colSizes[i];
@@ -165,10 +168,12 @@ outputResult(Relation *res)
     printf("\n");
 
     // output results
-    FOREACH(List,t,res->tuples)
+    // FOREACH(List,t,res->tuples)
+    FOREACH_VEC(Vector,t,res->tuples)
     {
         i = 0;
-        FOREACH(char,a,t)
+        // FOREACH(char,a,t)
+        FOREACH_VEC(char,a,t)
         {
             char *out = a ? a : "NULL";
             printf(" %s", out);

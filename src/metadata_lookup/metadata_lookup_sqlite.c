@@ -25,6 +25,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/set/hashmap.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
+#include "model/set/vector.h"
 #include "utility/string_utils.h"
 #include <stdlib.h>
 
@@ -488,24 +489,29 @@ sqliteExecuteQuery(char *query)
     }
 
     // read rows
-    r->tuples = NIL;
+    // r->tuples = NIL;
+    r->tuples = makeVector(VECTOR_NODE, T_Vector);
     while((rc = sqlite3_step(rs)) == SQLITE_ROW)
     {
-        List *tuple = NIL;
+        // List *tuple = NIL;
+        Vector *tuple = makeVector(VECTOR_STRING, T_Vector);
         for (int j = 0; j < numFields; j++)
         {
             if (sqlite3_column_type(rs,j) == SQLITE_NULL)
             {
-                tuple = appendToTailOfList(tuple, strdup("NULL"));
+                // tuple = appendToTailOfList(tuple, strdup("NULL"));
+                vecAppendString(tuple, strdup("NULL"));
             }
             else
             {
                 const unsigned char *val = sqlite3_column_text(rs,j);
-                tuple = appendToTailOfList(tuple, strdup((char *) val));
+                // tuple = appendToTailOfList(tuple, strdup((char *) val));
+                vecAppendString(tuple, strdup((char *) val));
             }
         }
-        r->tuples = appendToTailOfList(r->tuples, tuple);
-        DEBUG_LOG("read tuple <%s>", stringListToString(tuple));
+        // r->tuples = appendToTailOfList(r->tuples, tuple);
+        VEC_ADD_NODE(r->tuple, tuple);
+        DEBUG_NODE_LOG("read tuple <%s>", tuple);
     }
 
     HANDLE_ERROR_MSG(rc,SQLITE_DONE, "failed to execute query <%s>", query);

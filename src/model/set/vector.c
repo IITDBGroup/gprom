@@ -1,12 +1,12 @@
 /*-----------------------------------------------------------------------------
  *
  * vector.c
- *			  
+ *
  *		- Basic Vector data structure
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -221,6 +221,15 @@ vecAppendFloat(Vector *v, double el)
 		extendVector(v);
 
 	VEC_TO_FA(v)[v->length++] = el;
+}
+
+void
+vecAppendString(Vector *v, char *el)
+{
+	if (v->maxLength == v->length)
+		extendVector(v);
+
+	VEC_TO_ARR(v,char)[v->length++] = el;
 }
 
 static void

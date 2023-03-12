@@ -380,15 +380,17 @@ outVector(StringInfo str, Vector *node)
 //                outNode(str, *n);
 //                appendStringInfo(str, "%s", VEC_IS_LAST(*n,node) ? ", " : "");
                 outNode(str, n);
-                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? ", " : "");
+                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? "" : ", ");
             }
             break;
         case VECTOR_STRING:
+        {
             FOREACH_VEC(char, c, node)
 			{
             	appendStringInfo(str, "%s", c);
-                appendStringInfo(str, "%s", VEC_IS_LAST(c,node) ? ", " : "");
+                appendStringInfo(str, "%s", VEC_IS_LAST(c,node) ? "" : ", ");
 			}
+        }
             break;
         case VECTOR_LONG:
         {
@@ -2195,6 +2197,16 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfoString(params, exprToSQL((Node *) o->values, NULL, FALSE));
             appendStringInfoChar(params, ']');
 			WRITE_OP_PARAM(params);
+        }
+        break;
+        case T_ConstRelMultiListsOperator:
+        {
+            ConstRelMultiListsOperator *o = (ConstRelMultiListsOperator *) op;
+            WRITE_OP_TYPE(ConstRelMultiListsOperator);
+            appendStringInfoString(params, " [");
+            appendStringInfoString(params, exprToSQL((Node *) o->values, NULL, FALSE));
+            appendStringInfoChar(params, ']');
+            WRITE_OP_PARAM(params);
         }
         break;
         case T_NestingOperator:

@@ -222,13 +222,14 @@ buildStateAggregationOp(QueryOperator *op)
 			}
 
 			// iterate over result "resultRel" to build the heap;
-			for (int ii = 0; ii < LIST_LENGTH(resultRel->tuples); ii++) {
-				List *tuple = (List *) getNthOfListP(resultRel->tuples, ii);
+			for (int ii = 0; ii < resultRel->tuples->length; ii++) {
+				Vector *tuple = (Vector *) getVecNode(resultRel->tuples, ii);
 				// INFO_LOG("tuple values: %s", stringListToString(tuple));
 				// get group by value of this tuple; TODO: isNULL
 				StringInfo gbVals = makeStringInfo();
 				for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
-					appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+					appendStringInfo(gbVals, "%s#", (char *) getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+					// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
 				}
 
 				// check if gbHeaps has this group by value;
@@ -238,7 +239,8 @@ buildStateAggregationOp(QueryOperator *op)
 				}
 
 				// get min/max attribute value;
-				char *val = (char *) getNthOfListP(tuple, fcAttrPos);
+				// char *val = (char *) getNthOfListP(tuple, fcAttrPos);
+				char *val = getVecString(tuple, fcAttrPos);
 				// INFO_LOG("val str %s", val);
 				Constant *value = makeValue(attrRef->attrType, val);
 				// DEBUG_NODE_BEATIFY_LOG("CONSTANT", value);
@@ -289,7 +291,8 @@ buildStateAggregationOp(QueryOperator *op)
 						gbProvSketch = newBitSet(provNumFrag);
 					}
 
-					char *prov = (char *) getNthOfListP(tuple, provPos);
+					// char *prov = (char *) getNthOfListP(tuple, provPos);
+					char *prov = getVecString(tuple, provPos);
 					if (provLevel < 2) {
 						int whichFrag = atoi(prov);
 
@@ -365,23 +368,17 @@ buildStateAggregationOp(QueryOperator *op)
 		QueryOperator * rewriteOP = captureRewriteOp(PC_BuildState, (QueryOperator *) newAgg);
 		DEBUG_NODE_BEATIFY_LOG("avg_sum_count agg", rewriteOP);
 		INFO_OP_LOG("rewrite op avg_sum_cont TTTTTTTTTTTTTTTTTTTTT: ", rewriteOP);
-		// TODO: TEST
-		int STOPChoice = 3;
-		if (STOPChoice == 1) {
-			return;
-		}
-		// char *sql = serializeOperatorModel((Node *) rewriteOP);
 		char *sql = serializeQuery(rewriteOP);
-		INFO_LOG("agg rewrite sql %s", sql);
-		if (STOPChoice == 2) {
-			return;
-		}
+		// INFO_LOG("agg rewrite sql %s", sql);
+		// if (STOPChoice == 2) {
+			// return;
+		// }
 		Relation *resultRel = NULL;
 		resultRel = executeQuery(sql);
 
-		FOREACH(char, c, resultRel->schema) {
-			INFO_LOG("name is: %s", c);
-		}
+		// FOREACH(char, c, resultRel->schema) {
+		// 	INFO_LOG("name is: %s", c);
+		// }
 		// get the level of aggregation
 		HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewriteOP), PROP_LEVEL_AGGREGATION_MARK), 0);
 		// DEBUG_NODE_BEATIFY_LOG("LEVEL AND NUM FRAG", psAttrAndLevel);
@@ -431,7 +428,7 @@ buildStateAggregationOp(QueryOperator *op)
 			// append pos in resultRel;
 			int pos = listPosString(resultRel->schema, backendifyIdentifier(aggFCName));
 			namesAndPoss = appendToTailOfList(namesAndPoss, createConstInt(pos));
-
+			DEBUG_NODE_BEATIFY_LOG("what is name and pos", namesAndPoss);
 			// if it is a avg, there should be sum in the result;
 			if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
 				StringInfo sum_fc_name = makeStringInfo();
@@ -462,14 +459,16 @@ buildStateAggregationOp(QueryOperator *op)
 				groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
 			// }
 			DEBUG_NODE_BEATIFY_LOG("gb list", gbAttrPos);
-
-			for (int j = 0; j < LIST_LENGTH(resultRel->tuples); j++) {
-				List *tuple = (List *) getNthOfListP(resultRel->tuples, j);
+			DEBUG_NODE_BEATIFY_LOG("what is name and pos", namesAndPoss);
+			for (int j = 0; j < resultRel->tuples->length; j++) {
+				// List *tuple = (List *) getNthOfListP(resultRel->tuples, j);
+				Vector *tuple = (Vector *) getVecNode(resultRel->tuples, j);
 
 				// get the group by values;
 				StringInfo gbVals = makeStringInfo();
 				for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
-					appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+					// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+					appendStringInfo(gbVals, "%s#", getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
 				}
 
 				// value list;
@@ -481,12 +480,12 @@ buildStateAggregationOp(QueryOperator *op)
 					if (strcmp(fc->functionname, AVG_FUNC_NAME) == 0) {
 						l = appendToTailOfList(l, createConstFloat((double) 0));
 						l = appendToTailOfList(l, createConstFloat((double) 0));
-						l = appendToTailOfList(l, createConstInt(0));
+						l = appendToTailOfList(l, createConstLong(0));
 					} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
 						l = appendToTailOfList(l, createConstFloat((double) 0));
-						l = appendToTailOfList(l, createConstInt(0));
+						l = appendToTailOfList(l, createConstLong(0));
 					} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
-						l = appendToTailOfList(l, createConstInt(0));
+						l = appendToTailOfList(l, createConstLong(0));
 					}
 				}
 				DEBUG_NODE_BEATIFY_LOG("what is list", l);
@@ -494,42 +493,45 @@ buildStateAggregationOp(QueryOperator *op)
 					// get avg, sum and cont;
 					double avg = FLOAT_VALUE((Constant *) getNthOfListP(l, 0));
 					double sum = FLOAT_VALUE((Constant *) getNthOfListP(l, 1));
-					int count = INT_VALUE((Constant *) getNthOfListP(l, 2));
+					gprom_long_t count = LONG_VALUE((Constant *) getNthOfListP(l, 2));
 
 					// compute new avg, sum, count;
 					int newSumPos = INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 1));
-					double newSum = atof((char *) getNthOfListP(tuple, newSumPos));
+					// double newSum = atof((char *) getNthOfListP(tuple, newSumPos));
+					double newSum = atof(getVecString(tuple, newSumPos));
 					sum += newSum;
-					count += atoi((char *) getNthOfListP(tuple, groupCountPos));
+					// count += atoi((char *) getNthOfListP(tuple, groupCountPos));
+					count += atol(getVecString(tuple, groupCountPos));
 					avg = sum / count;
 
 					// make a new list;
 
 					newL = appendToTailOfList(newL, createConstFloat(avg));
 					newL = appendToTailOfList(newL, createConstFloat(sum));
-					newL = appendToTailOfList(newL, createConstInt(count));
+					newL = appendToTailOfList(newL, createConstLong(count));
 				} else if (strcmp(fc->functionname, SUM_FUNC_NAME) == 0) {
 					// get previous sum and count;
 					double sum = FLOAT_VALUE((Constant *) getNthOfListP(l, 0));
-					int count = INT_VALUE((Constant *) getNthOfListP(l, 1));
+					gprom_long_t count = LONG_VALUE((Constant *) getNthOfListP(l, 1));
 
 					// compute new sum and count;
 					int newSumPos = INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0));
-					sum += atof((char *) getNthOfListP(tuple, newSumPos));
-					count += atoi((char *) getNthOfListP(tuple, groupCountPos));
+					// sum += atof((char *) getNthOfListP(tuple, newSumPos));
+					sum += atof(getVecString(tuple, newSumPos));
+					count += atol(getVecString(tuple, groupCountPos));
 
 					newL = appendToTailOfList(newL, createConstFloat(sum));
-					newL = appendToTailOfList(newL, createConstInt(count));
+					newL = appendToTailOfList(newL, createConstLong(count));
 				} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
 					// previous count;
-					int count = INT_VALUE((Constant *) getNthOfListP(l, 0));
+					gprom_long_t count = INT_VALUE((Constant *) getNthOfListP(l, 0));
 
 					// get new count;
-					count += atoi((char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0))));
+					count += atol(getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(namesAndPoss, 0))));
 
 					// make a new list;
 					// l = singleton(createConstInt(count));
-					newL = appendToTailOfList(newL, createConstInt(count));
+					newL = appendToTailOfList(newL, createConstLong(count));
 				}
 
 				// add this key-value to map;
@@ -573,8 +575,8 @@ buildStateAggregationOp(QueryOperator *op)
 						gbProvSketch = newBitSet(provNumFrag);
 					}
 
-					char *prov = getNthOfListP(tuple, provPos);
-					int groupCnt = atoi((char *) getNthOfListP(tuple, groupCountPos));
+					char *prov = getVecString(tuple, provPos);
+					int groupCnt = atoi(getVecString(tuple, groupCountPos));
 					if (provLevel < 2) {
 						int whichFrag = atoi(prov);
 						if (MAP_HAS_INT_KEY(fragCnt, whichFrag)) {
@@ -597,7 +599,7 @@ buildStateAggregationOp(QueryOperator *op)
 									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(groupCnt));
 									setBit(gbProvSketch, bitIndex, TRUE);
 								}
-								setBit(gbProvSketch, bitIndex, TRUE);
+								// setBit(gbProvSketch, bitIndex, TRUE);
 							}
 						}
 					}
@@ -630,7 +632,7 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
     // for duplicate remove: rewrite like group by no agg
 	DuplicateRemoval *dupRem = (DuplicateRemoval *) op;
 
-	// create gb list;
+	// create gb list: attributes are all from distinct attribute list;
 	List *gbList = NIL;
 	int pos = 0;
 	FOREACH(AttributeDef, ad, op->schema->attrDefs) {
@@ -638,11 +640,17 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 		gbList = appendToTailOfList(gbList, ar);
 		pos++;
 	}
-	List *attrNames = (List *) getAttrNames(dupRem->op.schema);
 
-	AggregationOperator *aggOp = createAggregationOp(NIL, gbList, (QueryOperator *) copyObject(OP_LCHILD(op)), NIL, attrNames);
+	List *aggrList = singleton(createFunctionCall(COUNT_FUNC_NAME, singleton(createConstInt(1))));
+	List *attrNames = (List *) getAttrNames(dupRem->op.schema);
+	appendToHeadOfList(attrNames, backendifyIdentifier("count_per_group"));
+
+	// create a new aggregation operator with group-by and fc list;
+	AggregationOperator *aggOp = createAggregationOp(aggrList, gbList, (QueryOperator *) copyObject(OP_LCHILD(op)), NIL, attrNames);
 	SET_STRING_PROP((QueryOperator *) aggOp, PROP_COARSE_GRAINED_AGGREGATION_MARK_UPDATE_PS, createConstBool(TRUE));
-	OP_LCHILD((QueryOperator *) aggOp)->parents = singleton(aggOp);
+
+	QueryOperator *child = (QueryOperator *) copyObject(op);
+	child->parents = singleton(aggOp);
 
 	DEBUG_NODE_BEATIFY_LOG("NEW AGG", aggOp);
 	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, (QueryOperator *) aggOp);
@@ -663,19 +671,21 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 	GBACSs *acs = makeGBACSs();
 	List *gbAttrPos = NIL;
 	FOREACH(AttributeReference, ar, gbList) {
-		int pos = listPosString(resultRel->schema, ar->name);
+		pos = listPosString(resultRel->schema, ar->name);
 		gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
 	}
 
 	int	groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
 
-	for (int i = 0; i < LIST_LENGTH(resultRel->tuples); i++) {
-		List *tuple = (List *) getNthOfListP(resultRel->tuples, i);
+	// for (int i = 0; i < LIST_LENGTH(resultRel->tuples); i++) {
+	for (int i = 0; i < resultRel->tuples->length; i++) {
+		// List *tuple = (List *) getNthOfListP(resultRel->tuples, i);
+		Vector *tuple = (Vector *) getVecNode(resultRel->tuples, i);
 
 		// build gb identifier;
 		StringInfo gbVals = makeStringInfo();
 		for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
-			appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+			appendStringInfo(gbVals, "%s#", getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
 		}
 
 		List *l = NIL;
@@ -684,11 +694,12 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 		if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
 			l = (List *) MAP_GET_STRING(acs->map, gbVals->data);
 		} else {
-			l = appendToTailOfList(l, createConstInt(0));
+			l = appendToTailOfList(l, createConstLong(0));
 		}
 
-		int cnt = INT_VALUE((Constant *) getNthOfListP(l, 0));
-		newL = appendToTailOfList(newL, createConstInt(cnt + 1));
+		gprom_long_t cnt = LONG_VALUE((Constant *) getNthOfListP(l, 0));
+		gprom_long_t groupCnt= atol(getVecString(tuple, groupCountPos));
+		newL = appendToTailOfList(newL, createConstLong(cnt + groupCnt));
 		addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) copyObject(newL));
 
 		// for provenance sketch;
@@ -698,60 +709,67 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 			int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
 			int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
 
-			// get group provcesketch;
-			BitSet *gbProvSketch = NULL;
-			HashMap *psAllGB = NULL;
+			HashMap *psMapInAcs = NULL;
 			if (MAP_HAS_STRING_KEY(acs->provSketchs, STRING_VALUE(c))) {
-				psAllGB = (HashMap *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
-				if (MAP_HAS_STRING_KEY(psAllGB, gbVals->data)) {
-					gbProvSketch = (BitSet *) MAP_GET_STRING(psAllGB, gbVals->data);
-				} else {
-					gbProvSketch = newBitSet(provNumFrag);
-				}
+				psMapInAcs = (HashMap *) MAP_GET_STRING(acs->provSketchs, STRING_VALUE(c));
 			} else {
-				psAllGB = NEW_MAP(Constant, Node);
-				gbProvSketch = newBitSet(provNumFrag);
+				psMapInAcs = NEW_MAP(Constant, Node);
 			}
+
+			BitSet *bitSet = NULL;
+			if (MAP_HAS_STRING_KEY(psMapInAcs, gbVals->data)) {
+				bitSet = (BitSet *) MAP_GET_STRING(psMapInAcs, gbVals->data);
+			} else {
+				bitSet = newBitSet(provNumFrag);
+			}
+
 
 			// get group fragment count map;
 			HashMap *gbFragCount = NULL;
 			if (MAP_HAS_STRING_KEY(acs->fragCount, STRING_VALUE(c))) {
 				gbFragCount = (HashMap *) MAP_GET_STRING(acs->fragCount, STRING_VALUE(c));
 			} else {
-				gbFragCount = NEW_MAP(Constant, Constant);
+				gbFragCount = NEW_MAP(Constant, Node);
 			}
 
-			char *prov = (char *) getNthOfListP(tuple, provPos);
-			int groupCount = atoi((char *) getNthOfListP(tuple, groupCountPos));
+			HashMap *fragCnt = NULL;
+			if (MAP_HAS_STRING_KEY(gbFragCount, gbVals->data)) {
+				fragCnt = (HashMap *) MAP_GET_STRING(gbFragCount, gbVals->data);
+			} else {
+				fragCnt = NEW_MAP(Constant, Constant);
+			}
 
-			if (provLevel < 1) {
-				int fragNo = atoi(prov);
-				if (MAP_HAS_INT_KEY(gbFragCount, fragNo)) {
-					int gCnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, fragNo));
-					addToMap(gbFragCount, (Node *) createConstInt(fragNo), (Node *) createConstInt(gCnt + groupCount));
+			char *prov = getVecString(tuple, provPos);
+			// int groupCount = atoi((char *) getNthOfListP(tuple, groupCountPos));
+
+			if (provLevel < 2) {
+				int whichFrag = atoi(prov);
+				if (MAP_HAS_INT_KEY(fragCnt, whichFrag)) {
+					int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, whichFrag));
+					addToMap(fragCnt, (Node *) createConstInt(whichFrag), (Node *) createConstInt(oriCnt + groupCnt));
 				} else {
-					addToMap(gbFragCount, (Node *) createConstInt(fragNo), (Node *) createConstInt(groupCount));
+					addToMap(fragCnt, (Node *) createConstInt(whichFrag), (Node *) createConstInt(groupCnt));
 				}
 
-				setBit(gbProvSketch, fragNo, TRUE);
+				setBit(bitSet, whichFrag, TRUE);
 			} else {
-				for (int psIdx = 0; psIdx < strlen(prov); psIdx++) {
-					if (prov[psIdx] == '1') {
-						if (MAP_HAS_INT_KEY(gbFragCount, psIdx)) {
-							int gCnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, psIdx));
-							gCnt += groupCount;
-							addToMap(gbFragCount, (Node *) createConstInt(psIdx), (Node *) createConstInt(gCnt));
+				for (int bitIndex = 0; bitIndex < strlen(prov); bitIndex++) {
+					if (prov[bitIndex] == '1') {
+						if (MAP_HAS_INT_KEY(fragCnt, bitIndex)) {
+							int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(gbFragCount, bitIndex));
+							addToMap(gbFragCount, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt + groupCnt));
 						} else {
-							addToMap(gbFragCount, (Node *) createConstInt(psIdx), (Node *) createConstInt(groupCount));
+							addToMap(gbFragCount, (Node *) createConstInt(bitIndex), (Node *) createConstInt(groupCnt));
+							setBit(bitSet, bitIndex, TRUE);
 						}
 					}
 				}
-
-				gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
+				// gbProvSketch = bitOr(stringToBitset(prov), gbProvSketch);
 			}
-			addToMap(psAllGB, (Node *) createConstString(gbVals->data), (Node *) gbProvSketch);
-			addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) copyObject(psAllGB));
-			addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) copyObject(gbFragCount));
+			addToMap(gbFragCount, (Node *) createConstString(gbVals->data), (Node *) fragCnt);
+			addToMap(acs->fragCount, (Node *) copyObject(c), (Node *) gbFragCount);
+			addToMap(psMapInAcs, (Node *) createConstString(gbVals->data), (Node *) bitSet);
+			addToMap(acs->provSketchs, (Node *) copyObject(c), (Node *) psMapInAcs);
 		}
 	}
 
@@ -794,8 +812,8 @@ buildStateLimitOp(QueryOperator *op)
 	List *vals = NIL;
 	int fields = LIST_LENGTH(attrDefs);
 
-	for (int row = 0; row < LIST_LENGTH(resultRel->tuples); row++) {
-		List *tuple = (List *) getNthOfListP(resultRel->tuples, row);
+	for (int row = 0; row < resultRel->tuples->length; row++) {
+		Vector *tuple = (Vector *) getVecNode(resultRel->tuples, row);
 		List *val = NIL;
 		for (int col = 0; col < fields; col++) {
 			DataType dt = ((AttributeDef *) getNthOfListP(attrDefs, col))->dataType;
@@ -803,7 +821,7 @@ buildStateLimitOp(QueryOperator *op)
 				addToMap(limitC->attrToPos, (Node *) createConstString((char *) getNthOfListP(resultRel->schema, col)), (Node *) createConstInt(col));
 				addToMap(limitC->posToDatatype, (Node *) createConstInt(col), (Node *) createConstInt(dt));
 			}
-			Constant *c = makeValue(dt, (char *) getNthOfListP(tuple, col));
+			Constant *c = makeValue(dt, getVecString(tuple, col));
 			val = appendToTailOfList(val, c);
 		}
 
@@ -811,7 +829,7 @@ buildStateLimitOp(QueryOperator *op)
 		for (int col = fields; col < LIST_LENGTH(resultRel->schema); col++) {
 
 			char *provName = (char *) getNthOfListP(resultRel->schema, col);
-			char *prov = (char *) getNthOfListP(tuple, col);
+			char *prov = getVecString(tuple, col);
 
 			if (row == 0) {
 				addToMap(limitC->provToPos, (Node *) createConstString(provName), (Node *) createConstInt(col));
@@ -844,12 +862,13 @@ static void
 buildStateFinalOp(QueryOperator *op)
 {
 	/* this is the final state keep a map of fragNo -> count*/
-	DEBUG_NODE_BEATIFY_LOG("provenance computation op", op);
+	// DEBUG_NODE_BEATIFY_LOG("provenance computation op", op);
+	// INFO_OP_LOG("provenance computation op", op);
 
 	QueryOperator *child = (QueryOperator *) copyObject(OP_LCHILD(op));
 	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, child);
-	DEBUG_NODE_BEATIFY_LOG("rewr pc op", rewrOp);
-	INFO_OP_LOG("rewr pc Op", rewrOp);
+	// DEBUG_NODE_BEATIFY_LOG("rewr pc op", rewrOp);
+	// INFO_OP_LOG("rewr pc Op", rewrOp);
 	char *sql = serializeQuery(rewrOp);
 
 
@@ -858,28 +877,15 @@ buildStateFinalOp(QueryOperator *op)
 	resultRel = executeQuery(sql);
 	PSMap *psMap = makePSMap();
 
-
-	for (int ii = 0; ii < LIST_LENGTH(resultRel->tuples); ii++) {
-		List *t = (List *) getNthOfListP(resultRel->tuples, ii);
-		for (int iii = 0; iii < LIST_LENGTH(t); iii++) {
-			INFO_LOG("(->) %s ", (char *) getNthOfListP(t, iii));
-		}
-		INFO_LOG("\n");
-	}
-
-
-
 	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(rewrOp, PROP_LEVEL_AGGREGATION_MARK), 0);
-	DEBUG_NODE_BEATIFY_LOG("ps and attr level", psAttrAndLevel);
+	// DEBUG_NODE_BEATIFY_LOG("ps and attr level", psAttrAndLevel);
 	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
 		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
 		List * l = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
 		l = appendToTailOfList(l, createConstInt(pos));
 	}
 
-	int len = LIST_LENGTH(resultRel->tuples);
-
-
+	int len = resultRel->tuples->length;
 
 	FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
 		int pos = listPosString(resultRel->schema, STRING_VALUE(c));
@@ -902,29 +908,20 @@ buildStateFinalOp(QueryOperator *op)
 		}
 
 		for (int i = 0; i < len; i++) {
-			List *tuple = (List *) getNthOfListP(resultRel->tuples, i);
-			char *prov = (char *) getNthOfListP(tuple, pos);
-			// if (level < 2) {
-			// 	int whichFrag = atoi(prov);
-			// 	if (MAP_HAS_INT_KEY(fragCnt, whichFrag)) {
-			// 		int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, whichFrag));
-			// 		addToMap(fragCnt, (Node *) createConstInt(whichFrag), (Node *) createConstInt(oriCnt + 1));
-			// 	} else {
-			// 		addToMap(fragCnt, (Node *) createConstInt(whichFrag), (Node *) createConstInt(1));
-			// 	}
-			// 	setBit(bitset, whichFrag, TRUE);
-			// } else {
-				for (int bitIndex = 0; bitIndex < strlen(prov); bitIndex++) {
-					if (prov[bitIndex] == '1') {
-						if (MAP_HAS_INT_KEY(fragCnt, bitIndex)) {
-							int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
-							addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt + 1));
-						} else {
-							addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
-						}
+			Vector *tuple = (Vector *) getVecNode(resultRel->tuples, i);
+			char *prov = getVecString(tuple, pos);
+			INFO_LOG("PS STR %s", prov);
+				// noneed to check, it is a bitvector string;
+			for (int bitIndex = 0; bitIndex < strlen(prov); bitIndex++) {
+				if (prov[bitIndex] == '1') {
+					if (MAP_HAS_INT_KEY(fragCnt, bitIndex)) {
+						int oriCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, bitIndex));
+						addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(oriCnt + 1));
+					} else {
+						addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
 					}
 					setBit(bitset, bitIndex, TRUE);
-				// }
+				}
 			}
 		}
 		addToMap(psMap->provSketchs, (Node *) copyObject(c), (Node *) copyObject(bitset));

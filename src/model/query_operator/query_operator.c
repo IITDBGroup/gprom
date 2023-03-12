@@ -869,7 +869,7 @@ createConstRelMultiListsOp(List *values, List *parents, List*attrNames, List *da
         }
     }
 
-    co->op.schema = createSchemaFromLists("ConstRelMultiList", attrNames, dataTypes);
+    co->op.schema = createSchemaFromLists("ConstRelMultiLists", attrNames, dataTypes);
     co->op.parents = parents;
     co->op.provAttrs = NIL;
 
