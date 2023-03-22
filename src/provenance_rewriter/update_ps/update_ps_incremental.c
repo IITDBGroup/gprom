@@ -358,6 +358,7 @@ updateProjection(QueryOperator* op)
 		resultDCIns->tupleFields = LIST_LENGTH(op->schema->attrDefs);
 		if (dataChunkIns->isAPSChunk) {
 			resultDCIns->fragmentsInfo = (HashMap *) copyObject(dataChunkIns->fragmentsInfo);
+			resultDCIns->isAPSChunk = TRUE;
 		}
 		resultDCIns->updateIdentifier = (Vector *) copyObject(dataChunkIns->updateIdentifier);
 		int pos = 0;
@@ -377,6 +378,7 @@ updateProjection(QueryOperator* op)
 		resultDCDel->tupleFields = LIST_LENGTH(op->schema->attrDefs);
 		if (dataChunkDel->isAPSChunk) {
 			resultDCDel->fragmentsInfo = dataChunkDel->fragmentsInfo;
+			resultDCDel->isAPSChunk = TRUE;
 		}
 		resultDCDel->updateIdentifier = dataChunkDel->updateIdentifier;
 		int pos = 0;
@@ -454,15 +456,16 @@ updateSelection(QueryOperator* op)
 		return;
 	}
 
-	appendStringInfo(strInfo, "%s ", "UpdateSelection");
+	// appendStringInfo(strInfo, "%s ", "UpdateSelection");
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 	DEBUG_NODE_BEATIFY_LOG("selection input chunks", chunkMaps);
 	Node * selCond = ((SelectionOperator *) op)->cond;
+	DEBUG_NODE_BEATIFY_LOG("selection cond", selCond);
 	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
 	DataChunk *dataChunkIns = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_INSERT);
 	if (dataChunkIns != NULL) {
 		DataChunk *dcInsFilter = filterDataChunk(dataChunkIns, selCond);
-		INFO_NODE_LOG("DDDD", dcInsFilter);
+		// INFO_NODE_LOG("DDDD", dcInsFilter);
 
 		if (dcInsFilter->numTuples > 0) {
 			addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) dcInsFilter);
@@ -470,7 +473,10 @@ updateSelection(QueryOperator* op)
 	}
 	DataChunk *dataChunkDel = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_DELETE);
 	if (dataChunkDel != NULL) {
+		DEBUG_NODE_BEATIFY_LOG("before filter", dataChunkDel);
 		DataChunk *dcDelFilter = filterDataChunk(dataChunkDel, selCond);
+		DEBUG_NODE_BEATIFY_LOG("after filter", dcDelFilter);
+		INFO_LOG("KKK");
 		if (dcDelFilter->numTuples > 0) {
 			addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) dcDelFilter);
 		}
@@ -2217,6 +2223,13 @@ int *, float *
 	// set data chunk numTuple;
 	resultDCInsert->numTuples = resultDCInsert->updateIdentifier->length;
 	resultDCDelete->numTuples = resultDCDelete->updateIdentifier->length;
+	if (dataChunkInsert != NULL) {
+		resultDCInsert->isAPSChunk = dataChunkInsert->isAPSChunk;
+		resultDCDelete->isAPSChunk = dataChunkInsert->isAPSChunk;
+	} else if (dataChunkDelete != NULL) {
+		resultDCInsert->isAPSChunk = dataChunkDelete->isAPSChunk;
+		resultDCDelete->isAPSChunk = dataChunkDelete->isAPSChunk;
+	}
 
 	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
 
@@ -2757,9 +2770,10 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 	}
 
 	dataChunk->attrNames = (List *) copyObject(schema->attrDefs);
-
+	dataChunk->tupleFields = LIST_LENGTH(schema->attrDefs);
+	DEBUG_NODE_BEATIFY_LOG("EMPTY CHUNK", dataChunk);
 	postgresGetDataChunkDelete(query, dataChunk, psAttrCol, (psAttrCol == -1 ? NIL : attrInfo->rangeList), psName);
-
+	DEBUG_NODE_BEATIFY_LOG("DELETE CHUNK", dataChunk);
 	boolean finishDC = TRUE;
 	if (finishDC) {
 		return;
@@ -3196,7 +3210,6 @@ static DataChunk*
 filterDataChunk(DataChunk* dataChunk, Node* condition)
 {
 
-	// TODO: use ConstrelOperator;
 	DEBUG_NODE_BEATIFY_LOG("DISPLAY DATACHUNK: ", dataChunk);
 
 	ColumnChunk *filterResult = evaluateExprOnDataChunk(condition, dataChunk);
@@ -3209,12 +3222,10 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 	resultDC->posToDatatype = (HashMap*) copyObject(dataChunk->posToDatatype);
 	resultDC->tupleFields = dataChunk->tupleFields;
 
-	// result is True or False stored in a bitset;
+	// result is True or False stored in a bitset
 	Vector *isTrue = filterResult->data.v;
 	int *trueOrFalse = VEC_TO_IA(isTrue);
-	for (int i = 0; i < isTrue->length; i++) {
-		INFO_LOG("iden: %d", trueOrFalse[i]);
-	}
+
 	Vector *undateIden = makeVector(VECTOR_INT, T_Vector);
 
 	for (int col = 0; col < dataChunk->tupleFields; col++) {
@@ -3284,6 +3295,7 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 				FATAL_LOG("not supported");
 		}
 		vecAppendNode(resultDC->tuples, (Node *) toVec);
+
 		if (col == 0) {
 			resultDC->updateIdentifier = undateIden;
 		}
@@ -3301,6 +3313,7 @@ filterDataChunk(DataChunk* dataChunk, Node* condition)
 
 			addToMap(resultDC->fragmentsInfo, (Node *) copyObject(c), (Node *) toPSVec);
 		}
+		resultDC->isAPSChunk = TRUE;
 	}
 	DEBUG_NODE_BEATIFY_LOG("output chunk in selection", resultDC);
 	return resultDC;

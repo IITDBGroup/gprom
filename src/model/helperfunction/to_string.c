@@ -1278,6 +1278,7 @@ outDataChunk(StringInfo str, DataChunk *node)
 	WRITE_NODE_FIELD(attriToPos);
 	WRITE_NODE_FIELD(posToDatatype);
 	WRITE_NODE_FIELD(isNull);
+    WRITE_INT_FIELD(isAPSChunk);
 }
 
 static void

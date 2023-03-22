@@ -2092,6 +2092,7 @@ postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rang
     int numFields = PQnfields(rs);
 	HashMap *posToDT = dc->posToDatatype;
 	dc->numTuples = numRes;
+    INFO_LOG("res len: %d", numRes);
 	if (numRes < 1) {
 		return;
 	}
@@ -2171,6 +2172,7 @@ postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rang
 	for (int row = 0; row < numRes; row++) {
 		vecAppendInt(dc->updateIdentifier, -1);
 	}
+    DEBUG_NODE_BEATIFY_LOG("DELETE CHUNK IN POSTGRES", dc);
     PQclear(rs);
     execCommit();
     STOP_TIMER("Postgres - execute ExecuteQuery");
