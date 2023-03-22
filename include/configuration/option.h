@@ -132,6 +132,7 @@ NEW_ENUM_WITH_TO_STRING(
 
 /* udpate provenance sketch*/
 #define OPTION_UPDATE_PS_OPTION "update_ps_option"
+// #define OPTION_UPDATE_PS_SELECTION_PUSH_DOWN "update_ps_selection_push_down"
 
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"

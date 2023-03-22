@@ -2201,12 +2201,12 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         break;
         case T_ConstRelMultiListsOperator:
         {
-            ConstRelMultiListsOperator *o = (ConstRelMultiListsOperator *) op;
+            // ConstRelMultiListsOperator *o = (ConstRelMultiListsOperator *) op;
             WRITE_OP_TYPE(ConstRelMultiListsOperator);
-            appendStringInfoString(params, " [");
-            appendStringInfoString(params, exprToSQL((Node *) o->values, NULL, FALSE));
-            appendStringInfoChar(params, ']');
-            WRITE_OP_PARAM(params);
+            // appendStringInfoString(params, " [");
+            // appendStringInfoString(params, exprToSQL((Node *) o->values, NULL, FALSE));
+            // appendStringInfoChar(params, ']');
+            // WRITE_OP_PARAM(params);
         }
         break;
         case T_NestingOperator:

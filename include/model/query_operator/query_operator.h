@@ -13,6 +13,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/vector.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 
@@ -119,7 +120,8 @@ typedef struct ConstRelOperator
 typedef struct ConstRelMultiListsOperator
 {
     QueryOperator op;
-    List *values; // list of list(Constant);
+    // List *values; // list of list(Constant);
+    Vector *values;
 } ConstRelMultiListsOperator;
 
 typedef struct NestingOperator
@@ -261,7 +263,7 @@ extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
         List *parents);
 extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *parents);
 extern DLMorDDLOperator *createDMLDDLOp(Node *stmt);
-extern ConstRelMultiListsOperator *createConstRelMultiListsOp(List *values, List *parents, List*attrNames, List *dataTypes);
+extern ConstRelMultiListsOperator *createConstRelMultiListsOp(Vector *values, List *parents, List*attrNames, List *dataTypes);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

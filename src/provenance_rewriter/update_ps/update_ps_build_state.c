@@ -56,6 +56,35 @@ buildState(QueryOperator *op)
 }
 
 
+/*
+1.
+	translate to datachunk from postgresq libs(functions) instead of to Relation.
+	check time for postgresql.
+2. 	multi gb attrs, group by 1, 2 -> key: 1#2# : hashValue(1#2#) str as byte array.
+	string of char[sizeof(int) * 2];
+	Vector *gb = vectorof (1, 2); then as key.
+
+	select avgb::float8, sum(a)
+	from
+		( select a, avg(b) as avgb
+			from r
+			group by a) tmp
+	group by avgb
+
+	postgres gives: float 2.000000
+	in our machind: float 2.0000000000
+
+	avoid using string representation.
+	for code serialization: select avg(b) -> select avg(b)::float(8).
+
+	figure out: what type postgres use for float(depend on scale of number)
+	float -> int/int
+	number representation.
+
+
+3. other hashmap lib:
+Vector
+*/
 
 static void
 buildStateInternal(QueryOperator *op)
@@ -89,6 +118,7 @@ buildStateAggregationOp(QueryOperator *op)
 	// get aggregation operator args and groupbys;
 	List *aggrFCs = (List *) copyObject(aggOp->aggrs);
 	List *aggrGBs = (List *) copyObject(aggOp->groupBy);
+	boolean noGB = (LIST_LENGTH(aggrGBs) == 0 ? TRUE : FALSE);
 
 	// split this aggOp into two categories: min/max and avg/count/sum;
 	List *min_max = NIL;
@@ -227,9 +257,13 @@ buildStateAggregationOp(QueryOperator *op)
 				// INFO_LOG("tuple values: %s", stringListToString(tuple));
 				// get group by value of this tuple; TODO: isNULL
 				StringInfo gbVals = makeStringInfo();
-				for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
-					appendStringInfo(gbVals, "%s#", (char *) getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
-					// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+				if (noGB) {
+					appendStringInfo(gbVals, "##");
+				} else {
+					for (int j = 0; j < LIST_LENGTH(gbAttrPos); j++) {
+						appendStringInfo(gbVals, "%s#", (char *) getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+						// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, j))));
+					}
 				}
 
 				// check if gbHeaps has this group by value;
@@ -466,9 +500,13 @@ buildStateAggregationOp(QueryOperator *op)
 
 				// get the group by values;
 				StringInfo gbVals = makeStringInfo();
-				for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
-					// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
-					appendStringInfo(gbVals, "%s#", getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+				if (noGB) {
+					appendStringInfoString(gbVals, "##");
+				} else {
+					for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
+						// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+						appendStringInfo(gbVals, "%s#", getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+					}
 				}
 
 				// value list;

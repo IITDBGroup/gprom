@@ -14,6 +14,7 @@
 #define JOIN_RIGHT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_RIGHT_TUPLE_IDENTIFIER")
 extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);
 
+extern BitSet *setFragmentToBitSet(int value, List *rangeList);
 typedef struct DataChunk
 {
 	/*
@@ -65,7 +66,7 @@ typedef struct DataChunk
 	HashMap *attriToPos;
 	HashMap *posToDatatype;
 	Vector  *isNull;
-
+	boolean isAPSChunk;
 } DataChunk;
 
 

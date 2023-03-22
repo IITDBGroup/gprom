@@ -852,7 +852,7 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
 }
 
 ConstRelMultiListsOperator *
-createConstRelMultiListsOp(List *values, List *parents, List*attrNames, List *dataTypes)
+createConstRelMultiListsOp(Vector *values, List *parents, List*attrNames, List *dataTypes)
 {
     ConstRelMultiListsOperator *co = NEW(ConstRelMultiListsOperator);
 
@@ -860,14 +860,14 @@ createConstRelMultiListsOp(List *values, List *parents, List*attrNames, List *da
     co->op.type = T_ConstRelMultiListsOperator;
     co->op.inputs = NULL;
 
-    if (dataTypes == NIL)
-    {
-        List *l = (List *) getNthOfListP(values, 0);
-        FOREACH(Node, v, l)
-        {
-            dataTypes = appendToTailOfListInt(dataTypes, typeOf(v));
-        }
-    }
+    // if (dataTypes == NIL)
+    // {
+    //     List *l = (List *) getNthOfListP(values, 0);
+    //     FOREACH(Node, v, l)
+    //     {
+    //         dataTypes = appendToTailOfListInt(dataTypes, typeOf(v));
+    //     }
+    // }
 
     co->op.schema = createSchemaFromLists("ConstRelMultiLists", attrNames, dataTypes);
     co->op.parents = parents;

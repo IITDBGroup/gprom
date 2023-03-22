@@ -12,6 +12,7 @@
 #define METADATA_LOOKUP_POSTGRES_H_
 
 #include "metadata_lookup/metadata_lookup.h"
+#include "provenance_rewriter/update_ps/update_ps_incremental.h"
 
 #ifdef HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
@@ -66,5 +67,6 @@ extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationL
 extern Relation *postgresExecuteQuery(char *query);
 extern void postgresExecuteQueryIgnoreResult (char *query);
 extern void postgresExecuteStatement(char* query);
-
+extern void postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rangeList, char *psName);
+extern void postgresGetDataChunkJoin(char *query, List *leftProvs, List *rightProvs, DataChunk* dcIns, DataChunk *dcDel, int branch);
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

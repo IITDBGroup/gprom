@@ -30,7 +30,8 @@ typedef struct Vector
     int maxLength;
     char *data;
 } Vector;
-
+/* optimize vector: one chunk of data. */
+// HashMap
 // access data of vector as array
 #define VEC_TO_ARR(vec,type) ((type **) ((Vector *) vec)->data)
 #define VEC_TO_IA(vec) ((int *) ((Vector *) vec)->data)

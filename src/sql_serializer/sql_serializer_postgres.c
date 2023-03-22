@@ -682,7 +682,7 @@ serializeConstRelMultiListsOperator(StringInfo from, ConstRelMultiListsOperator 
     int pos = 0;
     // append attrNames;
     FOREACH (char, c, attrNames) {
-        if (pos++ != 0)
+        if (pos++ > 0)
             appendStringInfoString(from, ", ");
 
         appendStringInfo(from, "%s", c);
@@ -690,78 +690,54 @@ serializeConstRelMultiListsOperator(StringInfo from, ConstRelMultiListsOperator 
 
     appendStringInfoString(from, " FROM( VALUES ");
 
-    // append values;
-    int row = 0;
-    FOREACH (List, list, t->values) {
-        if (row++ != 0)
-            appendStringInfoString(from, ", ");
+    Vector *strInfoVec = makeVector(VECTOR_NODE, T_Vector);
 
-        appendStringInfoString(from, "(");
-        int col = 0;
-        FOREACH(Node, n, list) {
-            if (col++ != 0)
-                appendStringInfoString(from, ",");
-
-            appendStringInfo(from, "%s", exprToSQL(n, NULL, FALSE));
-
+    for (int col = 0; col < t->values->length; col++) {
+        Vector *value = (Vector *) getVecNode(t->values, col);
+        DataType valType = ((AttributeDef *) getNthOfListP(t->op.schema->attrDefs, col))->dataType;
+        int len = value->length;
+        for (int row = 0; row < len; row++) {
+            StringInfo info = NULL;
+            if (col == 0) {
+                info = makeStringInfo();
+                vecAppendNode(strInfoVec, (Node *) info);
+            }
+            switch (valType) {
+                case DT_INT:
+                {
+                    appendStringInfo((StringInfo) getVecNode(strInfoVec, row), "%s%s", (col > 0 ? "," : ""), gprom_itoa(getVecInt(value, row)));
+                }
+                    break;
+                case DT_LONG:
+                {
+                    appendStringInfo((StringInfo) getVecNode(strInfoVec, row), "%s%s", (col > 0 ? "," : ""), gprom_ltoa(getVecLong(value, row)));
+                }
+                    break;
+                case DT_FLOAT:
+                {
+                    appendStringInfo((StringInfo) getVecNode(strInfoVec, row), "%s%s", (col > 0 ? "," : ""), gprom_ftoa(getVecFloat(value, row)));
+                }
+                    break;
+                case DT_STRING:
+                case DT_VARCHAR2:
+                {
+                    appendStringInfo((StringInfo) getVecNode(strInfoVec, row), "%s'%s'", (col > 0 ? "," : ""), getVecString(value, row));
+                }
+                    break;
+                case DT_BOOL:
+                {
+                    appendStringInfo((StringInfo) getVecNode(strInfoVec, row), "%s%s", (col > 0 ? "," : ""), gprom_itoa(getVecInt(value, row)));
+                }
+                    break;
+            }
         }
-        appendStringInfoString(from, ")");
     }
-    appendStringInfoString(from, ") AS DUALS (");
 
     pos = 0;
-    FOREACH(char, c, attrNames) {
-        if (pos++ != 0)
-            appendStringInfoString(from, ", ");
-
-        appendStringInfo(from, "%s", c);
+    FOREACH_VEC(struct StringInfoData, val, strInfoVec) {
+        appendStringInfo(from, "%s(%s)", (pos++ > 0 ? "," :" "), val->data);
     }
     appendStringInfo(from, ")) F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
-
-
-
-
-
-
-    // int pos = 0;
-    // FOREACH(char, ch, attrNames) {
-    //     if (pos++ != 0) {
-    //         appendStringInfoString(from, ", ");
-    //     }
-    //     appendStringInfo(from, "%s", ch);
-    // }
-    // // appendStringInfoString(from, stringListToString(attrNames));
-    // INFO_LOG("ATTRS TO STR %s", stringListToString);
-    // appendStringInfoString(from, " FROM (VALUES ");
-    // int row = 0;
-    // FOREACH(List, l, t->values) {
-    //     // int pos = 0;
-    //     if (row != 0) {
-    //         appendStringInfoString(from, ", ");
-    //     }
-    //     row++;
-    //     appendStringInfoString(from, "(");
-    //     int col = 0;
-    //     FOREACH(Node, c, l) {
-    //         if (col != 0) {
-    //             appendStringInfoString(from, ",");
-    //         }
-    //         col++;
-    //         appendStringInfo(from, "%s", exprToSQL(c, NULL, FALSE));
-    //     }
-    //     appendStringInfoString(from, ")");
-    // }
-
-    // appendStringInfo(from, ") AS F%u_%u (", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
-    // // appendStringInfoString(from, stringListToString(attrNames));
-    // pos = 0;
-    // FOREACH(char, ch, attrNames) {
-    //     if (pos++ != 0) {
-    //         appendStringInfoString(from, ", ");
-    //     }
-    //     appendStringInfo(from, "%s", ch);
-    // }
-    // appendStringInfoString(from, ")");
 }
 
 
