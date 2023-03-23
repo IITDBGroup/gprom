@@ -34,22 +34,22 @@ makeVectorOfSize(VectorType type, NodeTag nodeType, int numElem)
 {
     Vector *result = makeNode(Vector);
 
-        result->elType = type;
-        result->elNodeType = nodeType;
-        result->length = 0;
-        result->maxLength = numElem;
+	result->elType = type;
+	result->elNodeType = nodeType;
+	result->length = 0;
+	result->maxLength = numElem;
 
-        switch(type)
-        {
-            case VECTOR_INT:
-                result->data = MALLOC(sizeof(int) * numElem);
-                break;
-            default:
-                result->data = MALLOC(sizeof(void *) * numElem);
-                break;
-        }
+	switch(type)
+	{
+	case VECTOR_INT:
+		result->data = MALLOC(sizeof(int) * numElem);
+		break;
+	default:
+		result->data = MALLOC(sizeof(void *) * numElem);
+		break;
+	}
 
-        return result;
+	return result;
 }
 
 Vector *
