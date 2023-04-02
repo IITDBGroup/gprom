@@ -15,6 +15,7 @@
 extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);
 
 extern BitSet *setFragmentToBitSet(int value, List *rangeList);
+extern int setFragmengtToInt(int value, Vector *rangeList);
 typedef struct DataChunk
 {
 	/*
@@ -61,6 +62,7 @@ typedef struct DataChunk
 	Vector 	*updateIdentifier;
 	Vector  *tuples;
 	HashMap	*fragmentsInfo;
+	HashMap *fragmentsIsInt;
 	int    	numTuples;
 	int    	tupleFields;
 	HashMap *attriToPos;

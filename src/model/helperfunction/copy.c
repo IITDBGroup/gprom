@@ -698,7 +698,7 @@ copyPSMap(PSMap *from, OperatorMap **opMap)
 {
     COPY_INIT(PSMap);
     COPY_NODE_FIELD(provSketchs);
-    COPY_NODE_FIELD(fragCnts);
+    COPY_NODE_FIELD(fragCount);
 
     return new;
 }

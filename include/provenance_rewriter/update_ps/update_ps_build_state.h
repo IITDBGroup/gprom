@@ -114,8 +114,10 @@ typedef struct PSMap
 				key  : fragment info like 1, 2
 				value: tuple count
 	*/
-	HashMap *fragCnts; // key: prov_r_a, value: hash map(key: fragno, value: count);
-	HashMap *provSketchs; // key prov_r_a, prov_s_b; value :bitset;
+	HashMap *fragCount; // key: prov_r_a, value: hash map(key: fragno, value: count);
+	HashMap *provSketchs; // key prov_r_a, prov_s_b; value :vector(bitset or int);
+	HashMap *isIntSketch; // key:prov_r_a, value: boolean;
+	HashMap *provLens; // key:prov_r_a, value: length(int);
 } PSMap;
 
 extern QueryOperator *buildState(QueryOperator *op);

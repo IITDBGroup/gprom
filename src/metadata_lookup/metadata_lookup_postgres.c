@@ -2082,7 +2082,7 @@ void postgresExecuteStatement(char* sql) {
 }
 
 void
-postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rangeList, char *psName)
+postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName)
 {
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");
@@ -2099,7 +2099,7 @@ postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rang
 
 	Vector *psVec = NULL;
 	if (psAttrPos != -1) {
-		psVec = makeVector(VECTOR_NODE, T_Vector);
+		psVec = makeVector(VECTOR_INT, T_Vector);
 	}
 	for (int col = 0; col < numFields; col++) {
 		DataType dataType = INT_VALUE((Constant *) MAP_GET_INT(posToDT, col));
@@ -2113,8 +2113,11 @@ postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rang
 					int value = atoi(PQgetvalue(rs, row, col));
 					vecAppendInt(colVec, value);
 					if (isPSCol) {
-						BitSet *bitset = setFragmentToBitSet(value, rangeList);
-						vecAppendNode(psVec, (Node *) bitset);
+						// BitSet *bitset = setFragmentToBitSet(value, rangeList);
+                        int bitSet = setFragmengtToInt(value, rangeList);
+						// vecAppendNode(psVec, (Node *) bitset);
+                        // INFO_LOG("bitset %d", bitSet);
+                        vecAppendInt(psVec, bitSet);
 					}
 				}
 			}
@@ -2165,6 +2168,7 @@ postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rang
 		vecAppendNode(dc->tuples, (Node *) colVec);
 		if (isPSCol) {
 			addToMap(dc->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVec);
+            addToMap(dc->fragmentsIsInt, (Node *) createConstString(psName), (Node *) createConstBool(TRUE));
 			dc->isAPSChunk = TRUE;
 		}
 	}
@@ -2172,6 +2176,7 @@ postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rang
 	for (int row = 0; row < numRes; row++) {
 		vecAppendInt(dc->updateIdentifier, -1);
 	}
+    DEBUG_NODE_BEATIFY_LOG("PS:", dc->fragmentsInfo);
     DEBUG_NODE_BEATIFY_LOG("DELETE CHUNK IN POSTGRES", dc);
     PQclear(rs);
     execCommit();

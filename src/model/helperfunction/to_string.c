@@ -1273,6 +1273,7 @@ outDataChunk(StringInfo str, DataChunk *node)
 	WRITE_NODE_FIELD(updateIdentifier);
 	WRITE_NODE_FIELD(tuples);
 	WRITE_NODE_FIELD(fragmentsInfo);
+    WRITE_NODE_FIELD(fragmentsIsInt);
 	WRITE_INT_FIELD(numTuples);
 	WRITE_INT_FIELD(tupleFields);
 	WRITE_NODE_FIELD(attriToPos);
@@ -1332,7 +1333,9 @@ outPSMap(StringInfo str, PSMap *node)
 {
     WRITE_NODE_TYPE(PSMap);
     WRITE_NODE_FIELD(provSketchs);
-    WRITE_NODE_FIELD(fragCnts);
+    WRITE_NODE_FIELD(fragCount);
+    WRITE_NODE_FIELD(isIntSketch);
+    WRITE_NODE_FIELD(provLens);
 }
 
 void
@@ -2289,7 +2292,9 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
 
     // return when op is DLMorDDLOperator
     if(isA(op, DLMorDDLOperator))
+    {
     	return;
+    }
 
 	if (opt_log_operator_verbose)
 	{

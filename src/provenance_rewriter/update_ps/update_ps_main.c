@@ -90,6 +90,7 @@ static void modifyUncertCapTree(QueryOperator *op);
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
+  
 	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
 	INFO_OP_LOG("qbModel", qbModel);
 
@@ -98,7 +99,7 @@ update_ps(ProvenanceComputation *qbModel)
 	 * 	left: update statements (one or list of statements)
 	 *	right: query
 	 */
-	ASSERT(LIST_LENGTH(((QueryOperator *) qbModel)->inputs) == 2);
+	// ASSERT(LIST_LENGTH(((QueryOperator *) qbModel)->inputs) == 2);
 
 	// get left and right children;
 	DLMorDDLOperator *leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);

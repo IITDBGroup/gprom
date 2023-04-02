@@ -2350,7 +2350,9 @@ static boolean
 correctFromTableVisitor(Node *node, void *context)
 {
     if (node == NULL)
+    {
         return TRUE;
+    }
 
 	// neex to restore with views and pass them on
 	if(isA(node,WithStmt))
