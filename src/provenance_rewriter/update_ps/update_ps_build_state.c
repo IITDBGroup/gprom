@@ -815,6 +815,7 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 
 					HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gpFragCnt, gbVals[row]);
 					if (fragCnt == NULL) {
+                        fragCnt = NEW_MAP(Constant, Constant);
 						addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstLong(gbCnts[row]));
 						addToMap(gpFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
 					} else {
@@ -854,7 +855,7 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 
 			addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gpFragCnt);
 		}
-		addToMap(dataStructures, (Node *) PROP_PROV_SKETCH_DUP, (Node *) groupPSMap);
+		addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_DUP), (Node *) groupPSMap);
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("acs duplicate", acs);
