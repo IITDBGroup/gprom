@@ -149,7 +149,9 @@ translateParseOracle (Node *q)
 QueryOperator *
 translateQueryOracle (Node *node)
 {
-    return translateQueryOracleInternal (node, NULL);
+	List *attrsOffsetsList = NIL;
+
+    return translateQueryOracleInternal(node, &attrsOffsetsList);
 }
 
 static QueryOperator *
