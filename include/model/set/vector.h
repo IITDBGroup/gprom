@@ -89,6 +89,7 @@ extern boolean findVecString(Vector *v, char *el);
             (_elem_ = *(++DUMMY_ARR(_elem_))))
 
 #define VEC_IS_LAST(_elem_,_vec_) (VEC_TO_ARR(_vec_,void)[_vec_->length - 1] == _elem_)
+#define VEC_IS_LAST_STR(_elem_,_vec_) (VEC_TO_ARR(_vec_,char)[_vec_->length - 1] == _elem_)
 
 // remove elements from a vector
 extern boolean shrinkVector(Vector *v, int newSize);
