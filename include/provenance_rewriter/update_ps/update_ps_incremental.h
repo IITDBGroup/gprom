@@ -10,10 +10,16 @@
 #define DATA_CHUNK_PROP "DATA_CHUNK"
 #define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update"
 #define INCREMENTAL_FETCHING_DATA_TIMER "module - update provenance sketch - incremental update fetching data"
+
+// define left and right update identifier;
 #define JOIN_LEFT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_LEFT_TUPLE_IDENTIFIER")
 #define JOIN_RIGHT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_RIGHT_TUPLE_IDENTIFIER")
-extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);
 
+// define left and right branch;
+
+
+// functions;
+extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);
 extern BitSet *setFragmentToBitSet(int value, List *rangeList);
 extern int setFragmengtToInt(int value, Vector *rangeList);
 typedef struct DataChunk

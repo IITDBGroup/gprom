@@ -90,7 +90,7 @@ static void modifyUncertCapTree(QueryOperator *op);
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
-  
+
 	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
 	INFO_OP_LOG("qbModel", qbModel);
 

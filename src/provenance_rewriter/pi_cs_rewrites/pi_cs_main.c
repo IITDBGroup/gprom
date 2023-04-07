@@ -124,9 +124,6 @@ rewritePI_CS(ProvenanceComputation  *op)
     // unset relation name counters
     /* nameState = (RelCount *) NULL; */
 
-    DEBUG_NODE_BEATIFY_LOG("*\n************************************\nREWRITE INPUT\n"
-            "******************************\n", op);
-
 //    //mark the number of table - used in provenance scratch
 //    markNumOfTableAccess((QueryOperator *) op);
 

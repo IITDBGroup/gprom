@@ -208,6 +208,7 @@
 #define PROP_DATA_CHUNK_INSERT "PROP_DATA_CHUNK_INSERT" // inserted data chunk;
 #define PROP_DATA_CHUNK_DELETE "PROP_DATA_CHUNK_DELETE" // deleted data chunk;
 #define PROP_PROV_SKETCH_AGG "PROP_PROV_SKETCH_AGG"
+#define PROP_PROV_SKETCH_DUP "PROP_PROV_SKETCH_DUP"
 
 #define PROP_HAS_DATA_STRUCTURE_BUILT "PROP_HAS_DATA_STRUCTURE_BUILT" // mark the top operator(now is a provenance computation op) for checking whether data stat is built?
 

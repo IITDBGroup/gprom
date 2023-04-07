@@ -67,6 +67,8 @@ extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationL
 extern Relation *postgresExecuteQuery(char *query);
 extern void postgresExecuteQueryIgnoreResult (char *query);
 extern void postgresExecuteStatement(char* query);
+
 extern void postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName);
-extern void postgresGetDataChunkJoin(char *query, List *leftProvs, List *rightProvs, DataChunk* dcIns, DataChunk *dcDel, int branch);
+extern void postgresGetDataChunkJoin(char *query,DataChunk* dcIns, DataChunk *dcDel, int whichBranch, HashMap *psAttrAndLevel);
+extern void postgresGetDataChunkUpdate(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName);
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

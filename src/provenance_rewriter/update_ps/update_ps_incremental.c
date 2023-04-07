@@ -21,6 +21,7 @@
 #include "model/set/vector.h"
 #include "sql_serializer/sql_serializer.h"
 #include "utility/string_utils.h"
+#include "instrumentation/timing_instrumentation.h"
 
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/update_ps/update_ps_main.h"
@@ -52,7 +53,7 @@ static HashMap *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOp
 static void getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static void getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static void getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunkInsert, DataChunk *dataChunkDelete, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
-static Relation *getQueryResult(char* sql);
+// static Relation *getQueryResult(char* sql);
 // static Constant *makeValue(DataType dataType, char* value);
 // static void executeQueryWithoutResult(char* sql);
 static DataChunk *filterDataChunk(DataChunk* dataChunk, Node* condition);
@@ -202,39 +203,30 @@ updateByOperators(QueryOperator * op)
 	switch(op->type)
 	{
 		case T_ProvenanceComputation:
-			INFO_LOG("update provenance computation");
 			updateProvenanceComputation(op);
 			break;
 		case T_ProjectionOperator:
-			INFO_LOG("update projection");
 			updateProjection(op);
 			break;
 		case T_SelectionOperator:
-			INFO_LOG("update selection");
 			updateSelection(op);
 			break;
 		case T_JoinOperator:
-			INFO_LOG("update join");
 			updateJoin(op);
 			break;
 		case T_AggregationOperator:
-			INFO_LOG("update aggregation");
 			updateAggregation(op);
 			break;
 		case T_TableAccessOperator:
-			INFO_LOG("update table access");
 			updateTableAccess(op);
 			break;
 		case T_DuplicateRemoval:
-			INFO_LOG("update duplicate removal");
 			updateDuplicateRemoval(op);
 			break;
 		case T_SetOperator:
-			INFO_LOG("update set");
 			updateSet(op);
 			break;
 		case T_LimitOperator:
-			INFO_LOG("update limit");
 			updateLimit(op);
 			break;
 		case T_OrderOperator:
@@ -491,7 +483,6 @@ static void
 updateJoin(QueryOperator * op)
 {
 	// update two child operators;
-
 	updateByOperators(OP_LCHILD(op));
     updateByOperators(OP_RCHILD(op));
 
@@ -508,22 +499,13 @@ updateJoin(QueryOperator * op)
 
 	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
 
-	// Vector *psNamesLeft = makeVector(VECTOR_STRING, T_Vector);
-	// Vector *psNamesRight = makeVector(VECTOR_STRING, T_Vector);
-
-	List *leftProvs = getProvenanceAttrDefs(OP_LCHILD(OP_LCHILD(rewrOp)));
-	// FOREACH(AttributeDef, ad, leftProvs) {
-		// vecAppendString(psNamesLeft, strdup(ad->attrName));
-	// }
-	List *rightProvs = getProvenanceAttrDefs(OP_RCHILD(OP_LCHILD(rewrOp)));
-
 	DEBUG_NODE_BEATIFY_LOG("WHAT IS HASH MAP", psAttrAndLevel);
 	ConstRelMultiListsOperator *leftDelta = NULL;
 	// int leftPSAttrCnt = 0;
 	ConstRelMultiListsOperator *rightDelta = NULL;
 	// int rightPSAttrCnt = 0;
 
-	DataChunk *resultDC = NULL;
+	// DataChunk *resultDC = NULL;
 
 	DataChunk *resDCIns = initDataChunk();
 	DataChunk *resDCDel = initDataChunk();
@@ -536,8 +518,39 @@ updateJoin(QueryOperator * op)
 		addToMap(resDCIns->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
 		addToMap(resDCDel->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
 
+		switch (ad->dataType) {
+			case DT_INT:
+			case DT_BOOL:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+			}
+				break;
+			case DT_LONG:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+			}
+				break;
+			case DT_FLOAT:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+			}
+				break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+			}
+				break;
+			default:
+				FATAL_LOG("not supported");
+		}
 		pos++;
 	}
+
 
 	resDCIns->tupleFields = pos;
 	resDCDel->tupleFields = pos;
@@ -596,7 +609,7 @@ updateJoin(QueryOperator * op)
 
 		// Vector *psNames = makeVector(VECTOR_STRING, T_Vector);
 
-		postgresGetDataChunkJoin(sql, leftProvs, rightProvs, resDCIns, resDCDel, -1);
+		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, -1, psAttrAndLevel);
 		INFO_LOG("SQL is : %s", sql);
 	}
 
@@ -622,6 +635,7 @@ updateJoin(QueryOperator * op)
 
 		replaceNode(OP_LCHILD(cOp)->inputs, OP_RCHILD(OP_LCHILD(cOp)), rightDelta);
 		char *sql = serializeQuery(cOp);
+		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, 1, psAttrAndLevel);
 		INFO_LOG("SQL is : %s", sql);
 	}
 
@@ -674,15 +688,25 @@ updateJoin(QueryOperator * op)
 
 		INFO_OP_LOG("rewr Both", cOp);
 		char *sql = serializeQuery(cOp);
+		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, 0, psAttrAndLevel);
 		INFO_LOG("WAHT IS SQL", sql);
 		// Relation *relation = executeQuery(sql);
 		// INFO_LOG("schema %s", stringListToConstList(relation->schema));
 	}
 
-	if (!resultDC) {
-		setStringProperty(op, PROP_DATA_CHUNK, (Node*) resultDC);
+	HashMap *resChunks = NEW_MAP(Constant, Node);
+	if (resDCIns->numTuples > 0) {
+		addToMap(resChunks, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) resDCIns);
+	}
+	if (resDCDel->numTuples > 0) {
+		addToMap(resChunks, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resDCDel);
 	}
 
+	if (mapSize(resChunks) > 0) {
+		SET_STRING_PROP(op, PROP_DATA_CHUNK, (Node *) resChunks);
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("JOIN CHUNKS", resChunks);
 	// remove children's data chunk;
 	if (HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
 		removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
@@ -695,7 +719,6 @@ updateJoin(QueryOperator * op)
 static ConstRelMultiListsOperator *
 createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataChunkDel, boolean isLeftBranch, List *parentList, List *provAttrDefs)
 {
-
 	if (dataChunkIns == NULL && dataChunkDel == NULL) {
 		return NULL;
 	}
@@ -709,12 +732,18 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 	int dcInsLen = 0;
 	int dcDelLen = 0;
 	int attrLen = 0;
+	HashMap *psIsInt = NULL;
+    boolean isAPSChunk = FALSE;
 	if (dataChunkIns != NULL) {
 		dcInsLen = dataChunkIns->numTuples;
 
 		attrNames = getAttrDefNames(dataChunkIns->attrNames);
 		attrTypes = getAttrDataTypes(dataChunkIns->attrNames);
 		attrLen = dataChunkIns->tupleFields;
+		if (dataChunkIns->isAPSChunk) {
+			psIsInt = (HashMap *) dataChunkIns->fragmentsIsInt;
+            isAPSChunk = TRUE;
+		}
 		hasBuiltInfo = TRUE;
 	}
 	if (dataChunkDel != NULL) {
@@ -722,6 +751,11 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 			attrNames = getAttrDefNames(dataChunkDel->attrNames);
 			attrTypes = getAttrDataTypes(dataChunkDel->attrNames);
 			attrLen = dataChunkDel->tupleFields;
+            if (dataChunkDel->isAPSChunk) {
+                psIsInt = (HashMap *) dataChunkDel->fragmentsIsInt;
+                isAPSChunk = TRUE;
+            }
+            hasBuiltInfo = TRUE;
 		}
 
 		dcDelLen = dataChunkDel->numTuples;
@@ -729,13 +763,17 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 
 	Vector *values = makeVector(VECTOR_NODE, T_Vector);
 	for (int col = 0; col < attrLen; col++) {
-		Vector *leftVec = NULL;
-		Vector *rightVec = NULL;
+		Vector *insVec = NULL;
+		Vector *delVec = NULL;
+		size_t insBytes = 0;
+		size_t delBytes = 0;
 		if (dcInsLen > 0) {
-			leftVec = (Vector *) getVecNode(dataChunkIns->tuples, col);
+			insVec = (Vector *) getVecNode(dataChunkIns->tuples, col);
+			insBytes = dcInsLen * getVecElemSize(insVec);
 		}
 		if (dcDelLen > 0) {
-			rightVec = (Vector *) getVecNode(dataChunkDel->tuples, col);
+			delVec = (Vector *) getVecNode(dataChunkDel->tuples, col);
+			delBytes = dcDelLen * getVecElemSize(delVec);
 		}
 
 		DataType colType = (DataType) getNthOfListInt(attrTypes, col);
@@ -769,39 +807,67 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 		}
 
 		resVec->length = dcInsLen + dcDelLen;
-		size_t leftBytes = (size_t) (dcInsLen == 0 ? 0 : dcInsLen * getVecElemSize(leftVec));
-		size_t rightBytes = (size_t) (dcDelLen == 0 ? 0 : dcDelLen *getVecElemSize(rightVec));
-		resVec->data = MALLOC(leftBytes + rightBytes);
-		if (leftBytes > 0) {
-			memcpy(resVec->data, leftVec->data, leftBytes);
+		// size_t insBytes = (size_t) (dcInsLen == 0 ? 0 : dcInsLen * getVecElemSize(insVec));
+		// size_t delBytes = (size_t) (dcDelLen == 0 ? 0 : dcDelLen * getVecElemSize(delVec));
+		resVec->data = MALLOC(insBytes + delBytes);
+		if (insBytes > 0) {
+			memcpy(resVec->data, insVec->data, insBytes);
 		}
 
-		if (rightBytes > 0) {
-			memcpy(resVec->data + leftBytes, rightVec->data, rightBytes);
+		if (delBytes > 0) {
+			memcpy(resVec->data + insBytes, delVec->data, delBytes);
 		}
 		vecAppendNode(values, (Node *) resVec);
 	}
 
 	// for ps;
-	FOREACH(AttributeDef, ad, provAttrDefs) {
-		attrNames = appendToTailOfList(attrNames, strdup(ad->attrName));
-		attrTypes = appendToTailOfListInt(attrTypes, DT_STRING);
-		Vector *psVec = makeVector(VECTOR_STRING, T_Vector);
-		if (dcInsLen > 0) {
-			Vector *insVec = (Vector *) MAP_GET_STRING(dataChunkIns->fragmentsInfo, ad->attrName);
-			FOREACH_VEC(BitSet, bs, insVec) {
-				vecAppendString(psVec, bitSetToString(bs));
-			}
-		}
+    if (isAPSChunk) {
+		FOREACH_HASH_KEY(Constant, c, psIsInt) {
+			attrNames = appendToTailOfList(attrNames, STRING_VALUE(c));
 
-		if (dcDelLen > 0) {
-			Vector *delVec = (Vector *) MAP_GET_STRING(dataChunkDel->fragmentsInfo, ad->attrName);
-			FOREACH_VEC(BitSet, bs, delVec) {
-				vecAppendString(psVec, bitSetToString(bs));
+			boolean isInt = BOOL_VALUE(MAP_GET_STRING(psIsInt, STRING_VALUE(c)));
+			Vector *psVector = NULL;
+			if (isInt) {
+				attrTypes = appendToTailOfListInt(attrTypes, DT_INT);
+				psVector = makeVector(VECTOR_INT, T_Vector);
+				psVector->length = dcInsLen + dcDelLen;
+				size_t insBytes = 0;
+				if (dcInsLen > 0) {
+					insBytes = (size_t) (dcInsLen * sizeof(int));
+				}
+
+				size_t delBytes = 0;
+				if (dcDelLen > 0) {
+					delBytes = (size_t) (dcDelLen * sizeof(int));
+				}
+				psVector->data = MALLOC(insBytes + delBytes);
+				if (insBytes > 0) {
+					memcpy(psVector->data, ((Vector *) MAP_GET_STRING(dataChunkIns->fragmentsInfo, STRING_VALUE(c)))->data, insBytes);
+				}
+
+				if (delBytes > 0) {
+					memcpy(psVector->data + insBytes, ((Vector *) MAP_GET_STRING(dataChunkDel->fragmentsInfo, STRING_VALUE(c)))->data, delBytes);
+				}
+			} else {
+				attrTypes = appendToTailOfListInt(attrTypes, DT_STRING);
+				psVector = makeVector(VECTOR_NODE, T_Vector);
+				if (dcInsLen > 0) {
+					Vector *fromVec = (Vector *) MAP_GET_STRING(dataChunkIns->fragmentsInfo, STRING_VALUE(c));
+					FOREACH_VEC(BitSet, bs, fromVec) {
+						vecAppendString(psVector, bitSetToString(bs));
+					}
+				}
+
+				if (dcDelLen > 0) {
+					Vector *fromVec = (Vector *) MAP_GET_STRING(dataChunkDel->fragmentsInfo, STRING_VALUE(c));
+					FOREACH_VEC(BitSet, bs, fromVec) {
+						vecAppendString(psVector, bitSetToString(bs));
+					}
+				}
 			}
+			vecAppendNode(values, (Node *) psVector);
 		}
-		vecAppendNode(values, (Node *) psVec);
-	}
+    }
 
 	// for update type;
 	if (isLeftBranch) {
@@ -3191,10 +3257,12 @@ updateTableAccess(QueryOperator * op)
 	}
 
 	// build a chumk map (insert chunk and delete chunk) based on update type;
+	START_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
 	HashMap* chunkMap = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
 	if (mapSize(chunkMap) > 0) {
 		setStringProperty(op, PROP_DATA_CHUNK, (Node *) chunkMap);
 	}
+	STOP_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FRO TABLEACCESS OPERATOR", chunkMap);
 }
@@ -3307,6 +3375,15 @@ getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 				FATAL_LOG("not support this data type currently");
 		}
 		// vecAppendNode(dataChunk->tuples, (Node*) makeVector(VECTOR_NODE, T_Vector));
+	}
+
+	// insert into xx select xx from xxx;
+	if (isA(insert->query, QueryBlock)) {
+		// char *sql = serializeQuery((QueryOperator *) ((Insert *) updateOp)->query);
+
+		char *sql = serializeOperatorModel((Node *) ((Insert *) updateOp)->query);
+		INFO_LOG("insert serialize: %s", sql);
+		return;
 	}
 
 	List *tupleRow = (List *) insert->query;
@@ -3435,108 +3512,6 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 		}
 	}
 	postgresGetDataChunkDelete(query, dataChunk, psAttrCol, (psAttrCol == -1 ? NULL : ranges), psName);
-	DEBUG_NODE_BEATIFY_LOG("DELETE CHUNK", dataChunk);
-	boolean finishDC = TRUE;
-	if (finishDC) {
-		return;
-	}
-
-	Relation *relation = getQueryResult(query);
-
-	// check the result relation size;
-	// if size == 0; return;
-	if (LIST_LENGTH(relation->tuples) == 0)
-	{
-		return;
-	}
-
-
-	dataChunk->numTuples = relation->tuples->length;
-	dataChunk->tupleFields = LIST_LENGTH(relation->schema);
-
-	// fill tuples
-	for(int col = 0; col < LIST_LENGTH(relation->schema); col++)
-	{
-		DataType dataType = INT_VALUE((Constant*) MAP_GET_INT(dataChunk->posToDatatype, col));
-		Vector *colVec = NULL;
-
-		// Vector *colValues = makeVector(VECTOR_NODE, T_Vector);
-		for(int row = 0; row < dataChunk->numTuples; row++)
-		{
-			// char *value = (char *) getNthOfListP((List *) getNthOfListP(relation->tuples, row), col);
-			char *value = getVecString((Vector *) getVecNode(relation->tuples, row), col);
-			switch (dataType) {
-				case DT_INT:
-				{
-					if (row == 0) {
-						colVec = makeVector(VECTOR_INT, T_Vector);
-					}
-
-					vecAppendInt(colVec, atoi(value));
-				}
-					break;
-				case DT_LONG:
-				{
-					if (row == 0) {
-						colVec = makeVector(VECTOR_LONG, T_Vector);
-					}
-					vecAppendInt(colVec, atol(value));
-				}
-					break;
-				case DT_FLOAT:
-				{
-					if (row == 0) {
-						colVec = makeVector(VECTOR_FLOAT, T_Vector);
-					}
-					vecAppendInt(colVec, atof(value));
-				}
-					break;
-				case DT_BOOL:
-				{
-					if (row == 0) {
-						colVec = makeVector(VECTOR_INT, T_Vector);
-					}
-					if (streq(value,"TRUE") || streq(value,"t") || streq(value,"true"))
-						vecAppendInt(colVec, 1);
-    				if (streq(value,"FALSE") || streq(value,"f") || streq(value,"false"))
-						vecAppendInt(colVec, 0);
-				}
-					break;
-				case DT_STRING:
-				case DT_VARCHAR2:
-				{
-					if (row == 0) {
-						colVec = makeVector(VECTOR_STRING, T_Vector);
-					}
-					vecAppendNode(colVec, (Node *) strdup(value));
-				}
-					break;
-				default:
-					FATAL_LOG("not support this data type currently");
-			}
-		}
-
-		vecAppendNode(dataChunk->tuples, (Node*) colVec);
-	}
-
-	// fill identifier of update "-1"
-	for (int row = 0; row < dataChunk->numTuples; row++)
-	{
-		vecAppendInt(dataChunk->updateIdentifier, -1);
-	}
-	// fill fragment information;
-	if (psAttrCol != -1) {
-		Vector *psVec = makeVector(VECTOR_NODE, T_Vector);
-		for (int row = 0; row < dataChunk->numTuples; row++) {
-			int value = atoi(getVecString((Vector *) getVecNode(relation->tuples, row), psAttrCol));
-			// Constant* value = makeValue(DT_INT, getVecString((Vector *)getVecNode(relation->tuples, row), psAttrCol));
-			BitSet *bitset = setFragmentToBitSet(value, attrInfo->rangeList);
-			vecAppendNode(psVec, (Node *) bitset);
-		}
-		addToMap(dataChunk->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVec);
-
-		dataChunk->isAPSChunk = TRUE;
-	}
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR DELETE", dataChunk);
 }
@@ -3632,10 +3607,6 @@ getDataChunkOfUpdate(QueryOperator *updateOp, DataChunk *dataChunkInsert, DataCh
 	// serialize query;
 	char * sql = serializeQuery((QueryOperator*) projOp);
 	// INFO_LOG("SQL: %s", sql);
-	Relation* relation = getQueryResult(sql);
-	if (relation->tuples->length == 0) {
-		return;
-	}
 
 	// fill data chunk;
 	int psAttrCol = -1;
@@ -3653,220 +3624,25 @@ getDataChunkOfUpdate(QueryOperator *updateOp, DataChunk *dataChunkInsert, DataCh
 	}
 
 	dataChunkInsert->attrNames = (List *) copyObject(schema->attrDefs);
-	dataChunkInsert->numTuples = relation->tuples->length;
-	dataChunkInsert->tupleFields = LIST_LENGTH(relation->schema) / 2;
 	dataChunkDelete->attrNames = (List *) copyObject(schema->attrDefs);
-	dataChunkDelete->numTuples = relation->tuples->length;
-	dataChunkDelete->tupleFields = LIST_LENGTH(relation->schema) / 2;
 
-	// initialize each col vector;
-	for (int col = 0; col < dataChunkInsert->tupleFields; col++) {
-		// vecAppendNode(dataChunk->tuples, (Node*) makeVector(VECTOR_NODE, T_Vector));
-		DataType dataType = INT_VALUE((Constant *) MAP_GET_INT(dataChunkInsert->posToDatatype, col));
-		switch (dataType)
-		{
-			case DT_INT:
-			{
-				vecAppendNode(dataChunkInsert->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
-				vecAppendNode(dataChunkDelete->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
-			}
-				break;
-			case DT_LONG:
-			{
-				vecAppendNode(dataChunkInsert->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
-				vecAppendNode(dataChunkDelete->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
-			}
-				break;
-			case DT_FLOAT:
-			{
-				vecAppendNode(dataChunkInsert->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
-				vecAppendNode(dataChunkDelete->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
-			}
-				break;
-			case DT_STRING:
-			case DT_VARCHAR2:
-			{
-				vecAppendNode(dataChunkInsert->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
-				vecAppendNode(dataChunkDelete->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
-			}
-				break;
-			case DT_BOOL:
-			{
-				vecAppendNode(dataChunkInsert->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
-				vecAppendNode(dataChunkDelete->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
-			}
-				break;
-			default:
-				break;
-		}
-	}
-	INFO_LOG("psAttrCol %d", psAttrCol);
-
-	// fill tuples:
-	Vector *psVecInsert = makeVector(VECTOR_NODE, T_Vector);
-	Vector *psVecDelete = makeVector(VECTOR_NODE, T_Vector);
-
-	int tupleCols = dataChunkInsert->tupleFields * 2;
-	for (int col = 0; col < tupleCols; col++) {
-		int acturalPos = col / 2;
-
-		Vector *colVec = NULL;
-		if (col % 2 == 1) {
-			colVec = (Vector *) getVecNode(dataChunkInsert->tuples, acturalPos);
-		} else {
-			colVec = (Vector *) getVecNode(dataChunkDelete->tuples, acturalPos);
-		}
-		DataType dataType = INT_VALUE((Constant *) MAP_GET_INT(dataChunkInsert->posToDatatype, acturalPos));
-		for (int row = 0; row < relation->tuples->length; row++) {
-			char *val = getVecString((Vector *) getVecNode(relation->tuples, row), col);
-			switch (dataType) {
-				case DT_INT:
-					vecAppendInt(colVec, atoi(val));
-					break;
-				case DT_LONG:
-					vecAppendLong(colVec, atol(val));
-					break;
-				case DT_FLOAT:
-					vecAppendFloat(colVec, atof(val));
-					break;
-				case DT_STRING:
-				case DT_VARCHAR2:
-					vecAppendNode(colVec, (Node *) strdup(val));
-					break;
-				case DT_BOOL:
-					if (streq(val, "TRUE") || streq(val, "t") || streq(val, "true"))
-						vecAppendInt(colVec, 1);
-    				if (streq(val, "FALSE") || streq(val, "f") || streq(val, "false"))
-						vecAppendInt(colVec, 0);
-				default:
-					FATAL_LOG("data type is not supported");
-			}
-
-			if (acturalPos == psAttrCol) {
-				BitSet *bitset = setFragmentToBitSet(atoi(val), attrInfo->rangeList);
-				if (col % 2 == 1) {
-					vecAppendNode(psVecInsert, (Node *) bitset);
-				} else {
-					vecAppendNode(psVecInsert, (Node *) bitset);
-				}
-			}
-		}
-	}
-
-	for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-		vecAppendInt(dataChunkDelete->updateIdentifier, -1);
-		vecAppendInt(dataChunkInsert->updateIdentifier, 1);
-	}
-
+	Vector *ranges = NULL;
 	if (psAttrCol != -1) {
-		addToMap(dataChunkInsert->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVecInsert);
-		addToMap(dataChunkDelete->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVecDelete);
-		dataChunkDelete->isAPSChunk = TRUE;
-		dataChunkInsert->isAPSChunk = TRUE;
+		ranges = makeVector(VECTOR_INT, T_Vector);
+		FOREACH(Constant, c, attrInfo->rangeList) {
+			vecAppendInt(ranges, INT_VALUE(c));
+		}
 	}
 
+	postgresGetDataChunkUpdate(sql, dataChunkInsert, dataChunkDelete, psAttrCol, ranges, psName);
 
-
-	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR UPDATE", dataChunkInsert);
-}
-
-/*
-static void
-postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, List *rangeList, char *psName);
-{
-    START_TIMER(METADATA_LOOKUP_TIMER);
-    START_TIMER("Postgres - execute ExecuteQuery");
-    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
-    PGresult *rs = execQuery(query);
-    int numRes = PQntuples(rs);
-    int numFields = PQnfields(rs);
-	HashMap *posToDT = dc->posToDatatype;
-	dc->numTuples = numRes;
-	if (numRes < 1) {
+	boolean hasFinishedChunk = TRUE;
+	if (hasFinishedChunk) {
 		return;
 	}
 
-	Vector *psVec = NULL;
-	if (psAttrPos != -1) {
-		psVec = makeVector(VECTOR_NODE, T_Vector);
-	}
-	for (int col = 0; col < numFields; col++) {
-		DataType dataType = INT_VALUE((Constant *) MAP_GET_INT(posToDT, col));
-		Vector *colVec = NULL;
-		boolean isPSCol = (col == psAttrPos);
-		switch (dataType) {
-			case DT_INT:
-			{
-				colVec = makeVector(VECTOR_INT, T_Vector);
-				for (int row = 0; row < numRes; row++) {
-					int value = atoi(PQgetvalue(rs, row, col));
-					vecAppendInt(colVec, value);
-					if (isPSCol) {
-						BitSet *bitset = setFragmentToBitSet(value, rangeList);
-						vecAppendNode(psVec, (Node *) bitset);
-					}
-				}
-			}
-				break;
-			case DT_LONG:
-			{
-				colVec = makeVector(VECTOR_LONG, T_Vector);
-				for (int row = 0; row < numRes; row++) {
-					gprom_long_t value = atol(PQgetvalue(rs, row, col));
-					vecAppendLong(colVec, value);
-				}
-			}
-				break;
-			case DT_FLOAT:
-			{
-				colVec = makeVector(VECTOR_LONG, T_Vector);
-				for (int row = 0; row < numRes; row++) {
-					double value = atof(PQgetvalue(rs, row, col));
-					vecAppendFloat(colVec, value);
-				}
-			}
-				break;
-			case DT_STRING:
-			case DT_VARCHAR2:
-			{
-				colVec = makeVector(VECTOR_STRING, T_Vector);
-				for (int row = 0; row < numRes; row++) {
-					char *value = PQgetvalue(rs, row, col);
-					vecAppendString(strdup(value));
-				}
-			}
-				break;
-			case DT_BOOL:
-			{
-				colVec = makeVector(VECTOR_INT, T_Vector);
-				for (int row = 0; row < numRes; row++) {
-					char *value = PQgetvalue(rs, row, col);
-					if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true"))
-					{ vecAppendInt(colVec, 1); }
-    				if (streq(value, "FALSE") || streq(value, "f") || streq(value, "false"))
-					{ vecAppendInt(colVec, 0); }
-				}
-			}
-				break;
-			default:
-				FATAL_LOG("not supported");
-		}
-		vecAppendNode(dc->tuples, (Node *) colVec);
-		if (isPSCol) {
-			addToMap(dc->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVec);
-			dataChunk->isAPSChunk = TRUE;
-		}
-	}
-
-	for (int row = 0; row < numRes; row++) {
-		vecAppendInt(dc->updateIdentifier, -1);
-	}
-    PQclear(rs);
-    execCommit();
-    STOP_TIMER("Postgres - execute ExecuteQuery");
-    STOP_TIMER(METADATA_LOOKUP_TIMER);
+	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR UPDATE", dataChunkInsert);
 }
-*/
 
 static DataChunk*
 filterDataChunk(DataChunk* dataChunk, Node* condition)
@@ -4088,20 +3864,20 @@ setFragmentToBitSet(int value, List *rangeList)
 	return result;
 }
 
-static Relation*
-getQueryResult(char* sql)
-{
-	Relation* relation = NULL;
-	// TODO: generic executeQuery(sql);
-	// get query result
-	if (getBackend() == BACKEND_POSTGRES) {
-		relation = postgresExecuteQuery(sql);
-	} else if (getBackend() == BACKEND_ORACLE) {
+// static Relation*
+// getQueryResult(char* sql)
+// {
+// 	Relation* relation = NULL;
+// 	// TODO: generic executeQuery(sql);
+// 	// get query result
+// 	if (getBackend() == BACKEND_POSTGRES) {
+// 		relation = postgresExecuteQuery(sql);
+// 	} else if (getBackend() == BACKEND_ORACLE) {
 
-	}
+// 	}
 
-	return relation;
-}
+// 	return relation;
+// }
 
 /*
 static void

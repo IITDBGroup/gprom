@@ -299,6 +299,9 @@ serializeDelete(StringInfo str, Delete* d) {
 static void
 serializeInsert(StringInfo str, Insert* i){
 	if (isA(i->query, QueryBlock)){
+        // appendStringInfo(str, "%s", serializeQueryPostgres((QueryOperator *) i));
+        // char *qb = serializeQueryPostgres((QueryOperator *) i->query);
+        // INFO_LOG("query block", qb);
 		// TODO this is for insert into tbl (a query);
 //		appendStringInfo(str, "insert into %s ", i->insertTableName);
 //		appendStringInfo(str, "select %s", exprToSQL((Node*) (((QueryBlock* )(i->query))->selectClause), NULL ));
@@ -659,7 +662,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
     {
         Node *value;
         if (pos != 0)
-            appendStringInfoString(from, ", ");
+        { appendStringInfoString(from, ", "); }
         value = getNthOfListP(t->values, pos++);
         appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName);
 
@@ -736,6 +739,13 @@ serializeConstRelMultiListsOperator(StringInfo from, ConstRelMultiListsOperator 
     pos = 0;
     FOREACH_VEC(struct StringInfoData, val, strInfoVec) {
         appendStringInfo(from, "%s(%s)", (pos++ > 0 ? "," :" "), val->data);
+    }
+    appendStringInfoString(from, ") AS TMP(");
+    pos = 0;
+    FOREACH (char, c, attrNames) {
+        if (pos++ > 0)
+        { appendStringInfoString(from, ", "); }
+        appendStringInfo(from, "%s", c);
     }
     appendStringInfo(from, ")) F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList) - 1);
 }
