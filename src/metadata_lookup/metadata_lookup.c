@@ -57,8 +57,6 @@ initMetadataLookupPlugins (void)
 #endif
     availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
 
-
-
     return EXIT_SUCCESS;
 }
 

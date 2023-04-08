@@ -27,6 +27,7 @@
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include <stdlib.h>
 
 #if HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
@@ -172,19 +173,22 @@ static DataType postgresTypenameToDT (char *typName);
             PQclear(_res); \
 		} while(0)
 
-#define CLOSE_CONN_AND_FATAL(...) \
-		do { \
-			PQfinish(plugin->conn); \
-			FATAL_LOG(__VA_ARGS__); \
-		}
+#define CLOSE_CONN_AND_FATAL(...)                           \
+    do {                                                    \
+        PQfinish(plugin->conn);                             \
+        plugin->conn = NULL;                                \
+        STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
+        FATAL_LOG(__VA_ARGS__);                             \
+    }
 
-#define CLOSE_RES_CONN_AND_FATAL(res, ...) \
-        do { \
-            PQfinish(plugin->conn); \
-            PQclear(res); \
-			STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
-            FATAL_LOG(__VA_ARGS__); \
-        } while(0)
+#define CLOSE_RES_CONN_AND_FATAL(res, ...)                  \
+    do {                                                    \
+        PQclear(res);                                       \
+        PQfinish(plugin->conn);                             \
+        plugin->conn = NULL;                                \
+        STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
+        FATAL_LOG(__VA_ARGS__);                             \
+    } while(0)
 
 
 // extends MetadataLookupPlugin with postgres connection
@@ -281,7 +285,6 @@ postgresInitMetadataLookupPlugin (void)
 
     plugin->initialized = TRUE;
 
-
 	STOP_TIMER(METADATA_LOOKUP_TIMER);
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
@@ -322,10 +325,22 @@ postgresDatabaseConnectionOpen (void)
     /* check to see that the backend connection was successfully made */
     if (plugin->conn == NULL || PQstatus(plugin->conn) == CONNECTION_BAD)
     {
-        char *error = PQerrorMessage(plugin->conn);
-        PQfinish(plugin->conn);
-        FATAL_LOG("unable to connect to postgres database %s\n\nfailed "
-                "because of:\n%s", connStr->data, error);
+        if(plugin->conn != NULL)
+        {
+            char *error = PQerrorMessage(plugin->conn);
+            PQfinish(plugin->conn);
+            plugin->conn = NULL;
+            RELEASE_MEM_CONTEXT();
+            ERROR_LOG("unable to connect to postgres database %s\n\nfailed "
+                      "because of:\n%s", connStr->data, error);
+            return EXIT_FAILURE;
+        }
+        else
+        {
+            RELEASE_MEM_CONTEXT();
+            ERROR_LOG("unable to connect to postgres, no connection object was created.");
+            return EXIT_FAILURE;
+        }
     }
 
     plugin->initialized = TRUE;
@@ -554,7 +569,6 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
         DEBUG_LOG("argDTs: %s, argTypes: %s", nodeToString(argDTs), nodeToString(argTypes));
         if (equal(argDTs, argTypes)) //TODO compatible data types
         {
-            RELEASE_MEM_CONTEXT();
             DataType retDT = postgresOidToDT(retType);
             DEBUG_LOG("return type %s for %s(%s)", DataTypeToString(retDT), fName, nodeToString(argTypes));
             resType = retDT;
@@ -1109,16 +1123,20 @@ execStmt (char *stmt)
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQexec(c, "BEGIN TRANSACTION;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
-                    PQerrorMessage(c));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
+                                 PQerrorMessage(c));
+    }
     PQclear(res);
 
     DEBUG_LOG("execute statement %s", stmt);
     res = PQexec(c, stmt);
     if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
-                PQerrorMessage(c));
+                                 PQerrorMessage(c));
+    }
     PQclear(res);
 
 	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
