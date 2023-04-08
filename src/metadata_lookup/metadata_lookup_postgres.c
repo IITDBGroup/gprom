@@ -1133,26 +1133,31 @@ execQuery(char *query)
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
 
-	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQexec(c, "BEGIN TRANSACTION;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
-                    PQerrorMessage(c));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+		CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
+								 PQerrorMessage(c));
+	}
     PQclear(res);
 
     DEBUG_LOG("create cursor for %s", query);
     res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
     if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
-                PQerrorMessage(c));
+								 PQerrorMessage(c));
+	}
     PQclear(res);
 
     res = PQexec(c, "FETCH ALL in myportal");
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	{
         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
-
-	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+	}
+    STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     return res;
 }
@@ -1167,9 +1172,12 @@ execCommit(void)
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     res = PQexec(c, "COMMIT;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
-                    PQerrorMessage(c));
+
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+		CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
+								 PQerrorMessage(c));
+	}
     PQclear(res);
 
 	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
@@ -1185,28 +1193,31 @@ execPrepared(char *qName, List *values)
     params = CALLOC(sizeof(char*),LIST_LENGTH(values));
 
     ASSERT(postgresIsInitialized());
-	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     i = 0;
     FOREACH(Constant,c,values)
+	{
         params[i++] = STRING_VALUE(c);
+	}
 
     DEBUG_LOG("run query %s with parameters <%s>",
 			  qName, exprToSQL((Node *) values, NULL));
 
     res = PQexecPrepared(plugin->conn,
-            qName,
-            nParams,
-            (const char *const *) params,
-            NULL,
-            NULL,
-            0);
+						 qName,
+						 nParams,
+						 (const char *const *) params,
+						 NULL,
+						 NULL,
+						 0);
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	{
         CLOSE_RES_CONN_AND_FATAL(res, "query %s failed:\n%s", qName,
-                PQresultErrorMessage(res));
-
-	STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+								 PQresultErrorMessage(res));
+	}
+    STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
     return res;
 }
@@ -1226,8 +1237,10 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
                     parameters,
                     types);
     if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
         CLOSE_RES_CONN_AND_FATAL(res, "prepare query %s failed: %s",
                 qName, PQresultErrorMessage(res));
+	}
     PQclear(res);
 
     DEBUG_LOG("prepared query: %s AS\n%s", qName, query);
@@ -1244,7 +1257,9 @@ postgresOidToDT(char *Oid)
     Constant *c = (Constant *) MAP_GET_INT(GET_CACHE()->oidToDT,oid);
 
     if (c == NULL)
+	{
         FATAL_LOG("did not find datatype for oid %s", Oid);
+	}
     return (DataType) INT_VALUE(c);
 }
 
@@ -1265,27 +1280,37 @@ postgresTypenameToDT (char *typName)
            || streq(typName,"varchar")
            || streq(typName,"xml")
             )
+	{
         return DT_STRING;
+	}
 
     // integer data types
     if (streq(typName,"int2")
             || streq(typName,"int4"))
+	{
         return DT_INT;
+	}
 
     // long data types
     if (streq(typName, "int8"))
+	{
         return DT_LONG;
+	}
 
     // numeric data types
     if (streq(typName, "float4")
             || streq(typName, "float8")
             || streq(typName, "numeric")
             )
+	{
         return DT_FLOAT;
+	}
 
     // boolean
     if (streq(typName,"bool"))
+	{
         return DT_BOOL;
+	}
 
     return DT_STRING;
 }

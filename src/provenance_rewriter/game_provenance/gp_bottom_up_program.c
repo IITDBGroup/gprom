@@ -4223,16 +4223,24 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     /* ************************************************************ */
     // mark goals as IDB
     FOREACH(DLRule,r,newRules)
+	{
         setIDBBody(r);
+	}
 
     FOREACH(DLRule,r,moveRules)
+	{
         setIDBBody(r);
+	}
 
     FOREACH(DLRule,r,helpRules)
+	{
         setIDBBody(r);
+	}
 
     FOREACH(DLRule,r,negedbRules)
+	{
         setIDBBody(r);
+	}
 
     DEBUG_LOG("------------- STEP 4 ---------------\ncreated unlinked rules:\n%s\nand unlinked help rules:\n%s\nand linked rules:\n%s\nand help rules:\n%s\nand EDB help rules:\n%s\nand EDB rules:\n%s\nand move rules:\n%s",
             datalogToOverviewString((Node *) unLinkedRules),
@@ -4299,8 +4307,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 		    			// DOMAIN must be assigned for negated atom
 		    			if(!searchListString(domAssigned,atomRel))
+						{
 		    				FATAL_LOG("DOMAIN has not assigned for %s", atomRel);
-
+						}
 						int varPosition = 0;
 						char *atomAttr = NULL;
 						List *domHeadList = NIL;
@@ -4419,7 +4428,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 								domAtom->args = singleton(arg);
 
 								if(!searchListNode(domHeadList, (Node *) domAtom))
+								{
 									domHeadList = appendToTailOfList(domHeadList, domAtom);
+								}
 							}
 						}
 
