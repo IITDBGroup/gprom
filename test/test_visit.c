@@ -52,25 +52,28 @@ static boolean
 visitTheNode(Node *node, void *state)
 {
     if (node == NULL)
+	{
         return TRUE;
+	}
 
-	switch (node->type) {
+	switch (node->type)
+	{
 	case T_Invalid: printf("The type of the node is Invalid\n"); break;
-	/* lists */
+		/* lists */
 
 	case T_List: printf("The type of the node is List\n"); break;
 	case T_IntList: printf("The type of the node is IntList\n"); break;
 
-		    /* sets */
+		/* sets */
 	case T_Set: printf("The type of the node is Set\n"); break;
 
-		    /* expression nodes */
+		/* expression nodes */
 	case T_Constant: printf("The type of the node is Constant\n"); break;
 	case T_AttributeReference: printf("The type of the node is AttributeReference\n"); break;
 	case T_FunctionCall: printf("The type of the node is FunctionCall\n"); break;
 	case T_Operator: printf("The type of the node is Operator\n"); break;
 
-		    /* query block model nodes */
+		/* query block model nodes */
 	case T_SetQuery: printf("The type of the node is SetQuery\n"); break;
 	case T_ProvenanceStmt: printf("The type of the node is ProvenanceStmt\n"); break;
 	case T_QueryBlock: printf("The type of the node is QueryBlock\n"); break;
@@ -87,7 +90,7 @@ visitTheNode(Node *node, void *state)
 	case T_Update: printf("The type of the node is Update\n"); break;
 	case T_TransactionStmt: printf("The type of the node is TransactionStmt\n"); break;
 
-		    /* query operator model nodes */
+		/* query operator model nodes */
 	case T_Schema: printf("The type of the node is Schema\n"); break;
 	case T_AttributeDef: printf("The type of the node is AttributeDef\n"); break;
 	case T_QueryOperator: printf("The type of the node is QueryOperator\n"); break;
@@ -106,8 +109,6 @@ visitTheNode(Node *node, void *state)
     case T_SQLParameter: printf("The type of the node is SQLParameter\n"); break;
     default: printf("Nodetype not added to test yet"); break;
 	}
-
-
 
 	//printf("The type of the node is %d\n", node->type);
 	return visit(node, visitTheNode, state);

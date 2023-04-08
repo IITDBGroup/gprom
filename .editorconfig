@@ -17,3 +17,4 @@ indent_size = 4
 indent_style = space
 indent_brace_style = Allman
 curly_bracket_next_line = true
+spaces_around_brackets = none

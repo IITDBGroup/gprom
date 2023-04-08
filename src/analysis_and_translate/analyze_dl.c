@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * analyze_dl.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -40,10 +40,14 @@ analyzeDLModel (Node *stmt)
 {
     //TODO implement checks, e.g., edb relation arity, variable data types, which relations edb which are idb
     if (isA(stmt, DLProgram))
-        analyzeDLProgram((DLProgram *) stmt);
+        {
+            analyzeDLProgram((DLProgram *) stmt);
+        }
 
     if (!checkDLModel(stmt))
-        FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(stmt));
+        {
+            FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(stmt));
+        }
 
     DEBUG_NODE_BEATIFY_LOG("analyzed model is:", stmt);
     INFO_DL_LOG("analyzed model overview is:", stmt);
@@ -156,7 +160,7 @@ analyzeDLProgram (DLProgram *p)
      * 2) the failure pattern is assigned with why question
      */
 	analyzeSummarizationAdvanced(p);
-    
+
 //    // check that answer relation exists
 //    if (p->ans)
 //    {
@@ -174,10 +178,12 @@ analyzeSummerizationBasics (DLProgram *p)
 
     // only continue if summarization was requested
     if (p->sumOpts == NIL)
-        return;
+	{
+		return;
+	}
 
-	DEBUG_LOG("user asked for summarization");
-	
+    DEBUG_LOG("user asked for summarization");
+
     // either why or why-not
     FOREACH(Node,n,p->rules)
     {
