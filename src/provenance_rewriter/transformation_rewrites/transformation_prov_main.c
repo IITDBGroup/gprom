@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * transformation_prov_main.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -681,7 +681,7 @@ rewriteTransformationProvenance(QueryOperator *op)
     	copyUbProjList = removeFromTail(copyUbProjList);
     	ProjectionOperator *pj1 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
     	u2 = createSetOperator(SETOP_UNION, LIST_MAKE(pj1, pj2), NIL,
-    			ubUnionNames);
+                               ubUnionNames);
     	OP_LCHILD(u2)->parents = singleton(u2);
     	OP_RCHILD(u2)->parents = singleton(u2);
 
@@ -690,7 +690,7 @@ rewriteTransformationProvenance(QueryOperator *op)
         	copyUbProjList = removeFromTail(copyUbProjList);
         	ProjectionOperator *pj3 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
         	SetOperator *u3 = createSetOperator(SETOP_UNION, LIST_MAKE(pj3, u2), NIL,
-        			ubUnionNames);
+                                                ubUnionNames);
         	OP_LCHILD(u3)->parents = singleton(u3);
         	OP_RCHILD(u3)->parents = singleton(u3);
         	u2 = u3;
@@ -1262,4 +1262,3 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 
 	return (QueryOperator *) pj;
 }
-
