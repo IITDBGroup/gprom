@@ -4428,7 +4428,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 								domAtom->args = singleton(arg);
 
 								if(!searchListNode(domHeadList, (Node *) domAtom))
+								{
 									domHeadList = appendToTailOfList(domHeadList, domAtom);
+								}
 							}
 						}
 
