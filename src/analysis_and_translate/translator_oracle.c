@@ -555,7 +555,7 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
 				  "in same query block:\n\n%s", beatify(nodeToString(qb)));
 	}
 
-    Queryoperator *having = translateHavingClause(qb->havingClause, wind,
+    QueryOperator *having = translateHavingClause(qb->havingClause, wind,
 												  attrsOffsets);
     if (having != aggr)
 	{
