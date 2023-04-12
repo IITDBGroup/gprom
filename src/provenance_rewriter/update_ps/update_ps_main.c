@@ -29,6 +29,7 @@
 #include "provenance_rewriter/update_ps/table_compress.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
+#include "provenance_rewriter/update_ps/rbtree.h"
 
 /*
  * Macro
@@ -93,45 +94,37 @@ update_ps(ProvenanceComputation *qbModel)
 
 	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
 	INFO_OP_LOG("qbModel", qbModel);
-
 	/*
 	 *	two children
 	 * 	left: update statements (one or list of statements)
 	 *	right: query
 	 */
-	// ASSERT(LIST_LENGTH(((QueryOperator *) qbModel)->inputs) == 2);
-
-	// get left and right children;
+	/* Get left(update statements) and right children(query) */
 	DLMorDDLOperator *leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
 	QueryOperator *rightChild = OP_RCHILD((QueryOperator *) qbModel);
 
 	// remove left child from provenance computation;
 	((QueryOperator *) qbModel)->inputs = singleton(rightChild);
 
-	// build state;
-	// check if there has been the built data state
-	// if not, build for the algebra tree
+	/* Check if there is state for this algebra tree */
 	if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {
 		qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
-		setStringProperty((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, (Node *) createConstBool(TRUE));
-		DEBUG_NODE_BEATIFY_LOG("BUILD STATE", GET_STRING_PROP((QueryOperator *) qbModel, PROP_DATA_STRUCTURE_STATE));
+		SET_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, createConstBool(TRUE));
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
 
-	// update provenance sketch
-	// check it is a statement of a list of statement
+	/* Update provenance sketch */
 	if (isA(leftChild->stmt, List)) {
-		// a list of updates;
 		List *updateStmts = (List *) leftChild->stmt;
-
+		START_TIMER(INCREMENTAL_UPDATE_TIMER);
 		FOREACH(DLMorDDLOperator, stmt, updateStmts) {
-			DEBUG_NODE_BEATIFY_LOG("::UPDATE STATEMENT::\n", stmt);
+			update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) stmt);
 		}
+		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 	} else {
 		START_TIMER(INCREMENTAL_UPDATE_TIMER);
 		update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
-		DEBUG_NODE_BEATIFY_LOG("UPDATED PS", GET_STRING_PROP((QueryOperator *) qbModel, PROP_DATA_STRUCTURE_STATE));
 		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 	}
 
@@ -141,12 +134,11 @@ update_ps(ProvenanceComputation *qbModel)
 	/* ## CODES BELOW CAN BE DISCARDED ## */
 	/* ################################## */
 
-//	return update_ps_incremental( qbModel);
+	//	return update_ps_incremental( qbModel);
 
 	if(1 == 1) {
 		return "end";
 	}
-	DEBUG_NODE_BEATIFY_LOG("qbModel for update ps:\n", qbModel);
 
 	//initialize some parameters to get the ps, left chile(update statement) and right child(query);
 	ProvenanceComputation *op = qbModel;

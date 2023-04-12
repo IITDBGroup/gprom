@@ -28,6 +28,7 @@
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
+#include "provenance_rewriter/update_ps/rbtree.h"
 #include "model/relation/relation.h"
 
 /* functions to output specific node types */
@@ -1338,6 +1339,20 @@ outPSMap(StringInfo str, PSMap *node)
     WRITE_NODE_FIELD(provLens);
 }
 
+static void
+outRBTRoot(StringInfo str, RBTRoot * node)
+{
+
+}
+
+static void
+outRBTNode(StringInfo str, RBTNode * node)
+{
+    WRITE_NODE_TYPE(RBTNode);
+    WRITE_NODE_FIELD(key);
+    WRITE_INT_FIELD(color);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1611,6 +1626,12 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_PSMap:
                 outPSMap(str, (PSMap *) obj);
+                break;
+            case T_RBTRoot:
+                outRBTRoot(str, (RBTRoot *) obj);
+                break;
+            case T_RBTNode:
+                outRBTNode(str, (RBTNode *) obj);
                 break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));

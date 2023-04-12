@@ -76,4 +76,5 @@ extern Node *RBTGetMin(RBTRoot *root);
 extern Node *RBTGetMax(RBTRoot *root);
 extern void RBTInsert(RBTRoot *root, Node *node);
 extern void RBTDelete(RBTRoot *root, Node *node);
+extern Vector *RBTInorderTraverse(RBTRoot *root);
 #endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_RBTREE_H_ */

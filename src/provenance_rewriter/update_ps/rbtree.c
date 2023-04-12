@@ -1,14 +1,14 @@
 #include "provenance_rewriter/update_ps/rbtree.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
-
+#include "log/logger.h"
 
 static void RBTLeftRotate(RBTRoot *root, RBTNode *node);
 static void RBTRightRotate(RBTRoot *root, RBTNode *node);
 static void RBTInsertNode(RBTRoot *root, RBTNode *node);
 static void RBTDeleteNode(RBTRoot *root, RBTNode *node);
 static void RBTInsertFixup(RBTRoot *root, RBTNode *node);
-static void RBTDeleteFixup(RBTRoot *root, RBTNode *node);
+static void RBTDeleteFixup(RBTRoot *root, RBTNode *node, RBTNode *parent);
 static RBTNode *RBTSearchNode(RBTRoot *root, Node *node);
 static int compareTwoNodes(RBTType type, Node *node1, Node *node2);
 
@@ -47,6 +47,7 @@ RBTInsert(RBTRoot *root, Node *node)
 {
     // TODO: what should do if two nodes has same key??
     // TODO: for a ps, there can be two nodes with same value but different fragments info
+    // DEBUG_NODE_BEATIFY_LOG("node to be inserted: ", node);
     RBTNode *insertedNode = makeRBTNode(node);
     RBTInsertNode(root, insertedNode);
     root->size++;
@@ -69,7 +70,7 @@ RBTGetMin(RBTRoot *root)
         return NULL;
     }
 
-    // iterate to the left most tree node;
+    // Loop to the left most tree node;
     RBTNode *res = root->root;
     while (res->left != NULL) {
         res = res->left;
@@ -85,6 +86,7 @@ RBTGetMax(RBTRoot *root)
         return NULL;
     }
 
+    // Loop to the right most tree node;
     RBTNode *res = root->root;
     while (res->right != NULL) {
         res = res->right;
@@ -93,45 +95,50 @@ RBTGetMax(RBTRoot *root)
     return res->key;
 }
 
-// inorder traverse
+/*  Inorder traverse to get top K  */
 Vector *
 RBTGetTopK(RBTRoot *root, int K)
 {
-    // use vector as a stack;
+    if (root->root == NULL) {
+        return NULL;
+    }
+    // Use a vector as stack;
     Vector *stack = makeVector(VECTOR_NODE, T_Vector);
     int stackSize = 0;
 
-    // return vector;
+    // Store output values in a vector;
     Vector *topK = makeVector(VECTOR_NODE, T_Vector);
     int topKSize = 0;
 
     RBTNode *curr = root->root;
-    // inorder iterative all nodes in rbtree
     while (curr != NULL || stackSize > 0) {
         while (curr != NULL) {
             vecAppendNode(stack, (Node *) curr);
             stackSize++;
             curr = curr->left;
         }
+
         // current minimum node;
         curr = (RBTNode *) popVecNode(stack);
         stackSize--;
-
         vecAppendNode(topK, curr->key);
         topKSize++;
+
         // pruning
         if (topKSize == K) {
             break;
         }
         curr = curr->right;
     }
-    // the returned vector size <= K;
     return topK;
 }
 
-// inorder traverse;
-// static RBTNode *
-// RBTSearchNode(RBTNode *root, Node *key, int (*cmp) (const void **, const void **) cmp)
+Vector *
+RBTInorderTraverse(RBTRoot *root)
+{
+    return RBTGetTopK(root, root->size);
+}
+
 static RBTNode *
 RBTSearchNode(RBTRoot *root, Node *node)
 {
@@ -140,11 +147,9 @@ RBTSearchNode(RBTRoot *root, Node *node)
     }
 
     RBTType type = root->type;
-    // iterative;
     RBTNode *res = root->root;
-
     while(res != NULL) {
-        int cmpV = compareTwoNodes(type, res->key, node); // TODO: need revising
+        int cmpV = compareTwoNodes(type, node, res->key); // TODO: need revising
         if (cmpV == 0) {
             return res;
         } else if (cmpV < 0) {
@@ -165,27 +170,33 @@ compareTwoNodes(RBTType type, Node *node1, Node *node2)
         DataType dataType = ((Constant *) node1)->constType;
         switch (dataType) {
             case DT_INT:
+            {
                 res = INT_VALUE(node1) - INT_VALUE(node2) ;
+            }
                 break;
             case DT_LONG:
+            {
                 gprom_long_t val = LONG_VALUE(node1) - LONG_VALUE(node2);
                 res = (val == 0 ? 0 : (val < 0 ? -1 : 1));
+            }
                 break;
             case DT_BOOL:
+            {
                 res = BOOL_VALUE(node1) - BOOL_VALUE(node2);
+            }
                 break;
             case DT_FLOAT:
+            {
                 double val = FLOAT_VALUE(node1) - FLOAT_VALUE(node2);
                 res = (val == 0 ? 0 : (val < 0 ? -1 : 1));
+            }
                 break;
             case DT_STRING:
             case DT_VARCHAR2:
+            {
                 res = strcmp(STRING_VALUE(node1), STRING_VALUE(node2));
+            }
                 break;
-        }
-        // in a tree, left node is smaller than node, for max heap, left value is "logically" smaller than node;
-        if (type == RBT_MAX_HEAP) {
-            res *= (-1);
         }
     } else {
 
@@ -193,7 +204,6 @@ compareTwoNodes(RBTType type, Node *node1, Node *node2)
     return res;
 }
 
-// RBTInsert(RBTRoot *root, RBTNode *node, int (*cmp) (const void **, const void **) cmp)
 static void
 RBTInsertNode(RBTRoot *root, RBTNode *node)
 {
@@ -224,7 +234,6 @@ RBTInsertNode(RBTRoot *root, RBTNode *node)
     } else {
         root->root = node;                  // case 1: y is null, set node as root;
     }
-
     // set node color to red;
     RBT_SET_RED(node);
 
@@ -239,16 +248,17 @@ RBTDeleteNode(RBTRoot *root, RBTNode *node)
     unsigned char color = node->color;
 
     // both children of deleted node exist
-    if ((node->left != NULL) && (node->right != NULL)) {
+    if ((node->left) && (node->right)) {
         // get the "successor" of the deleted "node" and replace "node" with "successor"
         RBTNode *successor = node;
         successor = successor->right;
-        while (successor->left != NULL) {
+        // while (successor->left) {
+        while(RBT_LCHILD(successor)) {
             successor = successor->left;
         }
 
         // node is not root(only root does not have parent)
-        if (RBT_PARENT(node) != NULL) {
+        if (RBT_PARENT(node)) {
             if (RBT_PARENT(node)->left == node) {
                 RBT_PARENT(node)->left = successor;
             } else {
@@ -260,7 +270,7 @@ RBTDeleteNode(RBTRoot *root, RBTNode *node)
         }
 
         // "child" is right child of "successor", adjust
-        // note: "successor" does exist left child.
+        // note: "successor" does exist left child because if exists, it cannot be the successor
         child = successor->right;
         parent = RBT_PARENT(successor);
 
@@ -271,7 +281,8 @@ RBTDeleteNode(RBTRoot *root, RBTNode *node)
             parent = successor;
         } else {
             if (child != NULL) {
-                RBT_SET_COLOR(child, RBT_COLOR(parent));
+                // RBT_SET_COLOR(child, RBT_COLOR(parent));
+                RBT_SET_PARENT(child, parent);
             }
 
             parent->left = child;
@@ -282,11 +293,12 @@ RBTDeleteNode(RBTRoot *root, RBTNode *node)
         successor->parent = node->parent;
         successor->color = node->color;
         successor->left = node->left;
-        RBT_SET_PARENT(node->left->parent, successor);
+        // RBT_SET_PARENT(node->left->parent, successor);
+        node->left->parent = successor;
 
         if (color == RBT_BLACK) {
-            RBTDeleteFixup(root, child);
-            // RBTDeleteFixup(root, child, parent);
+            // RBTDeleteFixup(root, child);
+            RBTDeleteFixup(root, child, parent);
         }
         return;
     }
@@ -300,12 +312,11 @@ RBTDeleteNode(RBTRoot *root, RBTNode *node)
     parent = node->parent;
     color = node->color;
 
-    if (child != NULL) {
+    if (child) {
         child->parent = parent;
     }
 
-    // transplant as INTRO_TO_ALGORITHMS
-    if (parent != NULL) {
+    if (parent) {
         if (node == parent->left) {
             parent->left = child;
         } else {
@@ -317,8 +328,8 @@ RBTDeleteNode(RBTRoot *root, RBTNode *node)
 
     // delete fixup;
     if (color == RBT_BLACK) {
-        RBTDeleteFixup(root, child);
-        // RBTDeleteFixup(root, child, parent);
+        // RBTDeleteFixup(root, child);
+        RBTDeleteFixup(root, child, parent);
     }
 }
 
@@ -386,73 +397,65 @@ RBTInsertFixup(RBTRoot *root, RBTNode *node)
 }
 
 static void
-RBTDeleteFixup(RBTRoot *root, RBTNode *node)
-// RBTDeleteFixup(RBTRoot *root, RBTNode *node, RBTNode *parent)
+RBTDeleteFixup(RBTRoot *root, RBTNode *node, RBTNode *parent)
 {
+    RBTNode *sibling;
     while (node && RBT_IS_BLACK(node) && node != root->root) {
-        // RBTNode *parent = node->parent;
-        if(node == RBT_LCHILD(RBT_PARENT(node))) {
-            RBTNode *sibling = RBT_RCHILD(RBT_PARENT(node));
-            // case 1: node's sibling is red;
-            if (sibling && RBT_IS_RED(sibling)) {
+        if (node == RBT_PARENT(node)->left) {
+            sibling = RBT_RCHILD(RBT_PARENT(node));
+            if (RBT_IS_RED(sibling)) {
                 RBT_SET_BLACK(sibling);
-                RBT_SET_RED(RBT_PARENT(node));
-                RBTLeftRotate(root, RBT_PARENT(node));
-                sibling = RBT_PARENT(node)->right;
+                RBT_SET_RED(parent);
+                RBTLeftRotate(root, parent);
+                sibling = parent->right;
             }
 
-            if (sibling
-            && (RBT_LCHILD(sibling) && RBT_IS_BLACK(RBT_LCHILD(sibling)))
-            && (RBT_RCHILD(sibling) && RBT_IS_BLACK(RBT_RCHILD(sibling)))) {
-                // case 2: sibling color is black and two children are black;
+            if ((!sibling->left || RBT_IS_BLACK(sibling->left))
+            && (!sibling->right || RBT_IS_BLACK(sibling->right))) {
                 RBT_SET_RED(sibling);
-                node = RBT_PARENT(node);
-                // parent = RBT_PARENT(node);
+                node = parent;
+                parent = RBT_PARENT(node);
             } else {
-                if (sibling
-                && RBT_RCHILD(sibling)
-                && RBT_IS_BLACK(RBT_RCHILD(sibling))) {
-                    RBT_SET_BLACK(RBT_LCHILD(sibling));
+                if (!sibling->right || RBT_IS_BLACK(sibling->right)) {
+                    RBT_SET_BLACK(sibling->left);
                     RBT_SET_RED(sibling);
                     RBTRightRotate(root, sibling);
-                    sibling = RBT_RCHILD(RBT_PARENT(node));
+                    sibling = parent->right;
                 }
 
-                RBT_SET_COLOR(sibling, RBT_COLOR(RBT_PARENT(node)));
-                RBT_SET_BLACK(RBT_PARENT(node));
-                RBT_SET_BLACK(RBT_RCHILD(sibling));
-                RBTLeftRotate(root, RBT_PARENT(node));
+                RBT_SET_COLOR(sibling, RBT_COLOR(parent));
+                RBT_SET_BLACK(parent);
+                RBT_SET_BLACK(sibling->right);
                 node = root->root;
+                break;
             }
-
         } else {
-            RBTNode *sibling = RBT_LCHILD(RBT_PARENT(node));
-            // RBTNode *tmp = parent->left;
-            if(sibling && RBT_IS_RED(sibling)) {
+            sibling = RBT_LCHILD(RBT_PARENT(node));
+            if (RBT_IS_RED(sibling)) {
                 RBT_SET_BLACK(sibling);
-                RBT_SET_RED(RBT_PARENT(node));
-                RBTRightRotate(root, RBT_PARENT(node));
-                sibling = RBT_LCHILD(RBT_PARENT(node));
+                RBT_SET_RED(parent);
+                RBTRightRotate(root, parent);
+                sibling = parent->left;
             }
 
-            if (sibling
-            && (RBT_LCHILD(sibling) && RBT_IS_BLACK(RBT_LCHILD(sibling)))
-            && (RBT_RCHILD(sibling) && RBT_IS_BLACK(RBT_RCHILD(sibling)))) {
+            if ((!sibling->left || RBT_IS_BLACK(sibling->left))
+            && (!sibling->right || RBT_IS_BLACK(sibling->right))) {
                 RBT_SET_RED(sibling);
-                node = RBT_PARENT(node);
+                node = parent;
+                parent = RBT_PARENT(node);
             } else {
-                if (sibling
-                && RBT_LCHILD(sibling)
-                && RBT_IS_BLACK(RBT_LCHILD(sibling))) {
-                    RBT_SET_BLACK(RBT_RCHILD(sibling));
+                if (!sibling->left || RBT_IS_BLACK(sibling->left)) {
+                    RBT_SET_BLACK(sibling->right);
                     RBT_SET_RED(sibling);
                     RBTLeftRotate(root, sibling);
-                    sibling = RBT_LCHILD(RBT_PARENT(node));
+                    sibling = parent->left;
                 }
-                RBT_SET_COLOR(sibling, RBT_COLOR(RBT_PARENT(node)));
-                RBT_SET_BLACK(RBT_PARENT(node));
-                RBT_SET_BLACK(RBT_LCHILD(sibling));
-                RBTRightRotate(root, RBT_PARENT(node));
+                RBT_SET_COLOR(sibling, RBT_COLOR(parent));
+                RBT_SET_BLACK(parent);
+                RBT_SET_BLACK(sibling->left);
+                RBTRightRotate(root, parent);
+                node = root->root;
+                break;
             }
         }
     }
@@ -481,21 +484,20 @@ RBTLeftRotate(RBTRoot *root, RBTNode *node)
     node->right = y->left;
 
     // set "node" as parent of y->left;
-    if (y->left != TNIL) {
+    if (y->left != NULL) {
         RBT_SET_PARENT(y->left, node);
     }
 
+    // y->parent = node->parent;
     RBT_SET_PARENT(y, RBT_PARENT(node));
 
     if (RBT_PARENT(node) == NULL) {
         root->root = y;
     } else {
-        if (RBT_LCHILD(RBT_PARENT(node)) == node) {
+        if (node->parent->left == node) {
             RBT_PARENT(node)->left = y;
-            // node->parent->left = y;
         } else {
             RBT_PARENT(node)->right = y;
-            // node->parent->right = y;
         }
     }
 
@@ -508,13 +510,14 @@ static void
 RBTRightRotate(RBTRoot *root, RBTNode *node)
 {
     RBTNode *x = RBT_LCHILD(node);
+
     node->left = x->right;
 
     if (x->right != NULL) {
-        x->right->parent = node;
+        RBT_SET_PARENT(RBT_RCHILD(x), node);
     }
 
-    x->parent = node->parent;
+    RBT_SET_PARENT(x, RBT_PARENT(node));
     if (node->parent == NULL) {
         root->root = x;
     } else {
@@ -525,6 +528,6 @@ RBTRightRotate(RBTRoot *root, RBTNode *node)
         }
     }
 
-    x->parent = node;
+    x->right = node;
     RBT_SET_PARENT(node, x);
 }

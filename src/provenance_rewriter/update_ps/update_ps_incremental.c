@@ -31,6 +31,7 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
+
 // update for each operator;
 static void updateByOperators(QueryOperator * op);
 static void updateProvenanceComputation(QueryOperator* op);
@@ -43,25 +44,14 @@ static void updateDuplicateRemoval(QueryOperator* op);
 static void updateSet(QueryOperator* op);
 static void updateOrder(QueryOperator *op);
 static void updateLimit(QueryOperator * op);
-// static void buildState(Node *node);
-// static void buildStateAggregation(QueryOperator *op);
-// static void buildStateDuplicateRemoval(QueryOperator *op);
-// static void buildStateLimit(QueryOperator *op);
-// static void buildStateFinal(QueryOperator *op);
-// OrderOperator
+
+// chunk operation;
 static HashMap *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAccessOp);
 static void getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static void getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static void getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunkInsert, DataChunk *dataChunkDelete, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
-// static Relation *getQueryResult(char* sql);
-// static Constant *makeValue(DataType dataType, char* value);
-// static void executeQueryWithoutResult(char* sql);
 static DataChunk *filterDataChunk(DataChunk* dataChunk, Node* condition);
 static QueryOperator *captureRewrite(QueryOperator *operator);
-// static int compareTwoValues(Constant *a, Constant *b, DataType dt);
-// static void swapListCell(List *list, int pos1, int pos2);
-// static BitSet *setFragmentToBitSet(int value, List *rangeList);
-// static ConstRelOperator *getConstRelOpFromDataChunk(DataChunk *dataChunk);
 static ConstRelMultiListsOperator *createConstRelMultiListsFromDataChunk(DataChunk *leftDC, DataChunk *rightDC, boolean isLeftBranch, List *parentList, List *provAttrDefs);
 static ColumnChunk *makeColumnChunk(DataType dataType, size_t len);
 static ColumnChunk *evaluateExprOnDataChunk(Node *expr, DataChunk *dc);
@@ -89,8 +79,6 @@ static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType
 // static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
 static int limitCmp(const void **a, const void **b);
 static char *constToString(Constant *c);
-//static void setNumberToEachOperator(QueryOperator *operator);
-// static void *postgresGetDataChunkUpdate(char *query, char *updateType, DataChunk* ins, DataChunk* del, int psAttrPos, List *rangeList);
 #define SQL_PRE backendifyIdentifier("SELECT * FROM ")
 #define VALUES_IDENT backendifyIdentifier(" VALUES ")
 #define ADD_FUNC_PREFIX backendifyIdentifier("ADD_FUNC_PREFIX")
@@ -99,8 +87,6 @@ static char *constToString(Constant *c);
 #define LEFT_UPDATE_IDENTIFIER backendifyIdentifier("LEFT_UPDATE_TYPE")
 #define RIGHT_UPDATE_IDENTIFIER backendifyIdentifier("RIGHT_UPDATE_TYPE")
 #define NULLVALUE backendifyIdentifier("null");
-// #define INSERT 1;
-// #define DELETE -1;
 
 #define MIN_HEAP "MIN_HEAP"
 #define MAX_HEAP "MAX_HEAP"
@@ -108,7 +94,6 @@ static char *constToString(Constant *c);
 #define OPERATOR_NUMBER "OPERATOR_NUMBER"
 #define PROV_BIT_STRING "PROV_BIT_STRING"
 #define DATA_STRUCTURE_STATE "DATA_STRUCTURE_STATE"
-
 
 /*
  *  TODO:
@@ -122,7 +107,6 @@ static psInfo *PS_INFO = NULL;
 static ProvenanceComputation *PC = NULL;
 static HashMap *limitAttrPoss;
 static List *limitOrderBys;
-//static HashMap *coarseGrainedRangeList = NULL;
 
 DataChunk*
 initDataChunk()
@@ -147,10 +131,8 @@ initDataChunk()
 char *
 update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 {
-	// get partition information;
 	PC = (ProvenanceComputation *) copyObject(operator);
 	PS_INFO = createPSInfo((Node *) getStringProperty(operator, PROP_PC_COARSE_GRAINED));
-
 
 	DEBUG_NODE_BEATIFY_LOG("CURRENT PROVENANCE COMPUTATION OPERATOR: \n", operator);
 	INFO_OP_LOG("CURRENT PROVENANCE COMPUTATION OPERATOR", operator);
@@ -241,23 +223,19 @@ updateByOperators(QueryOperator * op)
 static void
 updateProvenanceComputation(QueryOperator* op)
 {
-	appendStringInfo(strInfo, "%s ", "UpdtateProvenanceComputation");
-
 	QueryOperator *childOp = OP_LCHILD(op);
 
 	if (!HAS_STRING_PROP(childOp, PROP_DATA_CHUNK)) {
 		return;
 	}
-	INFO_LOG("NO PS TO UPDATE");
-	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(childOp, PROP_DATA_CHUNK);
 
+	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(childOp, PROP_DATA_CHUNK);
 	if (!dataChunk->isAPSChunk) {
 		return;
 	}
 
 	// get delta ps list;
 	HashMap *dcPsMaps = dataChunk->fragmentsInfo;
-
 	PSMap *psMap = (PSMap *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
 
 	FOREACH_HASH_KEY(Constant, c, psMap->fragCount) {
@@ -269,7 +247,7 @@ updateProvenanceComputation(QueryOperator* op)
 			bitset = newBitSet(((BitSet *) getNthOfListP(bitsetList, 0))->length);
 		}
 
-		// get frag cnt map;
+		// get frag-cnt map;
 		HashMap *fragCnt = NULL;
 		if (MAP_HAS_STRING_KEY(psMap->fragCount, STRING_VALUE(c))) {
 			fragCnt = (HashMap *) MAP_GET_STRING(psMap->fragCount, STRING_VALUE(c));
@@ -332,16 +310,13 @@ updateProjection(QueryOperator* op)
 {
 	updateByOperators(OP_LCHILD(op));
 
-	DEBUG_NODE_BEATIFY_LOG("CURRENT PROJECTION OPERATOR", op);
-	INFO_OP_LOG("CURRENT OPERATOR", op);
-	QueryOperator *child = OP_LCHILD(op);
+	QueryOperator *childOp = OP_LCHILD(op);
 
-	if (!HAS_STRING_PROP(child, PROP_DATA_CHUNK)) {
+	if (!HAS_STRING_PROP(childOp, PROP_DATA_CHUNK)) {
 		return;
 	}
 
-
-	HashMap *chunkMaps = (HashMap *) getStringProperty(child, PROP_DATA_CHUNK);
+	HashMap *chunkMaps = (HashMap *) getStringProperty(childOp, PROP_DATA_CHUNK);
 	DataChunk *dataChunkIns = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_INSERT);
 	DataChunk *resultDCIns = NULL;
 	if (dataChunkIns != NULL) {
@@ -384,26 +359,23 @@ updateProjection(QueryOperator* op)
 		}
 	}
 
-	// List *attrDefs = op->schema->attrDefs;
+	/*
+	 *  Iterate all elements in projection expression list;
+	 *  Case 1: Element is an attribute;
+	 *  Case 2: Element is an expression;
+	 */
 	List *projExprs = ((ProjectionOperator *) op)->projExprs;
-
-	// int pos = 0;
 	FOREACH(Node, node, projExprs) {
-		// resultDC->attrNames = appendToTailOfList(resultDC->attrNames, copyObject(ad));
-
-		if (isA(node, Operator)) { // node is an expression, evaluate it;
-			// calculate value of this operator;
+		if (isA(node, Operator)) {
 			if (dataChunkIns != NULL) {
 				ColumnChunk *evaluatedValueIns = evaluateExprOnDataChunk(node, dataChunkIns);
 				vecAppendNode(resultDCIns->tuples, (Node *) evaluatedValueIns->data.v);
 			}
-
 			if (dataChunkDel != NULL) {
-				ColumnChunk *evaluatedValueDel = (ColumnChunk *) evaluateExprOnDataChunk(node, dataChunkDel);
+				ColumnChunk *evaluatedValueDel = evaluateExprOnDataChunk(node, dataChunkDel);
 				vecAppendNode(resultDCDel->tuples, (Node *) evaluatedValueDel->data.v);
 			}
-		} else if (isA(node, AttributeReference)){ // node is an attribute, direct copy;
-			// get value of this attribute reference;
+		} else if (isA(node, AttributeReference)){
 			AttributeReference *ar = (AttributeReference *) node;
 			int vecFromPos = ar->attrPosition;
 			if (dataChunkIns != NULL) {
@@ -415,23 +387,22 @@ updateProjection(QueryOperator* op)
 		}
 	}
 
-	// create chunk maps;
+	// Create output data chunk;
 	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
-	// add ins chunk;
 	if (resultDCIns != NULL) {
-		addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) resultDCIns);
+		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_INSERT, resultDCIns);
 	}
-	// add del chunk;
 	if (resultDCDel != NULL) {
-		addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resultDCDel);
+		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_DELETE, resultDCDel);
+		// addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resultDCDel);
 	}
 
 	if (mapSize(resChunkMaps) > 0) {
-		setStringProperty(op, PROP_DATA_CHUNK, (Node*) resChunkMaps);
+		SET_STRING_PROP(op, PROP_DATA_CHUNK, (Node *) resChunkMaps);
 	}
 	DEBUG_NODE_BEATIFY_LOG("projection output chunks", resChunkMaps);
 	// remove child data chunk;
-	removeStringProperty(child, PROP_DATA_CHUNK);
+	removeStringProperty(childOp, PROP_DATA_CHUNK);
 }
 
 static void
@@ -471,12 +442,12 @@ updateSelection(QueryOperator* op)
 
 	// check if this selection op will have chunks;
 	if (mapSize(resChunkMaps) > 0) {
-		setStringProperty(op, PROP_DATA_CHUNK, (Node *) resChunkMaps);
+		SET_STRING_PROP(op, PROP_DATA_CHUNK, resChunkMaps);
 	}
 
 	// remove child's chunks;
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
-	DEBUG_NODE_BEATIFY_LOG("selection output chunks", resChunkMaps);
+	DEBUG_NODE_BEATIFY_LOG("selection operator output chunks", resChunkMaps);
 }
 
 static void
@@ -492,24 +463,23 @@ updateJoin(QueryOperator * op)
 		return;
 	}
 
-	DEBUG_NODE_BEATIFY_LOG("CURRENT JOIN OP", op);
+	INFO_OP_LOG("join operator before rewrite", op);
 	QueryOperator *rewrOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
-	DEBUG_NODE_BEATIFY_LOG("rewr for join", rewrOp);
-	INFO_OP_LOG("rewr for join", rewrOp);
+	INFO_OP_LOG("join operator after rewrite", rewrOp);
 
 	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
 
 	DEBUG_NODE_BEATIFY_LOG("WHAT IS HASH MAP", psAttrAndLevel);
+
+	// prepare the ConstRelMultiListsOperator for join branchs;
 	ConstRelMultiListsOperator *leftDelta = NULL;
-	// int leftPSAttrCnt = 0;
 	ConstRelMultiListsOperator *rightDelta = NULL;
-	// int rightPSAttrCnt = 0;
 
-	// DataChunk *resultDC = NULL;
-
+	// initialize result data chunks;
 	DataChunk *resDCIns = initDataChunk();
 	DataChunk *resDCDel = initDataChunk();
 
+	// initialize chunks' tuples vectors based on the data type;
 	int pos = 0;
 	FOREACH(AttributeDef, ad, op->schema->attrDefs) {
 		addToMap(resDCIns->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
@@ -551,23 +521,19 @@ updateJoin(QueryOperator * op)
 		pos++;
 	}
 
-
+	// set fields like: tupleFields, attrNames
 	resDCIns->tupleFields = pos;
 	resDCDel->tupleFields = pos;
-
 	resDCIns->attrNames = (List *) copyObject(op->schema->attrDefs);
 	resDCDel->attrNames = (List *) copyObject(op->schema->attrDefs);
 
-
 	int deltaBranches = 0;
-	// left branch is a delta inputs;
 	if (HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
 		deltaBranches++;
 
 		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
 		// get data chunks from left branch;
 		HashMap *chunkMaps = (HashMap *) getStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
-
 		DataChunk *leftDCIns = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_INSERT);
 		DataChunk *leftDCDel = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_DELETE);
 
@@ -606,9 +572,6 @@ updateJoin(QueryOperator * op)
 		INFO_OP_LOG("rewr join", cOp);
 
 		char *sql = serializeQuery(cOp);
-
-		// Vector *psNames = makeVector(VECTOR_STRING, T_Vector);
-
 		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, -1, psAttrAndLevel);
 		INFO_LOG("SQL is : %s", sql);
 	}
@@ -619,7 +582,7 @@ updateJoin(QueryOperator * op)
 
 		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
 
-		// get data chunks from left branch;
+		// get data chunks from right branch;
 		HashMap *chunkMaps = (HashMap *) getStringProperty(OP_RCHILD(op), PROP_DATA_CHUNK);
 		DataChunk *rightDCIns = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_INSERT);
 		DataChunk *rightDCDel = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_DELETE);
@@ -639,6 +602,7 @@ updateJoin(QueryOperator * op)
 		INFO_LOG("SQL is : %s", sql);
 	}
 
+	// both join branches have delta tuples;
 	if (deltaBranches == 2) {
 		INFO_OP_LOG("CONST_REL_LEFT", leftDelta);
 		INFO_OP_LOG("CONST_REL_right", rightDelta);
@@ -696,12 +660,11 @@ updateJoin(QueryOperator * op)
 
 	HashMap *resChunks = NEW_MAP(Constant, Node);
 	if (resDCIns->numTuples > 0) {
-		addToMap(resChunks, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) resDCIns);
+		MAP_ADD_STRING_KEY(resChunks, PROP_DATA_CHUNK_INSERT, resDCIns);
 	}
 	if (resDCDel->numTuples > 0) {
-		addToMap(resChunks, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resDCDel);
+		MAP_ADD_STRING_KEY(resChunks, PROP_DATA_CHUNK_DELETE, resDCDel);
 	}
-
 	if (mapSize(resChunks) > 0) {
 		SET_STRING_PROP(op, PROP_DATA_CHUNK, (Node *) resChunks);
 	}
@@ -736,7 +699,6 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
     boolean isAPSChunk = FALSE;
 	if (dataChunkIns != NULL) {
 		dcInsLen = dataChunkIns->numTuples;
-
 		attrNames = getAttrDefNames(dataChunkIns->attrNames);
 		attrTypes = getAttrDataTypes(dataChunkIns->attrNames);
 		attrLen = dataChunkIns->tupleFields;
@@ -747,6 +709,7 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 		hasBuiltInfo = TRUE;
 	}
 	if (dataChunkDel != NULL) {
+		dcDelLen = dataChunkDel->numTuples;
 		if (!hasBuiltInfo) {
 			attrNames = getAttrDefNames(dataChunkDel->attrNames);
 			attrTypes = getAttrDataTypes(dataChunkDel->attrNames);
@@ -757,8 +720,6 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
             }
             hasBuiltInfo = TRUE;
 		}
-
-		dcDelLen = dataChunkDel->numTuples;
 	}
 
 	Vector *values = makeVector(VECTOR_NODE, T_Vector);
@@ -776,78 +737,56 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 			delBytes = dcDelLen * getVecElemSize(delVec);
 		}
 
-		DataType colType = (DataType) getNthOfListInt(attrTypes, col);
-
 		Vector *resVec = NULL;
+		DataType colType = (DataType) getNthOfListInt(attrTypes, col);
 		switch (colType) {
 			case DT_INT:
 			case DT_BOOL:
-			{
-				resVec = makeVector(VECTOR_INT, T_Vector);
-			}
+				resVec = makeVectorOfSize(VECTOR_INT, T_Vector, dcInsLen + dcDelLen);
 				break;
 			case DT_LONG:
-			{
-				resVec = makeVector(VECTOR_LONG, T_Vector);
-			}
+				resVec = makeVectorOfSize(VECTOR_LONG, T_Vector, dcInsLen + dcDelLen);
 				break;
 			case DT_FLOAT:
-			{
-				resVec = makeVector(VECTOR_FLOAT, T_Vector);
-			}
+				resVec = makeVectorOfSize(VECTOR_FLOAT, T_Vector, dcInsLen + dcDelLen);
 				break;
 			case DT_STRING:
 			case DT_VARCHAR2:
-			{
-				resVec = makeVector(VECTOR_STRING, T_Vector);
-			}
+				resVec = makeVectorOfSize(VECTOR_STRING, T_Vector, dcInsLen + dcDelLen);
 				break;
 			default:
 				FATAL_LOG("not supported");
 		}
 
-		resVec->length = dcInsLen + dcDelLen;
-		// size_t insBytes = (size_t) (dcInsLen == 0 ? 0 : dcInsLen * getVecElemSize(insVec));
-		// size_t delBytes = (size_t) (dcDelLen == 0 ? 0 : dcDelLen * getVecElemSize(delVec));
-		resVec->data = MALLOC(insBytes + delBytes);
 		if (insBytes > 0) {
 			memcpy(resVec->data, insVec->data, insBytes);
 		}
-
 		if (delBytes > 0) {
 			memcpy(resVec->data + insBytes, delVec->data, delBytes);
 		}
+		resVec->length = dcInsLen + dcDelLen;
 		vecAppendNode(values, (Node *) resVec);
 	}
 
-	// for ps;
+	// deal with provenance sketch;
     if (isAPSChunk) {
 		FOREACH_HASH_KEY(Constant, c, psIsInt) {
 			attrNames = appendToTailOfList(attrNames, STRING_VALUE(c));
 
-			boolean isInt = BOOL_VALUE(MAP_GET_STRING(psIsInt, STRING_VALUE(c)));
+			boolean isIntPS = BOOL_VALUE(MAP_GET_STRING(psIsInt, STRING_VALUE(c)));
 			Vector *psVector = NULL;
-			if (isInt) {
+			if (isIntPS) {
 				attrTypes = appendToTailOfListInt(attrTypes, DT_INT);
-				psVector = makeVector(VECTOR_INT, T_Vector);
-				psVector->length = dcInsLen + dcDelLen;
-				size_t insBytes = 0;
+				psVector = makeVectorOfSize(VECTOR_INT, T_Vector, dcInsLen + dcDelLen);
+
 				if (dcInsLen > 0) {
-					insBytes = (size_t) (dcInsLen * sizeof(int));
+					memcpy(psVector->data, ((Vector *) MAP_GET_STRING(dataChunkIns->fragmentsInfo, STRING_VALUE(c)))->data, (size_t) (dcInsLen * sizeof(int)));
 				}
-
-				size_t delBytes = 0;
 				if (dcDelLen > 0) {
-					delBytes = (size_t) (dcDelLen * sizeof(int));
-				}
-				psVector->data = MALLOC(insBytes + delBytes);
-				if (insBytes > 0) {
-					memcpy(psVector->data, ((Vector *) MAP_GET_STRING(dataChunkIns->fragmentsInfo, STRING_VALUE(c)))->data, insBytes);
+					memcpy(psVector->data + (dcInsLen * sizeof(int)), ((Vector *) MAP_GET_STRING(dataChunkDel->fragmentsInfo, STRING_VALUE(c)))->data, (size_t) (dcDelLen * sizeof(int)));
 				}
 
-				if (delBytes > 0) {
-					memcpy(psVector->data + insBytes, ((Vector *) MAP_GET_STRING(dataChunkDel->fragmentsInfo, STRING_VALUE(c)))->data, delBytes);
-				}
+				psVector->length = dcInsLen + dcDelLen;
 			} else {
 				attrTypes = appendToTailOfListInt(attrTypes, DT_STRING);
 				psVector = makeVector(VECTOR_NODE, T_Vector);
@@ -857,7 +796,6 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 						vecAppendString(psVector, bitSetToString(bs));
 					}
 				}
-
 				if (dcDelLen > 0) {
 					Vector *fromVec = (Vector *) MAP_GET_STRING(dataChunkDel->fragmentsInfo, STRING_VALUE(c));
 					FOREACH_VEC(BitSet, bs, fromVec) {
@@ -877,16 +815,15 @@ createConstRelMultiListsFromDataChunk(DataChunk *dataChunkIns, DataChunk *dataCh
 	}
 	attrTypes = appendToTailOfListInt(attrTypes, DT_INT);
 	Vector *updIden = makeVectorOfSize(VECTOR_INT, T_Vector, dcInsLen + dcDelLen);
-	updIden->length = dcInsLen + dcDelLen;
 	/* cannot use memset() for this int vec, */
 	int *idens = VEC_TO_IA(updIden);
 	for (int i = 0; i < dcInsLen; i++) {
 		idens[i] = 1;
 	}
-
 	for (int i = 0; i < dcDelLen; i++) {
 		idens[i + dcInsLen] = -1;
 	}
+	updIden->length = dcInsLen + dcDelLen;
 	vecAppendNode(values, (Node *) updIden);
 
 	ConstRelMultiListsOperator *coOp = createConstRelMultiListsOp(values, parentList, attrNames, attrTypes);
@@ -1265,22 +1202,15 @@ updateAggregation(QueryOperator *op)
 									Constant *avg = (Constant *) getVecNode(oldL, 0);
 									Constant *sum = (Constant *) getVecNode(oldL, 1);
 									Constant *cnt = (Constant *) getVecNode(oldL, 2);
-									// gprom_long_t cnt = LONG_VALUE((Constant *) popVecNode(oldL));
-									// double sum = FLOAT_VALUE((Constant *) popVecNode(oldL));
-									// double avg = FLOAT_VALUE((Constant *) popVecNode(oldL));
 
 									// append old avg value;
 									vecAppendFloat(outputVecDelete, FLOAT_VALUE(avg));
 
 									// calculate new values;
+									// FLOAT_VALUE(sum) += inputVecVals[row];
 									(*((double *) sum->value)) += inputVecVals[row];
 									(*((gprom_long_t *) cnt->value)) += 1;
 									(*((double *) avg->value)) = FLOAT_VALUE(sum) / LONG_VALUE(cnt);
-
-									// store new values;
-									// vecAppendNode(oldL, createConstFloat(avg));
-									// vecAppendNode(oldL, createConstFloat(sum));
-									// vecAppendNode(oldL, createConstLong(cnt));
 
 									// append new avg value;
 									vecAppendFloat(outputVecInsert, FLOAT_VALUE(avg));
@@ -1314,6 +1244,7 @@ updateAggregation(QueryOperator *op)
 											int value = inputVecVals[row];
 											vecAppendNode(oldL, (Node *) createConstFloat((double) value));
 											vecAppendNode(oldL, (Node *) createConstLong((gprom_long_t) 1));
+
 											// append value;
 											vecAppendInt(outputVecInsert, value);
 											addToMap(acs->map, (Node *) createConstString(gbValsInsertArr[row]), (Node *) oldL);
@@ -1322,17 +1253,10 @@ updateAggregation(QueryOperator *op)
 											// get old values;
 											Constant *sum = (Constant *) getVecNode(oldL, 0);
 											Constant *cnt = (Constant *) getVecNode(oldL, 1);
-											// get old values;
-											// gprom_long_t cnt = LONG_VALUE((Constant *) popVecNode(oldL));
-											// double sum = FLOAT_VALUE((Constant *) popVecNode(oldL));
-
 											vecAppendInt(outputVecDelete, (int) FLOAT_VALUE(sum));
 
 											(*((double *) sum->value)) += inputVecVals[row];
 											(*((gprom_long_t *) cnt->value)) += 1;
-
-											// vecAppendNode(oldL, (Node *) createConstFloat(sum));
-											// vecAppendNode(oldL, (Node *) createConstLong(cnt));
 											vecAppendInt(outputVecInsert, (int) FLOAT_VALUE(sum));
 										}
 									}
@@ -1356,14 +1280,10 @@ updateAggregation(QueryOperator *op)
 											// get old values;
 											Constant *sum = (Constant *) getVecNode(oldL, 0);
 											Constant *cnt = (Constant *) getVecNode(oldL, 1);
-											// gprom_long_t cnt = LONG_VALUE((Constant *) popVecNode(oldL));
-											// double sum = FLOAT_VALUE((Constant *) popVecNode(oldL));
-
 											vecAppendLong(outputVecDelete, (gprom_long_t) FLOAT_VALUE(sum));
 
 											(*((double *) sum->value)) += inputVecVals[row];
 											(*((gprom_long_t *) cnt->value)) += 1;
-
 											vecAppendInt(outputVecInsert, (gprom_long_t) FLOAT_VALUE(sum));
 										}
 									}
@@ -1483,8 +1403,6 @@ updateAggregation(QueryOperator *op)
 											// get old values;
 											Constant *sum = (Constant *) getVecNode(oldL, 0);
 											Constant *cnt = (Constant *) getVecNode(oldL, 1);
-											// gprom_long_t cnt = LONG_VALUE((Constant *) popVecNode(oldL));
-											// double sum = FLOAT_VALUE((Constant *) popVecNode(oldL));
 
 											vecAppendLong(outputVecDelete, (int) FLOAT_VALUE(sum));
 
@@ -2955,10 +2873,10 @@ updateAggregation(QueryOperator *op)
 	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
 
 	if (resultDCInsert->updateIdentifier->length > 0) {
-		addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) resultDCInsert);
+		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_INSERT, resultDCInsert);
 	}
 	if (resultDCDelete->updateIdentifier->length > 0) {
-		addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resultDCDelete);
+		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_DELETE, resultDCDelete);
 	}
 
 	if (mapSize(resChunkMaps) > 0) {
@@ -3096,7 +3014,6 @@ updateSet(QueryOperator* op)
 		return;
 	}
 
-
 	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
 	if (!HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
 		resChunkMaps = (HashMap *) GET_STRING_PROP(OP_RCHILD(op), PROP_DATA_CHUNK);
@@ -3129,10 +3046,12 @@ updateSet(QueryOperator* op)
 		}
 
 		if (resDCIns != NULL) {
-			addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) resDCIns);
+			// addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) resDCIns);
+			MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_INSERT, resDCIns);
 		}
 		if (resDCDel != NULL) {
-			addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resDCDel);
+			// addToMap(resChunkMaps, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resDCDel);
+			MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_DELETE, resDCDel);
 		}
 	}
 
@@ -3307,12 +3226,14 @@ getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAcc
 
 	HashMap *chunkMap = NEW_MAP(Constant, Node);
 
-	if (dataChunkInsert != NULL && dataChunkInsert->numTuples > 0) {
-		addToMap(chunkMap, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) dataChunkInsert);
+	if (dataChunkInsert && dataChunkInsert->numTuples > 0) {
+		// addToMap(chunkMap, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) dataChunkInsert);
+		MAP_ADD_STRING_KEY(chunkMap, PROP_DATA_CHUNK_INSERT, dataChunkInsert);
 	}
 
-	if (dataChunkDelete != NULL && dataChunkDelete->numTuples > 0) {
-		addToMap(chunkMap, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) dataChunkDelete);
+	if (dataChunkDelete && dataChunkDelete->numTuples > 0) {
+		// addToMap(chunkMap, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) dataChunkDelete);
+		MAP_ADD_STRING_KEY(chunkMap, PROP_DATA_CHUNK_DELETE, dataChunkDelete);
 	}
 
 	return chunkMap;

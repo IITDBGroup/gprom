@@ -948,15 +948,9 @@ static void
 buildStateFinalOp(QueryOperator *op)
 {
 	/* this is the final state keep a map of fragNo -> count*/
-	// DEBUG_NODE_BEATIFY_LOG("provenance computation op", op);
-	// INFO_OP_LOG("provenance computation op", op);
-
 	QueryOperator *child = (QueryOperator *) copyObject(OP_LCHILD(op));
 	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, child);
-	// DEBUG_NODE_BEATIFY_LOG("rewr pc op", rewrOp);
-	// INFO_OP_LOG("rewr pc Op", rewrOp);
 	char *sql = serializeQuery(rewrOp);
-
 
 	/* get Relation */
 	Relation *resultRel = NULL;
@@ -1009,10 +1003,11 @@ buildStateFinalOp(QueryOperator *op)
 				}
 			}
 		}
-		addToMap(psMap->provSketchs, (Node *) copyObject(c), (Node *) copyObject(bitset));
-		addToMap(psMap->fragCount, (Node *) copyObject(c), (Node *) fragCnt);
+        MAP_ADD_STRING_KEY(psMap->provSketchs, STRING_VALUE(c), copyObject(bitset));
+        MAP_ADD_STRING_KEY(psMap->fragCount, STRING_VALUE(c), fragCnt);
+		// addToMap(psMap->provSketchs, (Node *) copyObject(c), (Node *) copyObject(bitset));
+		// addToMap(psMap->fragCount, (Node *) copyObject(c), (Node *) fragCnt);
 	}
-
 	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE, psMap);
 }
 
