@@ -27,6 +27,7 @@ typedef struct CorrelatedAttrsState {
 	int curDepth;
 	Set *result;
 	boolean corrInsideSubquery;
+	boolean childrenCanBeKeptCorrelated;
 } CorrelatedAttrsState;
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
@@ -1548,12 +1549,12 @@ getSingleNestingResultAttribute(NestingOperator *op)
  */
 
 Set *
-getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery)
+getNestingCorrelatedAttributes(QueryOperator *op, boolean *corrInSubquery) // boolean traverseIntoNestingOperators
 {
 	Set *result = STRSET();
 	CorrelatedAttrsState state = { 1, result, corrInSubquery };
 
-	findCorrelatedAttrsVisitor((Node *) OP_LCHILD(op), &state);
+	findCorrelatedAttrsVisitor((Node *) OP_RCHILD(op), &state);
 
 	return result;
 }
@@ -1564,6 +1565,29 @@ findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
 {
 	if (n == NULL)
 		return TRUE;
+
+	//TODO
+	// rules: N can be kept if (i) all of N's childresn can be kept, if (ii) all  of N's correlated attributes are one level up only, and (iii) we can push normalization below N's correlated attributes
+	//   N [CAN KEEP SUBQUERY] depends on CAN KEEP SUBQUERY
+	//      SELECTION[R.A = R.C] -- R is outer
+	//         JOIN
+	//             N' [CAN KEEP SUBQUERY] correlated attribute
+	//                SELECTION[S.B[1] = T.C[0]] -- T is inner most
+	//                     T
+	//                X
+	//             S
+	//      R
+	/* List *attrRefs = queryOperatorGetAttrRefs(op); // --> current operator */
+	/* FOREACH(AttributeReference,a,attrRefs) */
+	/* { */
+	/* 	if(a->outerLevelsUp != 0) */
+	/* 	{ */
+	/* 		addToSet(state->result, a); */
+	/* 		//TODO append to state */
+	/* 	} */
+	/* } */
+
+	/* visitQOGraph(op, TRAVERSAL_PRE, findCorrelatedAttrsVisitor , state); */
 
 	if(isA(n, AttributeReference))
 	{

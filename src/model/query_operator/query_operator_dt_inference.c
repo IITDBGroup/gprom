@@ -108,7 +108,7 @@ static void
 addCastsToExpressions(QueryOperator *q)
 {
     adaptAttributeRefList(q, q->inputs);
-	
+
     switch(q->type)
     {
         case T_TableAccessOperator:
@@ -258,9 +258,9 @@ queryOperatorGetAttrRefs(QueryOperator *op)
         break;
         case T_DuplicateRemoval:
         {
-
+			//TODO implement
         }
-            break;
+		break;
         // Check Attribute that we use as Json Column should be from/should exist in child
         case T_JsonTableOperator:
         {
