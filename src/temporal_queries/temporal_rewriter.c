@@ -640,20 +640,177 @@ tempRewrSetOperator (SetOperator *o)
     return (QueryOperator *) o;
 }
 
+static boolean
+streqfp(void *l, void *r) {
+    return streq((char*)l, (char*)r) == 0;
+}
+
+static boolean
+pushDownNormalization(QueryOperator *q, void *context)
+{
+    Node *normalizationFor = context;
+
+    if (q == NULL) {
+        return FALSE;
+    }
+
+    if(isA(q, SelectionOperator)) {
+        // pass directly through
+        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+    }
+    else if(isA(q, ProjectionOperator)) {
+        //  ==== check for projection scehma changes ====================================================
+        // compare op schema with projection operation projExprs for reorder & rename
+        // translate the normalization attributes over op to the schema of below the projection operator 
+        // if no direct attrref (i.e. expr), drop the attr e.g. A := X, B := Y, C := A + B above projection, under projection we have X, Y, but *no* C
+        // ==============================================================================================
+
+        // adapted from translator_oracle:adaptSchemaFromChildren
+        ProjectionOperator *p = (ProjectionOperator *) q;
+        KeyValue *normalizationCopy = copyObject(normalizationFor);
+        FORBOTH(Node, projExpr, attr, p->projExprs, q->schema->attrDefs)
+        {
+            AttributeReference *aRef;
+            AttributeDef *aDef = (AttributeDef *) attr;
+
+            if(isA(projExpr, AttributeReference))
+            {
+                aRef = (AttributeReference *) projExpr;
+                if (!streq(aRef->name, aDef->attrName)) {
+                    List *normalizationAttrs = (List *)(normalizationCopy->key);
+                    normalizationCopy->key = (Node *)replaceNode(normalizationAttrs, aRef->name, aDef->attrName); // TODO replace char* instead of nodes
+                }
+            }
+            else // we are in an expression like C := A + B
+            {
+                List *normalizationAttrs = (List *)(normalizationCopy->key);
+                normalizationCopy->key = (Node *)genericRemoveFromList(normalizationAttrs, streqfp, aDef->attrName);
+            }
+        }
+
+        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationCopy);
+    }
+    else if(isA(q, JoinOperator)) {
+        // normalize R, S join T
+        // --> normalize((normalize(R, S, \emptyset), T, \emptyset) 
+
+        // normalize(R, S join T, A) and A comes from S
+        // --> normalize((normalize(R, S, A), T, \emptyset)
+
+        // two calls to pushDownNormalization on the two branches
+        
+        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+    }
+    else if(isA(q, AggregationOperator)) {
+        // normalize R, agg(S)
+        // --> normalize(S, S, \emptyset) and normalize(R, S, \emptyset) \rightarrow normalize(R, agg(S), \emptyset)
+
+        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+    }
+    else {
+        // at base level (tableaccess, new subquery?) append normalization
+        MAP_ADD_STRING_KEY((HashMap *)(q->properties), "normalize", normalizationFor); // <NormalizationAttrs, NormalizationOp>
+        return TRUE;
+    }
+
+    return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+}
+
+// note: this will return the last operator that has the normalization flag set for the appropriate op
+// context is <NormalizationOp, ReturnedOp>
+static boolean
+findNormalizationInQuery(QueryOperator *q, void *c)
+{
+    Node *context = c;
+
+    KeyValue *contextKv = (KeyValue *)context;
+
+    if (q == NULL)
+        return TRUE;
+
+    if(MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
+        KeyValue *kv = (KeyValue *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
+        if(equal((QueryOperator *)contextKv->key, (QueryOperator *)kv->value)) {
+            contextKv->value = (Node *)appendToTailOfList((List *)(contextKv->value), q);
+        }
+    }
+
+    return visitQOGraph(q, TRAVERSAL_PRE, findNormalizationInQuery, c);
+}
+
+static boolean
+removeNormalizationFromQuery(QueryOperator *q, void *context)
+{
+    Node *removeFrom = context;
+
+    if (q == NULL) {
+        return FALSE;
+    }
+
+    if (MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
+        KeyValue *kv = (KeyValue *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
+        if(equal((QueryOperator *)removeFrom, kv->value)) {
+            removeMapStringElem((HashMap *)(q->properties), "normalize");
+        }
+    }
+
+    return visitQOGraph(q, TRAVERSAL_PRE, removeNormalizationFromQuery, removeFrom); // TODO: internalVisitQOGraph
+}
+
 static QueryOperator *
 tempRewrNestedSubquery(NestingOperator *op)
 {
+
+    // three stages:
+    // top-level normalization
+    // determine how far we can push down the normalization (and mark it)
+    pushDownNormalization(OP_RCHILD(op), (Node *)createNodeKeyValue((Node *)NIL, (Node *)op)); // <NormalizationAttrs, NormalizationOp>
+
+    // check its validity
+    Set *correlatedAttrs = getNestingCorrelatedAttributes(op, TRUE);
+    // otherwise we dont need to normalize as we cant rewrite with correlated subquery, and we need to use lateral instead
+
+    // if normalization is below correlation we can keep it as a nested subquery
+    boolean canStayCorrelated = EMPTY_SET(correlatedAttrs);
+    if(!canStayCorrelated) removeNormalizationFromQuery((QueryOperator *)op, (Node *)op);
+
 	//TODO add other rewrite methods
-    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && canStayCorrelated)
     {
+        // if we are in the cost based
+        // we need to make sure that the above procedure does not normalize if we end up in lateral join option
+        // make sure to not traverse into other nestingoperators and mess with their normalizations
         int res = callback(2);
-        if (res == 1) {
+
+        // guard against entering this rewriting
+        if (res == 1) { 
             return tempRewrNestedSubqueryLateralPostFilterTime(op);
         }
+
+        // realize normalization (destructive, swaps tree)
+        KeyValue *normalizeOps = createNodeKeyValue((Node *)op, (Node *)NIL);
+        // TODO this should process multiple normalizations for one normalizeOp
+        findNormalizationInQuery((QueryOperator *)op, normalizeOps);
+        FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
+            addTemporalNormalization(OP_LCHILD(op), q, NIL); // find way to return attrs for this op
+        }
+
         return tempRewrNestedSubqueryCorrelated(op);
     }
-    return tempRewrNestedSubqueryCorrelated(op);
-    // return tempRewrNestedSubqueryLateralPostFilterTime(op);
+    
+    if(canStayCorrelated) {
+        // realize normalization (destructive, swaps tree)
+        KeyValue *normalizeOps = createNodeKeyValue((Node *)op, (Node *)NIL);
+        // TODO this should process multiple normalizations for one normalizeOp
+        findNormalizationInQuery((QueryOperator *)op, normalizeOps);
+        FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
+            addTemporalNormalization(OP_LCHILD(op), q, NIL); // find way to return attrs for this op
+        }
+
+        return tempRewrNestedSubqueryCorrelated(op);
+    } else {
+        return tempRewrNestedSubqueryLateralPostFilterTime(op);
+    }
 }
 
 // static Node *
@@ -710,8 +867,7 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
         }
     }
 
-    outer = addTemporalNormalization(outer, copyObject(inner), intersection);
-
+    //outer = addTemporalNormalization(outer, copyObject(inner), intersection);
     // !!
     // reuse of overlap condition from lateral join, instead now we push it into the subquery
     // Node *correlation = constructNestingIntervalOverlapCondition(asq);
