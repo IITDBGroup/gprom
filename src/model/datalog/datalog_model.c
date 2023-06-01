@@ -27,7 +27,11 @@
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 #include "analysis_and_translate/analyze_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
+
+#if HAVE_ORACLE_BACKEND
 #include "ocilib.h"
+#endif
+
 #include <assert.h>
 
 static List *makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames, Set *allnames);

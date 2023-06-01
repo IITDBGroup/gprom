@@ -40,6 +40,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_LOG_LEVEL "log.level"
 #define OPTION_LOG_OPERATOR_COLORIZED "log.operator_colorized"
 #define OPTION_LOG_OPERATOR_VERBOSE "log.operator_verbose"
+#define OPTION_LOG_OPERATOR_VERBOSE_PROPS "log.operator_verbose_props"
 
 /* plugin options */
 #define OPTION_BACKEND "backend"
@@ -173,6 +174,7 @@ extern int logLevel;
 extern boolean logActive;
 extern boolean opt_log_operator_colorize;
 extern boolean opt_log_operator_verbose;
+extern int opt_log_operator_verbose_props;
 
 // input options
 extern char *sql;

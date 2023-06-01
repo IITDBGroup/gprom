@@ -645,18 +645,97 @@ streqfp(void *l, void *r) {
     return streq((char*)l, (char*)r) == 0;
 }
 
-static boolean
-pushDownNormalization(QueryOperator *q, void *context)
+
+//TODO: refactor to enum
+// 0 - Global Abort
+// 1 - Local Abort (don't visit children)
+// 2 - Continue
+static int
+internalVisitQOGraphLocal (QueryOperator *q, TraversalOrder tOrder,
+        int (*visitF) (QueryOperator *op, void *context, Set *haveSeen), void *context, Set *haveSeen)
+{
+    int result;
+    if (tOrder == TRAVERSAL_PRE) {
+        result = visitF(q, context, haveSeen);
+        if(!result) return 0;
+    }
+
+    if(result == 2) {
+        FOREACH(QueryOperator,c,q->inputs)
+        {
+            if (!hasSetElem(haveSeen, c))
+            {
+                int result = FALSE;
+                // MemContext *ctxt;
+                addToSet(haveSeen, c);
+                // ctxt = RELEASE_MEM_CONTEXT();
+                result = internalVisitQOGraphLocal(c, tOrder, visitF, context, haveSeen);
+                // ACQUIRE_MEM_CONTEXT(ctxt);
+                if (!result) return 0;
+            }
+        }
+    }
+
+    if (tOrder == TRAVERSAL_POST) {
+        result = visitF(q, context, haveSeen);
+        if(!result) return 0;
+    }
+
+    return 2;
+}
+
+// borrowed from query_operator.c
+// extended to support local aborts as well as global
+static int
+visitQOGraphLocal (QueryOperator *q, TraversalOrder tOrder,
+        int (*visitF) (QueryOperator *op, void *context, Set *haveSeen), void *context, Set *haveSeen)
+{
+    int result = FALSE;
+    result = internalVisitQOGraphLocal(q, tOrder, visitF, context, haveSeen);
+    return result;
+}
+
+static int
+visitQOGraphLocalWithNewCtx (QueryOperator *q, TraversalOrder tOrder,
+        int (*visitF) (QueryOperator *op, void *context, Set *haveSeen), void *context)
+{
+    int result = FALSE;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
+    Set *haveSeen = PSET();
+    result = internalVisitQOGraphLocal(q, tOrder, visitF, context, haveSeen);
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    return result;
+}
+
+static void
+setPropertyInParentCtx (QueryOperator *q, char *key, Node *value)
+{
+    MemContext *ctxt;
+    ctxt = RELEASE_MEM_CONTEXT();
+    Node *copy = copyObject(value);
+    MAP_ADD_STRING_KEY((HashMap *)(q->properties), key, copy);
+    ACQUIRE_MEM_CONTEXT(ctxt);
+}
+
+// static int
+// correlationPresentBelow(QueryOperator *q, void *context)
+// {
+//     return 4;
+// }
+
+static int
+pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 {
     Node *normalizationFor = context;
 
     if (q == NULL) {
-        return FALSE;
+        return 0;
     }
 
     if(isA(q, SelectionOperator)) {
+        //SELECT * FROM r WHERE EXISTS (SELECT * FROM s WHERE r.a = s.b)
         // pass directly through
-        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+        // return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
     }
     else if(isA(q, ProjectionOperator)) {
         //  ==== check for projection scehma changes ====================================================
@@ -688,9 +767,36 @@ pushDownNormalization(QueryOperator *q, void *context)
             }
         }
 
-        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationCopy);
+        // return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationCopy);
+        normalizationFor = (Node *)normalizationCopy;
     }
     else if(isA(q, JoinOperator)) {
+        // rules
+
+        // cardinality estimation: sometimes its better to leave above (unless there are correlations below, in which case we must push down still)
+        boolean correlated = TRUE; //TODO
+        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && !correlated) {
+            int res = callback(2);
+            
+            if(res == 1) {
+                FOREACH(QueryOperator, parent, q->parents) {
+                    setPropertyInParentCtx(parent, "normalize", normalizationFor);
+                }
+                return 1;
+            }
+
+            visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
+            visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
+            return 1;
+        }
+
+        if(!correlated) {
+            FOREACH(QueryOperator, parent, q->parents) {
+                setPropertyInParentCtx(parent, "normalize", normalizationFor);
+            }
+            return 1;
+        }
+
         // normalize R, S join T
         // --> normalize((normalize(R, S, \emptyset), T, \emptyset) 
 
@@ -698,26 +804,29 @@ pushDownNormalization(QueryOperator *q, void *context)
         // --> normalize((normalize(R, S, A), T, \emptyset)
 
         // two calls to pushDownNormalization on the two branches
-        
-        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+        visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
+        visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
+        return 1;
     }
     else if(isA(q, AggregationOperator)) {
-        // normalize R, agg(S)
-        // --> normalize(S, S, \emptyset) and normalize(R, S, \emptyset) \rightarrow normalize(R, agg(S), \emptyset)
+        // normalize(R, agg(S), (A from R, A from S))
+        // --> normalize(R, S, A intersect group-by attrs of the agg)
 
-        return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+        //return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
     }
     else {
         // at base level (tableaccess, new subquery?) append normalization
-        MAP_ADD_STRING_KEY((HashMap *)(q->properties), "normalize", normalizationFor); // <NormalizationAttrs, NormalizationOp>
-        return TRUE;
+        setPropertyInParentCtx(q, "normalize", normalizationFor);
+        INFO_OP_LOG("tagged operator", q);
+        return 0;
     }
 
-    return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+    return 2;
 }
 
 // note: this will return the last operator that has the normalization flag set for the appropriate op
-// context is <NormalizationOp, ReturnedOp>
+// context is <NormalizationOp, list of ReturnedOps>
+// TODO: return all normalize tags in tree, let caller filter the operator
 static boolean
 findNormalizationInQuery(QueryOperator *q, void *c)
 {
@@ -731,11 +840,13 @@ findNormalizationInQuery(QueryOperator *q, void *c)
     if(MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
         KeyValue *kv = (KeyValue *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
         if(equal((QueryOperator *)contextKv->key, (QueryOperator *)kv->value)) {
+            INFO_LOG("located normalization");
             contextKv->value = (Node *)appendToTailOfList((List *)(contextKv->value), q);
         }
     }
 
-    return visitQOGraph(q, TRAVERSAL_PRE, findNormalizationInQuery, c);
+    // return visitQOGraph(q, TRAVERSAL_PRE, findNormalizationInQuery, c);
+    return TRUE;
 }
 
 static boolean
@@ -750,11 +861,13 @@ removeNormalizationFromQuery(QueryOperator *q, void *context)
     if (MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
         KeyValue *kv = (KeyValue *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
         if(equal((QueryOperator *)removeFrom, kv->value)) {
+            INFO_LOG("removing normalization");
             removeMapStringElem((HashMap *)(q->properties), "normalize");
         }
     }
 
-    return visitQOGraph(q, TRAVERSAL_PRE, removeNormalizationFromQuery, removeFrom); // TODO: internalVisitQOGraph
+    // return visitQOGraph(q, TRAVERSAL_PRE, removeNormalizationFromQuery, removeFrom);
+    return TRUE;
 }
 
 static QueryOperator *
@@ -764,7 +877,8 @@ tempRewrNestedSubquery(NestingOperator *op)
     // three stages:
     // top-level normalization
     // determine how far we can push down the normalization (and mark it)
-    pushDownNormalization(OP_RCHILD(op), (Node *)createNodeKeyValue((Node *)NIL, (Node *)op)); // <NormalizationAttrs, NormalizationOp>
+    visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, (Node *)createNodeKeyValue((Node *)NIL, (Node *)op));
+    // pushDownNormalization(OP_RCHILD(op), (Node *)createNodeKeyValue((Node *)NIL, (Node *)op)); // <NormalizationAttrs, NormalizationOp>
 
     // check its validity
     Set *correlatedAttrs = getNestingCorrelatedAttributes(op, TRUE);
@@ -772,7 +886,9 @@ tempRewrNestedSubquery(NestingOperator *op)
 
     // if normalization is below correlation we can keep it as a nested subquery
     boolean canStayCorrelated = EMPTY_SET(correlatedAttrs);
-    if(!canStayCorrelated) removeNormalizationFromQuery((QueryOperator *)op, (Node *)op);
+    // if(!canStayCorrelated) removeNormalizationFromQuery((QueryOperator *)op, (Node *)op);
+    if(!canStayCorrelated) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, (Node *)op);
+
 
 	//TODO add other rewrite methods
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && canStayCorrelated)
@@ -784,31 +900,35 @@ tempRewrNestedSubquery(NestingOperator *op)
 
         // guard against entering this rewriting
         if (res == 1) { 
+            INFO_LOG("lateral option");
             return tempRewrNestedSubqueryLateralPostFilterTime(op);
         }
 
         // realize normalization (destructive, swaps tree)
         KeyValue *normalizeOps = createNodeKeyValue((Node *)op, (Node *)NIL);
-        // TODO this should process multiple normalizations for one normalizeOp
-        findNormalizationInQuery((QueryOperator *)op, normalizeOps);
+        // findNormalizationInQuery((QueryOperator *)op, normalizeOps);
+        visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, normalizeOps);
         FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
             addTemporalNormalization(OP_LCHILD(op), q, NIL); // find way to return attrs for this op
         }
 
+        INFO_LOG("subquery option");
         return tempRewrNestedSubqueryCorrelated(op);
     }
     
     if(canStayCorrelated) {
         // realize normalization (destructive, swaps tree)
         KeyValue *normalizeOps = createNodeKeyValue((Node *)op, (Node *)NIL);
-        // TODO this should process multiple normalizations for one normalizeOp
-        findNormalizationInQuery((QueryOperator *)op, normalizeOps);
+        // findNormalizationInQuery((QueryOperator *)op, normalizeOps);
+        visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, normalizeOps);
         FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
             addTemporalNormalization(OP_LCHILD(op), q, NIL); // find way to return attrs for this op
         }
 
+        INFO_LOG("subquery option");
         return tempRewrNestedSubqueryCorrelated(op);
     } else {
+        INFO_LOG("lateral option");
         return tempRewrNestedSubqueryLateralPostFilterTime(op);
     }
 }

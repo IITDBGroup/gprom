@@ -28,7 +28,11 @@
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
 #include "model/query_operator/operator_property.h"
+
+#if HAVE_ORACLE_BACKEND
 #include "ocilib.h"
+#endif
+
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "model/rpq/rpq_model.h"
 #include "rpq/rpq_to_datalog.h"

@@ -4298,8 +4298,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						}
 
 		    			// DOMAIN must be assigned for negated atom
-		    			if(!searchListString(domAssigned,atomRel))
+		    			if(!searchListString(domAssigned,atomRel)) {
 		    				FATAL_LOG("DOMAIN has not assigned for %s", atomRel);
+						}
 
 						int varPosition = 0;
 						char *atomAttr = NULL;

@@ -840,8 +840,9 @@ rewritePI_CSComposableSelection (SelectionOperator *op, PICSComposableRewriteSta
     // add result TID and prov duplicate attributes
     addResultTIDAndProvDupAttrs((QueryOperator *) rewr, TRUE);
 
-    if (isTupleAtATimeSubtree(OP_LCHILD(op)))
+    if (isTupleAtATimeSubtree(OP_LCHILD(op))) {
         SET_BOOL_STRING_PROP(op,PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
+    }
 
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);

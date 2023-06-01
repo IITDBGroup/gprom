@@ -151,9 +151,10 @@ unnestRewriteQuery(QueryOperator *op)
 	    		break;
 	    case NESTQ_ALL:
 	    		DEBUG_LOG("unnest ALL subquery");
-	    		if(isNotInLike(nest)) //q16
+	    		if(isNotInLike(nest)) { //q16
 	    			DEBUG_LOG("Special case: not in clause, subquery contains like clause and no correlation.");
 	    			unnestNotInLike(nest);
+				}
 	    		break;
 	    case NESTQ_EXISTS:
     			DEBUG_LOG("unnest EXISTS subquery:");

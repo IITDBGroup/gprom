@@ -96,6 +96,7 @@ int logLevel = 0;
 boolean logActive = FALSE;
 boolean opt_log_operator_colorize = TRUE;
 boolean opt_log_operator_verbose = FALSE;
+int opt_log_operator_verbose_props = 0;
 
 // input options
 char *sql = NULL;
@@ -412,6 +413,14 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionBool(&opt_log_operator_verbose),
                 defOptionBool(FALSE)
+        },
+        {
+                OPTION_LOG_OPERATOR_VERBOSE_PROPS,
+                "-Loperator_verbose_props",
+                "Relational algebra operator overviews print properties (requires -Loperator_verbose): KEYS&VALUES=2, KEYS=1, NONE=0",
+                OPTION_INT,
+                wrapOptionInt(&opt_log_operator_verbose_props),
+                defOptionInt(0)
         },
         // input options
         {
