@@ -46,7 +46,6 @@ Node *oracleParseResult = NULL;
 }
 
 
-%token <stringVal> RECURSIVE
 /*
  * Declare tokens for name and literal values
  * Declare tokens for user variables
@@ -87,6 +86,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> CAST
 %token <stringVal> CREATE ALTER ADD REMOVE COLUMN
 %token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE TOP
+%token <stringVal> RECURSIVE
 
 %token <stringVal> DUMMYEXPR
 
@@ -319,13 +319,11 @@ withQuery:
 		{
 			RULELOG("withQuery::withViewList::queryStmt");
 			$$ = (Node *) createWithStmt($2, $3);
-			((WithStmt *) $$)->isRecursive = 0;
 		}
 		| WITH RECURSIVE withViewListRec queryStmt
 		{
 			RULELOG("withQuery::withViewList::queryStmt");
-			$$ = (Node *) createWithStmt($3, $4);
-			((WithStmt *) $$)->isRecursive = 1;
+			$$ = (Node *) createWithStmtRec($3, $4);
 		}
 	;
 
@@ -350,7 +348,6 @@ withView:
 		}
 	;
 
-// parsage des with recusive : WITH RECURSIVE identifier AS (querystmt UNION querystmt) querystmt
 withViewListRec:
 		withViewListRec ',' withViewRec
 		{

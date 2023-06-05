@@ -52,7 +52,6 @@ exeRunQuery (void *code)
     // execute query
     INFO_LOG("run query (show results: %s, time query: %s):\n%s", showResult ? "yes" : "no", showTime ? "yes" : "no", (char *) adaptedQuery);
 
-    printf("\n\n\n\n\nLa commande executé en sdl est : %s\n\n\n\n\n",adaptedQuery);
 
     for (int i = 0; i < repeats; i++)
     {

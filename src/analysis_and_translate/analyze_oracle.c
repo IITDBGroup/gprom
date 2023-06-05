@@ -38,7 +38,6 @@ static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static boolean reenactOptionHasTimes (List *opts);
 static void analyzeWithStmt (WithStmt *w);
-static void analyzeWithRecStmt (WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 
@@ -2238,168 +2237,11 @@ analyzeWithStmt (WithStmt *w)
         printf("End of recursive part of analyseWithStmt\n");
     }
 
-
-    if (w->isRecursive)
-        analyzeWithRecStmt(w);
-
-
-
     setViewFromTableRefAttrs(w->query, analyzedViews);
     DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
     analyzeQueryBlockStmt(w->query, NIL);
 
     DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
-}
-
-/**
- * @brief Analyze a recursive with statement (after the non-recursive part has already been analyzed)
- * 
- * @param w 
- */
-static void
-analyzeWithRecStmt (WithStmt* w)
-{
-    printf("Analyse recursive\n");
-    /*
-    {WITH_STMT
-    withViews: (
-      {KEYVALUE
-        key:
-        {CONSTANT
-          constType: DT_STRING - 2
-          value 't'
-          isNull: false
-        }
-        value:
-        {SETQUERY
-          setOp: SETOP_UNION - 0
-          all: true
-          selectClause: (
-            "B"
-          )
-          lChild:
-          {QUERYBLOCK
-            distinct: <>
-            selectClause: (
-              {SELECT_ITEM
-                alias: "B"
-                expr:
-                {ATTRIBUTE_REFERENCE
-                  name: "B"
-                  fromClauseItem: 0
-                  attrPosition: 1
-                  outerLevelsUp: 0
-                  attrType: DT_INT - 0
-                }
-              }
-            )
-            fromClause: (
-              {FROMTABLEREF
-                name: "R"
-                attrNames: (
-                  "A" "B"
-                )
-                provInfo: <>
-                dataTypes: (i0 i0
-                )
-                tableId: "R"
-              }
-            )
-            whereClause: <>
-            groupByClause: <>
-            havingClause: <>
-            orderByClause: <>
-            limitClause: <>
-            offsetClause: <>
-          }
-          rChild:
-          {QUERYBLOCK
-            distinct: <>
-            selectClause: (
-              {SELECT_ITEM
-                alias: "A"
-                expr:
-                {ATTRIBUTE_REFERENCE
-                  name: "A"
-                  fromClauseItem: 0
-                  attrPosition: 0
-                  outerLevelsUp: 0
-                  attrType: DT_INT - 0
-                }
-              }
-            )
-            fromClause: (
-              {FROMTABLEREF
-                name: "R"
-                attrNames: (
-                  "A" "B"
-                )
-                provInfo: <>
-                dataTypes: (i0 i0
-                )
-                tableId: "R"
-              }
-            )
-            whereClause: <>
-            groupByClause: <>
-            havingClause: <>
-            orderByClause: <>
-            limitClause: <>
-            offsetClause: <>
-          }
-        }
-      }
-    )
-    query:
-    {QUERYBLOCK
-      distinct: <>
-      selectClause: (
-        {SELECT_ITEM
-          alias: "A"
-          expr:
-          {ATTRIBUTE_REFERENCE
-            name: "A"
-            fromClauseItem: 0
-            attrPosition: 0
-            outerLevelsUp: 0
-            attrType: DT_INT - 0
-          }
-        }
-        {SELECT_ITEM
-          alias: "B"
-          expr:
-          {ATTRIBUTE_REFERENCE
-            name: "B"
-            fromClauseItem: 0
-            attrPosition: 1
-            outerLevelsUp: 0
-            attrType: DT_INT - 0
-          }
-        }
-      )
-      fromClause: (
-        {FROMTABLEREF
-          name: "R"
-          attrNames: (
-            "A" "B"
-          )
-          provInfo: <>
-          dataTypes: (i0 i0
-          )
-          tableId: "R"
-        }
-      )
-      whereClause: <>
-      groupByClause: <>
-      havingClause: <>
-      orderByClause: <>
-      limitClause: <>
-      offsetClause: <>
-    }
-    isRecursive: false
-  }*/
-
-  // for lchild act as if it is a normal query, for rchild act as a recursive one
 }
 
 
@@ -2518,7 +2360,7 @@ setViewFromTableRefAttrs(Node *node, List *views)
             // found view, set attr names
             if (strcmp(name, vName) == 0)
             {
-                printf("found view\n");
+                printf("\n\n\n found view %s\n\n\n", vName);
                 ((FromItem *) f)->attrNames = getQBAttrNames(v->value);
                 printf("attrNames: %s\n", stringListToString(((FromItem *) f)->attrNames));
                 ((FromItem *) f)->dataTypes = getQBAttrDTs  (v->value);

@@ -333,6 +333,7 @@ extern Delete *createDelete(char *nodeName, Node *cond);
 extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
 extern TransactionStmt *createTransactionStmt (char *stmtType);
 extern WithStmt *createWithStmt (List *views, Node *query);
+extern WithStmt *createWithStmtRec (List *views, Node *query);
 extern CreateTable *createCreateTable (char *tName, List *tableElem);
 extern CreateTable *createCreateTableQuery (char *tName, Node *q);
 extern AlterTable *createAlterTableAddColumn (char *tName, char *newColName, char *newColDT);
