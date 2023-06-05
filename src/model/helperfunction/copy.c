@@ -890,7 +890,7 @@ copyWithStmt(WithStmt *from, OperatorMap **opMap)
     COPY_INIT(WithStmt);
     COPY_NODE_FIELD(withViews);
     COPY_NODE_FIELD(query);
-
+    COPY_SCALAR_FIELD(isRecursive);
     return new;
 }
 

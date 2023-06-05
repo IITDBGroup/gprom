@@ -65,6 +65,7 @@ typedef struct WithStmt
     NodeTag type;
     List *withViews;
     Node *query;
+    int isRecursive;
 } WithStmt;
 
 typedef struct ProvenanceTransactionInfo

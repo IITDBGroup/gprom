@@ -543,6 +543,7 @@ outWithStmt(StringInfo str, WithStmt *node)
     WRITE_NODE_TYPE(WITH_STMT);
     WRITE_NODE_FIELD(withViews);
     WRITE_NODE_FIELD(query);
+    WRITE_BOOL_FIELD(isRecursive);
 }
 
 static void

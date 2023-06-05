@@ -387,6 +387,7 @@ createWithStmt (List *views, Node *query)
 
     result->withViews = views;
     result->query = query;
+    result->isRecursive = 1;
 
     return result;
 }

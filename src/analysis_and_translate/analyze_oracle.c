@@ -38,6 +38,7 @@ static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static boolean reenactOptionHasTimes (List *opts);
 static void analyzeWithStmt (WithStmt *w);
+static void analyzeWithRecStmt (WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 
@@ -95,6 +96,7 @@ static List *splitTableName(char *tableName);
 static void getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts);
 static boolean compareAttrDefName(AttributeDef *a, AttributeDef *b);
 static boolean setViewFromTableRefAttrs(Node *node, List *views);
+
 static boolean schemaInfoHasTable(char *tableName);
 static List *schemaInfoGetSchema(char *tableName);
 static List *schemaInfoGetAttributeNames (char *tableName);
@@ -246,6 +248,7 @@ static void
 analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
+
 
     // unfold views
     FOREACH(FromItem,f,qb->fromClause)
@@ -2120,6 +2123,7 @@ correctFromTableVisitor (Node *node, void *context)
         }
     }
 
+
     return visit(node, correctFromTableVisitor, context);
 }
 
@@ -2164,6 +2168,8 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
     }
 }
 
+
+
 static void
 analyzeWithStmt (WithStmt *w)
 {
@@ -2181,14 +2187,41 @@ analyzeWithStmt (WithStmt *w)
             addToSet(viewNames, vName);
     }
 
-    // analyze each view, but make sure to set attributes of dummy views upfront
-    FOREACH(KeyValue,v,w->withViews)
+    if (!w->isRecursive)
     {
-        setViewFromTableRefAttrs(v->value, analyzedViews);
-        DEBUG_NODE_BEATIFY_LOG("did set view table refs:", v->value);
-        analyzeQueryBlockStmt(v->value, NIL);
-        analyzedViews = appendToTailOfList(analyzedViews, v);
+        // analyze each view, but make sure to set attributes of dummy views upfront
+        FOREACH(KeyValue,v,w->withViews)
+        {
+            setViewFromTableRefAttrs(v->value, analyzedViews);
+            DEBUG_NODE_BEATIFY_LOG("did set view table refs:", v->value);
+            analyzeQueryBlockStmt(v->value, NIL);
+            analyzedViews = appendToTailOfList(analyzedViews, v);
+        }
     }
+    else
+    {
+        // analyze each view, but make sure to set attributes of dummy views upfront
+        FOREACH(KeyValue,v,w->withViews)
+        {
+            setViewFromTableRefAttrs(((SetQuery*)v->value)->lChild, analyzedViews);
+            DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->lChild);
+            analyzeQueryBlockStmt(((SetQuery*)v->value)->lChild, NIL);
+            analyzedViews = appendToTailOfList(analyzedViews, v);
+        }
+        FOREACH(KeyValue,v,w->withViews)
+        {
+            setViewFromTableRefAttrs(((SetQuery*)v->value)->rChild, analyzedViews);
+            DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->rChild);
+            analyzeQueryBlockStmt(((SetQuery*)v->value)->rChild, NIL);
+            analyzedViews = appendToTailOfList(analyzedViews, v);
+        }
+    }
+
+
+    if (w->isRecursive)
+        analyzeWithRecStmt(w);
+
+
 
     setViewFromTableRefAttrs(w->query, analyzedViews);
     DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
@@ -2196,6 +2229,158 @@ analyzeWithStmt (WithStmt *w)
 
     DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
 }
+
+/**
+ * @brief Analyze a recursive with statement (after the non-recursive part has already been analyzed)
+ * 
+ * @param w 
+ */
+static void
+analyzeWithRecStmt (WithStmt* w)
+{
+    printf("Analyse recursive\n");
+    /*
+    {WITH_STMT
+    withViews: (
+      {KEYVALUE
+        key:
+        {CONSTANT
+          constType: DT_STRING - 2
+          value 't'
+          isNull: false
+        }
+        value:
+        {SETQUERY
+          setOp: SETOP_UNION - 0
+          all: true
+          selectClause: (
+            "B"
+          )
+          lChild:
+          {QUERYBLOCK
+            distinct: <>
+            selectClause: (
+              {SELECT_ITEM
+                alias: "B"
+                expr:
+                {ATTRIBUTE_REFERENCE
+                  name: "B"
+                  fromClauseItem: 0
+                  attrPosition: 1
+                  outerLevelsUp: 0
+                  attrType: DT_INT - 0
+                }
+              }
+            )
+            fromClause: (
+              {FROMTABLEREF
+                name: "R"
+                attrNames: (
+                  "A" "B"
+                )
+                provInfo: <>
+                dataTypes: (i0 i0
+                )
+                tableId: "R"
+              }
+            )
+            whereClause: <>
+            groupByClause: <>
+            havingClause: <>
+            orderByClause: <>
+            limitClause: <>
+            offsetClause: <>
+          }
+          rChild:
+          {QUERYBLOCK
+            distinct: <>
+            selectClause: (
+              {SELECT_ITEM
+                alias: "A"
+                expr:
+                {ATTRIBUTE_REFERENCE
+                  name: "A"
+                  fromClauseItem: 0
+                  attrPosition: 0
+                  outerLevelsUp: 0
+                  attrType: DT_INT - 0
+                }
+              }
+            )
+            fromClause: (
+              {FROMTABLEREF
+                name: "R"
+                attrNames: (
+                  "A" "B"
+                )
+                provInfo: <>
+                dataTypes: (i0 i0
+                )
+                tableId: "R"
+              }
+            )
+            whereClause: <>
+            groupByClause: <>
+            havingClause: <>
+            orderByClause: <>
+            limitClause: <>
+            offsetClause: <>
+          }
+        }
+      }
+    )
+    query:
+    {QUERYBLOCK
+      distinct: <>
+      selectClause: (
+        {SELECT_ITEM
+          alias: "A"
+          expr:
+          {ATTRIBUTE_REFERENCE
+            name: "A"
+            fromClauseItem: 0
+            attrPosition: 0
+            outerLevelsUp: 0
+            attrType: DT_INT - 0
+          }
+        }
+        {SELECT_ITEM
+          alias: "B"
+          expr:
+          {ATTRIBUTE_REFERENCE
+            name: "B"
+            fromClauseItem: 0
+            attrPosition: 1
+            outerLevelsUp: 0
+            attrType: DT_INT - 0
+          }
+        }
+      )
+      fromClause: (
+        {FROMTABLEREF
+          name: "R"
+          attrNames: (
+            "A" "B"
+          )
+          provInfo: <>
+          dataTypes: (i0 i0
+          )
+          tableId: "R"
+        }
+      )
+      whereClause: <>
+      groupByClause: <>
+      havingClause: <>
+      orderByClause: <>
+      limitClause: <>
+      offsetClause: <>
+    }
+    isRecursive: false
+  }*/
+
+  // for lchild act as if it is a normal query, for rchild act as a recursive one
+}
+
 
 static void
 analyzeCreateTable (CreateTable *c)
@@ -2298,16 +2483,19 @@ setViewFromTableRefAttrs(Node *node, List *views)
 
     if (isA(node, FromTableRef))
     {
+        printf("node : %s\n", beatify(nodeToString(node)));
         FromTableRef *f = (FromTableRef *) node;
         char *name = f->tableId;
 
         FOREACH(KeyValue,v,views)
         {
+            printf("view : %s\n", beatify(nodeToString(v)));
             char *vName = STRING_VALUE(v->key);
 
             // found view, set attr names
             if (strcmp(name, vName) == 0)
             {
+                printf("\n\n\n found view %s\n\n\n", vName);
                 ((FromItem *) f)->attrNames = getQBAttrNames(v->value);
                 ((FromItem *) f)->dataTypes = getQBAttrDTs  (v->value);
             }
@@ -2318,6 +2506,7 @@ setViewFromTableRefAttrs(Node *node, List *views)
 
     return visit(node, setViewFromTableRefAttrs, views);
 }
+
 
 static boolean
 schemaInfoHasTable(char *tableName)

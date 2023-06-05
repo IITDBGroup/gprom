@@ -45,6 +45,8 @@ Node *oracleParseResult = NULL;
      double floatVal;
 }
 
+
+%token <stringVal> RECURSIVE
 /*
  * Declare tokens for name and literal values
  * Declare tokens for user variables
@@ -133,7 +135,7 @@ Node *oracleParseResult = NULL;
 %type <list> selectClause optionalFrom fromClause exprList orderList
 			 optionalGroupBy optionalOrderBy setClause  stmtList stmtWithReenactOptionsList //insertList
 			 identifierList optionalAttrAlias optionalProvWith provOptionList optionalReenactOptions reenactOptionList
-			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
+			 caseWhenList windowBoundaries optWindowPart withViewList withViewListRec jsonColInfo optionalTranslate
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalOffset optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
@@ -145,7 +147,7 @@ Node *oracleParseResult = NULL;
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
 %type <list> fragmentList pageList rangeAList rangeBList intConstList attrRangeList
-%type <node> withView withQuery
+%type <node> withView withViewRec withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
 %type <stringVal> optionalFormat optionalWrapper optionalstringConst
@@ -317,6 +319,13 @@ withQuery:
 		{
 			RULELOG("withQuery::withViewList::queryStmt");
 			$$ = (Node *) createWithStmt($2, $3);
+			((WithStmt *) $$)->isRecursive = 0;
+		}
+		| WITH RECURSIVE withViewListRec queryStmt
+		{
+			RULELOG("withQuery::withViewList::queryStmt");
+			$$ = (Node *) createWithStmt($3, $4);
+			((WithStmt *) $$)->isRecursive = 1;
 		}
 	;
 
@@ -340,6 +349,27 @@ withView:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), $4);
 		}
 	;
+
+// parsage des with recusive : WITH RECURSIVE identifier AS (querystmt UNION querystmt) querystmt
+withViewListRec:
+		withViewListRec ',' withViewRec
+		{
+			RULELOG("withViewListRec::list::view");
+			$$ = appendToTailOfList($1, $3);
+		}
+		| withViewRec
+		{
+			RULELOG("withViewListRec::view");
+			$$ = singleton($1);
+		}
+	;
+
+withViewRec:
+		identifier AS '(' selectQuery UNION optionalAll selectQuery ')'
+		{
+			RULELOG("withViewRec::ident::AS:queryStmt");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), (Node *) createSetQuery($5, ($6 != NULL), $4, $7));
+		}
 
 transactionIdentifier:
         BEGIN_TRANS        { RULELOG("transactionIdentifier::BEGIN"); $$ = strdup("TRANSACTION_BEGIN"); }

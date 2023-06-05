@@ -1023,6 +1023,7 @@ equalWithStmt(WithStmt *a, WithStmt *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(withViews);
     COMPARE_NODE_FIELD(query);
+    COMPARE_SCALAR_FIELD(isRecursive);
 
     return TRUE;
 }
