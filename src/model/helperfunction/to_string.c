@@ -353,11 +353,16 @@ outVector(StringInfo str, Vector *node)
             FOREACH_VEC(Node,n,node)
             {
                 outNode(str, n);
-                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? ", " : "");
+                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? "" : ", ");
             }
             break;
         case VECTOR_STRING:
-            FATAL_LOG("TODO");
+			FOREACH_VEC(char,s,node)
+			{
+				appendStringInfo(str, "%s%s",
+								 s,
+								 VEC_IS_LAST_STR(s,node) ? "" : ", ");
+			}
             break;
     }
 

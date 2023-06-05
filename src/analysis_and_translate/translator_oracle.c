@@ -149,7 +149,9 @@ translateParseOracle (Node *q)
 QueryOperator *
 translateQueryOracle (Node *node)
 {
-    return translateQueryOracleInternal (node, NULL);
+	List *attrsOffsetsList = NIL;
+
+    return translateQueryOracleInternal(node, &attrsOffsetsList);
 }
 
 static QueryOperator *
@@ -519,12 +521,16 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot,
             attrsOffsets, attrsOffsetsList);
     if (nestingOp != joinTreeRoot)
+	{
         LOG_TRANSLATED_OP("translatedNesting is", nestingOp);
+	}
 
-    QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
-            *attrsOffsetsList);
+	QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
+												 *attrsOffsetsList);
     if (select != nestingOp)
+	{
         LOG_TRANSLATED_OP("translatedWhere is", select);
+	}
 
     //remove for nesting
     *attrsOffsetsList = removeFromHead(*attrsOffsetsList);
@@ -532,38 +538,52 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     QueryOperator *aggr = translateAggregation(qb, select, attrsOffsets);
     hasAggOrGroupBy = (aggr != select);
     if (hasAggOrGroupBy)
+	{
         LOG_TRANSLATED_OP("translatedAggregation is", aggr);
+	}
 
     QueryOperator *wind = translateWindowFuncs(qb, aggr, attrsOffsets);
     hasWindowFuncs = (wind != aggr);
     if (hasWindowFuncs)
+	{
         LOG_TRANSLATED_OP("translatedWindowFuncs is", wind);
+	}
 
     if (hasAggOrGroupBy && hasWindowFuncs)
+	{
         FATAL_LOG("Cannot have both window functions and aggregation/group by "
-                "in same query block:\n\n%s", beatify(nodeToString(qb)));
+				  "in same query block:\n\n%s", beatify(nodeToString(qb)));
+	}
 
     QueryOperator *having = translateHavingClause(qb->havingClause, wind,
-            attrsOffsets);
+												  attrsOffsets);
     if (having != aggr)
+	{
         LOG_TRANSLATED_OP("translatedHaving is", having);
+	}
 
     QueryOperator *project = translateSelectClause(qb->selectClause, having,
-            attrsOffsets, hasAggOrGroupBy);
+												   attrsOffsets, hasAggOrGroupBy);
     LOG_TRANSLATED_OP("translatedSelect is", project);
 
     QueryOperator *distinct = translateDistinct((DistinctClause *) qb->distinct,
-            project);
+												project);
     if (distinct != project)
+	{
         LOG_TRANSLATED_OP("translatedDistinct is", distinct);
+	}
 
     QueryOperator *orderBy = translateOrderBy(qb, distinct, attrsOffsets);
     if (orderBy != distinct)
+	{
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
+	}
 
-	QueryOperator *limitAndOffset = translateLimitOffset(qb, orderBy, attrsOffsets);
-	if (limitAndOffset != orderBy)
+    QueryOperator *limitAndOffset = translateLimitOffset(qb, orderBy, attrsOffsets);
+    if (limitAndOffset != orderBy)
+	{
 		LOG_TRANSLATED_OP("translatedLimitAndOffset is", limitAndOffset);
+	}
 
     if(summaryType != NULL)
     	prop = (Node *) limitAndOffset;
