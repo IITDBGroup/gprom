@@ -38,6 +38,7 @@ typedef struct SetQuery
     List *selectClause;
     Node *lChild; // either SetOp or QueryBlock
     Node *rChild; // either SetOp or QueryBlock
+    boolean isRecursive;
 } SetQuery;
 
 typedef struct QueryBlock

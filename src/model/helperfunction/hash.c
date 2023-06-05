@@ -475,7 +475,7 @@ hashSetQuery (uint64_t cur, SetQuery *node)
     HASH_NODE(selectClause);
     HASH_NODE(lChild);
     HASH_NODE(rChild);
-
+    HASH_INT(isRecursive);
     HASH_RETURN();
 }
 

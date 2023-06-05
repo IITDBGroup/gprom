@@ -641,6 +641,7 @@ outSetQuery (StringInfo str, SetQuery *node)
     WRITE_STRING_LIST_FIELD(selectClause);
     WRITE_NODE_FIELD(lChild);
     WRITE_NODE_FIELD(rChild);
+    WRITE_INT_FIELD(isRecursive);
 }
 
 static void

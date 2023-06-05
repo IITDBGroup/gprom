@@ -895,7 +895,7 @@ equalSetQuery(SetQuery *a, SetQuery *b, HashMap *seenOps, MemContext *c)
     COMPARE_STRING_LIST_FIELD(selectClause);
     COMPARE_NODE_FIELD(lChild);
     COMPARE_NODE_FIELD(rChild);
-
+    COMPARE_SCALAR_FIELD(isRecursive);
     return TRUE;
 }
 

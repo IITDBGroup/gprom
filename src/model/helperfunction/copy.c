@@ -808,6 +808,7 @@ copySetQuery(SetQuery *from, OperatorMap **opMap)
     COPY_STRING_LIST_FIELD(selectClause);
     COPY_NODE_FIELD(lChild);
     COPY_NODE_FIELD(rChild);
+    COPY_SCALAR_FIELD(isRecursive);
 
     return new;
 }

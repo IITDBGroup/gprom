@@ -131,6 +131,7 @@ createSetQuery(char *setOp, boolean all, Node *lChild,
     result->selectClause = NIL;
     result->lChild = lChild;
     result->rChild = rChild;
+    result->isRecursive = FALSE;
 
     return result;
 }

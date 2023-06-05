@@ -1839,8 +1839,13 @@ splitTableName(char *tableName)
 static void
 analyzeSetQuery (SetQuery *q, List *parentFroms)
 {
+    printf("analyzeSetQuery lchild\n");
     analyzeQueryBlockStmt(q->lChild, parentFroms);
-    analyzeQueryBlockStmt(q->rChild, parentFroms);
+    if (!q->isRecursive)
+    {
+        printf("analyzeSetQuery rchild\n");
+        analyzeQueryBlockStmt(q->rChild, parentFroms);
+    }
 
     // get attributes from left child
     switch(q->lChild->type)
@@ -2173,12 +2178,19 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
 static void
 analyzeWithStmt (WithStmt *w)
 {
+    printf("Analyse with stmt\n");
     Set *viewNames = STRSET();
     List *analyzedViews = NIL;
 
     // check that no two views have the same name
     FOREACH(KeyValue,v,w->withViews)
     {
+        if (w->isRecursive)
+        {
+            ((SetQuery*)v->value)->isRecursive = TRUE;
+            printf("==> \n%s\n",beatify(nodeToString(v->value)));
+
+        }
         char *vName = STRING_VALUE(v->key);
         if (hasSetElem(viewNames, vName))
             FATAL_LOG("view <%s> defined more than once in with stmt:\n\n%s",
@@ -2186,6 +2198,7 @@ analyzeWithStmt (WithStmt *w)
         else
             addToSet(viewNames, vName);
     }
+    printf("End of common part of analyseWithStmt\n");
 
     if (!w->isRecursive)
     {
@@ -2197,9 +2210,11 @@ analyzeWithStmt (WithStmt *w)
             analyzeQueryBlockStmt(v->value, NIL);
             analyzedViews = appendToTailOfList(analyzedViews, v);
         }
+        printf("End of non-recursive part of analyseWithStmt\n");
     }
     else
     {
+        printf("start of recursive part of analyseWithStmt\nPART 1\n");
         // analyze each view, but make sure to set attributes of dummy views upfront
         FOREACH(KeyValue,v,w->withViews)
         {
@@ -2208,13 +2223,19 @@ analyzeWithStmt (WithStmt *w)
             analyzeQueryBlockStmt(((SetQuery*)v->value)->lChild, NIL);
             analyzedViews = appendToTailOfList(analyzedViews, v);
         }
+        printf("PART 2\n");
         FOREACH(KeyValue,v,w->withViews)
         {
+            printf("==>\n%s\n\n\n\n", beatify(nodeToString(((SetQuery*)v->value)->rChild)));
             setViewFromTableRefAttrs(((SetQuery*)v->value)->rChild, analyzedViews);
             DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->rChild);
+            printf("==>\n%s\n", beatify(nodeToString(((SetQuery*)v->value)->rChild)));
+            printf("Before analyzeQueryBlockStmt\n");
             analyzeQueryBlockStmt(((SetQuery*)v->value)->rChild, NIL);
+            printf("After analyzeQueryBlockStmt\n");
             analyzedViews = appendToTailOfList(analyzedViews, v);
         }
+        printf("End of recursive part of analyseWithStmt\n");
     }
 
 
@@ -2478,26 +2499,30 @@ compareAttrDefName(AttributeDef *a, AttributeDef *b)
 static boolean
 setViewFromTableRefAttrs(Node *node, List *views)
 {
+    printf("setViewFromTableRefAttrs\n");
     if (node == NULL)
         return TRUE;
 
     if (isA(node, FromTableRef))
     {
-        printf("node : %s\n", beatify(nodeToString(node)));
+        printf("is FromTableRef\n");    
         FromTableRef *f = (FromTableRef *) node;
         char *name = f->tableId;
+        printf("name: %s\n", name);
 
         FOREACH(KeyValue,v,views)
         {
-            printf("view : %s\n", beatify(nodeToString(v)));
             char *vName = STRING_VALUE(v->key);
+            printf("vName: %s\n", vName);
 
             // found view, set attr names
             if (strcmp(name, vName) == 0)
             {
-                printf("\n\n\n found view %s\n\n\n", vName);
+                printf("found view\n");
                 ((FromItem *) f)->attrNames = getQBAttrNames(v->value);
+                printf("attrNames: %s\n", stringListToString(((FromItem *) f)->attrNames));
                 ((FromItem *) f)->dataTypes = getQBAttrDTs  (v->value);
+                printf("dataTypes: %s\n", stringListToString(((FromItem *) f)->dataTypes));
             }
         }
 
