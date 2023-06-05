@@ -387,10 +387,20 @@ createWithStmt (List *views, Node *query)
 
     result->withViews = views;
     result->query = query;
-    result->isRecursive = 1;
+    result->isRecursive = FALSE;
 
     return result;
 }
+
+WithStmt *
+createWithStmtRec (List *views, Node *query)
+{
+    WithStmt *result = createWithStmt(views, query);
+    result->isRecursive = TRUE;
+
+    return result;
+}
+
 
 CreateTable *
 createCreateTable (char *tName, List *tableElem)
