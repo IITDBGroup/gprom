@@ -302,6 +302,8 @@ typedef struct DDLStatement
 /* get attributes from query block nodes */
 extern List *getQBAttrDefs(Node *qb);
 extern List *getQBAttrNames (Node *qb);
+extern List *getQBAttrNamesRec (Node *qb);
+
 extern List *getQBAttrDTs (Node *qb);
 
 /* functions for creating query block nodes */

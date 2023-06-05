@@ -87,7 +87,7 @@ getQBAttrNames (Node *qb)
             QueryBlock *subQb = (QueryBlock *) qb;
             FOREACH(SelectItem,s,subQb->selectClause)
             {
-                 attrs = appendToTailOfList(attrs,
+                attrs = appendToTailOfList(attrs,
                         s->alias);
             }
         }
@@ -107,7 +107,25 @@ getQBAttrNames (Node *qb)
         default:
             break;
     }
+    return attrs;
+}
 
+List *
+getQBAttrNamesRec (Node *qb)
+{
+    List *attrs = NIL;
+
+    switch(qb->type)
+    {
+        case T_SetQuery:
+        {
+            SetQuery *setQ = (SetQuery *) qb;
+            attrs = getQBAttrNames((Node *)((QueryBlock *)setQ->lChild));
+        }
+        break;
+        default:
+            break;
+    }
     return attrs;
 }
 
