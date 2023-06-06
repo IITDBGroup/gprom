@@ -829,6 +829,7 @@ outFromTableRef (StringInfo str, FromTableRef *node)
 
     writeCommonFromItemFields(str, (FromItem *) node);
     WRITE_STRING_FIELD(tableId);
+    WRITE_BOOL_FIELD(backendified);
 }
 
 static void
