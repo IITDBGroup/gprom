@@ -991,6 +991,7 @@ copyFromTableRef(FromTableRef *from, OperatorMap **opMap)
     COPY_INIT(FromTableRef);
     COPY_FROM();
     COPY_STRING_FIELD(tableId);
+    COPY_SCALAR_FIELD(backendified);
 
     return new;
 }

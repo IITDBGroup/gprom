@@ -127,6 +127,7 @@ typedef struct FromTableRef
 {
     FromItem from;
     char *tableId;
+    boolean backendified;
 } FromTableRef;
 
 typedef struct FromSubquery

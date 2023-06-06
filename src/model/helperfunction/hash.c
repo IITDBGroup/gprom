@@ -563,6 +563,7 @@ hashFromTableRef (uint64_t cur, FromTableRef *node)
 {
     HASH_FROM_ITEM();
     HASH_STRING(tableId);
+    HASH_BOOLEAN(backendified);
 
     HASH_RETURN();
 }

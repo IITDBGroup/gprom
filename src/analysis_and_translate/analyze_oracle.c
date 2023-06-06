@@ -94,6 +94,7 @@ static char *generateAttrNameFromExpr(SelectItem *s);
 static List *splitTableName(char *tableName);
 static void getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts);
 static boolean compareAttrDefName(AttributeDef *a, AttributeDef *b);
+static void backendifyTableRef(FromTableRef *f);
 static boolean setViewFromTableRefAttrs(Node *node, List *views);
 static boolean schemaInfoHasTable(char *tableName);
 static List *schemaInfoGetSchema(char *tableName);
@@ -259,7 +260,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromTableRef:
             {
                 FromTableRef *tr = (FromTableRef *) f;
-                tr->tableId = backendifyIdentifier(tr->tableId);
+                backendifyTableRef(tr);
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
 
@@ -1010,7 +1011,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
         case T_FromTableRef:
         {
 			FromTableRef *lt = (FromTableRef *) left;
-			lt->tableId = backendifyIdentifier(lt->tableId);
+		    backendifyTableRef(lt);
         	analyzeFromTableRef((FromTableRef *)left);
             analyzeFromProvInfo(left);
         }
@@ -1033,7 +1034,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 		case T_FromTableRef:
 		{
 			FromTableRef *rt = (FromTableRef *) right;
-			rt->tableId = backendifyIdentifier(rt->tableId);
+			backendifyTableRef(rt);
             analyzeFromTableRef((FromTableRef *)right);
 		    analyzeFromProvInfo(right);
 		}
@@ -2170,10 +2171,12 @@ analyzeWithStmt (WithStmt *w)
     Set *viewNames = STRSET();
     List *analyzedViews = NIL;
 
-    // check that no two views have the same name
+    // check that no two views have the same name and backendify view names
     FOREACH(KeyValue,v,w->withViews)
     {
-        char *vName = STRING_VALUE(v->key);
+        Constant *n = (Constant *) v->key;
+        n->value = backendifyIdentifier(STRING_VALUE(v->key));
+        char *vName = strdup(STRING_VALUE(v->key));
         if (hasSetElem(viewNames, vName))
             FATAL_LOG("view <%s> defined more than once in with stmt:\n\n%s",
                     vName, nodeToString(w));
@@ -2290,6 +2293,16 @@ compareAttrDefName(AttributeDef *a, AttributeDef *b)
     return (streq(a->attrName, b->attrName));
 }
 
+static void
+backendifyTableRef(FromTableRef *f)
+{
+    if (!f->backendified)
+    {
+        f->backendified = TRUE;
+        f->tableId = backendifyIdentifier(f->tableId);
+    }
+}
+
 static boolean
 setViewFromTableRefAttrs(Node *node, List *views)
 {
@@ -2299,7 +2312,11 @@ setViewFromTableRefAttrs(Node *node, List *views)
     if (isA(node, FromTableRef))
     {
         FromTableRef *f = (FromTableRef *) node;
-        char *name = f->tableId;
+        char *name;
+
+        // backendify idents if necessary
+        backendifyTableRef(f);
+        name = f->tableId;
 
         FOREACH(KeyValue,v,views)
         {

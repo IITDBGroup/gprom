@@ -1053,6 +1053,7 @@ equalFromTableRef(FromTableRef *a, FromTableRef *b, HashMap *seenOps, MemContext
     if (!equalFromItem((FromItem *) a, (FromItem *) b, seenOps, c))
         return FALSE;
     COMPARE_STRING_FIELD(tableId);
+    COMPARE_SCALAR_FIELD(backendified);
 
     return TRUE;
 }
