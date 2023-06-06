@@ -255,6 +255,7 @@ translateGeneral (Node *node, List **attrsOffsetsList)
         }
         else
         {
+
             result = (Node *) translateQueryOracleInternal(node, attrsOffsetsList);
         }
     }
@@ -425,6 +426,8 @@ adaptSchemaFromChildren(QueryOperator *o)
 static QueryOperator *
 translateSetQuery(SetQuery *sq, List **attrsOffsetsList)
 {
+    printf("translate set query\n\n");
+
     QueryOperator *left = NULL;
     QueryOperator *right = NULL;
     QueryOperator *result = NULL;
@@ -1015,6 +1018,7 @@ translateProperties(QueryOperator *q, List *properties)
 static QueryOperator *
 translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 {
+    printf("translateWithStmt withStmt : %s\n attrsOffsetsList %s\n", beatify(nodeToString(with)), beatify(nodeToString(*attrsOffsetsList)));
 //    List *withViews = NIL;
     List *transWithViews = NIL;
     QueryOperator *finalQ;
@@ -1025,15 +1029,24 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
         Node *vQ = v->value;
         Node *opQ;
 
+        printf("Current view : %s\n", beatify(nodeToString(vQ)));
         // translate current view into operator model
+
         opQ = translateGeneral(vQ, attrsOffsetsList);
+
+        printf("Translate the current view into operator model : %s\n", beatify(nodeToString(opQ)));
 
         // replace references to withViews as table access  with definition
         replaceWithViewRefsMutator(opQ, transWithViews);
 
+        printf("Replace references to withViews as table access with definition : opQ : %s\n traansWithViews : %s\n", beatify(nodeToString(opQ)), beatify(nodeToString(transWithViews)));
+
         // store as with view entry
         transWithViews = appendToTailOfList(transWithViews,
                 createNodeKeyValue(copyObject(v->key), opQ));
+
+        printf("Store as with view entry : %s\n", beatify(nodeToString(transWithViews)));
+
         DEBUG_LOG("translated input views <%s>:\n\n%s\n\ninto\n\n%s",
                 STRING_VALUE(v->key), nodeToString(vQ),
                 operatorToOverviewString(opQ));

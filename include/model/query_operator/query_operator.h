@@ -80,6 +80,20 @@ typedef struct SetOperator
     SetOpType setOpType;
 } SetOperator;
 
+typedef struct RecursiveOperator
+{
+    QueryOperator op;
+    char *unionTableName;
+    List *withAttrNames;
+    List *withOps;
+    List *setAttrNames;
+    List *setOps;
+    List *recursiveAttrNames;
+    List *recursiveOps;
+    List *provAttrNames;
+    List *asOf;
+} RecursiveOperator;
+
 typedef struct DuplicateRemoval
 {
     QueryOperator op;
