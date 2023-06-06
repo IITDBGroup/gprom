@@ -1839,9 +1839,9 @@ splitTableName(char *tableName)
 static void
 analyzeSetQuery (SetQuery *q, List *parentFroms)
 {
-    analyzeQueryBlockStmt(q->lChild, parentFroms);
     if (!q->isRecursive)
     {
+        analyzeQueryBlockStmt(q->lChild, parentFroms);
         analyzeQueryBlockStmt(q->rChild, parentFroms);
     }
 
@@ -2216,13 +2216,12 @@ analyzeWithStmt (WithStmt *w)
             setViewFromTableRefAttrs(((SetQuery*)v->value)->lChild, analyzedViews);
             DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->lChild);
             analyzeQueryBlockStmt(((SetQuery*)v->value)->lChild, NIL);
-            analyzedViews = appendToTailOfList(analyzedViews, v);
-        }
-        FOREACH(KeyValue,v,w->withViews)
-        {
+
             setViewFromTableRefAttrs(((SetQuery*)v->value)->rChild, analyzedViews);
             DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->rChild);
             analyzeQueryBlockStmt(((SetQuery*)v->value)->rChild, NIL);
+            analyzeSetQuery((SetQuery *) v->value, NIL);
+            
             analyzedViews = appendToTailOfList(analyzedViews, v);
         }
     }
