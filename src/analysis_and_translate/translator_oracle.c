@@ -51,6 +51,7 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
+static QueryOperator *translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList);
 static QueryOperator *translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList);
 static void markTableAccessForRowidProv (QueryOperator *o);
@@ -426,7 +427,8 @@ adaptSchemaFromChildren(QueryOperator *o)
 static QueryOperator *
 translateSetQuery(SetQuery *sq, List **attrsOffsetsList)
 {
-    printf("translate set query\n\n");
+    if (sq->isRecursive)
+        translateRecursiveQuery(sq, attrsOffsetsList);
 
     QueryOperator *left = NULL;
     QueryOperator *right = NULL;
@@ -495,6 +497,76 @@ translateSetQuery(SetQuery *sq, List **attrsOffsetsList)
 
     return result;
 }
+
+
+static QueryOperator *
+translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList)
+{
+    QueryOperator *uc = NULL;
+    QueryOperator *rc = NULL;
+    QueryOperator *result = NULL;
+
+    DEBUG_LOG("translate recursive query");
+
+    if (sq->lChild)
+        uc = translateQueryOracleInternal(sq->lChild, attrsOffsetsList);
+    if (sq->rChild)
+        rc = translateQueryOracleInternal(sq->rChild, attrsOffsetsList);
+    ASSERT(uc && rc);
+
+    // create recursive operator node
+    RecursiveOperator *ro = createRecursiveOperator(uc, rc, NIL,
+            sq->selectClause);
+
+    // set the parent of the operator's children
+    OP_LCHILD(ro)->parents = OP_RCHILD(ro)->parents = singleton(ro);
+
+    //if not "all" then add duplicate removal operators
+    if (!sq->all)
+    {
+        switch(sq->setOp)
+        {
+            case SETOP_UNION:
+            case SETOP_INTERSECTION:
+
+                result = (QueryOperator *) createDuplicateRemovalOp(
+                        getNormalAttrProjectionExprs((QueryOperator *) ro),
+                        (QueryOperator *) ro,
+                        NIL, getAttrNames(GET_OPSCHEMA(ro)));
+                ((QueryOperator *) ro)->parents = singleton(result);
+                break;
+            case SETOP_DIFFERENCE:
+                {
+                    QueryOperator *lD, *rD;
+
+                    lD = (QueryOperator *) createDuplicateRemovalOp(
+                            getNormalAttrProjectionExprs(uc),
+                            (QueryOperator *) uc,
+                            NIL, getAttrNames(GET_OPSCHEMA(uc)));
+
+                    rD = (QueryOperator *) createDuplicateRemovalOp(
+                            getNormalAttrProjectionExprs(rc),
+                            (QueryOperator *) rc,
+                            NIL, getAttrNames(GET_OPSCHEMA(rc)));
+                    switchSubtrees(uc, lD);
+                    switchSubtrees(rc, rD);
+                    uc->parents = singleton(lD);
+                    rc->parents = singleton(rD);
+
+                    result = (QueryOperator *) ro;
+                }
+                break;
+        }
+    }
+    // is "all"
+    else
+        result = (QueryOperator *) ro;
+    
+    DEBUG_LOG("translated recursive query is %s", operatorToOverviewString((Node *) result));
+
+    return result;
+}
+
 
 #define LOG_TRANSLATED_OP(message,op) \
     do { \
@@ -1018,7 +1090,6 @@ translateProperties(QueryOperator *q, List *properties)
 static QueryOperator *
 translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 {
-    printf("translateWithStmt withStmt : %s\n attrsOffsetsList %s\n", beatify(nodeToString(with)), beatify(nodeToString(*attrsOffsetsList)));
 //    List *withViews = NIL;
     List *transWithViews = NIL;
     QueryOperator *finalQ;
@@ -1029,23 +1100,19 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
         Node *vQ = v->value;
         Node *opQ;
 
-        printf("Current view : %s\n", beatify(nodeToString(vQ)));
         // translate current view into operator model
 
         opQ = translateGeneral(vQ, attrsOffsetsList);
 
-        printf("Translate the current view into operator model : %s\n", beatify(nodeToString(opQ)));
 
         // replace references to withViews as table access  with definition
         replaceWithViewRefsMutator(opQ, transWithViews);
 
-        printf("Replace references to withViews as table access with definition : opQ : %s\n traansWithViews : %s\n", beatify(nodeToString(opQ)), beatify(nodeToString(transWithViews)));
 
         // store as with view entry
         transWithViews = appendToTailOfList(transWithViews,
                 createNodeKeyValue(copyObject(v->key), opQ));
 
-        printf("Store as with view entry : %s\n", beatify(nodeToString(transWithViews)));
 
         DEBUG_LOG("translated input views <%s>:\n\n%s\n\ninto\n\n%s",
                 STRING_VALUE(v->key), nodeToString(vQ),

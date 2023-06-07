@@ -83,15 +83,6 @@ typedef struct SetOperator
 typedef struct RecursiveOperator
 {
     QueryOperator op;
-    char *unionTableName;
-    List *withAttrNames;
-    List *withOps;
-    List *setAttrNames;
-    List *setOps;
-    List *recursiveAttrNames;
-    List *recursiveOps;
-    List *provAttrNames;
-    List *asOf;
 } RecursiveOperator;
 
 typedef struct DuplicateRemoval
@@ -238,6 +229,8 @@ extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy,
         QueryOperator *input, List *parents, List *attrNames);
 extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs,
         List *parents, List *attrNames);
+extern RecursiveOperator *createRecursiveOperator (QueryOperator *unionChild,
+        QueryOperator *recursiveChild, List *parents, List *attrNames);
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs,
         QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType,

@@ -741,6 +741,21 @@ createSetOperator(SetOpType setOpType, List *inputs, List *parents,
     return set;
 }
 
+RecursiveOperator *
+createRecursiveOperator(QueryOperator *unionChild, QueryOperator *recursiveChild, List *parents, 
+        List *attrNames)
+{
+    RecursiveOperator *rec = makeNode(RecursiveOperator);
+
+    rec->op.inputs = LIST_MAKE(unionChild, recursiveChild);
+    rec->op.schema = createSchemaFromLists("RECURSIVE", attrNames,
+            getDataTypes(OP_LCHILD(rec)->schema));
+    rec->op.parents = parents;
+    rec->op.provAttrs = NULL;
+
+    return rec;
+}
+
 DuplicateRemoval *
 createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
         List *attrNames)

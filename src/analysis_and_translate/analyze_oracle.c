@@ -1839,7 +1839,6 @@ splitTableName(char *tableName)
 static void
 analyzeSetQuery (SetQuery *q, List *parentFroms)
 {
-    printf("analyzeSetQuery\n");
     if (!q->isRecursive)
     {
         analyzeQueryBlockStmt(q->lChild, parentFroms);
@@ -2177,7 +2176,6 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
 static void
 analyzeWithStmt (WithStmt *w)
 {
-    printf("analyzeWithStmt\n");
     Set *viewNames = STRSET();
     List *analyzedViews = NIL;
 
@@ -2198,7 +2196,6 @@ analyzeWithStmt (WithStmt *w)
         else
             addToSet(viewNames, vName);
     }
-    printf("after common part\n");
     if (!w->isRecursive)
     {
         // analyze each view, but make sure to set attributes of dummy views upfront
@@ -2209,20 +2206,16 @@ analyzeWithStmt (WithStmt *w)
             analyzeQueryBlockStmt(v->value, NIL);
             analyzedViews = appendToTailOfList(analyzedViews, v);
         }
-        printf("after non-recursive part\n");
     }
     else
     {
-        // analyze each view, but make sure to set attributes of dummy views upfront
         FOREACH(KeyValue,v,w->withViews)
         {
             setViewFromTableRefAttrs(((SetQuery*)v->value)->lChild, analyzedViews);
             DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->lChild);
             analyzeQueryBlockStmt(((SetQuery*)v->value)->lChild, NIL);
-            analyzeSetQuery((SetQuery *) v->value, NIL);
             analyzedViews = appendToTailOfList(analyzedViews, v);
         }
-        // analyze each view, but make sure to set attributes of dummy views upfront
         FOREACH(KeyValue,v,w->withViews)
         {
             setViewFromTableRefAttrs(((SetQuery*)v->value)->rChild, analyzedViews);
@@ -2231,7 +2224,6 @@ analyzeWithStmt (WithStmt *w)
             analyzeSetQuery((SetQuery *) v->value, NIL);
             analyzedViews = appendToTailOfList(analyzedViews, v);
         }
-        printf("after recursive part\n");
     }
 
     setViewFromTableRefAttrs(w->query, analyzedViews);
