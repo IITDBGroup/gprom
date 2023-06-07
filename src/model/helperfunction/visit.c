@@ -319,6 +319,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT_OPERATOR_FIELDS();
         	}
         	break;
+        case T_RecursiveOperator:
+        	{
+        		PREP_VISIT(RecursiveOperator);
+        		VISIT_OPERATOR_FIELDS();
+        	}
+            break;
         case T_DuplicateRemoval:
         	{
         		PREP_VISIT(DuplicateRemoval);
@@ -686,6 +692,11 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
     			MUTATE_OPERATOR();
     		}
         	break;
+        case T_RecursiveOperator:
+    		{
+    			MUTATE_OPERATOR();
+    		}
+        	break;
         case T_DuplicateRemoval:
         	{
         		NEWN(DuplicateRemoval);
@@ -1040,6 +1051,12 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
         case T_SetOperator:
             {
                 PREP_VISIT_P(SetOperator);
+                VISIT_OPERATOR_FIELDS_P();
+            }
+            break;
+        case T_RecursiveOperator:
+            {
+                PREP_VISIT_P(RecursiveOperator);
                 VISIT_OPERATOR_FIELDS_P();
             }
             break;
