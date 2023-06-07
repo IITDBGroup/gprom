@@ -92,6 +92,7 @@ static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSampleClauseOperator(StringInfo str, SampleClauseOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
+static void outRecursiveOperator(StringInfo str, RecursiveOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
 static void outNestingOperator(StringInfo str, NestingOperator *node);
@@ -1017,6 +1018,13 @@ outSetOperator(StringInfo str, SetOperator *node)
 }
 
 static void
+outRecursiveOperator(StringInfo str, RecursiveOperator *node)
+{
+    WRITE_NODE_TYPE(RecursiveOperator);
+    WRITE_QUERY_OPERATOR();
+}
+
+static void
 outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
 {
     WRITE_NODE_TYPE(DUPLICATE_REMOVAL);
@@ -1287,6 +1295,9 @@ outNode(StringInfo str, void *obj)
 				break;
             case T_SetOperator:
                 outSetOperator(str, (SetOperator *) obj);
+                break;
+            case T_RecursiveOperator:
+                outRecursiveOperator(str, (RecursiveOperator *) obj);
                 break;
             case T_DuplicateRemoval:
                 outDuplicateRemoval(str, (DuplicateRemoval *) obj);

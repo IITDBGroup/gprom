@@ -428,7 +428,7 @@ static QueryOperator *
 translateSetQuery(SetQuery *sq, List **attrsOffsetsList)
 {
     if (sq->isRecursive)
-        translateRecursiveQuery(sq, attrsOffsetsList);
+        return translateRecursiveQuery(sq, attrsOffsetsList);
 
     QueryOperator *left = NULL;
     QueryOperator *right = NULL;

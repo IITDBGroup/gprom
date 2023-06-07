@@ -92,6 +92,7 @@ static ProjectionOperator *copyProjectionOperator(ProjectionOperator *from, Oper
 static JoinOperator *copyJoinOperator(JoinOperator *from, OperatorMap **opMap);
 static AggregationOperator *copyAggregationOperator(AggregationOperator *from, OperatorMap **opMap);
 static SetOperator *copySetOperator(SetOperator *from, OperatorMap **opMap);
+static RecursiveOperator *copyRecursiveOperator(RecursiveOperator *from, OperatorMap **opMap);
 static DuplicateRemoval *copyDuplicateRemoval(DuplicateRemoval *from, OperatorMap **opMap);
 static ProvenanceComputation *copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap);
 static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap);
@@ -583,6 +584,7 @@ copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
     FOREACH(QueryOperator,child,from->inputs)
     {
         QueryOperator *newChild;
+
         // for existing children retrieve them from opMap
         if(MAP_HAS_OP(child))
              newChild = MAP_GET_OP(child);
@@ -698,6 +700,17 @@ copySetOperator(SetOperator *from, OperatorMap **opMap)
 
     return new;
 }
+
+
+static RecursiveOperator *
+copyRecursiveOperator(RecursiveOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(RecursiveOperator);
+    COPY_OPERATOR();
+
+    return new;
+}
+
 
 static DuplicateRemoval *
 copyDuplicateRemoval(DuplicateRemoval *from, OperatorMap **opMap)
@@ -1259,6 +1272,9 @@ copyInternal(void *from, OperatorMap **opMap)
         	break;
         case T_SetOperator:
             retval = copySetOperator(from, opMap);
+            break;
+        case T_RecursiveOperator:
+            retval = copyRecursiveOperator(from, opMap);
             break;
         case T_DuplicateRemoval:
             retval = copyDuplicateRemoval(from, opMap);
