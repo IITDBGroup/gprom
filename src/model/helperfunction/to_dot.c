@@ -289,6 +289,14 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
             }
         }
         break;
+        case T_RecursiveOperator:
+        {
+            appendStringInfo(str, "\t%s [label=\"&#964;\",color="
+                    COLOR_DARK_PURPLE ",fillcolor="
+                    COLOR_LIGHT_PURPLE ",texlbl=\"$\\mu$\"];\n",
+                    opName);
+        }
+            break;
         case T_ProvenanceComputation:
             appendStringInfo(str, "\t%s [label=\"P\",color="
                     COLOR_BLACK ",fillcolor="

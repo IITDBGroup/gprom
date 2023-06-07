@@ -1905,6 +1905,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             }
 
         }
+        break;
         case T_RecursiveOperator:
             WRITE_OP_TYPE(RecursiveOperator);
             break;

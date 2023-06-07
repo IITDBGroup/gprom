@@ -157,6 +157,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
             case T_TableAccessOperator:
             case T_ConstRelOperator :
             case T_SetOperator:
+            case T_RecursiveOperator: //Not sure about this one
             case T_JsonTableOperator:
                 matchInfo->fromRoot = cur;
                 state = MATCH_NEXTBLOCK;
