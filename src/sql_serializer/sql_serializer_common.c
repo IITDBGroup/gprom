@@ -132,6 +132,11 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
     {
+        if (cur->type == T_RecursiveOperator)
+        {
+            FATAL_LOG("Recursive operator not supported yet.");
+            break;
+        }
         DEBUG_LOG("STATE: %s", OUT_MATCH_STATE(state));
         DEBUG_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent

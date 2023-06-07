@@ -348,7 +348,10 @@ processInput(char *input)
     {
         NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
         parse = parseFromString(input);
+        printf("-------------------------------- REWRITING INPUT\n\n\n");
         q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        printf("-------------------------------- REWRITING DONE\n\n\n");
+        printf("-------------------------------- EXECUTING INPUT\n\n\n");
         execute(q);
         FREE_AND_RELEASE_CUR_MEM_CONTEXT();
     }
@@ -571,7 +574,6 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
                 TIME_ASSERT(checkModel((QueryOperator *) oModel));
         }
     )
-
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
         rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
     else

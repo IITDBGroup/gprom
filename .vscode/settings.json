@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.embeddedhtml": "html",
+        "sql_serializer_dl.h": "c"
+    }
+}
