@@ -365,7 +365,9 @@ withViewRec:
 		identifier AS '(' selectQuery UNION optionalAll selectQuery ')'
 		{
 			RULELOG("withViewRec::ident::AS:queryStmt");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), (Node *) createSetQuery($5, ($6 != NULL), $4, $7));
+			SetQuery *sq = createSetQuery($5, ($6 != NULL), $4, $7);
+			sq->isRecursive = TRUE;
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), (Node *) sq);
 		}
 
 transactionIdentifier:

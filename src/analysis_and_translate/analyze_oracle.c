@@ -2182,11 +2182,6 @@ analyzeWithStmt (WithStmt *w)
     // check that no two views have the same name and backendify view names
     FOREACH(KeyValue,v,w->withViews)
     {
-        if (w->isRecursive)
-        {
-            ((SetQuery*)v->value)->isRecursive = TRUE;
-
-        }
         Constant *n = (Constant *) v->key;
         n->value = backendifyIdentifier(STRING_VALUE(v->key));
         char *vName = strdup(STRING_VALUE(v->key));
@@ -2214,15 +2209,14 @@ analyzeWithStmt (WithStmt *w)
             setViewFromTableRefAttrs(((SetQuery*)v->value)->lChild, analyzedViews);
             DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->lChild);
             analyzeQueryBlockStmt(((SetQuery*)v->value)->lChild, NIL);
+
             analyzedViews = appendToTailOfList(analyzedViews, v);
-        }
-        FOREACH(KeyValue,v,w->withViews)
-        {
+
             setViewFromTableRefAttrs(((SetQuery*)v->value)->rChild, analyzedViews);
             DEBUG_NODE_BEATIFY_LOG("did set view table refs:", ((SetQuery*)v->value)->rChild);
             analyzeQueryBlockStmt(((SetQuery*)v->value)->rChild, NIL);
+
             analyzeSetQuery((SetQuery *) v->value, NIL);
-            analyzedViews = appendToTailOfList(analyzedViews, v);
         }
     }
 
