@@ -348,10 +348,7 @@ processInput(char *input)
     {
         NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
         parse = parseFromString(input);
-        printf("-------------------------------- REWRITING INPUT\n\n\n");
         q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-        printf("-------------------------------- REWRITING DONE\n\n\n");
-        printf("-------------------------------- EXECUTING INPUT\n\n\n");
         execute(q);
         FREE_AND_RELEASE_CUR_MEM_CONTEXT();
     }
