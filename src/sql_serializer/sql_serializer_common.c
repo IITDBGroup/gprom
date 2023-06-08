@@ -48,6 +48,7 @@ createAPIStub (void)
     api->serializeFrom = genSerializeFrom;
     api->serializeWhere = genSerializeWhere;
     api->serializeSetOperator = NULL;
+    api->serializeRecursiveOperator = NULL;
     api->serializeFromItem = genSerializeFromItem;
     api->serializeTableAccess = NULL;
     api->serializeConstRel = NULL;
@@ -612,6 +613,8 @@ genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *pare
         return api->createTempView (q, str, parent, api);
     else if (isA(q, SetOperator))
         return api->serializeSetOperator(q, str, api);
+    else if (isA(q, RecursiveOperator))
+        return api->serializeRecursiveOperator(q, str, api);
     else
         return api->serializeQueryBlock(q, str, api);
 }
