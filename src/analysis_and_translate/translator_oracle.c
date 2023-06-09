@@ -51,7 +51,7 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
-static QueryOperator *translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList);
+static QueryOperator *translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList, char* viewName);
 static QueryOperator *translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList);
 static void markTableAccessForRowidProv (QueryOperator *o);
@@ -427,9 +427,6 @@ adaptSchemaFromChildren(QueryOperator *o)
 static QueryOperator *
 translateSetQuery(SetQuery *sq, List **attrsOffsetsList)
 {
-    if (sq->isRecursive)
-        return translateRecursiveQuery(sq, attrsOffsetsList);
-
     QueryOperator *left = NULL;
     QueryOperator *right = NULL;
     QueryOperator *result = NULL;
@@ -500,7 +497,7 @@ translateSetQuery(SetQuery *sq, List **attrsOffsetsList)
 
 
 static QueryOperator *
-translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList)
+translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList, char* viewName)
 {
     QueryOperator *uc = NULL;
     QueryOperator *rc = NULL;
@@ -517,6 +514,7 @@ translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList)
     // create recursive operator node
     RecursiveOperator *ro = createRecursiveOperator(uc, rc, NIL,
             sq->selectClause);
+    ro->name = viewName;
 
     // set the parent of the operator's children
     OP_LCHILD(ro)->parents = OP_RCHILD(ro)->parents = singleton(ro);
@@ -1101,11 +1099,10 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
         Node *opQ;
 
         // translate current view into operator model
-
-        opQ = translateGeneral(vQ, attrsOffsetsList);
-
-        if (with->isRecursive)
-            ((RecursiveOperator *)opQ)->name = strdup(STRING_VALUE(v->key));
+        if (!with->isRecursive)
+            opQ = translateGeneral(vQ, attrsOffsetsList);
+        else
+            opQ = (Node *) translateRecursiveQuery((SetQuery *)vQ, attrsOffsetsList, strdup(STRING_VALUE(v->key)));
 
         // // replace references to withViews as table access  with definition
         replaceWithViewRefsMutator(opQ, transWithViews);
