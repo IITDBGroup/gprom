@@ -133,11 +133,11 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
     {
-        if (cur->type == T_RecursiveOperator)
-        {
-            FATAL_LOG("Recursive operator not supported yet.");
-            break;
-        }
+        // if (cur->type == T_RecursiveOperator)
+        // {
+        //     FATAL_LOG("Recursive operator not supported yet.");
+        //     break;
+        // }
         DEBUG_LOG("STATE: %s", OUT_MATCH_STATE(state));
         DEBUG_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
@@ -520,7 +520,6 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
         // A materialization point or WITH
         {
             List *attrNames;
-
             appendStringInfoString(from, "(");
             attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
@@ -609,12 +608,10 @@ List *
 genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, SerializeClausesAPI *api)
 {
     // operator with multiple parents
-    if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
+    if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE) || isA(q, RecursiveOperator))
         return api->createTempView (q, str, parent, api);
     else if (isA(q, SetOperator))
         return api->serializeSetOperator(q, str, api);
-    else if (isA(q, RecursiveOperator))
-        return api->serializeRecursiveOperator(q, str, api);
     else
         return api->serializeQueryBlock(q, str, api);
 }
@@ -631,6 +628,7 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     List *resultAttrs;
     HashMap *view;
 
+    printf("Operator in genserialize create temp view %s, %d\n", operatorToOverviewString((Node *) q), isA(q, RecursiveOperator));
     // check whether we already have create a view for this op
 
     if (MAP_HAS_POINTER(tempViewMap, q))
@@ -650,6 +648,8 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     appendStringInfo(viewDef, "%s AS (", viewName);
     if (isA(q, SetOperator))
         resultAttrs = api->serializeSetOperator(q, viewDef, api);
+    else if (isA(q, RecursiveOperator))
+        resultAttrs = api->serializeRecursiveOperator(q, viewDef, api);
     else
         resultAttrs = api->serializeQueryBlock(q, viewDef, api);
 

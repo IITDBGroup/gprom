@@ -105,10 +105,8 @@ serializeQuerySQLite(QueryOperator *q)
      *  prepend the temporary view definition to create something like
      *      WITH a AS (q1), b AS (q2) ... SELECT ...
      */
-    // printf("mapSize temp view = %d\n", mapSize(api->tempViewMap));
     if (mapSize(api->tempViewMap) > 0)
     {
-        // printf("\n\nHIIIIIIIIIIIII\n\n");
         appendStringInfoString(viewDef, "WITH ");
 
         // loop through temporary views we have defined
