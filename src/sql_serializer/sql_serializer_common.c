@@ -628,7 +628,6 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     List *resultAttrs;
     HashMap *view;
 
-    printf("Operator in genserialize create temp view %s, %d\n", operatorToOverviewString((Node *) q), isA(q, RecursiveOperator));
     // check whether we already have create a view for this op
 
     if (MAP_HAS_POINTER(tempViewMap, q))
@@ -649,7 +648,7 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     if (isA(q, SetOperator))
         resultAttrs = api->serializeSetOperator(q, viewDef, api);
     else if (isA(q, RecursiveOperator))
-        resultAttrs = api->serializeRecursiveOperator(q, viewDef, api);
+        resultAttrs = api->serializeRecursiveOperator(q, viewDef, api, viewName);
     else
         resultAttrs = api->serializeQueryBlock(q, viewDef, api);
 

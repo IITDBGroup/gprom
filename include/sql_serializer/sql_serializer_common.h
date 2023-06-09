@@ -119,7 +119,7 @@ typedef struct SerializeClausesAPI {
             QueryOperator *parent, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
     int viewCounter;
-    List *(*serializeRecursiveOperator) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
+    List *(*serializeRecursiveOperator) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api, char *viewName);
 } SerializeClausesAPI;
 
 /* generic functions for serializing queries that call an API provided as a parameter */
