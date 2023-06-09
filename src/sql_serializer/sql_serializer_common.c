@@ -32,6 +32,7 @@ static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
 static char *createAttrName (char *name, int fItem);
+void treeRecursionReplace(Node *cur, char *viewName, char *viewGeneratedName);
 
 /*
  * create API struct
@@ -48,7 +49,7 @@ createAPIStub (void)
     api->serializeFrom = genSerializeFrom;
     api->serializeWhere = genSerializeWhere;
     api->serializeSetOperator = NULL;
-    api->serializeRecursiveOperator = NULL;
+    api->serializeRecursiveOperator = genSerializeRecursiveOperator;
     api->serializeFromItem = genSerializeFromItem;
     api->serializeTableAccess = NULL;
     api->serializeConstRel = NULL;
@@ -133,11 +134,6 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
     {
-        // if (cur->type == T_RecursiveOperator)
-        // {
-        //     FATAL_LOG("Recursive operator not supported yet.");
-        //     break;
-        // }
         DEBUG_LOG("STATE: %s", OUT_MATCH_STATE(state));
         DEBUG_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
@@ -154,11 +150,10 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
         // if cur has not more than one parent and should not be materialized
         switch(cur->type)
         {
-            case T_JoinOperator:
             case T_TableAccessOperator:
+            case T_JoinOperator:
             case T_ConstRelOperator :
             case T_SetOperator:
-            case T_RecursiveOperator: //Not sure about this one
             case T_JsonTableOperator:
                 matchInfo->fromRoot = cur;
                 state = MATCH_NEXTBLOCK;
@@ -616,6 +611,52 @@ genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *pare
         return api->serializeQueryBlock(q, str, api);
 }
 
+
+/**
+ * Search in the tree for a node of type TableAccessOperator with the given name viewName and replace it with the given name viewGeneratedName
+ */ 
+void
+treeRecursionReplace(Node *cur, char *viewName, char *viewGeneratedName)
+{
+    if (cur == NULL)
+    {
+        return;
+    }
+
+    if (isA(cur, TableAccessOperator))
+    {
+        TableAccessOperator *t = (TableAccessOperator *) cur;
+        if (strcmp(t->tableName, viewName) == 0)
+        {
+            t->tableName = strdup(viewGeneratedName);
+            return;
+        }
+    }
+    treeRecursionReplace((Node *)OP_LCHILD(cur), viewName, viewGeneratedName);
+}   
+
+
+/**
+ * Serialize a recursive operator
+*/
+List *
+genSerializeRecursiveOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api, char* viewName)
+{
+    List *resultAttrs;
+
+    // output left child
+    resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
+
+    // output set operation
+    appendStringInfoString(str, " UNION ALL ");
+
+    // output right child
+    treeRecursionReplace((Node*)OP_RCHILD(q), ((RecursiveOperator*) q)->name, viewName);
+    api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
+
+    return resultAttrs;
+}
+
 /*
  * Create a temporary view
  */
@@ -642,7 +683,6 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
 
         return deepCopyStringList(TVIEW_GET_ATTRNAMES(view));
     }
-
     // create sql code to create view
     appendStringInfo(viewDef, "%s AS (", viewName);
     if (isA(q, SetOperator))
@@ -668,7 +708,6 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     TVIEW_SET_DEF(view, strdup(viewDef->data));
     TVIEW_SET_ATTRNAMES(view, resultAttrs);
     MAP_ADD_POINTER(tempViewMap, q, view);
-
     return resultAttrs;
 }
 

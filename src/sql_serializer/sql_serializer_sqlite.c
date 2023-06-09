@@ -43,7 +43,6 @@ static void serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromA
 static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         List** fromAttrs, int* attrOffset, SerializeClausesAPI *api);
 static List *serializeSetOperator(QueryOperator *q, StringInfo str, SerializeClausesAPI *api);
-static List *serializeRecursiveOperator(QueryOperator *q, StringInfo str, SerializeClausesAPI *api, char *viewName);
 
 char *
 serializeOperatorModelSQLite(Node *q)
@@ -232,7 +231,6 @@ createAPI (void)
         api->serializeTableAccess = serializeTableAccess;
         api->serializeConstRel = serializeConstRel;
         api->serializeJoinOperator = serializeJoinOperator;
-        api->serializeRecursiveOperator = serializeRecursiveOperator;
     }
 }
 
@@ -664,26 +662,6 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
     // output right child
     api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
 	appendStringInfoString(str, ")");
-
-    return resultAttrs;
-}
-
-/**
- * Serialize a recursive operator
-*/
-static List *
-serializeRecursiveOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api, char* viewName)
-{
-    List *resultAttrs;
-
-    // output left child
-    resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
-
-    // output set operation
-    appendStringInfoString(str, " UNION ALL ");
-
-    // output right child
-    api->serializeQueryOperator(OP_RCHILD(q), str, q, api);
 
     return resultAttrs;
 }

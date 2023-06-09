@@ -101,6 +101,8 @@ typedef struct SerializeClausesAPI {
     List *(*serializeQueryBlock) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
     List * (*serializeProjectionAndAggregation) (QueryBlockMatch *m, StringInfo select,
             StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize, struct SerializeClausesAPI *api);
+    List *(*serializeRecursiveOperator) (QueryOperator *q, StringInfo str, 
+            struct SerializeClausesAPI *api, char* viewName);
     void (*serializeFrom) (QueryOperator *q, StringInfo from, List **fromAttrs, struct SerializeClausesAPI *api);
     void (*serializeWhere) (SelectionOperator *q, StringInfo where, List *fromAttrs, struct SerializeClausesAPI *api);
     List *(*serializeSetOperator) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
@@ -119,7 +121,6 @@ typedef struct SerializeClausesAPI {
             QueryOperator *parent, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
     int viewCounter;
-    List *(*serializeRecursiveOperator) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api, char *viewName);
 } SerializeClausesAPI;
 
 /* generic functions for serializing queries that call an API provided as a parameter */
@@ -129,6 +130,8 @@ extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
         QueryOperator *parent, SerializeClausesAPI *api);
 extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str,
         SerializeClausesAPI *api);
+extern List *genSerializeRecursiveOperator (QueryOperator *q, StringInfo str, 
+        SerializeClausesAPI *api, char* viewName);
 extern void genSerializeFrom (QueryOperator *q, StringInfo from,
         List **fromAttrs, SerializeClausesAPI *api);
 extern void genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q,

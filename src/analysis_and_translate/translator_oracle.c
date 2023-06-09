@@ -1107,7 +1107,6 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
         if (with->isRecursive)
             ((RecursiveOperator *)opQ)->name = strdup(STRING_VALUE(v->key));
 
-
         // // replace references to withViews as table access  with definition
         replaceWithViewRefsMutator(opQ, transWithViews);
 
