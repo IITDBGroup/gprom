@@ -754,6 +754,7 @@ static boolean
 equalRecursiveOperator(RecursiveOperator *a, RecursiveOperator *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_QUERY_OP();
+    COMPARE_STRING_FIELD(name);
 
     return TRUE;
 }

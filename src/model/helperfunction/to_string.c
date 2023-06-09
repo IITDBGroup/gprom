@@ -1021,6 +1021,7 @@ static void
 outRecursiveOperator(StringInfo str, RecursiveOperator *node)
 {
     WRITE_NODE_TYPE(RecursiveOperator);
+    WRITE_STRING_FIELD(name);
     WRITE_QUERY_OPERATOR();
 }
 
