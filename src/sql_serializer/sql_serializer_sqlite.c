@@ -108,7 +108,6 @@ serializeQuerySQLite(QueryOperator *q)
     if (mapSize(api->tempViewMap) > 0)
     {
         appendStringInfoString(viewDef, "WITH ");
-
         // loop through temporary views we have defined
         FOREACH_HASH(HashMap,view,api->tempViewMap)
         {

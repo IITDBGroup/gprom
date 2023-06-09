@@ -789,7 +789,7 @@ static uint64_t
 hashRecursiveOperator (uint64_t cur, RecursiveOperator *node)
 {
     HASH_QO();
-    
+    HASH_STRING(name);
     HASH_RETURN();
 }
 

@@ -752,6 +752,7 @@ createRecursiveOperator(QueryOperator *unionChild, QueryOperator *recursiveChild
             getDataTypes(OP_LCHILD(rec)->schema));
     rec->op.parents = parents;
     rec->op.provAttrs = NULL;
+    rec->name = NULL;
 
     return rec;
 }

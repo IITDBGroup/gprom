@@ -1104,8 +1104,11 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 
         opQ = translateGeneral(vQ, attrsOffsetsList);
 
+        if (with->isRecursive)
+            ((RecursiveOperator *)opQ)->name = ((KeyValue*)v->key)->value;
 
-        // replace references to withViews as table access  with definition
+
+        // // replace references to withViews as table access  with definition
         replaceWithViewRefsMutator(opQ, transWithViews);
 
 
@@ -1146,11 +1149,13 @@ replaceWithViewRefsMutator(Node *node, List *views)
             char *vName = STRING_VALUE(v->key);
 
             if (strcmp(name, vName) == 0)
+            {
                 switchSubtreeWithExisting((QueryOperator *) t,
                         (QueryOperator *) v->value);
+            }
         }
 
-        return TRUE;
+        return FALSE;
     }
 
     return visit(node, replaceWithViewRefsMutator, views);

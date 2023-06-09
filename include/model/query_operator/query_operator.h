@@ -83,6 +83,7 @@ typedef struct SetOperator
 typedef struct RecursiveOperator
 {
     QueryOperator op;
+    char *name;
 } RecursiveOperator;
 
 typedef struct DuplicateRemoval
