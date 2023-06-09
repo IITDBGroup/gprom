@@ -676,6 +676,7 @@ serializeRecursiveOperator (QueryOperator *q, StringInfo str, SerializeClausesAP
 {
     List *resultAttrs;
 
+    
     // output left child
     resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, api);
 
