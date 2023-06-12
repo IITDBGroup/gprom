@@ -633,6 +633,10 @@ treeRecursionReplace(Node *cur, char *viewName, char *viewGeneratedName)
         }
     }
     treeRecursionReplace((Node *)OP_LCHILD(cur), viewName, viewGeneratedName);
+    if (isA(cur, JoinOperator) || isA(cur, SetOperator) || isA(cur, AggregationOperator) || isA(cur, WindowOperator))
+    {
+        treeRecursionReplace((Node *)OP_RCHILD(cur), viewName, viewGeneratedName);
+    }
 }   
 
 
