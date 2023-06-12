@@ -27,6 +27,8 @@ static boolean checkAttributeRefConsistency (QueryOperator *op, void *context);
 static boolean checkSchemaConsistency (QueryOperator *op, void *context);
 static boolean checkForDatastructureReuse (QueryOperator *op, void *context);
 static boolean checkReuseVisitor (Node *node, void *context);
+static boolean checkRecursiveOperatorCalledOnce (QueryOperator *op, char *viewName);
+static int treeCountFromName(Node *op, char *viewName);
 
 
 boolean
@@ -338,6 +340,38 @@ checkSchemaConsistency (QueryOperator *op, void *context)
 
         }
         break;
+        case T_RecursiveOperator:
+        {
+            RecursiveOperator *o = (RecursiveOperator *) op;
+            QueryOperator *lChild = OP_LCHILD(o);
+            QueryOperator *rChild = OP_RCHILD(o);
+
+            if (!equal(o->op.schema->attrDefs, lChild->schema->attrDefs))
+            {
+                ERROR_LOG("Attributes of a recursive operator should be the "
+                        "attributes of its left child:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+            // left and right child should have the same number of attributes
+            if (LIST_LENGTH(lChild->schema->attrDefs) != LIST_LENGTH(rChild->schema->attrDefs))
+            {
+                ERROR_LOG("Both children of a recursive operator should have the same"
+                        " number of attributes:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+            // right child should only refer to itself once
+            if (!checkRecursiveOperatorCalledOnce(rChild, o->name))
+            {
+                ERROR_LOG("Right child of a recursive operator should only refer to itself"
+                        " once:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+
+        }
+        break;
         case T_WindowOperator:
         {
 //            WindowOperator *o = (WindowOperator *) op;
@@ -569,3 +603,30 @@ checkParentChildLinks (QueryOperator *op, void *context)
 
     return TRUE;
 }
+
+static boolean
+checkRecursiveOperatorCalledOnce(QueryOperator *op, char *viewName)
+{
+    return treeCountFromName((Node *)op, viewName) <= 1;
+}
+
+
+static int
+treeCountFromName(Node *op, char *viewName)
+{
+    if (op == NULL)
+        return 0;
+    else if (op->type == T_TableAccessOperator)
+    {
+        TableAccessOperator *ta = (TableAccessOperator *) op;
+        if (streq(ta->tableName, viewName))
+        {
+            return 1;
+        }
+    }
+    
+    if (isA(op, JoinOperator) || isA(op, SetOperator) || isA(op, AggregationOperator) || isA(op, WindowOperator))
+        return treeCountFromName((Node *)OP_LCHILD(op), viewName) + treeCountFromName((Node *)OP_RCHILD(op), viewName);
+    else 
+        return treeCountFromName((Node *)OP_LCHILD(op), viewName);
+}  
