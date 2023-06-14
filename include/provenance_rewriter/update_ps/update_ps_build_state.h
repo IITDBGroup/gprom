@@ -18,6 +18,12 @@
 #define MIN_HEAP "MIN_HEAP"
 #define MAX_HEAP "MAX_HEAP"
 
+#define ORDER_BY_ATTR_NUMS "ORDER_BY_ATTR_NUMS"
+#define ORDER_BY_ASCS "ORDER_BY_ASCs"
+#define ORDER_BY_ATTRS "ORDER_BY_ATTRS"
+#define ORDER_BY_IS_PS_INT "ORDER_BY_IS_PS_INT"
+#define ORDER_BY_PS_LENS "ORDER_BY_PS_LENS"
+
 /* macros for agg functions rewrite */
 #define ADD_FUNC_PREFIX backendifyIdentifier("ADD_FUNC_PREFIX")
 
@@ -33,7 +39,7 @@ typedef struct GBHeaps
 	DataType valType;
 	/*
 		key  : group by value: like "2"
-		value: a list of values of same group by value.
+		value: RBT to store values;
 	*/
 	HashMap  *heapLists;
 	/*

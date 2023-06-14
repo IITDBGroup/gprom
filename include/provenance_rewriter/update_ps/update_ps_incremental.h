@@ -76,7 +76,7 @@ typedef struct ColumnChunk
 } ColumnChunk;
 
 #define DATA_CHUNK_PROP "DATA_CHUNK"
-#define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update"
+#define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update all steps"
 #define INCREMENTAL_FETCHING_DATA_TIMER "module - update provenance sketch - incremental update fetching data"
 
 // define left and right update identifier;

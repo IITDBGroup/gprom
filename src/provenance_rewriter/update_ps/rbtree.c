@@ -2,6 +2,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "log/logger.h"
+#include "provenance_rewriter/update_ps/update_ps_build_state.h"
 
 static void RBTLeftRotate(RBTRoot *root, RBTNode *node);
 static void RBTRightRotate(RBTRoot *root, RBTNode *node);
@@ -10,7 +11,7 @@ static void RBTDeleteNode(RBTRoot *root, RBTNode *node);
 static void RBTInsertFixup(RBTRoot *root, RBTNode *node);
 static void RBTDeleteFixup(RBTRoot *root, RBTNode *node, RBTNode *parent);
 static RBTNode *RBTSearchNode(RBTRoot *root, Node *node);
-static int compareTwoNodes(RBTType type, Node *node1, Node *node2);
+static int compareTwoNodes(RBTRoot *root, Node *node1, Node *node2);
 
 RBTRoot *
 makeRBT(RBTType type, boolean isMetadataNeeded)
@@ -34,6 +35,7 @@ makeRBTNode(Node *key)
     RBTNode *node = makeNode(RBTNode);
 
     node->key = key;
+    node->val = NULL;
     node->left = NULL;
     node->right = NULL;
     node->parent = NULL;
@@ -43,27 +45,69 @@ makeRBTNode(Node *key)
 }
 
 void
-RBTInsert(RBTRoot *root, Node *node)
+RBTInsert(RBTRoot *root, Node *key, Node *val)
 {
-    // TODO: what should do if two nodes has same key??
-    // TODO: for a ps, there can be two nodes with same value but different fragments info
-    // DEBUG_NODE_BEATIFY_LOG("node to be inserted: ", node);
-    RBTNode *insertedNode = makeRBTNode(node);
-    RBTInsertNode(root, insertedNode);
-    root->size++;
-}
-
-void
-RBTDelete(RBTRoot *root, Node *node)
-{
-    RBTNode *nodeInTree = RBTSearchNode(root, node);
-    if (nodeInTree != NULL) {
-        RBTDeleteNode(root, nodeInTree);
-        root->size--;
+    if (root->type == RBT_MIN_HEAP || root->type == RBT_MAX_HEAP) {
+        RBTNode *treeNode = RBTSearchNode(root, key);
+        if (treeNode != NULL) {
+            incrConst((Constant *) treeNode->val);
+        } else {
+            treeNode = makeRBTNode(key);
+            treeNode->val = (Node *) createConstInt(1);
+            RBTInsertNode(root, treeNode);
+            root->size++;
+        }
+    } else {
+        RBTNode *treeNode = RBTSearchNode(root, key);
+        if (treeNode != NULL) {
+            Node *n = getMap((HashMap *) treeNode->val, val);
+            if (n != NULL) {
+                incrConst((Constant *) n);
+            } else {
+                addToMap((HashMap *) treeNode->val, (Node *) val, (Node *) createConstInt(1));
+            }
+        } else {
+            RBTNode *insertedNode = makeRBTNode(key);
+            insertedNode->val = (Node *) NEW_MAP(Node, Node);
+            addToMap((HashMap *) insertedNode->val, (Node *) val, (Node *) createConstInt(1));
+            RBTInsertNode(root, insertedNode);
+            root->size++;
+        }
     }
 }
 
-Node *
+void
+RBTDelete(RBTRoot *root, Node *key, Node *val)
+{
+    RBTNode *nodeInTree = RBTSearchNode(root, key);
+
+    if (nodeInTree != NULL) {
+        if (root->type == RBT_MIN_HEAP || root->type == RBT_MAX_HEAP) {
+            if (INT_VALUE(nodeInTree->val) > 1) {
+                // (*((int *) ((Constant *) nodeInTree->val))) -= 1;
+                INT_VALUE((Constant *) nodeInTree->val) = INT_VALUE((Constant *) nodeInTree->val) - 1;
+            } else {
+                RBTDeleteNode(root, nodeInTree);
+                root->size--;
+            }
+        } else {
+            Node *n = (Node *) getMap((HashMap *) nodeInTree->val, val);
+            if (INT_VALUE((Constant *) n) > 1) {
+                INT_VALUE((Constant *) n) = INT_VALUE((Constant *) n) - 1;
+            } else {
+                removeMapElem((HashMap *) nodeInTree->val, val);
+                if (mapSize((HashMap *) nodeInTree->val) < 1) {
+                    RBTDeleteNode(root, nodeInTree);
+                    root->size--;
+                }
+            }
+        }
+    } else {
+        INFO_LOG("NULL NODE");
+    }
+}
+
+RBTNode *
 RBTGetMin(RBTRoot *root)
 {
     if (root == NULL || root->root == NULL) {
@@ -76,10 +120,10 @@ RBTGetMin(RBTRoot *root)
         res = res->left;
     }
 
-    return res->key;
+    return res;
 }
 
-Node *
+RBTNode *
 RBTGetMax(RBTRoot *root)
 {
     if (root == NULL || root->root == NULL) {
@@ -92,7 +136,7 @@ RBTGetMax(RBTRoot *root)
         res = res->right;
     }
 
-    return res->key;
+    return res;
 }
 
 /*  Inorder traverse to get top K  */
@@ -121,8 +165,26 @@ RBTGetTopK(RBTRoot *root, int K)
         // current minimum node;
         curr = (RBTNode *) popVecNode(stack);
         stackSize--;
-        vecAppendNode(topK, curr->key);
-        topKSize++;
+        // vecAppendNode(topK, curr->key);
+        if (root->type == RBT_ORDER_BY) {
+            HashMap *val = (HashMap *) curr->val;
+            FOREACH_HASH_KEY(Node, n, val) {
+                int cnt = INT_VALUE((Constant *) getMap(val, n));
+                for (int i = 0; i < cnt; i++) {
+                    vecAppendNode(topK, n);
+                    topKSize++;
+                    if (topKSize == K) {
+                        break;
+                    }
+                }
+                if (topKSize == K) {
+                    break;
+                }
+            }
+        } else {
+            vecAppendNode(topK, (Node *) curr);
+            topKSize++;
+        }
 
         // pruning
         if (topKSize == K) {
@@ -136,7 +198,11 @@ RBTGetTopK(RBTRoot *root, int K)
 Vector *
 RBTInorderTraverse(RBTRoot *root)
 {
-    return RBTGetTopK(root, root->size);
+    if (root->root == NULL) {
+        return NULL;
+    }
+
+    return RBTGetTopK(root, 100000);
 }
 
 static RBTNode *
@@ -146,10 +212,10 @@ RBTSearchNode(RBTRoot *root, Node *node)
         return NULL;
     }
 
-    RBTType type = root->type;
+    // RBTType type = root->type;
     RBTNode *res = root->root;
     while(res != NULL) {
-        int cmpV = compareTwoNodes(type, node, res->key); // TODO: need revising
+        int cmpV = compareTwoNodes(root, node, res->key);
         if (cmpV == 0) {
             return res;
         } else if (cmpV < 0) {
@@ -163,10 +229,10 @@ RBTSearchNode(RBTRoot *root, Node *node)
 }
 
 static int
-compareTwoNodes(RBTType type, Node *node1, Node *node2)
+compareTwoNodes(RBTRoot *root, Node *node1, Node *node2)
 {
     int res = 0;
-    if (type == RBT_MIN_HEAP || type == RBT_MAX_HEAP) {
+    if (root->type == RBT_MIN_HEAP || root->type == RBT_MAX_HEAP) {
         DataType dataType = ((Constant *) node1)->constType;
         switch (dataType) {
             case DT_INT:
@@ -199,6 +265,45 @@ compareTwoNodes(RBTType type, Node *node1, Node *node2)
                 break;
         }
     } else {
+        int len = ((Vector *) node1)->length;
+        Vector *orderByASC = (Vector *) MAP_GET_STRING(root->metadata, ORDER_BY_ASCS);
+        // int res = 0;
+        for (int i = 0; i < len; i++) {
+            Constant *c1 = (Constant *) getVecNode((Vector *) node1, i);
+            Constant *c2 = (Constant *) getVecNode((Vector *) node2, i);
+            DataType dt = c1->constType;
+            switch(dt) {
+                case DT_INT:
+                {
+                    res = INT_VALUE(c1) - INT_VALUE(c2);
+                }
+                break;
+                case DT_BOOL:
+                {
+                    res = BOOL_VALUE(c1) - BOOL_VALUE(c1);
+                }
+                break;
+                case DT_FLOAT:
+                {
+                    res = FLOAT_VALUE(c1) - FLOAT_VALUE(c2);
+                }
+                break;
+                case DT_LONG:
+                {
+                    res = LONG_VALUE(c1) - LONG_VALUE(c2);
+                }
+                break;
+                case DT_STRING:
+                case DT_VARCHAR2:
+                {
+                    res = strcmp(STRING_VALUE(c1), STRING_VALUE(c2));
+                }
+                break;
+            }
+            if (res != 0) {
+                return res * getVecInt(orderByASC, i);
+            }
+        }
 
     }
     return res;
@@ -209,11 +314,11 @@ RBTInsertNode(RBTRoot *root, RBTNode *node)
 {
     RBTNode *y = NULL;
     RBTNode *x = root->root;
-    RBTType type = root->type;
+    // RBTType type = root->type;
     // traverse tree to find the position to insert;
     while (x != NULL) {
         y = x;
-        int compV = compareTwoNodes(type, node->key, x->key);
+        int compV = compareTwoNodes(root, node->key, x->key);
         if (compV < 0) {
             x = x->left;
         } else {
@@ -225,7 +330,7 @@ RBTInsertNode(RBTRoot *root, RBTNode *node)
     RBT_SET_PARENT(node, y);
 
     if (y != NULL) {
-        int compV = compareTwoNodes(type, node->key, y->key);
+        int compV = compareTwoNodes(root, node->key, y->key);
         if (compV < 0) {
             y->left = node;                 // case 2: node < y, set node as left child of y,
         } else {

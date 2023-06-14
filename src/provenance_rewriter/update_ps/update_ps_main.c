@@ -30,6 +30,8 @@
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
 #include "provenance_rewriter/update_ps/rbtree.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
+#include "operator_optimizer/operator_optimizer.h"
 
 /*
  * Macro
@@ -87,11 +89,64 @@ static void modifyUncertCapTree(QueryOperator *op);
 /*
  * Function Implementation
  */
+#define JOIN_NUMBER_FROM_TOP "JOIN_NUMBER_FROM_TOP"
 
+static int joinNumber = 0;
+static void preprocessingJoinOpNumber(QueryOperator *op);
+static void preprocessingSetStartJoinOP(QueryOperator *op);
+
+static void
+preprocessingJoinOpNumber(QueryOperator *op)
+{
+	if (isA(op, TableAccessOperator)) {
+		return;
+	}
+
+	if (isA(op, JoinOperator)) {
+		// SET_STRING_PROP(op, JOIN_NUMBER_FROM_TOP, (Node *) createConstInt(joinNumber++));
+		setStringProperty(op, JOIN_NUMBER_FROM_TOP, (Node *) createConstInt(joinNumber++));
+		// if (isA(getNthOfListP(op->parents, 0), JoinOperator)) {
+			// SET_SING_PROP(op, JOIN_NUMBER_FROM_TOP, createConstInt(joinNumber++));
+		// }
+
+	}
+
+	FOREACH(QueryOperator, q, op->inputs) {
+        preprocessingJoinOpNumber(q);
+    }
+}
+
+static void
+preprocessingSetStartJoinOP(QueryOperator *op)
+{
+	if (isA(op, TableAccessOperator)) {
+		return;
+	}
+
+	if (isA(op, JoinOperator)) {
+		int joinNo = INT_VALUE(GET_STRING_PROP(op, JOIN_NUMBER_FROM_TOP));
+		if (joinNo == joinNumber - 1) {
+			setStringProperty(op, strdup("JOIN_START"), (Node *) createConstBool(TRUE));
+			// SET_STRING_PROP(op, strdup("JOIN_START"), (Node *) creatConstBool(TRUE));
+		}
+	}
+
+	FOREACH(QueryOperator, q, op->inputs) {
+		preprocessingSetStartJoinOP(q);
+	}
+}
+// boolean hashEq(void *ele1, void *ele2) {
+// 	return equalInternal((Vector *) ele1, (Vector *) ele2);
+// }
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
-
+	char *delta_table = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
+	INFO_LOG("what is the delta name: %s", delta_table);
+	char *updated_table = getStringOption(OPTION_UPDATE_PS_UPDATED_TABLE);
+	INFO_LOG("what is the updated table %s", updated_table);
+    boolean option_group_join = getBoolOption(OPTION_UPDATE_PS_GROUP_JOIN);
+	INFO_LOG("group join :%d", option_group_join);
 	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
 	INFO_OP_LOG("qbModel", qbModel);
 	/*
@@ -112,8 +167,20 @@ update_ps(ProvenanceComputation *qbModel)
 		SET_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, createConstBool(TRUE));
 	}
 
+
 	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
 
+	if (getBoolOption(OPTION_UPDATE_PS_GROUP_JOIN)) {
+		preprocessingJoinOpNumber((QueryOperator *) qbModel);
+		INFO_LOG("join max number %d", joinNumber);
+		preprocessingSetStartJoinOP((QueryOperator *) qbModel);
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("after add join", qbModel);
+	INFO_OP_LOG("AFTER ADD JOIN", qbModel);
+	if (2 == 1) {
+		return "ENDDD";
+	}
 	/* Update provenance sketch */
 	if (isA(leftChild->stmt, List)) {
 		List *updateStmts = (List *) leftChild->stmt;
@@ -128,6 +195,120 @@ update_ps(ProvenanceComputation *qbModel)
 		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 	}
 
+	// AFTER INCREMENTAL UPDATE STEPS, GET NEW SKETCH;
+	QueryOperator *topOperator = OP_LCHILD((QueryOperator *) qbModel);
+	if (HAS_STRING_PROP(topOperator, PROP_DATA_CHUNK)) {
+		HashMap *inputChunkMaps = (HashMap *) GET_STRING_PROP(topOperator, PROP_DATA_CHUNK);
+		DataChunk *inputDCIns = (DataChunk *) MAP_GET_STRING(inputChunkMaps, PROP_DATA_CHUNK_INSERT);
+		DataChunk *inputDCDel = (DataChunk *) MAP_GET_STRING(inputChunkMaps, PROP_DATA_CHUNK_DELETE);
+
+		PSMap *storedPSMap = (PSMap *) GET_STRING_PROP((QueryOperator *) qbModel, PROP_DATA_STRUCTURE_STATE);
+
+		if (inputDCIns != NULL && inputDCIns->isAPSChunk) {
+			FOREACH_HASH_KEY(Constant, c, inputDCIns->fragmentsInfo) {
+				HashMap *fragCnt = (HashMap *) MAP_GET_STRING(storedPSMap->fragCount, STRING_VALUE(c));
+				boolean isPSInt = BOOL_VALUE((Constant *) MAP_GET_STRING(inputDCIns->fragmentsIsInt, STRING_VALUE(c)));
+				Vector *psVec = (Vector *) MAP_GET_STRING(inputDCIns->fragmentsInfo, STRING_VALUE(c));
+				if (isPSInt) {
+					int *psVals = (int *) VEC_TO_IA(psVec);
+					for (int row = 0; row < psVec->length; row++) {
+						if (MAP_HAS_INT_KEY(fragCnt, psVals[row])) {
+							Constant *c = (Constant *) MAP_GET_INT(fragCnt, psVals[row]);
+							incrConst(c);
+						} else {
+							addToMap(fragCnt, (Node *) createConstInt(psVals[row]), (Node *) createConstInt(1));
+						}
+					}
+				} else {
+					BitSet **bitSet = (BitSet **) VEC_TO_ARR(psVec, BitSet);
+					for (int row = 0; row < psVec->length; row++) {
+						char *psStr = (char *) bitSetToString(bitSet[row]);
+						int len = strlen(psStr);
+						for (int bitIdx = 0; bitIdx < len; bitIdx++) {
+							if (psStr[bitIdx] == '1') {
+								if (MAP_HAS_INT_KEY(fragCnt, bitIdx)) {
+									Constant *c = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
+									incrConst(c);
+								} else {
+									addToMap(fragCnt, (Node *) createConstInt(bitIdx), (Node *) createConstInt(1));
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (inputDCDel != NULL && inputDCDel->isAPSChunk) {
+			FOREACH_HASH_KEY(Constant, c, inputDCDel->fragmentsInfo) {
+				HashMap *fragCnt = (HashMap *) MAP_GET_STRING(storedPSMap->fragCount, STRING_VALUE(c));
+				boolean isPSInt = BOOL_VALUE((Constant *) MAP_GET_STRING(inputDCDel->fragmentsIsInt, STRING_VALUE(c)));
+				Vector *psVec = (Vector *) MAP_GET_STRING(inputDCDel->fragmentsInfo, STRING_VALUE(c));
+				if (isPSInt) {
+					int *psVals = (int *) VEC_TO_IA(psVec);
+					for (int row = 0; row < psVec->length; row++) {
+						Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVals[row]);
+						if (INT_VALUE(cnt) > 1) {
+							INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
+						} else {
+							removeMapElem(fragCnt, (Node *) createConstInt(psVals[row]));
+						}
+					}
+				} else {
+					BitSet **bitSet = (BitSet **) VEC_TO_ARR(psVec, BitSet);
+					for (int row = 0; row < psVec->length; row++) {
+						char *psStr = (char *) bitSetToString(bitSet[row]);
+						int len = strlen(psStr);
+						for (int bitIdx = 0; bitIdx < len; bitIdx++) {
+							if (psStr[bitIdx] == '1') {
+								Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
+								if (INT_VALUE(cnt) > 1) {
+									INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
+								} else {
+									removeMapElem(fragCnt, (Node *) createConstInt(bitIdx));
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	PSMap *psMap = (PSMap *) GET_STRING_PROP((QueryOperator *) qbModel, PROP_DATA_STRUCTURE_STATE);
+	StringInfo allPSs = makeStringInfo();
+	FOREACH_HASH_KEY(Constant, c, psMap->fragCount) {
+		HashMap *fragCnt = (HashMap *) MAP_GET_STRING(psMap->fragCount, STRING_VALUE(c));
+		int provLens = INT_VALUE((Constant *) MAP_GET_STRING(psMap->provLens, STRING_VALUE(c)));
+		BitSet *ps = newBitSet(provLens);
+		FOREACH_HASH_KEY(Constant, c, fragCnt) {
+			setBit(ps, INT_VALUE(c), TRUE);
+		}
+		MAP_ADD_STRING_KEY(psMap->provSketchs, STRING_VALUE(c), ps);
+
+		appendStringInfo(allPSs, "%s:%s\n", STRING_VALUE(c), bitSetToString(ps));
+	}
+
+
+	return allPSs->data;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	// return update_ps_incremental((QueryOperator *) qbModel);
 
 	/* ################################## */
@@ -136,9 +317,6 @@ update_ps(ProvenanceComputation *qbModel)
 
 	//	return update_ps_incremental( qbModel);
 
-	if(1 == 1) {
-		return "end";
-	}
 
 	//initialize some parameters to get the ps, left chile(update statement) and right child(query);
 	ProvenanceComputation *op = qbModel;

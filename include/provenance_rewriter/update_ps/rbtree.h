@@ -47,7 +47,9 @@ typedef enum RBTTYpe
 // treenode;
 typedef struct RBTNode
 {
+    NodeTag type;
     Node *key;               // key;
+    Node *val;               // value; for min/max heap it is a count; for top-k it is a map(key: tuple, val:count)
     struct RBTNode *left;    // left child;
     struct RBTNode *right;   // right child;
     struct RBTNode *parent;  // parent ;
@@ -57,10 +59,11 @@ typedef struct RBTNode
 // tree;
 typedef struct RBTRoot
 {
+    NodeTag tag;
     RBTNode *root;
     RBTType type;
     int size;
-    HashMap *metadata;       // store some prove sketch info for order by operator;
+    HashMap *metadata;       // store some metadata info for order by operator: attr num, asc/desc, ;
 } RBTRoot;
 
 // for makeRBT: isMetadataNeeded to indicate if need some data, sometimes, is order by one attribute, we can treat orderby as min/max heap but we need to know some info about the ps;
@@ -72,9 +75,9 @@ extern RBTNode *makeRBTNode(Node *node);
 
 // get top K: return a vector size <= K;
 extern Vector *RBTGetTopK(RBTRoot *root, int k);
-extern Node *RBTGetMin(RBTRoot *root);
-extern Node *RBTGetMax(RBTRoot *root);
-extern void RBTInsert(RBTRoot *root, Node *node);
-extern void RBTDelete(RBTRoot *root, Node *node);
+extern RBTNode *RBTGetMin(RBTRoot *root);
+extern RBTNode *RBTGetMax(RBTRoot *root);
+extern void RBTInsert(RBTRoot *root, Node *key, Node *val);
+extern void RBTDelete(RBTRoot *root, Node *key, Node *val);
 extern Vector *RBTInorderTraverse(RBTRoot *root);
 #endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_RBTREE_H_ */

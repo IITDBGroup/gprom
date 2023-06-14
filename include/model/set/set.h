@@ -34,8 +34,8 @@ typedef struct Set {
     NodeTag type;
     SetType setType;
     int typelen;
-    boolean (*eq) (void *, void*);
-    void * (*cpy) (void *);
+    boolean (*eq) (void *, void*); // for equality test
+    void * (*cpy) (void *);// for copy;
     SetElem *elem;
 } Set;
 

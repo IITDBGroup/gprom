@@ -145,6 +145,8 @@ static void outDataChunk(StringInfo str, DataChunk *node);
 static void outColumnChunk(StringInfo str, ColumnChunk *node);
 static void outGBHeaps(StringInfo str, GBHeaps *node);
 static void outLMTChunk(StringInfo str, LMTChunk *node);
+static void outRBTRoot(StringInfo str, RBTRoot *node);
+static void outRBTNode(StringInfo str, RBTNode *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -1342,15 +1344,26 @@ outPSMap(StringInfo str, PSMap *node)
 static void
 outRBTRoot(StringInfo str, RBTRoot * node)
 {
-
+    INFO_LOG("OUT RBTROOT");
+    WRITE_NODE_TYPE(RBTRoot);
+    WRITE_INT_FIELD(size);
+    WRITE_NODE_FIELD(metadata)
+    // WRITE_NODE_FIELD(root);
+    outRBTNode(str, node->root);
 }
 
 static void
 outRBTNode(StringInfo str, RBTNode * node)
 {
-    WRITE_NODE_TYPE(RBTNode);
-    WRITE_NODE_FIELD(key);
-    WRITE_INT_FIELD(color);
+    if (node != NULL) {
+        WRITE_NODE_TYPE(RBTNode);
+        WRITE_NODE_FIELD(key);
+        WRITE_NODE_FIELD(val);
+        WRITE_INT_FIELD(color);
+        outRBTNode(str, node->left);
+        outRBTNode(str, node->right);
+    }
+
 }
 
 void

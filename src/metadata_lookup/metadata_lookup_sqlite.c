@@ -176,13 +176,6 @@ sqliteIsInitialized (void)
             if (sqliteDatabaseConnectionOpen() != EXIT_SUCCESS)
                 return FALSE;
         }
-//        if (PQstatus(plugin->conn) == CONNECTION_BAD)
-//        {
-//            char *error = PQerrorMessage(plugin->conn);
-//            ERROR_LOG("unable to connect to postgres database\nfailed "
-//                    "because of:\n%s", error);
-//            return FALSE;
-//        }
 
         return TRUE;
     }

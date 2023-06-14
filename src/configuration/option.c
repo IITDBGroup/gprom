@@ -192,8 +192,12 @@ boolean ps_use_nest = FALSE;
 boolean ps_post_to_oracle = FALSE;
 char *ps_store_table = NULL;
 
-// update ps option to decide acccurate or approximate updating
+// update ps options
 int update_ps_option = 0;
+boolean update_ps_group_join = FALSE;
+char *update_ps_delta_table = NULL;
+char *update_ps_updated_table = NULL;
+boolean update_ps_direct_delta = FALSE;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -728,6 +732,39 @@ OptionInfo opts[] =
 		 		wrapOptionInt(&update_ps_option),
 		 		defOptionInt(0)
 		 },
+         {
+                OPTION_UPDATE_PS_GROUP_JOIN,
+                "-update_ps_group_join",
+                "update ps if to group join together",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_group_join),
+                defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_DELTA_TABLE,
+                "-update_ps_delta_table",
+                "the option to tell delta table name",
+                OPTION_STRING,
+                wrapOptionString(&update_ps_delta_table),
+                defOptionString(NULL)
+         },
+         {
+                OPTION_UPDATE_PS_UPDATED_TABLE,
+                "-update_ps_updated_table",
+                "the option tell which table is updated",
+                OPTION_STRING,
+                wrapOptionString(&update_ps_updated_table),
+                defOptionString(NULL)
+
+         },
+         {
+                OPTION_UPDATE_PS_DIRECT_DELTA,
+                "-update_ps_direct_delta",
+                "the option tell if is load data from delta table",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_direct_delta),
+                defOptionBool(FALSE)
+         },
 		 {
 				 OPTION_PS_STORE_TABLE,
 				 "-ps_store_table",

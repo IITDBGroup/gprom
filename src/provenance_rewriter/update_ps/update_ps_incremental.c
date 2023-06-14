@@ -19,6 +19,7 @@
 #include "model/relation/relation.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/set/set.h"
 #include "sql_serializer/sql_serializer.h"
 #include "utility/string_utils.h"
 #include "instrumentation/timing_instrumentation.h"
@@ -31,6 +32,7 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
+#include "provenance_rewriter/update_ps/rbtree.h"
 
 // update for each operator;
 static void updateByOperators(QueryOperator * op);
@@ -44,6 +46,7 @@ static void updateDuplicateRemoval(QueryOperator* op);
 static void updateSet(QueryOperator* op);
 static void updateOrder(QueryOperator *op);
 static void updateLimit(QueryOperator * op);
+static void updateJoinByGroupJoin(QueryOperator *op);
 
 // chunk operation;
 static HashMap *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAccessOp);
@@ -77,7 +80,7 @@ static ColumnChunk *getColumnChunkOfConst(Constant *c, DataChunk *dc);
 static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType);
 // static Vector *columnChunkToVector(ColumnChunk *cc);
 // static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
-static int limitCmp(const void **a, const void **b);
+// static int limitCmp(const void **a, const void **b);
 static char *constToString(Constant *c);
 #define SQL_PRE backendifyIdentifier("SELECT * FROM ")
 #define VALUES_IDENT backendifyIdentifier(" VALUES ")
@@ -105,8 +108,8 @@ static StringInfo strInfo;
 static QueryOperator* updateStatement = NULL;
 static psInfo *PS_INFO = NULL;
 static ProvenanceComputation *PC = NULL;
-static HashMap *limitAttrPoss;
-static List *limitOrderBys;
+// static HashMap *limitAttrPoss;
+// static List *limitOrderBys;
 
 DataChunk*
 initDataChunk()
@@ -141,7 +144,10 @@ update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 	INFO_LOG("Start update");
 	DEBUG_NODE_BEATIFY_LOG("update stmt", updateStmt);
 	updateStatement = updateStmt;
+	// CASE 1: only care incremental steps
 	updateByOperators((QueryOperator*) OP_LCHILD(operator));
+	// CASE 2: get new sketch;
+	// updateByOperators(operator);
 	return strInfo->data;
 }
 
@@ -223,12 +229,97 @@ updateByOperators(QueryOperator * op)
 static void
 updateProvenanceComputation(QueryOperator* op)
 {
+	updateByOperators(OP_LCHILD(op));
+
 	QueryOperator *childOp = OP_LCHILD(op);
 
 	if (!HAS_STRING_PROP(childOp, PROP_DATA_CHUNK)) {
 		return;
 	}
 
+	HashMap *inputChunkMaps = (HashMap *) GET_STRING_PROP(childOp, PROP_DATA_CHUNK);
+	DataChunk *inputDCIns = (DataChunk *) MAP_GET_STRING(inputChunkMaps, PROP_DATA_CHUNK_INSERT);
+	DataChunk *inputDCDel = (DataChunk *) MAP_GET_STRING(inputChunkMaps, PROP_DATA_CHUNK_DELETE);
+
+	PSMap *storedPSMap = (PSMap *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
+
+	if (inputDCIns != NULL && inputDCIns->isAPSChunk) {
+		FOREACH_HASH_KEY(Constant, c, inputDCIns->fragmentsInfo) {
+			HashMap *fragCnt = (HashMap *) MAP_GET_STRING(storedPSMap->fragCount, STRING_VALUE(c));
+			boolean isPSInt = BOOL_VALUE((Constant *) MAP_GET_STRING(inputDCIns->fragmentsIsInt, STRING_VALUE(c)));
+			Vector *psVec = (Vector *) MAP_GET_STRING(inputDCIns->fragmentsInfo, STRING_VALUE(c));
+			if (isPSInt) {
+				int *psVals = (int *) VEC_TO_IA(psVec);
+				for (int row = 0; row < psVec->length; row++) {
+					if (MAP_HAS_INT_KEY(fragCnt, psVals[row])) {
+						Constant *c = (Constant *) MAP_GET_INT(fragCnt, psVals[row]);
+						incrConst(c);
+					} else {
+						addToMap(fragCnt, (Node *) createConstInt(psVals[row]), (Node *) createConstInt(1));
+					}
+				}
+			} else {
+				BitSet **bitSet = (BitSet **) VEC_TO_ARR(psVec, BitSet);
+				for (int row = 0; row < psVec->length; row++) {
+					char *psStr = (char *) bitSetToString(bitSet[row]);
+					int len = strlen(psStr);
+					for (int bitIdx = 0; bitIdx < len; bitIdx++) {
+						if (psStr[bitIdx] == '1') {
+							if (MAP_HAS_INT_KEY(fragCnt, bitIdx)) {
+								Constant *c = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
+								incrConst(c);
+							} else {
+								addToMap(fragCnt, (Node *) createConstInt(bitIdx), (Node *) createConstInt(1));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (inputDCDel != NULL && inputDCDel->isAPSChunk) {
+		FOREACH_HASH_KEY(Constant, c, inputDCDel->fragmentsInfo) {
+			HashMap *fragCnt = (HashMap *) MAP_GET_STRING(storedPSMap->fragCount, STRING_VALUE(c));
+			boolean isPSInt = BOOL_VALUE((Constant *) MAP_GET_STRING(inputDCDel->fragmentsIsInt, STRING_VALUE(c)));
+			Vector *psVec = (Vector *) MAP_GET_STRING(inputDCDel->fragmentsInfo, STRING_VALUE(c));
+			if (isPSInt) {
+				int *psVals = (int *) VEC_TO_IA(psVec);
+				for (int row = 0; row < psVec->length; row++) {
+					Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVals[row]);
+					if (INT_VALUE(cnt) > 1) {
+						INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
+					} else {
+						removeMapElem(fragCnt, (Node *) createConstInt(psVals[row]));
+					}
+				}
+			} else {
+				BitSet **bitSet = (BitSet **) VEC_TO_ARR(psVec, BitSet);
+				for (int row = 0; row < psVec->length; row++) {
+					char *psStr = (char *) bitSetToString(bitSet[row]);
+					int len = strlen(psStr);
+					for (int bitIdx = 0; bitIdx < len; bitIdx++) {
+						if (psStr[bitIdx] == '1') {
+							Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
+							if (INT_VALUE(cnt) > 1) {
+								INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
+							} else {
+								removeMapElem(fragCnt, (Node *) createConstInt(bitIdx));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("UPDATED PSMAP", storedPSMap);
+
+
+
+
+
+/*
 	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(childOp, PROP_DATA_CHUNK);
 	if (!dataChunk->isAPSChunk) {
 		return;
@@ -303,6 +394,7 @@ updateProvenanceComputation(QueryOperator* op)
 
 	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE, (Node *) psMap);
 	removeStringProperty(childOp, PROP_DATA_CHUNK);
+*/
 }
 
 static void
@@ -451,11 +543,141 @@ updateSelection(QueryOperator* op)
 }
 
 static void
+updateJoinByGroupJoin(QueryOperator *op) {
+	// for test purpose, now we have two level join;
+	QueryOperator *thisJoinRewrite = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+
+	INFO_OP_LOG("join rewrite in grou join", thisJoinRewrite);
+
+	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(thisJoinRewrite), PROP_LEVEL_AGGREGATION_MARK), 0);
+
+	QueryOperator *lChild = OP_LCHILD(op);
+	QueryOperator *rChild = OP_RCHILD(op);
+	QueryOperator *childJoin = NULL;
+	if (isA(lChild, JoinOperator)) {
+		childJoin = lChild;
+	} else if (isA(rChild, JoinOperator)) {
+		childJoin = rChild;
+	}
+
+	// prepare the ConstRelMultiListsOperator for join branchs;
+	ConstRelMultiListsOperator *leftDelta = NULL;
+	// ConstRelMultiListsOperator *rightDelta = NULL;
+
+
+	// initialize result data chunks;
+	DataChunk *resDCIns = initDataChunk();
+	DataChunk *resDCDel = initDataChunk();
+
+	// initialize chunks' tuples vectors based on the data type;
+	int pos = 0;
+	FOREACH(AttributeDef, ad, op->schema->attrDefs) {
+		addToMap(resDCIns->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
+		addToMap(resDCDel->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
+
+		addToMap(resDCIns->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
+		addToMap(resDCDel->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
+
+		switch (ad->dataType) {
+			case DT_INT:
+			case DT_BOOL:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+			}
+				break;
+			case DT_LONG:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+			}
+				break;
+			case DT_FLOAT:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+			}
+				break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+			}
+				break;
+			default:
+				FATAL_LOG("not supported");
+		}
+		pos++;
+	}
+
+	// set fields like: tupleFields, attrNames
+	resDCIns->tupleFields = pos;
+	resDCDel->tupleFields = pos;
+	resDCIns->attrNames = (List *) copyObject(op->schema->attrDefs);
+	resDCDel->attrNames = (List *) copyObject(op->schema->attrDefs);
+	QueryOperator *cOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(childJoin));
+	// int deltaBranches = 0;
+	if (HAS_STRING_PROP(OP_LCHILD(childJoin), PROP_DATA_CHUNK)) {
+		HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(childJoin), PROP_DATA_CHUNK);
+		DataChunk *leftDCIns = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_INSERT);
+		DataChunk *leftDCDel = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_DELETE);
+		List *provAttrDefs = getProvenanceAttrDefs(OP_LCHILD(OP_LCHILD(cOp)));
+		leftDelta = createConstRelMultiListsFromDataChunk(leftDCIns, leftDCDel, TRUE, singleton(childJoin),provAttrDefs);
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("left delta", leftDelta);
+	DEBUG_NODE_BEATIFY_LOG("GROUP JOIN TOP", thisJoinRewrite);
+	INFO_OP_LOG("GROUP JOIN TOP", thisJoinRewrite);
+
+	QueryOperator *join0 = OP_LCHILD(thisJoinRewrite);
+	join0->provAttrs = NIL;
+	QueryOperator *proj0 = OP_LCHILD(join0);
+	proj0->provAttrs = NIL;
+	QueryOperator *join1 = OP_LCHILD(proj0);
+	join1->provAttrs = NIL;
+	replaceNode(join1->inputs, OP_LCHILD(join1), leftDelta);
+
+	DEBUG_NODE_BEATIFY_LOG("GROUP JOIN TOP after replace", thisJoinRewrite);
+	INFO_OP_LOG("GROUP JOIN TOP after replace", thisJoinRewrite);
+
+	char *sql = serializeQuery(thisJoinRewrite);
+
+	INFO_LOG("sql sql %s", sql);
+	postgresGetDataChunkGroupJoin(sql, resDCIns, resDCDel, -1, psAttrAndLevel);
+	// Relation *rel = executeQuery(sql);
+	// DEBUG_NODE_BEATIFY_LOG("vec", rel->tuples);
+	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
+	if (resDCIns->numTuples > 0) {
+		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_INSERT, resDCIns);
+	}
+
+	if (resDCDel->numTuples > 0) {
+		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_DELETE, resDCDel);
+	}
+
+	if (mapSize(resChunkMaps) > 0) {
+		SET_STRING_PROP(op, PROP_DATA_CHUNK, resChunkMaps);
+	}
+
+}
+
+static void
 updateJoin(QueryOperator * op)
 {
 	// update two child operators;
 	updateByOperators(OP_LCHILD(op));
     updateByOperators(OP_RCHILD(op));
+
+	boolean groupJoinOption = getBoolOption(OPTION_UPDATE_PS_GROUP_JOIN);
+	if (groupJoinOption) {
+		int joinNumber = INT_VALUE((Constant *) GET_STRING_PROP(op, "JOIN_NUMBER_FROM_TOP"));
+		if (joinNumber == 0) {
+			updateJoinByGroupJoin(op);
+		}
+
+		return;
+	}
 
 	// both children operators don't contain delta tuples;
 	if ((!HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK))
@@ -1115,14 +1337,14 @@ updateAggregation(QueryOperator *op)
 	// fetch stored pre-built data structures for all aggs;
 	HashMap *dataStructures = (HashMap *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
 
-	boolean hasFinishPS = FALSE;
-	boolean hasFinishGB = FALSE;
+	// boolean hasFinishPS = FALSE;
+	// boolean hasFinishGB = FALSE;
 
 	// four vectors to indicate the pos value of each update tuple which is used later to add gb attr values in result chunks;
-	Vector *resDCGBsInsFromIns = makeVector(VECTOR_INT, T_Vector);
-	Vector *resDCGBsDelFromIns = makeVector(VECTOR_INT, T_Vector);
-	Vector *resDCGBsInsFromDel = makeVector(VECTOR_INT, T_Vector);
-	Vector *resDCGBsDelFromDel = makeVector(VECTOR_INT, T_Vector);
+	// Vector *resDCGBsInsFromIns = makeVector(VECTOR_INT, T_Vector);
+	// Vector *resDCGBsDelFromIns = makeVector(VECTOR_INT, T_Vector);
+	// Vector *resDCGBsInsFromDel = makeVector(VECTOR_INT, T_Vector);
+	// Vector *resDCGBsDelFromDel = makeVector(VECTOR_INT, T_Vector);
 
 	// cast group by values to primitive array;
 	char **gbValsInsertArr = NULL;
@@ -1181,8 +1403,6 @@ updateAggregation(QueryOperator *op)
 			Vector *outputVecDelete = (Vector *) getVecNode(resultDCDelete->tuples, outputVecPos);
 			// update for insert chunk;
 
-			// boolean hasFinishPSInsert = FALSE;
-			// boolean hasFinishGBInsert = FALSE;
 			if (dataChunkInsert != NULL) {
 				Vector *inputVec = (Vector *) getVecNode(dataChunkInsert->tuples, inputVecPos) ;
 				Vector *updateTypeForEachTuple = makeVector(VECTOR_INT, T_Vector);
@@ -1208,9 +1428,12 @@ updateAggregation(QueryOperator *op)
 
 									// calculate new values;
 									// FLOAT_VALUE(sum) += inputVecVals[row];
-									(*((double *) sum->value)) += inputVecVals[row];
-									(*((gprom_long_t *) cnt->value)) += 1;
-									(*((double *) avg->value)) = FLOAT_VALUE(sum) / LONG_VALUE(cnt);
+									FLOAT_VALUE(sum) = FLOAT_VALUE(sum) + (double) inputVecVals[row];
+									// (*((double *) sum->value)) += inputVecVals[row];
+									// (*((gprom_long_t *) cnt->value)) += 1;
+									incrConst(cnt);
+									FLOAT_VALUE(avg) = FLOAT_VALUE(sum) / LONG_VALUE(cnt);
+									// (*((double *) avg->value)) = FLOAT_VALUE(sum) / LONG_VALUE(cnt);
 
 									// append new avg value;
 									vecAppendFloat(outputVecInsert, FLOAT_VALUE(avg));
@@ -1666,8 +1889,8 @@ updateAggregation(QueryOperator *op)
 						Vector *resVecIns = (Vector *) getVecNode(resultDCInsert->tuples, toPos);
 						Vector *resVecDel = (Vector *) getVecNode(resultDCDelete->tuples, toPos);
 
-						Vector *updateIdentIns = (Vector *) resultDCInsert->updateIdentifier;
-						Vector *updateIdentDel = (Vector *) resultDCDelete->updateIdentifier;
+						// Vector *updateIdentIns = (Vector *) resultDCInsert->updateIdentifier;
+						// Vector *updateIdentDel = (Vector *) resultDCDelete->updateIdentifier;
 						int *updateTypeForEachTupleArr = (int *) VEC_TO_IA(updateTypeForEachTuple);
 
 						switch (gbDataType) {
@@ -1678,10 +1901,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < insertLength; row++) {
 									int val = values[row];
 									vecAppendInt(resVecIns, val);
-									vecAppendInt(updateIdentIns, 1);
+									// vecAppendInt(updateIdentIns, 1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendInt(resVecDel, val);
-										vecAppendInt(updateIdentDel, -1);
+										// vecAppendInt(updateIdentDel, -1);
 									}
 								}
 							}
@@ -1692,10 +1915,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < insertLength; row++) {
 									gprom_long_t val = values[row];
 									vecAppendLong(resVecIns, val);
-									vecAppendInt(updateIdentIns, 1);
+									// vecAppendInt(updateIdentIns, 1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendLong(resVecDel, val);
-										vecAppendInt(updateIdentDel, -1);
+										// vecAppendInt(updateIdentDel, -1);
 									}
 								}
 							}
@@ -1706,10 +1929,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < insertLength; row++) {
 									double val = values[row];
 									vecAppendFloat(resVecIns, val);
-									vecAppendInt(updateIdentIns, 1);
+									// vecAppendInt(updateIdentIns, 1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendFloat(resVecDel, val);
-										vecAppendInt(updateIdentDel, -1);
+										// vecAppendInt(updateIdentDel, -1);
 									}
 								}
 							}
@@ -1721,10 +1944,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < insertLength; row++) {
 									char *val = values[row];
 									vecAppendString(resVecIns, strdup(val));
-									vecAppendInt(updateIdentIns, 1);
+									// vecAppendInt(updateIdentIns, 1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendString(resVecDel, strdup(val));
-										vecAppendInt(updateIdentDel, -1);
+										// vecAppendInt(updateIdentDel, -1);
 									}
 								}
 							}
@@ -1784,7 +2007,8 @@ updateAggregation(QueryOperator *op)
 									vecAppendInt(outputPSInsert, psVal);
 									fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
 									Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
-									(*((int *) cnt->value))++;
+									// (*((int *) cnt->value))++;
+									incrConst(cnt);
 									//?? is it necessary to addToMap(fragCnt to gbFragCnt);
 								}
 							}
@@ -1827,14 +2051,15 @@ updateAggregation(QueryOperator *op)
 										if (cnt == NULL) {
 											addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstInt(1));
 										} else {
-											(*((int *) cnt->value))++;
+											// (*((int *) cnt->value))++;
+											incrConst(cnt);
 										}
 										vecAppendNode(outputPSInsert, (Node *) copyObject(oldBitset));
 									}
 								}
 								addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
 							} else {
-								BitSet **inputPSArr = VEC_TO_ARR(inputPS, BitSet);
+								BitSet **inputPSArr = (BitSet **) VEC_TO_ARR(inputPS, BitSet);
 								for (int row = 0; row < insertLength; row++) {
 									int type = updateTypeForEachTupleArr[row];
 									char *gbVal = gbValsInsertArr[row];
@@ -1854,7 +2079,7 @@ updateAggregation(QueryOperator *op)
 									} else if (type == 0) {
 										BitSet *bitSet = (BitSet *) MAP_GET_STRING(storedPS, gbVal);
 										vecAppendNode(outputPSDelete, (Node *) copyObject(bitSet));
-
+										fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
 										BitSet *inputBitset = (BitSet *) inputPSArr[row];
 										char *provStr = bitSetToString(inputBitset);
 										for (int bitIndex = 0; bitIndex < provSketchLen; bitIndex++) {
@@ -1863,16 +2088,18 @@ updateAggregation(QueryOperator *op)
 												if (cnt == NULL) {
 													addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
 												} else {
-													(*((int *) cnt->value))++;
+													// (*((int *) cnt->value))++;
+													incrConst(cnt);
 												}
 												setBit(bitSet, bitIndex, TRUE);
 											}
 										}
-
+										vecAppendNode(outputPSInsert, (Node *) copyObject(bitSet));
 										addToMap(gbFragCnt, (Node *) createConstString(gbVal), (Node *) fragCnt);
 										addToMap(storedPS, (Node *) createConstString(gbVal), (Node *) copyObject(bitSet));
 									}
 								}
+								addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
 							}
 						}
 
@@ -2239,13 +2466,11 @@ updateAggregation(QueryOperator *op)
 
 						Vector *fromVec = (Vector *) getVecNode(dataChunkDelete->tuples, fromPos);
 
-
-
 						Vector *resVecIns = (Vector *) getVecNode(resultDCInsert->tuples, toPos);
 						Vector *resVecDel = (Vector *) getVecNode(resultDCDelete->tuples, toPos);
 
-						Vector *updateIdentIns = (Vector *) resultDCInsert->updateIdentifier;
-						Vector *updateIdentDel = (Vector *) resultDCDelete->updateIdentifier;
+						// Vector *updateIdentIns = (Vector *) resultDCInsert->updateIdentifier;
+						// Vector *updateIdentDel = (Vector *) resultDCDelete->updateIdentifier;
 						int *updateTypeForEachTupleArr = (int *) VEC_TO_IA(updateTypeForEachTuple);
 						switch (gbDataType) {
 							case DT_INT:
@@ -2255,10 +2480,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < deleteLength; row++) {
 									int val = values[row];
 									vecAppendInt(resVecDel, val);
-									vecAppendInt(updateIdentDel, -1);
+									// vecAppendInt(updateIdentDel, -1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendInt(resVecIns, val);
-										vecAppendInt(updateIdentIns, 1);
+										// vecAppendInt(updateIdentIns, 1);
 									}
 								}
 							}
@@ -2269,10 +2494,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < deleteLength; row++) {
 									gprom_long_t val = values[row];
 									vecAppendLong(resVecDel, val);
-									vecAppendInt(updateIdentDel, -1);
+									// vecAppendInt(updateIdentDel, -1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendLong(resVecIns, val);
-										vecAppendInt(updateIdentIns, 1);
+										// vecAppendInt(updateIdentIns, 1);
 									}
 								}
 							}
@@ -2283,10 +2508,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < deleteLength; row++) {
 									double val = values[row];
 									vecAppendFloat(resVecDel, val);
-									vecAppendInt(updateIdentDel, -1);
+									// vecAppendInt(updateIdentDel, -1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendFloat(resVecIns, val);
-										vecAppendInt(updateIdentIns, 1);
+										// vecAppendInt(updateIdentIns, 1);
 									}
 								}
 							}
@@ -2298,10 +2523,10 @@ updateAggregation(QueryOperator *op)
 								for (int row = 0; row < deleteLength; row++) {
 									char *val = values[row];
 									vecAppendString(resVecDel, strdup(val));
-									vecAppendInt(updateIdentDel, -1);
+									// vecAppendInt(updateIdentDel, -1);
 									if (updateTypeForEachTupleArr[row] == 0) {
 										vecAppendString(resVecIns, strdup(val));
-										vecAppendInt(updateIdentIns, 1);
+										// vecAppendInt(updateIdentIns, 1);
 									}
 								}
 							}
@@ -2355,7 +2580,8 @@ updateAggregation(QueryOperator *op)
 									vecAppendInt(outputPSInsert, psVal);
 									HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
 									Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
-									(*((int *) cnt->value)) -= 1;
+									// (*((int *) cnt->value)) -= 1;
+									INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
 								}
 							}
 						} else {
@@ -2387,7 +2613,8 @@ updateAggregation(QueryOperator *op)
 											removeMapElem(fragCnt, (Node *) createConstInt(psVal));
 											setBit(oldBitset, psVal, FALSE);
 										} else {
-											(*((int *) cnt->value)) -= 1;
+											// (*((int *) cnt->value)) -= 1;
+											INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
 										}
 
 										vecAppendNode(outputPSInsert, (Node *) copyObject(oldBitset));
@@ -2414,7 +2641,8 @@ updateAggregation(QueryOperator *op)
 													removeMapElem(fragCnt, (Node *) createConstInt(bitI));
 													setBit(oldBitset, bitI, FALSE);
 												} else {
-													(*((int *) cnt->value)) -= 1;
+													// (*((int *) cnt->value)) -= 1;
+													INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
 												}
 											}
 										}
@@ -2437,431 +2665,968 @@ updateAggregation(QueryOperator *op)
 			// get heap;
 			GBHeaps *gbHeap = (GBHeaps *) MAP_GET_STRING(dataStructures, nameInDS);
 
-			int inputVecPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunkInsert->attriToPos, ar->name));
-			DataType inputVecType = INT_VALUE((Constant *) MAP_GET_INT(dataChunkInsert->posToDatatype, inputVecPos));
-			Constant *nameInOutChunk = (Constant *) MAP_GET_STRING(mapFCsToSchemas, CONCAT_STRINGS(fc->functionname, "_", ar->name));
+			// is a psChunk;
+			boolean isAPSChunk = FALSE;
 
-			int outputVecPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunkInsert->attriToPos, STRING_VALUE(nameInOutChunk)));
-			// DataType outputVecType = INT_VALUE((Constant *) MAP_GET_INT(dataChunkInsert->posToDatatype, outputVecPos));
+			// input vec pos and type;
+			int inputVecPos = 0;
+			DataType inputVecType = DT_INT;
+
+			// output vec pos and type;
+			Constant *nameInOutChunk = (Constant *) MAP_GET_STRING(mapFCsToSchemas, nameInDS);
+			int outputVecPos = 0;
+			// DataType outputVecType = DT_INT;
+
+			if (dataChunkInsert != NULL) {
+				isAPSChunk = dataChunkInsert->isAPSChunk;
+				inputVecPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunkInsert->attriToPos, ar->name));
+				inputVecType = INT_VALUE((Constant *) MAP_GET_INT(dataChunkInsert->posToDatatype, inputVecPos));
+
+				outputVecPos = INT_VALUE((Constant *) MAP_GET_STRING(resultDCInsert->attriToPos, STRING_VALUE(nameInOutChunk)));
+				// outputVecType = INT_VALUE((Constant *) MAP_GET_INT(resultDCInsert->posToDatatype, outputVecPos));
+			} else if (dataChunkDelete != NULL) {
+				isAPSChunk = dataChunkDelete->isAPSChunk;
+				inputVecPos = INT_VALUE((Constant *) MAP_GET_STRING(dataChunkDelete->attriToPos, ar->name));
+				inputVecType = INT_VALUE((Constant *) MAP_GET_INT(dataChunkDelete->posToDatatype, inputVecPos));
+				outputVecPos = INT_VALUE((Constant *) MAP_GET_STRING(resultDCDelete->attriToPos, STRING_VALUE(nameInOutChunk)));
+				// outputVecType = INT_VALUE((Constant *) MAP_GET_INT(resultDCDelete->posToDatatype, outputVecPos));
+			}
+
+			Vector *outputVecInsert = (Vector *) getVecNode(resultDCInsert->tuples, outputVecPos);
+			Vector *outputVecDelete = (Vector *) getVecNode(resultDCDelete->tuples, outputVecPos);
 
 
 			if (dataChunkInsert != NULL) {
-				boolean isAPSChunk = dataChunkInsert->isAPSChunk;
 				Vector *inputVec = (Vector *) getVecNode(dataChunkInsert->tuples, inputVecPos);
-				Vector *outputVecInsert = (Vector *) getVecNode(resultDCInsert->tuples, outputVecPos);
-				Vector *outputVecDelete = (Vector *) getVecNode(resultDCDelete->tuples, outputVecPos);
+				Vector *updateTypeForEachTuple = makeVector(VECTOR_INT, T_Vector);
 
-				char **gbValArr = (char **) VEC_TO_ARR(gbValsInsert, char);
-
-				for (int row = 0; row < gbValsInsert->length; row++) {
-					int resUpdType = 0;
-					char *gbVal = gbValArr[row];
-					if (MAP_HAS_STRING_KEY(gbHeap->heapLists, gbVal)) {
-						List *heap = (List *) MAP_GET_STRING(gbHeap->heapLists, gbVal);
-						if (heap == NIL || LIST_LENGTH(heap) == 0) {
-							resUpdType = 1;
-							switch (inputVecType) {
-								case DT_INT:
-								{
-									int insertV = getVecInt(inputVec, row);
-									vecAppendInt(outputVecInsert, insertV);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstInt(insertV));
+				switch(inputVecType) {
+					case DT_INT:
+					{
+						int *inputVecVals = (int *) VEC_TO_IA(inputVec);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									vecAppendInt(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendInt(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										int oldMin = INT_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendInt(outputVecDelete, oldMin);
+										RBTInsert(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+										int newMin = INT_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendInt(outputVecInsert, newMin);
+									}
 								}
-									break;
-								case DT_LONG:
-								{
-									gprom_long_t insertV = getVecLong(inputVec, row);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstLong(insertV));
-									vecAppendLong(outputVecInsert, insertV);
-								}
-									break;
-								case DT_FLOAT:
-								{
-									double insertV = getVecFloat(inputVec, row);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstFloat(insertV));
-									vecAppendFloat(outputVecInsert, insertV);
-								}
-									break;
-								case DT_STRING:
-								case DT_VARCHAR2:
-								{
-									char *insertV = getVecString(inputVec, row);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstString(insertV));
-									vecAppendString(outputVecInsert, strdup(insertV));
-								}
-									break;
-								default:
-									FATAL_LOG("not supported");
 							}
-						} else {
-							resUpdType = 0;
-							Constant *oldV = (Constant *) getNthOfListP(heap, 0);
-							switch (inputVecType)
-							{
-								case DT_INT:
-								{
-									vecAppendInt(outputVecDelete, INT_VALUE(oldV));
-									int insertV = getVecInt(inputVec, row);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstInt(insertV));
-									vecAppendInt(outputVecInsert, INT_VALUE((Constant *) getNthOfListP(heap, 0)));
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									vecAppendInt(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendInt(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										int oldMax = INT_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendInt(outputVecDelete, oldMax);
+										RBTInsert(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+										int newMax = INT_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendInt(outputVecInsert, newMax);
+									}
 								}
-									break;
-								case DT_FLOAT:
-								{
-									vecAppendFloat(outputVecDelete, FLOAT_VALUE(oldV));
-									double insertV = getVecFloat(inputVec, row);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstFloat(insertV));
-									vecAppendFloat(outputVecInsert, FLOAT_VALUE((Constant *) getNthOfListP(heap, 0)));
-
-								}
-									break;
-								case DT_LONG:
-								{
-									vecAppendLong(outputVecDelete, LONG_VALUE(oldV));
-									gprom_long_t insertV = getVecLong(inputVec, row);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstLong(insertV));
-									vecAppendLong(outputVecInsert, LONG_VALUE((Constant *) getNthOfListP(heap, 0)));
-
-								}
-									break;
-								case DT_STRING:
-								case DT_VARCHAR2:
-								{
-									vecAppendString(outputVecDelete, STRING_VALUE(oldV));
-									char* insertV = getVecString(inputVec, row);
-									heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstString(insertV));
-									vecAppendString(outputVecInsert, strdup(STRING_VALUE((Constant *) getNthOfListP(heap, 0))));
-
-								}
-									break;
-								default:
-									FATAL_LOG("not supported");
 							}
 						}
-						addToMap(gbHeap->heapLists, (Node *) createConstString(gbVal), (Node *) heap);
-					} else {
-						resUpdType = 1;
-						List *heap = NIL;
-						switch (inputVecType) {
+					}
+					break;
+					case DT_BOOL:
+					{
+						int *inputVecVals = (int *) VEC_TO_IA(inputVec) ;
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									vecAppendInt(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendInt(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										int oldMin = BOOL_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendInt(outputVecDelete, oldMin);
+										RBTInsert(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+										int newMin = BOOL_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendInt(outputVecInsert, newMin);
+									}
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0){
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									vecAppendInt(outputVecInsert, inputVecVals[row]);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									RBTInsert(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendInt(outputVecInsert, inputVecVals[row]);
+										tree = makeRBT(RBT_MIN_HEAP, FALSE);
+										RBTInsert(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										int oldMax = BOOL_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendInt(outputVecDelete, oldMax);
+										RBTInsert(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+										int newMax = BOOL_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendInt(outputVecInsert, newMax);
+									}
+								}
+							}
+						}
+					}
+					break;
+					case DT_LONG:
+					{
+						gprom_long_t *inputVecVals = (gprom_long_t *) VEC_TO_LA(inputVec) ;
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									vecAppendLong(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendLong(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										gprom_long_t oldMin = LONG_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendLong(outputVecDelete, oldMin);
+										RBTInsert(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+										gprom_long_t newMin = LONG_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendLong(outputVecInsert, newMin);
+									}
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0){
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									vecAppendLong(outputVecInsert, inputVecVals[row]);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									RBTInsert(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendLong(outputVecInsert, inputVecVals[row]);
+										tree = makeRBT(RBT_MIN_HEAP, FALSE);
+										RBTInsert(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										gprom_long_t oldMax = LONG_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendLong(outputVecDelete, oldMax);
+										RBTInsert(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+										gprom_long_t newMax = LONG_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendLong(outputVecInsert, newMax);
+									}
+								}
+							}
+						}
+					}
+					break;
+					case DT_FLOAT:
+					{
+						double *inputVecVals = (double *) VEC_TO_FA(inputVec);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MAX_HEAP, FALSE);
+									vecAppendFloat(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendFloat(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										double oldMin = FLOAT_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendFloat(outputVecDelete, oldMin);
+										RBTInsert(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+										double newMin = FLOAT_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendFloat(outputVecInsert, newMin);
+									}
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MAX_HEAP, FALSE);
+									vecAppendFloat(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendFloat(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										double oldMax = FLOAT_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendFloat(outputVecDelete, oldMax);
+										RBTInsert(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+										double newMax = FLOAT_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendFloat(outputVecInsert, newMax);
+									}
+								}
+							}
+						}
+					}
+					break;
+					case DT_STRING:
+					case DT_VARCHAR2:
+					{
+						char ** inputVecVals = (char **) VEC_TO_ARR(inputVec, char);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									vecAppendString(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendString(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										char *oldMin = STRING_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendString(outputVecDelete, strdup(oldMin));
+										RBTInsert(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+										char *newMin = STRING_VALUE((Constant *) RBTGetMin(tree)->key);
+										vecAppendString(outputVecInsert, strdup(newMin));
+									}
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < insertLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsInsertArr[row]);
+								if (tree == NULL) {
+									vecAppendInt(updateTypeForEachTuple, 1);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									tree = makeRBT(RBT_MIN_HEAP, FALSE);
+									vecAppendString(outputVecInsert, inputVecVals[row]);
+									RBTInsert(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+									addToMap(gbHeap->heapLists, (Node *) createConstString(gbValsInsertArr[row]), (Node *) tree);
+								} else {
+									if (tree->size == 0) {
+										vecAppendInt(updateTypeForEachTuple, 1);
+										vecAppendString(outputVecInsert, inputVecVals[row]);
+										RBTInsert(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+									} else {
+										vecAppendInt(updateTypeForEachTuple, 0);
+										char *oldMax = STRING_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendString(outputVecDelete, strdup(oldMax));
+										RBTInsert(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+										char *newMax = STRING_VALUE((Constant *) RBTGetMax(tree)->key);
+										vecAppendString(outputVecInsert, strdup(newMax));
+									}
+								}
+
+							}
+						}
+					}
+					break;
+				}
+
+				if (!hasFinishGBInsert && !noGB) {
+					for (int gbAttrIndex = 0; gbAttrIndex < gbAttrCnt; gbAttrIndex++) {
+						int fromPos = getVecInt(gbPoss, gbAttrIndex);
+						DataType gbDataType = (DataType) getVecInt(gbType, gbAttrIndex);
+						char *gbAttrName = (char *) getVecString(gbName, gbAttrIndex);
+
+						char *toName = STRING_VALUE((Constant *) MAP_GET_STRING(mapFCsToSchemas, gbAttrName));
+						int toPos = INT_VALUE((Constant *) MAP_GET_STRING(resultDCInsert->attriToPos, toName));
+
+						Vector *fromVec = (Vector *) getVecNode(dataChunkInsert->tuples, fromPos);
+						Vector *resVecIns = (Vector *) getVecNode(resultDCInsert->tuples, toPos);
+						Vector *resVecDel = (Vector *) getVecNode(resultDCDelete->tuples, toPos);
+
+						// Vector *updateIdentIns = (Vector *) resultDCInsert->updateIdentifier;
+						// Vector *updateIdentDel = (Vector *) resultDCDelete->updateIdentifier;
+						int *updateTypeForEachTupleArr = (int *) VEC_TO_IA(updateTypeForEachTuple);
+						switch(gbDataType) {
+							case DT_BOOL:
 							case DT_INT:
 							{
-								int insertV = getVecInt(inputVec, row);
-								vecAppendInt(outputVecInsert, insertV);
-								heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstInt(insertV));
+								int *values = (int *) VEC_TO_IA(fromVec);
+								for (int row = 0; row < insertLength; row++) {
+									int val = values[row];
+									vecAppendInt(resVecIns, val);
+									// vecAppendInt(updateIdentIns, 1);
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendInt(resVecDel, val);
+										// vecAppendInt(updateIdentDel, -1);
+									}
+								}
 							}
-								break;
+							break;
 							case DT_LONG:
 							{
-								gprom_long_t insertV = getVecLong(inputVec, row);
-								heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstLong(insertV));
-								vecAppendLong(outputVecInsert, insertV);
+								gprom_long_t *values = (gprom_long_t *) VEC_TO_LA(fromVec);
+								for (int row = 0; row < insertLength; row++) {
+									gprom_long_t val = values[row];
+									vecAppendLong(resVecIns, val);
+									// vecAppendInt(updateIdentIns, 1);
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendLong(resVecDel, val);
+										// vecAppendInt(updateIdentDel, -1);
+									}
+								}
 							}
-								break;
+							break;
 							case DT_FLOAT:
 							{
-								double insertV = getVecFloat(inputVec, row);
-								heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstFloat(insertV));
-								vecAppendFloat(outputVecInsert, insertV);
+								double *values = (double *) VEC_TO_FA(fromVec);
+								for (int row = 0; row < insertLength; row++) {
+									double val = values[row];
+									vecAppendFloat(resVecIns, val);
+									// vecAppendInt(updateIdentIns, 1);
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendFloat(resVecDel, val);
+										// vecAppendInt(updateIdentDel, -1);
+									}
+								}
 							}
-								break;
+							break;
 							case DT_STRING:
 							case DT_VARCHAR2:
 							{
-								char *insertV = getVecString(inputVec, row);
-								heap = heapInsert(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstString(insertV));
-								vecAppendString(outputVecInsert, strdup(insertV));
+								char **values = (char **) VEC_TO_ARR(fromVec, char);
+								for (int row = 0; row < insertLength; row++) {
+									char *val = values[row];
+									vecAppendString(resVecIns, strdup(val));
+									// vecAppendInt(updateIdentIns, 1);
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendString(resVecDel, strdup(val));
+										// vecAppendInt(updateIdentDel, -1);
+									}
+								}
 							}
-								break;
-							default:
-								FATAL_LOG("not supported");
-						}
-						addToMap(gbHeap->heapLists, (Node *) createConstString(gbVal), (Node *) heap);
-					}
-					if (!noGB && !hasFinishGBInsert) {
-						if (resUpdType == 0) {
-							// vecAppendInt(resDCDelGBs, row);
-							vecAppendInt(resDCGBsDelFromIns, row);
-							vecAppendInt(resDCGBsInsFromIns, row);
-							// vecAppendInt(resDCInsGBs, row);
-						} else if (resUpdType == 1) {
-							// vecAppendInt(resDCInsGBs, row);
-							vecAppendInt(resDCGBsInsFromIns, row);
+							break;
 						}
 					}
+					hasFinishGBInsert = TRUE;
+				}
 
-					// deal with ps
-					if (!isAPSChunk) continue;
+				if (isAPSChunk && !hasFinishPSInsert) {
+					PSMap *groupPSMap = (PSMap *) MAP_GET_STRING(dataStructures, PROP_PROV_SKETCH_AGG);
+
+					// if (groupPSMap == NULL) {
+						// groupPSMap = makePSMap();
+					// }
 
 					FOREACH_HASH_KEY(Constant, c, dataChunkInsert->fragmentsInfo) {
-						Vector *inputBSVec = (Vector *) MAP_GET_STRING(dataChunkInsert->fragmentsInfo, STRING_VALUE(c));
-						BitSet *inputBS = (BitSet *) getVecNode(inputBSVec, row);
-						if (resUpdType == 1) {
-							if (!hasFinishPS) {
-								Vector *psVecIns = (Vector *) MAP_GET_STRING(resultDCInsert->fragmentsInfo, STRING_VALUE(c));
-								if (psVecIns == NULL) {
-									psVecIns = makeVector(VECTOR_NODE, T_Vector);
+						boolean inputPSIsInt = BOOL_VALUE((Constant *) MAP_GET_STRING(dataChunkInsert->fragmentsIsInt, STRING_VALUE(c)));
+
+						Vector *inputPS = (Vector *) MAP_GET_STRING(dataChunkInsert->fragmentsInfo, STRING_VALUE(c));
+
+						boolean storedPSIsInt = BOOL_VALUE((Constant *) MAP_GET_STRING(groupPSMap->isIntSketch, STRING_VALUE(c)));
+
+						HashMap *storedPS = (HashMap *) MAP_GET_STRING(groupPSMap->provSketchs, STRING_VALUE(c));
+						if (storedPS == NULL) {
+							storedPS = NEW_MAP(Constant, Node);
+						}
+
+						HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(groupPSMap->fragCount, STRING_VALUE(c));
+						if (gbFragCnt == NULL) {
+							gbFragCnt = NEW_MAP(Constant, Node);
+						}
+
+						Vector *outputPSInsert = NULL;
+						Vector *outputPSDelete = NULL;
+
+						int *updateTypeForEachTupleArr = (int *) VEC_TO_IA(updateTypeForEachTuple);
+						if (storedPSIsInt) {
+							addToMap(resultDCInsert->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
+							addToMap(resultDCDelete->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
+
+							outputPSDelete = makeVector(VECTOR_INT, T_Vector);
+							outputPSInsert = makeVector(VECTOR_INT, T_Vector);
+
+							int *inputPSArr = (int *) VEC_TO_IA(inputPS);
+
+							for (int row = 0; row < insertLength; row++) {
+								int type = updateTypeForEachTupleArr[row];
+								char *gbVal = gbValsInsertArr[row];
+
+								HashMap *fragCnt = NULL;
+								int psVal = inputPSArr[row];
+								if (type == 1) {
+									vecAppendInt(outputPSInsert, psVal);
+									addToMap(storedPS, (Node *) createConstString(gbVal), (Node *) createConstInt(psVal));
+									fragCnt = NEW_MAP(Constant, Constant);
+									addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstInt(1));
+
+									addToMap(gbFragCnt, (Node *) createConstString(gbVal), (Node *) fragCnt);
+								} else if (type == 0) {
+									vecAppendInt(outputPSDelete, psVal);
+									vecAppendInt(outputPSInsert, psVal);
+									fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
+									Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
+									incrConst(cnt);
 								}
-								vecAppendNode(psVecIns, (Node *) copyObject(inputBS));
-								addToMap(resultDCInsert->fragmentsInfo, (Node *) copyObject(c), (Node *) psVecIns);
 							}
-							HashMap *psMapInGBHeap = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
+							addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+						} else {
+							addToMap(resultDCDelete->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
+							addToMap(resultDCInsert->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
 
-							if (psMapInGBHeap == NULL) {
-								psMapInGBHeap = NEW_MAP(Constant, Node);
-							}
+							int provSketchLen = INT_VALUE((Constant *) MAP_GET_STRING(groupPSMap->provLens, STRING_VALUE(c)));
+							outputPSDelete = makeVector(VECTOR_NODE, T_Vector);
+							outputPSInsert = makeVector(VECTOR_NODE, T_Vector);
 
-							addToMap(psMapInGBHeap, (Node *) createConstString(gbVal), (Node *) copyObject(inputBS));
-							addToMap(gbHeap->provSketchs, (Node *) copyObject(c), (Node *) psMapInGBHeap);
+							if (inputPSIsInt) {
+								int *inputPSArr = (int *) VEC_TO_IA(inputPS);
+								for (int row = 0; row < insertLength; row++) {
+									int type = updateTypeForEachTupleArr[row];
+									char *gbVal = gbValsInsertArr[row];
+									HashMap *fragCnt = NULL;
+									int psVal = inputPSArr[row];
+									if (type == 1) {
+										BitSet *bitSet = newBitSet(provSketchLen);
+										setBit(bitSet, psVal, TRUE);
+										vecAppendNode(outputPSInsert, (Node *) copyObject(bitSet));
+										addToMap(storedPS, (Node *) createConstString(gbVal), (Node *) bitSet);
+										fragCnt = NEW_MAP(Constant, Constant);
+										addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstInt(1));
 
-							HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->fragCount, STRING_VALUE(c));
+										addToMap(gbFragCnt, (Node *) createConstString(gbVal), (Node *) fragCnt);
+									} else if (type == 0) {
+										BitSet *oldBitset = (BitSet *) MAP_GET_STRING(storedPS, gbVal);
+										vecAppendNode(outputPSDelete, (Node *) copyObject(oldBitset));
 
-							if (gbFragCnt == NULL) {
-								gbFragCnt = NEW_MAP(Constant, Node);
-							}
+										setBit(oldBitset, psVal, TRUE);
 
-							HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
-							if (fragCnt == NULL) {
-								fragCnt = NEW_MAP(Constant, Constant);
-							}
-
-							char *bsStr = bitSetToString(inputBS);
-							for (int bitIndex = 0; bitIndex < strlen(bsStr); bitIndex++) {
-								if (bsStr[bitIndex] == '1') {
-									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
-								}
-							}
-							addToMap(gbFragCnt, (Node *) createConstString(gbVal), (Node *) fragCnt);
-							addToMap(gbHeap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
-						} else if (resUpdType == 0) {
-							HashMap *psMapInGBHeap = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
-
-							BitSet *oldBS = (BitSet *) MAP_GET_STRING(psMapInGBHeap, gbVal);
-
-							if (!hasFinishPS) {
-								Vector *psVecDel = (Vector *) MAP_GET_STRING(resultDCDelete->fragmentsInfo, STRING_VALUE(c));
-								if (psVecDel == NULL) {
-									psVecDel = makeVector(VECTOR_NODE, T_Vector);
-								}
-
-								vecAppendNode(psVecDel, (Node *) copyObject(oldBS));
-								addToMap(resultDCDelete->fragmentsInfo, (Node *) copyObject(c), (Node *) psVecDel);
-							}
-
-							HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
-							if (gbFragCnt == NULL) {
-								gbFragCnt = NEW_MAP(Constant, Node);
-							}
-
-							HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
-							if (fragCnt == NULL) {
-								fragCnt = NEW_MAP(Constant, Constant);
-							}
-
-							char* bitStr = bitSetToString(inputBS);
-							for (int bitIndex = 0; bitIndex < strlen(bitStr); bitIndex++) {
-								if (bitStr[bitIndex] == '1') {
-									int cnt = 0;
-									if (MAP_HAS_INT_KEY(fragCnt, bitIndex)) {
-										cnt = INT_VALUE(MAP_GET_INT(fragCnt, bitIndex));
+										fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
+										Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
+										if (cnt == NULL) {
+											addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstInt(1));
+										} else {
+											incrConst(cnt);
+										}
+										vecAppendNode(outputPSInsert, (Node *) copyObject(oldBitset));
 									}
-									addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(cnt + 1));
 								}
-							}
+								addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+							} else {
+								BitSet **inputPSArr = (BitSet **) VEC_TO_ARR(inputPS, BitSet);
 
-							BitSet *resBS = bitOr(inputBS, oldBS);
-							if (!hasFinishPS) {
-								Vector *psVecIns = (Vector *) MAP_GET_STRING(resultDCInsert->fragmentsInfo, STRING_VALUE(c));
-								if (psVecIns == NULL) {
-									psVecIns = makeVector(VECTOR_NODE, T_Vector);
+								for (int row = 0; row < insertLength; row++) {
+									int type = updateTypeForEachTupleArr[row];
+									char *gbVal = gbValsInsertArr[row];
+									HashMap *fragCnt = NULL;
+									if (type == 1) {
+										BitSet *bitset = (BitSet *) inputPSArr[row];
+										vecAppendNode(outputPSInsert, (Node *) copyObject(bitset));
+										addToMap(storedPS, (Node *) createConstString(gbVal), (Node *) copyObject(bitset));
+										char *provStr = bitSetToString(bitset);
+										fragCnt = NEW_MAP(Constant, Constant);
+										for (int bitIndex = 0; bitIndex < provSketchLen; bitIndex++) {
+											if (provStr[bitIndex] == '1') {
+												addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
+											}
+										}
+										addToMap(gbFragCnt, (Node *) createConstString(gbVal), (Node *) fragCnt);
+									} else {
+										BitSet *bitSet = (BitSet *) MAP_GET_STRING(storedPS, gbVal);
+										vecAppendNode(outputPSDelete, (Node *) copyObject(bitSet));
+										fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
+										BitSet *inputBitset = (BitSet *) inputPSArr[row];
+										char *provStr = bitSetToString(inputBitset);
+										for (int bitIndex = 0; bitIndex < provSketchLen; bitIndex++) {
+											if (provStr[bitIndex] == '1') {
+												Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, bitIndex);
+												if (cnt == NULL) {
+													addToMap(fragCnt, (Node *) createConstInt(bitIndex), (Node *) createConstInt(1));
+												} else {
+													incrConst(cnt);
+												}
+												setBit(bitSet, bitIndex, TRUE);
+											}
+										}
+										vecAppendNode(outputPSInsert, (Node *) copyObject(bitSet));
+										addToMap(gbFragCnt, (Node *) createConstString(gbVal), (Node *) fragCnt);
+										addToMap(storedPS, (Node *) createConstString(gbVal), (Node *) copyObject(bitSet));
+									}
 								}
-								vecAppendNode(psVecIns, copyObject(resBS));
-								addToMap(resultDCInsert->fragmentsInfo, (Node *) copyObject(c), (Node *) psVecIns);
+								addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
 							}
 						}
+						addToMap(resultDCInsert->fragmentsInfo, (Node *) copyObject(c), (Node *) outputPSInsert);
+						addToMap(resultDCDelete->fragmentsInfo, (Node *) copyObject(c), (Node *) outputPSDelete);
+						addToMap(groupPSMap->provSketchs, (Node *) copyObject(c), (Node *) storedPS);
+						addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_AGG), (Node *) groupPSMap);
 					}
+					hasFinishPSInsert = TRUE;
+					resultDCInsert->isAPSChunk = TRUE;
+					resultDCDelete->isAPSChunk = TRUE;
+
 				}
 			}
 
+			// for deletion, there must exist a rbt for a group, if not build is wrong.
 			if (dataChunkDelete != NULL) {
-				boolean isAPSChunk = dataChunkDelete->isAPSChunk;
 				Vector *inputVec = (Vector *) getVecNode(dataChunkDelete->tuples, inputVecPos);
-				Vector *outputVecInsert = (Vector *) getVecNode(resultDCInsert->tuples, outputVecPos);
-				Vector *outputVecDelete = (Vector *) getVecNode(resultDCDelete->tuples, outputVecPos);
+				Vector *updateTypeForEachTuple = makeVector(VECTOR_INT, T_Vector);
+				switch(inputVecType) {
+					case DT_INT:
+					{
+						int *inputVecVals = (int *) VEC_TO_IA(inputVec);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								DEBUG_NODE_BEATIFY_LOG("TREE BEFORE UPDATE", tree);
+								int oldMin = INT_VALUE((Constant *) RBTGetMin(tree)->key);
+								vecAppendInt(outputVecDelete, oldMin);
+								RBTDelete(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+									INFO_LOG("group: %s, oldMin: %d, deleteval: %d, newmin: %d", gbValsDeleteArr[row], oldMin, inputVecVals[row], 999999);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									int newMin = INT_VALUE((Constant *) RBTGetMin(tree)->key);
+									INFO_LOG("group: %s, oldMin: %d, deleteval: %d, newmin: %d", gbValsDeleteArr[row], oldMin, inputVecVals[row], newMin);
+									vecAppendInt(outputVecInsert, newMin);
+								}
 
-				char **gbValArr = (char **) VEC_TO_ARR(gbValsDelete, char);
-				for (int row = 0; row < gbValsDelete->length; row++) {
-					int resUpdType = 0;
-					char *gbVal = gbValArr[row];
-
-					List *heap = (List *) MAP_GET_STRING(gbHeap->heapLists, gbVal);
-					if (LIST_LENGTH(heap) == 1) {
-						resUpdType = -1;
-						Constant *delV = getNthOfListP(heap, 0);
-						switch (inputVecType) {
-							case DT_INT:
-								vecAppendInt(outputVecDelete, INT_VALUE(delV));
-								break;
-							case DT_LONG:
-								vecAppendInt(outputVecDelete, LONG_VALUE(delV));
-								break;
-							case DT_FLOAT:
-								vecAppendFloat(outputVecDelete, FLOAT_VALUE(delV));
-								break;
-							case DT_STRING:
-							case DT_VARCHAR2:
-								vecAppendString(outputVecDelete, STRING_VALUE(delV));
-								break;
-							default:
-								FATAL_LOG("not supported");
-						}
-						removeMapStringElem(gbHeap->heapLists, gbVal);
-					} else {
-						resUpdType = 0;
-						Constant *oldV = (Constant *) getNthOfListP(heap, 0);
-						switch (inputVecType) {
-							case DT_INT:
-							{
-								int delV = getVecInt(inputVec, row);
-								heap = heapDelete(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstInt(delV));
-								vecAppendInt(outputVecDelete, INT_VALUE(oldV));
-								vecAppendInt(outputVecInsert, INT_VALUE((Constant *) getNthOfListP(heap, 0)));
+								DEBUG_NODE_BEATIFY_LOG("TREE", tree);
 							}
-								break;
-							case DT_FLOAT:
-							{
-								double delV = getVecFloat(inputVec, row);
-								heap = heapDelete(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstFloat(delV));
-								vecAppendFloat(outputVecDelete, FLOAT_VALUE(oldV));
-								vecAppendFloat(outputVecInsert, FLOAT_VALUE((Constant *) getNthOfListP(heap, 0)));
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								int oldMax = INT_VALUE((Constant *) RBTGetMax(tree)->key);
+								vecAppendInt(outputVecDelete, oldMax);
+								RBTDelete(tree, (Node *) createConstInt(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									int newMax = INT_VALUE((Constant *) RBTGetMax(tree)->key);
+									vecAppendInt(outputVecDelete, newMax);
+								}
 							}
-								break;
-							case DT_LONG:
-							{
-								gprom_long_t delV = getVecLong(inputVec, row);
-								heap = heapDelete(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstLong(delV));
-								vecAppendFloat(outputVecDelete, LONG_VALUE(oldV));
-								vecAppendFloat(outputVecInsert, LONG_VALUE((Constant *) getNthOfListP(heap, 0)));
-							}
-								break;
-							case DT_STRING:
-							case DT_VARCHAR2:
-							{
-								char *delV = getVecString(inputVec, row);
-								heap = heapDelete(heap, STRING_VALUE(gbHeap->heapType), (Node *) createConstString(delV));
-								vecAppendString(outputVecDelete, STRING_VALUE(oldV));
-								vecAppendString(outputVecInsert, STRING_VALUE((Constant *) getNthOfListP(heap, 0)));
-							}
-								break;
-							default:
-								FATAL_LOG("not supported");
-						}
-						addToMap(gbHeap->heapLists, (Node *) gbVal, (Node *) heap);
-					}
-					if (!noGB && !hasFinishGBDelete) {
-						if (resUpdType == 0) {
-							// vecAppendInt(resDCDelGBs, row);
-							// vecAppendInt(resDCInsGBs, row);
-							vecAppendInt(resDCGBsDelFromDel, row);
-							vecAppendInt(resDCGBsInsFromDel, row);
-						} else if (resUpdType == -1) {
-							// vecAppendInt(resDCDelGBs, row);
-							vecAppendInt(resDCGBsDelFromDel, row);
 						}
 					}
+					break;
+					case DT_BOOL:
+					{
+						int *inputVecVals = (int *) VEC_TO_IA(inputVec);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								int oldMin = BOOL_VALUE((Constant *) RBTGetMin(tree)->key);
+								vecAppendInt(outputVecDelete, oldMin);
+								RBTDelete(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									int newMin = BOOL_VALUE((Constant *) RBTGetMin(tree)->key);
+									vecAppendInt(outputVecInsert, newMin);
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								int oldMax = BOOL_VALUE((Constant *) RBTGetMax(tree)->key);
+								vecAppendInt(outputVecDelete, oldMax);
+								RBTDelete(tree, (Node *) createConstBool(inputVecVals[row] != 0), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									int newMax = BOOL_VALUE((Constant *) RBTGetMax(tree)->key);
+									vecAppendInt(outputVecInsert, newMax);
+								}
+							}
+						}
+					}
+					break;
+					case DT_LONG:
+					{
+						gprom_long_t *inputVecVals = (gprom_long_t *) VEC_TO_LA(inputVec);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								gprom_long_t oldMin = LONG_VALUE((Constant *) RBTGetMin(tree)->key);
+								vecAppendLong(outputVecDelete, oldMin);
+								RBTDelete(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									gprom_long_t newMin = LONG_VALUE((Constant *) RBTGetMin(tree)->key);
+									vecAppendLong(outputVecInsert, newMin);
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								gprom_long_t oldMax = LONG_VALUE((Constant *) RBTGetMax(tree)->key);
+								vecAppendLong(outputVecDelete, oldMax);
+								RBTDelete(tree, (Node *) createConstLong(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									gprom_long_t newMax = LONG_VALUE((Constant *) RBTGetMax(tree)->key);
+									vecAppendLong(outputVecInsert, newMax);
+								}
+							}
+						}
+					}
+					break;
+					case DT_FLOAT:
+					{
+						double *inputVecVals = (double *) VEC_TO_FA(inputVec);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								double oldMin = FLOAT_VALUE((Constant *) RBTGetMin(tree)->key);
+								vecAppendFloat(outputVecDelete, oldMin);
+								RBTDelete(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									double newMin = FLOAT_VALUE((Constant *) RBTGetMin(tree)->key);
+									vecAppendFloat(outputVecInsert, newMin);
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								double oldMax = FLOAT_VALUE((Constant *) RBTGetMax(tree)->key);
+								vecAppendFloat(outputVecDelete, oldMax);
+								RBTDelete(tree, (Node *) createConstFloat(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									double newMax = FLOAT_VALUE((Constant *) RBTGetMax(tree)->key);
+									vecAppendFloat(outputVecInsert, newMax);
+								}
+							}
+						}
+					}
+					break;
+					case DT_STRING:
+					case DT_VARCHAR2:
+					{
+						char **inputVecVals = (char **) VEC_TO_ARR(inputVec, char);
+						if (strcmp(fc->functionname, MIN_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								char *oldMin = STRING_VALUE((Constant *) RBTGetMin(tree)->key);
+								vecAppendString(outputVecDelete, strdup(oldMin));
+								RBTDelete(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									char *newMin = STRING_VALUE((Constant *) RBTGetMin(tree)->key);
+									vecAppendString(outputVecInsert, strdup(newMin));
+								}
+							}
+						} else if (strcmp(fc->functionname, MAX_FUNC_NAME) == 0) {
+							for (int row = 0; row < deleteLength; row++) {
+								RBTRoot *tree = (RBTRoot *) MAP_GET_STRING(gbHeap->heapLists, gbValsDeleteArr[row]);
+								char *oldMax = STRING_VALUE((Constant *) RBTGetMax(tree)->key);
+								vecAppendString(outputVecDelete, strdup(oldMax));
+								RBTDelete(tree, (Node *) createConstString(inputVecVals[row]), NULL);
+								if (tree->size == 0) {
+									vecAppendInt(updateTypeForEachTuple, -1);
+								} else {
+									vecAppendInt(updateTypeForEachTuple, 0);
+									char *newMax = STRING_VALUE((Constant *) RBTGetMax(tree)->key);
+									vecAppendString(outputVecInsert, strdup(newMax));
+								}
+							}
+						}
+					}
+					break;
+				}
 
-					// deal with ps;
-					if(!isAPSChunk) continue;
+
+				// deal with gb attrs;
+				if (!hasFinishGBDelete && !noGB) {
+					for (int gbAttrIndex = 0; gbAttrIndex < gbAttrCnt; gbAttrIndex++) {
+						int fromPos = getVecInt(gbPoss, gbAttrIndex);
+						DataType gbDataType = (DataType) getVecInt(gbType, gbAttrIndex);
+						char *gbAttrName = (char *) getVecString(gbName, gbAttrIndex);
+
+						char *toName = STRING_VALUE((Constant *) MAP_GET_STRING(mapFCsToSchemas, gbAttrName));
+						int toPos = INT_VALUE((Constant *) MAP_GET_STRING(resultDCDelete->attriToPos, toName));
+
+						Vector *fromVec = (Vector *) getVecNode(dataChunkDelete->tuples, fromPos);
+
+						Vector *resVecIns = (Vector *) getVecNode(resultDCInsert->tuples, toPos);
+						Vector *resVecDel = (Vector *) getVecNode(resultDCDelete->tuples, toPos);
+
+						// Vector *updateIdentIns = (Vector *) resultDCInsert->updateIdentifier;
+						// Vector *updateIdentDel = (Vector *) resultDCDelete->updateIdentifier;
+						int *updateTypeForEachTupleArr = (int *) VEC_TO_IA(updateTypeForEachTuple);
+						switch(gbDataType) {
+							case DT_BOOL:
+							case DT_INT:
+							{
+								int *values = (int *) VEC_TO_IA(fromVec);
+								for (int row = 0; row < deleteLength; row++) {
+									int val = values[row];
+									vecAppendInt(resVecDel, val);
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendInt(resVecIns, val);
+									}
+								}
+							}
+							break;
+							case DT_LONG:
+							{
+								gprom_long_t *values = (gprom_long_t *) VEC_TO_LA(fromVec);
+								for (int row = 0; row < deleteLength; row++) {
+									gprom_long_t val = values[row];
+									vecAppendLong(resVecDel, val);
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendLong(resVecIns, val);
+									}
+								}
+							}
+							break;
+							case DT_FLOAT:
+							{
+								double *values = (double *) VEC_TO_FA(fromVec);
+								for (int row = 0; row < deleteLength; row++) {
+									double val = values[row];
+									vecAppendFloat(resVecDel, val);
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendFloat(resVecIns, val);
+									}
+								}
+							}
+							break;
+							case DT_STRING:
+							case DT_VARCHAR2:
+							{
+								char **values = VEC_TO_ARR(fromVec, char);
+								for (int row = 0; row < deleteLength; row++) {
+									char *val = values[row];
+									vecAppendString(resVecDel, strdup(val));
+									if (updateTypeForEachTupleArr[row] == 0) {
+										vecAppendString(resVecIns, strdup(val));
+									}
+								}
+							}
+							break;
+							default:
+								FATAL_LOG("not supported");
+
+						}
+					}
+					hasFinishGBDelete = TRUE;
+				}
+
+				// dealing with ps;
+				if (isAPSChunk && !hasFinishPSDelete) {
+					PSMap *groupPSMap = (PSMap *) MAP_GET_STRING(dataStructures, PROP_PROV_SKETCH_AGG);
+					// if (groupPSMap == NULL) {
+						// groupPSMap = NEW_MAP(Constant, Node);
+					// }
 
 					FOREACH_HASH_KEY(Constant, c, dataChunkDelete->fragmentsInfo) {
-						Vector *inputBSVec = (Vector *) MAP_GET_STRING(dataChunkDelete->fragmentsInfo, STRING_VALUE(c));
-						BitSet *inputBS = (BitSet *) getVecNode(inputBSVec, row);
-						if (resUpdType == -1) {
-							if (!hasFinishPS) {
-								Vector *psVecDel = (Vector *) MAP_GET_STRING(resultDCDelete->fragmentsInfo, STRING_VALUE(c));
-								if (psVecDel == NULL) {
-									psVecDel = makeVector(VECTOR_NODE, T_Vector);
+						boolean inputPSIsInt = BOOL_VALUE((Constant *) MAP_GET_STRING(dataChunkDelete->fragmentsIsInt, STRING_VALUE(c)));
+						Vector *inputPS = (Vector *) MAP_GET_STRING(dataChunkDelete->fragmentsInfo, STRING_VALUE(c));
+
+						boolean storedPSIsInt = BOOL_VALUE((Constant *) MAP_GET_STRING(groupPSMap->isIntSketch,STRING_VALUE(c)));
+						HashMap *storedPs = (HashMap *) MAP_GET_STRING(groupPSMap->provSketchs, STRING_VALUE(c));
+
+						HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(groupPSMap->fragCount, STRING_VALUE(c));
+
+						Vector *outputPSInsert = (Vector *) MAP_GET_STRING(resultDCInsert->fragmentsInfo, STRING_VALUE(c));
+						Vector *outputPSDelete = (Vector *) MAP_GET_STRING(resultDCDelete->fragmentsInfo, STRING_VALUE(c));
+
+						int *updateTypeForEachTupleArr = (int *) VEC_TO_IA(updateTypeForEachTuple);
+
+						if (storedPSIsInt) {
+							addToMap(resultDCInsert->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
+							addToMap(resultDCDelete->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
+
+							if (outputPSDelete == NULL) {
+								outputPSDelete = makeVector(VECTOR_INT, T_Vector);
+							}
+							if (outputPSInsert == NULL) {
+								outputPSInsert = makeVector(VECTOR_INT, T_Vector);
+							}
+
+							for (int row = 0; row < deleteLength; row++) {
+								int type = updateTypeForEachTupleArr[row];
+								char *gbVal = gbValsDeleteArr[row];
+								int psVal = INT_VALUE((Constant *) MAP_GET_STRING(storedPs, gbVal));
+								vecAppendInt(outputPSDelete, psVal);
+								if (type == -1) {
+									removeMapStringElem(gbFragCnt, gbVal);
+									removeMapStringElem(storedPs, gbVal);
+								} else if (type == 0) {
+									vecAppendInt(outputPSInsert, psVal);
+									HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
+									Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
+									// incrConst(cnt);
+									INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
 								}
-
-								vecAppendNode(psVecDel, (Node *) copyObject(inputBS));
-								addToMap(resultDCDelete->fragmentsInfo, (Node *) copyObject(c), (Node *) psVecDel);
+							}
+						} else {
+							addToMap(resultDCInsert->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
+							addToMap(resultDCDelete->fragmentsIsInt, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
+							if (outputPSDelete == NULL) {
+								outputPSDelete = makeVector(VECTOR_NODE, T_Vector);
+							}
+							if (outputPSInsert == NULL) {
+								outputPSInsert = makeVector(VECTOR_NODE, T_Vector);
 							}
 
-							HashMap *psMapInGBHeap = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
-							removeMapStringElem(psMapInGBHeap, gbVal);
-							if (mapSize(psMapInGBHeap) > 0) {
-								addToMap(gbHeap->provSketchs, (Node *) copyObject(c), (Node *) psMapInGBHeap);
-							}
-
-							HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->fragCount, STRING_VALUE(c));
-							removeMapStringElem(gbFragCnt, gbVal);
-							if (mapSize(gbFragCnt) > 0) {
-								addToMap(gbHeap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
-							}
-						} else if (resUpdType == 0) {
-							HashMap *psMapInGBHeap = (HashMap *) MAP_GET_STRING(gbHeap->provSketchs, STRING_VALUE(c));
-							BitSet *oldBS = (BitSet *) MAP_GET_STRING(psMapInGBHeap, gbVal);
-							if (!hasFinishPS) {
-								Vector *psVecDel = (Vector *) MAP_GET_STRING(resultDCDelete->fragmentsInfo, STRING_VALUE(c));
-								if (psVecDel == NULL) {
-									psVecDel = makeVector(VECTOR_NODE, T_Vector);
-								}
-								vecAppendNode(psVecDel, (Node *) copyObject(oldBS));
-								addToMap(resultDCDelete->fragmentsInfo, (Node *) copyObject(c), (Node *) psVecDel);
-							}
-
-							HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(gbHeap->fragCount, STRING_VALUE(c));
-							HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
-
-							char *bitStr = bitSetToString(inputBS);
-							for (int index = 0; index < strlen(bitStr); index++) {
-								if (bitStr[index] == '1') {
-									int cnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, index));
-									if (cnt <= 1) {
-										setBit(oldBS, index, FALSE);
-										removeMapElem(fragCnt, (Node *) createConstInt(index));
+							if (inputPSIsInt) {
+								int *inputPSArr = (int *) VEC_TO_IA(inputPS);
+								for (int row = 0; row < deleteLength; row++) {
+									int type = updateTypeForEachTupleArr[row];
+									char *gbVal = gbValsDeleteArr[row];
+									int psVal = inputPSArr[row];
+									BitSet *oldBitset = (BitSet *) MAP_GET_STRING(storedPs, gbVal);
+									vecAppendNode(outputPSDelete, (Node *) copyObject(oldBitset));
+									if (type == -1) {
+										removeMapStringElem(storedPs, gbVal);
+										removeMapStringElem(gbFragCnt, gbVal);
 									} else {
-										addToMap(fragCnt, (Node *) createConstInt(index), (Node *) createConstInt(cnt - 1));
+										HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
+										Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
+										if (INT_VALUE(cnt) < 2) {
+											removeMapElem(fragCnt, (Node *) createConstInt(psVal));
+											setBit(oldBitset, psVal, FALSE);
+										} else {
+											// (*((int *) cnt->value)) -= 1;
+											INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
+										}
+									}
+
+									vecAppendNode(outputPSInsert, (Node *) copyObject(oldBitset));
+								}
+							} else {
+								BitSet **inputPSArr = (BitSet **) VEC_TO_ARR(inputPS, BitSet);
+								int provSketchLen = INT_VALUE((Constant *) MAP_GET_STRING(groupPSMap->provLens, STRING_VALUE(c)));
+								for (int row = 0; row < deleteLength; row++) {
+									int type = updateTypeForEachTupleArr[row];
+									char *gbVal = (char *) gbValsDeleteArr[row];
+									BitSet *oldBitSet = (BitSet *) MAP_GET_STRING(storedPs, gbVal);
+									vecAppendNode(outputPSDelete, (Node *) copyObject(oldBitSet));
+									if (type == -1) {
+										removeMapStringElem(storedPs, gbVal);
+										removeMapStringElem(gbFragCnt, gbVal);
+									} else {
+										HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVal);
+										char *provStr = bitSetToString((BitSet *) inputPSArr[row]);
+										for (int bitIndex = 0; bitIndex < provSketchLen; bitIndex++) {
+											if (provStr[bitIndex] == '1') {
+												Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, bitIndex);
+												if (INT_VALUE(cnt) < 2) {
+													removeMapElem(fragCnt, (Node *) createConstInt(bitIndex));
+													setBit(oldBitSet, bitIndex, FALSE);
+												} else {
+													// (*((int *) cnt->value)) -= 1;
+													INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
+												}
+											}
+										}
+										vecAppendNode(outputPSInsert, (Node *) copyObject(oldBitSet));
 									}
 								}
 							}
-
-							addToMap(gbFragCnt, (Node *) createConstString(gbVal), (Node *) fragCnt);
-							addToMap(gbHeap->provSketchs, (Node *) copyObject(c), (Node *) gbFragCnt);
-							if (!hasFinishPS) {
-								Vector *psVecIns = (Vector *) MAP_GET_STRING(resultDCInsert->fragmentsInfo, STRING_VALUE(c));
-								if (psVecIns == NULL) {
-									psVecIns = makeVector(VECTOR_NODE, T_Vector);
-								}
-								vecAppendNode(psVecIns, (Node *) copyObject(oldBS));
-								addToMap(resultDCInsert->fragmentsInfo, (Node *) copyObject(c), (Node *) psVecIns);
-							}
 						}
+
+						addToMap(resultDCDelete->fragmentsInfo, (Node *) copyObject(c), (Node *) outputPSDelete);
+						addToMap(resultDCInsert->fragmentsInfo, (Node *) copyObject(c), (Node *) outputPSInsert);
 					}
+					hasFinishPSDelete = TRUE;
+					resultDCInsert->isAPSChunk = TRUE;
+					resultDCDelete->isAPSChunk = TRUE;
 				}
 			}
-
-			addToMap(dataStructures, (Node *) createConstString(nameInDS), (Node *) gbHeap);
 		}
-		hasFinishPS = TRUE;
-		hasFinishGB = TRUE;
+		// hasFinishPSInsert = TRUE;
+		// hasFinishGBInsert = TRUE;
 	}
 
 	// fill group by attrs and update identifier;
 	// Vector *updIdenIns = resultDCInsert->updateIdentifier;
 	// Vector *updIdenDel = resultDCDelete->updateIdentifier;
+	DEBUG_NODE_BEATIFY_LOG("AGG STATE AFTER UPDATE", dataStructures);
+	// INFO_OP_LOG("AGG OP", op);
+	// DEBUG_NODE_BEATIFY_LOG("gb names:", gbName);
+	// DEBUG_NODE_BEATIFY_LOG("gb POS:", gbPoss);
+	// DEBUG_NODE_BEATIFY_LOG("gb TYPE:", gbType);
+	// DEBUG_NODE_BEATIFY_LOG("gb list", aggGBList);
+	// DEBUG_NODE_BEATIFY_LOG("args list:", aggFCList);
+	// DEBUG_NODE_BEATIFY_LOG("data chunk:", chunkMaps);
 
-	INFO_OP_LOG("AGG OP", op);
-	DEBUG_NODE_BEATIFY_LOG("gb names:", gbName);
-	DEBUG_NODE_BEATIFY_LOG("gb POS:", gbPoss);
-	DEBUG_NODE_BEATIFY_LOG("gb TYPE:", gbType);
-	DEBUG_NODE_BEATIFY_LOG("gb list", aggGBList);
-	DEBUG_NODE_BEATIFY_LOG("args list:", aggFCList);
-	DEBUG_NODE_BEATIFY_LOG("data chunk:", chunkMaps);
-
-	INFO_LOG("gbAttrCnt: %d", gbAttrCnt);
+	// INFO_LOG("gbAttrCnt: %d", gbAttrCnt);
 	// set data chunk numTuple;
-	resultDCInsert->numTuples = resultDCInsert->updateIdentifier->length;
-	resultDCDelete->numTuples = resultDCDelete->updateIdentifier->length;
+	resultDCInsert->numTuples = ((Vector *) getVecNode(resultDCInsert->tuples, 0))->length;
+	for (int row = 0; row < resultDCInsert->numTuples; row++) {
+		vecAppendInt(resultDCInsert->updateIdentifier, 1);
+	}
+	resultDCDelete->numTuples = ((Vector *) getVecNode(resultDCDelete->tuples, 0))->length;
+	for (int row = 0; row < resultDCDelete->numTuples; row++) {
+		vecAppendInt(resultDCDelete->updateIdentifier, -1);
+	}
+
 	if (dataChunkInsert != NULL) {
 		resultDCInsert->isAPSChunk = dataChunkInsert->isAPSChunk;
 		resultDCDelete->isAPSChunk = dataChunkInsert->isAPSChunk;
@@ -2872,10 +3637,10 @@ updateAggregation(QueryOperator *op)
 
 	HashMap *resChunkMaps = NEW_MAP(Constant, Node);
 
-	if (resultDCInsert->updateIdentifier->length > 0) {
+	if (resultDCInsert->numTuples > 0) {
 		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_INSERT, resultDCInsert);
 	}
-	if (resultDCDelete->updateIdentifier->length > 0) {
+	if (resultDCDelete->numTuples > 0) {
 		MAP_ADD_STRING_KEY(resChunkMaps, PROP_DATA_CHUNK_DELETE, resultDCDelete);
 	}
 
@@ -3071,8 +3836,8 @@ updateOrder(QueryOperator *op)
 	}
 
 	// for order operator, we do nothing, just copy the data chunk and pass to next level;
-	DataChunk *dc = (DataChunk *) copyObject((DataChunk *) GET_STRING_PROP(lchild, PROP_DATA_CHUNK));
-	SET_STRING_PROP(op, PROP_DATA_CHUNK, dc);
+	HashMap *resChunkMaps = (HashMap *) GET_STRING_PROP(lchild, PROP_DATA_CHUNK);
+	SET_STRING_PROP(op, PROP_DATA_CHUNK, resChunkMaps);
 
 	removeStringProperty(lchild, PROP_DATA_CHUNK);
 }
@@ -3089,59 +3854,664 @@ updateLimit(QueryOperator *op)
 		return;
 	}
 
-	// if no data strcutre, indicate no order by lower;
-	if (!HAS_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE)) {
+	if (!isA(OP_LCHILD(op), OrderOperator)) {
+		// special case;
 		return;
 	}
 
-	DataChunk *dataChunk = (DataChunk *) GET_STRING_PROP(lchild, PROP_DATA_CHUNK);
-	DataChunk *dc = initDataChunk();
-	dc->tupleFields = dataChunk->tupleFields;
-	dc->attrNames = (List *) copyObject(dataChunk->attrNames);
-	dc->attriToPos = (HashMap *) copyObject(dataChunk->attriToPos);
-	dc->posToDatatype = (HashMap *) copyObject(dataChunk->posToDatatype);
-	LMTChunk *lmtc = (LMTChunk *) GET_STRING_PROP(op, PROP_DATA_CHUNK);
+	// get the rbtree from child(order operator);
+	HashMap *dataStructures = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_STRUCTURE_STATE);
+	RBTRoot *rbtree = NULL;
+	rbtree = (RBTRoot *) MAP_GET_STRING(dataStructures, PROP_DATA_STRUCTURE_ORDER_BY);
 
-	/*
-	 *	HERE, CURRENTL PAUSE:
-	 *  IF WE USE LIST AS DONE NOW, TIME WILL BE HIGHT, SINCE sortList() -> qsort() WILL TAKE O(n lg n);
-	 *  TRANSFER TO RED-BLACK TREE:
-	*/
+	int limitNum = INT_VALUE((Constant *) ((LimitOperator *) op)->limitExpr);
 
-	// sort the data limit list;
-	limitAttrPoss = (HashMap *) copyObject(lmtc->attrToPos);
-	limitOrderBys = (List *) copyObject(((OrderOperator *) lchild)->orderExprs);
+	// get old top k;
+	Vector *deleteChunkTuples = RBTGetTopK(rbtree, limitNum);
+	DEBUG_NODE_BEATIFY_LOG("DELETE TUPLES", deleteChunkTuples);
+	HashMap *inputDataChunks = (HashMap *) GET_STRING_PROP(lchild, PROP_DATA_CHUNK);
+	DataChunk *inputDCIns = (DataChunk *) MAP_GET_STRING(inputDataChunks, PROP_DATA_CHUNK_INSERT);
+	DataChunk *inputDCDel = (DataChunk *) MAP_GET_STRING(inputDataChunks, PROP_DATA_CHUNK_DELETE);
 
-	// add value from datachunk;
+	Vector *vecInsToTree = NULL;
+	Vector *vecDelToTree = NULL;
+	boolean isAPSChunk = FALSE;
+	int attrLens = 0;
+	if (inputDCIns != NULL) {
+		vecInsToTree = makeVector(VECTOR_NODE, T_Vector);
+		isAPSChunk = inputDCIns->isAPSChunk;
+		for (int i = 0; i < inputDCIns->numTuples; i++) {
+			HashMap *tuple = NEW_MAP(Constant, Node);
+			// 0: key, 1: val, 2: ps
+			addToMap(tuple, (Node *) createConstInt(0), (Node *) makeVector(VECTOR_NODE, T_Vector));
+			addToMap(tuple, (Node *) createConstInt(1), (Node *) makeVector(VECTOR_NODE, T_Vector));
+			addToMap(tuple, (Node *) createConstInt(2), (Node *) NEW_MAP(Constant, Node));
+			vecAppendNode(vecInsToTree, (Node *) tuple);
+		}
+		attrLens = inputDCIns->tupleFields;
+	}
 
-	lmtc->vals = sortList(lmtc->vals, (int (*)(const void **, const void **)) limitCmp);
+	if (inputDCDel != NULL) {
+		vecDelToTree = makeVector(VECTOR_NODE, T_Vector);
+		isAPSChunk = inputDCDel->isAPSChunk;
+		for (int i = 0; i < inputDCDel->numTuples; i++) {
+			HashMap *tuple = NEW_MAP(Constant, Node);
+			// 0: key, 1: val, 2: ps
+			addToMap(tuple, (Node *) createConstInt(0), (Node *) makeVector(VECTOR_NODE, T_Vector));
+			addToMap(tuple, (Node *) createConstInt(1), (Node *) makeVector(VECTOR_NODE, T_Vector));
+			addToMap(tuple, (Node *) createConstInt(2), (Node *) NEW_MAP(Constant, Node));
+			vecAppendNode(vecDelToTree, (Node *) tuple);
+		}
+		attrLens = inputDCDel->tupleFields;
+	}
+	Set *orderByAttrs = (Set *) MAP_GET_STRING(rbtree->metadata, ORDER_BY_ATTRS);
 
-	// find the top-k;
-}
+	for (int col = 0; col < attrLens; col++) {
+		AttributeDef *ad = NULL;
+		if (inputDCIns != NULL) {
+			ad = (AttributeDef *) getNthOfListP(inputDCIns->attrNames, col);
+		} else {
+			ad = (AttributeDef *) getNthOfListP(inputDCDel->attrNames, col);
+		}
+		DataType dt = ad->dataType;
+		if (hasSetElem(orderByAttrs, (void *) ad->attrName)) {
+			switch(dt) {
+				case DT_BOOL:
+				{
+					if (inputDCIns != NULL) {
+						int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCIns->tuples, col));
+						for (int row = 0; row < inputDCIns->numTuples; row++) {
+							Constant *c = createConstBool(vals[row] != 0);
+							HashMap *tuple = (HashMap *) getVecNode(vecInsToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
 
-static int
-limitCmp(const void **a, const void **b) {
-	List *la = (List *) *a;
-	List *lb = (List *) *b;
+					if (inputDCDel != NULL) {
+						int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCDel->tuples, col));
+						for (int row = 0; row < inputDCDel->numTuples; row++) {
+							Constant *c = createConstBool(vals[row] != 0);
+							HashMap *tuple = (HashMap *) getVecNode(vecDelToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
+				}
+				break;
+				case DT_INT:
+				{
+					if (inputDCIns != NULL) {
+						int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCIns->tuples, col));
+						for (int row = 0; row < inputDCIns->numTuples; row++) {
+							Constant *c = createConstInt(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecInsToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
 
-	int res = 0;
-	FOREACH(OrderExpr, oe, limitOrderBys) {
-		AttributeReference *ar = (AttributeReference *) oe->expr;
-		int pos = INT_VALUE((Constant *) MAP_GET_STRING(limitAttrPoss, ar->name));
+					if (inputDCDel != NULL) {
+						int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCDel->tuples, col));
+						for (int row = 0; row < inputDCDel->numTuples; row++) {
+							Constant *c = createConstInt(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecDelToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
 
-		int cmp = compareTwoValues((Constant *) getNthOfListP(la, pos), (Constant *) getNthOfListP(lb, pos), ar->attrType);
-		if (cmp) {
-			if (oe->order == SORT_DESC) {
-				res -= cmp;
-			} else {
-				res = cmp;
+				}
+				break;
+				case DT_LONG:
+				{
+					if (inputDCIns != NULL) {
+						gprom_long_t *vals = VEC_TO_LA((Vector *) getVecNode(inputDCIns->tuples, col));
+						for (int row = 0; row < inputDCIns->numTuples; row++) {
+							Constant *c = createConstLong(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecInsToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
+
+					if (inputDCDel != NULL) {
+						gprom_long_t *vals = VEC_TO_LA((Vector *) getVecNode(inputDCDel->tuples, col));
+						for (int row = 0; row < inputDCDel->numTuples; row++) {
+							Constant *c = createConstLong(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecDelToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
+				}
+				break;
+				case DT_FLOAT:
+				{
+					if (inputDCIns != NULL) {
+						double *vals = VEC_TO_FA((Vector *) getVecNode(inputDCIns->tuples, col));
+						for (int row = 0; row < inputDCIns->numTuples; row++) {
+							Constant *c = createConstFloat(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecInsToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
+
+					if (inputDCDel != NULL) {
+						double *vals = VEC_TO_FA((Vector *) getVecNode(inputDCDel->tuples, col));
+						for (int row = 0; row < inputDCDel->numTuples; row++) {
+							Constant *c = createConstFloat(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecDelToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
+				}
+				break;
+				case DT_STRING:
+				case DT_VARCHAR2:
+				{
+					if (inputDCIns != NULL) {
+						char** vals = (char **) VEC_TO_ARR((Vector *) getVecNode(inputDCIns->tuples, col), char);
+						for (int row = 0; row < inputDCIns->numTuples; row++) {
+							Constant *c = createConstString(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecInsToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
+
+					if (inputDCDel != NULL) {
+						char** vals = (char **) VEC_TO_ARR((Vector *) getVecNode(inputDCDel->tuples, col), char);
+						for (int row = 0; row < inputDCDel->numTuples; row++) {
+							Constant *c = createConstString(vals[row]);
+							HashMap *tuple = (HashMap *) getVecNode(vecDelToTree, row);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 0), (Node *) c);
+							vecAppendNode((Vector *) MAP_GET_INT(tuple, 1), (Node *) c);
+						}
+					}
+
+				}
+				break;
+			}
+			continue;
+		}
+
+		switch(dt){
+			case DT_BOOL:
+			{
+				if (inputDCIns != NULL) {
+					int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCIns->tuples, col));
+					for (int row = 0; row < inputDCIns->numTuples; row++) {
+						Constant *c = createConstBool(vals[row] != 0);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree,row), 1), (Node *) c);
+					}
+				}
+
+				if (inputDCDel != NULL) {
+					int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCDel->tuples, col));
+					for (int row = 0; row < inputDCDel->numTuples; row++) {
+						Constant *c = createConstBool(vals[row] != 0);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree,row), 1), (Node *) c);
+					}
+				}
+			}
+			break;
+			case DT_INT:
+			{
+				if (inputDCIns != NULL) {
+					int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCIns->tuples, col));
+					for (int row = 0; row < inputDCIns->numTuples; row++) {
+						Constant *c = createConstInt(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree, row), 1), (Node *) c);
+					}
+				}
+
+				if (inputDCDel != NULL) {
+					int *vals = VEC_TO_IA((Vector *) getVecNode(inputDCDel->tuples, col));
+					for (int row = 0; row < inputDCDel->numTuples; row++) {
+						Constant *c = createConstInt(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree, row), 1), (Node *) c);
+					}
+				}
+
+			}
+			break;
+			case DT_LONG:
+			{
+				if (inputDCIns != NULL) {
+					gprom_long_t *vals = VEC_TO_LA((Vector *) getVecNode(inputDCIns->tuples, col));
+					for (int row = 0; row < inputDCIns->numTuples; row++) {
+						Constant *c = createConstLong(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree, row), 1), (Node *) c);
+					}
+				}
+
+				if (inputDCDel != NULL) {
+					gprom_long_t *vals = VEC_TO_LA((Vector *) getVecNode(inputDCDel->tuples, col));
+					for (int row = 0; row < inputDCDel->numTuples; row++) {
+						Constant *c = createConstLong(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree, row), 1), (Node *) c);
+					}
+				}
+			}
+			break;
+			case DT_FLOAT:
+			{
+				if (inputDCIns != NULL) {
+					double *vals = VEC_TO_FA((Vector *) getVecNode(inputDCIns->tuples, col));
+					for (int row = 0; row < inputDCIns->numTuples; row++) {
+						Constant *c = createConstFloat(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree, row), 1), (Node *) c);
+					}
+				}
+
+				if (inputDCDel != NULL) {
+					double *vals = VEC_TO_FA((Vector *) getVecNode(inputDCDel->tuples, col));
+					for (int row = 0; row < inputDCDel->numTuples; row++) {
+						Constant *c = createConstFloat(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree, row), 1), (Node *) c);
+					}
+				}
+			}
+			break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+			{
+				if (inputDCIns != NULL) {
+					char** vals = (char **) VEC_TO_ARR((Vector *) getVecNode(inputDCIns->tuples, col), char);
+					for (int row = 0; row < inputDCIns->numTuples; row++) {
+						Constant *c = createConstString(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree, row), 1), (Node *) c);
+					}
+				}
+
+				if (inputDCDel != NULL) {
+					char** vals = (char **) VEC_TO_ARR((Vector *) getVecNode(inputDCDel->tuples, col), char);
+					for (int row = 0; row < inputDCDel->numTuples; row++) {
+						Constant *c = createConstString(vals[row]);
+						vecAppendNode((Vector *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree, row), 1), (Node *) c);
+					}
+				}
+
 			}
 			break;
 		}
 	}
 
-	return res;
+	// HashMap *inputPSIsInt = NULL;
+	HashMap *orderByIsPSInt = (HashMap *) MAP_GET_STRING(rbtree->metadata, ORDER_BY_IS_PS_INT);
+	HashMap *orderByPSLens = (HashMap *) MAP_GET_STRING(rbtree->metadata, ORDER_BY_PS_LENS);
+	// dealing with ps;
+	if (isAPSChunk) {
+		if (inputDCIns != NULL) {
+			// inputPSIsInt = (HashMap *) copyObject(inputDCIns->fragmentsIsInt);
+			FOREACH_HASH_KEY(Constant, c, inputDCIns->fragmentsInfo) {
+				boolean isOutputInt = BOOL_VALUE((Constant *) MAP_GET_STRING(orderByIsPSInt, STRING_VALUE(c)));
+				int psLens = INT_VALUE((Constant *) MAP_GET_STRING(orderByPSLens, STRING_VALUE(c)));
+				Vector *ps = (Vector *) MAP_GET_STRING(inputDCIns->fragmentsInfo, STRING_VALUE(c));
+				boolean isPSInt = BOOL_VALUE((Constant *) MAP_GET_STRING(inputDCIns->fragmentsIsInt, STRING_VALUE(c)));
+				if (isPSInt) {
+					int* psVals = VEC_TO_IA(ps);
+					if (isOutputInt) {
+						for (int row = 0; row < inputDCIns->numTuples; row++) {
+							addToMap((HashMap *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree, row), 2), (Node *) c, (Node *) createConstInt(psVals[row]));
+						}
+					} else {
+						for (int row = 0; row < inputDCIns->numTuples; row++) {
+							BitSet *bitSet = newBitSet(psLens);
+							setBit(bitSet, psVals[row], TRUE);
+							addToMap((HashMap *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree, row), 2), (Node *) c, (Node *) bitSet);
+						}
+					}
+				} else {
+					BitSet **psVals = VEC_TO_ARR(ps, BitSet);
+					for (int row = 0; row < inputDCIns->numTuples; row++) {
+						addToMap((HashMap *) MAP_GET_INT((HashMap *) getVecNode(vecInsToTree, row), 2), (Node *) c, (Node *) psVals[row]);
+					}
+				}
+			}
+		}
+
+		if (inputDCDel != NULL) {
+			// if (inputPSIsInt == NULL) {
+				// inputPSIsInt = (HashMap *) copyObject(inputDCDel->fragmentsIsInt);
+			// }
+			FOREACH_HASH_KEY(Constant, c, inputDCDel->fragmentsInfo) {
+				boolean isOutputInt = BOOL_VALUE((Constant *) MAP_GET_STRING(orderByIsPSInt, STRING_VALUE(c)));
+				int psLens = INT_VALUE((Constant *) MAP_GET_STRING(orderByPSLens, STRING_VALUE(c)));
+				Vector *ps = (Vector *) MAP_GET_STRING(inputDCDel->fragmentsInfo, STRING_VALUE(c));
+				boolean isPSInt = BOOL_VALUE((Constant *) MAP_GET_STRING(inputDCDel->fragmentsIsInt, STRING_VALUE(c)));
+				if (isPSInt) {
+					int* psVals = VEC_TO_IA(ps);
+					if (isOutputInt) {
+						for (int row = 0; row < inputDCDel->numTuples; row++) {
+							addToMap((HashMap *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree, row), 2), (Node *) c, (Node *) createConstInt(psVals[row]));
+						}
+					} else {
+						for (int row = 0; row < inputDCDel->numTuples; row++) {
+							BitSet *bitset = newBitSet(psLens);
+							setBit(bitset, psVals[row], TRUE);
+							addToMap((HashMap *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree, row), 2), (Node *) c, (Node *) bitset);
+						}
+					}
+
+				} else {
+
+					BitSet **psVals = VEC_TO_ARR(ps, BitSet);
+					for (int row = 0; row < inputDCDel->numTuples; row++) {
+						addToMap((HashMap *) MAP_GET_INT((HashMap *) getVecNode(vecDelToTree, row), 2), (Node *) c, (Node *) psVals[row]);
+					}
+				}
+			}
+		}
+	}
+
+	// insert inserted values to rbtree
+	if (inputDCIns != NULL) {
+		if (isAPSChunk) {
+			for (int row = 0; row < vecInsToTree->length; row++) {
+				HashMap *tuple = (HashMap *) getVecNode(vecInsToTree, row);
+				Vector *key = (Vector *) MAP_GET_INT(tuple, 0);
+				Vector *val = (Vector *) MAP_GET_INT(tuple, 1);
+				HashMap *ps = (HashMap *) MAP_GET_INT(tuple, 2);
+				vecAppendNode(val, (Node *) ps);
+				RBTInsert(rbtree, (Node *) key, (Node *) val);
+			}
+		} else {
+			for (int row = 0; row < vecInsToTree->length; row++) {
+				HashMap *tuple = (HashMap *) getVecNode(vecInsToTree, row);
+				Vector *key = (Vector *) MAP_GET_INT(tuple, 0);
+				Vector *val = (Vector *) MAP_GET_INT(tuple, 1);
+				RBTInsert(rbtree, (Node *) key, (Node *) val);
+			}
+		}
+	}
+
+	// insert deleted values to rbtree;
+	if (inputDCDel != NULL) {
+		if (isAPSChunk) {
+			for (int row = 0; row < vecDelToTree->length; row++) {
+				HashMap *tuple = (HashMap *) getVecNode(vecDelToTree, row);
+				Vector *key = (Vector *) MAP_GET_INT(tuple, 0);
+				Vector *val = (Vector *) MAP_GET_INT(tuple, 1);
+				HashMap *ps = (HashMap *) MAP_GET_INT(tuple, 2);
+				vecAppendNode(val, (Node *) ps);
+				RBTDelete(rbtree, (Node *) key, (Node *) val);
+			}
+		} else {
+			for (int row = 0; row < vecInsToTree->length; row++) {
+				HashMap *tuple = (HashMap *) getVecNode(vecDelToTree, row);
+				Vector *key = (Vector *) MAP_GET_INT(tuple, 0);
+				Vector *val = (Vector *) MAP_GET_INT(tuple, 1);
+				RBTDelete(rbtree, (Node *) key, (Node *) val);
+			}
+		}
+	}
+
+	// get new top k;
+	Vector *insertChunkTuples = RBTGetTopK(rbtree, limitNum);
+	DEBUG_NODE_BEATIFY_LOG("LIMIT INSERT TUPLES:", insertChunkTuples);
+
+	DataChunk *resDCIns = initDataChunk();
+	DataChunk *resDCDel = initDataChunk();
+	resDCIns->attrNames = (List *) copyObject(op->schema->attrDefs);
+	resDCIns->tupleFields = LIST_LENGTH(op->schema->attrDefs);
+	resDCIns->isAPSChunk = isAPSChunk;
+	resDCIns->fragmentsIsInt = (HashMap *) MAP_GET_STRING(rbtree->metadata, ORDER_BY_IS_PS_INT);
+
+
+	resDCDel->attrNames = (List *) copyObject(op->schema->attrDefs);
+	resDCDel->tupleFields = LIST_LENGTH(op->schema->attrDefs);
+	resDCDel->isAPSChunk = isAPSChunk;
+	resDCDel->fragmentsIsInt = (HashMap *) MAP_GET_STRING(rbtree->metadata, ORDER_BY_IS_PS_INT);
+	int attrPos = 0;
+	FOREACH(AttributeDef, ad, op->schema->attrDefs) {
+		addToMap(resDCIns->attriToPos, (Node *) createConstString(strdup(ad->attrName)), (Node *) createConstInt(attrPos));
+		addToMap(resDCIns->posToDatatype, (Node *) createConstInt(attrPos), (Node *) createConstInt(ad->dataType));
+
+		addToMap(resDCDel->attriToPos, (Node *) createConstString(strdup(ad->attrName)), (Node *) createConstInt(attrPos));
+		addToMap(resDCDel->posToDatatype, (Node *) createConstInt(attrPos), (Node *) createConstInt(ad->dataType));
+
+		switch (ad->dataType) {
+			case DT_INT:
+			case DT_BOOL:
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+				break;
+			case DT_LONG:
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+				break;
+			case DT_FLOAT:
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+				break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+				break;
+			default:
+				FATAL_LOG("data type is not supported");
+		}
+		attrPos++;
+	}
+
+	// fill result insert data chunk
+	if (insertChunkTuples != NULL && insertChunkTuples->length > 0) {
+		resDCIns->numTuples = insertChunkTuples->length;
+		resDCIns->isAPSChunk = isAPSChunk;
+		int attrIdx = 0;
+		int totalTups = insertChunkTuples->length;
+
+		//deal with tuple values;
+		FOREACH(AttributeDef, ad, op->schema->attrDefs) {
+			switch(ad->dataType) {
+				case DT_INT:
+				{
+					Vector *v = (Vector *) getVecNode(resDCIns->tuples, attrIdx);
+					for (int row = 0; row < totalTups; row++) {
+						vecAppendInt(v, INT_VALUE((Constant *) getVecNode((Vector *) getVecNode(insertChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_BOOL:
+				{
+					Vector *v = (Vector *) getVecNode(resDCIns->tuples, attrIdx);
+					for (int row = 0; row < totalTups; row++) {
+						vecAppendInt(v, BOOL_VALUE((Constant *) getVecNode((Vector *) getVecNode(insertChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_LONG:
+				{
+					Vector *v = (Vector *) getVecNode(resDCIns->tuples, attrIdx);
+					for (int row = 0; row < totalTups; row++) {
+						vecAppendLong(v, LONG_VALUE((Constant *) getVecNode((Vector *) getVecNode(insertChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_FLOAT:
+				{
+					Vector *v = (Vector *) getVecNode(resDCIns->tuples, attrIdx);
+					for (int row = 0; row < totalTups; row++) {
+						vecAppendFloat(v, FLOAT_VALUE((Constant *) getVecNode((Vector *) getVecNode(insertChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_STRING:
+				case DT_VARCHAR2:
+				{
+					Vector *v = (Vector *) getVecNode(resDCIns->tuples, attrIdx);
+					for (int row = 0; row < totalTups; row++) {
+						vecAppendString(v, STRING_VALUE((Constant *) getVecNode((Vector *) getVecNode(insertChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+			}
+			attrIdx++;
+		}
+
+		// deal with ps;
+		if (isAPSChunk) {
+			int psMapPos = ((Vector *) getVecNode(insertChunkTuples, 0))->length - 1;
+			HashMap *map = (HashMap *) getVecNode((Vector *) getVecNode(insertChunkTuples, 0), psMapPos);
+
+			FOREACH_HASH_KEY(Constant, c, map) {
+				char *psName = STRING_VALUE(c);
+				boolean isPSInt = BOOL_VALUE(MAP_GET_STRING(resDCIns->fragmentsIsInt, STRING_VALUE(c)));
+				Vector *ps = NULL;
+				if (isPSInt) {
+					ps = makeVector(VECTOR_INT, T_Vector);
+					for (int row = 0; row < totalTups; row++) {
+						vecAppendInt(ps, INT_VALUE((Constant*) MAP_GET_STRING((HashMap *) getVecNode((Vector *) getVecNode(insertChunkTuples, row), psMapPos), psName)));
+					}
+
+				} else {
+					ps = makeVector(VECTOR_NODE, T_Vector);
+					for (int row = 0; row < totalTups; row++) {
+
+						vecAppendNode(ps, (Node *) MAP_GET_STRING((HashMap *) getVecNode((Vector *) getVecNode(insertChunkTuples, row), psMapPos), psName));
+					}
+				}
+				addToMap(resDCIns->fragmentsInfo, (Node *) c, (Node *) ps);
+			}
+		}
+
+		resDCIns->numTuples = totalTups;
+
+		// deal with updateIdentifier;
+		Vector *updIde = resDCIns->updateIdentifier;
+		for (int row = 0; row < totalTups; row++) {
+			vecAppendInt(updIde, 1);
+		}
+
+	}
+
+
+	// fill result deleted data chunk;
+	if (deleteChunkTuples != NULL && deleteChunkTuples->length > 0) {
+		resDCDel->numTuples = deleteChunkTuples->length;
+		resDCDel->isAPSChunk = isAPSChunk;
+		int attrIdx = 0;
+		int totalTup = deleteChunkTuples->length;
+
+		FOREACH(AttributeDef, ad, op->schema->attrDefs) {
+			switch(ad->dataType) {
+				case DT_INT:
+				{
+					Vector *v = (Vector *) getVecNode(resDCDel->tuples, attrIdx);
+					for (int row = 0; row < totalTup; row++) {
+						vecAppendInt(v, INT_VALUE((Constant *) getVecNode((Vector *) getVecNode(deleteChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_BOOL:
+				{
+					Vector *v = (Vector *) getVecNode(resDCDel->tuples, attrIdx);
+					for (int row = 0; row < totalTup; row++) {
+						vecAppendInt(v, BOOL_VALUE((Constant *) getVecNode((Vector *) getVecNode(deleteChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_LONG:
+				{
+					Vector *v = (Vector *) getVecNode(resDCDel->tuples, attrIdx);
+					for (int row = 0; row < totalTup; row++) {
+						vecAppendLong(v, LONG_VALUE((Constant *) getVecNode((Vector *) getVecNode(deleteChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_FLOAT:
+				{
+					Vector *v = (Vector *) getVecNode(resDCDel->tuples, attrIdx);
+					for (int row = 0; row < totalTup; row++) {
+						vecAppendFloat(v, FLOAT_VALUE((Constant *) getVecNode((Vector *) getVecNode(deleteChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+				case DT_STRING:
+				case DT_VARCHAR2:
+				{
+					Vector *v = (Vector *) getVecNode(resDCDel->tuples, attrIdx);
+					for (int row = 0; row < totalTup; row++) {
+						vecAppendString(v, STRING_VALUE((Constant *) getVecNode((Vector *) getVecNode(deleteChunkTuples, row), attrIdx)));
+					}
+				}
+				break;
+			}
+			attrIdx++;
+		}
+
+		// ps
+		if (isAPSChunk) {
+			int psMapPos = ((Vector *) getVecNode(deleteChunkTuples, 0))->length - 1;
+			HashMap *map = (HashMap *) getVecNode((Vector *) getVecNode(deleteChunkTuples, 0), psMapPos);
+			FOREACH_HASH_KEY(Constant, c, map) {
+				char *psName = STRING_VALUE(c);
+				boolean isPSInt = BOOL_VALUE(MAP_GET_STRING(resDCDel->fragmentsIsInt, STRING_VALUE(c)));
+				Vector *ps = NULL;
+				if (isPSInt) {
+					ps = makeVector(VECTOR_INT, T_Vector);
+					for (int row = 0; row < totalTup; row++) {
+						vecAppendInt(ps, INT_VALUE((Constant *) MAP_GET_STRING((HashMap *) getVecNode((Vector *) getVecNode(deleteChunkTuples, row), psMapPos), psName)));
+					}
+				} else {
+					ps = makeVector(VECTOR_NODE, T_Vector);
+					for (int row = 0; row < totalTup; row++) {
+						vecAppendNode(ps, (Node *) MAP_GET_STRING((HashMap *) getVecNode((Vector *) getVecNode(deleteChunkTuples, row), psMapPos), psName));
+					}
+				}
+
+				addToMap(resDCDel->fragmentsInfo, (Node *) c, (Node *) ps);
+			}
+		}
+
+		resDCDel->numTuples = totalTup;
+		Vector *updIde = resDCDel->updateIdentifier;
+		for (int row = 0; row < totalTup; row++) {
+			vecAppendInt(updIde, -1);
+		}
+	}
+
+	HashMap *resDataStructures = NEW_MAP(Constant, Node);
+	if (resDCIns->numTuples > 0) {
+		addToMap(resDataStructures, (Node *) createConstString(PROP_DATA_CHUNK_INSERT), (Node *) resDCIns);
+	}
+
+	if (resDCDel->numTuples > 0) {
+		addToMap(resDataStructures, (Node *) createConstString(PROP_DATA_CHUNK_DELETE), (Node *) resDCDel);
+	}
+
+	setStringProperty(op, PROP_DATA_CHUNK, (Node *) resDataStructures);
+	DEBUG_NODE_BEATIFY_LOG("LIMIT OUTPUT CHUNKS", resDataStructures);
 }
+
+// static int
+// limitCmp(const void **a, const void **b) {
+// 	List *la = (List *) *a;
+// 	List *lb = (List *) *b;
+
+// 	int res = 0;
+// 	FOREACH(OrderExpr, oe, limitOrderBys) {
+// 		AttributeReference *ar = (AttributeReference *) oe->expr;
+// 		int pos = INT_VALUE((Constant *) MAP_GET_STRING(limitAttrPoss, ar->name));
+
+// 		int cmp = compareTwoValues((Constant *) getNthOfListP(la, pos), (Constant *) getNthOfListP(lb, pos), ar->attrType);
+// 		if (cmp) {
+// 			if (oe->order == SORT_DESC) {
+// 				res -= cmp;
+// 			} else {
+// 				res = cmp;
+// 			}
+// 			break;
+// 		}
+// 	}
+
+// 	return res;
+// }
 
 static void
 updateTableAccess(QueryOperator * op)
@@ -3153,23 +4523,25 @@ updateTableAccess(QueryOperator * op)
 	 * 		No -> nothing to do;
 	 */
 	char* tableName = ((TableAccessOperator *) op)->tableName;
-	char* updatedTableName = NULL;
-	DEBUG_NODE_BEATIFY_LOG("what is stmt", updateStatement);
-	Node* stmt = ((DLMorDDLOperator *) updateStatement)->stmt;
-	switch(stmt->type) {
-		case T_Update:
-			updatedTableName = ((Update *) stmt)->updateTableName;
-			break;
-		case T_Insert:
-			updatedTableName = ((Insert *) stmt)->insertTableName;
-			break;
-		case T_Delete:
-			updatedTableName = ((Delete *) stmt)->deleteTableName;
-			break;
-		default:
-			FATAL_LOG("error: cannot be here!");
-			break;
-	}
+	//TODO NOTE: code change here, updateTable name can be get from option
+	char* updatedTableName = getStringOption(OPTION_UPDATE_PS_UPDATED_TABLE);
+	// char* updatedTableName = NULL;
+	// DEBUG_NODE_BEATIFY_LOG("what is stmt", updateStatement);
+	// Node* stmt = ((DLMorDDLOperator *) updateStatement)->stmt;
+	// switch(stmt->type) {
+	// 	case T_Update:
+	// 		updatedTableName = ((Update *) stmt)->updateTableName;
+	// 		break;
+	// 	case T_Insert:
+	// 		updatedTableName = ((Insert *) stmt)->insertTableName;
+	// 		break;
+	// 	case T_Delete:
+	// 		updatedTableName = ((Delete *) stmt)->deleteTableName;
+	// 		break;
+	// 	default:
+	// 		FATAL_LOG("error: cannot be here!");
+	// 		break;
+	// }
 
 	if (strcmp(updatedTableName, tableName) != 0) {
 		return;
@@ -3364,9 +4736,11 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 	QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
 	List *provAttrDefs = getProvenanceAttrDefs(rewr);
 
+	DEBUG_NODE_BEATIFY_LOG("what is prov attr defs", provAttrDefs);
 	char *psName = NULL;
 	if (provAttrDefs != NIL) {
 		psName = ((AttributeDef *) getHeadOfListP(provAttrDefs))->attrName;
+		DEBUG_NODE_BEATIFY_LOG("Attribute def: ", (AttributeDef *) getHeadOfListP(provAttrDefs));
 	}
 
 	Delete * delete = (Delete *) ((DLMorDDLOperator *) updateOp)->stmt;
@@ -3375,38 +4749,52 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 
 	Schema* schema = createSchema(delete->deleteTableName, delete->schema);
 
-	// tableaccess;
-	TableAccessOperator* taOp = createTableAccessOp(delete->deleteTableName, NULL, delete->deleteTableName, NIL, getAttrNames(schema), getDataTypes(schema));
+	boolean directedFromDelta = getBoolOption(OPTION_UPDATE_PS_DIRECT_DELTA);
+	// create tableaccess;
+	TableAccessOperator* taOp = NULL;
+	SelectionOperator *selOp = NULL;
+	ProjectionOperator *projOp = NULL;
+	List *projExpr = NIL;
+	for (int i = 0; i < LIST_LENGTH(schema->attrDefs); i++) {
+		AttributeDef *ad = (AttributeDef *) getNthOfListP(schema->attrDefs, i);
+		AttributeReference *ar = createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType);
+		projExpr = appendToTailOfList(projExpr, ar);
+
+	}
+	if (directedFromDelta) {
+		char *deltaTableName = (char *) getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
+		taOp = createTableAccessOp(strdup(deltaTableName), NULL, strdup(deltaTableName), NIL, getAttrNames(schema), getDataTypes(schema));
+		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+		taOp->op.parents = singleton(projOp);
+	} else {
+		taOp = createTableAccessOp(delete->deleteTableName, NULL, delete->deleteTableName, NIL, getAttrNames(schema), getDataTypes(schema));
+		selOp = createSelectionOp(delete->cond, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+		taOp->op.parents = singleton(selOp);
+		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, getAttrNames(schema));
+		selOp->op.parents = singleton(projOp);
+
+	}
 
 	// selection;
 	// TODO: append one (1 = 1) cond to condition incase there is no condition;
-	SelectionOperator* selOp = createSelectionOp(delete->cond, (QueryOperator*) taOp, NIL, getAttrNames(schema));
-	taOp->op.parents = singleton(selOp);
+	// SelectionOperator* selOp = createSelectionOp(delete->cond, (QueryOperator*) taOp, NIL, getAttrNames(schema));
+	// taOp->op.parents = singleton(selOp);
 
 	// projection;
-	List* projExprs = NIL;
-	for (int i = 0; i < LIST_LENGTH(schema->attrDefs); i++)
-	{
-		AttributeDef* ad = (AttributeDef*) getNthOfListP(schema->attrDefs, i);
-		AttributeReference * af = createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType);
-		projExprs = appendToTailOfList(projExprs, af);
-	}
+	// List* projExprs = NIL;
+	// for (int i = 0; i < LIST_LENGTH(schema->attrDefs); i++)
+	// {
+	// 	AttributeDef* ad = (AttributeDef*) getNthOfListP(schema->attrDefs, i);
+	// 	AttributeReference * af = createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType);
+	// 	projExprs = appendToTailOfList(projExprs, af);
+	// }
 
-	ProjectionOperator* projOp = createProjectionOp(projExprs, (QueryOperator*)selOp, NIL, getAttrNames(schema));
-	selOp->op.parents = singleton(projOp);
+	// ProjectionOperator* projOp = createProjectionOp(projExprs, (QueryOperator*)selOp, NIL, getAttrNames(schema));
+	// selOp->op.parents = singleton(projOp);
 	DEBUG_NODE_BEATIFY_LOG("BUILD PROJECTION: ", projOp);
 
 	// serialize query;
 	char* query = serializeQuery((QueryOperator*) projOp);
-
-	// Relation *relation = getQueryResult(query);
-
-	// check the result relation size;
-	// if size == 0; return;
-	// if (LIST_LENGTH(relation->tuples) == 0)
-	// {
-		// return;
-	// }
 
 	// fill data chunk;
 	int psAttrCol = -1;
@@ -3422,6 +4810,8 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 		}
 	}
 
+	INFO_LOG("this table's ps name %s", psName);
+	INFO_LOG("ps col %d", psAttrCol);
 	dataChunk->attrNames = (List *) copyObject(schema->attrDefs);
 	dataChunk->tupleFields = LIST_LENGTH(schema->attrDefs);
 	DEBUG_NODE_BEATIFY_LOG("EMPTY CHUNK", dataChunk);
@@ -3432,7 +4822,12 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 			vecAppendInt(ranges, INT_VALUE(c));
 		}
 	}
-	postgresGetDataChunkDelete(query, dataChunk, psAttrCol, (psAttrCol == -1 ? NULL : ranges), psName);
+	if (directedFromDelta) {
+		postgresGetDataChunkFromDelta(query, dataChunk, psAttrCol, (psAttrCol == -1 ? NULL : ranges), psName, FALSE);
+	} else {
+		postgresGetDataChunkDelete(query, dataChunk, psAttrCol, (psAttrCol == -1 ? NULL : ranges), psName);
+
+	}
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FOR DELETE", dataChunk);
 }

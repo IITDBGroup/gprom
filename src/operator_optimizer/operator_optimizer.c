@@ -1861,7 +1861,7 @@ compareTwoOperators(Operator *o1, Operator *o2)
 		}
 		if(flag == TRUE)
 			break;
-      }
+    }
 
 	return flag;
 }
