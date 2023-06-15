@@ -338,6 +338,29 @@ checkSchemaConsistency (QueryOperator *op, void *context)
 
         }
         break;
+        case T_RecursiveOperator:
+        {
+            RecursiveOperator *o = (RecursiveOperator *) op;
+            QueryOperator *lChild = OP_LCHILD(o);
+            QueryOperator *rChild = OP_RCHILD(o);
+
+            if (!equal(o->op.schema->attrDefs, lChild->schema->attrDefs))
+            {
+                ERROR_LOG("Attributes of a set operator should be the "
+                        "attributes of its left child:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+            // left and right child should have the same number of attributes
+            if (LIST_LENGTH(lChild->schema->attrDefs) != LIST_LENGTH(rChild->schema->attrDefs))
+            {
+                ERROR_LOG("Both children of a set operator should have the same"
+                        " number of attributes:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+        }
+        break;
         case T_WindowOperator:
         {
 //            WindowOperator *o = (WindowOperator *) op;

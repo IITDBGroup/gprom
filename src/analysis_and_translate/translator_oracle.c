@@ -561,7 +561,7 @@ translateRecursiveQuery(SetQuery *sq, List **attrsOffsetsList, char* viewName)
         result = (QueryOperator *) ro;
     
     DEBUG_LOG("translated recursive query is %s", operatorToOverviewString((Node *) result));
-
+    
     return result;
 }
 
