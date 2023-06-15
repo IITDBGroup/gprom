@@ -5900,7 +5900,8 @@ evaluateOperatorEq(Operator *op, DataChunk *dc)
 	List *inputs = op->args;
 	ColumnChunk *left = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 0), dc);
 	ColumnChunk *right = evaluateExprOnDataChunk((Node *) getNthOfListP(inputs, 1), dc);
-
+	// DEBUG_NODE_BEATIFY_LOG("LEFT CHUNK", left);
+	// DEBUG_NODE_BEATIFY_LOG("right chunk", right);
 	ASSERT(left->length == right->length);
 
 	DataType resultDT = lcaType(left->dataType, right->dataType);
@@ -5927,7 +5928,7 @@ evaluateOperatorEq(Operator *op, DataChunk *dc)
 			int *leftV = VEC_TO_IA(castLeft->data.v);
 			int *rightV = VEC_TO_IA(castRight->data.v);
 			for (int i = 0; i < len; i++) {
-				resV[i] = (leftV[i] > rightV[i] ? 1 : 0);
+				resV[i] = (leftV[i] == rightV[i] ? 1 : 0);
 			}
 		}
 		break;
@@ -5935,7 +5936,7 @@ evaluateOperatorEq(Operator *op, DataChunk *dc)
 			double *leftV = VEC_TO_FA(castLeft->data.v);
 			double *rightV = VEC_TO_FA(castRight->data.v);
 			for (int i = 0; i < len; i++) {
-				resV[i] = (leftV[i] > rightV[i] ? 1 : 0);
+				resV[i] = (leftV[i] == rightV[i] ? 1 : 0);
 			}
 		}
 		break;
@@ -5943,7 +5944,7 @@ evaluateOperatorEq(Operator *op, DataChunk *dc)
 			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
 			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
 			for (int i = 0; i < len; i++) {
-				resV[i] = (leftV[i] > rightV[i] ? 1 : 0);
+				resV[i] = (leftV[i] == rightV[i] ? 1 : 0);
 			}
 
 		}
@@ -6070,7 +6071,7 @@ evaluateOperatorLe(Operator *op, DataChunk *dc)
 			int *leftV = VEC_TO_IA(castLeft->data.v);
 			int *rightV = VEC_TO_IA(castRight->data.v);
 			for (int i = 0; i < len; i++) {
-				resV[i] = (leftV[i] < rightV[i] ? 1 : 0);
+				resV[i] = (leftV[i] <= rightV[i] ? 1 : 0);
 			}
 		}
 		break;
@@ -6078,7 +6079,7 @@ evaluateOperatorLe(Operator *op, DataChunk *dc)
 			double *leftV = VEC_TO_FA(castLeft->data.v);
 			double *rightV = VEC_TO_FA(castRight->data.v);
 			for (int i = 0; i < len; i++) {
-				resV[i] = (leftV[i] < rightV[i] ? 1 : 0);
+				resV[i] = (leftV[i] <= rightV[i] ? 1 : 0);
 			}
 		}
 		break;
@@ -6086,7 +6087,7 @@ evaluateOperatorLe(Operator *op, DataChunk *dc)
 			gprom_long_t *leftV = VEC_TO_LA(castLeft->data.v);
 			gprom_long_t *rightV = VEC_TO_LA(castRight->data.v);
 			for (int i = 0; i < len; i++) {
-				resV[i] = (leftV[i] < rightV[i] ? 1 : 0);
+				resV[i] = (leftV[i] <= rightV[i] ? 1 : 0);
 			}
 		}
 		break;
