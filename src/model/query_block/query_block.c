@@ -66,6 +66,12 @@ getQBAttrDTs (Node *qb)
             DTs = pStmt->dts;
         }
         break;
+        case T_WithStmt:
+        {
+            WithStmt *with = (WithStmt *) qb;
+            DTs = getQBAttrDTs(with->query);
+            break;
+        }
         default:
             FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;

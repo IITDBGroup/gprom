@@ -106,7 +106,10 @@ serializeQuerySQLite(QueryOperator *q)
      */
     if (mapSize(api->tempViewMap) > 0)
     {
-        appendStringInfoString(viewDef, "WITH ");
+        if (!isA(OP_LCHILD(q), RecursiveOperator))
+            appendStringInfoString(viewDef, "WITH ");
+        else
+            appendStringInfoString(viewDef, "WITH RECURSIVE ");
         // loop through temporary views we have defined
         FOREACH_HASH(HashMap,view,api->tempViewMap)
         {
