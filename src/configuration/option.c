@@ -198,6 +198,8 @@ boolean update_ps_group_join = FALSE;
 char *update_ps_delta_table = NULL;
 char *update_ps_updated_table = NULL;
 boolean update_ps_direct_delta = FALSE;
+int update_ps_repetition = 1;
+boolean update_ps_selection_push_down = FALSE;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -763,6 +765,22 @@ OptionInfo opts[] =
                 "the option tell if is load data from delta table",
                 OPTION_BOOL,
                 wrapOptionBool(&update_ps_direct_delta),
+                defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_REPETITION,
+                "-update_ps_repetition",
+                "this option tell how many time should run",
+                OPTION_INT,
+                wrapOptionInt(&update_ps_repetition),
+                defOptionInt(1)
+         },
+         {
+                OPTION_UPDATE_PS_SELECTION_PUSH_DOWN,
+                "-update_ps_selection_push_down",
+                "indicate push down for table access operator",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_selection_push_down),
                 defOptionBool(FALSE)
          },
 		 {

@@ -507,6 +507,15 @@ updateSelection(QueryOperator* op)
 		return;
 	}
 
+	boolean updatePSSelPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
+	if (updatePSSelPD) {
+		INFO_LOG("SELECTION PUSH DOWN, DIRECTY COPY DATACHUNK AND RETURN");
+		DEBUG_NODE_BEATIFY_LOG("SELECTION OPERATOR COND:", ((SelectionOperator *) op)->cond);
+		SET_STRING_PROP(op, PROP_DATA_CHUNK, GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK));
+		removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+		return;
+	}
+
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 
 	Node * selCond = ((SelectionOperator *) op)->cond;
@@ -1336,15 +1345,6 @@ updateAggregation(QueryOperator *op)
 
 	// fetch stored pre-built data structures for all aggs;
 	HashMap *dataStructures = (HashMap *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
-
-	// boolean hasFinishPS = FALSE;
-	// boolean hasFinishGB = FALSE;
-
-	// four vectors to indicate the pos value of each update tuple which is used later to add gb attr values in result chunks;
-	// Vector *resDCGBsInsFromIns = makeVector(VECTOR_INT, T_Vector);
-	// Vector *resDCGBsDelFromIns = makeVector(VECTOR_INT, T_Vector);
-	// Vector *resDCGBsInsFromDel = makeVector(VECTOR_INT, T_Vector);
-	// Vector *resDCGBsDelFromDel = makeVector(VECTOR_INT, T_Vector);
 
 	// cast group by values to primitive array;
 	char **gbValsInsertArr = NULL;
@@ -2216,8 +2216,10 @@ updateAggregation(QueryOperator *op)
 									FATAL_LOG("not supported");
 							}
 						} else if (strcmp(fc->functionname, COUNT_FUNC_NAME) == 0) {
+							INFO_LOG("deleteLength: %d", deleteLength);
 							for (int row = 0; row < deleteLength; row++) {
 								char *gbVal = (char *) gbValsDeleteArr[row];
+								INFO_LOG("gb values: %s", gbVal);
 								Vector *oldL = (Vector *) MAP_GET_STRING(acs->map, gbVal);
 								Constant *cnt = (Constant *) getVecNode(oldL, 0);
 
@@ -2227,7 +2229,8 @@ updateAggregation(QueryOperator *op)
 									removeMapStringElem(acs->map, gbVal);
 								} else {
 									vecAppendInt(updateTypeForEachTuple, 0);
-									(*((gprom_long_t *) cnt->value)) -= 1;
+									LONG_VALUE(cnt) = LONG_VALUE(cnt) - 1;
+									// (*((gprom_long_t *) cnt->value)) -= 1;
 									vecAppendLong(outputVecInsert, LONG_VALUE(cnt));
 								}
 							}
@@ -4750,6 +4753,7 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 	Schema* schema = createSchema(delete->deleteTableName, delete->schema);
 
 	boolean directedFromDelta = getBoolOption(OPTION_UPDATE_PS_DIRECT_DELTA);
+	boolean updatePSSelPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
 	// create tableaccess;
 	TableAccessOperator* taOp = NULL;
 	SelectionOperator *selOp = NULL;
@@ -4761,19 +4765,88 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 		projExpr = appendToTailOfList(projExpr, ar);
 
 	}
+
+	// create deltaTable;
 	if (directedFromDelta) {
 		char *deltaTableName = (char *) getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
-		taOp = createTableAccessOp(strdup(deltaTableName), NULL, strdup(deltaTableName), NIL, getAttrNames(schema), getDataTypes(schema));
-		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, getAttrNames(schema));
-		taOp->op.parents = singleton(projOp);
+		taOp = createTableAccessOp(deltaTableName, NULL, strdup(deltaTableName), NIL, getAttrNames(schema), getDataTypes(schema));
 	} else {
 		taOp = createTableAccessOp(delete->deleteTableName, NULL, delete->deleteTableName, NIL, getAttrNames(schema), getDataTypes(schema));
-		selOp = createSelectionOp(delete->cond, (QueryOperator *) taOp, NIL, getAttrNames(schema));
-		taOp->op.parents = singleton(selOp);
-		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, getAttrNames(schema));
-		selOp->op.parents = singleton(projOp);
-
 	}
+
+	if (updatePSSelPD) {
+		QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) tableAccessOp)->parents, 0);
+		if (isA(parent, SelectionOperator)) {
+			Node *parentCond = (Node *) copyObject(((SelectionOperator *) parent)->cond);
+			if (directedFromDelta) {
+				selOp = createSelectionOp(parentCond, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+
+			} else {
+				selOp = createSelectionOp((Node *) createOpExpr(OPNAME_AND, LIST_MAKE(delete->cond, parentCond)), (QueryOperator *) taOp, NIL, getAttrNames(schema));
+			}
+			DEBUG_NODE_BEATIFY_LOG("PARENT OP COND", parentCond);
+			DEBUG_NODE_BEATIFY_LOG("NEW CON", selOp->cond);
+			taOp->op.parents = singleton(selOp);
+		}
+	}
+
+	if (selOp != NULL) {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, getAttrNames(schema));
+		selOp->op.parents = singleton(selOp);
+	} else {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+		taOp->op.parents = singleton(projOp);
+	}
+
+
+
+
+
+
+
+
+
+
+	// if (directedFromDelta) {
+	// 	char *deltaTableName = (char *) getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
+	// 	taOp = createTableAccessOp(strdup(deltaTableName), NULL, strdup(deltaTableName), NIL, getAttrNames(schema), getDataTypes(schema));
+
+	// 	// check selection push down;
+
+	// 	if (updatePSSelPD) {
+	// 		QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) tableAccessOp)->parents, 0);
+	// 		if (isA(parent, SelectionOperator)) {
+	// 			Node *cond = (Node *) copyObject(((SelectionOperator *) parent)->cond);
+	// 			SelectionOperator *selOp = createSelectionOp(cond, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+	// 			taOp->op.parents = singleton(selOp);
+	// 			projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+	// 			selOp->op.parents = projOp;
+	// 		} else {
+	// 			projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+	// 			taOp->op.parents = singleton(projOp);
+	// 		}
+	// 	} else {
+	// 		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+	// 		taOp->op.parents = singleton(projOp);
+	// 	}
+	// 	// projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+	// 	// taOp->op.parents = singleton(projOp);
+	// } else {
+	// 	taOp = createTableAccessOp(delete->deleteTableName, NULL, delete->deleteTableName, NIL, getAttrNames(schema), getDataTypes(schema));
+	// 	selOp = createSelectionOp(delete->cond, (QueryOperator *) taOp, NIL, getAttrNames(schema));
+	// 	if (updatePSSelPD) {
+	// 		QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) tableAccessOp)->parents, 0);
+	// 		if (isA(parent, SelectionOperator)) {
+	// 			Node *cond = (Node *) copyObject(((SelectionOperator *) parent)->cond);
+	// 			// andExprList()
+	// 			cond = NULL;
+	// 		}
+	// 	}
+	// 	taOp->op.parents = singleton(selOp);
+	// 	projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, getAttrNames(schema));
+	// 	selOp->op.parents = singleton(projOp);
+
+	// }
 
 	// selection;
 	// TODO: append one (1 = 1) cond to condition incase there is no condition;

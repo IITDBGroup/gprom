@@ -178,9 +178,9 @@ update_ps(ProvenanceComputation *qbModel)
 
 	DEBUG_NODE_BEATIFY_LOG("after add join", qbModel);
 	INFO_OP_LOG("AFTER ADD JOIN", qbModel);
-	if (2 == 1) {
-		return "ENDDD";
-	}
+	int repetition = 1;
+	repetition = getIntOption(OPTION_UPDATE_PS_REPETITION);
+	INFO_LOG("execution repetition %d", repetition);
 	/* Update provenance sketch */
 	if (isA(leftChild->stmt, List)) {
 		List *updateStmts = (List *) leftChild->stmt;
