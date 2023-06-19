@@ -509,11 +509,13 @@ updateSelection(QueryOperator* op)
 
 	boolean updatePSSelPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
 	if (updatePSSelPD) {
-		INFO_LOG("SELECTION PUSH DOWN, DIRECTY COPY DATACHUNK AND RETURN");
-		DEBUG_NODE_BEATIFY_LOG("SELECTION OPERATOR COND:", ((SelectionOperator *) op)->cond);
-		SET_STRING_PROP(op, PROP_DATA_CHUNK, GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK));
-		removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
-		return;
+		if (isA(OP_LCHILD(op), TableAccessOperator)) {
+			INFO_LOG("SELECTION PUSH DOWN, DIRECTY COPY DATACHUNK AND RETURN");
+			DEBUG_NODE_BEATIFY_LOG("SELECTION OPERATOR COND:", ((SelectionOperator *) op)->cond);
+			SET_STRING_PROP(op, PROP_DATA_CHUNK, GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK));
+			removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+			return;
+		}
 	}
 
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
