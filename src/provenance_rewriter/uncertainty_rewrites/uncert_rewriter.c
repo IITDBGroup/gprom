@@ -85,6 +85,8 @@ static QueryOperator *rewrite_UncertJoin(QueryOperator *op, boolean attrLevel);
 static QueryOperator *rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel);
 static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel);
 static QueryOperator *rewrite_UncertSet(QueryOperator *op, boolean attrLevel);
+static QueryOperator *rewrite_UncertRecursive(QueryOperator *op, boolean attrLevel);
+
 
 static void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
 
@@ -329,6 +331,10 @@ rewriteRange(QueryOperator * op)
 		case T_SetOperator:
 			rewrittenOp = rewrite_UncertSet(op, TRUE);
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
+			break;
+		case T_RecursiveOperator:
+			rewrittenOp = rewrite_UncertRecursive(op, TRUE);
+			INFO_OP_LOG("Range Rewrite Recursive:", rewrittenOp);
 			break;
 		default:
 			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));
@@ -2039,6 +2045,47 @@ rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 	}
 
 	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SET]", op);
+
+	return op;
+}
+
+
+
+static QueryOperator *
+rewrite_UncertRecursive(QueryOperator *op, boolean attrLevel)
+{
+	ASSERT(OP_LCHILD(op));
+	ASSERT(OP_RCHILD(op));
+
+	INFO_LOG("REWRITE-UNCERT - Recursive (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	// rewrite children first
+	if (attrLevel)
+	{
+		rewriteUncert(OP_LCHILD(op));
+		rewriteUncert(OP_RCHILD(op));
+	}
+	else
+	{
+		rewriteUncertTuple(OP_LCHILD(op));
+		rewriteUncertTuple(OP_RCHILD(op));
+	}
+
+	HashMap * hmp = NEW_MAP(Node, Node);
+
+	List *projExpr = getProjExprsForAllAttrs(op);
+
+	if (attrLevel)
+	{
+		FOREACH(Node, nd, projExpr){
+			addUncertAttrToSchema(hmp, op, nd);
+		}
+	}
+	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
+
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [RECURSIVE]", op);
 
 	return op;
 }
