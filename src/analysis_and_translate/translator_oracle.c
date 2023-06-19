@@ -1121,7 +1121,7 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
     // adapt the query
     finalQ = (QueryOperator *) translateGeneral(with->query, attrsOffsetsList);
     replaceWithViewRefsMutator((Node *) finalQ, transWithViews);
-
+    
     return finalQ;
 }
 
