@@ -182,6 +182,10 @@ rewriteUncert(QueryOperator * op)
 			rewrittenOp = rewrite_UncertSet(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
+		case T_RecursiveOperator:
+			rewrittenOp = rewrite_UncertRecursive(op, TRUE);
+			INFO_OP_LOG("Range Rewrite Recursive:", rewrittenOp);
+			break;
 		default:
 			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));
 			rewrittenOp = NULL;
@@ -247,6 +251,10 @@ rewriteUncertTuple(QueryOperator *op)
 		case T_SetOperator:
 			rewrittenOp = rewrite_UncertSet(op, FALSE);
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
+			break;
+		case T_RecursiveOperator:
+			rewrittenOp = rewrite_UncertRecursive(op, TRUE);
+			INFO_OP_LOG("Range Rewrite Recursive:", rewrittenOp);
 			break;
 		default:
 			FATAL_LOG("rewrite for %s not implemented", NodeTagToString(op->type));

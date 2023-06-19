@@ -186,6 +186,7 @@ typedef struct LimitOperator
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
         || isA(op,SetOperator)                          \
+        || isA(op,RecursiveOperator)                    \
         || isA(op,NestingOperator))
 
 #define IS_OP(op) (IS_NULLARY_OP(op) || IS_UNARY_OP(op) || IS_BINARY_OP(op))

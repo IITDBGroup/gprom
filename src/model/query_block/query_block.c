@@ -109,6 +109,11 @@ getQBAttrNames (Node *qb)
             ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
             attrs = deepCopyStringList(pStmt->selectClause);
         }
+        case T_WithStmt:
+        {
+            WithStmt *with = (WithStmt *) qb;
+            attrs = getQBAttrNames(with->query);
+        }
         break;
         default:
             break;
