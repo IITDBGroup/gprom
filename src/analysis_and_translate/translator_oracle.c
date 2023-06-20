@@ -1121,7 +1121,7 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
     // adapt the query
     finalQ = (QueryOperator *) translateGeneral(with->query, attrsOffsetsList);
     replaceWithViewRefsMutator((Node *) finalQ, transWithViews);
-    
+
     return finalQ;
 }
 
@@ -1342,9 +1342,6 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 		if (getStringProvProperty(from, PROV_PROP_TIP_ATTR))
 		{
 			setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
-            // if TIP is not part of attrDefs then add TIP attrbute to attrDefs of op
-            if (!searchListString(getQueryOperatorAttrNames(op), STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))))
-                op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, createAttributeDef(strdup(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))), DT_STRING));
             hasProv = TRUE;
 			//removed strdup
 			from->userProvAttrs = singleton(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR)));
