@@ -1988,9 +1988,19 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         	correctFromTableVisitor(q->query, NULL);
             if (q->query->type == T_WithStmt)
             {
-                FOREACH(KeyValue,v,((WithStmt*)q->query)->withViews)
+                if (!((WithStmt*)q->query)->isRecursive)
                 {
-                    correctFromTableVisitor(v->value, NULL);
+                    FOREACH(KeyValue,v,((WithStmt*)q->query)->withViews)
+                    {
+                        correctFromTableVisitor(v->value, NULL);
+                    }
+                }
+                else
+                {
+                    FOREACH(KeyValue,v,((WithStmt*)q->query)->withViews)
+                    {
+                        correctFromTableVisitor(((SetQuery*)v->value)->lChild, NULL);
+                    }
                 }
             }
         	getQBProvenanceAttrList(q,&provAttrNames,&provDts);
