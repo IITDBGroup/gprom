@@ -323,6 +323,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         	{
         		PREP_VISIT(RecursiveOperator);
         		VISIT_OPERATOR_FIELDS();
+                VISIT(projExprs);
         	}
             break;
         case T_DuplicateRemoval:
@@ -1058,6 +1059,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
             {
                 PREP_VISIT_P(RecursiveOperator);
                 VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(projExprs);
             }
             break;
         case T_DuplicateRemoval:

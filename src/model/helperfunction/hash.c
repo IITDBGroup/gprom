@@ -790,6 +790,8 @@ hashRecursiveOperator (uint64_t cur, RecursiveOperator *node)
 {
     HASH_QO();
     HASH_STRING(name);
+    HASH_NODE(projExprs);
+    
     HASH_RETURN();
 }
 

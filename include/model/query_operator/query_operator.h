@@ -84,6 +84,7 @@ typedef struct RecursiveOperator
 {
     QueryOperator op;
     char *name;
+    List *projExprs; // projection expressions
 } RecursiveOperator;
 
 typedef struct DuplicateRemoval

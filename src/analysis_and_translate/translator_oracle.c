@@ -1415,7 +1415,7 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
         addChildOperator((QueryOperator *) p,op);
         return (QueryOperator *) p;
     }
-
+    
     return op;
 }
 

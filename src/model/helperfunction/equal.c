@@ -755,7 +755,8 @@ equalRecursiveOperator(RecursiveOperator *a, RecursiveOperator *b, HashMap *seen
 {
     COMPARE_QUERY_OP();
     COMPARE_STRING_FIELD(name);
-
+    COMPARE_NODE_FIELD(projExprs);
+    
     return TRUE;
 }
 

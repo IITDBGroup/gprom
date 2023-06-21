@@ -51,7 +51,7 @@ getHashElem(HashMap *map, Node *key)
 {
     HashElem *result = NULL;
     HASH_FIND_NODE(hh,map->elem, key, result);
-
+    
     return result;
 }
 
