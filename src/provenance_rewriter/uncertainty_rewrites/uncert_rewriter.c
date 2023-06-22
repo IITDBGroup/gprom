@@ -155,7 +155,7 @@ rewriteUncert(QueryOperator * op)
 	        rewrittenOp = rewriteUncertProvComp(op, TRUE);
 	        break;
 		case T_TableAccessOperator:
-			rewrittenOp =rewrite_UncertTableAccess(op, TRUE);
+			rewrittenOp =rewrite_UncertTableAccess(op, TRUE);;
 			INFO_OP_LOG("Uncertainty Rewrite TableAccess:", rewrittenOp);
 			break;
 		case T_SelectionOperator:
@@ -411,6 +411,7 @@ getUBExpr(Node *expr, HashMap *hmp)
 			}
 //			INFO_LOG("AttrExprUB - %s", nodeToString(hmp));
 //			INFO_LOG("AttrExprUB - %s", nodeToString(expr));
+
 			Node * ret = getNthOfListP((List *)getMap(hmp, expr), 0);
 			((AttributeReference *)ret)->outerLevelsUp = 0;
 //			INFO_LOG("AttrExprUB - %s", ((AttributeReference *)ret)->name);
@@ -2064,46 +2065,6 @@ rewrite_UncertRecursive(QueryOperator *op, boolean attrLevel)
 	ASSERT(OP_LCHILD(op));
 	ASSERT(OP_RCHILD(op));
 
-	// INFO_LOG("REWRITE-UNCERT - Recursive (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
-	// DEBUG_LOG("Operator tree \n%s", nodeToString(op));
-
-	// // push down min max attr property if there are any
-	// if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
-	// {
-	// 	Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
-	// 	Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
-	// 	INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
-	// 	INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
-	// 	setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
-	// }
-
-	// QueryOperator *pos = NULL;
-    // if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
-    // 	pos = (QueryOperator *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE);
-    // }
-
-	// INFO_LOG("REWRITE-RANGE - Recursive");
-    // INFO_OP_LOG("Operator tree ", op);
-
-	// HashMap * hmp = NEW_MAP(Node, Node);
-
-	// List *projExpr = getProjExprsForAllAttrs(op);
-
-	// if (attrLevel)
-	// {
-	// 	FOREACH(Node, nd, projExpr){
-	// 		addRangeAttrToSchema(hmp, op, nd);
-	// 	}
-	// }
-	// addRangeAttrToSchema(hmp, op, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	// setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
-
-	// LOG_RESULT("UNCERTAIN: Rewritten Operator tree [RECURSIVE]", op);
-
-	// LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [RECURSIVE]", op);
-
-	// return op;
-
     // push down min max attr property if there are any
 	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
 	{
@@ -2157,18 +2118,17 @@ rewrite_UncertRecursive(QueryOperator *op, boolean attrLevel)
     setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 	markUncertAttrsAsProv(op);
 
-    // INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     if(pos){
     	QueryOperator *cpop = copyObject(op);
     	cpop->inputs = singleton(pos);
     	pos->parents = singleton(cpop);
     	cpop->parents = NIL;
     	SET_STRING_PROP(op, PROP_STORE_POSSIBLE_TREE, (Node *)cpop);
-    	INFO_OP_LOG("[PROJECTION] REWRITTEN POS BRACH: ", cpop);
+    	INFO_OP_LOG("[RECURSIVE] REWRITTEN POS BRACH: ", cpop);
     }
 
 
-	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [RECURSIVE]", op);
 
     return op;
 }

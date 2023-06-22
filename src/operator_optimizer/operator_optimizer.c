@@ -236,6 +236,8 @@ internalMaterializeProjectionSequences (QueryOperator *root, void *context)
 
     if (isA(root, ProjectionOperator) && isA(lChild, ProjectionOperator))
         SET_BOOL_STRING_PROP(lChild, PROP_MATERIALIZE);
+	else if(isA(root, RecursiveOperator))
+		return FALSE;
 
     return TRUE;
 }
