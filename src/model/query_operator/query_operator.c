@@ -1549,7 +1549,7 @@ getSingleNestingResultAttribute(NestingOperator *op)
  */
 
 Set *
-getNestingCorrelatedAttributes(QueryOperator *op, boolean *corrInSubquery) // boolean traverseIntoNestingOperators
+getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
 {
 	Set *result = STRSET();
 	CorrelatedAttrsState state = { 1, result, corrInSubquery };

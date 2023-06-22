@@ -568,8 +568,9 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
         LOG_TRANSLATED_OP("translatedDistinct is", distinct);
 
     QueryOperator *orderBy = translateOrderBy(qb, distinct, attrsOffsets);
-    if (orderBy != distinct)
+    if (orderBy != distinct) {
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
+    }
 
 	QueryOperator *limitAndOffset = translateLimitOffset(qb, orderBy, attrsOffsets);
 	if (limitAndOffset != orderBy)

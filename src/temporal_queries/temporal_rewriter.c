@@ -179,12 +179,29 @@ isSetCoalesceSufficient(QueryOperator *q)
     return FALSE;
 }
 
+static int
+enumerateNestingOperators(QueryOperator *q, void *context)
+{
+    if (q == NULL) {
+        return TRUE;
+    }
+
+    if(isA(q, NestingOperator) && !MAP_HAS_STRING_KEY((HashMap *)(q->properties), "id")) {
+        INFO_LOG("adding label %d to nesting operator", INT_VALUE(context));
+        MAP_ADD_STRING_KEY(q->properties, "id", copyObject(context));
+        *((int *)(((Constant *)context)->value)) = INT_VALUE(context) + 1;
+    }
+
+    return TRUE;
+}
+
 static QueryOperator *
 temporalRewriteOperator(QueryOperator *op)
 {
     QueryOperator *rewrittenOp = NULL;
     List *attrsConsts = (List *) GET_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS);
     boolean addNormalzation = HAS_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS);
+    visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, enumerateNestingOperators, createConstInt(0));
 
     if (HAS_STRING_PROP(op, PROP_DUMMY_HAS_PROV_PROJ))
         rewrittenOp = tempRewrTemporalSource(op);
@@ -768,7 +785,8 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         }
 
         // return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationCopy);
-        normalizationFor = (Node *)normalizationCopy;
+        // TODO
+        ((KeyValue *)normalizationFor)->key = normalizationCopy->key;
     }
     else if(isA(q, JoinOperator)) {
         // rules
@@ -877,7 +895,7 @@ tempRewrNestedSubquery(NestingOperator *op)
     // three stages:
     // top-level normalization
     // determine how far we can push down the normalization (and mark it)
-    visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, (Node *)createNodeKeyValue((Node *)NIL, (Node *)op));
+    visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, (Node *)createNodeKeyValue((Node *)NIL, (Node *)MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")));
     // pushDownNormalization(OP_RCHILD(op), (Node *)createNodeKeyValue((Node *)NIL, (Node *)op)); // <NormalizationAttrs, NormalizationOp>
 
     // check its validity
@@ -905,8 +923,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         }
 
         // realize normalization (destructive, swaps tree)
-        KeyValue *normalizeOps = createNodeKeyValue((Node *)op, (Node *)NIL);
-        // findNormalizationInQuery((QueryOperator *)op, normalizeOps);
+        KeyValue *normalizeOps = createNodeKeyValue((Node *)MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"), (Node *)NIL);
         visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, normalizeOps);
         FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
             addTemporalNormalization(OP_LCHILD(op), q, NIL); // find way to return attrs for this op
@@ -917,14 +934,6 @@ tempRewrNestedSubquery(NestingOperator *op)
     }
     
     if(canStayCorrelated) {
-        // realize normalization (destructive, swaps tree)
-        KeyValue *normalizeOps = createNodeKeyValue((Node *)op, (Node *)NIL);
-        // findNormalizationInQuery((QueryOperator *)op, normalizeOps);
-        visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, normalizeOps);
-        FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
-            addTemporalNormalization(OP_LCHILD(op), q, NIL); // find way to return attrs for this op
-        }
-
         INFO_LOG("subquery option");
         return tempRewrNestedSubqueryCorrelated(op);
     } else {
@@ -988,6 +997,14 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     }
 
     //outer = addTemporalNormalization(outer, copyObject(inner), intersection);
+
+    // realize normalization (destructive, swaps tree)
+    KeyValue *normalizeOps = createNodeKeyValue((Node *)MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"), (Node *)NIL);
+    visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, normalizeOps);
+    FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
+        addTemporalNormalization(outer, q, NIL); // find way to return attrs for this op
+    }
+
     // !!
     // reuse of overlap condition from lateral join, instead now we push it into the subquery
     // Node *correlation = constructNestingIntervalOverlapCondition(asq);
@@ -1901,11 +1918,13 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     List *leftProjExpr2 = NIL;
 
     AttributeDef *leftBeginDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TBEGIN_ATTR);
+    leftBeginDef = leftBeginDef ? leftBeginDef : getAttrDefByName(left, (char*)getHeadOfListP((List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     int leftBeginPos = getAttrPos(left, leftBeginDef->attrName);
     AttributeReference *leftBeginRef = createFullAttrReference(strdup(leftBeginDef->attrName), 0, leftBeginPos, INVALID_ATTR, leftBeginDef->dataType);
     leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
 
     AttributeDef *leftEndDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TEND_ATTR);
+    leftEndDef = leftEndDef ? leftEndDef : getAttrDefByName(left, (char*)getTailOfListP((List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     int leftEndPos = getAttrPos(left, leftEndDef->attrName);
     AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, INVALID_ATTR, leftEndDef->dataType);
     leftProjExpr2 = appendToTailOfList(leftProjExpr2, leftEndRef);
@@ -1947,10 +1966,12 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     List *rightProjExpr1 = NIL;
     List *rightProjExpr2 = NIL;
 
-    AttributeReference *rightBeginRef  = getAttrRefByName(right, TBEGIN_NAME);
+    AttributeReference *rightBeginRef  = getAttrDefByName(right, TBEGIN_NAME) ? getAttrRefByName(right, TBEGIN_NAME) : NULL;
+    rightBeginRef = rightBeginRef ? rightBeginRef : getAttrRefByName(right, STRING_VALUE(getHeadOfListP((List *)getStringProperty(right, PROP_USER_PROV_ATTRS))));
     rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightBeginRef);
 
-    AttributeReference *rightEndRef  = getAttrRefByName(right, TEND_NAME);
+    AttributeReference *rightEndRef  = getAttrDefByName(right, TEND_NAME) ? getAttrRefByName(right, TEND_NAME) : NULL;
+    rightEndRef = rightEndRef ? rightEndRef : getAttrRefByName(right, STRING_VALUE(getTailOfListP((List *)getStringProperty(right, PROP_USER_PROV_ATTRS))));
     rightProjExpr2 = appendToTailOfList(rightProjExpr2, rightEndRef);
 
     FOREACH(char, c, attrNames)

@@ -315,12 +315,13 @@ rewriteTransformationProvenance(QueryOperator *op)
 
 	//Introduce union operator
     SetOperator *so = NULL;
-    if(LIST_LENGTH(drOp) == 1)
+    if(LIST_LENGTH(drOp) == 1) {
     	so = createSetOperator(SETOP_UNION, LIST_MAKE(dr, getHeadOfListP(drOp)), NIL,
     			unionNames);
-    else
+	} else {
     	so = createSetOperator(SETOP_UNION, LIST_MAKE(dr, so1), NIL,
     			unionNames);
+	}
 
 	OP_LCHILD(so)->parents = singleton(so);
 	OP_RCHILD(so)->parents = singleton(so);
