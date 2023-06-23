@@ -708,7 +708,6 @@ copyRecursiveOperator(RecursiveOperator *from, OperatorMap **opMap)
     COPY_INIT(RecursiveOperator);
     COPY_OPERATOR();
     COPY_STRING_FIELD(name);
-    COPY_NODE_FIELD(projExprs);
     
     return new;
 }

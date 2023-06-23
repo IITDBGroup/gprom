@@ -85,7 +85,6 @@ static QueryOperator *rewrite_UncertJoin(QueryOperator *op, boolean attrLevel);
 static QueryOperator *rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel);
 static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel);
 static QueryOperator *rewrite_UncertSet(QueryOperator *op, boolean attrLevel);
-static QueryOperator *rewrite_UncertRecursive(QueryOperator *op, boolean attrLevel);
 
 
 static void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
@@ -100,6 +99,7 @@ static QueryOperator *rewrite_RangeJoin(QueryOperator *op);
 static QueryOperator *rewrite_RangeJoinOptimized(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation(QueryOperator *op);
 static QueryOperator *rewrite_RangeAggregation2(QueryOperator *op);
+static QueryOperator *rewrite_RangeRecursive(QueryOperator *op);
 
 static QueryOperator *spliceToBG(QueryOperator *op);
 static QueryOperator *spliceToBGAggr(QueryOperator *op);
@@ -183,7 +183,7 @@ rewriteUncert(QueryOperator * op)
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
 		case T_RecursiveOperator:
-			rewrittenOp = rewrite_UncertRecursive(op, TRUE);
+			rewrittenOp = rewrite_RangeRecursive(op);
 			INFO_OP_LOG("Range Rewrite Recursive:", rewrittenOp);
 			break;
 		default:
@@ -253,7 +253,7 @@ rewriteUncertTuple(QueryOperator *op)
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
 		case T_RecursiveOperator:
-			rewrittenOp = rewrite_UncertRecursive(op, TRUE);
+			rewrittenOp = rewrite_RangeRecursive(op);
 			INFO_OP_LOG("Range Rewrite Recursive:", rewrittenOp);
 			break;
 		default:
@@ -341,7 +341,7 @@ rewriteRange(QueryOperator * op)
 			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
 			break;
 		case T_RecursiveOperator:
-			rewrittenOp = rewrite_UncertRecursive(op, TRUE);
+			rewrittenOp = rewrite_RangeRecursive(op);
 			INFO_OP_LOG("Range Rewrite Recursive:", rewrittenOp);
 			break;
 		default:
@@ -2060,76 +2060,27 @@ rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 
 
 static QueryOperator *
-rewrite_UncertRecursive(QueryOperator *op, boolean attrLevel)
+rewrite_RangeRecursive(QueryOperator *op)
 {
 	ASSERT(OP_LCHILD(op));
 	ASSERT(OP_RCHILD(op));
 
-    // push down min max attr property if there are any
-	if (HAS_STRING_PROP(op, PROP_STORE_MIN_MAX_ATTRS))
-	{
-		Set *dependency = (Set *)getStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
-		Set *newd = getInputSchemaDependencies(op, dependency, TRUE);
-		INFO_OP_LOG("[Projection] minmax prop piushing to child:", op);
-		INFO_LOG("[Projection] Pushing minmax prop attr %s to child as: %s", nodeToString(dependency), nodeToString(newd));
-		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
-	}
+	INFO_LOG("REWRITE-RANGE - Recursive (%s)", "ATTRIBUTE LEVEL");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
-    //rewrite child first
 	rewriteRange(OP_LCHILD(op));
 	rewriteRange(OP_RCHILD(op));
-    QueryOperator *pos = NULL;
-    if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
-    	pos = (QueryOperator *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE);
-    }
 
-	List *attrExprCopy = copyObject(getProjExprsForAllAttrs(OP_LCHILD(op)));
-	((RecursiveOperator *)op)->projExprs = attrExprCopy;
+	//copy the schema, provAttrs, properties of the left child of op in the operator op
+	op->schema = copyObject(OP_LCHILD(op)->schema);
+	op->provAttrs = copyObject(OP_LCHILD(op)->provAttrs);
+	op->properties = copyObject(OP_LCHILD(op)->properties);
 
-    INFO_LOG("REWRITE-RANGE - Recursive");
-    INFO_OP_LOG("Operator tree ", op);
-
-    HashMap * hmp = NEW_MAP(Node, Node);
-    //get child hashmap
-    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
-    List *attrExpr = getProjExprsForAllAttrs(op);
-   	INFO_LOG("%s", nodeToString(((RecursiveOperator *)op)->projExprs));
-   	INFO_LOG("RangeRecursive hashmaps: %s", nodeToString(hmpIn));
-    List *uncertlist = NIL;
-    int ict = 0;
-    FOREACH(Node, nd, attrExpr){
-        addRangeAttrToSchema(hmp, op, nd);
-        Node *projexpr = (Node *)getNthOfListP(((RecursiveOperator *)op)->projExprs,ict);
-        INFO_LOG("Proj: %s", nodeToString(projexpr));
-        Node *ubExpr = getUBExpr(projexpr, hmpIn);
-        INFO_LOG("Ub: %s", nodeToString(ubExpr));
-        Node *lbExpr = getLBExpr(projexpr, hmpIn);
-        INFO_LOG("Lb: %s", nodeToString(lbExpr));
-        ict ++;
-        uncertlist = appendToTailOfList(uncertlist, ubExpr);
-        uncertlist = appendToTailOfList(uncertlist, lbExpr);
-        replaceNode(((RecursiveOperator *)op)->projExprs, projexpr, removeUncertOpFromExpr(projexpr));
-    }
-    ((RecursiveOperator *)op)->projExprs = concatTwoLists(((RecursiveOperator *)op)->projExprs, uncertlist);
-    addRangeRowToSchema(hmp, op);
-    appendToTailOfList(((RecursiveOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_CERTAIN)));
-    appendToTailOfList(((RecursiveOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_BESTGUESS)));
-    appendToTailOfList(((RecursiveOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_POSSIBLE)));
-    setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
+	HashMap * hmp = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+	setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 	markUncertAttrsAsProv(op);
 
-    if(pos){
-    	QueryOperator *cpop = copyObject(op);
-    	cpop->inputs = singleton(pos);
-    	pos->parents = singleton(cpop);
-    	cpop->parents = NIL;
-    	SET_STRING_PROP(op, PROP_STORE_POSSIBLE_TREE, (Node *)cpop);
-    	INFO_OP_LOG("[RECURSIVE] REWRITTEN POS BRACH: ", cpop);
-    }
-
-
-	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [RECURSIVE]", op);
-
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [RECURSIVE]", op);
     return op;
 }
 

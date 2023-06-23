@@ -1023,8 +1023,6 @@ outRecursiveOperator(StringInfo str, RecursiveOperator *node)
     WRITE_NODE_TYPE(RecursiveOperator);
     WRITE_STRING_FIELD(name);
     WRITE_QUERY_OPERATOR();
-    WRITE_NODE_FIELD(projExprs); // projection expressions, Expression type
-    
 }
 
 static void

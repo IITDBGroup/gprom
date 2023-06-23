@@ -753,7 +753,6 @@ createRecursiveOperator(QueryOperator *unionChild, QueryOperator *recursiveChild
     rec->op.parents = parents;
     rec->op.provAttrs = NULL;
     rec->name = NULL;
-    rec->op.provAttrs = NIL;
 
     return rec;
 }
