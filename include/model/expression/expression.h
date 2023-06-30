@@ -209,7 +209,6 @@ extern AttributeReference *createFullAttrReference (char *name, int fromClause, 
 extern CastExpr *createCastExpr (Node *expr, char *sqlDT, DataType resultDt);
 extern Node *concatExprList (List *exprs);
 extern Node *andExprList (List *exprs);
-extern Node *orExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprList (List *exprs);
 extern Node *orExprs (Node *expr, ...);
