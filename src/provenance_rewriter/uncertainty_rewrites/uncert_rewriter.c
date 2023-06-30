@@ -117,6 +117,9 @@ static QueryOperator *combineRowMinBg(QueryOperator *op);
 static QueryOperator *combinePosToOne(QueryOperator *op);
 static QueryOperator *compressPosRow(QueryOperator *op, int n, char *attr); //n: max number of tuples allowed. attr: attribute name the compress based on.
 
+//Query merging and splitting
+QueryOperator *mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr);
+
 static List *getJoinAttrPair(Node *expr);
 
 static void addRangeAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
@@ -925,6 +928,13 @@ static List *splitRanges(List *ranges){
 	}
 	INFO_LOG("output ranges %s", nodeToString(nb));
 	return nb;
+}
+
+//given two operator and an attribute, merge them into one operator according to the attribute
+QueryOperator *
+mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
+{
+	return op1;
 }
 
 #define STRING_MEDIAN_VALUE "zzzzz"

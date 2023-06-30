@@ -22,3 +22,4 @@ extern Node *removeUncertOpFromExpr(Node *expr);
 extern char *getUncertString(char *in);
 extern char *getUBString(char *in);
 extern char *getLBString(char *in);
+extern QueryOperator *mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr);
