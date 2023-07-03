@@ -940,79 +940,55 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 QueryOperator *
 combineRowByAttr(QueryOperator *op1, char *attr)
 {
-	// op1 is a projection operator
-	// Step 1 : change projExprs ==> keep the attr intact, change the rest into FUNCTION_CALL
-	// Step 2 : imbriqate the projection operator with a aggregation operator
-	// Step 3 : change the aggregation operator's group by clause to be the attr
-	// Step 4 : change the aggregation operator's projection list to be the rest except the attr
-
-
 	// step1
-	//get projExprs of op1
 	List *projExprs = getProjExprsForAllAttrs(op1);
 	List *newProjExprs = NIL;
+	List *aggrExprs = NIL;
 	int len_projExprs = LIST_LENGTH(projExprs);
-	printf("List de projection : %s\n", stringListToString(projExprs));
-	printf("Longueur de la liste de projection : %d\n", len_projExprs);
-	FOREACH(Node, nd, projExprs){
+	FOREACH(AttributeReference, nd, projExprs){
+		aggrExprs = appendToTailOfList(aggrExprs, copyObject(nd));
 		if (len_projExprs == 1) {
-			// create a function call
-			// create a list of arguments
-			List *args = NIL;
-			printf("noeud courant : %s\n", beatify(nodeToString(nd)));
-			printf("Recherche de %s dans %s\n",((AttributeReference *)nd)->name,beatify(nodeToString(op1)));
-			args = appendToTailOfList(args, getAttrRefByName(op1,((AttributeReference *)nd)->name));
-			// create a function name
-			char *funcname = CONCAT_STRINGS("ARRAY[sum(",((AttributeReference *)nd)->name,"[1]),sum(",((AttributeReference *)nd)->name,")[2]]");
+			List *args = NIL; // TODO : add args HERE
+			char *funcname = CONCAT_STRINGS("ARRAY[sum(",((AttributeReference *)nd)->name,"[1]),sum(",((AttributeReference *)nd)->name,"[2])]"); // ERROR HERE cause a function is call with <funcname>(<args>)
 			FunctionCall *fc = createFunctionCall(funcname, args);
 			newProjExprs = appendToTailOfList(newProjExprs, fc);
 		}
 		else
 		{
-			if(isA(nd,AttributeReference && strcmp(((AttributeReference *)nd)->name,attr)==0)){
+			if(isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0){
 					newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));
 			}
 			else {
-				// create a function call
-				// create a list of arguments
-				List *args = NIL;
-				args = appendToTailOfList(args, getAttrRefByName(op1,((AttributeReference *)nd)->name));
-				// create a function name
-				char *funcname = CONCAT_STRINGS("ARRAY[min(",((AttributeReference *)nd)->name,"[1]),max(",((AttributeReference *)nd)->name,"[2])]");
+				List *args = NIL; // TODO : add args HERE
+				char *funcname = CONCAT_STRINGS("ARRAY[min(",((AttributeReference *)nd)->name,"[1]),max(",((AttributeReference *)nd)->name,"[2])] "); // ERROR HERE cause a function is call with <funcname>(<args>)
 				FunctionCall *fc = createFunctionCall(funcname, args);
 				newProjExprs = appendToTailOfList(newProjExprs, fc);
 			}
 		}
 		len_projExprs--;
 	}
+	
 	ProjectionOperator *newProj = createProjectionOp(newProjExprs,op1,NIL,getQueryOperatorAttrNames(op1));
 	switchSubtrees(op1, (QueryOperator*)newProj);
 	op1->parents = singleton(newProj);
 	setStringProperty((QueryOperator*)newProj, UNCERT_MAPPING_PROP,
 					  copyObject(getStringProperty(op1, UNCERT_MAPPING_PROP)));// DON't KNOW IF THIS IS CORRECT
-	markUncertAttrsAsProv((QueryOperator*)newProj); // DON't KNOW IF THIS IS CORRECT
 	INFO_OP_LOG("new projection:", newProj);
 
 
 
-	// step2
-	//create a agregation operator group by which contains the new projection operator
+	// step2 /!\ ERROR HERE /!\ cause segfault during execution even if the operator tree seems correct
 	List *groupby = NIL;
 	groupby = appendToTailOfList(groupby, getAttrRefByName((QueryOperator*)newProj,attr));
-	AggregationOperator *agg = createAggregationOp(singleton(groupby), NIL, (QueryOperator*)newProj, NIL, NIL);
-	switchSubtrees(op1, (QueryOperator*)agg);
-	op1->parents = singleton(agg);
+	List *attrNames = getQueryOperatorAttrNames((QueryOperator*)newProj);
+	AggregationOperator *agg = createAggregationOp(aggrExprs, groupby, (QueryOperator*)newProj, NIL, attrNames);
+	switchSubtrees((QueryOperator*)newProj, (QueryOperator*)agg);
+	((QueryOperator*)newProj)->parents = singleton(agg);
 	setStringProperty((QueryOperator*)agg, UNCERT_MAPPING_PROP,
-					  copyObject(getStringProperty(op1, UNCERT_MAPPING_PROP)));// DON't KNOW IF THIS IS CORRECT
-	markUncertAttrsAsProv((QueryOperator*)agg); // DON't KNOW IF THIS IS CORRECT
+	 				  copyObject(getStringProperty((QueryOperator*)newProj, UNCERT_MAPPING_PROP)));
 	INFO_OP_LOG("new aggregation:", agg);
 
-	// step 3
-	
-	// step 4
-
-
-	return op1;
+	return (QueryOperator*) agg;
 }
 
 #define STRING_MEDIAN_VALUE "zzzzz"
