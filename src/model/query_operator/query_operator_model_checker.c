@@ -28,6 +28,7 @@ static boolean checkSchemaConsistency (QueryOperator *op, void *context);
 static boolean checkForDatastructureReuse (QueryOperator *op, void *context);
 static boolean checkReuseVisitor (Node *node, void *context);
 static boolean checkRecursiveOperatorCalledOnce (QueryOperator *op, char *viewName);
+static boolean checkRecursiveInfiniteLoop(Node *op);
 static int treeCountFromName(Node *op, char *viewName);
 
 
@@ -370,6 +371,11 @@ checkSchemaConsistency (QueryOperator *op, void *context)
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+            // check in the subtrees that there is at a moment a WHERE clause and in that WHERE clause there is at least a non-constant value so that there is non infinite loop
+            if (!checkRecursiveInfiniteLoop((Node*) op))
+            {
+                ERROR_LOG("Potential infinite loop detected\n");
+            }
 
         }
         break;
@@ -630,4 +636,10 @@ treeCountFromName(Node *op, char *viewName)
         return treeCountFromName((Node *)OP_LCHILD(op), viewName) + treeCountFromName((Node *)OP_RCHILD(op), viewName);
     else 
         return treeCountFromName((Node *)OP_LCHILD(op), viewName);
-}  
+}
+
+static boolean 
+checkRecursiveInfiniteLoop(Node *op)
+{
+    return TRUE;
+}
