@@ -389,6 +389,7 @@ copyFunctionCall(FunctionCall *from, OperatorMap **opMap)
     COPY_NODE_FIELD(args);
     COPY_SCALAR_FIELD(isAgg);
     COPY_SCALAR_FIELD(isDistinct);
+    COPY_SCALAR_FIELD(isArrayAccess);
 
     return new;
 }

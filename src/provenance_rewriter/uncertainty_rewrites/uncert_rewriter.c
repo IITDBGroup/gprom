@@ -930,52 +930,41 @@ static List *splitRanges(List *ranges){
 	return nb;
 }
 
-//given two operator and an attribute, merge them into one operator according to the attribute
-QueryOperator *
-mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
-{
-	return op1;
-}
 
 QueryOperator *
-combineRowByAttr(QueryOperator *op1, char *attr)
+combineRowByAttr(QueryOperator *op, char *attr)
 {
-	// step1 create a projection operator to add the function call
-	List *projExprs = getProjExprsForAllAttrs(op1);
+	//create a projection operator to add the function call
+	List *projExprs = getProjExprsForAllAttrs(op);
 	List *newProjExprs = NIL;
 	List *aggrExprs = NIL;
 	int len_projExprs = LIST_LENGTH(projExprs);
 	FOREACH(AttributeReference, nd, projExprs){
 		aggrExprs = appendToTailOfList(aggrExprs, copyObject(nd));
 		if (len_projExprs == 1) {
-			List *args = NIL; // TODO : add args HERE
+			List *args = NIL;
 			char *funcname = CONCAT_STRINGS("ARRAY[sum(",((AttributeReference *)nd)->name,"[1]),sum(",((AttributeReference *)nd)->name,"[2])]"); // ERROR HERE cause a function is call with <funcname>(<args>)
-			FunctionCall *fc = createFunctionCall(funcname, args);
+			FunctionCall *fc = createFunctionCallArrayAccess(funcname, args);
 			newProjExprs = appendToTailOfList(newProjExprs, fc);
 		}
-		else
-		{
-			if(isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0){
-					newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));
-			}
-			else {
-				List *args = NIL; // TODO : add args HERE
-				char *funcname = CONCAT_STRINGS("ARRAY[min(",((AttributeReference *)nd)->name,"[1]),max(",((AttributeReference *)nd)->name,"[2])] "); // ERROR HERE cause a function is call with <funcname>(<args>)
-				FunctionCall *fc = createFunctionCall(funcname, args);
-				newProjExprs = appendToTailOfList(newProjExprs, fc);
-			}
+		else if (isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0) {
+				newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));
+		}
+		else {
+			List *args = NIL;
+			char *funcname = CONCAT_STRINGS("ARRAY[min(",((AttributeReference *)nd)->name,"[1]),max(",((AttributeReference *)nd)->name,"[2])] "); // ERROR HERE cause a function is call with <funcname>(<args>)
+			FunctionCall *fc = createFunctionCallArrayAccess(funcname, args);
+			newProjExprs = appendToTailOfList(newProjExprs, fc);
 		}
 		len_projExprs--;
 	}
 	
-	ProjectionOperator *newProj = createProjectionOp(newProjExprs,op1,NIL,getQueryOperatorAttrNames(op1));
-	switchSubtrees(op1, (QueryOperator*)newProj);
-	op1->parents = singleton(newProj);
+	ProjectionOperator *newProj = createProjectionOp(newProjExprs,op,NIL,getQueryOperatorAttrNames(op));
+	switchSubtrees(op, (QueryOperator*)newProj);
+	op->parents = singleton(newProj);
 	INFO_OP_LOG("new projection:", newProj);
 
-
-
-	// step2 create an aggregation operator for the group by
+	//create an aggregation operator for the group by
 	List *groupby = NIL;
 	groupby = appendToTailOfList(groupby, getAttrRefByName((QueryOperator*)newProj,attr));
 	List *attrNames = getQueryOperatorAttrNames((QueryOperator*)newProj);
@@ -984,16 +973,31 @@ combineRowByAttr(QueryOperator *op1, char *attr)
 	((QueryOperator*)newProj)->parents = singleton(agg);
 	INFO_OP_LOG("new aggregation:", agg);
 
-	// step3 imbriquate the agregation operator with a projection operator
+	//imbriquate the agregation operator with a projection operator
 	ProjectionOperator *newProj2 = createProjectionOp(aggrExprs,(QueryOperator*)agg,NIL,attrNames);
 	switchSubtrees((QueryOperator*)agg, (QueryOperator*)newProj2);
 	((QueryOperator*)agg)->parents = singleton(newProj2);
 	agg->op.parents = singleton(newProj2);
 	INFO_OP_LOG("new projection:", newProj2);
 
-
 	return (QueryOperator*) newProj2;
+}
 
+//given two operator and an attribute, merge them into one operator according to the attribute
+QueryOperator *
+mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
+{
+    QueryOperator *mergeOp1 = NULL;
+    QueryOperator *mergeOp2 = NULL;
+    if (strcmp(attr, "ID") != 0)
+    {
+        mergeOp1 = combineRowByAttr(op1, attr);
+        mergeOp2 = combineRowByAttr(op2, attr);
+    }
+    mergeOp1 = mergeOp2;
+    mergeOp2 = mergeOp1;
+    //todo
+    return mergeOp1;
 }
 
 #define STRING_MEDIAN_VALUE "zzzzz"

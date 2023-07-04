@@ -13,6 +13,7 @@ typedef struct FunctionCall {
     List *args;
     boolean isAgg;
     boolean isDistinct;
+    boolean isArrayAccess;
 } FunctionCall;
 
 typedef struct Operator {
@@ -201,6 +202,7 @@ typedef struct QuantifiedComparison {
 
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
+extern FunctionCall *createFunctionCallArrayAccess(char *fname, List *args);
 extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,

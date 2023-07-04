@@ -414,6 +414,7 @@ hashFunctionCall (uint64_t cur, FunctionCall *node)
     HASH_NODE(args);
     HASH_BOOLEAN(isAgg);
     HASH_BOOLEAN(isDistinct);
+    HASH_BOOLEAN(isArrayAccess);
 
     HASH_RETURN();
 }
