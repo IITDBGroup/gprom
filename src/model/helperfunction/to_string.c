@@ -635,6 +635,7 @@ outFunctionCall (StringInfo str, FunctionCall *node)
     WRITE_NODE_FIELD(args);
     WRITE_BOOL_FIELD(isAgg);
     WRITE_BOOL_FIELD(isDistinct);
+    WRITE_BOOL_FIELD(isArrayAccess);
 }
 
 static void

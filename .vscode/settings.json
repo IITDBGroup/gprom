@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "*.embeddedhtml": "html",
-        "sql_serializer_dl.h": "c"
+        "sql_serializer_dl.h": "c",
+        "operator_property.h": "c",
+        "uncert_rewriter.h": "c"
     }
 }

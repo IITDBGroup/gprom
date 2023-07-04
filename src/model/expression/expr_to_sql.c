@@ -134,7 +134,8 @@ functionCallToSQL (StringInfo str, FunctionCall *node, HashMap *nestedSubqueries
     else
         appendStringInfoString(str, node->functionname);
 
-    appendStringInfoString(str, "(");
+    if(!node->isArrayAccess)
+        appendStringInfoString(str, "(");
     if (node->isDistinct)
     {
         appendStringInfoString(str, "DISTINCT ");
@@ -173,7 +174,8 @@ functionCallToSQL (StringInfo str, FunctionCall *node, HashMap *nestedSubqueries
         //    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
         //    	exprToSQLString(str, entity);
     }
-    appendStringInfoString(str,")");
+    if(!node->isArrayAccess)
+        appendStringInfoString(str,")");
 
     /*	int flag = 0;
 	if (streq(node->functionname, "AGG_STRAGG"))

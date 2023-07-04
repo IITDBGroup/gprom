@@ -342,6 +342,16 @@ createFunctionCall(char *fName, List *args)
     result->args = args; //should we copy?
     result->isAgg = FALSE;
     result->isDistinct = FALSE;
+    result->isArrayAccess = FALSE;
+
+    return result;
+}
+
+FunctionCall *
+createFunctionCallArrayAccess(char *fName, List *args)
+{
+    FunctionCall *result = createFunctionCall(fName, args);
+    result->isArrayAccess = TRUE;
 
     return result;
 }

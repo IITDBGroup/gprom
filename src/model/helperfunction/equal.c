@@ -421,6 +421,7 @@ equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext
     COMPARE_NODE_FIELD(args);
     COMPARE_SCALAR_FIELD(isAgg);
     COMPARE_SCALAR_FIELD(isDistinct);
+    COMPARE_SCALAR_FIELD(isArrayAccess);
 
     return TRUE;
 }

@@ -30,6 +30,8 @@
 
 #include "parser/parser.h"
 
+
+
 // plugin
 static TranslatorPlugin *plugin = NULL;
 
@@ -55,7 +57,6 @@ translateParse(Node *q)
     NEW_AND_ACQUIRE_MEMCONTEXT("TRANSLATOR_CONTEXT");
     analyzeParseModel(q);
     result = plugin->translateParse(q);
-
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
 }
 
