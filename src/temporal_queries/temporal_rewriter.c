@@ -855,7 +855,7 @@ findNormalizationInQuery(QueryOperator *q, void *c)
     if (q == NULL)
         return TRUE;
 
-    if(MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
+    if(q->properties && MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
         KeyValue *kv = (KeyValue *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
         if(equal((QueryOperator *)contextKv->key, (QueryOperator *)kv->value)) {
             INFO_LOG("located normalization");
