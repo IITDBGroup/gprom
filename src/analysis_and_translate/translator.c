@@ -30,8 +30,6 @@
 
 #include "parser/parser.h"
 
-
-
 // plugin
 static TranslatorPlugin *plugin = NULL;
 

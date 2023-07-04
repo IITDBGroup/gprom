@@ -962,70 +962,66 @@ combineRowByAttr(QueryOperator *op, char *attr, boolean isInternal)
 
 	//create an aggregation operator for the group by
 	List *groupby = NIL;
-	groupby = appendToTailOfList(groupby, getAttrRefByName((QueryOperator*)newProj,attr));
-	List *attrNames = getQueryOperatorAttrNames((QueryOperator*)newProj);
-	AggregationOperator *agg = createAggregationOp(aggrExprs, groupby, (QueryOperator*)newProj, NIL, attrNames);
-	switchSubtrees((QueryOperator*)newProj, (QueryOperator*)agg);
-	((QueryOperator*)newProj)->parents = singleton(agg);
+	groupby = appendToTailOfList(groupby, getAttrRefByName((QueryOperator *)newProj,attr));
+	List *attrNames = getQueryOperatorAttrNames((QueryOperator *)newProj);
+	AggregationOperator *agg = createAggregationOp(aggrExprs, groupby, (QueryOperator *)newProj, NIL, attrNames);
+	switchSubtrees((QueryOperator *)newProj, (QueryOperator *)agg);
+	((QueryOperator *)newProj)->parents = singleton(agg);
 	INFO_OP_LOG("new aggregation:", agg);
 
 	//imbriquate the agregation operator with a projection operator
 	ProjectionOperator *newProj2 = createProjectionOp(aggrExprs,(QueryOperator*)agg,NIL,attrNames);
-	switchSubtrees((QueryOperator*)agg, (QueryOperator*)newProj2);
-	((QueryOperator*)agg)->parents = singleton(newProj2);
+	switchSubtrees((QueryOperator *)agg, (QueryOperator *)newProj2);
+	((QueryOperator *)agg)->parents = singleton(newProj2);
 	agg->op.parents = singleton(newProj2);
 	INFO_OP_LOG("new projection:", newProj2);
 
-	return (QueryOperator*) newProj2;
+	return (QueryOperator *)newProj2;
 }
 
 //given two operator and an attribute, merge them into one operator according to the attribute
 QueryOperator *
 mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 {
-
-	// STEP 1 : merge each operator internally by the attribute
     QueryOperator *mergeOp1 = NULL;
     QueryOperator *mergeOp2 = NULL;
-	// mergeOp1 = op1; // ONLY IN TEST MODE WITH REWRITER.C
-	// mergeOp2 = op2; // ONLY IN TEST MODE WITH REWRITER.C
 
-    // if (strcmp(attr, "ID") != 0) // TODO
+    if (strcmp(attr, "ID") != 0) {
+		mergeOp1 = combineRowByAttr(op1, attr, TRUE);
+		mergeOp2 = combineRowByAttr(op2, attr, TRUE);
+	}
 
-	mergeOp1 = combineRowByAttr(op1, attr, TRUE);
-	mergeOp2 = combineRowByAttr(op2, attr, TRUE);
-
-	// STEP 2 : adding the two operator together using UNION ALL with setOperator
+	//adding the two operator together using UNION ALL with setOperator
 
 	List *attrNames = getQueryOperatorAttrNames(mergeOp1);
-	FOREACH(AttributeDef, a, mergeOp2->schema->attrDefs){
-		if(!searchListString(attrNames, a->attrName)){
+	FOREACH(AttributeDef, a, mergeOp2->schema->attrDefs) {
+		if(!searchListString(attrNames, a->attrName)) {
 			attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
 		}
 	}
 
 	SetOperator *setOp = createSetOperator(SETOP_UNION, LIST_MAKE(mergeOp1, mergeOp2), NIL, attrNames);
-	switchSubtrees(mergeOp1, (QueryOperator*)setOp);
-	switchSubtrees(mergeOp2, (QueryOperator*)setOp);
+	switchSubtrees(mergeOp1, (QueryOperator *)setOp);
+	switchSubtrees(mergeOp2, (QueryOperator *)setOp);
 	mergeOp1->parents = singleton(setOp);
 	mergeOp2->parents = singleton(setOp);
 	INFO_OP_LOG("new set operator:", setOp);
 
-	// STEP 3: Create a projection operator to encapsulate the set operator
+	//Create a projection operator to encapsulate the set operator
 	List *projExprs = getProjExprsForAllAttrs((QueryOperator*)setOp);
 	List *newProjExprs = NIL;
-	FOREACH(AttributeReference, nd, projExprs){
+	FOREACH(AttributeReference, nd, projExprs) {
 		newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));
 	}
-	ProjectionOperator *newProj = createProjectionOp(newProjExprs,(QueryOperator*)setOp,NIL,attrNames);
-	switchSubtrees((QueryOperator*)setOp, (QueryOperator*)newProj);
-	((QueryOperator*)setOp)->parents = singleton(newProj);
+	ProjectionOperator *newProj = createProjectionOp(newProjExprs,(QueryOperator *)setOp,NIL,attrNames);
+	switchSubtrees((QueryOperator *)setOp, (QueryOperator *)newProj);
+	((QueryOperator *)setOp)->parents = singleton(newProj);
 	INFO_OP_LOG("new projection:", newProj);
 
-	// STEP 4 : merge the projection operator
-	QueryOperator *result = combineRowByAttr((QueryOperator*)newProj, attr, FALSE);
+	//merge the projection operator
+	QueryOperator *result = combineRowByAttr((QueryOperator *)newProj, attr, FALSE);
 
-    return (QueryOperator*)result;
+    return (QueryOperator *)result;
 }
 
 #define STRING_MEDIAN_VALUE "zzzzz"

@@ -44,9 +44,6 @@
 
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 
-#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
-
-
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
@@ -553,24 +550,6 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
-    
-    // USE ONLY FOR TEST PURPOSES : combineRowByAttr and mergeQueries
-    
-    // ListCell *r = getHeadOfList((List *) oModel);
-    // ProjectionOperator *p = (ProjectionOperator *) r->data.ptr_value;
-    // QueryOperator * merge = combineRowByAttr((QueryOperator*)p,"a",TRUE);
-    // printf("mergeINTERNAL 1: %s\n", beatify(nodeToString(merge)));
-    // // copy of merge
-    // QueryOperator * merge2 = copyObject(merge);
-    // // change tableName of merge2 to "uadb2"
-    // List *taOp = NIL;
-    // findTableAccessOperator(&taOp, merge2);
-    // TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
-    // ta->tableName = "uadb2";
-    // ((QueryOperator*)ta)->schema->name = "uadb2";
-    // printf("mergeINTERNAL 2: %s\n", beatify(nodeToString(merge2)));
-    // oModel = (Node *) mergeQueries((QueryOperator *)merge, (QueryOperator *)merge2, "a");
-    // printf("mergeQuery: %s\n", beatify(nodeToString(oModel)));
 
     if (IS_OP(oModel))
     {
