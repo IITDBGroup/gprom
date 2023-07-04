@@ -940,7 +940,7 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 QueryOperator *
 combineRowByAttr(QueryOperator *op1, char *attr)
 {
-	// step1
+	// step1 create a projection operator to add the function call
 	List *projExprs = getProjExprsForAllAttrs(op1);
 	List *newProjExprs = NIL;
 	List *aggrExprs = NIL;
@@ -971,24 +971,29 @@ combineRowByAttr(QueryOperator *op1, char *attr)
 	ProjectionOperator *newProj = createProjectionOp(newProjExprs,op1,NIL,getQueryOperatorAttrNames(op1));
 	switchSubtrees(op1, (QueryOperator*)newProj);
 	op1->parents = singleton(newProj);
-	setStringProperty((QueryOperator*)newProj, UNCERT_MAPPING_PROP,
-					  copyObject(getStringProperty(op1, UNCERT_MAPPING_PROP)));// DON't KNOW IF THIS IS CORRECT
 	INFO_OP_LOG("new projection:", newProj);
 
 
 
-	// step2 /!\ ERROR HERE /!\ cause segfault during execution even if the operator tree seems correct
+	// step2 create an aggregation operator for the group by
 	List *groupby = NIL;
 	groupby = appendToTailOfList(groupby, getAttrRefByName((QueryOperator*)newProj,attr));
 	List *attrNames = getQueryOperatorAttrNames((QueryOperator*)newProj);
 	AggregationOperator *agg = createAggregationOp(aggrExprs, groupby, (QueryOperator*)newProj, NIL, attrNames);
 	switchSubtrees((QueryOperator*)newProj, (QueryOperator*)agg);
 	((QueryOperator*)newProj)->parents = singleton(agg);
-	setStringProperty((QueryOperator*)agg, UNCERT_MAPPING_PROP,
-	 				  copyObject(getStringProperty((QueryOperator*)newProj, UNCERT_MAPPING_PROP)));
 	INFO_OP_LOG("new aggregation:", agg);
 
-	return (QueryOperator*) agg;
+	// step3 imbriquate the agregation operator with a projection operator
+	ProjectionOperator *newProj2 = createProjectionOp(aggrExprs,(QueryOperator*)agg,NIL,attrNames);
+	switchSubtrees((QueryOperator*)agg, (QueryOperator*)newProj2);
+	((QueryOperator*)agg)->parents = singleton(newProj2);
+	agg->op.parents = singleton(newProj2);
+	INFO_OP_LOG("new projection:", newProj2);
+
+
+	return (QueryOperator*) newProj2;
+
 }
 
 #define STRING_MEDIAN_VALUE "zzzzz"
