@@ -23,8 +23,8 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
 
-// void createTable(void);
-// void deleteTable(void);
+static PGconn *setupMetadataLookup(void);
+static void deleteTable(PGconn *c);
 
 static rc testCombineRowByAttr1();
 static rc testCombineRowByAttr2();
@@ -77,7 +77,7 @@ setupMetadataLookup(void)
     return c;
 }
 
-void
+static void
 deleteTable(PGconn *c)
 {
     EXEC_CHECK(c, "DROP TABLE uadb1;");
