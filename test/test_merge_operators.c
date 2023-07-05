@@ -20,26 +20,86 @@
 #include "model/query_operator/query_operator.h"
 #include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
+#include "metadata_lookup/metadata_lookup.h"
+#include "metadata_lookup/metadata_lookup_postgres.h"
+
+// void createTable(void);
+// void deleteTable(void);
+
+static rc testCombineRowByAttr1();
+static rc testCombineRowByAttr2();
+static rc testMerge();
+static rc testSplit();
+
+/* plugin init routine */
 
 
-static rc testCombineRowByAttr1(void);
-static rc testCombineRowByAttr2(void);
-static rc testMerge(void);
-static rc testSplit(void);
+#include "libpq-fe.h"
+
+#define ASSERT_OK(res,mes) ASSERT_TRUE(PQresultStatus(res) == PGRES_COMMAND_OK, mes)
+#define EXEC_CHECK(c,query) \
+    do { \
+        PGresult *res_ = PQexec(c,query); \
+        if (PQresultStatus(res_) != PGRES_COMMAND_OK) \
+            DEBUG_LOG("error was: %s", PQresultErrorMessage(res_)); \
+        PQclear(res_); \
+    } while(0)
+
+static PGconn *
+setupMetadataLookup(void)
+{
+    PGconn *c;
+//    PGresult *res = NULL;
+
+    initMetadataLookupPlugins();
+    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
+    initMetadataLookupPlugin();
+
+    c = getPostgresConnection();
+    ASSERT_FALSE(c == NULL, "have working connection");
+
+    EXEC_CHECK(c,"DROP TABLE IF EXISTS uadb1 CASCADE;");
+    EXEC_CHECK(c,"DROP TABLE IF EXISTS uadb2 CASCADE;");
+    EXEC_CHECK(c,"DROP TABLE IF EXISTS u CASCADE;");
+    EXEC_CHECK(c,"DROP TABLE IF EXISTS uadb_merged CASCADE;");
+    
+    EXEC_CHECK(c,"CREATE TABLE uadb1 (A INT, B INT[], row INT[]);");
+    EXEC_CHECK(c,"INSERT INTO uadb1 (A, B, row) VALUES (1, '{1,10}', '{1,1}'), (1, '{25,30}', '{2,3}'), (2, '{1,1}', '{0,1}');");
+    EXEC_CHECK(c,"CREATE TABLE uadb2 ( A INT, B INT[], row INT[] );");
+    EXEC_CHECK(c,"INSERT INTO uadb2 (A, B, row) VALUES (1, '{5,10}', '{1,1}'), (1, '{35,40}', '{0,1}'), (2, '{3,4}', '{1,1}');");
+    EXEC_CHECK(c,"CREATE TABLE u (A INT, B INT[], C INT[], row INT[]);");
+    EXEC_CHECK(c,"INSERT INTO u (A, B, C, row) VALUES (1, '{1,10}', '{3,15}', '{1,1}'), (1, '{25,30}', '{10,22}', '{2,3}'), (2, '{1,1}', '{1,10}', '{0,1}');");
+    EXEC_CHECK(c,"CREATE TABLE uadb_merged (A INT, B INT[], row INT[]);");
+    EXEC_CHECK(c,"INSERT INTO uadb_merged (A, B, row) VALUES (1, '{1,10}', '{1,1}'), (2, '{1,1}', '{0,1}');");
+
+    DEBUG_LOG("Created test tables");
+
+    return c;
+}
+
+void
+deleteTable(PGconn *c)
+{
+    EXEC_CHECK(c, "DROP TABLE uadb1;");
+    EXEC_CHECK(c, "DROP TABLE uadb2;");
+    EXEC_CHECK(c, "DROP TABLE u;");
+    EXEC_CHECK(c, "DROP TABLE uadb_merged;");
+}
 
 rc
 testMergeOperators(void)
 {
-    RUN_TEST(testCombineRowByAttr1(), "test 1 combine row by attribute");
-    RUN_TEST(testCombineRowByAttr2(), "test 2 combine row by attribute");
-    RUN_TEST(testMerge(), "test merge 1");
-    RUN_TEST(testSplit(), "test split 1");
-
+    PGconn *c = setupMetadataLookup();
+    RUN_TEST(testCombineRowByAttr1(c), "test 1 combine row by attribute");
+    RUN_TEST(testCombineRowByAttr2(c), "test 2 combine row by attribute");
+    RUN_TEST(testMerge(c), "test merge 1");
+    RUN_TEST(testSplit(c), "test split 1");
+    deleteTable(c);
     return PASS;
 }
 
 static rc
-testCombineRowByAttr1(void)
+testCombineRowByAttr1()
 {
     QueryOperator *op;
     char *attrName = "a";
@@ -72,7 +132,7 @@ testCombineRowByAttr1(void)
 
 
 static rc
-testCombineRowByAttr2(void)
+testCombineRowByAttr2()
 {
     QueryOperator *op;
     char *attrName = "a";
@@ -104,7 +164,7 @@ testCombineRowByAttr2(void)
 }
 
 static rc
-testMerge(void)
+testMerge()
 {
     QueryOperator *op1;
     QueryOperator *op2;
@@ -142,11 +202,11 @@ testMerge(void)
 }
 
 static rc
-testSplit(void)
+testSplit()
 {
     QueryOperator *op;
     char *attrName = "b";
-    char *command = "SELECT * FROM uadb_merge;";
+    char *command = "SELECT * FROM uadb_merged;";
     char *opToSQL = NULL;
     char *op1ToSQL = NULL;
     char *op2ToSQL = NULL;
