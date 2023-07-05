@@ -1029,7 +1029,48 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 List *
 splitQueries(QueryOperator *op, char *attr)
 {
-	List *result = NIL;
+	QueryOperator *opCopyLeft = copyObject(op);
+
+	//create a projection operator for the left query to add the function call
+	List *projExprs = getProjExprsForAllAttrs(opCopyLeft);
+	List *newProjExprsLeft = NIL;
+	FOREACH(AttributeReference, nd, projExprs) {
+		if (isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0) {
+			List *argsLeft = NIL;
+			char *funcnameLeft = CONCAT_STRINGS("ARRAY[",((AttributeReference *)nd)->name,"[1],FLOOR(((",((AttributeReference *)nd)->name,"[2]-",((AttributeReference *)nd)->name,"[1]+1)/2))] ");
+			FunctionCall *fcLeft = createFunctionCallArrayAccess(funcnameLeft, argsLeft);
+			newProjExprsLeft = appendToTailOfList(newProjExprsLeft, fcLeft);
+		}
+		else {
+			newProjExprsLeft = appendToTailOfList(newProjExprsLeft, copyObject(nd));
+		}
+	}
+	ProjectionOperator *newProjLeft = createProjectionOp(newProjExprsLeft,opCopyLeft,NIL,getQueryOperatorAttrNames(opCopyLeft));
+	switchSubtrees(opCopyLeft, (QueryOperator*)newProjLeft);
+	opCopyLeft->parents = singleton(newProjLeft);
+	INFO_OP_LOG("new projection split Left:", newProjLeft);
+
+
+	QueryOperator *opCopyRight = copyObject(op);
+	//create a projection operator for the right query to add the function call
+	List *newProjExprsRight = NIL;
+	FOREACH(AttributeReference, nd, projExprs) {
+		if (isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0) {
+			List *argsRight = NIL;
+			char *funcnameRight = CONCAT_STRINGS("ARRAY[FLOOR(((",((AttributeReference *)nd)->name,"[2]-",((AttributeReference *)nd)->name,"[1]+1)/2)+1),",((AttributeReference *)nd)->name,"[2]]");
+			FunctionCall *fcRight = createFunctionCallArrayAccess(funcnameRight, argsRight);
+			newProjExprsRight = appendToTailOfList(newProjExprsRight, fcRight);
+		}
+		else {
+			newProjExprsRight = appendToTailOfList(newProjExprsRight, copyObject(nd));
+		}
+	}
+	ProjectionOperator *newProjRight = createProjectionOp(newProjExprsRight,opCopyRight,NIL,getQueryOperatorAttrNames(opCopyRight));
+	switchSubtrees(opCopyRight, (QueryOperator*)newProjRight);
+	opCopyRight->parents = singleton(newProjRight);
+	INFO_OP_LOG("new projection split Right:", newProjRight);
+
+	List *result = LIST_MAKE(opCopyLeft, opCopyRight);
 	return result;
 }
 
