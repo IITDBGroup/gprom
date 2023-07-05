@@ -75,7 +75,7 @@ static rc
 testCombineRowByAttr2(void)
 {
     QueryOperator *op;
-    char *attrName = "a";
+    char *attrName = "b";
     char *command = "SELECT * FROM u;";
     char *resultSQL = NULL; 
     char *opToSQL = NULL;
