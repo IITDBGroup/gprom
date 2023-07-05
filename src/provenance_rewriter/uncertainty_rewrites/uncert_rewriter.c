@@ -930,8 +930,9 @@ static List *splitRanges(List *ranges){
 QueryOperator *
 combineRowByAttr(QueryOperator *op, char *attr, boolean isInternal)
 {
+	QueryOperator *opCopy = copyObject(op); // only if we want to keep the original operator tree intact 
 	//create a projection operator to add the function call
-	List *projExprs = getProjExprsForAllAttrs(op);
+	List *projExprs = getProjExprsForAllAttrs(opCopy);
 	List *newProjExprs = NIL;
 	List *aggrExprs = NIL;
 	int len_projExprs = LIST_LENGTH(projExprs);
@@ -955,9 +956,9 @@ combineRowByAttr(QueryOperator *op, char *attr, boolean isInternal)
 		len_projExprs--;
 	}
 	
-	ProjectionOperator *newProj = createProjectionOp(newProjExprs,op,NIL,getQueryOperatorAttrNames(op));
-	switchSubtrees(op, (QueryOperator*)newProj);
-	op->parents = singleton(newProj);
+	ProjectionOperator *newProj = createProjectionOp(newProjExprs,opCopy,NIL,getQueryOperatorAttrNames(opCopy));
+	switchSubtrees(opCopy, (QueryOperator*)newProj);
+	opCopy->parents = singleton(newProj);
 	INFO_OP_LOG("new projection:", newProj);
 
 	//create an aggregation operator for the group by
@@ -1023,6 +1024,16 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 
     return (QueryOperator *)result;
 }
+
+
+List *
+splitQueries(QueryOperator *op, char *attr)
+{
+	List *result = NIL;
+	return result;
+}
+
+
 
 #define STRING_MEDIAN_VALUE "zzzzz"
 
