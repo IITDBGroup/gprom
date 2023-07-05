@@ -671,7 +671,7 @@ static int
 internalVisitQOGraphLocal (QueryOperator *q, TraversalOrder tOrder,
         int (*visitF) (QueryOperator *op, void *context, Set *haveSeen), void *context, Set *haveSeen)
 {
-    int result;
+    int result = -1;
     if (tOrder == TRAVERSAL_PRE) {
         result = visitF(q, context, haveSeen);
         if(!result) return 0;
@@ -757,7 +757,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
     else if(isA(q, ProjectionOperator)) {
         //  ==== check for projection scehma changes ====================================================
         // compare op schema with projection operation projExprs for reorder & rename
-        // translate the normalization attributes over op to the schema of below the projection operator 
+        // translate the normalization attributes over op to the schema of below the projection operator
         // if no direct attrref (i.e. expr), drop the attr e.g. A := X, B := Y, C := A + B above projection, under projection we have X, Y, but *no* C
         // ==============================================================================================
 
@@ -795,7 +795,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         boolean correlated = TRUE; //TODO
         if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && !correlated) {
             int res = callback(2);
-            
+
             if(res == 1) {
                 FOREACH(QueryOperator, parent, q->parents) {
                     setPropertyInParentCtx(parent, "normalize", normalizationFor);
@@ -816,7 +816,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         }
 
         // normalize R, S join T
-        // --> normalize((normalize(R, S, \emptyset), T, \emptyset) 
+        // --> normalize((normalize(R, S, \emptyset), T, \emptyset)
 
         // normalize(R, S join T, A) and A comes from S
         // --> normalize((normalize(R, S, A), T, \emptyset)
@@ -917,7 +917,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         int res = callback(2);
 
         // guard against entering this rewriting
-        if (res == 1) { 
+        if (res == 1) {
             INFO_LOG("lateral option");
             return tempRewrNestedSubqueryLateralPostFilterTime(op);
         }
@@ -932,7 +932,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         INFO_LOG("subquery option");
         return tempRewrNestedSubqueryCorrelated(op);
     }
-    
+
     if(canStayCorrelated) {
         INFO_LOG("subquery option");
         return tempRewrNestedSubqueryCorrelated(op);
