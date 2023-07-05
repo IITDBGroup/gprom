@@ -30,6 +30,7 @@ static rc testCombineRowByAttr1();
 static rc testCombineRowByAttr2();
 static rc testMerge();
 static rc testSplit();
+static rc testKSelectionSplit(void);
 
 /* plugin init routine */
 
@@ -94,6 +95,7 @@ testMergeOperators(void)
     RUN_TEST(testCombineRowByAttr2(c), "test 2 combine row by attribute");
     RUN_TEST(testMerge(c), "test merge 1");
     RUN_TEST(testSplit(c), "test split 1");
+    RUN_TEST(testKSelectionSplit(), "test k selection split 1");
     deleteTable(c);
     return PASS;
 }
@@ -233,6 +235,31 @@ testSplit()
     execute(op1ToSQL);
     printf("Result table 2 : \n");
     execute(op2ToSQL);
+
+    return PASS;
+}
+
+static rc
+testKSelectionSplit(void)
+{
+    QueryOperator *op;
+    char *attrName = "b";
+    char *command = "SELECT * FROM uadb_merged;";
+    char *opToSQL = NULL;
+
+    Node *t = parseFromString(command);
+    op = (QueryOperator *) getHeadOfList((List *) translateParse(t))->data.ptr_value;
+
+    List *result = splitKSelectionQueries(op, attrName, NIL, 2);
+    if (result == NULL)
+        return FAIL;
+
+    FOREACH(QueryOperator, o, result)
+    {
+        opToSQL = generatePlan((Node *)o, FALSE);
+        printf("Result table : \n");
+        execute(opToSQL);
+    }
 
     return PASS;
 }
