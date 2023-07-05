@@ -75,7 +75,7 @@ static rc
 testCombineRowByAttr2(void)
 {
     QueryOperator *op;
-    char *attrName = "b";
+    char *attrName = "a";
     char *command = "SELECT * FROM u;";
     char *resultSQL = NULL; 
     char *opToSQL = NULL;
@@ -145,7 +145,7 @@ static rc
 testSplit(void)
 {
     QueryOperator *op;
-    char *attrName = "a";
+    char *attrName = "b";
     char *command = "SELECT * FROM uadb1;";
     char *opToSQL = NULL;
     char *op1ToSQL = NULL;
