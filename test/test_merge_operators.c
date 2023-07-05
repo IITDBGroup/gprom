@@ -146,7 +146,7 @@ testSplit(void)
 {
     QueryOperator *op;
     char *attrName = "b";
-    char *command = "SELECT * FROM uadb1;";
+    char *command = "SELECT * FROM uadb_merge;";
     char *opToSQL = NULL;
     char *op1ToSQL = NULL;
     char *op2ToSQL = NULL;
