@@ -421,11 +421,13 @@ adaptAttributeRefs(List* attrRefs, List* parentFroms)
             isFound = findQualifiedAttrRefInFrom(nameParts, a, parentFroms);
         }
         else
-            FATAL_LOG(
-                    "right now attribute names should have at most two parts");
-
+	    {
+            FATAL_LOG("right now attribute names should have at most two parts");
+		}
         if (!isFound)
+		{
             FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
+		}
     }
 }
 
@@ -545,6 +547,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
     INFO_LOG("Collect attribute references done");
     DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
+
 
     // expand list of from clause to use
     parentFroms = appendToHeadOfList(copyList(parentFroms), qb->fromClause);
@@ -819,6 +822,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
             List *aRefs = NIL;
 
             findAttrReferences(j->cond, &aRefs);
+			DEBUG_LOG("Have the following join attribute references: <%s>", nodeToString(aRefs));
 
             // analyze children (if they are joins)
             if (isA(j->left, FromJoinExpr))
@@ -886,7 +890,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
                             }
                         }
                     }
-                    // else serach in right subtree
+                    // else search in right subtree
                     else if (findNamedFromItem(j->right,fromItemName) != NULL)
                     {
                         newFroms = copyList(parentFroms);
@@ -920,6 +924,10 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
                                 beatify(nodeToString(j)));
                     }
                 }
+
+				DEBUG_LOG("Join attribute reference adapted to\n%s\nin join\n%s",
+						  beatify(nodeToString(a)),
+						  beatify(nodeToString(j)));
             }
         }
     }
@@ -935,7 +943,7 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
 
     FOREACH(List,fClause,fromClauses)
     {
-            fromPos = 0;
+        fromPos = 0;
         FOREACH(FromItem, f, fClause)
         {
             attrPos = findAttrInFromItem(f, a);
@@ -951,6 +959,9 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
                     a->attrPosition = attrPos;
                     a->outerLevelsUp = levelsUp;
                     a->attrType = getNthOfListInt(f->dataTypes, attrPos);
+					DEBUG_LOG("Found attribute reference in %s\nadapted it to\n%s",
+							  beatify(nodeToString(f)),
+							  beatify(nodeToString(a)));
                 }
             }
             fromPos++;
@@ -1061,12 +1072,16 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromCl
                     return FALSE;
                 }
                 else
-                {
+				{
                     fromItem = f;
                     leafItem = foundF;
                     a->fromClauseItem = fromClauseItem;
                     a->outerLevelsUp = levelsUp;
                     foundFrom = TRUE;
+					DEBUG_LOG("Found attribute reference in %s\nadaped it to\n%s",
+							  beatify(nodeToString(f)),
+							  beatify(nodeToString(a)));
+
                 }
             }
             fromClauseItem++;
