@@ -959,7 +959,6 @@ combineRowByAttr(QueryOperator *op, char *attr, boolean isInternal)
 	ProjectionOperator *newProj = createProjectionOp(newProjExprs,opCopy,NIL,getQueryOperatorAttrNames(opCopy));
 	switchSubtrees(opCopy, (QueryOperator*)newProj);
 	opCopy->parents = singleton(newProj);
-	INFO_OP_LOG("new projection:", newProj);
 
 	//create an aggregation operator for the group by
 	List *groupby = NIL;
@@ -968,15 +967,14 @@ combineRowByAttr(QueryOperator *op, char *attr, boolean isInternal)
 	AggregationOperator *agg = createAggregationOp(aggrExprs, groupby, (QueryOperator *)newProj, NIL, attrNames);
 	switchSubtrees((QueryOperator *)newProj, (QueryOperator *)agg);
 	((QueryOperator *)newProj)->parents = singleton(agg);
-	INFO_OP_LOG("new aggregation:", agg);
 
 	//imbriquate the agregation operator with a projection operator
 	ProjectionOperator *newProj2 = createProjectionOp(aggrExprs,(QueryOperator*)agg,NIL,attrNames);
 	switchSubtrees((QueryOperator *)agg, (QueryOperator *)newProj2);
 	((QueryOperator *)agg)->parents = singleton(newProj2);
 	agg->op.parents = singleton(newProj2);
-	INFO_OP_LOG("new projection:", newProj2);
 
+	INFO_OP_LOG("combineRowByAttr: after adding projection and aggregation:", newProj2);
 	return (QueryOperator *)newProj2;
 }
 
@@ -984,6 +982,7 @@ combineRowByAttr(QueryOperator *op, char *attr, boolean isInternal)
 QueryOperator *
 mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 {
+	INFO_LOG("mergeQueries: on attribute %s", attr);
     QueryOperator *mergeOp1 = NULL;
     QueryOperator *mergeOp2 = NULL;
 
@@ -991,10 +990,19 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 		mergeOp1 = combineRowByAttr(op1, attr, TRUE);
 		mergeOp2 = combineRowByAttr(op2, attr, TRUE);
 	}
+	else
+		INFO_LOG("mergeQueries: merge on 'ID' attribute means to not trigger the internal merges of the two queries");
 
 	//adding the two operator together using UNION ALL with setOperator
 
 	List *attrNames = getQueryOperatorAttrNames(mergeOp1);
+
+	// check there are minimum 3 attributes
+	if (LIST_LENGTH(attrNames) < 3) {
+		ERROR_LOG("mergeQueries: need at least 3 attributes");
+		ERROR_LOG("mergeQueries: the last attribute : %s is considered as the multiplicity attribute", (char *)getTailOfListP(attrNames));
+	}
+
 	FOREACH(AttributeDef, a, mergeOp2->schema->attrDefs) {
 		if(!searchListString(attrNames, a->attrName)) {
 			attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
@@ -1006,7 +1014,6 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 	switchSubtrees(mergeOp2, (QueryOperator *)setOp);
 	mergeOp1->parents = singleton(setOp);
 	mergeOp2->parents = singleton(setOp);
-	INFO_OP_LOG("new set operator:", setOp);
 
 	//Create a projection operator to encapsulate the set operator
 	List *projExprs = getProjExprsForAllAttrs((QueryOperator*)setOp);
@@ -1017,10 +1024,10 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 	ProjectionOperator *newProj = createProjectionOp(newProjExprs,(QueryOperator *)setOp,NIL,attrNames);
 	switchSubtrees((QueryOperator *)setOp, (QueryOperator *)newProj);
 	((QueryOperator *)setOp)->parents = singleton(newProj);
-	INFO_OP_LOG("new projection:", newProj);
 
 	//merge the projection operator
 	QueryOperator *result = combineRowByAttr((QueryOperator *)newProj, attr, FALSE);
+	INFO_OP_LOG("mergeQueries: result:", result);
 
     return (QueryOperator *)result;
 }
@@ -1029,6 +1036,15 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
 List *
 splitQueries(QueryOperator *op, char *attr)
 {
+
+	// check that the type of attr is DT_STRING - 2
+
+	AttributeReference *a = getAttrRefByName(op, attr);
+	if (a->attrType != DT_STRING) { // CAUTION ! ARRAY type is not supported so it has the same type as STRING. If user pass a real string attr, execution will fail but no error will be detected here
+		ERROR_LOG("splitQueries: Type of attribute %s is not compatible with ARRAY type", attr);
+		FATAL_LOG("splitQueries: Could not split query");
+	}
+
 	QueryOperator *opCopyLeft = copyObject(op);
 
 	//create a projection operator for the left query to add the function call
@@ -1048,7 +1064,7 @@ splitQueries(QueryOperator *op, char *attr)
 	ProjectionOperator *newProjLeft = createProjectionOp(newProjExprsLeft,opCopyLeft,NIL,getQueryOperatorAttrNames(opCopyLeft));
 	switchSubtrees(opCopyLeft, (QueryOperator*)newProjLeft);
 	opCopyLeft->parents = singleton(newProjLeft);
-	INFO_OP_LOG("new projection split Left:", newProjLeft);
+	INFO_OP_LOG("splitQueries: new projection split Left:", newProjLeft);
 
 
 	QueryOperator *opCopyRight = copyObject(op);
@@ -1068,9 +1084,9 @@ splitQueries(QueryOperator *op, char *attr)
 	ProjectionOperator *newProjRight = createProjectionOp(newProjExprsRight,opCopyRight,NIL,getQueryOperatorAttrNames(opCopyRight));
 	switchSubtrees(opCopyRight, (QueryOperator*)newProjRight);
 	opCopyRight->parents = singleton(newProjRight);
-	INFO_OP_LOG("new projection split Right:", newProjRight);
+	INFO_OP_LOG("splitQueries: new projection split Right:", newProjRight);
 
-	List *result = LIST_MAKE(opCopyLeft, opCopyRight);
+	List *result = LIST_MAKE(newProjLeft, newProjRight);
 	return result;
 }
 
