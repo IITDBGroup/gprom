@@ -1090,6 +1090,76 @@ splitQueries(QueryOperator *op, char *attr)
 }
 
 
+List *
+splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSplit)
+{
+	// check that the type of attr is DT_STRING - 2
+	AttributeReference *a = getAttrRefByName(op, attr);
+	if (a->attrType != DT_STRING) { // CAUTION ! ARRAY type is not supported so it has the same type as STRING. If user pass a real string attr, execution will fail but no error will be detected here
+		ERROR_LOG("splitQueries: Type of attribute %s is not compatible with ARRAY type", attr);
+		FATAL_LOG("splitQueries: Could not split query");
+	}
+
+	//split the whereEqual tuple of op into nbSplit queries on attribute attr
+
+
+	// create a selection operator with the whereEqual condition
+	SelectionOperator *selOp = createSelectionOp(whereEqual, op, NIL, getQueryOperatorAttrNames(op));
+	switchSubtrees(op, (QueryOperator *)selOp);
+	op->parents = singleton(selOp);
+	INFO_OP_LOG("splitQueries: new selection:", selOp);
+	
+
+	List *splitQueries = NIL;
+	char *start = CONCAT_STRINGS(attr,"[1]");
+	char *end = CONCAT_STRINGS("FLOOR(((",attr,"[2]-",attr,"[1])/", gprom_itoa(nbSplit),"))");
+	for (int i=0; i<nbSplit; i++)
+	{
+		QueryOperator *selOpCopy = copyObject(selOp);
+		//create a projection operator for the query to add the function call
+		List *projExprs = getProjExprsForAllAttrs(selOpCopy);
+		List *newProjExprs = NIL;
+		FOREACH(AttributeReference, nd, projExprs) {
+			if (isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0) {
+				List *args = NIL;
+				char *funcname;
+				if (i == nbSplit-1)
+					funcname = CONCAT_STRINGS("ARRAY[",start,"+1+",gprom_itoa(i),"*",end,"," ,attr,"[2]]");
+				else if (i == 0)
+					funcname = CONCAT_STRINGS("ARRAY[",start,"+",gprom_itoa(i),"*",end,",",start,"+",gprom_itoa(i+1),"*",end,"]");
+				else 
+					funcname = CONCAT_STRINGS("ARRAY[",start,"+1+",gprom_itoa(i),"*",end,",",start,"+",gprom_itoa(i+1),"*",end,"]");
+				FunctionCall *fc = createFunctionCallArrayAccess(funcname, args);
+				newProjExprs = appendToTailOfList(newProjExprs, fc);
+			}
+			else {
+				newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));
+			}
+		}
+		ProjectionOperator *newProj = createProjectionOp(newProjExprs,selOpCopy,NIL,getQueryOperatorAttrNames(selOpCopy));
+		switchSubtrees(selOpCopy, (QueryOperator*)newProj);
+		selOpCopy->parents = singleton(newProj);
+		INFO_OP_LOG("splitQueries: new projection split:", newProj);
+
+
+
+		// // create a selection operator with the oposite of the whereEqual condition
+		// Node *whereNotEqual = (Node *) createOpExpr(OPNAME_NEQ, LIST_MAKE(createFullAttrReference(attr, 0, 0, 0, NULL), createConstInt(i+1), NULL));
+		// SelectionOperator *selOpNotEqual = createSelectionOp(whereNotEqual, newProj, NIL, getQueryOperatorAttrNames(newProj));
+		// switchSubtrees(newProj, (QueryOperator *)selOpNotEqual);
+
+		// // create a setOperator with the two selection operators as UNION ALL
+		// SetOperator *setOp = createSetOperator(SETOP_UNION, LIST_MAKE(selOpNotEqual, selOpCopy), NIL, getQueryOperatorAttrNames(selOpCopy));
+		// switchSubtrees(selOpCopy, (QueryOperator *)setOp);
+		// switchSubtrees(selOpNotEqual, (QueryOperator *)setOp);
+		// newProj->parents =
+
+		
+		splitQueries = appendToTailOfList(splitQueries, newProj);
+	}
+	
+	return splitQueries;
+}
 
 #define STRING_MEDIAN_VALUE "zzzzz"
 

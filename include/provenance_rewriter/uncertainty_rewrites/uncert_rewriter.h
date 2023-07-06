@@ -25,3 +25,4 @@ extern char *getLBString(char *in);
 extern QueryOperator *mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr);
 extern QueryOperator *combineRowByAttr(QueryOperator *op1, char *attr, boolean isInternal);
 extern List *splitQueries(QueryOperator *op, char *attr);
+extern List *splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSplit);
