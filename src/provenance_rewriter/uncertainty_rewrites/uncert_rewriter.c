@@ -1038,7 +1038,6 @@ splitQueries(QueryOperator *op, char *attr)
 {
 
 	// check that the type of attr is DT_STRING - 2
-
 	AttributeReference *a = getAttrRefByName(op, attr);
 	if (a->attrType != DT_STRING) { // CAUTION ! ARRAY type is not supported so it has the same type as STRING. If user pass a real string attr, execution will fail but no error will be detected here
 		ERROR_LOG("splitQueries: Type of attribute %s is not compatible with ARRAY type", attr);
