@@ -1093,6 +1093,16 @@ splitQueries(QueryOperator *op, char *attr)
 List *
 splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSplit)
 {
+	if (nbSplit < 0) {
+		ERROR_LOG("splitQueries: need at least 1 splits");
+		FATAL_LOG("splitQueries: Could not split query");
+	}
+	else if (nbSplit == 0) {
+		return NIL;
+	}
+	else if (nbSplit == 1) {
+		return singleton(op);
+	}
 	// check that the type of attr is DT_STRING - 2
 	AttributeReference *a = getAttrRefByName(op, attr);
 	if (a->attrType != DT_STRING) { // CAUTION ! ARRAY type is not supported so it has the same type as STRING. If user pass a real string attr, execution will fail but no error will be detected here
@@ -1103,11 +1113,12 @@ splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSp
 	//split the whereEqual tuple of op into nbSplit queries on attribute attr
 
 
+	SelectionOperator *selOp = copyObject(op);
 	// create a selection operator with the whereEqual condition
-	SelectionOperator *selOp = createSelectionOp(whereEqual, op, NIL, getQueryOperatorAttrNames(op));
-	switchSubtrees(op, (QueryOperator *)selOp);
-	op->parents = singleton(selOp);
-	INFO_OP_LOG("splitQueries: new selection:", selOp);
+	// SelectionOperator *selOp = createSelectionOp(whereEqual, op, NIL, getQueryOperatorAttrNames(op));
+	// switchSubtrees(op, (QueryOperator *)selOp);
+	// op->parents = singleton(selOp);
+	// INFO_OP_LOG("splitQueries: new selection:", selOp);
 	
 
 	List *splitQueries = NIL;
@@ -1120,7 +1131,8 @@ splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSp
 		List *projExprs = getProjExprsForAllAttrs(selOpCopy);
 		List *newProjExprs = NIL;
 		FOREACH(AttributeReference, nd, projExprs) {
-			if (isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0) {
+			char *curAttr = ((AttributeReference *)nd)->name;
+			if (isA(nd,AttributeReference) && strcmp(curAttr,attr)==0) {
 				List *args = NIL;
 				char *funcname;
 				if (i == nbSplit-1)
@@ -1130,7 +1142,8 @@ splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSp
 				else 
 					funcname = CONCAT_STRINGS("ARRAY[",start,"+1+",gprom_itoa(i),"*",end,",",start,"+",gprom_itoa(i+1),"*",end,"]");
 				FunctionCall *fc = createFunctionCallArrayAccess(funcname, args);
-				newProjExprs = appendToTailOfList(newProjExprs, fc);
+				CaseExpr *ce = createCaseExpr(NULL, singleton(createCaseWhen(whereEqual, (Node *)fc)), (Node *)nd);
+				newProjExprs = appendToTailOfList(newProjExprs, ce);
 			}
 			else {
 				newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));

@@ -71,7 +71,7 @@ setupMetadataLookup(void)
     EXEC_CHECK(c,"CREATE TABLE u (A INT, B INT[], C INT[], row INT[]);");
     EXEC_CHECK(c,"INSERT INTO u (A, B, C, row) VALUES (1, '{1,10}', '{3,15}', '{1,1}'), (1, '{25,30}', '{10,22}', '{2,3}'), (2, '{1,1}', '{1,10}', '{0,1}');");
     EXEC_CHECK(c,"CREATE TABLE uadb_merged (A INT, B INT[], row INT[]);");
-    EXEC_CHECK(c,"INSERT INTO uadb_merged (A, B, row) VALUES (1, '{1,10}', '{1,1}'), (2, '{1,1}', '{0,1}');");
+    EXEC_CHECK(c,"INSERT INTO uadb_merged (A, B, row) VALUES (1, '{1,10}', '{1,1}'), (2, '{1,1}', '{0,1}'), (3, '{1,2}', '{0,1}');");
 
     DEBUG_LOG("Created test tables");
 
@@ -249,16 +249,22 @@ testKSelectionSplit(void)
 
     Node *t = parseFromString(command);
     op = (QueryOperator *) getHeadOfList((List *) translateParse(t))->data.ptr_value;
+    Node *whereEqual = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(createConstInt(1),getAttrRefByName(op,"a")));
 
-    List *result = splitKSelectionQueries(op, attrName, NULL, 3);
+    List *result = splitKSelectionQueries(op, attrName, whereEqual, 3);
     if (result == NULL)
         return FAIL;
 
+    opToSQL = generatePlan((Node *)op, FALSE);
+    printf("Initial table : \n");
+    execute(opToSQL);
+    int i = 1;
     FOREACH(QueryOperator, o, result)
     {
         opToSQL = generatePlan((Node *)o, FALSE);
-        printf("Result table : \n");
+        printf("Result table %d : \n", i);
         execute(opToSQL);
+        ++i;
     }
 
     return PASS;
