@@ -250,7 +250,7 @@ testKSelectionSplit(void)
     Node *t = parseFromString(command);
     op = (QueryOperator *) getHeadOfList((List *) translateParse(t))->data.ptr_value;
 
-    List *result = splitKSelectionQueries(op, attrName, NIL, 2);
+    List *result = splitKSelectionQueries(op, attrName, NULL, 3);
     if (result == NULL)
         return FAIL;
 
