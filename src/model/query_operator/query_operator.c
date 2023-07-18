@@ -1559,6 +1559,17 @@ getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery) // b
 	return result;
 }
 
+Set *
+getCorrelatedAttributes(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
+{
+	Set *result = STRSET();
+	CorrelatedAttrsState state = { 1, result, corrInSubquery };
+
+	findCorrelatedAttrsVisitor((Node *)op, &state);
+
+	return result;
+}
+
 
 static boolean
 findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)

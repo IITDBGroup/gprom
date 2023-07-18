@@ -734,12 +734,6 @@ setPropertyInParentCtx (QueryOperator *q, char *key, Node *value)
     ACQUIRE_MEM_CONTEXT(ctxt);
 }
 
-// static int
-// correlationPresentBelow(QueryOperator *q, void *context)
-// {
-//     return 4;
-// }
-
 static int
 pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 {
@@ -752,7 +746,41 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
     if(isA(q, SelectionOperator)) {
         //SELECT * FROM r WHERE EXISTS (SELECT * FROM s WHERE r.a = s.b)
         // pass directly through
-        // return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
+
+        // equality with correlation ok if all operators above are AND 
+        List *condOperators = NIL;
+        getSelectionCondOperatorList(((SelectionOperator*)q)->cond, &condOperators);
+
+        // boolean hasOr = FALSE;
+        // if(streq(((Operator *)getHeadOfListP(condOperators))->name, OPNAME_OR)) {
+        //     hasOr = TRUE;
+        // }
+
+        // o.A = i.B + 5
+
+        List *normalizationAttrs = (List *)(normalizationCopy->key);
+
+        boolean eqWithCorrelated = FALSE;
+        FOREACH(Operator, op, condOperators) {
+            if(streq(op->name, OPNAME_EQ) && isA(getHeadOfListP(op->args), AttributeReference) && isA(getTailOfListP(op->args), AttributeReference)) {
+                Set *correlatedAttrs = getCorrelatedAttributes((Node*)op, TRUE);                
+                eqWithCorrelatedNoOrAbove |= !setSize(correlatedAttrs);
+
+                FOREACH_SET(AttributeReference, attr, correlatedAttrs) {
+                    normalizationAttrs = appendToTailOfList(normalizationAttrs, attr);
+                }
+            }
+        }
+
+        // safest option: no correlated attributes, child is table access, then we can normalize with the selection instead of pushing down
+        boolean tableAccessChild = (isA(OP_LCHILD(q), ProjectionOperator) && isA(OP_LCHILD(OP_LCHILD(q)), TableAccessOperator)) || isA(OP_LCHILD(q), TableAccessOperator);
+        boolean here = (!setSize(getCorrelatedAttributes((Node*)q, TRUE)) || eqWithCorrelatedNoOrAbove)  && tableAccessChild;
+
+        if(here) {
+            setPropertyInParentCtx(q, "normalize", normalizationFor);
+            INFO_OP_LOG("tagged operator", q);
+            return 1;
+        }
     }
     else if(isA(q, ProjectionOperator)) {
         //  ==== check for projection scehma changes ====================================================
@@ -792,7 +820,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         // rules
 
         // cardinality estimation: sometimes its better to leave above (unless there are correlations below, in which case we must push down still)
-        boolean correlated = TRUE; //TODO
+        boolean correlated = !setSize(getCorrelatedAttributes((Node*)q, TRUE));
         if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && !correlated) {
             int res = callback(2);
             
