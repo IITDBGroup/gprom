@@ -213,6 +213,54 @@ getTailOfListInt(List *list)
     return tail ? tail->data.int_value : -1;
 }
 
+ListCell *
+popTailOfList(List *list)
+{
+    ListCell *result = LIST_LENGTH(list) > 0 ? list->tail : NULL;
+	ListCell *prev = list->head;
+
+	// find cell before tail
+	for(; prev->next && prev->next != list->tail; prev = prev->next)
+	{
+
+	}
+
+    if (LIST_LENGTH(list) > 0)
+    {
+        list->length--;
+        if(LIST_LENGTH(list) == 1)
+        {
+            list->head = list->tail = NULL;
+        }
+		else
+		{
+			list->tail = prev;
+			prev->next = NULL;
+		}
+
+    }
+
+    return result;
+}
+
+void *
+popTailOfListP (List *list)
+{
+    ASSERT(isPtrList(list));
+    ListCell *tail;
+    void *result = NULL;
+
+    tail = popTailOfList(list);
+    if (tail != NULL)
+    {
+        result = tail->data.ptr_value;
+        FREE(tail);
+    }
+
+    return result;
+}
+
+
 void *
 getNthOfListP(List *list, int n)
 {
@@ -800,7 +848,7 @@ listPosInt(List *list, int val)
 {
    ASSERT(isIntList(list));
    int pos = 0;
-   
+
    FOREACH_INT(item,list)
    {
 	   if (item == val)
