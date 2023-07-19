@@ -738,6 +738,7 @@ static int
 pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 {
     Node *normalizationFor = context;
+	KeyValue *normalizationCopy = NULL;
 
     if (q == NULL) {
         return 0;
@@ -747,7 +748,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         //SELECT * FROM r WHERE EXISTS (SELECT * FROM s WHERE r.a = s.b)
         // pass directly through
 
-        // equality with correlation ok if all operators above are AND 
+        // equality with correlation ok if all operators above are AND
         List *condOperators = NIL;
         getSelectionCondOperatorList(((SelectionOperator*)q)->cond, &condOperators);
 
@@ -760,10 +761,12 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 
         List *normalizationAttrs = (List *)(normalizationCopy->key);
 
-        boolean eqWithCorrelated = FALSE;
+        /* boolean eqWithCorrelated = FALSE; */
+		boolean eqWithCorrelatedNoOrAbove = FALSE;
+
         FOREACH(Operator, op, condOperators) {
             if(streq(op->name, OPNAME_EQ) && isA(getHeadOfListP(op->args), AttributeReference) && isA(getTailOfListP(op->args), AttributeReference)) {
-                Set *correlatedAttrs = getCorrelatedAttributes((Node*)op, TRUE);                
+                Set *correlatedAttrs = getCorrelatedAttributes((Node*)op, TRUE);
                 eqWithCorrelatedNoOrAbove |= !setSize(correlatedAttrs);
 
                 FOREACH_SET(AttributeReference, attr, correlatedAttrs) {
