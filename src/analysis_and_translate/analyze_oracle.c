@@ -70,6 +70,16 @@ static boolean findAttrRefInFrom (AttributeReference *a, List *fromClauses);
 static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
 static int findAttrInFromItem (FromItem *fromItem, AttributeReference *attr);
 static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromClauses);
+static void logFromClauses(char *mes, List *fromClauses, LogLevel l);
+
+#define DEBUG_LOG_FROM_CLAUSES(_mes, _fromClauses) \
+do { \
+  if (maxLevel >= LOG_DEBUG) \
+  logFromClauses(_mes,_fromClauses, LOG_DEBUG); \
+} while (0)
+
+
+
 
 // analyze from item types
 static void analyzeFromTableRef(FromTableRef *f);
@@ -838,14 +848,15 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
                 boolean isFound = FALSE;
                 List *newFroms = NIL;
 
-                DEBUG_LOG("attr split: %s", stringListToString(nameParts));
+                DEBUG_LOG("join condition attr split: %s", stringListToString(nameParts));
 
                 // no from item specified, check direct inputs
                 if (LIST_LENGTH(nameParts) == 1)
                 {
                     newFroms = copyList(parentFroms);
-                    newFroms = appendToTailOfList(newFroms, LIST_MAKE(j->left, j->right));
-                    isFound = findAttrRefInFrom(a, newFroms);
+					newFroms = appendToHeadOfList(newFroms, LIST_MAKE(j->left, j->right));
+					DEBUG_LOG("Search join cond attrs in %s", beatify(nodeToString(newFroms)));
+					isFound = findAttrRefInFrom(a, newFroms);
                 }
                 // is R.A, search for table in subtree
                 else if (LIST_LENGTH(nameParts) == 2)
@@ -869,7 +880,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
                     else if (findNamedFromItem(j->left,fromItemName) != NULL)
                     {
                         newFroms = copyList(parentFroms);
-                        newFroms = appendToTailOfList(newFroms, leftLeafs);
+                        newFroms = appendToHeadOfList(newFroms, leftLeafs);
                         isFound = findQualifiedAttrRefInFrom(nameParts, a, newFroms);
 
                         DEBUG_LOG("is in left subtree");
@@ -894,7 +905,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
                     else if (findNamedFromItem(j->right,fromItemName) != NULL)
                     {
                         newFroms = copyList(parentFroms);
-                        newFroms = appendToTailOfList(newFroms, rightLeafs);
+                        newFroms = appendToHeadOfList(newFroms, rightLeafs);
                         isFound = findQualifiedAttrRefInFrom(nameParts, a, newFroms);
 
                         DEBUG_LOG("is in right subtree");
@@ -915,6 +926,15 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
                             }
                         }
                     }
+
+					// we may be inside a nested subquery, if yes, then try again in parent
+					if (LIST_LENGTH(parentFroms) > 0)
+					{
+						DEBUG_LOG("Check whether join attribute %s is a correlated attribute.", stringListToString(nameParts));
+						List *newFroms = copyObject(parentFroms);
+						newFroms = appendToHeadOfList(newFroms, NIL);
+						isFound = findQualifiedAttrRefInFrom(nameParts, a, newFroms);
+					}
 
                     if (!isFound)
                     {
@@ -940,6 +960,8 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
 {
     boolean isFound = FALSE;
     int fromPos = 0, attrPos, levelsUp = 0;
+
+	DEBUG_LOG_FROM_CLAUSES("find attribute in:\n%s", fromClauses);
 
     FOREACH(List,fClause,fromClauses)
     {
@@ -1042,6 +1064,31 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
 }
 
 
+
+static void
+logFromClauses(char *mes, List *fromClauses, LogLevel l)
+{
+	StringInfo str = makeStringInfo();
+	int i = 0;
+
+	FOREACH(List,clause, fromClauses)
+	{
+		appendStringInfo(str,"%u: [", i++);
+		FOREACH(FromItem,f,clause)
+		{
+			appendStringInfo(str, "%s %s", f->name, stringListToString(f->attrNames));
+			if (FOREACH_HAS_MORE(f))
+			{
+				appendStringInfoString(str, ", ");
+			}
+		}
+		appendStringInfoString(str,"]\n");
+	}
+
+	log_(l, __FILE__, __LINE__, mes,  str->data);
+}
+
+
 static boolean
 findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromClauses)
 {
@@ -1055,6 +1102,7 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromCl
     FromItem *leafItem = NULL;
 
     DEBUG_LOG("looking for attribute %s.%s", tabName, attrName);
+	DEBUG_LOG_FROM_CLAUSES("find attribute in:\n%s", fromClauses);
 
     // find table name
     FOREACH(List,fromItems,fromClauses)

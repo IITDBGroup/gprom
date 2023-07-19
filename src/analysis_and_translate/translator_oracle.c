@@ -337,7 +337,7 @@ disambiguiteAttrNames(Node *node, Set *done)
 
             child = (QueryOperator *) getNthOfListP(op->inputs, input);
             childA = getAttrDefByPos(child, attrPos);
-            if (!strpeq(a->name,childA->attrName))
+            if (!strpeq(a->name,childA->attrName) && a->outerLevelsUp == 0) //TODO any corelated referejces to this attribute have to be fixed too!
             {
                 a->name = strdup(childA->attrName);
             }
