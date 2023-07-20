@@ -14,31 +14,51 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
-
+#include "configuration/option.h"
+#include "metadata_lookup/metadata_lookup.h"
+#include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "model/set/set.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
+
+#if HAVE_ORACLE_BACKEND
+#include "ocilib.h"
+#endif
+
 #include "utility/string_utils.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
+#include "configuration/option.h"
 
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer.h"
 
-#define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
+
+//#define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
+#define TEMP_VIEW_NAME_PATTERN "temp_view_%u"
+
 
 static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
-static char *createAttrName (char *name, int fItem);
+static char *createAttrName (char *name, int fItem, FromAttrsContext *fac);
+static HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api);
+static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api);
+static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
+static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr);
+
+
 
 /*
  * create API struct
  */
 
 SerializeClausesAPI *
-createAPIStub (void)
+createAPIStub(void)
 {
     SerializeClausesAPI *api = NEW(SerializeClausesAPI);
 
@@ -54,6 +74,9 @@ createAPIStub (void)
     api->serializeJoinOperator = NULL;
 	api->serializeLimitOperator = genSerializeLimitOperator;
 	api->serializeOrderByOperator = genSerializeOrderByOperator;
+	api->serializeExecPreparedOperator = genSerializeExecPreparedOperator;
+	api->serializePreparedStatment = genSerializePreparedStatement;
+	api->getNestedSerLocations = genGetNestedSerializationLocations;
     api->createTempView = genCreateTempView;
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
@@ -61,8 +84,29 @@ createAPIStub (void)
     return api;
 }
 
+char *
+serLocationsToString(int serloc)
+{
+	StringInfo str = makeStringInfo();
+
+	if(serloc & NEST_SER_SELECTION)
+	{
+		appendStringInfoString(str, "NEST_SER_SELECTION");
+	}
+	if(serloc & NEST_SER_FROM)
+	{
+		appendStringInfo(str, "%sNEST_SER_FROM", (STRINFO_LEN(str) == 0) ? "": ", ");
+	}
+	if(serloc & NEST_SER_SELECT)
+	{
+		appendStringInfo(str, "%sNEST_SER_SELECT", (STRINFO_LEN(str) == 0) ? "": ", ");
+	}
+
+	return str->data;
+}
+
 void
-genQuoteAttributeNames (Node *q)
+genQuoteAttributeNames(Node *q)
 {
     // quote ident names if necessary
     ASSERT(IS_OP(q) || isA(q,List));
@@ -76,13 +120,13 @@ genQuoteAttributeNames (Node *q)
 }
 
 static boolean
-quoteAttributeNamesVisitQO (QueryOperator *op, void *context)
+quoteAttributeNamesVisitQO(QueryOperator *op, void *context)
 {
     return quoteAttributeNames((Node *) op, op);
 }
 
 static boolean
-quoteAttributeNames (Node *node, void *context)
+quoteAttributeNames(Node *node, void *context)
 {
      if (node == NULL)
         return TRUE;
@@ -110,11 +154,146 @@ quoteAttributeNames (Node *node, void *context)
     return visit(node, quoteAttributeNames, context);
 }
 
+FromAttrsContext *
+initializeFromAttrsContext()
+{
+  	struct FromAttrsContext *fac;
+  	fac =  CALLOC(sizeof(FromAttrsContext),1);
+  	fac->fromAttrsList = NIL;
+  	fac->fromAttrs = NIL;
+
+  	return fac;
+}
+
+FromAttrsContext *
+copyFromAttrsContext(FromAttrsContext *fac)
+{
+  	struct FromAttrsContext *result;
+  	result =  CALLOC(sizeof(FromAttrsContext),1);
+  	result->fromAttrsList = copyList(fac->fromAttrsList);
+  	result->fromAttrs = copyList(fac->fromAttrs);
+
+  	return result;
+}
+
+void
+printFromAttrsContext(FromAttrsContext *fac)
+{
+	DEBUG_LOG("FromAttrsContext:");
+	if(fac->fromAttrsList != NIL)
+	{
+		StringInfo s1 = makeStringInfo();
+		appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
+		FOREACH(List, l1, fac->fromAttrsList)
+		{
+			appendStringInfoString(s1, "[");
+			FOREACH(List, l2, l1)
+			{
+				appendStringInfo(s1, "(");
+				FOREACH(char, c, l2)
+				{
+					appendStringInfo(s1, " %s ", c);
+				}
+				appendStringInfo(s1, ")%s", FOREACH_HAS_MORE(l2) ? ", " : "");
+			}
+			appendStringInfo(s1, "]%s", FOREACH_HAS_MORE(l1) ? ", " : "");
+		}
+		DEBUG_LOG(" %s ", s1->data);
+	}
+	else
+		DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
+
+	if(fac->fromAttrs != NIL)
+	{
+		StringInfo s2 = makeStringInfo();
+		appendStringInfo(s2,"Len: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
+		FOREACH(List, l1, fac->fromAttrs)
+		{
+    	    appendStringInfo(s2, "(");
+			FOREACH(char, c, l1)
+				appendStringInfo(s2, " %s ", c);
+			appendStringInfo(s2, ")%s", FOREACH_HAS_MORE(l1) ? ", " : "");
+		}
+		DEBUG_LOG(" %s ", s2->data);
+	}
+	else
+		DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
+
+	if(fac->nestAttrMap)
+	{
+	    DEBUG_LOG("FromAttrsContext->nestAttrMap: %s", nodeToString(fac->nestAttrMap));
+	}
+}
+
+static HashMap *
+getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api)
+{
+	HashMap *map = NEW_MAP(Constant, Constant);
+	setNestAttrMap(op, &map, fac, api);
+
+	return map;
+}
+
+static void
+setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api)
+{
+	FromAttrsContext *subqueryFac = copyFromAttrsContext(fac);
+
+	// subquery from clause starts empty but has current query's from clause as an "outer"
+	subqueryFac->fromAttrs = NIL;
+	subqueryFac->fromAttrsList = appendToHeadOfList(subqueryFac->fromAttrsList, copyList(fac->fromAttrs));
+
+	if(isA(op, NestingOperator))
+	{
+		NestingOperator *nest = (NestingOperator *) op;
+		int nestingLocations = INT_VALUE(getStringProperty(op, PROP_NESTING_LOCATIONS));
+
+		// only store nested subqueries that should be serialized into WHERE / HAVING
+		if(nestingLocations & NEST_SER_SELECTION)
+		{
+			List *names = getAttrNames(op->schema);
+			char *nestName = (char *) getTailOfListP(names);
+			DEBUG_LOG("nestName %s", nestName);
+
+			if(!hasMapStringKey(*map, nestName))
+			{
+				StringInfo s = makeStringInfo();
+				if(nest->nestingType == NESTQ_EXISTS)
+					appendStringInfoString(s, "EXISTS ");
+				else if(nest->nestingType == NESTQ_ANY)
+				{
+					Operator *cond = (Operator *) nest->cond;
+					Node *a = getHeadOfListP(cond->args);
+					char *name = exprToSQL(a, *map, FALSE);
+					appendStringInfo(s, "%s %s ANY ", name, cond->name);
+				}
+				else if(nest->nestingType == NESTQ_ALL)
+				{
+					Operator *cond = (Operator *) nest->cond;
+					Node *a = getHeadOfListP(cond->args);
+					char *name = exprToSQL(a, *map, FALSE);
+					appendStringInfo(s, "%s %s ALL ", name, cond->name);
+				}
+
+				appendStringInfoString(s, "(");
+				api->serializeQueryOperator(OP_RCHILD(op), s, NULL, subqueryFac, api);
+				appendStringInfoString(s, ")");
+				DEBUG_LOG("serialized nested subquery: %s", s->data);
+				MAP_ADD_STRING_KEY(*map, strdup(nestName),
+								   createConstString(strdup(s->data)));
+			}
+		}
+	}
+
+	FOREACH(QueryOperator, o, op->inputs)
+		setNestAttrMap(o, map, fac, api);
+}
+
 /*
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
 List *
-genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *api)
+genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
     StringInfo fromString = makeStringInfo();
@@ -123,10 +302,11 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     StringInfo groupByString = makeStringInfo();
     StringInfo havingString = makeStringInfo();
 	StringInfo orderString = makeStringInfo();
-	StringInfo limitOffsetString = makeStringInfo();
+	StringInfo limitOffsetPrefixString = makeStringInfo();
+	StringInfo limitOffsetSuffixString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
-    List *attrNames = getAttrNames(q->schema);
+    List *attrNames;
     boolean topMaterialize = HAS_STRING_PROP(cur,PROP_MATERIALIZE);
 
     // do the matching
@@ -135,7 +315,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
         DEBUG_LOG("STATE: %s", OUT_MATCH_STATE(state));
         DEBUG_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
-        if (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1)
+        if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) && (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1))
         {
             if (cur != q)
             {
@@ -153,6 +333,7 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
             case T_ConstRelOperator :
             case T_SetOperator:
             case T_JsonTableOperator:
+            case T_NestingOperator:
                 matchInfo->fromRoot = cur;
                 state = MATCH_NEXTBLOCK;
                 cur = OP_LCHILD(cur);
@@ -241,18 +422,20 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                         matchInfo->windowRoot = (WindowOperator *) cur;
                         state = MATCH_WINDOW;
                         break;
-				    case T_LimitOperator:
-						if (state == MATCH_START)
-                        {
-							matchInfo->limitOffset = (LimitOperator *) cur;
-							state = MATCH_LIMIT;
-                        }
-                        else
-                        {
-                            matchInfo->fromRoot = cur;
-                            state = MATCH_NEXTBLOCK;
-                        }
-						break;
+                    case T_LimitOperator:
+                    {
+                    if (state == MATCH_START)
+                    {
+                        matchInfo->limitOffset = (LimitOperator *) cur;
+                        state = MATCH_LIMIT;
+                    }
+                    else
+                    {
+                        matchInfo->fromRoot = cur;
+                        state = MATCH_NEXTBLOCK;
+                    }
+                    }
+                    break;
                     default:
                         matchInfo->fromRoot = cur;
                         state = MATCH_NEXTBLOCK;
@@ -260,127 +443,127 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                 }
             }
             break;
-            case MATCH_FIRST_PROJ:
-            {
-                switch(cur->type)
-                {
-                    case T_SelectionOperator:
-                    {
-                        QueryOperator *child = OP_LCHILD(cur);
-                        if (child->type == T_AggregationOperator)
-                        {
-                            matchInfo->having = (SelectionOperator *) cur;
-                            state = MATCH_HAVING;
-                        }
-                    }
-                    break;
-                    case T_AggregationOperator:
-                        matchInfo->aggregation= (AggregationOperator *) cur;
-                        state = MATCH_AGGREGATION;
-                        break;
-                    case T_WindowOperator:
-                        matchInfo->windowRoot = (WindowOperator *) cur;
-                        state = MATCH_WINDOW;
-                        break;
-                    default:
-                        FATAL_LOG("After matching first projection we should "
-                                "match selection or aggregation and not %s",
-                                nodeToString(cur));
-                    break;
-                }
-            }
-            break;
-            case MATCH_HAVING:
-            {
-                switch(cur->type)
-                {
-                    case T_AggregationOperator:
-                    {
-                        matchInfo->aggregation = (AggregationOperator *) cur;
-                        state = MATCH_AGGREGATION;
-                    }
-                    break;
-                    default:
-                           FATAL_LOG("after matching having we should match "
-                                   "aggregation and not %s", nodeToString(cur));
-                    break;
-                }
-            }
-            break;
-            case MATCH_AGGREGATION:
-            {
-                switch(cur->type)
-                {
-                    case T_SelectionOperator:
-                    {
-                        matchInfo->where = (SelectionOperator *) cur;
-                        state = MATCH_WHERE;
-                    }
-                    break;
-                    case T_ProjectionOperator:
-                        matchInfo->secondProj = (ProjectionOperator *) cur;
-                        state = MATCH_SECOND_PROJ;
-                        break;
-                    default:
-                        matchInfo->fromRoot = cur;
-                        state = MATCH_NEXTBLOCK;
-                    break;
-                }
-            }
-            break;
-            case MATCH_SECOND_PROJ:
-            {
-                switch(cur->type)
-                {
-                    case T_SelectionOperator:
-                    {
-                        matchInfo->where = (SelectionOperator *) cur;
-                        state = MATCH_WHERE;
-                    }
-                    break;
-                    default:
-                        matchInfo->fromRoot = cur;
-                        state = MATCH_NEXTBLOCK;
-                    break;
-                }
-            }
-            break;
-            case MATCH_WHERE:
-            {
-                matchInfo->fromRoot = cur;
-                state = MATCH_NEXTBLOCK;
-            }
-            break;
-            case MATCH_WINDOW:
-            {
-                switch(cur->type)
-                {
-                    case T_WindowOperator:
-                        // do nothing
-                    break;
-                    case T_SelectionOperator:
-                    {
-                        matchInfo->where = (SelectionOperator *) cur;
-                        state = MATCH_WHERE;
-                    }
-                    break;
-                   case T_ProjectionOperator:
-                   {
-                       matchInfo->secondProj = (ProjectionOperator *) cur;
-                       state = MATCH_SECOND_PROJ;
-                   }
-                   break;
-                   default:
-                       matchInfo->fromRoot = cur;
-                       state = MATCH_NEXTBLOCK;
-                   break;
-                }
-            }
-            break;
-            case MATCH_NEXTBLOCK:
-                FATAL_LOG("should not end up here because we already"
-                        " have reached MATCH_NEXTBLOCK state");
-                break;
+		case MATCH_FIRST_PROJ:
+		{
+			switch(cur->type)
+			{
+			case T_SelectionOperator:
+			{
+				QueryOperator *child = OP_LCHILD(cur);
+				if (child->type == T_AggregationOperator)
+				{
+					matchInfo->having = (SelectionOperator *) cur;
+					state = MATCH_HAVING;
+				}
+			}
+			break;
+			case T_AggregationOperator:
+				matchInfo->aggregation= (AggregationOperator *) cur;
+				state = MATCH_AGGREGATION;
+				break;
+			case T_WindowOperator:
+				matchInfo->windowRoot = (WindowOperator *) cur;
+				state = MATCH_WINDOW;
+				break;
+			default:
+				FATAL_LOG("After matching first projection we should "
+						  "match selection or aggregation and not %s",
+						  nodeToString(cur));
+				break;
+			}
+		}
+		break;
+		case MATCH_HAVING:
+		{
+			switch(cur->type)
+			{
+			case T_AggregationOperator:
+			{
+				matchInfo->aggregation = (AggregationOperator *) cur;
+				state = MATCH_AGGREGATION;
+			}
+			break;
+			default:
+				FATAL_LOG("after matching having we should match "
+						  "aggregation and not %s", nodeToString(cur));
+				break;
+			}
+		}
+		break;
+		case MATCH_AGGREGATION:
+		{
+			switch(cur->type)
+			{
+			case T_SelectionOperator:
+			{
+				matchInfo->where = (SelectionOperator *) cur;
+				state = MATCH_WHERE;
+			}
+			break;
+			case T_ProjectionOperator:
+				matchInfo->secondProj = (ProjectionOperator *) cur;
+				state = MATCH_SECOND_PROJ;
+				break;
+			default:
+				matchInfo->fromRoot = cur;
+				state = MATCH_NEXTBLOCK;
+				break;
+			}
+		}
+		break;
+		case MATCH_SECOND_PROJ:
+		{
+			switch(cur->type)
+			{
+			case T_SelectionOperator:
+			{
+				matchInfo->where = (SelectionOperator *) cur;
+				state = MATCH_WHERE;
+			}
+			break;
+			default:
+				matchInfo->fromRoot = cur;
+				state = MATCH_NEXTBLOCK;
+				break;
+			}
+		}
+		break;
+		case MATCH_WHERE:
+		{
+			matchInfo->fromRoot = cur;
+			state = MATCH_NEXTBLOCK;
+		}
+		break;
+		case MATCH_WINDOW:
+		{
+			switch(cur->type)
+			{
+			case T_WindowOperator:
+				// do nothing
+				break;
+			case T_SelectionOperator:
+			{
+				matchInfo->where = (SelectionOperator *) cur;
+				state = MATCH_WHERE;
+			}
+			break;
+			case T_ProjectionOperator:
+			{
+				matchInfo->secondProj = (ProjectionOperator *) cur;
+				state = MATCH_SECOND_PROJ;
+			}
+			break;
+			default:
+				matchInfo->fromRoot = cur;
+				state = MATCH_NEXTBLOCK;
+				break;
+			}
+		}
+		break;
+		case MATCH_NEXTBLOCK:
+			FATAL_LOG("should not end up here because we already"
+					  " have reached MATCH_NEXTBLOCK state");
+			break;
         }
 
         // go to child of cur
@@ -389,30 +572,40 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
 
     OUT_BLOCK_MATCH(DEBUG,matchInfo, "query block full match");
 
+	// determine for any nested subquery part of this block where it should be serialized to
+	genMarkSubqueriesSerializationLocation(matchInfo, matchInfo->fromRoot, api);
+	attrNames = getAttrNames(q->schema);
+	
     // translate each clause
     DEBUG_LOG("serializeFrom");
-    List *fromAttrs = NIL;
-    api->serializeFrom(matchInfo->fromRoot, fromString, &fromAttrs, api);
+    FromAttrsContext *cfac = copyFromAttrsContext(fac);
+    cfac->fromAttrs = NIL;
+    api->serializeFrom(matchInfo->fromRoot, fromString, cfac, api);
 
     DEBUG_LOG("serializeWhere");
     if(matchInfo->where != NULL)
-        api->serializeWhere(matchInfo->where, whereString, fromAttrs, api);
+        api->serializeWhere(matchInfo->where, whereString, cfac, api);
 
     DEBUG_LOG("serialize projection + aggregation + groupBy +  having + window functions");
     api->serializeProjectionAndAggregation(matchInfo, selectString, havingString,
-            groupByString, fromAttrs, topMaterialize, api);
+            groupByString, cfac, topMaterialize, api);
 
 	DEBUG_LOG("serializeOrder");
 	if (matchInfo->orderBy != NULL)
-		api->serializeOrderByOperator(matchInfo->orderBy, orderString, fromAttrs, api);
+		api->serializeOrderByOperator(matchInfo->orderBy, orderString, cfac, api);
 
 	DEBUG_LOG("serializeLimit");
 	if (matchInfo->limitOffset != NULL)
-		api->serializeLimitOperator(matchInfo->limitOffset, limitOffsetString, api);
+		api->serializeLimitOperator(matchInfo->limitOffset, limitOffsetPrefixString, limitOffsetSuffixString, api);
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
     //TODO DISTINCT
+	if(STRINGLEN(limitOffsetPrefixString) > 0)
+	{
+		appendStringInfoString(str, limitOffsetPrefixString->data);
+	}
+
     if (STRINGLEN(selectString) > 0)
 	{
         appendStringInfoString(str, selectString->data);
@@ -444,9 +637,9 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
 		appendStringInfoString(str, orderString->data);
 	}
 
-	if (STRINGLEN(limitOffsetString) > 0)
+	if (STRINGLEN(limitOffsetSuffixString) > 0)
 	{
-		appendStringInfoString(str, limitOffsetString->data);
+		appendStringInfoString(str, limitOffsetSuffixString->data);
 	}
 
     FREE(matchInfo);
@@ -454,58 +647,404 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     return attrNames;
 }
 
+/**
+ * @brief Determines which clause nested subqueries should be serialized into.
+ *
+ * Given a query block match that assigns operators to SQL query block clauses, determines for each matched nesting operator what to do:
+ *
+ * 1) if the result attribute of the nesting operator is
+ *      (i) used only in the conditions of matched selection(s) (WHERE or HAVING) AND
+ *      (ii) the nesting operator can be serialized into a condition (e.g., LATERAL does not work)
+ *	  then serialize the nested subquery into the WHERE or HAVING condition.
+ * 2) if the nesting operator can be serialized into the FROM clause, then do that
+ * 3) otherwise serialize into the SELECT (projection)
+ *
+ * for some systems 2) and 3) may require modifications to the nesting operator
+ *
+ * results are sroted as a property PROP_NESTING_LOCATIONS of the operator
+ *
+ * @param qbMatch operators that will go into the current query block
+ * @param op operator to check (skip if this is no nesting operator)
+ */
+
 void
-genSerializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs, SerializeClausesAPI *api)
+genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *op, SerializeClausesAPI *api)
+{
+	//TODO use icols to determine whether the attribute is really needed and remove it otherwise
+	if(isA(op,NestingOperator))
+	{
+		NestingOperator *n = (NestingOperator *) op;
+		int serLocations = api->getNestedSerLocations(n, api);
+
+		// check for case 1: operator can be serialized into WHERE or HAVING
+		if((qbMatch->where || qbMatch->having) // we have a condition clause to serialize into
+		   && (serLocations & NEST_SER_SELECTION)) // this type of subquery can be put into a condition
+		{
+			// determine whether the result attribute is only used in selections that are matched to the current query block
+			boolean inMatchedSel = FALSE;
+			boolean inNonSelOrNonMatched = FALSE;
+			char *curTrackAtt = strdup(getSingleNestingResultAttribute(n));
+
+			FOREACH(QueryOperator,p,op->parents)
+			{
+				findNestedSubqueryUsage(op,curTrackAtt, &inMatchedSel, &inNonSelOrNonMatched, qbMatch,
+										!(isA(p,NestingOperator)
+										  || isA(p,JoinOperator)));
+			}
+			if (inMatchedSel && !inNonSelOrNonMatched) //TODO should we allow simultanous serialization to WHERE/HAVING and elsewhere?
+			{
+				serLocations |= NEST_SER_SELECTION;
+			}
+			else
+			{
+				serLocations &= ~NEST_SER_SELECTION; // cannot put into a selection
+			}
+		}
+
+		if(serLocations & NEST_SER_SELECTION)
+		{
+			// remove the attribute from other operators to avoid problems later
+			removeNestingAttributeFromOperators(op, getSingleNestingResultAttribute(n));
+		}
+
+		setStringProperty(op, PROP_NESTING_LOCATIONS, (Node *) createConstInt(serLocations));
+		DEBUG_LOG("Subquery: %s\nshould be serialized into %s", singleOperatorToOverview(op), serLocationsToString(serLocations));
+		ASSERT(serLocations != NEST_SER_SELECT); //TODO implement serialization into SELECT
+	}
+	// from clause operators to traverse into
+	if(isA(op,NestingOperator)
+	   || isA(op,JoinOperator))
+	{
+		FOREACH(QueryOperator,c,op->inputs)
+		{
+			genMarkSubqueriesSerializationLocation(qbMatch, c, api);
+		}
+	}
+}
+
+
+
+/**
+ * @brief Remove nested subquery result attribute from parents of a nesting operator.
+ *
+ * This is called when we want to serialize the nested subquery into WHERE or
+ * HAVING, so the subquery result will not be available to other operator.
+ *
+ * @param op the operator whose parents we want to remove the attribute from
+ * @param nestingAttr the attribute to be removed
+ */
+
+static void
+removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr)
+{
+	AttributeDef *ad = getAttrDefByName(op, nestingAttr);
+	int pos;
+	char *newAttr = nestingAttr;
+
+	if(ad == NULL)
+		return;
+
+	pos = getAttrPos(op, nestingAttr);
+
+	if(isA(op,ProjectionOperator))
+	{
+	    ProjectionOperator *p = (ProjectionOperator *) op;
+
+		p->projExprs = removeListElemAtPos(p->projExprs, pos);
+	}
+
+	// delete the attribute
+	deleteAttrFromSchemaByName(op, nestingAttr, !isA(op, NestingOperator));
+
+	// remove attribute from parents
+	FOREACH(QueryOperator,p,op->parents)
+	{
+		if(!(isA(p,SelectionOperator)))
+		{
+			resetPosOfAttrRefBaseOnBelowLayerSchema(p,op);
+		}
+		removeNestingAttributeFromOperators(p, newAttr);
+	}
+
+	// add back attribute for nesting operators
+	if(isA(op,NestingOperator))
+	{
+		op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, ad);
+	}
+}
+
+
+/**
+ * @brief Find operators which use the result attribute of NestingOperator.
+ *
+ * @param op check whether this operator uses the result attribute a of the nesting operator
+ * @param a the result attribute of the nesting operator
+ * @param inMatchSel record whether the nesting result is used in a selection of the query query block (m)
+ * @param inNonMatchSel record whether the nesting result is used in a selection belonging to another query block
+ * @param m the query block to which the nesting operator belongs to
+ * @param outOfFrom is op inside the from clause of the query block m
+ *
+ */
+
+void
+findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom)
+{
+	char *newA = a;
+	boolean attrExistsInOutput = TRUE;
+
+	switch (op->type)
+	{
+	case T_NestingOperator:
+	{
+		// if nesting operator references attribute in condition then for now we
+		// do not consider serialization into WHERE/ HAVING
+		//TODO in some cases this would still be possible, e.g., WHERE (SELECT count(*) FROM R) = (SELECT count(*) FROM S)
+		if(opReferencesAttr(op, a))
+		{
+			*inNonMatchSel = TRUE;
+		}
+	}
+	break;
+	case T_ProjectionOperator:
+	{
+		ProjectionOperator *p = (ProjectionOperator *) op;
+		// for projection we need to check whether the attribute is only referenced or also used in an expression.
+		if(opReferencesAttr(op, a))
+		{
+			List *resultNames = NIL;
+			int pos = 0;
+
+			FOREACH(Node,e,p->projExprs)
+			{
+				if(isA(e,AttributeReference))
+				{
+					AttributeReference *ar = (AttributeReference *) e;
+					if(streq(ar->name, a))
+					{
+						resultNames = appendToTailOfList(resultNames, getAttrNameByPos(op, pos));
+					}
+				}
+				// an expression referencing the attribute, we cannot serialize into WHERE / HAVING
+				else
+				{
+					if(doesExprReferenceAttribute(e, a))
+					{
+						*inNonMatchSel = TRUE;
+					}
+				}
+				pos++;
+			}
+			//TODO currently do not consider putting this into WHERE / HAVING if we are projecting the attribute out more than once
+			switch(LIST_LENGTH(resultNames))
+			{
+			case 0:
+			{
+				attrExistsInOutput = FALSE;
+			}
+			break;
+			case 1:
+			{
+				// we postpone making a decision
+				newA = getNthOfListP(resultNames, 0);
+			}
+			// more than one reference
+			default:
+			{
+				*inNonMatchSel = TRUE;
+			}
+			}
+			outOfFrom = TRUE;
+		}
+		// no references, attribute no longer there
+		else
+		{
+			attrExistsInOutput = FALSE;
+		}
+	}
+		break;
+		// if selection operator
+		case T_SelectionOperator:
+		{
+			outOfFrom = TRUE;
+			boolean parentNeedsNestingAttr = FALSE;
+
+			FOREACH(QueryOperator,p,op->parents)
+			{
+				parentNeedsNestingAttr |= isAttrRequired(p,a);
+			}
+
+			// does selection operator reference subquery
+			if(opReferencesAttr(op, a))
+			{
+				// is this a matched operator or from a different query block
+				if(!parentNeedsNestingAttr && (((QueryOperator *) m->where) == op || ((QueryOperator *) m->having) == op))
+				{
+					*inMatchSel = TRUE;
+				}
+				// not a matched operator
+				else
+				{
+					*inNonMatchSel = TRUE;
+				}
+			}
+		}
+		break;
+		case T_JoinOperator:
+		{
+			QueryOperator *l = OP_LCHILD(op);
+			QueryOperator *r = OP_RCHILD(op);
+			int pos;
+
+			//TODO technically we could serialize into joins, but let's not do that
+			if(opReferencesAttr(op, a))
+			{
+				*inNonMatchSel = TRUE;
+			}
+
+			pos = getAttrPos(l, a);
+			if(pos == -1)
+			{
+				pos = getAttrPos(r, a) + LIST_LENGTH(l->schema->attrDefs);
+			}
+
+			newA = getAttrNameByPos(op, pos);
+		}
+		break;
+		default: //TODO there may be some other cases where the nesting operator
+			//result attribute is in the result schema but could be ommitted
+		{
+			outOfFrom = TRUE;
+			// does  operator reference subquery, for now only
+			if(opReferencesAttr(op, a))
+			{
+				*inNonMatchSel = TRUE;
+			}
+		}
+		break;
+	}
+
+	// check for usage in parents if the attribute still exists in the result of the operator
+	if(attrExistsInOutput)
+	{
+		FOREACH(QueryOperator,p,op->parents)
+		{
+			findNestedSubqueryUsage(p, newA, inMatchSel, inNonMatchSel, m, outOfFrom);
+		}
+	}
+	}
+
+
+int
+genGetNestedSerializationLocations(NestingOperator *n, SerializeClausesAPI *api)
+{
+	if(n->nestingType == NESTQ_LATERAL)
+	{
+		return NEST_SER_FROM;
+	}
+	return NEST_SER_SELECTION | NEST_SER_SELECT | NEST_SER_FROM;
+}
+
+void
+genSerializeFrom(QueryOperator *q, StringInfo from, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    api->serializeFromItem (q, q, from, &curFromItem, &attrOffset, fromAttrs, api);
+    api->serializeFromItem (q, q, from, &curFromItem, &attrOffset, fac, api);
 }
 
+#define CLOSE_FROM_ITEM() appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList))
+
 void
-genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
-        int *attrOffset, List **fromAttrs, SerializeClausesAPI *api)
+genSerializeFromItem(QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
+					  int *attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // if operator has more than one parent then it will be represented as a CTE
     // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
-    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) || q == fromRoot)
+	// also do not materialized if the user forced a tree structions
+    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) || q == fromRoot || isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY))
     {
         switch(q->type)
         {
             // Join expressions
-            case T_JoinOperator:
-            {
-                JoinOperator *j = (JoinOperator *) q;
-                api->serializeJoinOperator(from, fromRoot, j, curFromItem,
-                        attrOffset, fromAttrs, api);
-            }
-            break;
-            // Table Access
-            case T_TableAccessOperator:
-            {
-                TableAccessOperator *t = (TableAccessOperator *) q;
-                api->serializeTableAccess(from, t, curFromItem, fromAttrs,
-                        attrOffset, api);
-            }
-            break;
-            // A constant relation, turn into (SELECT ... FROM dual) subquery
-            case T_ConstRelOperator:
-            {
-                ConstRelOperator *t = (ConstRelOperator *) q;
-                api->serializeConstRel(from, t, fromAttrs, curFromItem, api);
-            }
-            break;
-            default:
-            {
-                List *attrNames;
+		case T_JoinOperator:
+		{
+			JoinOperator *j = (JoinOperator *) q;
+			api->serializeJoinOperator(from, fromRoot, j, curFromItem,
+									   attrOffset, fac, api);
+		}
+		break;
+		// Table Access
+		case T_TableAccessOperator:
+		{
+			TableAccessOperator *t = (TableAccessOperator *) q;
+			api->serializeTableAccess(from, t, curFromItem, fac,
+									  attrOffset, api);
+		}
+		break;
+		// A constant relation, turn into (SELECT ... FROM dual) subquery
+		case T_ConstRelOperator:
+		{
+			ConstRelOperator *t = (ConstRelOperator *) q;
+			api->serializeConstRel(from, t, fac, curFromItem, api);
+		}
+		break;
+		case T_NestingOperator: //FIXME fix serialization
+		{
+			NestingOperator *nest = (NestingOperator *) q;
+			int location = INT_VALUE(getStringProperty(q, PROP_NESTING_LOCATIONS));
 
-                appendStringInfoString(from, "(");
-                attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
-                *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                appendStringInfo(from, ") F%u", (*curFromItem)++);
-            }
-            break;
+			DEBUG_LOG("subquery %s in from, will be serialized into %s",
+					  singleOperatorToOverview(q),
+					  serLocationsToString(location));
+
+			// only serialize to FROM clause if we do not serialize elsewhere
+			if((location & NEST_SER_FROM) && !(location & NEST_SER_SELECTION))
+			{
+				QueryOperator *outer = OP_LCHILD(nest);
+				QueryOperator *subquery = OP_RCHILD(nest);
+				FromAttrsContext *subqueryFac;
+				List *subqueryNames;
+
+				//TODO translate into lateral when necessary
+				ASSERT(nest->nestingType == NESTQ_LATERAL);
+
+				// serialize left input (the outer query)
+				api->serializeFromItem(fromRoot, outer, from, curFromItem, attrOffset, fac, api);
+
+				// create fac with previous from clause items as context for correlations in LATERAL
+				subqueryFac = copyFromAttrsContext(fac);
+				subqueryFac->fromAttrsList = appendToHeadOfList(subqueryFac->fromAttrsList, copyList(fac->fromAttrs));
+				subqueryFac->fromAttrs = NIL;
+
+				// serialize the nested subquery
+				appendStringInfoString(from, ", LATERAL (");
+				subqueryNames = api->serializeQueryOperator(subquery, from, q, subqueryFac, api);
+				CLOSE_FROM_ITEM();
+
+				// add result attributes to current from clasue
+				fac->fromAttrs = appendToTailOfList(fac->fromAttrs, subqueryNames);
+				printFromAttrsContext(fac);
+
+			}
+			else // otherwise attributes from the left input still have to be added to from clause
+			{
+				QueryOperator *input = OP_LCHILD(nest);
+				api->serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fac, api);
+			}
+		}
+		break;
+		default://CHECK not sure that the fromAttrsList handling here is correct
+		{
+			List *attrNames;
+
+			appendStringInfoString(from, "(");
+			attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac, api); //TODO ok to use first?
+			fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+			printFromAttrsContext(fac);
+			CLOSE_FROM_ITEM();
+		}
+		break;
         }
     }
     else
@@ -515,9 +1054,9 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             List *attrNames;
 
             appendStringInfoString(from, "(");
-            attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
-            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, ") F%u", (*curFromItem)++);
+            attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), fac, api); //TODO ok to use first?
+            fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
+            CLOSE_FROM_ITEM();
         }
     }
 }
@@ -526,36 +1065,83 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
  * Translate a selection into a WHERE clause
  */
 void
-genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs, SerializeClausesAPI *api)
+genSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
-    appendStringInfoString(where, "\nWHERE ");
-    updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
-    appendStringInfoString(where, exprToSQL(q->cond, NULL));
+	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api);
+
+	appendStringInfoString(where, "\nWHERE ");
+	fac->nestAttrMap = nestAttrMap;
+	updateAttributeNames((Node *) q->cond, fac);
+	fac->nestAttrMap = NULL;
+    appendStringInfoString(where, exprToSQL(q->cond, nestAttrMap, FALSE));
 }
 
 void
-genSerializeLimitOperator (LimitOperator *q, StringInfo limit, SerializeClausesAPI *api)
+genSerializeLimitOperator(LimitOperator *q, StringInfo limitPrefix, StringInfo limitSuffix, SerializeClausesAPI *api)
 {
 	if (q->limitExpr != NULL)
 	{
-		appendStringInfoString(limit, "\nLIMIT ");
-		appendStringInfo(limit, "%s", exprToSQL(q->limitExpr, NULL));
+		appendStringInfoString(limitSuffix, "\nLIMIT ");
+		appendStringInfo(limitSuffix, "%s", exprToSQL(q->limitExpr, NULL, FALSE));
 	}
 	if (q->offsetExpr != NULL)
 	{
-		appendStringInfoString(limit, "\nOFFSET ");
-		appendStringInfo(limit, "%s", exprToSQL(q->offsetExpr, NULL));
+		appendStringInfoString(limitSuffix, "\nOFFSET ");
+		appendStringInfo(limitSuffix, "%s", exprToSQL(q->offsetExpr, NULL, FALSE));
 	}
 }
 
 void
-genSerializeOrderByOperator (OrderOperator *q, StringInfo order, List *fromAttrs,
+genSerializePreparedStatement(QueryOperator *q, StringInfo prep, SerializeClausesAPI *api)
+{
+	if(HAS_STRING_PROP(q, PROP_PREPARED_QUERY_NAME))
+	{
+		char *name = GET_STRING_PROP_STRING_VAL(q, PROP_PREPARED_QUERY_NAME);
+		appendStringInfo(prep, "PREPARE %s ", name);
+
+		// explicit specificed data types
+		if(HAS_STRING_PROP(q, PROP_PREPARED_QUERY_DTS))
+		{
+			List *dts = (List *) GET_STRING_PROP(q, PROP_PREPARED_QUERY_DTS);
+			appendStringInfoString(prep, "(");
+			FOREACH_INT(d,dts)
+			{
+				DataType dt = (DataType) d;
+				appendStringInfoString(prep, backendDatatypeToSQL(dt));
+				if(FOREACH_HAS_MORE(d))
+				{
+					appendStringInfoString(prep, ", ");
+				}
+			}
+			appendStringInfoString(prep, ")");
+		}
+		appendStringInfo(prep, " AS ");
+	}
+}
+
+void
+genSerializeExecPreparedOperator (ExecPreparedOperator *q, StringInfo exec)
+{
+	appendStringInfo(exec, "EXEC %s", q->name);
+	if(q->params)
+	{
+		appendStringInfoString(exec, "(");
+		FOREACH(Constant,p,q->params)
+		{
+			appendStringInfo(exec, exprToSQL((Node *) p, NULL, FALSE));
+		}
+		appendStringInfoString(exec, ")");
+	}
+}
+
+void
+genSerializeOrderByOperator (OrderOperator *q, StringInfo order, FromAttrsContext *fac,
 							 SerializeClausesAPI *api) //TODO check since copied from Oracle
 {
 	appendStringInfoString(order, "\nORDER BY ");
-    updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
+    //updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
 
-    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL),"(","");
+    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs, NULL, FALSE),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
     ordExpr = replaceSubstr(ordExpr,"'","");
     appendStringInfoString(order, ordExpr);
@@ -563,7 +1149,7 @@ genSerializeOrderByOperator (OrderOperator *q, StringInfo order, List *fromAttrs
 
 
 boolean
-updateAttributeNames(Node *node, List *fromAttrs)
+updateAttributeNames(Node *node, FromAttrsContext *fac)
 {
     if (node == NULL)
         return TRUE;
@@ -571,50 +1157,73 @@ updateAttributeNames(Node *node, List *fromAttrs)
     if (isA(node, AttributeReference))
     {
         AttributeReference *a = (AttributeReference *) node;
+        DEBUG_LOG("a: %s",a->name);
         char *newName;
         List *outer = NIL;
         int fromItem = -1;
         int attrPos = 0;
 
-        // LOOP THROUGH fromItems (outer list)
-        FOREACH(List, attrs, fromAttrs)
-        {
-            attrPos += LIST_LENGTH(attrs);
-            fromItem++;
-            if (attrPos > a->attrPosition)
-            {
-                outer = attrs;
-                break;
-            }
-        }
-        attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
-        newName = getNthOfListP(outer, attrPos);
-        a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);;
+		if(!fac->nestAttrMap || !MAP_HAS_STRING_KEY(fac->nestAttrMap, a->name))
+		{
+			List *attrsList = NIL;
+			if(a->outerLevelsUp > 0) // outer query correlated attributes
+				attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp - 1);
+			else // attribute from current query block
+				attrsList = (List *) fac->fromAttrs;
+
+			FOREACH(List, attrs, attrsList)
+			{
+				attrPos += LIST_LENGTH(attrs);
+				fromItem++;
+				if (attrPos > a->attrPosition)
+				{
+					outer = attrs;
+					break;
+				}
+			}
+			attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
+			newName = getNthOfListP(outer, attrPos);
+
+			if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
+				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", newName);
+			else
+				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-(a->outerLevelsUp)) , ".", newName);
+		}
     }
 
-    return visit(node, updateAttributeNames, fromAttrs);
+    return visit(node, updateAttributeNames, fac);
 }
 
 /*
  * Main entry point for serialization.
  */
 List *
-genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, SerializeClausesAPI *api)
+genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // operator with multiple parents
-    if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
-        return api->createTempView (q, str, parent, api);
+	if (HAS_STRING_PROP(q, PROP_PREPARED_QUERY_NAME))
+	{
+	    api->serializePreparedStatment(q, str, api);
+	}
+	if (isA(q,ExecPreparedOperator))
+	{
+		api->serializeExecPreparedOperator((ExecPreparedOperator *) q, str);
+		return NIL;
+	}
+    if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) &&
+		(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)))
+        return api->createTempView (q, str, parent, fac, api);
     else if (isA(q, SetOperator))
-        return api->serializeSetOperator(q, str, api);
+        return api->serializeSetOperator(q, str, fac, api);
     else
-        return api->serializeQueryBlock(q, str, api);
+        return api->serializeQueryBlock(q, str, fac, api);
 }
 
 /*
  * Create a temporary view
  */
 List *
-genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, SerializeClausesAPI *api)
+genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     StringInfo viewDef = makeStringInfo();
     char *viewName = createViewName(api);
@@ -640,9 +1249,9 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     // create sql code to create view
     appendStringInfo(viewDef, "%s AS (", viewName);
     if (isA(q, SetOperator))
-        resultAttrs = api->serializeSetOperator(q, viewDef, api);
+        resultAttrs = api->serializeSetOperator(q, viewDef, fac, api);
     else
-        resultAttrs = api->serializeQueryBlock(q, viewDef, api);
+        resultAttrs = api->serializeQueryBlock(q, viewDef, fac, api);
 
     appendStringInfoString(viewDef, ")");
 
@@ -675,16 +1284,16 @@ createViewName (SerializeClausesAPI *api)
 }
 
 char *
-exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
+exprToSQLWithNamingScheme (Node *expr, int rOffset,FromAttrsContext *fac)
 {
     JoinAttrRenameState *state = NEW(JoinAttrRenameState);
 
     state->rightFromOffsets = rOffset;
-    state->fromAttrs = fromAttrs;
+    state->fac = fac;
     renameAttrsVisitor(expr, state);
 
     FREE(state);
-    return exprToSQL(expr, NULL);
+    return exprToSQL(expr, NULL, FALSE);
 }
 
 static boolean
@@ -705,10 +1314,10 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 
         // if right join input find first from item from right input
         if (isRight)
-            for(lc = getHeadOfList(state->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
+            for(lc = getHeadOfList(state->fac->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
                 ;
         else
-            lc = getHeadOfList(state->fromAttrs);
+            lc = getHeadOfList(state->fac->fromAttrs);
 
         // find from position and attr name
         for(; lc != NULL; lc = lc->next)
@@ -726,7 +1335,7 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
         pos = a->attrPosition - pos + LIST_LENGTH(from);
         name = getNthOfListP(from, pos);
 
-        a->name = createAttrName(name, fPos);
+        a->name = createAttrName(name, fPos, state->fac);
 
         return TRUE;
     }
@@ -735,12 +1344,12 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 }
 
 static char *
-createAttrName (char *name, int fItem)
+createAttrName (char *name, int fItem, FromAttrsContext *fac)
 {
    StringInfo str = makeStringInfo();
    char *result = NULL;
 
-   appendStringInfo(str, "F%u.%s", fItem, name);
+   appendStringInfo(str, "F%u_%u.%s", fItem, LIST_LENGTH(fac->fromAttrsList), name);
    result = str->data;
    FREE(str);
 

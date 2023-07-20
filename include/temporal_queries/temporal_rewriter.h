@@ -13,8 +13,8 @@
 
 #include "model/query_operator/query_operator.h"
 
-#define TBEGIN_NAME "T_B"
-#define TEND_NAME "T_E"
+#define TBEGIN_NAME backendifyIdentifier("t_b")
+#define TEND_NAME backendifyIdentifier("t_e")
 #define TEMPORAL_DT DT_INT
 
 extern QueryOperator *rewriteImplicitTemporal (QueryOperator *q);

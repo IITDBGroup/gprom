@@ -165,6 +165,14 @@ memManagerUsable(void)
 void
 setCurMemContext(MemContext *mc, const char *file, unsigned line)
 {
+	if(opt_memmeasure)
+	{
+		fprintf(stderr,"*********************\nACQUIRE CONTEXT [%s] at %s:%d\n********************\n",
+				curMemContext->contextName,
+				file,
+				line);
+	}
+
     if (topContextNode != NULL && mc == topContextNode->mc)
         return;
 
@@ -220,6 +228,13 @@ getCurMemContext(void)
 MemContext *
 releaseCurMemContext(const char *file, unsigned line)
 {
+	if(opt_memmeasure && topContextNode)
+	{
+		fprintf(stderr,"*********************\nRELEASE CONTEXT [%s] at %s:%u\n********************\n",
+				topContextNode->mc->contextName,
+				file,
+				line);
+	}
     if (topContextNode->next) // does not free the bottom node holding default context
     {
         MemContextNode *oldTop = topContextNode;

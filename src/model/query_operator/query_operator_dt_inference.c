@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * query_operator_dt_inference.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -13,6 +13,7 @@
 #include "common.h"
 
 #include "log/logger.h"
+#include "model/list/list.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
@@ -31,7 +32,7 @@ introduceCastsWhereNecessary(QueryOperator *q)
     // process children first
     FOREACH(QueryOperator,c,q->inputs)
     {
-        introduceCastsWhereNecessary(c);
+		introduceCastsWhereNecessary(c);
     }
 
     // introduce cast for expressions that are used by the operator
@@ -106,6 +107,8 @@ castOpSchema (QueryOperator *op, List *dts)
 static void
 addCastsToExpressions(QueryOperator *q)
 {
+    adaptAttributeRefList(q, q->inputs);
+
     switch(q->type)
     {
         case T_TableAccessOperator:
@@ -165,14 +168,13 @@ addCastsToExpressions(QueryOperator *q)
             FATAL_LOG("not a query operator %s", beatify(nodeToString(q)));
     }
 
-    adaptAttributeRefList(q, q->inputs);
     adaptOpSchema(q);
 
     DEBUG_OP_LOG("after casting op is:", q);
 }
 
 static void
-adaptOpSchema (QueryOperator *q)
+adaptOpSchema(QueryOperator *q)
 {
     List *dts = inferOpResultDTs(q);
     ListCell *dtCell = dts->head;
@@ -184,7 +186,7 @@ adaptOpSchema (QueryOperator *q)
 }
 
 static void
-adaptAttributeRefList (QueryOperator *parent, List *children)
+adaptAttributeRefList(QueryOperator *parent, List *children)
 {
     List *attrRefs = queryOperatorGetAttrRefs(parent);
 
@@ -256,9 +258,9 @@ queryOperatorGetAttrRefs(QueryOperator *op)
         break;
         case T_DuplicateRemoval:
         {
-
+			//TODO implement
         }
-            break;
+		break;
         // Check Attribute that we use as Json Column should be from/should exist in child
         case T_JsonTableOperator:
         {

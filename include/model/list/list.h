@@ -57,6 +57,7 @@ typedef struct List
 
 #define FOREACH_GET_LC(_node_) (DUMMY_LC(_node_))
 #define FOREACH_HAS_MORE(_node_) (DUMMY_LC(_node_)->next != NULL)
+#define FOREACH_IS_FIRST(_node_,_list_) (DUMMY_LC(_node_) == _list_->head)
 
 /*
  * Loop through integer list _list_ and access each element using name _ival_.
@@ -120,6 +121,17 @@ typedef struct List
                     DUMMY_LC(_ival2_)->next) != NULL) ? \
                     DUMMY_LC(_ival2_)->data.int_value : -1))
 
+// map over list elements with anamorphic expression
+#define MAP_LIST(_list_,_expr_)											\
+	do {																\
+		List *_result_ = newList(T_List);								\
+		for(ListCell *_lc_ = _list_->head; _lc_ != NULL; lc = lc->next)	\
+		{																\
+			void *it = _lc_->data.ptr_value;							\
+			_lc_->data.ptr_value = (_expr_);							\
+		}																\
+    } while(0)
+
 /*
  * Get pointer of integer value of a list cell
  */
@@ -155,21 +167,27 @@ extern List *newList(NodeTag type);
 extern List *singletonInt(int value);
 extern List *singleton(void *value);
 #define LIST_MAKE(...) listMake(__VA_ARGS__, NULL)
+#define LIST_MAKE_INT(...) listMakeInt(__VA_ARGS__, -1)
 extern List *listMake(void *elem, ...);
+extern List *listMakeInt(int elem, ...);
 
 /* length of list */
 extern int getListLength(List *list);
 
 /* get certain elements */
 extern ListCell *getHeadOfList(List *list);
-extern int getHeadOfListInt (List *list);
-extern void *getHeadOfListP (List *list);
-extern void *popHeadOfListP (List *list);
+extern int getHeadOfListInt(List *list);
+extern int popHeadOfListInt(List *list);
+extern void *getHeadOfListP(List *list);
+extern void *popHeadOfListP(List *list);
 extern ListCell *popHeadOfList(List *list);
 
 extern ListCell *getTailOfList(List *list);
 extern void *getTailOfListP (List *list);
 extern int getTailOfListInt(List *list);
+extern void *popTailOfListP(List *list);
+extern ListCell *popTailOfList(List *list);
+
 
 extern void *getNthOfListP(List *list, int n);
 extern int getNthOfListInt(List *list, int n);
@@ -179,6 +197,7 @@ extern ListCell *getNthOfList(List *list, int n);
 extern void newListTail(List *list);
 extern List *appendToTailOfList(List *list, void *value);
 extern List *appendToTailOfListInt(List *list, int value);
+extern List *appendAllToTail(List *l, List *new);
 
 extern void newListHead(List *list);
 extern List *appendToHeadOfList(List *list, void *value);
@@ -186,7 +205,8 @@ extern List *appendToHeadOfListInt (List *list, int value);
 
 /* sort and reverse list */
 extern void reverseList(List *list);
-extern List *sortList(List *list, int (*sm) (const void *, const void *));
+extern List *sortList(List *list, int (*sm) (const void **, const void **));
+extern List *unique(List *list, int (*cmp) (const void **, const void **));
 
 /* copy and free lists */
 extern List *copyList(List *list);
@@ -209,6 +229,8 @@ extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), voi
 
 extern int listPosString (List *list, char *value);
 extern int genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
+extern int listPosInt (List *list, int val);
+#define LIST_POS_NODE(_l,_val) genericListPos(_l,equal,_val);
 
 /* replace list elements */
 extern List *replaceNode(List *list, void *n1, void *n2);
@@ -216,6 +238,7 @@ extern List *replaceNode(List *list, void *n1, void *n2);
 /* remove element from list */
 extern List *removeListElementsFromAnotherList(List *l1, List *l2);
 extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
+extern List *removeFromListInt(List *l, int el);
 extern List *removeFromTail(List *X);
 extern List *removeFromHead(List *X);
 extern List *removeListElemAtPos (List *list, int pos);
@@ -231,6 +254,7 @@ extern List *genericSublist(List *l, boolean (*pred) (void *, void *), void *con
 
 /* higher-order functions */
 extern List *mapList(List *, void * (*f) (void *));
+extern List *mapToIntList(List *, int (*f) (void *));
 
 /* serialize to string */
 extern char *stringListToString (List *node);

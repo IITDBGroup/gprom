@@ -204,11 +204,14 @@ static rc
 testGetViewDefinition()
 {
     char *viewDef = getViewDefinition("metadatalookup_view1");
-    char *text = "SELECT metadatalookup_test1.a, metadatalookup_test1.b, metadatalookup_test1.c FROM metadatalookup_test1;";
-    ASSERT_EQUALS_STRINGP(viewDef, text, "test get view definition <metadatalookup_view1>");
+    char *text = " SELECT metadatalookup_test1.a,\n"
+"    metadatalookup_test1.b,\n"
+"    metadatalookup_test1.c\n"
+"   FROM metadatalookup_test1;";
+    ASSERT_EQUALS_STRINGP(text, viewDef, "test get view definition <metadatalookup_view1>");
 
     char *viewDef1 = getViewDefinition("metadatalookup_view1");
-    ASSERT_EQUALS_STRINGP(viewDef1, text, "test get view definition from buffer <metadatalookup_view1>");
+    ASSERT_EQUALS_STRINGP(text, viewDef1, "test get view definition from buffer <metadatalookup_view1>");
     return PASS;
 }
 

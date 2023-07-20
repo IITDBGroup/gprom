@@ -131,7 +131,7 @@ datalogToStr(StringInfo str, Node *n, int indent)
         default:
         {
             if (IS_EXPR(n))
-                appendStringInfo(str, "%s", exprToSQL(n, NULL));
+                appendStringInfo(str, "%s", exprToSQL(n, NULL, FALSE));
             else
                 FATAL_LOG("should have never come here, datalog program should"
                         " not have nodes like this: %s",

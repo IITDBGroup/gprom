@@ -22,6 +22,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_CONN_DB "connection.db"
 #define OPTION_CONN_PORT "connection.port"
 #define OPTION_CONN_HOST "connection.host"
+#define OPTION_ODBC_DRIVER "connection.odbcdriver"
 
 /* backend specific options */
 #define OPTION_ORACLE_AUDITTABLE "backendOpts.oracle.logtable"
@@ -39,6 +40,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_LOG_LEVEL "log.level"
 #define OPTION_LOG_OPERATOR_COLORIZED "log.operator_colorized"
 #define OPTION_LOG_OPERATOR_VERBOSE "log.operator_verbose"
+#define OPTION_LOG_OPERATOR_VERBOSE_PROPS "log.operator_verbose_props"
 
 /* plugin options */
 #define OPTION_BACKEND "backend"
@@ -67,6 +69,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
+#define OPTION_ALWAYS_TREEIFY "always_treeify"
 #define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
 #define OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW "pi_cs_rewrite_agg_window"
 #define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
@@ -112,12 +115,33 @@ NEW_ENUM_WITH_TO_STRING(
 
 /* lateral rewrite for nesting operator */
 #define OPTION_LATERAL_REWRITE "lateral_rewrite"
+#define OPTION_UNNEST_REWRITE "unnest_rewrite"
 #define OPTION_AGG_REDUCTION_MODEL_REWRITE "agg_reduction_model_rewrite"
+
+
+/* use provenance scratch */
+#define OPTION_MAX_NUMBER_PARTITIONS_FOR_USE "number_max_paritions_for_use"
+#define OPTION_BIT_VECTOR_SIZE "bit_vector_size"
+#define OPTION_PS_BINARY_SEARCH "ps_bianry_search"
+#define OPTION_PS_BINARY_SEARCH_CASE_WHEN "ps_bianry_search_case_when"
+#define OPTION_PS_SETTINGS "ps_settings"
+#define OPTION_PS_SET_BITS "set_bits"
+#define OPTION_PS_USE_BRIN_OP "us_brin_op"
+#define OPTION_PS_ANALYZE "ps_analyze"
+#define OPTION_PS_USE_NEST "ps_use_nest"
+#define OPTION_PS_POST_TO_ORACLE "ps_post_to_oracle"
+#define OPTION_PS_STORE_TABLE "ps_store_table"
 
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"
 #define RANGE_COMPRESSION_RATE "range_compression_rate"
+
+/* dl rewrite options */
+#define OPTION_WHYNOT_ADV "whynot_adv"
+#define OPTION_DL_SEMANTIC_OPT "dl_semantic_opt"
+#define OPTION_DL_MERGE_RULES "dl_merge_rules"
+#define OPTION_DL_FETCH_PK_FDS_FROM_DB "dl_load_fds"
 
 // backend types
 NEW_ENUM_WITH_TO_STRING(
@@ -125,15 +149,14 @@ NEW_ENUM_WITH_TO_STRING(
     BACKEND_ORACLE,
     BACKEND_POSTGRES,
     BACKEND_SQLITE,
-    BACKEND_MONETDB
+    BACKEND_MONETDB,
+	BACKEND_MSSQL
 );
 
 
 // encapsulates option state
 typedef struct option_state OptionState;
 
-/* dl rewrite options */
-#define OPTION_WHYNOT_ADV "whynot_adv"
 
 // declare option fields
 // show help only
@@ -151,6 +174,7 @@ extern int logLevel;
 extern boolean logActive;
 extern boolean opt_log_operator_colorize;
 extern boolean opt_log_operator_verbose;
+extern int opt_log_operator_verbose_props;
 
 // input options
 extern char *sql;
@@ -202,6 +226,7 @@ extern boolean temporal_use_normalization_window;
 
 // lateral rewrite for nesting operator
 extern boolean opt_lateral_rewrite;
+extern boolean opt_unnest_rewrite;
 extern boolean opt_agg_reduction_model_rewrite;
 
 // Uncertainty rewriter options

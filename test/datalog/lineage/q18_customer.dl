@@ -1,0 +1,15 @@
+Q1(l_orderkey, sum(l_quantity)):-
+lineitem(l_orderkey, X1, X2, X3, l_quantity, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14).
+
+Q(c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity)) :-
+customer(c_custkey, c_name, C1, C2, C3, C4, C5, C6),
+orders(o_orderkey, c_custkey, O1, o_totalprice, o_orderdate, O2, O3, O4, O5),
+lineitem(o_orderkey, X1, X2, X3, l_quantity, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14),
+Q1(o_orderkey, t1),
+t1 > 300.
+
+ANS: Q.
+
+RP(x1, x2, x3, x4, x5, x6) :- rtpcq18(x1, x2, x3, x4, x5, x6).
+
+LINEAGE FOR customer FOR RESULTS FROM RP.

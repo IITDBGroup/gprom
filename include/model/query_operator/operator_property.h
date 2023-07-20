@@ -15,6 +15,11 @@
 /* general operator properties */
 #define PROP_MATERIALIZE "MATERIALIZE"                      // hint to materialize output of this operator
 
+// exec and prepared queries
+#define PROP_PREPARED_QUERY_NAME "PREPARED_QUERY"
+#define PROP_PREPARED_QUERY_DTS "PREPARED_DTS"
+#define PROP_PREPARED_QUERY_SQLTEXT "PREPARED_SQL_TEXT"
+
 // provenance
 #define PROP_SHOW_INTERMEDIATE_PROV "SHOW_INTERMEDIATE_PROV" // show provenance for this intermediate subquery result
 #define PROP_USE_PROVENANCE "USE_PROVENANCE"                // duplicate user provided attributes as provenance
@@ -70,12 +75,12 @@
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable
 #define PROP_PROV_DUP_ATTR "PROV_DUP_ATTR"                  // provenance duplicate counter attribute for PI-CS composable
 #define PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME" // is the operator not sensitive to duplication
+#define PROP_PROVENANCE_TABLE_ATTRS "PROVENANCE_TABLES_AND_ATTRS" // store tables and their attributes int he provenance of an operator
 
 // provenance of transaction
 #define PROP_PROV_IS_UPDATE_ROOT "UPDATE_ROOT"              // root of a translated update reenactment query
 #define PROP_PROV_ORIG_UPDATE_TYPE "ORIG_UPDATE_TYPE"       // store type of update for reenacted queries
 
-/* Operator type specific properties */
 /* provenance computation specific properties */
 #define PROP_PC_PROV_TYPE "PROV_TYPE"                       // type of provenance to track
 #define PROP_PC_TABLE "TRACK_TABLE"                         // updated table to trace proveance of transaction for
@@ -96,8 +101,15 @@
 #define PROP_PC_SEMIRING_COMBINER "SEMIRING_COMBINER"       // use combiner in provenance computation
 #define PROP_PC_SC_AGGR_OPT "SEMIRING_COMBINER_AGGR_OPT" //use aggregation optimization in semiring combiner
 #define PROP_PC_COARSE_GRAINED "COARSE_GRAINED"             // used in data skipping
+#define PROP_PC_COARSE_GRAINED_BIND "COARSE_GRAINED_BIND"             // used in data skipping for reuse
 #define USE_PROP_PC_COARSE_GRAINED "USE_COARSE_GRAINED"             // used in data skipping
 
+/* serialization properties */
+#define PROP_NESTING_TO_SERIALIZE "NESTED_SERIALIZE_SUBQUERIES" // nested subqueries to serialize into thie operator
+#define PROP_NESTING_LOCATIONS "NESTED_SUBQUERY_LOCATIONS" //
+#define PROP_NESTING_CORRELATED_ATTRS "NESTEDE_SUBQUERY_CORRELATED_ATTRS" // store set of correlated attributes
+
+/* Operator type specific properties */
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
 #define PROP_IS_READ_COMMITTED "TABLE_READ_COMMITTED"      // is table access for updated table in a READ COMMITTED transaction
@@ -148,8 +160,29 @@
 /* for data skipping  */
 #define PROP_COARSE_GRAINED_TABLEACCESS_MARK "COARSE_GRAINED_TABLEACCESS_MARK"
 #define USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK "USE_COARSE_GRAINED_TABLEACCESS_MARK"
+#define USE_PROP_COARSE_GRAINED_WINDOW_MARK "USE_COARSE_GRAINED_WINDOW_MARK"
+#define PROP_COARSE_GRAINED_WINDOW_MARK "COARSE_GRAINED_WINDOW_MARK"
+#define AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK "AUTO_USE_PROV_COARSE_GRAINED_TABLEACCESS_MARK"
+#define AUTO_HISTOGRAM_TABLEACCESS_MARK "AUTO_HISTOGRAM_TABLEACCESS_MARK"
 #define PROP_COARSE_GRAINED_AGGREGATION_MARK "COARSE_GRAINED_AGGREGATION_MARK"
+#define USE_PROP_COARSE_GRAINED_AGGREGATION_MARK "USE_COARSE_GRAINED_AGGREGATION_MARK"
 #define PROP_NUM_TABLEACCESS_MARK "NUM_TABLEACCESS_MARK"
+#define PROP_LEVEL_AGGREGATION_MARK "LEVEL_AGGREGATION_MARK"
+#define PROP_SETBITS_CAST_NUM_WINDOW_MARK "SETBITS_CAST_NUM_WINDOW_MARK"
+#define PROP_LEVEL_WINDOW_MARK "LEVEL_WINDOW_MARK"
+#define PROP_STORE_SET_PRED "STORE PRED PROPERTY"
+#define PROP_STORE_SET_EXPR "STORE EXPR PROPERTY"
+#define PROP_STORE_SET_CMAP "STORE CMAP PROPERTY"
+#define PROP_STORE_SET_PRED_DONE_BU "STORE PRED PROPERTY - DONE BOTTOM UP"
+#define PROP_STORE_SET_CMAP_DONE_BU "STORE CMAP PROPERTY - DONE BOTTOM UP"
+#define PROP_STORE_SET_EXPR_DONE_BU "STORE EXPR PROPERTY - DONE BOTTOM UP"
+#define PROP_STORE_SET_GC "STORE GC PROPERTY"
+#define PROP_STORE_SET_GC_COMP "STORE GC COMP PROPERTY"
+#define PROP_STORE_SET_GC_DONE_BU "STORE GC PROPERTY - DONE BOTTOM UP"
+#define PROP_STORE_SET_GE "STORE BOOLEAN GE PROPERTY"
+#define PROP_STORE_SET_GE_COMP "STORE GE COMP PROPERTY"
+#define PROP_STORE_SET_GE_DONE_BU "STORE GE PROPERTY - DONE BOTTOM UP"
+//#define PROP_STORE_SET_NON_GRP_PRED "STORE NON GROUP BY PRED PROPERTY"
 
 /* fromProvInfo provProperties */
 #define PROV_PROP_TIP_ATTR "PROV_PROP_TIP_ATTR"
@@ -160,6 +193,9 @@
 #define PROV_PROP_UADB "PROV_PROP_UADB"
 #define PROV_PROP_RADB_LIST "PROV_PROP_RADB_LIST"
 #define PROV_PROP_UADB_LIST "PROV_PROP_UADB_LIST"
+
+/* nested subqueries */
+#define PROP_OP_IS_LATERAL "IS_LATERAL_TRANSLATION"
 
 /* properties for aggregation operators created by lateral rewrite */
 #define PROP_OPT_AGGREGATION_BY_LATREAL_WRITE "AGGREGATION BY LATERAL REWRITE" //mark the aggregation created by lateral rewrite for nested queries

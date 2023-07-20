@@ -481,7 +481,7 @@ checkUniqueAttrNames (QueryOperator *op)
 }
 
 void
-makeAttrNamesUnique (QueryOperator *op)
+makeAttrNamesUnique(QueryOperator *op)
 {
     List *newNames = getAttrNames(op->schema);
 
@@ -499,7 +499,7 @@ makeAttrNamesUnique (QueryOperator *op)
 }
 
 static boolean
-checkParentChildLinks (QueryOperator *op, void *context)
+checkParentChildLinks(QueryOperator *op, void *context)
 {
     // check that no operator has itself as child or parent
     FOREACH(QueryOperator,o,op->inputs)

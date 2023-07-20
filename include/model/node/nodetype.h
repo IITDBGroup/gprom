@@ -15,7 +15,9 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_HashMap,
     T_Vector,
 	T_BitSet,
-    /* options */
+    T_Graph,
+
+	/* options */
     T_KeyValue,
 
     /* expression nodes */
@@ -36,6 +38,10 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_CastExpr,
 	T_QuantifiedComparison,
 
+    /* integrity constraint */
+	T_FD,
+	T_FOdep,
+
     /* query block model nodes */
     T_SetQuery,
     T_ProvenanceStmt,
@@ -46,6 +52,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_FromProvInfo,
     T_FromTableRef,
     T_FromSubquery,
+	T_FromLateralSubquery,
     T_FromJoinExpr,
     T_DistinctClause,
     T_NestedSubquery,
@@ -60,8 +67,9 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     /* query operator model nodes */
     T_Schema,
     T_AttributeDef,
-    T_QueryOperator,
-    T_SelectionOperator,
+	T_QueryOperator,
+	T_ParameterizedQuery,
+	T_SelectionOperator,
     T_ProjectionOperator,
     T_JoinOperator,
     T_AggregationOperator,
@@ -75,6 +83,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_OrderOperator,
 	T_SampleClauseOperator,
 	T_LimitOperator,
+    T_ExecPrepratedOperator,
 
     /* datalog model nodes */
     T_DLNode,
@@ -100,7 +109,17 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 
     /* ddl */
     T_CreateTable,
-    T_AlterTable
+    T_AlterTable,
+
+    /* parameterized query */
+	T_PreparedQuery,
+	T_ExecQuery,
+	T_ExecPreparedOperator,
+
+	/* provenance sketch */
+	T_psInfo,
+	T_psAttrInfo,
+	T_psInfoCell
 );
 
 typedef struct Node{
@@ -111,8 +130,10 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION,
     PROV_XML,
+	CAP_USE_PROV_COARSE_GRAINED,
 	PROV_COARSE_GRAINED,
 	USE_PROV_COARSE_GRAINED,
+	USE_PROV_COARSE_GRAINED_BIND,
     PROV_NONE /* for reenactment of bag semantics only */
 );
 
@@ -141,6 +162,8 @@ typedef struct StringInfoData
 } StringInfoData;
 
 typedef StringInfoData *StringInfo;
+
+#define STRINFO_LEN(s) strlen(s->data)
 
 /* Key-Value pair */
 

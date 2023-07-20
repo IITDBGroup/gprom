@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="gprom-jdbc">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/build/gprom-jdbc.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -64,6 +64,11 @@ extern Node *getVecNode(Vector *v, int pos);
 extern int getVecInt(Vector *v, int pos);
 extern char *getVecString(Vector *v, int pos);
 
+// set elements at position in vector
+extern Node *setVecNode(Vector *v, int pos, Node *newEl);
+extern int setVecInt(Vector *v, int pos, int newEl);
+extern int incrVecInt(Vector *v, int pos, int amount);
+
 // find a certain element in a vector
 extern boolean findVecNode(Vector *v, Node *el);
 extern boolean findVecInt(Vector *v, int el);

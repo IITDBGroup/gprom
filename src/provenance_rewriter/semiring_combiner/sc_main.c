@@ -195,8 +195,11 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 	FATAL_LOG("No semiring combiner info in provenance options.");
 }
 
-extern void addSCOptionToChild(QueryOperator *op, QueryOperator *to) {
-	if(HAS_STRING_PROP(op,PROP_PC_SC_AGGR_OPT)){
+extern void
+addSCOptionToChild(QueryOperator *op, QueryOperator *to)
+{
+	if(HAS_STRING_PROP(op,PROP_PC_SC_AGGR_OPT))
+	{
 		SET_STRING_PROP(to, PROP_PC_SC_AGGR_OPT, GET_STRING_PROP(op,PROP_PC_SC_AGGR_OPT));
 	}
 }
@@ -234,7 +237,7 @@ addSemiringCombiner(QueryOperator * result, Node *addExpr, Node *multExpr)
 
 	// projection for multiplication
 	appendToTailOfList(projExprs,expre);
-	appendToTailOfList(attrNames,replaceSubstr(exprToSQL(expre, NULL), " ", ""));
+	appendToTailOfList(attrNames,replaceSubstr(exprToSQL(expre, NULL, FALSE), " ", ""));
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExprs, (QueryOperator *)result, NIL, attrNames);
 	proj->provAttrs = singletonInt(getListLength(attrNames)-1);
 	switchSubtrees(result, proj);

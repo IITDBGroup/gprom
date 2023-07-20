@@ -34,6 +34,16 @@ typedef struct TestNameToFunc {
 } TestNameToFunc;
 
 static TestNameToFunc testFuncs [] = {
+        { "autocast", testAutocast },
+		{ "bitset", testBitset },
+        { "copy", testCopy },
+        { "datalog_model", testDatalogModel },
+        { "dynstring", testString },
+        { "equal", testEqual },
+        { "exception", testException },
+        { "expr", testExpr },
+        { "hashmap", testHashMap },
+        { "list", testList },
         { "logger", testLogger },
         { "mem_mgr", testMemManager },
         { "exception", testException },
@@ -42,7 +52,9 @@ static TestNameToFunc testFuncs [] = {
         { "vector", testVector },
 		{ "bitset", testBitset },
         { "hashmap", testHashMap },
+		{ "graph", testGraph },
         { "expr", testExpr },
+		{ "ICs", testIntegrityConstraints },
         { "copy", testCopy },
         { "equal", testEqual },
         { "stringutils", testStringUtils },
@@ -52,9 +64,13 @@ static TestNameToFunc testFuncs [] = {
         { "metadatalookup", testMetadataLookup },
         { "metadatalookup_postgres", testMetadataLookupPostgres },
         { "parameter", testParameter },
-        { "datalog_model", testDatalogModel },
+        { "parse", testParse },
         { "rpq", testRPQ },
         { "autocast", testAutocast },
+		{ "semantic_optimization", testSemanticOptimization },
+		{ "dl", testDatalogModel },
+		{ "temporal", testTemporal },
+		{ "z3", testZ3 },
         { NULL, NULL }
 };
 
@@ -71,7 +87,9 @@ testSuites(void)
     RUN_TEST(testVector(), "Vector");
 	RUN_TEST(testBitset(), "Bitset");
     RUN_TEST(testHashMap(), "HashMap");
+	RUN_TEST(testGraph(), "Graph");
     RUN_TEST(testExpr(), "Expression model");
+	RUN_TEST(testIntegrityConstraints(), "Integrity constraints.");
     RUN_TEST(testCopy(), "Test generic copy function");
     RUN_TEST(testEqual(), "Test generic equality function");
     RUN_TEST(testStringUtils(), "Test String utilities");
@@ -87,6 +105,9 @@ testSuites(void)
 //    RUN_TEST(testLibGProM(), "Test gprom dynamic link library"); make this work
     RUN_TEST(testRPQ(), "Test regular path query features");
     RUN_TEST(testAutocast(), "Test automatic casting");
+    RUN_TEST(testTemporal(), "Test temporal rewriting");
+	RUN_TEST(testZ3(), "Testing Z3 constraint solving.");
+	RUN_TEST(testSemanticOptimization(), "Test semantic optimization of provenance capture for DL");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

@@ -18,10 +18,12 @@ SUBDIRS = configuration 		\
 		rpq						\
 		symbolic_eval			\
 		temporal_queries		\
+	    parameterized_queries   \
+	    provenance_sketches     \
 		. 						\
 		command_line			\
 		libgprom				\
-		interfaces				
+		interfaces
 
 
 noinst_LTLIBRARIES 		= libsrc.la
@@ -39,8 +41,10 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						instrumentation/libinstrumentation.la \
 						execution/libexecution.la \
 						utility/libutils.la \
+	                    provenance_sketches/libprovenance_sketches.la \
+						parameterized_queries/libparameterized_queries.la \
 						rpq/librpq.la \
 						symbolic_eval/libsymboliceval.la \
-						temporal_queries/libtemporal.la 
+						temporal_queries/libtemporal.la
 
 libsrc_la_SOURCES 		= rewriter.c

@@ -35,15 +35,18 @@
 #include "execution/exe_run_query.h"
 #include "rewriter.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 #define PROCESS_CONTEXT_NAME "PROCESS_CONTEXT"
 static const char *commandHelp = "\n"
             "\\q(uit)\t\t\texit CLI\n"
             "\\h(elp)\t\t\tshow this helptext\n"
-            "\\i(nput language)\tshow help for currently selected parser\n"
+            "\\I(nput language)\tshow help for currently selected parser\n"
             "\\o(ptions)\t\tshow current parameter settings\n"
             "\\s(et) PAR VAL\t\tset parameter PAR to value VAL\n"
             "\\b(ackend) QUERY\tsend QUERY directly to the backend\n"
+	        "\\i(nput file) FILE\tread & execute commands from FILE\n"
             "\\m(ultiline)\t\t\ttoggle multiline editing mode, if on, then semicolon ends a query"
         ;
 
@@ -62,7 +65,9 @@ static boolean multiLineDone = FALSE;
 
 static boolean isInteractiveSession;
 
-static void process(char *sql);
+static void process(char *sql, FILE *stream);
+static void processString(char *sql);
+static void processQueryFromFile(char *fName);
 static void inputLoop(void);
 static void utility(char *command);
 static ExceptionHandler handleCLIException (const char *message, const char *file, int line, ExceptionSeverity s);
@@ -80,7 +85,6 @@ static void readConf (void);
 int
 main(int argc, char* argv[])
 {
-    char *result;
     boolean optionsInit;
 
     // initialize basic modules (memory manager, logger, options storage)
@@ -122,23 +126,12 @@ main(int argc, char* argv[])
     }
     else if (getStringOption("input.sql") != NULL)
     {
-        process(getStringOption("input.sql"));
-//        // call executor
-//        execute(result);
+        processString(getStringOption("input.sql"));
     }
     else if (getStringOption("input.sqlFile") != NULL)
     {
         char *fName = getStringOption("input.sqlFile");
-        FILE *file = fopen(fName, "r");
-
-        if (file == NULL)
-            FATAL_LOG("could not open file %s with error %s", fName, strerror(errno));
-
-        result =  rewriteQueryFromStream(file);
-        fclose(file);
-
-        // call executor
-        execute(result);
+		processQueryFromFile(fName);
     }
     // parse input string
     else
@@ -195,7 +188,7 @@ inputLoop(void)
         }
 
         // process query
-        process(sql);
+        processString(sql);
     }
     FREE(sql);
 }
@@ -204,13 +197,13 @@ inputLoop(void)
  * Parse -> Translate -> Provenance Rewrite -> Serialize -> Execute
  */
 static void
-process(char *sql)
+process(char *sql, FILE *stream)
 {
     // process query
     TRY
     {
         NEW_AND_ACQUIRE_MEMCONTEXT(PROCESS_CONTEXT_NAME);
-        processInput(sql);
+        processInput(sql, stream);
     }
     ON_EXCEPTION
     {
@@ -219,6 +212,28 @@ process(char *sql)
     }
     END_ON_EXCEPTION
     FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+}
+
+static void
+processString(char *sql)
+{
+	process(sql, NULL);
+}
+
+/*
+ * process for queries stored in a file
+ */
+static void
+processQueryFromFile(char *fName)
+{
+	FILE *file = fopen(fName, "r");
+
+	if (file == NULL)
+		FATAL_LOG("could not open file %s with error %s", fName, strerror(errno));
+
+	process(NULL, file);
+
+	fclose(file);
 }
 
 /*
@@ -230,6 +245,10 @@ utility(char *command)
     // QUIT
     if(strStartsWith(command,"\\q"))
     {
+    	//if in self-turning model, store the cached provenance sketches into table
+    	if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    		storePS();
+
         //printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
         printf("\n");
         persistHistory();
@@ -238,15 +257,32 @@ utility(char *command)
     }
 
     // SHOW CLI HELP
-    if(strStartsWith(command,"\\h"))
+    if(strStartsWith(command,"\\h") || strStartsWith(command,"\\?"))
     {
         printf(TB_FG_BG(WHITE,BLACK,"GPROM CLI COMMANDS") "%s",commandHelp);
         printf("\n");
         return;
     }
 
-    // SHOW CURRENT PARSER LANGUAGE HELP
+	// EXECUTE COMMANDS FROM FILE
     if(strStartsWith(command,"\\i"))
+    {
+        char *fName;
+
+		if(strlen(command) <= 3)
+		{
+			printf("need to provide a filename to \\I\n");
+			return;
+		}
+
+		fName = substr(command, 3, strlen(command) - 1);
+
+		processQueryFromFile(fName);
+        return;
+    }
+
+    // SHOW CURRENT PARSER LANGUAGE HELP
+    if(strStartsWith(command,"\\I"))
     {
         printf(TB_FG_BG(WHITE,BLACK,"%s - LANGUAGE OVERVIEW") ":\n%s",
                 getParserPluginName(), getParserLanguageHelp());

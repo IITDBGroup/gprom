@@ -9,6 +9,8 @@
 
 #include "common.h"
 #include "log/logger.h"
+#include "metadata_lookup/metadata_lookup.h"
+#include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
@@ -18,7 +20,15 @@
 #include "model/set/set.h"
 #include "model/query_operator/operator_property.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
+#include "utility/string_utils.h"
 #include "model/query_operator/query_operator_model_checker.h"
+
+typedef struct CorrelatedAttrsState {
+	int curDepth;
+	Set *result;
+	boolean corrInsideSubquery;
+	boolean childrenCanBeKeptCorrelated;
+} CorrelatedAttrsState;
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
@@ -27,6 +37,7 @@ static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
 static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
         Set *haveSeen);
+static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
 
 
 QueryOperator *
@@ -51,6 +62,25 @@ findNestingOperator (QueryOperator *op, int levelsUp)
     return result;
 }
 
+char *
+getNestingAttrPrefix()
+{
+	return backendifyIdentifier("nesting_eval_");
+}
+
+char *
+getNestingResultAttribute(int number)
+{
+	return backendifyIdentifier(CONCAT_STRINGS("nesting_eval_", gprom_itoa(number)));
+}
+
+boolean
+isNestingAttribute(char *attr)
+{
+	char *prefix = getNestingAttrPrefix();
+	return isPrefix(attr, prefix)
+		|| isPrefix(attr, CONCAT_STRINGS("\"", prefix));
+}
 
 Schema *
 createSchema(char *name, List *attrDefs)
@@ -122,12 +152,24 @@ setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2)
 }
 
 static Schema *
-schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs)
+schemaFromExpressions(char *name, List *attributeNames, List *exprs, List *inputs)
 {
     List *dataTypes = NIL;
 
+	// if attributeNames is NIL, then generate attribute names
+	if(attributeNames == NIL)
+	{
+		FOREACH(Node,n,exprs)
+		{
+			char *name = exprToSQL(n, NULL, FALSE); //TODO is that right for this usage?
+			attributeNames = appendToTailOfList(attributeNames, name);
+		}
+	}
+
     FOREACH(Node,n,exprs)
+	{
         dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
+	}
 
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
@@ -142,16 +184,33 @@ addAttrToSchema(QueryOperator *op, char *name, DataType dt)
 }
 
 void
-deleteAttrFromSchemaByName(QueryOperator *op, char *name)
+deleteAttrFromSchemaByName(QueryOperator *op, char *name, boolean adaptProvAttrs)
 {
+	int pos = -1;
+	boolean found = FALSE;
+
     FOREACH(AttributeDef,a,op->schema->attrDefs)
     {
+		pos++;
         if (streq(a->attrName,name))
         {
             op->schema->attrDefs = REMOVE_FROM_LIST_PTR(op->schema->attrDefs, a);
+			found = TRUE;
             break;
         }
     }
+
+	if(adaptProvAttrs && found)
+	{
+		op->provAttrs = removeFromListInt(op->provAttrs, pos);
+		FOREACH_LC(lc, op->provAttrs)
+		{
+		    if(lc->data.int_value > pos)
+			{
+				lc->data.int_value = lc->data.int_value - 1;
+			}
+		}
+	}
 }
 
 void
@@ -573,6 +632,24 @@ inferOpResultDTs (QueryOperator *op)
 }
 
 
+QueryOperator *
+shallowCopyQueryOperator(QueryOperator *op)
+{
+	QueryOperator *result;
+	List *parents = op->parents;
+	List *children = op->inputs;
+
+	op->parents = NIL;
+	op->inputs = NIL;
+
+	result = copyObject(op);
+
+	op->parents = parents;
+	op->inputs = children;
+
+	return result;
+}
+
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
         List *attrNames, List *dataTypes)
@@ -650,8 +727,7 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 {
     ProjectionOperator *prj = makeNode(ProjectionOperator);
 
-    FOREACH(Node, expr, projExprs)
-    prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
+	prj->projExprs = copyObject(projExprs);
 
     if (input != NULL)
         prj->op.inputs = singleton(input);
@@ -873,6 +949,16 @@ createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOperator *input, List *par
 	return o;
 }
 
+QueryOperator *
+getFirstRoot(QueryOperator *op)
+{
+	if(LIST_LENGTH(op->parents) > 0)
+	{
+		return getFirstRoot(getHeadOfListP(op->parents));
+	}
+	return op;
+}
+
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {
@@ -919,6 +1005,29 @@ removeStringProperty (QueryOperator *op, char *key)
 {
     removeMapStringElem((HashMap *) op->properties, key);
 }
+
+List *
+appendToListProperty(QueryOperator *op, Node *key, Node *newTail)
+{
+	List *cur = (List *) getProp(op, key);
+
+	cur = appendToTailOfList(cur, newTail);
+	setProperty(op, key, (Node *) cur);
+
+	return cur;
+}
+
+List *
+appendToListStringProperty(QueryOperator *op, char *key, Node *newTail)
+{
+	List *cur = (List *) getStringProperty(op, key);
+
+	cur = appendToTailOfList(cur, newTail);
+	setStringProperty(op, key, (Node *) cur);
+
+	return cur;
+}
+
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
@@ -1078,7 +1187,7 @@ getAttrRefNames(ProjectionOperator *op)
 {
    List *result = NIL;
 
-   FOREACH(AttributeReference, a, op->projExprs)
+   FOREACH(AttributeReference, a, op->projExprs)//FIXME will break if not just attribute references
       result = appendToTailOfList(result, strdup(a->name));
 
    return result;
@@ -1227,14 +1336,14 @@ getAttrRefByName(QueryOperator *op, char *attr)
 
     AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
             getAttrPos(op, attr),
-            INVALID_ATTR,
+            0,
             d->dataType);
 
     return res;
 }
 
 List *
-getAttrRefsInOperator (QueryOperator *op)
+getAttrRefsInOperator(QueryOperator *op)
 {
     List *refs = NIL;
 
@@ -1283,8 +1392,12 @@ getAttrRefsInOperator (QueryOperator *op)
         }
         break;
         case T_NestingOperator:
+		{
             //TODO do not traverse into query operator
-            break;
+			NestingOperator *n = (NestingOperator *) op;
+			refs = getAttrReferences(n->cond);
+		}
+		break;
         case T_OrderOperator:
         {
             OrderOperator *p = (OrderOperator *) op;
@@ -1298,6 +1411,22 @@ getAttrRefsInOperator (QueryOperator *op)
     }
 
     return refs;
+}
+
+boolean
+opReferencesAttr(QueryOperator *op, char *a)
+{
+	List *refs =getAttrRefsInOperator(op);
+
+	FOREACH(AttributeReference,ar,refs)
+	{
+		if(streq(ar->name, a))
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 List *
@@ -1369,22 +1498,166 @@ getProjExprsForAllAttrs(QueryOperator *op)
 }
 
 
+List *
+getProjResultAttrNamesForProjExpr(ProjectionOperator *op, Node *expr)
+{
+    List *result;
+	List *names = getQueryOperatorAttrNames((QueryOperator *) op);
+	int pos = 0;
+
+	FOREACH(Node,pe,op->projExprs)
+	{
+		if(equal(pe, expr))
+		{
+			result = appendToTailOfList(result, getNthOfListP(names, pos));
+		}
+		pos++;
+	}
+
+	return result;
+}
+
+
+List *
+getNestingResultAttributeNames(NestingOperator *op)
+{
+	List *attrs = getQueryOperatorAttrNames((QueryOperator *) op);
+	int numOuterAttrs = getNumAttrs(OP_LCHILD(op));
+
+	// return result attributes that are not from the outer (left input)
+	attrs = sublist(attrs, numOuterAttrs, -1);
+
+	return attrs;
+}
+
+char *
+getSingleNestingResultAttribute(NestingOperator *op)
+{
+	ASSERT(getNumAttrs(OP_LCHILD(op)) + 1 == getNumAttrs((QueryOperator *) op));
+	return getTailOfListP(getQueryOperatorAttrNames((QueryOperator *) op));
+}
+
+
+/**
+ * @brief Determine all correlated attributes from the outer query.
+ *
+ * The default is to only look at correlatations with the op's outer query.
+ *
+ * @param op the nesting operator
+ * @param corrInSubquery if TRUE, then also find correlation within the nested query itself
+ * @return set of correlated attribute names
+ */
+
+Set *
+getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
+{
+	Set *result = STRSET();
+	CorrelatedAttrsState state = { 1, result, corrInSubquery };
+
+	findCorrelatedAttrsVisitor((Node *) OP_RCHILD(op), &state);
+
+	return result;
+}
+
+Set *
+getCorrelatedAttributes(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
+{
+	Set *result = STRSET();
+	CorrelatedAttrsState state = { 1, result, corrInSubquery };
+
+	findCorrelatedAttrsVisitor((Node *)op, &state);
+
+	return result;
+}
+
+
+static boolean
+findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
+{
+	if (n == NULL)
+		return TRUE;
+
+	//TODO
+	// rules: N can be kept if (i) all of N's childresn can be kept, if (ii) all  of N's correlated attributes are one level up only, and (iii) we can push normalization below N's correlated attributes
+	//   N [CAN KEEP SUBQUERY] depends on CAN KEEP SUBQUERY
+	//      SELECTION[R.A = R.C] -- R is outer
+	//         JOIN
+	//             N' [CAN KEEP SUBQUERY] correlated attribute
+	//                SELECTION[S.B[1] = T.C[0]] -- T is inner most
+	//                     T
+	//                X
+	//             S
+	//      R
+	/* List *attrRefs = queryOperatorGetAttrRefs(op); // --> current operator */
+	/* FOREACH(AttributeReference,a,attrRefs) */
+	/* { */
+	/* 	if(a->outerLevelsUp != 0) */
+	/* 	{ */
+	/* 		addToSet(state->result, a); */
+	/* 		//TODO append to state */
+	/* 	} */
+	/* } */
+
+	/* visitQOGraph(op, TRAVERSAL_PRE, findCorrelatedAttrsVisitor , state); */
+
+	if(isA(n, AttributeReference))
+	{
+		AttributeReference *a = (AttributeReference *) n;
+
+		if(a->outerLevelsUp == state->curDepth
+		   || (a->outerLevelsUp > 0 && state->corrInsideSubquery))
+		{
+			addToSet(state->result, strdup(a->name));
+		}
+	}
+	if(isA(n, NestingOperator))
+	{
+		NestingOperator *no = (NestingOperator *) n;
+		CorrelatedAttrsState newState = *state;
+		newState.curDepth++;
+
+		visit(no->cond, findCorrelatedAttrsVisitor, state);
+		return visit((Node *) OP_LCHILD(no), findCorrelatedAttrsVisitor, &newState);
+	}
+
+	return visit(n, findCorrelatedAttrsVisitor, state);
+}
+
+
 void
 treeify(QueryOperator *op)
 {
     FOREACH(QueryOperator,child,op->inputs)
-                treeify(child);
+		treeify(child);
 
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
     {
         INFO_LOG("operator has more than one parent %s", operatorToOverviewString((Node *) op));
+		Set *parentSet = NODESET();
 
         FOREACH(QueryOperator,parent,op->parents)
+		{
+			addToSet(parentSet, parent);
+		}
+
+        FOREACH_SET(QueryOperator,parent,parentSet)
         {
-            QueryOperator *copy = copyUnrootedSubtree(op);
-            replaceNode(parent->inputs, op, copy);
-            copy->parents = singleton(parent);
+			// check for special case where a binary parent has the operators as both of its inputs
+			if(equal(parent->inputs,LIST_MAKE(op, op)))
+			{
+				QueryOperator *cp1 = copyUnrootedSubtree(op);
+				QueryOperator *cp2 = copyUnrootedSubtree(op);
+				cp1->parents = singleton(parent);
+				cp2->parents = singleton(parent);
+				parent->inputs = LIST_MAKE(cp1, cp2);
+			}
+			else
+			{
+				QueryOperator *copy = copyUnrootedSubtree(op);
+				replaceNode(parent->inputs, op, copy);
+				copy->parents = singleton(parent);
+			}
         }
         op->parents = NIL;
     }

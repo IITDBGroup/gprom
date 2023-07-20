@@ -22,11 +22,13 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
+#include "parameterized_query/parameterized_queries.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
@@ -53,6 +55,9 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
 static QueryOperator *translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList);
+static QueryOperator *translateExecQuery(ExecQuery *q, List **attrsOffsetsList);
+static QueryOperator *translatePrepareQuery(PreparedQuery *q, List **attrsOffsetsList);
+static int compareParameters(const void **a, const void **b);
 static void markTableAccessForRowidProv (QueryOperator *o);
 static void getAffectedTableAndOperationType (Node *stmt,
         ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
@@ -62,13 +67,14 @@ static QueryOperator *translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 /* Functions of translating from clause in a QueryBlock */
 static QueryOperator *translateFromClause(List *fromClause, List **attrsOffsetsList);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
-static List *translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList);
+static List *translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList, List *selfOffsets);
 //static void addPrefixToAttrNames (List *str, char *prefix);
 static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje, List **attrsOffsetsList);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList);
+static QueryOperator *translateFromLateralSubquery(FromLateralSubquery *fsq, List **attrsOffsetsList);
 static QueryOperator *translateFromJsonTable(FromJsonTable *fjt);
 static QueryOperator *translateFromProvInfo(QueryOperator *op, FromItem *f);
 
@@ -167,6 +173,10 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
             return translateSetQuery((SetQuery *) node, attrsOffsetsList);
         case T_ProvenanceStmt:
             return translateProvenanceStmt((ProvenanceStmt *) node, attrsOffsetsList);
+	    case T_ExecQuery:
+			return translateExecQuery((ExecQuery *) node, attrsOffsetsList);
+	    case T_PreparedQuery:
+			return translatePrepareQuery((PreparedQuery *) node, attrsOffsetsList);
         case T_Insert:
         case T_Update:
         case T_Delete:
@@ -329,7 +339,7 @@ disambiguiteAttrNames(Node *node, Set *done)
 
             child = (QueryOperator *) getNthOfListP(op->inputs, input);
             childA = getAttrDefByPos(child, attrPos);
-            if (!strpeq(a->name,childA->attrName))
+            if (!strpeq(a->name,childA->attrName) && a->outerLevelsUp == 0) //TODO any corelated referejces to this attribute have to be fixed too!
             {
                 a->name = strdup(childA->attrName);
             }
@@ -589,6 +599,61 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     	prop = (Node *) limitAndOffset;
 
     return limitAndOffset;
+}
+
+static QueryOperator *
+translateExecQuery(ExecQuery *e, List **attrsOffsetsList)
+{
+    ExecPreparedOperator *q = (ExecPreparedOperator *) makeNode(ExecPreparedOperator);
+
+	q->name = e->name;
+	q->params = e->params;
+
+	return (QueryOperator *) q;
+}
+
+static QueryOperator *
+translatePrepareQuery(PreparedQuery *p, List **attrsOffsetsList)
+{
+	QueryOperator *q = translateQueryOracleInternal(p->q, attrsOffsetsList);
+	ParameterizedQuery *pq = makeNode(ParameterizedQuery);
+	List *parameters = findParameters((Node *) q);
+
+	// store prepared query's name and dts as property
+	setStringProperty(q,
+					  PROP_PREPARED_QUERY_NAME,
+					  (Node *) createConstString(p->name));
+
+	setStringProperty(q, PROP_PREPARED_QUERY_DTS,
+					  (Node *) p->dts);
+
+	setStringProperty(q, PROP_PREPARED_QUERY_SQLTEXT,
+					  (Node *) createConstString(p->sqlText));
+
+	pq->q = (Node *) q;
+	pq->parameters = unique(parameters, compareParameters); //TODO what to record here?
+
+	// store parameterized query
+	createParameterizedQuery(p->name, pq);
+
+	return q;
+}
+
+static int
+compareParameters(const void **a, const void **b)
+{
+	ASSERT(isA(*a,SQLParameter) && isA(*b,SQLParameter));
+	SQLParameter *p1, *p2;
+
+	p1 = (SQLParameter *) *a;
+	p2 = (SQLParameter *) *b;
+
+	if (p1->position < p2->position)
+		return -1;
+	if (p1->position > p2->position)
+		return 1;
+
+	return 0;
 }
 
 static QueryOperator *
@@ -1079,7 +1144,9 @@ replaceWithViewRefsMutator(Node *node, List *views)
 static QueryOperator *
 translateFromClause(List *fromClause, List **attrsOffsetsList)
 {
-    List *opList = translateFromClauseToOperatorList(fromClause, attrsOffsetsList);
+    List *selfOffsets = getAttrsOffsets(fromClause);
+
+    List *opList = translateFromClauseToOperatorList(fromClause, attrsOffsetsList, selfOffsets);
     return buildJoinTreeFromOperatorList(opList);
 }
 
@@ -1121,10 +1188,11 @@ buildJoinTreeFromOperatorList(List *opList)
         else
         {
             QueryOperator *oldRoot = (QueryOperator *) root;
-            List *inputs = NIL;
+			boolean isLateral = HAS_STRING_PROP(op, PROP_OP_IS_LATERAL);
+            List *inputs = LIST_MAKE(oldRoot, op);
             // set children of the join node
-            inputs = appendToTailOfList(inputs, oldRoot);
-            inputs = appendToTailOfList(inputs, op);
+            /* inputs = appendToTailOfList(inputs, oldRoot); */
+            /* inputs = appendToTailOfList(inputs, op); */
             List *lAttrs = getAttrNames(oldRoot->schema);
             List *rAttrs = getAttrNames(op->schema);
 
@@ -1134,12 +1202,29 @@ buildJoinTreeFromOperatorList(List *opList)
             // names
             List *attrNames = concatTwoLists(lAttrs, rAttrs);
 
+			// for lateral subqueries create nesting operator
+			if(isLateral)
+			{
+				List *dts = CONCAT_LISTS(getDataTypes(oldRoot->schema),
+										 getDataTypes(op->schema));
+				root = (QueryOperator *) createNestingOp(NESTQ_LATERAL,
+														 NULL,
+														 inputs,
+														 NIL,
+														 attrNames,
+														 dts);
+				addParent(OP_LCHILD(root), root);
+				addParent(OP_RCHILD(root), root);
+			}
             // create join operator
-            root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
+			else
+			{
+				root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
-            // set the parent of the operator's children
-            OP_LCHILD(root)->parents = singleton(root);
-            OP_RCHILD(root)->parents = singleton(root);
+				// set the parent of the operator's children
+				OP_LCHILD(root)->parents = singleton(root);
+				OP_RCHILD(root)->parents = singleton(root);
+			}
         }
         pos++;
     }
@@ -1190,10 +1275,11 @@ getAttrsOffsets(List *fromClause)
 }
 
 static List *
-translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
+translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList, List *selfOffsets)
 {
     List *opList = NIL;
-
+	List *currentOffsets = NIL;
+	int pos = 0;
     DEBUG_LOG("translate from clause");
 
     FOREACH(FromItem, from, fromClause)
@@ -1210,6 +1296,22 @@ translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
             case T_FromSubquery:
                 op = translateFromSubquery((FromSubquery *) from, attrsOffsetsList);
                 break;
+		    case T_FromLateralSubquery:
+			{
+				// make from items to the left of this LATERAL query available for correlation
+				if(LIST_LENGTH(currentOffsets) > 0)
+				{
+					*attrsOffsetsList = appendToHeadOfList(*attrsOffsetsList, currentOffsets);
+				}
+
+			    op = translateFromLateralSubquery((FromLateralSubquery *) from, attrsOffsetsList);
+
+				if(LIST_LENGTH(currentOffsets) > 0)
+				{
+					*attrsOffsetsList = removeFromHead(*attrsOffsetsList);
+				}
+			}
+			break;
             case T_FromJsonTable:
             	op = translateFromJsonTable((FromJsonTable *) from);
             	break;
@@ -1222,6 +1324,9 @@ translateFromClauseToOperatorList(List *fromClause, List **attrsOffsetsList)
 
         ASSERT(op);
         opList = appendToTailOfList(opList, op);
+		// create prefix of offsets for from items we have processed so far
+		currentOffsets = appendToTailOfListInt(currentOffsets, getNthOfListInt(selfOffsets, pos));
+		pos++;
     }
 
     ASSERT(opList);
@@ -1536,6 +1641,18 @@ translateFromSubquery(FromSubquery *fsq, List **attrsOffsetsList)
 }
 
 static QueryOperator *
+translateFromLateralSubquery(FromLateralSubquery *fsq, List **attrsOffsetsList)
+{
+	QueryOperator *result;
+	//TODO use translateNestedSubquery to take care of
+    result = translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
+	SET_BOOL_STRING_PROP(result, PROP_OP_IS_LATERAL);
+	DEBUG_LOG("translated lateral subquery.");
+
+	return result;
+}
+
+static QueryOperator *
 translateFromJsonTable(FromJsonTable *fjt)
 {
     JsonTableOperator *jto = createJsonTableOperator(fjt);
@@ -1580,7 +1697,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *dts = getDataTypes(lChild->schema);
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
-        char *attrName = CONCAT_STRINGS("nesting_eval_", gprom_itoa(i++));
+        char *attrName = getNestingResultAttribute(i++);
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
                                             (Node *)createConstInt(LIST_LENGTH(attrNames))));
@@ -1591,7 +1708,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         else if (nsq->nestingType == NESTQ_SCALAR)
         {
-        		nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
+			nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
             dts = appendToTailOfListInt(dts, getAttrDefByPos(rChild, 0)->dataType);
         }
         else
@@ -1675,13 +1792,15 @@ replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
         if (((NestedSubquery *) node)->nestingType == NESTQ_SCALAR)
             return (Node *) attr;
 
-        // create "nesting_eval_i = true" expression
-        Constant *trueValue = createConstBool(TRUE);
-        List *args = LIST_MAKE(attr, trueValue);
-        Operator *opExpr = createOpExpr(OPNAME_EQ, args);
+//        // create "nesting_eval_i = true" expression
+//        Constant *trueValue = createConstBool(TRUE);
+//        List *args = LIST_MAKE(attr, trueValue);
+//        Operator *opExpr = createOpExpr("=", args);
+//
+//        // replace the nested subquery node with the auxiliary expression
+//        return (Node *) opExpr;
 
-        // replace the nested subquery node with the auxiliary expression
-        return (Node *) opExpr;
+        return (Node *) attr;
     }
 
     if (isQBQuery(node))
@@ -1734,7 +1853,9 @@ static boolean
 visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
 {
     if (n == NULL)
+    {
         return TRUE;
+	}
     if (isA(n, AttributeReference))
     {
     	//int count = 0;
@@ -2168,7 +2289,7 @@ visitAggregFunctionCall(Node *n, List **aggregs)
         FunctionCall *fc = (FunctionCall *) n;
         if (fc->isAgg)
         {
-            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL));
+            DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc, NULL, TRUE));
             *aggregs = appendToTailOfList(*aggregs, fc);
 
             // do not recurse into aggregation function calls
@@ -2187,7 +2308,7 @@ visitFindWindowFuncs(Node *n, List **wfs)
 
     if (isA(n, WindowFunction))
     {
-        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL));
+        DEBUG_LOG("Found window function <%s>", exprToSQL(n, NULL, TRUE));
         *wfs = appendToTailOfList(*wfs, n);
         return TRUE;
     }

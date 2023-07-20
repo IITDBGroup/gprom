@@ -16,12 +16,15 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
+#include "model/graph/graph.h"
 #include "model/bitset/bitset.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
+#include "model/integrity_constraints/integrity_constraints.h"
 #include "model/rpq/rpq_model.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 /* data structures for copying operator nodes */
 typedef struct OperatorMap
@@ -58,6 +61,7 @@ static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
 static BitSet *deepCopyBitSet(BitSet *from, OperatorMap **opMap);
+static Graph *deepCopyGraph(Graph *from, OperatorMap **opMap);
 
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
@@ -77,12 +81,17 @@ static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
 static QuantifiedComparison *copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap);
 static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
 
+/* integrity constraints */
+static FD *copyFD(FD *from, OperatorMap **opMap);
+static FOdep *copyFOdep(FOdep *from, OperatorMap **opMap);
+
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
 static Schema *copySchema(Schema *from, OperatorMap **opMap);
 
 /*functions to copy query_operator*/
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
+static ParameterizedQuery *copyParameterizedQuery(ParameterizedQuery *from, OperatorMap **opMap);
 static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
 static SampleClauseOperator *copySampleClauseOperator(SampleClauseOperator *from, OperatorMap **opMap);
 static JsonTableOperator *copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap);
@@ -100,7 +109,8 @@ static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **op
 static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
 static LimitOperator *copyLimitOperator(LimitOperator *from, OperatorMap **opMap);
 static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
-static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap ** opMap);
+static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap **opMap);
+static ExecPreparedOperator *copyExecPreparedOperator(ExecPreparedOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -115,6 +125,7 @@ static SelectItem *copySelectItem(SelectItem  *from, OperatorMap **opMap);
 static void copyFromItem (FromItem *from, FromItem *to);
 static FromTableRef *copyFromTableRef(FromTableRef *from, OperatorMap **opMap);
 static FromSubquery *copyFromSubquery(FromSubquery *from, OperatorMap **opMap);
+static FromLateralSubquery *copyFromLateralSubquery(FromLateralSubquery *from, OperatorMap **opMap);
 static FromJoinExpr *copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap);
 static DistinctClause *copyDistinctClause(DistinctClause *from, OperatorMap **opMap);
 static Insert *copyInsert(Insert *from, OperatorMap **opMap);
@@ -125,6 +136,8 @@ static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
 static CreateTable *copyCreateTable(CreateTable *from, OperatorMap **opMap);
 static AlterTable *copyAlterTable(AlterTable *from, OperatorMap **opMap);
+static PreparedQuery *copyPreparedQuery(PreparedQuery *from, OperatorMap **opMap);
+static ExecQuery *copyExecQuery(ExecQuery *from, OperatorMap **opMap);
 
 /* functions to copy datalog model elements */
 static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
@@ -137,6 +150,11 @@ static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
 /* copy regex elements */
 static Regex *copyRegex(Regex *from, OperatorMap **opMap);
 static RPQQuery *copyRPQQuery(RPQQuery *from, OperatorMap **opMap);
+
+/* copy structure for provenance sketch */
+static psInfo *copyPSInfo(psInfo *from, OperatorMap **opMap);
+static psAttrInfo *copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap);
+static psInfoCell *copyPSInfoCell(psInfoCell *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -260,6 +278,17 @@ static BitSet *
 deepCopyBitSet(BitSet *from, OperatorMap **opMap)
 {
 	BitSet *new = copyBitSet(from);
+
+	return new;
+}
+
+static Graph *
+deepCopyGraph(Graph *from, OperatorMap **opMap)
+{
+	COPY_INIT(Graph);
+
+	COPY_NODE_FIELD(nodes);
+	COPY_NODE_FIELD(edges);
 
 	return new;
 }
@@ -540,9 +569,34 @@ copyCastExpr(CastExpr *from, OperatorMap **opMap)
 
     COPY_SCALAR_FIELD(resultDT);
     COPY_NODE_FIELD(expr);
+    COPY_STRING_FIELD(otherDT);
+    COPY_SCALAR_FIELD(num);
 
     return new;
 }
+
+static FD *
+copyFD(FD *from, OperatorMap **opMap)
+{
+	COPY_INIT(FD);
+
+	COPY_STRING_FIELD(table);
+	COPY_NODE_FIELD(lhs);
+	COPY_NODE_FIELD(rhs);
+
+	return new;
+}
+static FOdep *
+copyFOdep(FOdep *from, OperatorMap **opMap)
+{
+	COPY_INIT(FOdep);
+
+	COPY_NODE_FIELD(lhs);
+	COPY_NODE_FIELD(rhs);
+
+	return new;
+}
+
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -560,6 +614,49 @@ copySchema(Schema *from, OperatorMap **opMap)
     COPY_INIT(Schema);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(attrDefs);
+
+    return new;
+}
+
+static psInfo *
+copyPSInfo(psInfo *from, OperatorMap **opMap)
+{
+    COPY_INIT(psInfo);
+
+    COPY_STRING_FIELD(psType);
+    COPY_NODE_FIELD(tablePSAttrInfos);
+
+    return new;
+}
+
+
+static psAttrInfo *
+copyPSAttrInfo(psAttrInfo *from, OperatorMap **opMap)
+{
+    COPY_INIT(psAttrInfo);
+
+    COPY_STRING_FIELD(attrName);
+    COPY_NODE_FIELD(rangeList);
+    COPY_NODE_FIELD(BitVector);
+    COPY_NODE_FIELD(psIndexList);
+
+    return new;
+}
+
+static psInfoCell *
+copyPSInfoCell(psInfoCell *from, OperatorMap **opMap)
+{
+    COPY_INIT(psInfoCell);
+
+//    COPY_STRING_FIELD(storeTable);
+//    COPY_STRING_FIELD(pqSql);
+//    COPY_STRING_FIELD(paraValues);
+    COPY_STRING_FIELD(tableName);
+    COPY_STRING_FIELD(attrName);
+    COPY_STRING_FIELD(provTableAttr);
+    COPY_SCALAR_FIELD(numRanges);
+    COPY_SCALAR_FIELD(psSize);
+    COPY_NODE_FIELD(ps);
 
     return new;
 }
@@ -596,6 +693,16 @@ copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
     }
 
     return new;
+}
+
+static ParameterizedQuery *
+copyParameterizedQuery(ParameterizedQuery *from, OperatorMap **opMap)
+{
+	COPY_INIT(ParameterizedQuery);
+	COPY_NODE_FIELD(q);
+	COPY_NODE_FIELD(parameters);
+
+	return new;
 }
 
 #define COPY_OPERATOR() copyQueryOperator((QueryOperator *) from, (QueryOperator *) new, opMap)
@@ -798,6 +905,19 @@ copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
     return new;
 }
 
+
+
+static ExecPreparedOperator *
+copyExecPreparedOperator(ExecPreparedOperator *from, OperatorMap **opMap)
+{
+	COPY_INIT(ExecPreparedOperator);
+
+	COPY_STRING_FIELD(name);
+	COPY_NODE_FIELD(params);
+
+	return new;
+}
+
 /*functions to copy query_block*/
 static SetQuery *
 copySetQuery(SetQuery *from, OperatorMap **opMap)
@@ -918,6 +1038,28 @@ copyAlterTable(AlterTable *from, OperatorMap **opMap)
     COPY_NODE_FIELD(beforeSchema);
 
     return new;
+}
+
+static PreparedQuery *
+copyPreparedQuery(PreparedQuery *from, OperatorMap **opMap)
+{
+	COPY_INIT(PreparedQuery);
+	COPY_STRING_FIELD(name);
+	COPY_NODE_FIELD(q);
+	COPY_STRING_FIELD(sqlText);
+	COPY_NODE_FIELD(dts);
+
+	return new;
+}
+
+static ExecQuery *
+copyExecQuery(ExecQuery *from, OperatorMap **opMap)
+{
+	COPY_INIT(ExecQuery);
+	COPY_NODE_FIELD(name);
+	COPY_NODE_FIELD(params);
+
+	return new;
 }
 
 
@@ -1061,6 +1203,16 @@ copyFromSubquery(FromSubquery *from, OperatorMap **opMap)
     return new;
 }
 
+static FromLateralSubquery *
+copyFromLateralSubquery(FromLateralSubquery *from, OperatorMap **opMap)
+{
+    COPY_INIT(FromLateralSubquery);
+    COPY_FROM();
+    COPY_NODE_FIELD(subquery);
+
+    return new;
+}
+
 static FromJoinExpr *
 copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap)
 {
@@ -1116,7 +1268,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_BitSet:
             retval = deepCopyBitSet(from, opMap);
             break;
-
+	    case T_Graph:
+			retval = deepCopyGraph(from, opMap);
+			break;
         /* expression model */
         case T_AttributeReference:
             retval = copyAttributeReference(from, opMap);
@@ -1172,6 +1326,12 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_CastExpr:
             retval = copyCastExpr(from, opMap);
             break;
+     	case T_FD:
+     		retval = copyFD(from, opMap);
+     		break;
+     	case T_FOdep:
+     		retval = copyFOdep(from, opMap);
+     		break;
             /* query block model nodes */
 //        case T_SetOp:
 //            retval = copySetOp(from, opMap);
@@ -1206,6 +1366,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_FromSubquery:
             retval = copyFromSubquery(from, opMap);
             break;
+	    case T_FromLateralSubquery:
+			retval = copyFromLateralSubquery(from, opMap);
+			break;
         case T_FromJoinExpr:
             retval = copyFromJoinExpr(from, opMap);
             break;
@@ -1233,9 +1396,17 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_AlterTable:
             retval = copyAlterTable(from, opMap);
             break;
-
+	    case T_PreparedQuery:
+			retval = copyPreparedQuery(from, opMap);
+			break;
+	    case T_ExecQuery:
+			retval = copyExecQuery(from, opMap);
+			break;
              /* query operator model nodes */
-        case T_SelectionOperator:
+	    case T_ParameterizedQuery:
+			 retval = copyParameterizedQuery(from, opMap);
+			 break;
+	    case T_SelectionOperator:
             retval = copySelectionOperator(from, opMap);
             break;
         case T_ProjectionOperator:
@@ -1283,6 +1454,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_JsonColInfoItem:
 			retval = copyJsonColInfoItem(from, opMap);
 			break;
+	    case T_ExecPreparedOperator:
+			retval = copyExecPreparedOperator(from, opMap);
+			break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);
@@ -1313,6 +1487,17 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_RPQQuery:
             retval = copyRPQQuery(from, opMap);
+            break;
+
+        /* provenance sketch */
+        case T_psInfo:
+            retval = copyPSInfo(from, opMap);
+            break;
+        case T_psAttrInfo:
+            retval = copyPSAttrInfo(from, opMap);
+            break;
+        case T_psInfoCell:
+            retval = copyPSInfoCell(from, opMap);
             break;
         default:
             retval = NULL;

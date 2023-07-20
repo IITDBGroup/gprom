@@ -202,6 +202,37 @@ getVecString(Vector *v, int pos)
 	return VEC_TO_ARR(v,char)[pos];
 }
 
+Node *
+setVecNode(Vector *v, int pos, Node *newEl)
+{
+	ASSERT(pos >= 0 && pos < VEC_LENGTH(v));
+
+	VEC_TO_ARR(v,Node)[pos] = newEl;
+
+	return newEl;
+}
+
+
+int
+setVecInt(Vector *v, int pos, int newEl)
+{
+	ASSERT(pos >= 0 && pos < VEC_LENGTH(v));
+
+	VEC_TO_IA(v)[pos] = newEl;
+
+	return newEl;
+}
+
+int
+incrVecInt(Vector *v, int pos, int amount)
+{
+	ASSERT(pos >= 0 && pos < VEC_LENGTH(v));
+
+	(VEC_TO_IA(v)[pos]) += amount;
+
+	return VEC_TO_IA(v)[pos];
+}
+
 boolean
 findVecNode(Vector *v, Node *el)
 {

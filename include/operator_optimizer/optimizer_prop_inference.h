@@ -38,14 +38,15 @@ extern void computeECPropTopDown (QueryOperator *root);
 extern List *SCHAtoBUsedInBomUp(List *setList, List *childECSetList, List *attrA, List *attrB);
 extern void SCHBtoAUsedInTopBom(List **setList, List *attrRefs, List *attrDefs);
 
-extern void computeReqColProp (QueryOperator *root);
+extern void computeReqColProp(QueryOperator *root);
+extern boolean isAttrRequired(QueryOperator *q, char *attr);
 extern void computeSetProp (QueryOperator *root);
 
 extern void initializeSetProp(QueryOperator *root);
 extern void initializeIColProp(QueryOperator *root);
 extern void printIcols(QueryOperator *root);
 
-extern Set* AddAttrOfSelectCondToSet(Set *set, Operator *op);
+extern Set *addAttrOfSelectCondToSet(Set *set, Node *expr);
 
 /* help print function */
 extern void printECPro(QueryOperator *root);
