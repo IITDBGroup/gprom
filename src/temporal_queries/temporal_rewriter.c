@@ -738,7 +738,6 @@ static int
 pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 {
     Node *normalizationFor = context;
-	KeyValue *normalizationCopy = NULL;
 
     if (q == NULL) {
         return 0;
