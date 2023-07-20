@@ -27,8 +27,7 @@
 #include "provenance_rewriter/semantic_optimization/prov_semantic_optimization.h"
 #include "analysis_and_translate/analyze_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
-#include "ocilib.h"
-#include <assert.h>
+/* #include <assert.h> */
 
 static List *makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames, Set *allnames);
 static boolean findVarsVisitor(Node *node, List **context);
