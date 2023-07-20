@@ -76,6 +76,7 @@ typedef struct BackendInfo {
 // show help only
 boolean opt_show_help = FALSE;
 char *opt_test = NULL;
+boolean opt_listtests = FALSE;
 char *opt_language_help = NULL;
 
 // connection options
@@ -290,7 +291,7 @@ OptionInfo opts[] =
 {
         // show help only and quit
         {
-                "help",
+                OPTION_SHOW_HELP,
                 "-help",
                 "Show this help text.",
                 OPTION_BOOL,
@@ -299,16 +300,25 @@ OptionInfo opts[] =
         },
         // choose test
         {
-                "test",
+                OPTION_TEST_NAME,
                 "-test",
                 "choose the test to run (ignored by all binaries except test_main)",
                 OPTION_STRING,
                 wrapOptionString(&opt_test),
                 defOptionString(NULL)
         },
+        // list tests
+        {
+                OPTION_LIST_TESTS,
+                "-listtests",
+                "list available tests (only used by test_main)",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_listtests),
+                defOptionBool(FALSE)
+        },
         // show help only and quit
         {
-                "languagehelp",
+                OPTION_SHOW_LANGUAGE_HELP,
                 "-languagehelp",
                 "Show supported provenance requests for a supported frontend language.",
                 OPTION_STRING,
@@ -630,7 +640,7 @@ OptionInfo opts[] =
                 "-treeify-all",
                 "Turn AGM graph into a tree passing it to serializer.",
                 opt_treeify_all,
-                FALSE),		
+                FALSE),
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
                 "-prov_use_composable",
                 "Use composable version of PI-CS provenance that adds additional columns which"

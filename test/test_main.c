@@ -138,12 +138,9 @@ main(int argc, char* argv[])
 
     // get directory where testmain resides to determine location of the test database
     char *path = getDBPath(argc,argv);
-    char *test = getStringOption("test");
+    char *test = getStringOption(OPTION_TEST_NAME);
+    boolean listTests = getBoolOption(OPTION_LIST_TESTS);
     printf("dbPath: %s\n", path);
-
-    // print options
-    DEBUG_LOG("configuration:\n\n");
-    printCurrentOptions(stdout);
 
     // setup options to use sqlite unless the user has specified a backend (in which case we use the user provided connection parameters)
     if(getStringOption("backend") == NULL)
@@ -158,15 +155,26 @@ main(int argc, char* argv[])
     setupPluginsFromOptions();
 
     // print options
-    DEBUG_LOG("configuration:\n\n");
-    printCurrentOptions(stdout);
+    if (!listTests)
+    {
+        DEBUG_LOG("configuration:\n\n");
+        printCurrentOptions(stdout);
+    }
 
     _testStringBuf = (char *) malloc(STRING_BUFFER_SIZE);
 
-    if (test == NULL)
+    if (listTests)
+    {
+        printTests();
+    }
+    else if (test == NULL)
+    {
         testSuites();
+    }
     else
+    {
         runOneTest(test);
+    }
 
     free(_testStringBuf);
 

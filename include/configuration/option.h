@@ -16,6 +16,10 @@ NEW_ENUM_WITH_TO_STRING(
 );
 //typedef enum OptionType {
 
+/* help options */
+#define OPTION_SHOW_HELP "help"
+#define OPTION_SHOW_LANGUAGE_HELP "languagehelp"
+
 /* connection options */
 #define OPTION_CONN_USER "connection.user"
 #define OPTION_CONN_PASSWD "connection.passwd"
@@ -27,6 +31,10 @@ NEW_ENUM_WITH_TO_STRING(
 /* backend specific options */
 #define OPTION_ORACLE_AUDITTABLE "backendOpts.oracle.logtable"
 #define OPTION_ORACLE_USE_SERVICE "backendOpts.oracle.use_service"
+
+/* test options */
+#define OPTION_TEST_NAME "test"
+#define OPTION_LIST_TESTS "listtests"
 
 /* input options */
 #define OPTION_INPUT_SQL "input.sql"

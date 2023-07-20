@@ -84,7 +84,7 @@ readOptions (char *appName, char *appHelpText, int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption("help"))
+    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption(OPTION_SHOW_HELP))
     {
         printOptionsHelp(stdout, appName, appHelpText, FALSE);
         return EXIT_FAILURE;
@@ -570,13 +570,13 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    		}
 	    	}
 	    }
-	
+
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
 
 	// turn operator graph into a tree if the users asked for it
 	treeifyAll(rewrittenTree);
-	
+
 	START_TIMER("SQLcodeGen");
 	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
 	STOP_TIMER("SQLcodeGen");

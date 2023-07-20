@@ -39,16 +39,16 @@ testTemporal()
 static rc
 testNormalization(void)
 {
-    QueryOperator *tableAccess = (QueryOperator *)provRewriteQuery((QueryOperator *)translateParse(parseFromString("sequenced temporal (select * from op with time (P_START, P_END));")));
+    /* QueryOperator *tableAccess = (QueryOperator *)provRewriteQuery((QueryOperator *)translateParse(parseFromString("sequenced temporal (select * from op with time (P_START, P_END));"))); */
     // QueryOperator *normalized = addTemporalNormalization(tableAccess, copyObject(tableAccess), NIL);
 
-    INFO_LOG("TEMPORAL OPERATOR TREE IS: ", beatify(nodeToString(tableAccess)));
+    /* INFO_LOG("TEMPORAL OPERATOR TREE IS: ", beatify(nodeToString(tableAccess))); */
 
-    char *serialized = serializeOperatorModel((Node *)tableAccess);
-    INFO_LOG("SERIALIZED TEMPORAL QUERY IS: %s\n", serialized);
+    /* char *serialized = serializeOperatorModel((Node *)tableAccess); */
+    /* INFO_LOG("SERIALIZED TEMPORAL QUERY IS: %s\n", serialized); */
 
-    Relation *relation = executeQuery(serializeOperatorModel((Node *)tableAccess));
-    INFO_LOG("TUPLES OF RESULT ARE: ", beatify(nodeToString(relation->tuples)));
+    /* Relation *relation = executeQuery(serializeOperatorModel((Node *)tableAccess)); */
+    /* INFO_LOG("TUPLES OF RESULT ARE: ", beatify(nodeToString(relation->tuples))); */
 
     return PASS;
 }

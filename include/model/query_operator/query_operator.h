@@ -190,6 +190,11 @@ typedef struct ExecPreparedOperator
         || isA(op,SetOperator)                          \
         || isA(op,NestingOperator))
 
+#define IS_SPECIAL_OP(op) (isA(op,ProvenanceComputation) \
+    || isA(op,/UpdateOperator) \
+    || isA(op,/ExecPreparedOperator) \
+    )
+
 #define IS_OP(op) (IS_NULLARY_OP(op) || IS_UNARY_OP(op) || IS_BINARY_OP(op))
 
 #define IS_QB(op) (IS_OP(op) || (isA(op,List) && (op == NULL || IS_OP(getNthOfListP((List *) op, 0)))))

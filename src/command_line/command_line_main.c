@@ -101,8 +101,8 @@ main(int argc, char* argv[])
     // read options, determine session type, and setup plugins
     int returnVal = readOptions("gprom", HELLO_MESSAGE, argc, argv);
 
-    isInteractiveSession = !(getStringOption("languagehelp") != NULL
-            || getBoolOption("help")
+    isInteractiveSession = !(getStringOption(OPTION_SHOW_LANGUAGE_HELP) != NULL
+            || getBoolOption(OPTION_SHOW_HELP)
             || getStringOption("input.sql") != NULL
             || getStringOption("input.sqlFile") != NULL);
 
@@ -118,9 +118,9 @@ main(int argc, char* argv[])
     {
 
     }
-    else if (getStringOption("languagehelp") != NULL)
+    else if (getStringOption(OPTION_SHOW_LANGUAGE_HELP) != NULL)
     {
-        char *lang = getStringOption("languagehelp");
+        char *lang = getStringOption(OPTION_SHOW_LANGUAGE_HELP);
         printf(TB_FG_BG(WHITE,BLACK,"%s - LANGUAGE OVERVIEW") ":\n%s",
                 getParserPluginNameFromString(lang), getParserPluginLanguageHelp(lang));
     }
