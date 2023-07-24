@@ -28,6 +28,7 @@
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
 #include "model/bitset/bitset.h"
+#include "model/query_operator/operator_property.h"
 #include <stdlib.h>
 
 #if HAVE_POSTGRES_BACKEND
@@ -2194,8 +2195,8 @@ postgresGetDataChunkFromDelta(char *query, DataChunk *dc, int psAttrPos, Vector 
 	for (int row = 0; row < numRes; row++) {
 		vecAppendInt(dc->updateIdentifier, updIde);
 	}
-    DEBUG_NODE_BEATIFY_LOG("PS:", dc->fragmentsInfo);
-    DEBUG_NODE_BEATIFY_LOG("DELETE CHUNK IN POSTGRES", dc);
+    // DEBUG_NODE_BEATIFY_LOG("PS:", dc->fragmentsInfo);
+    // DEBUG_NODE_BEATIFY_LOG("DELETE CHUNK IN POSTGRES", dc);
     PQclear(rs);
     execCommit();
     STOP_TIMER("Postgres - execute ExecuteQuery");
@@ -2530,6 +2531,8 @@ postgresGetDataChunkJoin(char *query, DataChunk* dcIns, DataChunk *dcDel, int wh
     int numRes = PQntuples(rs);
     int numFields = PQnfields(rs);
 	if (numRes < 1) {
+        STOP_TIMER("POSTGRES - GET RESULT FROM DB");
+        START_TIMER("Postgres - execute ExecuteQuery For Join Operator");
 		return;
 	}
 
@@ -2860,6 +2863,308 @@ postgresGetDataChunkUpdate(char *query, DataChunk* dcIns, DataChunk* dcDel, int 
     STOP_TIMER(METADATA_LOOKUP_TIMER);
 }
 
+List *postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent)
+{
+    List *deltaAttrDefs = NIL;
+    INFO_LOG("COPY DELTA TO DB");
+    DataChunk *dcIns = NULL;
+    DataChunk *dcDel = NULL;
+
+    if (MAP_HAS_STRING_KEY(dataChunks, PROP_DATA_CHUNK_INSERT)) {
+        dcIns = (DataChunk *) MAP_GET_STRING(dataChunks, PROP_DATA_CHUNK_INSERT);
+    }
+
+    if (MAP_HAS_STRING_KEY(dataChunks, PROP_DATA_CHUNK_DELETE)) {
+        dcDel = (DataChunk *) MAP_GET_STRING(dataChunks, PROP_DATA_CHUNK_DELETE);
+    }
+
+    // init delta infomations
+    StringInfo createTableSQL = makeStringInfo();
+    Vector *deltaTuples = makeVector(VECTOR_NODE, T_Vector);
+
+    // delta table name;
+    appendStringInfo(createTableSQL, "create table %s ", deltaTableName);
+
+    DataChunk *dcInfo = NULL;
+    int insNum = 0;
+    int delNum = 0;
+    START_TIMER("Postgres - JOIN OPERATOR COPY DATA INTO DB");
+    // init deltatuples;
+    if (dcIns) {
+        insNum = dcIns->numTuples;
+        for (int row = 0; row < insNum; row++) {
+            vecAppendNode(deltaTuples, (Node *) makeStringInfo());
+        }
+        dcInfo = dcIns;
+    }
+    if (dcDel) {
+        delNum = dcDel->numTuples;
+        for (int row = 0; row < delNum; row++) {
+            vecAppendNode(deltaTuples, (Node *) makeStringInfo());
+        }
+        dcInfo = dcDel;
+    }
+
+    int col = 0;
+    // for create table sql;
+    appendStringInfoString(createTableSQL, "(");
+    // attr;
+    FOREACH(AttributeDef, ad, dcInfo->attrNames) {
+        char *format = NULL;
+        if (col > 0) {
+            appendStringInfoString(createTableSQL, ",");
+            format = ",%s";
+        } else {
+            format = "%s";
+        }
+        //attr name;
+        deltaAttrDefs = appendToTailOfList(deltaAttrDefs, (AttributeDef *) copyObject(ad));
+        appendStringInfo(createTableSQL, "%s ", strdup(ad->attrName));
+
+        int attrPos = INT_VALUE((Constant *) MAP_GET_STRING(dcInfo->attriToPos, ad->attrName));
+        DataType dt = INT_VALUE((Constant *) MAP_GET_INT(dcInfo->posToDatatype, attrPos));
+
+        switch(dt) {
+            case DT_INT:
+            {
+                appendStringInfoString(createTableSQL, "int ");
+
+                int *dcInsVals = NULL;
+                int *dcDelVals = NULL;
+                if (dcIns) {
+                    Vector *vec = (Vector *) getVecNode(dcIns->tuples, attrPos);
+                    dcInsVals = VEC_TO_IA(vec);
+                }
+                if (dcDel) {
+                    Vector *vec = (Vector *) getVecNode(dcDel->tuples, attrPos);
+                    dcDelVals = VEC_TO_IA(vec);
+                }
+
+                // for ins;
+                for (int row = 0; row < insNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), format, gprom_itoa(dcInsVals[row]));
+                }
+
+                // for del;
+                for (int row = 0; row < delNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), format, gprom_itoa(dcDelVals[row]));
+                }
+            }
+            break;
+            case DT_BOOL:
+            {
+                appendStringInfoString(createTableSQL, "bool ");
+                int *dcInsVals = NULL;
+                int *dcDelVals = NULL;
+                if (dcIns) {
+                    Vector *vec = (Vector *) getVecNode(dcIns->tuples, attrPos);
+                    dcInsVals = VEC_TO_IA(vec);
+                }
+                if (dcDel) {
+                    Vector *vec = (Vector *) getVecNode(dcDel->tuples, attrPos);
+                    dcDelVals = VEC_TO_IA(vec);
+                }
+
+                for (int row = 0; row < insNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), format, dcInsVals[row] == 1 ? strdup("true") : strdup("false"));
+                }
+
+                for (int row = 0; row < delNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, insNum + row), format, dcDelVals[row] == 1 ? strdup("true") : strdup("false"));
+                }
+            }
+            break;
+            case DT_LONG:
+            {
+                appendStringInfoString(createTableSQL, "bigint ");
+                gprom_long_t *dcInsVals = NULL;
+                gprom_long_t *dcDelVals = NULL;
+                if (dcIns) {
+                    Vector *vec = (Vector *) getVecNode(dcIns->tuples, attrPos);
+                    dcInsVals = VEC_TO_LA(vec);
+                }
+                if (dcDel) {
+                    Vector *vec = (Vector *) getVecNode(dcDel->tuples, attrPos);
+                    dcDelVals = VEC_TO_LA(vec);
+                }
+                for (int row = 0; row < insNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), format, gprom_ltoa(dcInsVals[row]));
+                }
+
+                for (int row = 0; row < delNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, insNum + row), format, gprom_ltoa(dcDelVals[row]));
+                }
+            }
+            break;
+            case DT_FLOAT:
+            {
+                appendStringInfoString(createTableSQL, "float ");
+                double *dcInsVals = NULL;
+                double *dcDelVals = NULL;
+                if (dcIns) {
+                    Vector *vec = (Vector *) getVecNode(dcIns->tuples, attrPos);
+                    dcInsVals = VEC_TO_FA(vec);
+                }
+                if (dcDel) {
+                    Vector *vec = (Vector *) getVecNode(dcDel->tuples, attrPos);
+                    dcDelVals = VEC_TO_FA(vec);
+                }
+                for (int row = 0; row < insNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), format, gprom_ftoa(dcInsVals[row]));
+                }
+
+                for (int row = 0; row < delNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, insNum + row), format, gprom_ftoa(dcDelVals[row]));
+                }
+            }
+            break;
+            case DT_VARCHAR2:
+            case DT_STRING:
+            {
+                appendStringInfoString(createTableSQL, "varchar ");
+                char **dcInsVals = NULL;
+                char **dcDelVals = NULL;
+                if (dcIns) {
+                    Vector *vec = (Vector *) getVecNode(dcIns->tuples, attrPos);
+                    dcInsVals = (char **) VEC_TO_ARR(vec, char);
+                }
+                if (dcDel) {
+                    Vector *vec = (Vector *) getVecNode(dcDel->tuples, attrPos);
+                    dcDelVals = (char **) VEC_TO_ARR(vec, char);
+                }
+                for (int row = 0; row < insNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), format, strdup(dcInsVals[row]));
+                }
+
+                for (int row = 0; row < delNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, insNum + row), format, strdup(dcDelVals[row]));
+                }
+            }
+            break;
+        }
+        col++;
+    }
+
+    // provenance sketch;
+    if (dcInfo->isAPSChunk) {
+        // col = 0;
+        FOREACH_HASH_KEY(Constant, c, dcInfo->fragmentsInfo) {
+            // if (col > 0) {
+                appendStringInfoString(createTableSQL, ",");
+            // }
+
+            boolean isPSInt = BOOL_VALUE((Constant *) MAP_GET_STRING(dcInfo->fragmentsIsInt, STRING_VALUE(c)));
+            if (isPSInt) {
+                deltaAttrDefs = appendToTailOfList(deltaAttrDefs, createAttributeDef(strdup(STRING_VALUE(c)), DT_INT));
+                appendStringInfo(createTableSQL, "%s %s", strdup(STRING_VALUE(c)), strdup("int"));
+                int *psInsVals = NULL;
+                int *psDelVals = NULL;
+                if (dcIns) {
+                    Vector *vec = (Vector *) MAP_GET_STRING(dcIns->fragmentsInfo, STRING_VALUE(c));
+                    psInsVals = VEC_TO_IA(vec);
+                }
+
+                if (dcDel) {
+                    Vector *vec = (Vector *) MAP_GET_STRING(dcDel->fragmentsInfo, STRING_VALUE(c));
+                    psDelVals = VEC_TO_IA(vec);
+                }
+
+                for (int row = 0; row < insNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), ",%s", gprom_itoa(psInsVals[row]));
+                }
+                for (int row = 0; row < delNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), ",%s", gprom_itoa(psDelVals[row]));
+                }
+            } else {
+                deltaAttrDefs = appendToTailOfList(deltaAttrDefs, createAttributeDef(strdup(STRING_VALUE(c)), DT_STRING));
+                appendStringInfo(createTableSQL, "%s %s", strdup(STRING_VALUE(c)), strdup("varchar"));
+                BitSet **psInsVals = NULL;
+                BitSet **psDelVals = NULL;
+                if (dcIns) {
+                    Vector *vec = (Vector *) MAP_GET_STRING(dcIns->fragmentsInfo, STRING_VALUE(c));
+                    psInsVals = (BitSet **) VEC_TO_ARR(vec, BitSet);
+                }
+                if (dcDel) {
+                    Vector *vec = (Vector *) MAP_GET_STRING(dcDel->fragmentsInfo, STRING_VALUE(c));
+                    psDelVals = (BitSet **) VEC_TO_ARR(vec, BitSet);
+                }
+
+                for (int row = 0; row < insNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), ",%s", bitSetToString(psInsVals[row]));
+                }
+                for (int row = 0; row < delNum; row++) {
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), ",%s", bitSetToString(psDelVals[row]));
+                }
+            }
+        }
+
+    }
+
+    // update iden;
+    deltaAttrDefs = appendToTailOfList(deltaAttrDefs, createAttributeDef(strdup(updIdent), DT_INT));
+    appendStringInfo(createTableSQL, ", %s %s", strdup(updIdent), "int");
+    for (int row = 0; row < insNum; row++) {
+        appendStringInfoString((StringInfo) getVecNode(deltaTuples, row), ",1");
+    }
+    for (int row = 0; row < delNum; row++) {
+        appendStringInfoString((StringInfo) getVecNode(deltaTuples, insNum + row), ",-1");
+    }
+    appendStringInfoString(createTableSQL, ");");
+
+    // Connection, Copy;
+    PGresult *res = NULL;
+    PGconn *conn = plugin->conn;
+
+    INFO_LOG("Create Delta SQL: %s", createTableSQL->data);
+    res = PQexec(conn, createTableSQL->data);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        INFO_LOG("ERROR MSG: %s", PQerrorMessage(conn));
+        // FATAL_LOG("ERROR");
+        CLOSE_RES_CONN_AND_FATAL(res, "create table error: %s", PQerrorMessage(conn));
+    }
+    // PQclear(res);
+    const char *errormsg = NULL;
+
+    // copy data: create "COPY XXX FROM STDIN(DELIMITER\',\');"
+    StringInfo copyStartSQL = makeStringInfo();
+    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \',\');", strdup(deltaTableName));
+    // INFO_LOG("COPY START SQL %s", copyStartSQL->data);
+    // PQexec(conn, copyStartSQL->data);
+    // // copy data: PQputCopyData()
+    // for (int row = 0; row < insNum + delNum; row++) {
+    //     StringInfo str = (StringInfo) getVecNode(deltaTuples, row);
+    //     appendStringInfoString(str, "\r");
+    //     INFO_LOG("what is copy data: %s", str->data);
+    //     PQputCopyData(conn, str->data, str->len);
+    // }
+
+    // approach 2: one bulk
+    StringInfo allDeltas = makeStringInfo();
+    for (int row = 0; row < insNum + delNum; row++) {
+        StringInfo str = (StringInfo) getVecNode(deltaTuples, row);
+        appendStringInfo(allDeltas, "%s\r", str->data);
+    }
+    PQexec(conn, copyStartSQL->data);
+    PQputCopyData(conn, allDeltas->data, allDeltas->len);
+
+
+    // copy data: PQputCopyEnd()
+    PQputCopyEnd(conn, errormsg);
+    // PQexec(conn, "COMMIT;");
+    STOP_TIMER("Postgres - JOIN OPERATOR COPY DATA INTO DB");
+    return deltaAttrDefs;
+}
+
+void postgresDropTemporalDeltaTable(char *tableName)
+{
+    PGresult *res = NULL;
+    PGconn *conn = plugin->conn;
+    res = PQexec(conn, CONCAT_STRINGS("DROP TABLE ", tableName, ";"));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        CLOSE_RES_CONN_AND_FATAL(res, "DROP TEMPORAL DELTA TABLE FAIL: %s", PQerrorMessage(conn));
+    }
+    PQclear(res);
+}
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
 

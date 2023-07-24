@@ -47,6 +47,7 @@ static void updateSet(QueryOperator* op);
 static void updateOrder(QueryOperator *op);
 static void updateLimit(QueryOperator * op);
 static void updateJoinByGroupJoin(QueryOperator *op);
+static void updateJoin2(QueryOperator *op);
 
 // chunk operation;
 static HashMap *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAccessOp);
@@ -108,6 +109,8 @@ static StringInfo strInfo;
 static QueryOperator* updateStatement = NULL;
 static psInfo *PS_INFO = NULL;
 static ProvenanceComputation *PC = NULL;
+
+static boolean option_copy_join = FALSE;
 // static HashMap *limitAttrPoss;
 // static List *limitOrderBys;
 
@@ -145,6 +148,8 @@ update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 	DEBUG_NODE_BEATIFY_LOG("update stmt", updateStmt);
 	updateStatement = updateStmt;
 	// CASE 1: only care incremental steps
+
+	option_copy_join = getBoolOption(OPTION_UPDATE_PS_COPY_DELTA_JOIN);
 	updateByOperators((QueryOperator*) OP_LCHILD(operator));
 	// CASE 2: get new sketch;
 	// updateByOperators(operator);
@@ -200,7 +205,14 @@ updateByOperators(QueryOperator * op)
 			updateSelection(op);
 			break;
 		case T_JoinOperator:
-			updateJoin(op);
+		{
+			if (option_copy_join) {
+				updateJoin2(op);
+			} else {
+				updateJoin(op);
+			}
+
+		}
 			break;
 		case T_AggregationOperator:
 			updateAggregation(op);
@@ -673,6 +685,229 @@ updateJoinByGroupJoin(QueryOperator *op) {
 
 }
 
+// delta use COPY
+static void
+updateJoin2(QueryOperator *op)
+{
+	updateByOperators(OP_LCHILD(op));
+	updateByOperators(OP_RCHILD(op));
+
+	// check children's delta
+	if ((!HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK))
+	 && (!HAS_STRING_PROP(OP_RCHILD(op), PROP_DATA_CHUNK))) {
+		return;
+	}
+
+	QueryOperator *rewrOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+
+	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
+
+	// build result data chunks;
+	DataChunk *resDCIns = initDataChunk();
+	DataChunk *resDCDel = initDataChunk();
+	int pos = 0;
+	FOREACH(AttributeDef, ad, op->schema->attrDefs) {
+		addToMap(resDCIns->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
+		addToMap(resDCDel->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(pos));
+
+		addToMap(resDCIns->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
+		addToMap(resDCDel->posToDatatype, (Node *) createConstInt(pos), (Node *) createConstInt(ad->dataType));
+
+		switch (ad->dataType) {
+			case DT_INT:
+			case DT_BOOL:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_INT, T_Vector));
+			}
+				break;
+			case DT_LONG:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_LONG, T_Vector));
+			}
+				break;
+			case DT_FLOAT:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_FLOAT, T_Vector));
+			}
+				break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+			{
+				vecAppendNode(resDCIns->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+				vecAppendNode(resDCDel->tuples, (Node *) makeVector(VECTOR_STRING, T_Vector));
+			}
+				break;
+			default:
+				FATAL_LOG("not supported");
+		}
+		pos++;
+	}
+
+	resDCIns->tupleFields = pos;
+	resDCDel->tupleFields = pos;
+	resDCIns->attrNames = (List *) copyObject(op->schema->attrDefs);
+	resDCDel->attrNames = (List *) copyObject(op->schema->attrDefs);
+
+	int deltaBranches = 0;
+	TableAccessOperator *leftDelta = NULL;
+	TableAccessOperator *rightDelta = NULL;
+
+	boolean hasLeftDelta = FALSE;
+	boolean hasRightDelta = FALSE;
+	if (HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
+		deltaBranches++;
+		hasLeftDelta = TRUE;
+		HashMap *leftDC = (HashMap *) getStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+
+		List *deltaInfos = postgresCopyDeltaToDB(leftDC, JOIN_LEFT_BRANCH_DELTA_TABLE, JOIN_LEFT_BRANCH_IDENTIFIER);
+
+		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
+
+		leftDelta = createTableAccessOp(strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), NULL, strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), singleton(OP_LCHILD(cOp)), getAttrDefNames(deltaInfos), getAttrDataTypes(deltaInfos));
+		INFO_OP_LOG("LEFT DELTA ", leftDelta);
+		INFO_OP_LOG("copy ccc", cOp);
+		// List *provAttrDefs = getProvenanceAttrDefs(OP_LCHILD(OP_LCHILD(cOp)));
+
+		// create a project
+		int pos = 0;
+		List *attrDefs = (List *) copyObject(deltaInfos);
+		List *projExpr = NIL;
+		// append left child
+		FOREACH(AttributeDef, ad, deltaInfos) {
+			projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 0, pos++, 0, ad->dataType));
+		}
+		List *allDefs = OP_LCHILD(cOp)->schema->attrDefs;
+		// start from a postion to append all attrdef of join op, which will append all right child attrdefs, note the start position(-1, since there we create a identifier)
+		int startIdx = LIST_LENGTH(((QueryOperator *) leftDelta)->schema->attrDefs) - 1;
+		int idx = 0;
+		FOREACH(AttributeDef, ad, allDefs) {
+			if (idx++ < startIdx) {
+				continue;
+			}
+			attrDefs = appendToTailOfList(attrDefs, copyObject(ad));
+			projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 1, pos++, 0, ad->dataType));
+		}
+
+		// replace with new attrDefs
+		OP_LCHILD(cOp)->schema->attrDefs = attrDefs;
+		cOp->schema->attrDefs = attrDefs;
+		((ProjectionOperator *) cOp)->projExprs = projExpr;
+		OP_LCHILD(cOp)->provAttrs = NIL;
+		cOp->provAttrs = NIL;
+
+		List *inputs = NIL;
+		inputs = appendToTailOfList(inputs, leftDelta);
+		// ((QueryOperator *) leftDelta)->parents = singleton(OP_LCHILD(cOp));
+		inputs = appendToTailOfList(inputs, OP_RCHILD(OP_LCHILD(cOp)));
+		OP_LCHILD(cOp)->inputs = inputs;
+
+		// replaceNode(OP_LCHILD(cOp)->inputs, OP_LCHILD(OP_LCHILD(cOp)), leftDelta);
+		INFO_OP_LOG("new Join OP", cOp);
+		// FOREACH(AttributeDef, ad, )
+
+		char *sql = serializeQuery(cOp);
+		INFO_LOG("left delta join %s", sql);
+		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, -1, psAttrAndLevel);
+
+	}
+
+	if (HAS_STRING_PROP(OP_RCHILD(op), PROP_DATA_CHUNK)) {
+		deltaBranches++;
+		hasRightDelta = TRUE;
+		HashMap *rightDC = (HashMap *) getStringProperty(OP_RCHILD(op), PROP_DATA_CHUNK);
+		List *deltaInfos = postgresCopyDeltaToDB(rightDC, JOIN_RIGHT_BRANCH_DELTA_TABLE, JOIN_RIGHT_BRANCH_IDENTIFIER);
+		DEBUG_NODE_BEATIFY_LOG("deltaInfos", deltaInfos);
+		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
+		INFO_OP_LOG("before cOp", cOp);
+		rightDelta = createTableAccessOp(strdup(JOIN_RIGHT_BRANCH_DELTA_TABLE), NULL, strdup(JOIN_RIGHT_BRANCH_DELTA_TABLE), singleton(OP_LCHILD(cOp)), getAttrDefNames(deltaInfos), getAttrDataTypes(deltaInfos));
+
+		OP_LCHILD(cOp)->schema->attrDefs = appendToTailOfList(OP_LCHILD(cOp)->schema->attrDefs, createAttributeDef(JOIN_RIGHT_BRANCH_IDENTIFIER, DT_INT));
+
+		((ProjectionOperator *) cOp)->projExprs = appendToTailOfList(((ProjectionOperator *) cOp)->projExprs, createFullAttrReference(JOIN_RIGHT_BRANCH_IDENTIFIER, 1, LIST_LENGTH(OP_LCHILD(cOp)->schema->attrDefs) - 1, 0, DT_INT));
+
+		cOp->schema->attrDefs = appendToTailOfList(cOp->schema->attrDefs, createAttributeDef(JOIN_RIGHT_BRANCH_IDENTIFIER, DT_INT));
+
+		cOp->provAttrs = NIL;
+		OP_LCHILD(cOp)->provAttrs = NIL;
+
+		List *inputs = NIL;
+		inputs = appendToTailOfList(inputs, OP_LCHILD(OP_LCHILD(cOp)));
+		inputs = appendToTailOfList(inputs, rightDelta);
+		OP_LCHILD(cOp)->inputs = inputs;
+		// OP_LCHILD(cOp)->inputs = replaceNode(OP_LCHILD(cOp)->inputs, OP_RCHILD(OP_LCHILD(cOp)), rightDelta);
+		INFO_OP_LOG("create join op", cOp);
+		char *sql = serializeQuery(cOp);
+		INFO_LOG("create right join %s", sql);
+		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, 1, psAttrAndLevel);
+	}
+
+	if (deltaBranches == 2) {
+		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
+		List *attrDefs = NIL;
+		List *projExpr = NIL;
+		int pos = 0;
+		FOREACH(AttributeDef, ad, ((QueryOperator *) leftDelta)->schema->attrDefs) {
+			attrDefs = appendToTailOfList(attrDefs, copyObject(ad));
+			projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 0, pos++, 0, ad->dataType));
+		}
+		FOREACH(AttributeDef, ad, ((QueryOperator *) rightDelta)->schema->attrDefs) {
+			attrDefs = appendToTailOfList(attrDefs, copyObject(ad));
+			projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 1, pos++, 0, ad->dataType));
+		}
+
+		OP_LCHILD(cOp)->schema->attrDefs = attrDefs;
+		((ProjectionOperator *) cOp)->projExprs = projExpr;
+		cOp->schema->attrDefs = attrDefs;
+		cOp->provAttrs = NIL;
+		OP_LCHILD(cOp)->provAttrs = NIL;
+
+		List* inputs = NIL;
+		appendToTailOfList(inputs, leftDelta);
+		appendToTailOfList(inputs, rightDelta);
+		OP_LCHILD(cOp)->inputs = inputs;
+
+		char *sql = serializeQuery(cOp);
+		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, 0, psAttrAndLevel);
+	}
+
+	// clear temporal delta tables
+	if (hasLeftDelta) {
+		postgresDropTemporalDeltaTable(JOIN_LEFT_BRANCH_DELTA_TABLE);
+	}
+
+	if (hasRightDelta) {
+		postgresDropTemporalDeltaTable(JOIN_RIGHT_BRANCH_DELTA_TABLE);
+	}
+
+	// build final data chunks;
+	HashMap *resChunks = NEW_MAP(Constant, Node);
+	if (resDCIns->numTuples > 0) {
+		MAP_ADD_STRING_KEY(resChunks, PROP_DATA_CHUNK_INSERT, resDCIns);
+	}
+	if (resDCDel->numTuples > 0) {
+		MAP_ADD_STRING_KEY(resChunks, PROP_DATA_CHUNK_DELETE, resDCDel);
+	}
+
+	if (mapSize(resChunks) > 0) {
+		SET_STRING_PROP(op, PROP_DATA_CHUNK, (Node *) resChunks);
+	}
+
+	// remove children's data chunk;
+	if (HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
+		removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+	}
+	if (HAS_STRING_PROP(OP_RCHILD(op), PROP_DATA_CHUNK)) {
+		removeStringProperty(OP_RCHILD(op), PROP_DATA_CHUNK);
+	}
+
+	DEBUG_NODE_BEATIFY_LOG("insChunk", resDCIns);
+	DEBUG_NODE_BEATIFY_LOG("delChunk", resDCDel);
+}
+
+
 static void
 updateJoin(QueryOperator * op)
 {
@@ -685,9 +920,9 @@ updateJoin(QueryOperator * op)
 		int joinNumber = INT_VALUE((Constant *) GET_STRING_PROP(op, "JOIN_NUMBER_FROM_TOP"));
 		if (joinNumber == 0) {
 			updateJoinByGroupJoin(op);
+			return;
 		}
-
-		return;
+		// return;
 	}
 
 	// both children operators don't contain delta tuples;

@@ -73,4 +73,6 @@ extern void postgresGetDataChunkJoin(char *query,DataChunk* dcIns, DataChunk *dc
 extern void postgresGetDataChunkGroupJoin(char *query,DataChunk* dcIns, DataChunk *dcDel, int whichBranch, HashMap *psAttrAndLevel);
 extern void postgresGetDataChunkUpdate(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName);
 extern void postgresGetDataChunkFromDelta(char *query, DataChunk *dc, int psAttrPos, Vector *rangeList, char *psName, boolean isIns);
+extern List *postgresCopyDeltaToDB(HashMap *dataChunks, char *branchName, char *updIdent);
+extern void postgresDropTemporalDeltaTable(char *tableName);
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

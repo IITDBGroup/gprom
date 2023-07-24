@@ -141,6 +141,7 @@ preprocessingSetStartJoinOP(QueryOperator *op)
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
+
 	char *delta_table = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
 	INFO_LOG("what is the delta name: %s", delta_table);
 	char *updated_table = getStringOption(OPTION_UPDATE_PS_UPDATED_TABLE);
@@ -160,6 +161,18 @@ update_ps(ProvenanceComputation *qbModel)
 
 	// remove left child from provenance computation;
 	((QueryOperator *) qbModel)->inputs = singleton(rightChild);
+
+	// TEST AGG PUSH DOWN FOR A QUERY
+	DEBUG_NODE_BEATIFY_LOG("BEFORE AGG PUSH DOWN", OP_LCHILD(qbModel));
+	INFO_OP_LOG("BEFORE AGG PUSH DOWN", OP_LCHILD(qbModel));
+	QueryOperator * aPD = pushDownAggregationThroughJoin(OP_LCHILD(qbModel));
+	INFO_OP_LOG("AFTER AGG PUSH DOWN", OP_LCHILD(aPD));
+	// TEST AGG PUSH DOWN FOR A QUERY
+	// if(1 == 1) {
+	// 	return "TRUE";
+	// }
+
+
 
 	/* Check if there is state for this algebra tree */
 	if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {

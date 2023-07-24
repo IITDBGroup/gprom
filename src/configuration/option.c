@@ -200,6 +200,7 @@ char *update_ps_updated_table = NULL;
 boolean update_ps_direct_delta = FALSE;
 int update_ps_repetition = 1;
 boolean update_ps_selection_push_down = FALSE;
+boolean update_ps_copy_delta_join = FALSE;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -781,6 +782,14 @@ OptionInfo opts[] =
                 "indicate push down for table access operator",
                 OPTION_BOOL,
                 wrapOptionBool(&update_ps_selection_push_down),
+                defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_COPY_DELTA_JOIN,
+                "-update_ps_copy_delta_join",
+                "indicate if copy delta join to db",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_copy_delta_join),
                 defOptionBool(FALSE)
          },
 		 {

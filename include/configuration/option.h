@@ -139,6 +139,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_PS_DIRECT_DELTA "update_ps_direct_delta"
 #define OPTION_UPDATE_PS_REPETITION "update_ps_repetition"
 #define OPTION_UPDATE_PS_SELECTION_PUSH_DOWN "update_ps_selection_push_down"
+#define OPTION_UPDATE_PS_COPY_DELTA_JOIN "update_ps_copy_delta_join"
 
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"

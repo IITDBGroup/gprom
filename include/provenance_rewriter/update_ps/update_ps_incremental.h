@@ -78,10 +78,14 @@ typedef struct ColumnChunk
 #define DATA_CHUNK_PROP "DATA_CHUNK"
 #define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update all steps"
 #define INCREMENTAL_FETCHING_DATA_TIMER "module - update provenance sketch - incremental update fetching data"
+#define INCREMENTAL_JOIN_TIMER "module - update provenance sketch - incremental update join fetching data"
 
-// define left and right update identifier;
+// define left and right update for join;
+#define JOIN_LEFT_BRANCH_DELTA_TABLE backendifyIdentifier("JOIN_LEFT_DELTA_TABLE")
 #define JOIN_LEFT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_LEFT_TUPLE_IDENTIFIER")
+#define JOIN_RIGHT_BRANCH_DELTA_TABLE backendifyIdentifier("JOIN_RIGHT_DELTA_TABLE")
 #define JOIN_RIGHT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_RIGHT_TUPLE_IDENTIFIER")
+
 
 // functions;
 extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);
