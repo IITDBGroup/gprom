@@ -774,13 +774,15 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 
         // o.A = i.B + 5
 
+        List *normalizationAttrs = (List *)(normalizationCopy->key);
+
         /* boolean eqWithCorrelated = FALSE; */
 		boolean eqWithCorrelatedNoOrAbove = FALSE;
 
         FOREACH(Operator, op, condOperators) {
             if(streq(op->name, OPNAME_EQ) && isA(getHeadOfListP(op->args), AttributeReference) && isA(getTailOfListP(op->args), AttributeReference)) {
                 Set *correlatedAttrs = getCorrelatedAttributes((Node*)op, TRUE);
-                eqWithCorrelatedNoOrAbove |= !setSize(correlatedAttrs);
+                eqWithCorrelatedNoOrAbove |= !!setSize(correlatedAttrs); // if we are in here then there was no non-AND operator above the correlated equals
 
                 FOREACH_SET(AttributeReference, attr, correlatedAttrs) {
                     addToSet(state->rightAttrs, attr);
