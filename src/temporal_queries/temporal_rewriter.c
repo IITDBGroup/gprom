@@ -283,7 +283,7 @@ temporalRewriteOperator(QueryOperator *op)
         if(getBoolOption(TEMPORAL_USE_NORMALIZATION_WINDOW))
         	    rewrittenOp = addTemporalNormalizationUsingWindow(rewrittenOp, rewrittenOp, attrs);
         else if(getBoolOption(TEMPORAL_USE_NORMALIZATION))
-        	    rewrittenOp = addTemporalNormalization(rewrittenOp, rewrittenOp, attrs);
+        	    rewrittenOp = addTemporalNormalization(rewrittenOp, rewrittenOp, attrs, attrs); //TODO
 
     }
 
@@ -657,10 +657,10 @@ tempRewrSetOperator (SetOperator *o)
     return (QueryOperator *) o;
 }
 
-static boolean
-streqfp(void *l, void *r) {
-    return streq((char*)l, (char*)r) == 0;
-}
+// static boolean
+// streqfp(void *l, void *r) {
+//     return streq((char*)l, (char*)r) == 0;
+// }
 
 
 //TODO: refactor to enum
@@ -734,11 +734,26 @@ setPropertyInParentCtx (QueryOperator *q, char *key, Node *value)
     ACQUIRE_MEM_CONTEXT(ctxt);
 }
 
+typedef struct NestedNormalizationState {
+	int op;
+	Set *leftAttrs;
+	Set *rightAttrs;
+} NestedNormalizationState;
+
+HashMap *normalizationStateToMap(NestedNormalizationState *state) {
+    HashMap *map = NEW_MAP(Constant, Node);
+
+    MAP_ADD_STRING_KEY(map, "op", createConstInt(state->op));
+    MAP_ADD_STRING_KEY(map, "leftAttrs", state->leftAttrs);
+    MAP_ADD_STRING_KEY(map, "rightAttrs", state->rightAttrs);
+
+    return map;
+}
+
 static int
 pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 {
-    Node *normalizationFor = context;
-	KeyValue *normalizationCopy = NULL;
+    NestedNormalizationState *state = context;
 
     if (q == NULL) {
         return 0;
@@ -759,8 +774,6 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 
         // o.A = i.B + 5
 
-        List *normalizationAttrs = (List *)(normalizationCopy->key);
-
         /* boolean eqWithCorrelated = FALSE; */
 		boolean eqWithCorrelatedNoOrAbove = FALSE;
 
@@ -770,17 +783,17 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
                 eqWithCorrelatedNoOrAbove |= !setSize(correlatedAttrs);
 
                 FOREACH_SET(AttributeReference, attr, correlatedAttrs) {
-                    normalizationAttrs = appendToTailOfList(normalizationAttrs, attr);
+                    addToSet(state->rightAttrs, attr);
                 }
             }
         }
 
         // safest option: no correlated attributes, child is table access, then we can normalize with the selection instead of pushing down
         boolean tableAccessChild = (isA(OP_LCHILD(q), ProjectionOperator) && isA(OP_LCHILD(OP_LCHILD(q)), TableAccessOperator)) || isA(OP_LCHILD(q), TableAccessOperator);
-        boolean here = (!setSize(getCorrelatedAttributes((Node*)q, TRUE)) || eqWithCorrelatedNoOrAbove)  && tableAccessChild;
+        boolean here = (!setSize(getCorrelatedAttributes((Node*)q, TRUE)) || eqWithCorrelatedNoOrAbove) && tableAccessChild;
 
         if(here) {
-            setPropertyInParentCtx(q, "normalize", normalizationFor);
+            setPropertyInParentCtx(q, "normalize", (Node*)normalizationStateToMap(state));
             INFO_OP_LOG("tagged operator", q);
             return 1;
         }
@@ -794,7 +807,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 
         // adapted from translator_oracle:adaptSchemaFromChildren
         ProjectionOperator *p = (ProjectionOperator *) q;
-        KeyValue *normalizationCopy = copyObject(normalizationFor);
+
         FORBOTH(Node, projExpr, attr, p->projExprs, q->schema->attrDefs)
         {
             AttributeReference *aRef;
@@ -804,20 +817,15 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
             {
                 aRef = (AttributeReference *) projExpr;
                 if (!streq(aRef->name, aDef->attrName)) {
-                    List *normalizationAttrs = (List *)(normalizationCopy->key);
-                    normalizationCopy->key = (Node *)replaceNode(normalizationAttrs, aRef->name, aDef->attrName); // TODO replace char* instead of nodes
+                    removeSetElem(state->rightAttrs, aRef->name);
+                    addToSet(state->rightAttrs, aDef->attrName);
                 }
             }
             else // we are in an expression like C := A + B
             {
-                List *normalizationAttrs = (List *)(normalizationCopy->key);
-                normalizationCopy->key = (Node *)genericRemoveFromList(normalizationAttrs, streqfp, aDef->attrName);
+                removeSetElem(state->rightAttrs, aDef->attrName);
             }
         }
-
-        // return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationCopy);
-        // TODO
-        ((KeyValue *)normalizationFor)->key = normalizationCopy->key;
     }
     else if(isA(q, JoinOperator)) {
         // rules
@@ -829,19 +837,19 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 
             if(res == 1) {
                 FOREACH(QueryOperator, parent, q->parents) {
-                    setPropertyInParentCtx(parent, "normalize", normalizationFor);
+                    setPropertyInParentCtx(parent, "normalize", (Node*)normalizationStateToMap(state));
                 }
                 return 1;
             }
 
-            visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
-            visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
+            visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
+            visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
             return 1;
         }
 
         if(!correlated) {
             FOREACH(QueryOperator, parent, q->parents) {
-                setPropertyInParentCtx(parent, "normalize", normalizationFor);
+                setPropertyInParentCtx(parent, "normalize", (Node*)normalizationStateToMap(state));
             }
             return 1;
         }
@@ -853,8 +861,8 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         // --> normalize((normalize(R, S, A), T, \emptyset)
 
         // two calls to pushDownNormalization on the two branches
-        visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
-        visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, normalizationFor, haveSeen);
+        visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
+        visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
         return 1;
     }
     else if(isA(q, AggregationOperator)) {
@@ -865,7 +873,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
     }
     else {
         // at base level (tableaccess, new subquery?) append normalization
-        setPropertyInParentCtx(q, "normalize", normalizationFor);
+        setPropertyInParentCtx(q, "normalize", (Node*)normalizationStateToMap(state));
         INFO_OP_LOG("tagged operator", q);
         return 0;
     }
@@ -879,22 +887,19 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 static boolean
 findNormalizationInQuery(QueryOperator *q, void *c)
 {
-    Node *context = c;
-
-    KeyValue *contextKv = (KeyValue *)context;
+    NestedNormalizationState *state = c;
 
     if (q == NULL)
         return TRUE;
 
     if(q->properties && MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
-        KeyValue *kv = (KeyValue *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
-        if(equal((QueryOperator *)contextKv->key, (QueryOperator *)kv->value)) {
+        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
+        if(state->op == INT_VALUE(MAP_GET_STRING(map, "op"))) {
             INFO_LOG("located normalization");
-            contextKv->value = (Node *)appendToTailOfList((List *)(contextKv->value), q);
+            addToSet(state->leftAttrs, createNodeKeyValue((Node*)q, (Node*)map));
         }
     }
 
-    // return visitQOGraph(q, TRAVERSAL_PRE, findNormalizationInQuery, c);
     return TRUE;
 }
 
@@ -908,14 +913,13 @@ removeNormalizationFromQuery(QueryOperator *q, void *context)
     }
 
     if (MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
-        KeyValue *kv = (KeyValue *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
-        if(equal((QueryOperator *)removeFrom, kv->value)) {
+        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
+        if(equal((QueryOperator *)removeFrom, MAP_GET_STRING(map, "op"))) {
             INFO_LOG("removing normalization");
             removeMapStringElem((HashMap *)(q->properties), "normalize");
         }
     }
 
-    // return visitQOGraph(q, TRAVERSAL_PRE, removeNormalizationFromQuery, removeFrom);
     return TRUE;
 }
 
@@ -926,7 +930,8 @@ tempRewrNestedSubquery(NestingOperator *op)
     // three stages:
     // top-level normalization
     // determine how far we can push down the normalization (and mark it)
-    visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, (Node *)createNodeKeyValue((Node *)NIL, (Node *)MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")));
+    NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), STRSET(), STRSET() };
+    visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, &state);
     // pushDownNormalization(OP_RCHILD(op), (Node *)createNodeKeyValue((Node *)NIL, (Node *)op)); // <NormalizationAttrs, NormalizationOp>
 
     // check its validity
@@ -935,9 +940,7 @@ tempRewrNestedSubquery(NestingOperator *op)
 
     // if normalization is below correlation we can keep it as a nested subquery
     boolean canStayCorrelated = EMPTY_SET(correlatedAttrs);
-    // if(!canStayCorrelated) removeNormalizationFromQuery((QueryOperator *)op, (Node *)op);
-    if(!canStayCorrelated) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, (Node *)op);
-
+    if(!canStayCorrelated) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"));
 
 	//TODO add other rewrite methods
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && canStayCorrelated)
@@ -951,13 +954,6 @@ tempRewrNestedSubquery(NestingOperator *op)
         if (res == 1) {
             INFO_LOG("lateral option");
             return tempRewrNestedSubqueryLateralPostFilterTime(op);
-        }
-
-        // realize normalization (destructive, swaps tree)
-        KeyValue *normalizeOps = createNodeKeyValue((Node *)MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"), (Node *)NIL);
-        visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, normalizeOps);
-        FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
-            addTemporalNormalization(OP_LCHILD(op), q, NIL); // find way to return attrs for this op
         }
 
         INFO_LOG("subquery option");
@@ -1030,10 +1026,16 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     //outer = addTemporalNormalization(outer, copyObject(inner), intersection);
 
     // realize normalization (destructive, swaps tree)
-    KeyValue *normalizeOps = createNodeKeyValue((Node *)MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"), (Node *)NIL);
-    visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, normalizeOps);
-    FOREACH(QueryOperator, q, (List *)(normalizeOps->value)) {
-        addTemporalNormalization(outer, q, NIL); // find way to return attrs for this op
+
+    // overloading leftAttrs to be the operations normalized with this nested op's left (outer) query
+    NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), NODESET(), NODESET() }; 
+    visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, &state);
+    FOREACH_SET(KeyValue, k, state.leftAttrs) {
+        List *leftAttrs = makeNodeListFromSet((Set *)(MAP_GET_STRING((HashMap *)(k->value), "leftAttrs")));
+        List *rightAttrs = makeNodeListFromSet((Set *)(MAP_GET_STRING((HashMap *)(k->value), "rightAttrs")));
+        INFO_LOG("normalizing with leftAttrs %s and rightAttrs %s", leftAttrs, rightAttrs);
+
+        addTemporalNormalization(OP_LCHILD(op), (QueryOperator *)(k->key), leftAttrs, rightAttrs);
     }
 
     // !!
@@ -1925,10 +1927,13 @@ markTemporalAttrsAsProv (QueryOperator *op)
 
 // should take 2 lists of attributes, outer & inner
 QueryOperator *
-addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrNames)
+addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *leftAttrs, List *rightAttrs)
 {
-	if(LIST_LENGTH(attrNames) == 1 && streq(getHeadOfListP(attrNames),"!EMPTY!"))
-		attrNames = NIL;
+    // check for 0 length explicitly as empty sets are not necessarily converted a list as NIL
+	if(LIST_LENGTH(leftAttrs) == 1 && streq(getHeadOfListP(leftAttrs),"!EMPTY!"))
+		leftAttrs = NIL;
+    if(LIST_LENGTH(rightAttrs) == 1 && streq(getHeadOfListP(rightAttrs),"!EMPTY!"))
+		rightAttrs = NIL;
 
 	QueryOperator *left = input;
 	QueryOperator *right = reference;
@@ -1960,7 +1965,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, INVALID_ATTR, leftEndDef->dataType);
     leftProjExpr2 = appendToTailOfList(leftProjExpr2, leftEndRef);
 
-    FOREACH(char, c, attrNames)
+    FOREACH(char, c, leftAttrs)
     {
     	AttributeReference *leftRef = getAttrRefByName(left, c);
     	leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftRef);
@@ -1969,7 +1974,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
 
     //construct schema T SALARY  for BOTH
     List *leftAttrNames = singleton("T");
-    leftAttrNames = concatTwoLists(leftAttrNames,deepCopyStringList(attrNames));
+    leftAttrNames = concatTwoLists(leftAttrNames,deepCopyStringList(leftAttrs));
 
     ProjectionOperator *leftProj1 = createProjectionOp(leftProjExpr1, left, NIL, deepCopyStringList(leftAttrNames));
     ProjectionOperator *leftProj2 = createProjectionOp(leftProjExpr2, left, NIL, deepCopyStringList(leftAttrNames));
@@ -2005,14 +2010,15 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     rightEndRef = rightEndRef ? rightEndRef : getAttrRefByName(right, STRING_VALUE(getTailOfListP((List *)getStringProperty(right, PROP_USER_PROV_ATTRS))));
     rightProjExpr2 = appendToTailOfList(rightProjExpr2, rightEndRef);
 
-    FOREACH(char, c, attrNames)
+    FOREACH(char, c, rightAttrs)
     {
     	AttributeReference *rightRef = getAttrRefByName(right, c);
     	rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightRef);
     	rightProjExpr2 = appendToTailOfList(rightProjExpr2, copyObject(rightRef));
     }
 
-    List *rightAttrNames  = leftAttrNames;
+    List *rightAttrNames = singleton("T");
+    rightAttrNames = concatTwoLists(rightAttrNames,deepCopyStringList(rightAttrs));
     ProjectionOperator *rightProj1 = createProjectionOp(rightProjExpr1, right, NIL, deepCopyStringList(rightAttrNames));
     ProjectionOperator *rightProj2 = createProjectionOp(rightProjExpr2, right, NIL, deepCopyStringList(rightAttrNames));
     right->parents = concatTwoLists(right->parents,LIST_MAKE(rightProj1,rightProj2));
