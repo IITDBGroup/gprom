@@ -86,7 +86,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> CAST
 %token <stringVal> CREATE ALTER ADD REMOVE COLUMN
 %token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE TOP
-%token <stringVal> RECURSIVE
+%token <stringVal> RECURSIVE MERGE SPLIT
 
 %token <stringVal> DUMMYEXPR
 
@@ -324,6 +324,15 @@ withQuery:
 		{
 			RULELOG("withQuery::withViewList::queryStmt");
 			$$ = (Node *) createWithStmtRec($3, $4);
+		}
+		| WITH RECURSIVE MERGE ON identifier SPLIT ON identifier WHERE whereExpression withViewListRec queryStmt
+		{
+			RULELOG("withQuery::withViewList::queryStmt");
+			$$ = (Node *) createWithStmtRec($11, $12);
+			((WithStmt *) $$)->isMerge = TRUE;
+			((WithStmt *) $$)->mergeAttr = (char *) $5;
+			((WithStmt *) $$)->splitAttr = (char *) $8;
+			((WithStmt *) $$)->splitCond =  $10;
 		}
 	;
 

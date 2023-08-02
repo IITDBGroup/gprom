@@ -550,6 +550,10 @@ outWithStmt(StringInfo str, WithStmt *node)
     WRITE_NODE_FIELD(withViews);
     WRITE_NODE_FIELD(query);
     WRITE_BOOL_FIELD(isRecursive);
+    WRITE_BOOL_FIELD(isMerge);
+    WRITE_STRING_FIELD(mergeAttr);
+    WRITE_STRING_FIELD(splitAttr);
+    WRITE_NODE_FIELD(splitCond);
 }
 
 static void

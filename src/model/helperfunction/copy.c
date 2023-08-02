@@ -907,6 +907,10 @@ copyWithStmt(WithStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(withViews);
     COPY_NODE_FIELD(query);
     COPY_SCALAR_FIELD(isRecursive);
+    COPY_SCALAR_FIELD(isMerge);
+    COPY_STRING_FIELD(mergeAttr);
+    COPY_STRING_FIELD(splitAttr);
+    COPY_NODE_FIELD(splitCond);
     return new;
 }
 

@@ -1035,6 +1035,10 @@ equalWithStmt(WithStmt *a, WithStmt *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(withViews);
     COMPARE_NODE_FIELD(query);
     COMPARE_SCALAR_FIELD(isRecursive);
+    COMPARE_SCALAR_FIELD(isMerge);
+    COMPARE_STRING_FIELD(mergeAttr);
+    COMPARE_STRING_FIELD(splitAttr);
+    COMPARE_NODE_FIELD(splitCond);
 
     return TRUE;
 }

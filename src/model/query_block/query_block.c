@@ -418,6 +418,10 @@ createWithStmt (List *views, Node *query)
     result->withViews = views;
     result->query = query;
     result->isRecursive = FALSE;
+    result->isMerge = FALSE;
+    result->mergeAttr = NULL;
+    result->splitAttr = NULL;
+    result->splitCond = NULL;
 
     return result;
 }

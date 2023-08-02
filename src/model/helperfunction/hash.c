@@ -663,6 +663,10 @@ hashWithStmt (uint64_t cur, WithStmt *node)
     HASH_NODE(withViews);
     HASH_NODE(query);
     HASH_BOOLEAN(isRecursive);
+    HASH_BOOLEAN(isMerge);
+    HASH_STRING(mergeAttr);
+    HASH_STRING(splitAttr);
+    HASH_NODE(splitCond);
     HASH_RETURN();
 }
 

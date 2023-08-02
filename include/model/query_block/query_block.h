@@ -67,6 +67,10 @@ typedef struct WithStmt
     List *withViews;
     Node *query;
     int isRecursive;
+    int isMerge;
+    char *mergeAttr;
+    char *splitAttr;
+    Node *splitCond;
 } WithStmt;
 
 typedef struct ProvenanceTransactionInfo
