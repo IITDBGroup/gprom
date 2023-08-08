@@ -33,6 +33,7 @@
 #include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
 #include "provenance_rewriter/update_ps/rbtree.h"
+#include "provenance_rewriter/update_ps/bloom.h"
 
 // update for each operator;
 static void updateByOperators(QueryOperator * op);
@@ -757,94 +758,389 @@ updateJoin2(QueryOperator *op)
 
 	boolean hasLeftDelta = FALSE;
 	boolean hasRightDelta = FALSE;
+	boolean hasBloomOptionApplied = getBoolOption(OPTION_UPDATE_PS_JOIN_USING_BF);
+	boolean isLeftFailPassBF = TRUE;
+	boolean isRightFailPassBF = TRUE;
 	if (HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
 		deltaBranches++;
-		hasLeftDelta = TRUE;
+		// hasLeftDelta = TRUE;
 		HashMap *leftDC = (HashMap *) getStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+		List *deltaInfos = NIL;
+		if (hasBloomOptionApplied) {
+			HashMap *bloomStates = (HashMap *) getStringProperty(op, PROP_DATA_STRUCTURE_JOIN);
 
-		List *deltaInfos = postgresCopyDeltaToDB(leftDC, JOIN_LEFT_BRANCH_DELTA_TABLE, JOIN_LEFT_BRANCH_IDENTIFIER);
+			HashMap *rightBloom = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_RIGHT_BLOOM);
 
-		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
+			HashMap *leftMapping = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_LEFT_BLOOM_ATT_MAPPING);
 
-		leftDelta = createTableAccessOp(strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), NULL, strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), singleton(OP_LCHILD(cOp)), getAttrDefNames(deltaInfos), getAttrDataTypes(deltaInfos));
-		INFO_OP_LOG("LEFT DELTA ", leftDelta);
-		INFO_OP_LOG("copy ccc", cOp);
-		// List *provAttrDefs = getProvenanceAttrDefs(OP_LCHILD(OP_LCHILD(cOp)));
+			Vector *DCInsCheck = NULL;
+			if (MAP_HAS_STRING_KEY(leftDC, PROP_DATA_CHUNK_INSERT)) {
+				DataChunk *dcIns = (DataChunk *) MAP_GET_STRING(leftDC, PROP_DATA_CHUNK_INSERT);
+				int tupleLen = dcIns->numTuples;
+				DCInsCheck = makeVectorOfSize(VECTOR_INT, T_Vector, tupleLen);
+				DCInsCheck->length = tupleLen;
+				int *checkValue = VEC_TO_IA(DCInsCheck);
+				// check each equal join attri in left mapping;
+				FOREACH_HASH_KEY(Constant, c, leftMapping) {
+					Vector *mapping = (Vector *) MAP_GET_STRING(leftMapping, STRING_VALUE(c));
 
-		// create a project
-		int pos = 0;
-		List *attrDefs = (List *) copyObject(deltaInfos);
-		List *projExpr = NIL;
-		// append left child
-		FOREACH(AttributeDef, ad, deltaInfos) {
-			projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 0, pos++, 0, ad->dataType));
-		}
-		List *allDefs = OP_LCHILD(cOp)->schema->attrDefs;
-		// start from a postion to append all attrdef of join op, which will append all right child attrdefs, note the start position(-1, since there we create a identifier)
-		int startIdx = LIST_LENGTH(((QueryOperator *) leftDelta)->schema->attrDefs) - 1;
-		int idx = 0;
-		FOREACH(AttributeDef, ad, allDefs) {
-			if (idx++ < startIdx) {
-				continue;
+					int pos = INT_VALUE((Constant *) MAP_GET_STRING(dcIns->attriToPos, STRING_VALUE(c)));
+					DataType dt = (DataType) INT_VALUE((Constant *) MAP_GET_INT(dcIns->posToDatatype, pos));
+
+					Vector *vec = (Vector *) getVecNode(dcIns->tuples, pos);
+
+					FOREACH_VEC(char, attName, mapping) {
+						INFO_LOG("mapping attr: %s", attName);
+						Bloom *bloom = (Bloom *) MAP_GET_STRING(rightBloom, attName);
+
+						switch (dt) {
+							case DT_BOOL:
+							case DT_INT:
+							{
+								int *value = VEC_TO_IA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(int));
+								}
+							}
+							break;
+							case DT_LONG:
+							{
+								gprom_long_t *value = VEC_TO_LA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(gprom_long_t));
+								}
+							}
+							break;
+							case DT_FLOAT:
+							{
+								double *value = VEC_TO_FA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(double));
+								}
+							}
+							break;
+							case DT_VARCHAR2:
+							case DT_STRING:
+							{
+								char **value = VEC_TO_ARR(vec, char);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, value[row], sizeof(strlen(value[row])));
+								}
+							}
+							break;
+						}
+					}
+				}
 			}
-			attrDefs = appendToTailOfList(attrDefs, copyObject(ad));
-			projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 1, pos++, 0, ad->dataType));
+			Vector *DCDelCheck = NULL;
+			if (MAP_HAS_STRING_KEY(leftDC, PROP_DATA_CHUNK_DELETE)) {
+				DataChunk *dcDel = (DataChunk *) MAP_GET_STRING(leftDC, PROP_DATA_CHUNK_DELETE);
+				int tupleLen = dcDel->numTuples;
+				INFO_LOG("tuple number: %d", tupleLen);
+
+				DCDelCheck = makeVectorOfSize(VECTOR_INT, T_Vector, tupleLen);
+				DCDelCheck->length = tupleLen;
+				int *checkValue = VEC_TO_IA(DCDelCheck);
+
+				FOREACH_HASH_KEY(Constant, c, leftMapping) {
+					Vector *mapping = (Vector *) MAP_GET_STRING(leftMapping, STRING_VALUE(c));
+
+					int pos = INT_VALUE((Constant *) MAP_GET_STRING(dcDel->attriToPos, STRING_VALUE(c)));
+					DataType dt = (DataType) INT_VALUE((Constant *) MAP_GET_INT(dcDel->posToDatatype, pos));
+
+					Vector *vec = (Vector *) getVecNode(dcDel->tuples, pos);
+
+					FOREACH_VEC(char, attName, mapping) {
+						INFO_LOG("mapping attr: %s", attName);
+						Bloom *bloom = (Bloom *) MAP_GET_STRING(rightBloom, attName);
+
+						switch (dt) {
+							case DT_BOOL:
+							case DT_INT:
+							{
+								int *value = VEC_TO_IA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(int));
+								}
+							}
+							break;
+							case DT_LONG:
+							{
+								gprom_long_t *value = VEC_TO_LA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(gprom_long_t));
+								}
+							}
+							break;
+							case DT_FLOAT:
+							{
+								double *value = VEC_TO_FA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(double));
+								}
+							}
+							break;
+							case DT_VARCHAR2:
+							case DT_STRING:
+							{
+								char **value = VEC_TO_ARR(vec, char);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, value[row], sizeof(strlen(value[row])));
+								}
+							}
+							break;
+						}
+					}
+				}
+			}
+
+			DEBUG_NODE_BEATIFY_LOG("INSCheck", DCInsCheck);
+			DEBUG_NODE_BEATIFY_LOG("DELCheck", DCDelCheck);
+
+			deltaInfos = postgresCopyDeltaToDBWithBF(leftDC, JOIN_LEFT_BRANCH_DELTA_TABLE, JOIN_LEFT_BRANCH_IDENTIFIER, DCInsCheck, DCDelCheck);
+
+			if (deltaInfos) {
+				isLeftFailPassBF = FALSE;
+			}
+		} else {
+			deltaInfos = postgresCopyDeltaToDB(leftDC, JOIN_LEFT_BRANCH_DELTA_TABLE, JOIN_LEFT_BRANCH_IDENTIFIER);
 		}
 
-		// replace with new attrDefs
-		OP_LCHILD(cOp)->schema->attrDefs = attrDefs;
-		cOp->schema->attrDefs = attrDefs;
-		((ProjectionOperator *) cOp)->projExprs = projExpr;
-		OP_LCHILD(cOp)->provAttrs = NIL;
-		cOp->provAttrs = NIL;
+		if (deltaInfos) {
+			hasLeftDelta = TRUE;
+			QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
 
-		List *inputs = NIL;
-		inputs = appendToTailOfList(inputs, leftDelta);
-		// ((QueryOperator *) leftDelta)->parents = singleton(OP_LCHILD(cOp));
-		inputs = appendToTailOfList(inputs, OP_RCHILD(OP_LCHILD(cOp)));
-		OP_LCHILD(cOp)->inputs = inputs;
+			leftDelta = createTableAccessOp(strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), NULL, strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), singleton(OP_LCHILD(cOp)), getAttrDefNames(deltaInfos), getAttrDataTypes(deltaInfos));
+			INFO_OP_LOG("LEFT DELTA ", leftDelta);
+			INFO_OP_LOG("copy ccc", cOp);
+			// List *provAttrDefs = getProvenanceAttrDefs(OP_LCHILD(OP_LCHILD(cOp)));
 
-		// replaceNode(OP_LCHILD(cOp)->inputs, OP_LCHILD(OP_LCHILD(cOp)), leftDelta);
-		INFO_OP_LOG("new Join OP", cOp);
-		// FOREACH(AttributeDef, ad, )
+			// create a project
+			int pos = 0;
+			List *attrDefs = (List *) copyObject(deltaInfos);
+			List *projExpr = NIL;
+			// append left child
+			FOREACH(AttributeDef, ad, deltaInfos) {
+				projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 0, pos++, 0, ad->dataType));
+			}
+			List *allDefs = OP_LCHILD(cOp)->schema->attrDefs;
+			// start from a postion to append all attrdef of join op, which will append all right child attrdefs, note the start position(-1, since there we create a identifier)
+			int startIdx = LIST_LENGTH(((QueryOperator *) leftDelta)->schema->attrDefs) - 1;
+			int idx = 0;
+			FOREACH(AttributeDef, ad, allDefs) {
+				if (idx++ < startIdx) {
+					continue;
+				}
+				attrDefs = appendToTailOfList(attrDefs, copyObject(ad));
+				projExpr = appendToTailOfList(projExpr, createFullAttrReference(ad->attrName, 1, pos++, 0, ad->dataType));
+			}
 
-		char *sql = serializeQuery(cOp);
-		INFO_LOG("left delta join %s", sql);
-		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, -1, psAttrAndLevel);
+			// replace with new attrDefs
+			OP_LCHILD(cOp)->schema->attrDefs = attrDefs;
+			cOp->schema->attrDefs = attrDefs;
+			((ProjectionOperator *) cOp)->projExprs = projExpr;
+			OP_LCHILD(cOp)->provAttrs = NIL;
+			cOp->provAttrs = NIL;
 
+			List *inputs = NIL;
+			inputs = appendToTailOfList(inputs, leftDelta);
+			// ((QueryOperator *) leftDelta)->parents = singleton(OP_LCHILD(cOp));
+			inputs = appendToTailOfList(inputs, OP_RCHILD(OP_LCHILD(cOp)));
+			OP_LCHILD(cOp)->inputs = inputs;
+
+			// replaceNode(OP_LCHILD(cOp)->inputs, OP_LCHILD(OP_LCHILD(cOp)), leftDelta);
+			INFO_OP_LOG("new Join OP", cOp);
+			// FOREACH(AttributeDef, ad, )
+
+			char *sql = serializeQuery(cOp);
+			INFO_LOG("left delta join %s", sql);
+			postgresGetDataChunkJoin(sql, resDCIns, resDCDel, -1, psAttrAndLevel);
+		}
 	}
 
 	if (HAS_STRING_PROP(OP_RCHILD(op), PROP_DATA_CHUNK)) {
 		deltaBranches++;
-		hasRightDelta = TRUE;
+
+		// hasRightDelta = TRUE;
+
 		HashMap *rightDC = (HashMap *) getStringProperty(OP_RCHILD(op), PROP_DATA_CHUNK);
-		List *deltaInfos = postgresCopyDeltaToDB(rightDC, JOIN_RIGHT_BRANCH_DELTA_TABLE, JOIN_RIGHT_BRANCH_IDENTIFIER);
-		DEBUG_NODE_BEATIFY_LOG("deltaInfos", deltaInfos);
-		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
-		INFO_OP_LOG("before cOp", cOp);
-		rightDelta = createTableAccessOp(strdup(JOIN_RIGHT_BRANCH_DELTA_TABLE), NULL, strdup(JOIN_RIGHT_BRANCH_DELTA_TABLE), singleton(OP_LCHILD(cOp)), getAttrDefNames(deltaInfos), getAttrDataTypes(deltaInfos));
+		List *deltaInfos = NIL;
+		if (hasBloomOptionApplied) {
+			HashMap *bloomStates = (HashMap *) getStringProperty(op, PROP_DATA_STRUCTURE_JOIN);
 
-		OP_LCHILD(cOp)->schema->attrDefs = appendToTailOfList(OP_LCHILD(cOp)->schema->attrDefs, createAttributeDef(JOIN_RIGHT_BRANCH_IDENTIFIER, DT_INT));
+			HashMap *leftBloom = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_LEFT_BLOOM);
 
-		((ProjectionOperator *) cOp)->projExprs = appendToTailOfList(((ProjectionOperator *) cOp)->projExprs, createFullAttrReference(JOIN_RIGHT_BRANCH_IDENTIFIER, 1, LIST_LENGTH(OP_LCHILD(cOp)->schema->attrDefs) - 1, 0, DT_INT));
+			HashMap *rightMapping = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_RIGHT_BLOOM_ATT_MAPPING);
 
-		cOp->schema->attrDefs = appendToTailOfList(cOp->schema->attrDefs, createAttributeDef(JOIN_RIGHT_BRANCH_IDENTIFIER, DT_INT));
+			Vector *DCInsCheck = NULL;
+			if (MAP_HAS_STRING_KEY(rightDC, PROP_DATA_CHUNK_INSERT)) {
+				DataChunk *dcIns = (DataChunk *) MAP_GET_STRING(rightDC, PROP_DATA_CHUNK_INSERT);
 
-		cOp->provAttrs = NIL;
-		OP_LCHILD(cOp)->provAttrs = NIL;
+				int tupleLen = dcIns->numTuples;
 
-		List *inputs = NIL;
-		inputs = appendToTailOfList(inputs, OP_LCHILD(OP_LCHILD(cOp)));
-		inputs = appendToTailOfList(inputs, rightDelta);
-		OP_LCHILD(cOp)->inputs = inputs;
-		// OP_LCHILD(cOp)->inputs = replaceNode(OP_LCHILD(cOp)->inputs, OP_RCHILD(OP_LCHILD(cOp)), rightDelta);
-		INFO_OP_LOG("create join op", cOp);
-		char *sql = serializeQuery(cOp);
-		INFO_LOG("create right join %s", sql);
-		postgresGetDataChunkJoin(sql, resDCIns, resDCDel, 1, psAttrAndLevel);
+				DCInsCheck = makeVectorOfSize(VECTOR_INT, T_Vector, tupleLen);
+				DCInsCheck->length = tupleLen;
+
+				int *checkValue = VEC_TO_IA(DCInsCheck);
+
+				FOREACH_HASH_KEY(Constant, c, rightMapping) {
+					Vector *mapping = (Vector *) MAP_GET_STRING(rightMapping, STRING_VALUE(c));
+
+					int pos = INT_VALUE((Constant *) MAP_GET_STRING(dcIns->attriToPos, STRING_VALUE(c)));
+					DataType dt = (DataType) INT_VALUE((Constant *) MAP_GET_INT(dcIns->posToDatatype, pos));
+
+					Vector *vec = (Vector *) getVecNode(dcIns->tuples, pos);
+
+					FOREACH_VEC(char, attName, mapping) {
+						Bloom *bloom = (Bloom *) MAP_GET_STRING(leftBloom, attName);
+						switch (dt) {
+							case DT_BOOL:
+							case DT_INT:
+							{
+								int *value = VEC_TO_IA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(int));
+								}
+							}
+							break;
+							case DT_LONG:
+							{
+								gprom_long_t *value = VEC_TO_LA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(gprom_long_t));
+								}
+							}
+							break;
+							case DT_FLOAT:
+							{
+								double *value = VEC_TO_FA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(double));
+								}
+							}
+							break;
+							case DT_VARCHAR2:
+							case DT_STRING:
+							{
+								char **value = VEC_TO_ARR(vec, char);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, value[row], sizeof(strlen(value[row])));
+								}
+							}
+							break;
+						}
+					}
+				}
+			}
+			Vector *DCDelCheck = NULL;
+			if (MAP_HAS_STRING_KEY(rightDC, PROP_DATA_CHUNK_DELETE)) {
+				DataChunk *dcDel = (DataChunk *) MAP_GET_STRING(rightDC, PROP_DATA_CHUNK_DELETE);
+
+				int tupleLen = dcDel->numTuples;
+
+				DCDelCheck = makeVectorOfSize(VECTOR_INT, T_Vector, tupleLen);
+				DCDelCheck->length = tupleLen;
+
+				int *checkValue = VEC_TO_IA(DCDelCheck);
+
+				FOREACH_HASH_KEY(Constant, c, rightMapping) {
+					Vector *mapping = (Vector *) MAP_GET_STRING(rightMapping, STRING_VALUE(c));
+
+					int pos = INT_VALUE((Constant *) MAP_GET_STRING(dcDel->attriToPos, STRING_VALUE(c)));
+					DataType dt = (DataType) INT_VALUE((Constant *) MAP_GET_INT(dcDel->posToDatatype, pos));
+
+					Vector *vec = (Vector *) getVecNode(dcDel->tuples, pos);
+
+					FOREACH_VEC(char, attName, mapping) {
+						Bloom *bloom = (Bloom *) MAP_GET_STRING(leftBloom, attName);
+						switch(dt) {
+							case DT_BOOL:
+							case DT_INT:
+							{
+								int *value = VEC_TO_IA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(int));
+								}
+							}
+							break;
+							case DT_LONG:
+							{
+								gprom_long_t *value = VEC_TO_LA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(gprom_long_t));
+								}
+							}
+							break;
+							case DT_FLOAT:
+							{
+								double *value = VEC_TO_FA(vec);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, &value[row], sizeof(double));
+								}
+							}
+							break;
+							case DT_VARCHAR2:
+							case DT_STRING:
+							{
+								char **value = VEC_TO_ARR(vec, char);
+								for (int row = 0; row < tupleLen; row++) {
+									checkValue[row] = bloom_check(bloom, value[row], sizeof(strlen(value[row])));
+								}
+							}
+							break;
+
+						}
+					}
+				}
+			}
+
+			deltaInfos = postgresCopyDeltaToDBWithBF(rightDC, JOIN_RIGHT_BRANCH_DELTA_TABLE, JOIN_RIGHT_BRANCH_IDENTIFIER, DCInsCheck, DCDelCheck);
+
+			if (deltaInfos) {
+				isRightFailPassBF = FALSE;
+			}
+		} else {
+			deltaInfos = postgresCopyDeltaToDB(rightDC, JOIN_RIGHT_BRANCH_DELTA_TABLE, JOIN_RIGHT_BRANCH_IDENTIFIER);
+		}
+
+		if (deltaInfos) {
+			hasRightDelta = TRUE;
+
+			DEBUG_NODE_BEATIFY_LOG("deltaInfos", deltaInfos);
+
+			QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
+			INFO_OP_LOG("before cOp", cOp);
+
+			rightDelta = createTableAccessOp(strdup(JOIN_RIGHT_BRANCH_DELTA_TABLE), NULL, strdup(JOIN_RIGHT_BRANCH_DELTA_TABLE), singleton(OP_LCHILD(cOp)), getAttrDefNames(deltaInfos), getAttrDataTypes(deltaInfos));
+
+			OP_LCHILD(cOp)->schema->attrDefs = appendToTailOfList(OP_LCHILD(cOp)->schema->attrDefs, createAttributeDef(JOIN_RIGHT_BRANCH_IDENTIFIER, DT_INT));
+
+			((ProjectionOperator *) cOp)->projExprs = appendToTailOfList(((ProjectionOperator *) cOp)->projExprs, createFullAttrReference(JOIN_RIGHT_BRANCH_IDENTIFIER, 1, LIST_LENGTH(OP_LCHILD(cOp)->schema->attrDefs) - 1, 0, DT_INT));
+
+			cOp->schema->attrDefs = appendToTailOfList(cOp->schema->attrDefs, createAttributeDef(JOIN_RIGHT_BRANCH_IDENTIFIER, DT_INT));
+
+			cOp->provAttrs = NIL;
+			OP_LCHILD(cOp)->provAttrs = NIL;
+
+			List *inputs = NIL;
+			inputs = appendToTailOfList(inputs, OP_LCHILD(OP_LCHILD(cOp)));
+			inputs = appendToTailOfList(inputs, rightDelta);
+			OP_LCHILD(cOp)->inputs = inputs;
+			// OP_LCHILD(cOp)->inputs = replaceNode(OP_LCHILD(cOp)->inputs, OP_RCHILD(OP_LCHILD(cOp)), rightDelta);
+			INFO_OP_LOG("create join op", cOp);
+			char *sql = serializeQuery(cOp);
+			INFO_LOG("create right join %s", sql);
+			postgresGetDataChunkJoin(sql, resDCIns, resDCDel, 1, psAttrAndLevel);
+		}
 	}
 
-	if (deltaBranches == 2) {
+	// if two branch both contains delta tuples:
+	// 1. if applied BF, both branch must have delta table created.
+	// 2. BF not applied, only make sure both branches have delta tuples;
+	INFO_LOG("hasBloom :%d, isLeftFail: %d, isRightFail: %d, deltaBranchs: %d\n", hasBloomOptionApplied, isLeftFailPassBF, isRightFailPassBF, deltaBranches);
+	if ((hasBloomOptionApplied && !isLeftFailPassBF && !isRightFailPassBF)
+	|| (!hasBloomOptionApplied && deltaBranches == 2)){
+	// if (deltaBranches == 2) {
 		QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
 		List *attrDefs = NIL;
 		List *projExpr = NIL;

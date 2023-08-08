@@ -33,6 +33,7 @@
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "operator_optimizer/operator_optimizer.h"
 
+#include "provenance_rewriter/update_ps/bloom.h"
 /*
  * Macro
  */
@@ -135,26 +136,19 @@ preprocessingSetStartJoinOP(QueryOperator *op)
 		preprocessingSetStartJoinOP(q);
 	}
 }
-// boolean hashEq(void *ele1, void *ele2) {
-// 	return equalInternal((Vector *) ele1, (Vector *) ele2);
-// }
+
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
-
-	char *delta_table = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
-	INFO_LOG("what is the delta name: %s", delta_table);
-	char *updated_table = getStringOption(OPTION_UPDATE_PS_UPDATED_TABLE);
-	INFO_LOG("what is the updated table %s", updated_table);
-    boolean option_group_join = getBoolOption(OPTION_UPDATE_PS_GROUP_JOIN);
-	INFO_LOG("group join :%d", option_group_join);
 	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
 	INFO_OP_LOG("qbModel", qbModel);
+
 	/*
 	 *	two children
 	 * 	left: update statements (one or list of statements)
 	 *	right: query
 	 */
+
 	/* Get left(update statements) and right children(query) */
 	DLMorDDLOperator *leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
 	QueryOperator *rightChild = OP_RCHILD((QueryOperator *) qbModel);
@@ -162,15 +156,17 @@ update_ps(ProvenanceComputation *qbModel)
 	// remove left child from provenance computation;
 	((QueryOperator *) qbModel)->inputs = singleton(rightChild);
 
-	// TEST AGG PUSH DOWN FOR A QUERY
+	/*
+	// 	TEST AGG PUSH DOWN FOR A QUERY
 	DEBUG_NODE_BEATIFY_LOG("BEFORE AGG PUSH DOWN", OP_LCHILD(qbModel));
 	INFO_OP_LOG("BEFORE AGG PUSH DOWN", OP_LCHILD(qbModel));
 	QueryOperator * aPD = pushDownAggregationThroughJoin(OP_LCHILD(qbModel));
 	INFO_OP_LOG("AFTER AGG PUSH DOWN", OP_LCHILD(aPD));
 	// TEST AGG PUSH DOWN FOR A QUERY
-	// if(1 == 1) {
-	// 	return "TRUE";
-	// }
+	if(1 == 1) {
+		return "TRUE";
+	}
+	*/
 
 
 

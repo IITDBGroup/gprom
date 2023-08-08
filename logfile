@@ -1,0 +1,171 @@
+2023-08-06 15:06:09.298 CDT [21398] LOG:  listening on IPv6 address "::1", port 5432
+2023-08-06 15:06:09.298 CDT [21398] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2023-08-06 15:06:09.298 CDT [21398] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2023-08-06 15:06:09.320 CDT [21399] LOG:  database system was shut down at 2023-08-05 01:26:30 CDT
+2023-08-06 15:06:09.327 CDT [21398] LOG:  database system is ready to accept connections
+2023-08-06 15:17:20.125 CDT [24424] LOG:  unexpected EOF on client connection with an open transaction
+2023-08-06 15:19:56.761 CDT [24533] LOG:  unexpected EOF on client connection with an open transaction
+2023-08-06 15:22:50.598 CDT [24751] LOG:  unexpected EOF on client connection with an open transaction
+2023-08-06 15:25:48.531 CDT [24786] LOG:  unexpected EOF on client connection with an open transaction
+2023-08-06 15:26:00.240 CDT [26478] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 15:26:00.240 CDT [26478] STATEMENT:  DROP TABLE join_left_delta_table;
+2023-08-06 15:26:25.671 CDT [26526] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 15:26:25.671 CDT [26526] STATEMENT:  DROP TABLE join_left_delta_table;
+2023-08-06 15:27:30.970 CDT [24503] ERROR:  table "join_left_delta_table" does not exist
+2023-08-06 15:27:30.970 CDT [24503] STATEMENT:  drop table join_left_delta_table ;
+2023-08-06 15:27:40.205 CDT [26586] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 15:27:40.205 CDT [26586] STATEMENT:  DROP TABLE join_left_delta_table;
+2023-08-06 15:28:43.310 CDT [26635] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 15:28:43.310 CDT [26635] STATEMENT:  DROP TABLE join_left_delta_table;
+2023-08-06 15:35:31.802 CDT [28707] ERROR:  syntax error at or near "DROP" at character 29
+2023-08-06 15:35:31.802 CDT [28707] STATEMENT:  DECLARE myportal CURSOR FOR DROP TABLE IF EXIST join_left_delta_table;
+2023-08-06 15:44:50.178 CDT [30614] ERROR:  syntax error at or near "EXIST" at character 15
+2023-08-06 15:44:50.178 CDT [30614] STATEMENT:  DROP TABLE IF EXIST join_left_delta_table;
+2023-08-06 15:45:53.791 CDT [30739] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 15:45:53.791 CDT [30739] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 15:46:24.164 CDT [30762] ERROR:  syntax error at or near "EXIST" at character 15
+2023-08-06 15:46:24.164 CDT [30762] STATEMENT:  DROP TABLE IF EXIST join_left_delta_table;
+2023-08-06 15:46:29.205 CDT [24503] ERROR:  table "join_left_delta_table" does not exist
+2023-08-06 15:46:29.205 CDT [24503] STATEMENT:  drop table join_left_delta_table ;
+2023-08-06 15:47:16.945 CDT [30809] ERROR:  syntax error at or near "EXIST" at character 15
+2023-08-06 15:47:16.945 CDT [30809] STATEMENT:  DROP TABLE IF EXIST join_left_delta_table;
+2023-08-06 15:48:59.668 CDT [32469] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 15:48:59.668 CDT [32469] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 15:49:11.463 CDT [32493] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 15:49:11.463 CDT [32493] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 15:49:45.284 CDT [24503] ERROR:  table "join_left_delta_table" does not exist
+2023-08-06 15:49:45.284 CDT [24503] STATEMENT:  drop table join_left_delta_table ;
+2023-08-06 15:50:26.042 CDT [24503] ERROR:  table "join_left_delta_table" does not exist
+2023-08-06 15:50:26.042 CDT [24503] STATEMENT:  drop table join_left_delta_table ;
+2023-08-06 16:02:25.808 CDT [24503] ERROR:  table "join_left_delta_table" does not exist
+2023-08-06 16:02:25.808 CDT [24503] STATEMENT:  drop table join_left_delta_table ;
+2023-08-06 16:02:48.866 CDT [35064] WARNING:  there is already a transaction in progress
+2023-08-06 16:02:48.866 CDT [35064] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:02:48.866 CDT [35064] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table;
+2023-08-06 16:03:39.171 CDT [35103] WARNING:  there is already a transaction in progress
+2023-08-06 16:03:39.172 CDT [35103] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:03:39.172 CDT [35103] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table;
+2023-08-06 16:05:22.032 CDT [35238] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:05:22.032 CDT [35238] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:05:32.197 CDT [36850] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:05:32.197 CDT [36850] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:05:45.518 CDT [36874] WARNING:  there is already a transaction in progress
+2023-08-06 16:05:45.518 CDT [36874] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:05:45.518 CDT [36874] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:06:30.886 CDT [37462] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:06:30.886 CDT [37462] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:07:01.829 CDT [37494] WARNING:  there is already a transaction in progress
+2023-08-06 16:07:01.830 CDT [37494] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:07:01.830 CDT [37494] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:07:47.582 CDT [37564] WARNING:  there is already a transaction in progress
+2023-08-06 16:07:47.583 CDT [37564] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:07:47.583 CDT [37564] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:13:04.669 CDT [37805] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:13:04.669 CDT [37805] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:13:13.570 CDT [39403] WARNING:  there is already a transaction in progress
+2023-08-06 16:13:13.570 CDT [39403] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:13:13.570 CDT [39403] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:13:33.019 CDT [39442] WARNING:  there is already a transaction in progress
+2023-08-06 16:13:33.020 CDT [39442] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:13:33.020 CDT [39442] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:13:46.971 CDT [39470] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:13:46.971 CDT [39470] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:14:23.373 CDT [39488] WARNING:  there is already a transaction in progress
+2023-08-06 16:14:23.373 CDT [39488] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:14:23.373 CDT [39488] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:20:16.628 CDT [39804] WARNING:  there is already a transaction in progress
+2023-08-06 16:20:16.629 CDT [39804] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:20:16.629 CDT [39804] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:20:40.907 CDT [39851] WARNING:  there is already a transaction in progress
+2023-08-06 16:20:40.907 CDT [39851] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:20:40.907 CDT [39851] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:21:00.288 CDT [39902] WARNING:  there is already a transaction in progress
+2023-08-06 16:21:00.288 CDT [39902] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:21:00.288 CDT [39902] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:22:34.588 CDT [40027] WARNING:  there is already a transaction in progress
+2023-08-06 16:22:34.589 CDT [40027] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:22:34.589 CDT [40027] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:27:13.140 CDT [40463] WARNING:  there is already a transaction in progress
+2023-08-06 16:27:13.141 CDT [40463] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:27:13.141 CDT [40463] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:31:50.156 CDT [42202] WARNING:  there is no transaction in progress
+2023-08-06 16:32:05.747 CDT [42227] WARNING:  there is no transaction in progress
+2023-08-06 16:32:05.749 CDT [42227] WARNING:  there is already a transaction in progress
+2023-08-06 16:32:05.750 CDT [42227] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 16:32:05.750 CDT [42227] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 16:34:06.168 CDT [42379] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:34:06.168 CDT [42379] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:36:44.079 CDT [44659] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:36:44.079 CDT [44659] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:39:43.611 CDT [47117] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 16:39:43.611 CDT [47117] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 16:49:03.214 CDT [47418] WARNING:  there is no transaction in progress
+2023-08-06 17:03:06.592 CDT [47974] WARNING:  there is no transaction in progress
+2023-08-06 17:14:05.433 CDT [51983] WARNING:  there is no transaction in progress
+2023-08-06 17:15:11.439 CDT [54226] WARNING:  there is no transaction in progress
+2023-08-06 17:24:58.955 CDT [57303] WARNING:  there is no transaction in progress
+2023-08-06 17:37:11.739 CDT [57840] WARNING:  there is no transaction in progress
+2023-08-06 17:37:11.791 CDT [57840] WARNING:  there is no transaction in progress
+2023-08-06 17:37:11.794 CDT [57840] WARNING:  there is already a transaction in progress
+2023-08-06 17:37:11.794 CDT [57840] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 17:37:11.794 CDT [57840] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 17:40:42.318 CDT [57967] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 17:40:42.318 CDT [57967] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 17:40:45.395 CDT [58046] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 17:40:45.395 CDT [58046] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 17:42:26.382 CDT [58128] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 17:42:26.382 CDT [58128] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 18:00:48.389 CDT [58730] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 18:00:48.389 CDT [58730] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 18:11:46.894 CDT [61652] ERROR:  relation "join_left_delta_table" already exists
+2023-08-06 18:11:46.894 CDT [61652] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-06 18:11:53.948 CDT [61674] WARNING:  there is no transaction in progress
+2023-08-06 18:16:02.216 CDT [64191] WARNING:  there is no transaction in progress
+2023-08-06 18:16:29.229 CDT [64234] WARNING:  there is no transaction in progress
+2023-08-06 18:16:29.232 CDT [64234] WARNING:  there is already a transaction in progress
+2023-08-06 18:16:29.232 CDT [64234] ERROR:  cannot DROP TABLE "join_left_delta_table" because it is being used by active queries in this session
+2023-08-06 18:16:29.232 CDT [64234] STATEMENT:  DROP TABLE IF EXISTS join_left_delta_table
+2023-08-06 18:16:45.651 CDT [64260] WARNING:  there is no transaction in progress
+2023-08-06 18:21:49.518 CDT [66783] WARNING:  there is no transaction in progress
+2023-08-06 19:19:10.745 CDT [71888] WARNING:  there is no transaction in progress
+2023-08-06 19:25:49.757 CDT [72235] WARNING:  there is no transaction in progress
+2023-08-07 01:59:37.680 CDT [45337] WARNING:  there is no transaction in progress
+2023-08-07 02:16:12.271 CDT [49097] WARNING:  there is no transaction in progress
+2023-08-07 02:19:59.706 CDT [52266] WARNING:  there is no transaction in progress
+2023-08-07 20:58:13.376 CDT [56892] ERROR:  type "long" does not exist at character 26
+2023-08-07 20:58:13.376 CDT [56892] STATEMENT:  create table j1(a int, b long, c float, d varchar);
+2023-08-07 20:58:21.971 CDT [56892] ERROR:  type "bitin" does not exist at character 26
+2023-08-07 20:58:21.971 CDT [56892] STATEMENT:  create table j1(a int, b bitin, c float, d varchar);
+2023-08-07 20:58:42.940 CDT [56892] ERROR:  syntax error at or near "int" at character 8
+2023-08-07 20:58:42.940 CDT [56892] STATEMENT:  insert int j1 values(1, 1, 1, 'a');
+2023-08-07 21:01:28.662 CDT [56892] ERROR:  operator does not exist: integer = character varying at character 31
+2023-08-07 21:01:28.662 CDT [56892] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2023-08-07 21:01:28.662 CDT [56892] STATEMENT:  select * from j1 join j2 on(a = p);
+2023-08-07 22:04:34.181 CDT [62396] WARNING:  there is no transaction in progress
+2023-08-07 22:06:24.984 CDT [64672] WARNING:  there is no transaction in progress
+2023-08-07 22:07:25.363 CDT [64745] WARNING:  there is no transaction in progress
+2023-08-07 23:24:42.250 CDT [71867] ERROR:  relation "join_left_delta_table" already exists
+2023-08-07 23:24:42.250 CDT [71867] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-07 23:28:48.486 CDT [72091] WARNING:  there is no transaction in progress
+2023-08-07 23:30:07.757 CDT [73748] WARNING:  there is no transaction in progress
+2023-08-07 23:30:35.087 CDT [73791] WARNING:  there is no transaction in progress
+2023-08-07 23:34:52.492 CDT [76120] WARNING:  there is no transaction in progress
+2023-08-07 23:35:24.004 CDT [78335] ERROR:  relation "join_left_delta_table" already exists
+2023-08-07 23:35:24.004 CDT [78335] STATEMENT:  create table join_left_delta_table (a int ,b int ,c int ,prov_r_a1 int, join_left_tuple_identifier int);
+2023-08-07 23:35:31.784 CDT [78360] WARNING:  there is no transaction in progress
+2023-08-07 23:37:34.605 CDT [80637] WARNING:  there is no transaction in progress
+2023-08-07 23:43:28.446 CDT [80919] WARNING:  there is no transaction in progress
+2023-08-08 15:17:20.103 CDT [90470] WARNING:  there is no transaction in progress
+2023-08-08 15:18:04.532 CDT [90029] ERROR:  relation "join_delta" already exists
+2023-08-08 15:18:04.532 CDT [90029] STATEMENT:  create table join_delta as select * from t1gbjoin where a < 12;
+2023-08-08 15:18:46.107 CDT [90529] WARNING:  there is no transaction in progress
+2023-08-08 15:19:21.835 CDT [90607] WARNING:  there is no transaction in progress
+2023-08-08 15:20:36.272 CDT [90789] ERROR:  syntax error at or near "select" at character 26
+2023-08-08 15:20:36.272 CDT [90789] STATEMENT:  create table join_delta3 select * from t1gbjoin where a < 501;
+2023-08-08 15:21:21.131 CDT [90819] WARNING:  there is no transaction in progress
+2023-08-08 15:22:17.185 CDT [90789] ERROR:  syntax error at or near "tjoinhelptmp" at character 6
+2023-08-08 15:22:17.185 CDT [90789] STATEMENT:  drop tjoinhelptmp;
+2023-08-08 15:23:16.878 CDT [90789] ERROR:  relation "tjoinhelptmp" already exists
+2023-08-08 15:23:16.878 CDT [90789] STATEMENT:  create table tjoinhelptmp as select distinct(a) from t1gbjoin where mod(a, 5) = 0;
+2023-08-08 15:24:55.409 CDT [91075] WARNING:  there is no transaction in progress
+2023-08-08 15:25:22.734 CDT [91120] WARNING:  there is no transaction in progress

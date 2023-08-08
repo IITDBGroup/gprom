@@ -26,6 +26,7 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
+#include "provenance_rewriter/update_ps/bloom.h"
 //#include "provenance_rewriter/update_ps/update_ps_main.h"
 //#include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
@@ -37,6 +38,9 @@ static void buildStateDuplicateRemovalOp(QueryOperator *op);
 static void buildStateLimitOp(QueryOperator *op);
 static void buildStateOrderOp(QueryOperator *op);
 static void buildStateFinalOp(QueryOperator *op);
+static void buildStateJoinOp(QueryOperator *op);
+static void parseJoinConds(Node *conds, Vector *condsVec);
+static void buildBloomFilterFromSQL(char *sql, List *attributeDefs, HashMap *BFMap);
 // static QueryOperator *captureRewriteOp(ProvenanceComputation *pc, QueryOperator *op);
 // static int compareTwoValues(Constant *a, Constant *b, DataType dt);
 static void swapListCell(List *list, int pos1, int pos2);
@@ -110,7 +114,254 @@ buildStateInternal(QueryOperator *op)
 		buildStateOrderOp(op);
 	} else if (isA(op, ProvenanceComputation)) {
         buildStateFinalOp(op);
-    }
+    } else if (isA(op, JoinOperator)) {
+		boolean isJoinUsingBF = getBoolOption(OPTION_UPDATE_PS_JOIN_USING_BF);
+		if (isJoinUsingBF) {
+			buildStateJoinOp(op);
+		}
+	}
+}
+
+static void
+buildStateJoinOp(QueryOperator *op)
+{
+	Node *conds = (Node *) copyObject(((JoinOperator *) op)->cond);
+
+	Vector *condsVec = makeVector(VECTOR_NODE, T_Vector);
+	// Vector *condsAttrVec = makeVector(VECTOR_NODE, T_Vector);
+	parseJoinConds(conds, condsVec);
+
+	// for each attribute find out which branch it comes from;
+	Set *leftAttrs = NODESET();
+	Set *rightAttrs = NODESET();
+
+	HashMap *leftMapping = NEW_MAP(Constant, Node);
+	HashMap *rightMapping = NEW_MAP(Constant, Node);
+
+	// parse to get all attributes of conditions;
+	FOREACH_VEC(Operator, op, condsVec){
+		AttributeReference *ar1 = (AttributeReference *) getNthOfListP(op->args, 0);
+		AttributeReference *ar2 = (AttributeReference *) getNthOfListP(op->args, 1);
+		DEBUG_NODE_BEATIFY_LOG("ar1", ar1);
+		DEBUG_NODE_BEATIFY_LOG("ar2", ar2);
+		if (ar1->fromClauseItem == 0) {
+			addToSet(leftAttrs, ar1);
+			Vector *v = NULL;
+			if (MAP_HAS_STRING_KEY(leftMapping, ar1->name)) {
+				v = (Vector *) MAP_GET_STRING(leftMapping, ar1->name);
+			} else {
+				v = makeVector(VECTOR_STRING, T_Vector);
+			}
+			vecAppendString(v, strdup(ar2->name));
+			MAP_ADD_STRING_KEY(leftMapping, strdup(ar1->name), v);
+		} else if (ar1->fromClauseItem == 1) {
+			addToSet(rightAttrs, ar1);
+			Vector *v = NULL;
+			if (MAP_HAS_STRING_KEY(rightMapping, ar1->name)) {
+				v = (Vector *) MAP_GET_STRING(rightMapping, ar1->name);
+			} else {
+				v = makeVector(VECTOR_STRING, T_Vector);
+			}
+			vecAppendString(v, strdup(ar2->name));
+			MAP_ADD_STRING_KEY(rightMapping, strdup(ar1->name), v);
+		}
+
+		if (ar2->fromClauseItem == 0) {
+			addToSet(leftAttrs, ar2);
+			Vector *v = NULL;
+
+			if (MAP_HAS_STRING_KEY(leftMapping, ar2->name)) {
+				v = (Vector *) MAP_GET_STRING(leftMapping, ar2->name);
+			} else {
+				v = makeVector(VECTOR_STRING, T_Vector);
+			}
+			vecAppendString(v, strdup(ar1->name));
+			MAP_ADD_STRING_KEY(leftMapping, strdup(ar2->name), v);
+		} else if (ar2->fromClauseItem == 1) {
+			addToSet(rightAttrs, ar2);
+			Vector *v = NULL;
+			if (MAP_HAS_STRING_KEY(rightMapping, ar2->name)) {
+				v = (Vector *) MAP_GET_STRING(rightMapping, ar2->name);
+			} else {
+				v = makeVector(VECTOR_STRING, T_Vector);
+			}
+			vecAppendString(v, strdup(ar1->name));
+			MAP_ADD_STRING_KEY(rightMapping, strdup(ar2->name), v);
+		}
+	}
+	DEBUG_NODE_BEATIFY_LOG("conds vec", condsVec);
+
+
+	// create left projection;
+	List *leftProjExpr = NIL;
+	List *leftADs = NIL;
+	int idx = 0;
+	FOREACH(AttributeDef, ad, OP_LCHILD(op)->schema->attrDefs) {
+		FOREACH_SET(AttributeReference, ar, leftAttrs) {
+			if (streq(ad->attrName, ar->name)) {
+				leftProjExpr = appendToTailOfList(leftProjExpr, createFullAttrReference(ad->attrName, 0, idx, 0, ad->dataType));
+				leftADs = appendToTailOfList(leftADs, copyObject(ad));
+			}
+		}
+		idx++;
+	}
+	QueryOperator *lChild = (QueryOperator *) copyObject(OP_LCHILD(op));
+	ProjectionOperator *leftProj = createProjectionOp(leftProjExpr, lChild, NIL, getAttrDefNames(leftADs));
+	lChild->parents = singleton(leftProj);
+
+
+	// create right projection;
+	List *rightProjExpr = NIL;
+	List *rightADs = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, OP_RCHILD(op)->schema->attrDefs) {
+		FOREACH_SET(AttributeReference, ar, rightAttrs) {
+			if (streq(ad->attrName, ar->name)) {
+				rightProjExpr = appendToTailOfList(rightProjExpr, createFullAttrReference(ad->attrName, 0, idx, 0, ad->dataType));
+				rightADs = appendToTailOfList(rightADs, copyObject(ad));
+			}
+		}
+		idx++;
+	}
+	QueryOperator *rChild = (QueryOperator *) copyObject(OP_RCHILD(op));
+	ProjectionOperator *rightProj = createProjectionOp(rightProjExpr, rChild, NIL, getAttrDefNames(rightADs));
+	rChild->parents = singleton(rightProj);
+	DEBUG_NODE_BEATIFY_LOG("right join proj", rightProj);
+
+	// execute query to get all values;
+	char *lSQL = serializeQuery((QueryOperator *) leftProj);
+	HashMap *leftBFs = NEW_MAP(Constant, Node);
+	DEBUG_NODE_BEATIFY_LOG("WHAT IS AD", ((QueryOperator *) leftProj)->schema->attrDefs);
+	buildBloomFilterFromSQL(lSQL, ((QueryOperator *) leftProj)->schema->attrDefs, leftBFs);
+
+	char *rSQL = serializeQuery((QueryOperator *) rightProj);
+	HashMap *rightBFs = NEW_MAP(Constant, Node);
+	DEBUG_NODE_BEATIFY_LOG("WHAT IS AD", ((QueryOperator *) rightProj)->schema->attrDefs);
+	buildBloomFilterFromSQL(rSQL, ((QueryOperator *) rightProj)->schema->attrDefs, rightBFs);
+
+	HashMap *stateMap = NEW_MAP(Constant, Node);
+	MAP_ADD_STRING_KEY(stateMap, JOIN_LEFT_BLOOM, leftBFs);
+	MAP_ADD_STRING_KEY(stateMap, JOIN_RIGHT_BLOOM, rightBFs);
+	MAP_ADD_STRING_KEY(stateMap, JOIN_LEFT_BLOOM_ATT_MAPPING, leftMapping);
+	MAP_ADD_STRING_KEY(stateMap, JOIN_RIGHT_BLOOM_ATT_MAPPING, rightMapping);
+
+	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_JOIN, stateMap);
+	// int val = 1;
+	// INFO_LOG("is 1 exists %d", bloom_check((Bloom *) MAP_GET_STRING(leftBFs, "a"), &val, sizeof(int)));
+	// val = 12;
+	// INFO_LOG("is %d exists %d", val, bloom_check((Bloom *) MAP_GET_STRING(leftBFs, "a"), &val, sizeof(int)));
+	// val = 2;
+	// INFO_LOG("is %d exists %d", val, bloom_check((Bloom *) MAP_GET_STRING(leftBFs, "a"), &val, sizeof(int)));
+	// DEBUG_NODE_BEATIFY_LOG("left mapping", leftMapping);
+
+	// DEBUG_NODE_BEATIFY_LOG("right mapping", rightMapping);
+	// DEBUG_NODE_BEATIFY_LOG("left bloom", leftBFs);
+	// bloom_print((Bloom *) MAP_GET_STRING(leftBFs, "a"));
+	// DEBUG_NODE_BEATIFY_LOG("join state", stateMap);
+}
+
+static void
+buildBloomFilterFromSQL(char *sql, List *attributeDefs, HashMap *BFMap)
+{
+	DEBUG_NODE_BEATIFY_LOG("CURR AD", attributeDefs);
+	Relation *rel = executeQuery(sql);
+	int tupleLen = rel->tuples->length;
+	int colLen = LIST_LENGTH(rel->schema);
+
+	for (int col = 0; col < colLen; col++) {
+		Bloom *bf = createBloomFilter();
+		AttributeDef *ad = (AttributeDef *) getNthOfListP(attributeDefs, col);
+		switch (ad->dataType) {
+			case DT_INT:
+			{
+				for (int row = 0; row < tupleLen; row++) {
+					char *val = getVecString((Vector *) getVecNode(rel->tuples, row), col);
+					if (!streq(val, "NULL")) {
+						int value = atoi(val);
+						bloom_add(bf, &value, sizeof(int));
+					}
+				}
+			}
+			break;
+			case DT_LONG:
+			{
+				for (int row = 0; row < tupleLen; row++) {
+					char *val = getVecString((Vector *) getVecNode(rel->tuples, row), col);
+					if (!streq(val, "NULL")) {
+						gprom_long_t value = atol(val);
+						bloom_add(bf, &value, sizeof(gprom_long_t));
+					}
+				}
+			}
+			break;
+			case DT_BOOL:
+			{
+				for (int row = 0; row < tupleLen; row++) {
+					char *val = getVecString((Vector *) getVecNode(rel->tuples, row), col);
+					if (!streq(val, "NULL")) {
+						if (streq(val, "TRUE") || streq(val, "t") || streq(val, "true")) {
+							int value = 1;
+							bloom_add(bf, &value, sizeof(int));
+						}
+    					if (streq(val, "FALSE") || streq(val, "f") || streq(val, "false")){
+							int value = 0;
+							bloom_add(bf, &value, sizeof(int));
+						}
+					}
+				}
+			}
+			break;
+			case DT_FLOAT:
+			{
+				for (int row = 0; row < tupleLen; row++) {
+					char *val = getVecString((Vector *) getVecNode(rel->tuples, row), col);
+					if (!streq(val, "NULL")) {
+						double value = atof(val);
+						bloom_add(bf, &value, sizeof(double));
+					}
+				}
+			}
+			break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+			{
+				for (int row = 0; row < tupleLen; row++) {
+					char *val = getVecString((Vector *) getVecNode(rel->tuples, row), col);
+					if (!streq(val, "NULL")) {
+						bloom_add(bf, val, sizeof(strlen(val)));
+					}
+				}
+			}
+			break;
+		}
+		MAP_ADD_STRING_KEY(BFMap, strdup(ad->attrName), bf);
+	}
+}
+
+/*
+	a = b; Yes
+	a = b + 1; No
+	a = b + c; No
+	a = 2(constant); No
+*/
+static void
+parseJoinConds(Node *conds, Vector *condsVec)
+{
+	char *opName = ((Operator *) conds)->name;
+	if (streq(opName, OPNAME_AND) || streq(opName, OPNAME_OR)) {
+		parseJoinConds((Node *) getNthOfListP(((Operator *) conds)->args, 0), condsVec);
+		parseJoinConds((Node *) getNthOfListP(((Operator *) conds)->args, 1), condsVec);
+		return;
+	}
+
+	if (streq(opName, OPNAME_EQ)) {
+		FOREACH(Node, n, ((Operator *) conds)->args) {
+			if (!isA(n, AttributeReference)) {
+				return;
+			}
+		}
+		vecAppendNode(condsVec, conds);
+	}
 }
 
 static void

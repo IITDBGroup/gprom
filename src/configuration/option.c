@@ -201,6 +201,7 @@ boolean update_ps_direct_delta = FALSE;
 int update_ps_repetition = 1;
 boolean update_ps_selection_push_down = FALSE;
 boolean update_ps_copy_delta_join = FALSE;
+boolean update_ps_join_using_bf = FALSE;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -790,6 +791,14 @@ OptionInfo opts[] =
                 "indicate if copy delta join to db",
                 OPTION_BOOL,
                 wrapOptionBool(&update_ps_copy_delta_join),
+                defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_JOIN_USING_BF,
+                "-update_ps_join_using_bf",
+                "indicaet if we use bloom filter to pre-filter delta tuples of join branch(es)",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_join_using_bf),
                 defOptionBool(FALSE)
          },
 		 {

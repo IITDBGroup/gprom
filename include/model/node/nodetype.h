@@ -126,7 +126,8 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_LMTChunk,
     T_RBTNode,
     T_RBTRoot,
-    T_PSMap
+    T_PSMap,
+    T_Bloom
 );
 
 typedef struct Node{

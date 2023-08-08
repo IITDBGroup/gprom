@@ -30,6 +30,7 @@
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
 #include "provenance_rewriter/update_ps/rbtree.h"
 #include "model/relation/relation.h"
+#include "provenance_rewriter/update_ps/bloom.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -147,6 +148,8 @@ static void outGBHeaps(StringInfo str, GBHeaps *node);
 static void outLMTChunk(StringInfo str, LMTChunk *node);
 static void outRBTRoot(StringInfo str, RBTRoot *node);
 static void outRBTNode(StringInfo str, RBTNode *node);
+static void outPSMap(StringInfo str, PSMap *node);
+static void outBloom(StringInfo str, Bloom *node);
 
 /*define macros*/
 #define OP_ID_STRING "OP_ID"
@@ -1366,6 +1369,30 @@ outRBTNode(StringInfo str, RBTNode * node)
 
 }
 
+static void
+outBloom(StringInfo str, Bloom *node)
+{
+    WRITE_NODE_TYPE(Bloom);
+
+    // printf("bloom at %p\n", (void *)bloom);
+    // WRITE_NODE_ADDRESS(node);
+    WRITE_INT_FIELD(ready);
+    WRITE_INT_FIELD(major);
+    WRITE_INT_FIELD(minor);
+    WRITE_INT_FIELD(entries);
+    WRITE_FLOAT_FIELD(error, "%f");
+    WRITE_LONG_FIELD(bits);
+    WRITE_FLOAT_FIELD(bpe, "%f");
+    WRITE_LONG_FIELD(bytes);
+    WRITE_INT_FIELD(hashes);
+    /*
+    unsigned int KB = bloom->bytes / 1024;
+    unsigned int MB = KB / 1024;
+    printf(" (%u KB, %u MB)\n", KB, MB);
+    printf(" ->hash functions = %d\n", bloom->hashes);
+    */
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1645,6 +1672,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_RBTNode:
                 outRBTNode(str, (RBTNode *) obj);
+                break;
+            case T_Bloom:
+                outBloom(str, (Bloom *) obj);
                 break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
