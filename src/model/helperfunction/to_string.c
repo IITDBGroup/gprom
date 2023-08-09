@@ -93,6 +93,7 @@ static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSampleClauseOperator(StringInfo str, SampleClauseOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outRecursiveOperator(StringInfo str, RecursiveOperator *node);
+static void outSplitOperator(StringInfo str, SplitOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
 static void outNestingOperator(StringInfo str, NestingOperator *node);
@@ -1031,6 +1032,16 @@ outRecursiveOperator(StringInfo str, RecursiveOperator *node)
 }
 
 static void
+outSplitOperator(StringInfo str, SplitOperator *node)
+{
+    WRITE_NODE_TYPE(SPLIT_OPERATOR);
+    WRITE_QUERY_OPERATOR();
+
+    WRITE_STRING_FIELD(splitAttr);
+    WRITE_NODE_FIELD(splitCond);
+}
+
+static void
 outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
 {
     WRITE_NODE_TYPE(DUPLICATE_REMOVAL);
@@ -1304,6 +1315,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_RecursiveOperator:
                 outRecursiveOperator(str, (RecursiveOperator *) obj);
+                break;
+            case T_SplitOperator:
+                outSplitOperator(str, (SplitOperator *) obj);
                 break;
             case T_DuplicateRemoval:
                 outDuplicateRemoval(str, (DuplicateRemoval *) obj);
@@ -1914,6 +1928,9 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         break;
         case T_RecursiveOperator:
             WRITE_OP_TYPE(RecursiveOperator);
+            break;
+        case T_SplitOperator:
+            WRITE_OP_TYPE(SplitOperator);
             break;
         case T_DuplicateRemoval:
             WRITE_OP_TYPE(DuplicateRemoval);

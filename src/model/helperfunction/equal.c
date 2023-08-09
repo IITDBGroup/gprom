@@ -68,6 +68,7 @@ static boolean equalJoinOperator(JoinOperator *a, JoinOperator *b, HashMap *seen
 static boolean equalAggregationOperator(AggregationOperator *a, AggregationOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalSetOperator(SetOperator *a, SetOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalRecursiveOperator(RecursiveOperator *a, RecursiveOperator *b, HashMap *seenOps, MemContext *c);
+static boolean equalSplitOperator(SplitOperator *a, SplitOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b, HashMap *seenOps, MemContext *c);
 static boolean equalProvenanceComputation(ProvenanceComputation *a, ProvenanceComputation *b, HashMap *seenOps, MemContext *c);
 static boolean equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b, HashMap *seenOps, MemContext *c);
@@ -760,6 +761,17 @@ equalRecursiveOperator(RecursiveOperator *a, RecursiveOperator *b, HashMap *seen
     return TRUE;
 }
 
+static boolean 
+equalSplitOperator(SplitOperator *a, SplitOperator *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_QUERY_OP();
+    COMPARE_STRING_FIELD(splitAttr);
+    COMPARE_NODE_FIELD(splitCond);
+
+    return TRUE;
+}
+
+
 static boolean
 equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b, HashMap *seenOps, MemContext *c)
 {
@@ -1256,6 +1268,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_RecursiveOperator:
             retval = equalRecursiveOperator(a,b, seenOps, c);
+            break;
+        case T_SplitOperator:
+            retval = equalSplitOperator(a,b, seenOps, c);
             break;
         case T_DuplicateRemoval:
             retval = equalDuplicateRemoval(a,b, seenOps, c);

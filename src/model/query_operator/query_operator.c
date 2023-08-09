@@ -757,6 +757,25 @@ createRecursiveOperator(QueryOperator *unionChild, QueryOperator *recursiveChild
     return rec;
 }
 
+SplitOperator *
+createSplitOperator (char *splitAttr, Node *splitCond, QueryOperator *top, List *parents, List *attrNames)
+{
+    SplitOperator *split = makeNode(SplitOperator);
+
+    split->splitAttr = splitAttr;
+    split->splitCond = splitCond;
+    split->op.inputs = singleton(top);
+    // split->op.schema = createSchemaFromLists("SPLIT", attrNames,
+    //         getDataTypes(OP_LCHILD(split)->schema));
+    split->op.schema = schemaFromExpressions("SPLIT", attrNames, getNormalAttrProjectionExprs(top),
+            singleton(top));
+    //split->op.schema = top->schema;
+    split->op.parents = parents;
+    split->op.provAttrs = NULL;
+
+    return split;
+}
+
 DuplicateRemoval *
 createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
         List *attrNames)

@@ -124,6 +124,9 @@ static void addRangeRowToSchema(HashMap *hmp, QueryOperator *target);
 
 static List *putMidListToEnd(List *in, int p1, int p2);
 
+//split and merge functions
+static QueryOperator *addSplitOnTableAccess(QueryOperator *op);
+
 
 QueryOperator *
 rewriteUncert(QueryOperator * op)
@@ -5131,7 +5134,22 @@ rewrite_RangeTableAccess(QueryOperator *op)
 		duplicateMinMaxNameProp(op, proj);
 	}
 
+	if (HAS_STRING_PROP(op, PROP_SPLIT_ATTR_REF))
+		addSplitOnTableAccess(op);
+
 	return proj;
+}
+
+static QueryOperator *
+addSplitOnTableAccess(QueryOperator *op)
+{
+	SplitOperator *sop = createSplitOperator((char *) GET_STRING_PROP_STRING_VAL(op, PROP_SPLIT_ATTR_REF), GET_STRING_PROP(op, PROP_SPLIT_COND), op, NIL, getQueryOperatorAttrNames(op));
+	switchSubtrees(op, (QueryOperator *)sop);
+	op->parents = singleton(sop);
+	INFO_LOG("TableAccess - HAS_SPLIT");
+	INFO_LOG("Split Operator: %s", nodeToString(sop));
+
+	return (QueryOperator *)sop;
 }
 
 static void

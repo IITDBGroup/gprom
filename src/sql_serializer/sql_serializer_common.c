@@ -160,6 +160,12 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                 cur = OP_LCHILD(cur);
                 continue;
                 break;
+            case T_SplitOperator:
+                matchInfo->fromRoot = OP_LCHILD(cur);
+                state = MATCH_NEXTBLOCK;
+                cur = OP_LCHILD(OP_LCHILD(cur));
+                continue;
+                break;
             default:
                 break;
         }
@@ -193,6 +199,8 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                     case T_ProjectionOperator:
                     {
                         QueryOperator *child = OP_LCHILD(cur);
+                        if(isA(child,SplitOperator))
+                            child = OP_LCHILD(child);
                         QueryOperator *grandChild = (child ? OP_LCHILD(child) : NULL);
 
                         // is first projection?
@@ -491,6 +499,12 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
                         attrOffset, api);
             }
             break;
+            case T_SplitOperator:
+            {
+                TableAccessOperator *t = (TableAccessOperator *) OP_LCHILD(q);
+                api->serializeTableAccess(from, t, curFromItem, fromAttrs,
+                        attrOffset, api);
+            }
             // A constant relation, turn into (SELECT ... FROM dual) subquery
             case T_ConstRelOperator:
             {

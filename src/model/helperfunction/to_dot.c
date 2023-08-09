@@ -297,6 +297,14 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
                     opName);
         }
             break;
+        case T_SplitOperator:
+        {
+            appendStringInfo(str, "\t%s [label=\"&#963;\",color="
+                    COLOR_DARK_GREEN ",fillcolor="
+                    COLOR_LIGHT_GREEN ",texlbl=\"$\\sigma$\"];\n",
+                    opName);
+        }
+            break;
         case T_ProvenanceComputation:
             appendStringInfo(str, "\t%s [label=\"P\",color="
                     COLOR_BLACK ",fillcolor="

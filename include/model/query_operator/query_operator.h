@@ -86,6 +86,13 @@ typedef struct RecursiveOperator
     char *name;
 } RecursiveOperator;
 
+typedef struct SplitOperator
+{
+    QueryOperator op;
+    char *splitAttr;
+    Node *splitCond;
+} SplitOperator;
+
 typedef struct DuplicateRemoval
 {
     QueryOperator op;
@@ -233,6 +240,8 @@ extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs,
         List *parents, List *attrNames);
 extern RecursiveOperator *createRecursiveOperator (QueryOperator *unionChild,
         QueryOperator *recursiveChild, List *parents, List *attrNames);
+extern SplitOperator *createSplitOperator (char *splitAttr,
+        Node *splitCond, QueryOperator *top, List *parents, List *attrNames);
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs,
         QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType,

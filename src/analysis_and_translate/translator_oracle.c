@@ -119,6 +119,7 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+static boolean markMergeAndSplit(Node *node, char *megeSplitAttr[]);
 
 static boolean visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList);
 
@@ -1122,6 +1123,15 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
     finalQ = (QueryOperator *) translateGeneral(with->query, attrsOffsetsList);
     replaceWithViewRefsMutator((Node *) finalQ, transWithViews);
 
+    if (with->isMerge)
+    {
+        char *mergeSplitAttr[3];
+        mergeSplitAttr[0] = strdup(with->mergeAttr);
+        mergeSplitAttr[1] = strdup(with->splitAttr);
+        mergeSplitAttr[2] = (char *)with->splitCond;
+        markMergeAndSplit((Node *) finalQ, mergeSplitAttr);
+    }
+
     return finalQ;
 }
 
@@ -1154,6 +1164,26 @@ replaceWithViewRefsMutator(Node *node, List *views)
 
     return visit(node, replaceWithViewRefsMutator, views);
 }
+
+static boolean 
+markMergeAndSplit(Node *node, char *megeSplitAttr[])
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, TableAccessOperator))
+    {
+        TableAccessOperator *t = (TableAccessOperator *) node;
+        SET_STRING_PROP(t, PROP_MERGE_ATTR_REF, (Node *) createConstString(megeSplitAttr[0]));
+        SET_STRING_PROP(t, PROP_SPLIT_ATTR_REF, (Node *) createConstString(megeSplitAttr[1]));
+        SET_STRING_PROP(t, PROP_SPLIT_COND, (Node *) megeSplitAttr[2]);
+        
+        return TRUE;
+    }
+
+    return visit(node, markMergeAndSplit, megeSplitAttr);
+}
+
 
 static QueryOperator *
 translateFromClause(List *fromClause, List **attrsOffsetsList)

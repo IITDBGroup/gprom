@@ -101,6 +101,7 @@ static uint64_t hashProvenanceComputation (uint64_t cur, ProvenanceComputation *
 static uint64_t hashTableAccessOperator (uint64_t cur, TableAccessOperator *node);
 static uint64_t hashSetOperator (uint64_t cur, SetOperator *node);
 static uint64_t hashRecursiveOperator (uint64_t cur, RecursiveOperator *node);
+static uint64_t hashSplitOperator (uint64_t cur, SplitOperator *node);
 static uint64_t hashDuplicateRemoval (uint64_t cur, DuplicateRemoval *node);
 static uint64_t hashConstRelOperator (uint64_t cur, ConstRelOperator *node);
 static uint64_t hashNestingOperator (uint64_t cur, NestingOperator *node);
@@ -800,6 +801,16 @@ hashRecursiveOperator (uint64_t cur, RecursiveOperator *node)
 }
 
 static uint64_t
+hashSplitOperator (uint64_t cur, SplitOperator *node)
+{
+    HASH_QO();
+    HASH_STRING(splitAttr);
+    HASH_NODE(splitCond);
+
+    HASH_RETURN();
+}
+
+static uint64_t
 hashDuplicateRemoval (uint64_t cur, DuplicateRemoval *node)
 {
     HASH_QO();
@@ -1049,6 +1060,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashSetOperator(h, (SetOperator *) n);
         case T_RecursiveOperator:
             return hashRecursiveOperator(h, (RecursiveOperator *) n);
+        case T_SplitOperator:
+            return hashSplitOperator(h, (SplitOperator *) n);
         case T_DuplicateRemoval:
             return hashDuplicateRemoval(h, (DuplicateRemoval *) n);
         case T_ConstRelOperator:

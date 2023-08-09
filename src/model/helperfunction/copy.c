@@ -93,6 +93,7 @@ static JoinOperator *copyJoinOperator(JoinOperator *from, OperatorMap **opMap);
 static AggregationOperator *copyAggregationOperator(AggregationOperator *from, OperatorMap **opMap);
 static SetOperator *copySetOperator(SetOperator *from, OperatorMap **opMap);
 static RecursiveOperator *copyRecursiveOperator(RecursiveOperator *from, OperatorMap **opMap);
+static SplitOperator *copySplitOperator(SplitOperator *from, OperatorMap **opMap);
 static DuplicateRemoval *copyDuplicateRemoval(DuplicateRemoval *from, OperatorMap **opMap);
 static ProvenanceComputation *copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap);
 static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap);
@@ -713,6 +714,16 @@ copyRecursiveOperator(RecursiveOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static SplitOperator *
+copySplitOperator(SplitOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(SplitOperator);
+    COPY_OPERATOR();
+    COPY_STRING_FIELD(splitAttr);
+    COPY_NODE_FIELD(splitCond);
+    
+    return new;
+}
 
 static DuplicateRemoval *
 copyDuplicateRemoval(DuplicateRemoval *from, OperatorMap **opMap)
@@ -1281,6 +1292,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_RecursiveOperator:
             retval = copyRecursiveOperator(from, opMap);
+            break;
+        case T_SplitOperator:
+            retval = copySplitOperator(from, opMap);
             break;
         case T_DuplicateRemoval:
             retval = copyDuplicateRemoval(from, opMap);
