@@ -765,11 +765,10 @@ createSplitOperator (char *splitAttr, Node *splitCond, QueryOperator *top, List 
     split->splitAttr = splitAttr;
     split->splitCond = splitCond;
     split->op.inputs = singleton(top);
-    // split->op.schema = createSchemaFromLists("SPLIT", attrNames,
-    //         getDataTypes(OP_LCHILD(split)->schema));
-    split->op.schema = schemaFromExpressions("SPLIT", attrNames, getNormalAttrProjectionExprs(top),
+    split->op.schema = schemaFromExpressions(strdup("SPLIT"), attrNames, getNormalAttrProjectionExprs(top),
             singleton(top));
-    //split->op.schema = top->schema;
+    split->op.schema->attrDefs = appendToTailOfList(split->op.schema->attrDefs,
+            createAttributeDef(strdup("splitid"), DT_INT));
     split->op.parents = parents;
     split->op.provAttrs = NULL;
 

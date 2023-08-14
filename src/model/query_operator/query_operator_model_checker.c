@@ -379,6 +379,11 @@ checkSchemaConsistency (QueryOperator *op, void *context)
 
         }
         break;
+        case T_SplitOperator:
+        {
+            // SplitOperator *o = (SplitOperator *) op;
+        }
+        break;
         case T_WindowOperator:
         {
 //            WindowOperator *o = (WindowOperator *) op;

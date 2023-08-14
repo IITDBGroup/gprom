@@ -119,8 +119,8 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
-static boolean markMergeAndSplit(Node *node, char *megeSplitAttr[]);
-
+static boolean markMergeAndSplitRec(Node *node, char *megeSplitAttr[]);
+static boolean markMergeAndSplitTableA(Node *node, char *megeSplitAttr[]);
 static boolean visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList);
 
 static char *summaryType = NULL;
@@ -1129,7 +1129,7 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
         mergeSplitAttr[0] = strdup(with->mergeAttr);
         mergeSplitAttr[1] = strdup(with->splitAttr);
         mergeSplitAttr[2] = (char *)with->splitCond;
-        markMergeAndSplit((Node *) finalQ, mergeSplitAttr);
+        markMergeAndSplitRec((Node *) finalQ, mergeSplitAttr);
     }
 
     return finalQ;
@@ -1166,7 +1166,7 @@ replaceWithViewRefsMutator(Node *node, List *views)
 }
 
 static boolean 
-markMergeAndSplit(Node *node, char *megeSplitAttr[])
+markMergeAndSplitTableA(Node *node, char *megeSplitAttr[])
 {
     if (node == NULL)
         return TRUE;
@@ -1181,9 +1181,23 @@ markMergeAndSplit(Node *node, char *megeSplitAttr[])
         return TRUE;
     }
 
-    return visit(node, markMergeAndSplit, megeSplitAttr);
+    return visit(node, markMergeAndSplitTableA, megeSplitAttr);
 }
 
+static boolean 
+markMergeAndSplitRec(Node *node, char *megeSplitAttr[])
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, RecursiveOperator))
+    {
+        RecursiveOperator *t = (RecursiveOperator *) node;
+        return markMergeAndSplitTableA((Node *)OP_RCHILD(t), megeSplitAttr);
+    }
+
+    return visit(node, markMergeAndSplitRec, megeSplitAttr);
+}
 
 static QueryOperator *
 translateFromClause(List *fromClause, List **attrsOffsetsList)

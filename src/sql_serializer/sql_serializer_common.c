@@ -403,6 +403,8 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     DEBUG_LOG("serializeFrom");
     List *fromAttrs = NIL;
     api->serializeFrom(matchInfo->fromRoot, fromString, &fromAttrs, api);
+    if (isA(OP_LCHILD(q), SplitOperator))
+        appendStringInfoString(fromString, ", generate_series(0,1) x(splitid)");
 
     DEBUG_LOG("serializeWhere");
     if(matchInfo->where != NULL)
@@ -411,6 +413,8 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
     DEBUG_LOG("serialize projection + aggregation + groupBy +  having + window functions");
     api->serializeProjectionAndAggregation(matchInfo, selectString, havingString,
             groupByString, fromAttrs, topMaterialize, api);
+    if (isA(OP_LCHILD(q), SplitOperator))
+        appendStringInfoString(selectString, ", splitid");
 
 	DEBUG_LOG("serializeOrder");
 	if (matchInfo->orderBy != NULL)
