@@ -63,15 +63,18 @@ setupMetadataLookup(void)
     EXEC_CHECK(c,"DROP TABLE IF EXISTS uadb2 CASCADE;");
     EXEC_CHECK(c,"DROP TABLE IF EXISTS u CASCADE;");
     EXEC_CHECK(c,"DROP TABLE IF EXISTS uadb_merged CASCADE;");
+    EXEC_CHECK(c,"DROP TABLE IF EXISTS uadb_with_splitid CASCADE;");
     
-    EXEC_CHECK(c,"CREATE TABLE uadb1 (A INT, B INT[], row INT[]);");
-    EXEC_CHECK(c,"INSERT INTO uadb1 (A, B, row) VALUES (1, '{1,10}', '{1,1}'), (1, '{25,30}', '{2,3}'), (2, '{1,1}', '{0,1}');");
-    EXEC_CHECK(c,"CREATE TABLE uadb2 ( A INT, B INT[], row INT[] );");
-    EXEC_CHECK(c,"INSERT INTO uadb2 (A, B, row) VALUES (1, '{5,10}', '{1,1}'), (1, '{35,40}', '{0,1}'), (2, '{3,4}', '{1,1}');");
-    EXEC_CHECK(c,"CREATE TABLE u (A INT, B INT[], C INT[], row INT[]);");
-    EXEC_CHECK(c,"INSERT INTO u (A, B, C, row) VALUES (1, '{1,10}', '{3,15}', '{1,1}'), (1, '{25,30}', '{10,22}', '{2,3}'), (2, '{1,1}', '{1,10}', '{0,1}');");
-    EXEC_CHECK(c,"CREATE TABLE uadb_merged (A INT, B INT[], row INT[]);");
-    EXEC_CHECK(c,"INSERT INTO uadb_merged (A, B, row) VALUES (1, '{1,10}', '{1,1}'), (2, '{1,1}', '{0,1}'), (3, '{1,2}', '{0,1}');");
+    EXEC_CHECK(c,"CREATE TABLE uadb1 (A INT, B INT[], ROW INT[]);");
+    EXEC_CHECK(c,"INSERT INTO uadb1 (A, B, ROW) VALUES (1, '{1,10}', '{1,1}'), (1, '{25,30}', '{2,3}'), (2, '{1,1}', '{0,1}');");
+    EXEC_CHECK(c,"CREATE TABLE uadb2 ( A INT, B INT[], ROW INT[] );");
+    EXEC_CHECK(c,"INSERT INTO uadb2 (A, B, ROW) VALUES (1, '{5,10}', '{1,1}'), (1, '{35,40}', '{0,1}'), (2, '{3,4}', '{1,1}');");
+    EXEC_CHECK(c,"CREATE TABLE u (A INT, B INT[], C INT[], ROW INT[]);");
+    EXEC_CHECK(c,"INSERT INTO u (A, B, C, ROW) VALUES (1, '{1,10}', '{3,15}', '{1,1}'), (1, '{25,30}', '{10,22}', '{2,3}'), (2, '{1,1}', '{1,10}', '{0,1}');");
+    EXEC_CHECK(c,"CREATE TABLE uadb_merged (A INT, B INT[], ROW INT[]);");
+    EXEC_CHECK(c,"INSERT INTO uadb_merged (A, B, ROW) VALUES (1, '{1,10}', '{1,1}'), (2, '{1,1}', '{0,1}'), (3, '{1,2}', '{0,1}');");
+    EXEC_CHECK(c,"CREATE TABLE uadb_with_splitid (A INT, B INT[], ROW INT[], SPLITID INT);");
+    EXEC_CHECK(c,"INSERT INTO uadb_with_splitid (A, B, ROW, splitid) VALUES (1, '{1,10}', '{1,1}', 0), (2, '{1,1}', '{0,1}', 0), (3, '{1,2}', '{0,1}', 0), (1, '{1,10}', '{1,1}', 1), (2, '{1,1}', '{0,1}', 1), (3, '{1,2}', '{0,1}', 1);");
 
     DEBUG_LOG("Created test tables");
 
@@ -208,33 +211,26 @@ testSplit()
 {
     QueryOperator *op;
     char *attrName = "b";
-    char *command = "SELECT * FROM uadb_merged;";
+    char *command = "SELECT * FROM uadb_with_splitid;";
     char *opToSQL = NULL;
     char *op1ToSQL = NULL;
-    char *op2ToSQL = NULL;
 
     Node *t = parseFromString(command);
     op = (QueryOperator *) getHeadOfList((List *) translateParse(t))->data.ptr_value;
 
-    List *result = splitQueries(op, attrName);
-    if (result == NULL)
+    Node *whereEqual = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(createConstInt(1),getAttrRefByName(op,"a")));
+
+    QueryOperator *op1 = splitProjectionOperator(op, attrName, whereEqual, 2);
+    if (op == NULL)
         return FAIL;
-    
-    QueryOperator *op1 = (QueryOperator *) getHeadOfList(result)->data.ptr_value;
-    QueryOperator *op2 = (QueryOperator *) getTailOfList(result)->data.ptr_value;
 
     opToSQL = generatePlan((Node *)op, FALSE);
     op1ToSQL = generatePlan((Node *)op1, FALSE);
-    op2ToSQL = generatePlan((Node *)op2, FALSE);
-
-    //printf ("rewritten SQL: %s\n", rewrittenSQL);
 
     printf("Initial table : \n");
     execute(opToSQL);
-    printf("Result table 1 : \n");
+    printf("Result table : \n");
     execute(op1ToSQL);
-    printf("Result table 2 : \n");
-    execute(op2ToSQL);
 
     return PASS;
 }

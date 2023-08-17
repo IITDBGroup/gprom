@@ -1035,64 +1035,6 @@ mergeQueries(QueryOperator *op1, QueryOperator *op2, char *attr)
     return (QueryOperator *)result;
 }
 
-
-List *
-splitQueries(QueryOperator *op, char *attr)
-{
-
-	// check that the type of attr is DT_STRING - 2
-	AttributeReference *a = getAttrRefByName(op, attr);
-	if (a->attrType != DT_STRING) { // CAUTION ! ARRAY type is not supported so it has the same type as STRING. If user pass a real string attr, execution will fail but no error will be detected here
-		ERROR_LOG("splitQueries: Type of attribute %s is not compatible with ARRAY type", attr);
-		FATAL_LOG("splitQueries: Could not split query");
-	}
-
-	QueryOperator *opCopyLeft = copyObject(op);
-
-	//create a projection operator for the left query to add the function call
-	List *projExprs = getProjExprsForAllAttrs(opCopyLeft);
-	List *newProjExprsLeft = NIL;
-	FOREACH(AttributeReference, nd, projExprs) {
-		if (isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0) {
-			List *argsLeft = NIL;
-			char *funcnameLeft = CONCAT_STRINGS("ARRAY[",((AttributeReference *)nd)->name,"[1],FLOOR(((",((AttributeReference *)nd)->name,"[2]-",((AttributeReference *)nd)->name,"[1]+1)/2))] ");
-			FunctionCall *fcLeft = createFunctionCallArrayAccess(funcnameLeft, argsLeft);
-			newProjExprsLeft = appendToTailOfList(newProjExprsLeft, fcLeft);
-		}
-		else {
-			newProjExprsLeft = appendToTailOfList(newProjExprsLeft, copyObject(nd));
-		}
-	}
-	ProjectionOperator *newProjLeft = createProjectionOp(newProjExprsLeft,opCopyLeft,NIL,getQueryOperatorAttrNames(opCopyLeft));
-	switchSubtrees(opCopyLeft, (QueryOperator*)newProjLeft);
-	opCopyLeft->parents = singleton(newProjLeft);
-	INFO_OP_LOG("splitQueries: new projection split Left:", newProjLeft);
-
-
-	QueryOperator *opCopyRight = copyObject(op);
-	//create a projection operator for the right query to add the function call
-	List *newProjExprsRight = NIL;
-	FOREACH(AttributeReference, nd, projExprs) {
-		if (isA(nd,AttributeReference) && strcmp(((AttributeReference *)nd)->name,attr)==0) {
-			List *argsRight = NIL;
-			char *funcnameRight = CONCAT_STRINGS("ARRAY[FLOOR(((",((AttributeReference *)nd)->name,"[2]-",((AttributeReference *)nd)->name,"[1]+1)/2)+1),",((AttributeReference *)nd)->name,"[2]]");
-			FunctionCall *fcRight = createFunctionCallArrayAccess(funcnameRight, argsRight);
-			newProjExprsRight = appendToTailOfList(newProjExprsRight, fcRight);
-		}
-		else {
-			newProjExprsRight = appendToTailOfList(newProjExprsRight, copyObject(nd));
-		}
-	}
-	ProjectionOperator *newProjRight = createProjectionOp(newProjExprsRight,opCopyRight,NIL,getQueryOperatorAttrNames(opCopyRight));
-	switchSubtrees(opCopyRight, (QueryOperator*)newProjRight);
-	opCopyRight->parents = singleton(newProjRight);
-	INFO_OP_LOG("splitQueries: new projection split Right:", newProjRight);
-
-	List *result = LIST_MAKE(newProjLeft, newProjRight);
-	return result;
-}
-
-
 List *
 splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSplit)
 {
@@ -1175,6 +1117,64 @@ splitKSelectionQueries(QueryOperator *op, char *attr, Node *whereEqual, int nbSp
 	}
 	
 	return splitQueries;
+}
+
+QueryOperator *
+splitProjectionOperator(QueryOperator *op, char *attr, Node *whereEqual, int nbSplit)
+{
+	if (nbSplit <= 0) {
+		ERROR_LOG("splitQueries: need at least 1 splits");
+		FATAL_LOG("splitQueries: Could not split query");
+	}
+	else if (nbSplit == 1) {
+		return op;
+	}
+	op = copyObject(op);
+	// check that the type of attr is DT_STRING - 2 (an array)
+	AttributeReference *a = getAttrRefByName(op, attr);
+	if (a->attrType != DT_STRING) { // CAUTION ! ARRAY type is not supported so it has the same type as STRING. If user pass a real string attr, execution will fail but no error will be detected here
+		ERROR_LOG("splitQueries: Type of attribute %s is not compatible with ARRAY type", attr);
+		FATAL_LOG("splitQueries: Could not split query");
+	}
+
+	char *start = CONCAT_STRINGS(attr,"[1]");
+	char *end = CONCAT_STRINGS("FLOOR(((",attr,"[2]-",attr,"[1])/", gprom_itoa(nbSplit),"))");
+	//create a projection operator for the query to add the function call
+	List *projExprs = getProjExprsForAllAttrs(op);
+	List *newProjExprs = NIL;
+	FOREACH(AttributeReference, nd, projExprs) {
+		char *curAttr = ((AttributeReference *)nd)->name;
+		if (isA(nd,AttributeReference) && strcmp(curAttr,attr)==0) {
+			List *args = NIL;
+			List *whenClause = NIL;
+			char *funcname;
+			for (int i = 0; i < nbSplit; i++)
+			{
+				if (i == nbSplit-1)
+					funcname = CONCAT_STRINGS("ARRAY[",start,"+1+",gprom_itoa(i),"*",end,"," ,attr,"[2]]");
+				else if (i == 0)
+					funcname = CONCAT_STRINGS("ARRAY[",start,"+",gprom_itoa(i),"*",end,",",start,"+",gprom_itoa(i+1),"*",end,"]");
+				else 
+					funcname = CONCAT_STRINGS("ARRAY[",start,"+1+",gprom_itoa(i),"*",end,",",start,"+",gprom_itoa(i+1),"*",end,"]");
+				FunctionCall *fc = createFunctionCallArrayAccess(funcname, args);
+    			Node *whereEqualSplitId = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(i), createConstString(strdup("splitid"))));
+				Node *whereEqualFinal = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(whereEqual, whereEqualSplitId));
+				CaseWhen *cw = createCaseWhen(whereEqualFinal, (Node *)fc);
+				whenClause = appendToTailOfList(whenClause, cw);
+			}
+			CaseExpr *ce = createCaseExpr(NULL, whenClause, (Node *)nd);
+			newProjExprs = appendToTailOfList(newProjExprs, ce);
+		}
+		else {
+			newProjExprs = appendToTailOfList(newProjExprs, nd);
+		}
+	}
+	ProjectionOperator *newProj = createProjectionOp(newProjExprs, op, NIL, getQueryOperatorAttrNames(op));
+	switchSubtrees(op, (QueryOperator*)newProj);
+	op->parents = singleton(newProj);
+	INFO_OP_LOG("New projection split:", newProj);
+	
+	return (QueryOperator *)newProj;
 }
 
 #define STRING_MEDIAN_VALUE "zzzzz"
@@ -5056,6 +5056,12 @@ rewrite_RangeProjection(QueryOperator *op)
 
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
 
+
+	if (isA(OP_LCHILD(OP_LCHILD(op)), SplitOperator) || HAS_STRING_PROP(OP_LCHILD(OP_LCHILD(op)), PROP_SPLIT_ATTR_REF))
+	{
+		SplitOperator *sop = (SplitOperator *) OP_LCHILD(OP_LCHILD(op));
+		op = splitProjectionOperator(op, sop->splitAttr, sop->splitCond, 2);
+	}
     return op;
 }
 
@@ -5135,7 +5141,10 @@ rewrite_RangeTableAccess(QueryOperator *op)
 	}
 
 	if (HAS_STRING_PROP(op, PROP_SPLIT_ATTR_REF))
+	{
 		addSplitOnTableAccess(op);
+		proj = splitProjectionOperator(proj, (char *) GET_STRING_PROP_STRING_VAL(op, PROP_SPLIT_ATTR_REF), GET_STRING_PROP(op, PROP_SPLIT_COND), 2);
+	}
 
 	return proj;
 }
