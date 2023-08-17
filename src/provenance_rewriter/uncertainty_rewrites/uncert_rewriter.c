@@ -1129,7 +1129,7 @@ splitProjectionOperator(QueryOperator *op, char *attr, Node *whereEqual, int nbS
 	else if (nbSplit == 1) {
 		return op;
 	}
-	op = copyObject(op);
+
 	// check that the type of attr is DT_STRING - 2 (an array)
 	AttributeReference *a = getAttrRefByName(op, attr);
 	if (a->attrType != DT_STRING) { // CAUTION ! ARRAY type is not supported so it has the same type as STRING. If user pass a real string attr, execution will fail but no error will be detected here
@@ -1162,16 +1162,15 @@ splitProjectionOperator(QueryOperator *op, char *attr, Node *whereEqual, int nbS
 				CaseWhen *cw = createCaseWhen(whereEqualFinal, (Node *)fc);
 				whenClause = appendToTailOfList(whenClause, cw);
 			}
-			CaseExpr *ce = createCaseExpr(NULL, whenClause, (Node *)nd);
+			CaseExpr *ce = createCaseExpr(NULL, whenClause, (Node *)copyObject(nd));
 			newProjExprs = appendToTailOfList(newProjExprs, ce);
 		}
 		else {
-			newProjExprs = appendToTailOfList(newProjExprs, nd);
+			newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));
 		}
 	}
 	ProjectionOperator *newProj = createProjectionOp(newProjExprs, op, NIL, getQueryOperatorAttrNames(op));
 	switchSubtrees(op, (QueryOperator*)newProj);
-	op->parents = singleton(newProj);
 	INFO_OP_LOG("New projection split:", newProj);
 	
 	return (QueryOperator *)newProj;
@@ -5056,12 +5055,6 @@ rewrite_RangeProjection(QueryOperator *op)
 
 	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
 
-
-	if (isA(OP_LCHILD(OP_LCHILD(op)), SplitOperator) || HAS_STRING_PROP(OP_LCHILD(OP_LCHILD(op)), PROP_SPLIT_ATTR_REF))
-	{
-		SplitOperator *sop = (SplitOperator *) OP_LCHILD(OP_LCHILD(op));
-		op = splitProjectionOperator(op, sop->splitAttr, sop->splitCond, 2);
-	}
     return op;
 }
 
