@@ -1157,7 +1157,7 @@ splitProjectionOperator(QueryOperator *op, char *attr, Node *whereEqual, int nbS
 				else 
 					funcname = CONCAT_STRINGS("ARRAY[",start,"+1+",gprom_itoa(i),"*",end,",",start,"+",gprom_itoa(i+1),"*",end,"]");
 				FunctionCall *fc = createFunctionCallArrayAccess(funcname, args);
-    			Node *whereEqualSplitId = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(createConstInt(i), createConstString(strdup("splitid"))));
+    			Node *whereEqualSplitId = (Node *)createOpExpr(OPNAME_EQ, LIST_MAKE(createConstString(strdup("splitid")), createConstInt(i)));
 				Node *whereEqualFinal = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(whereEqual, whereEqualSplitId));
 				CaseWhen *cw = createCaseWhen(whereEqualFinal, (Node *)fc);
 				whenClause = appendToTailOfList(whenClause, cw);
