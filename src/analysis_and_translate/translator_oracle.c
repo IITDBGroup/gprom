@@ -1125,6 +1125,8 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 
     if (with->isMerge)
     {
+        AttributeReference *splt = getAttrRefByName(finalQ, ((AttributeReference *) getNthOfListP(((Operator *) with->splitCond)->args, 0))->name);
+        ((Operator *) with->splitCond)->args = LIST_MAKE(splt, getNthOfListP(((Operator *) with->splitCond)->args, 1));
         char *mergeSplitAttr[3];
         mergeSplitAttr[0] = strdup(with->mergeAttr);
         mergeSplitAttr[1] = strdup(with->splitAttr);

@@ -1162,15 +1162,17 @@ splitProjectionOperator(QueryOperator *op, char *attr, Node *whereEqual, int nbS
 				CaseWhen *cw = createCaseWhen(whereEqualFinal, (Node *)fc);
 				whenClause = appendToTailOfList(whenClause, cw);
 			}
-			CaseExpr *ce = createCaseExpr(NULL, whenClause, (Node *)copyObject(nd));
+			CaseExpr *ce = createCaseExpr(NULL, whenClause, (Node *)nd);
 			newProjExprs = appendToTailOfList(newProjExprs, ce);
 		}
 		else {
-			newProjExprs = appendToTailOfList(newProjExprs, copyObject(nd));
+			newProjExprs = appendToTailOfList(newProjExprs, nd);
 		}
 	}
 	ProjectionOperator *newProj = createProjectionOp(newProjExprs, op, NIL, getQueryOperatorAttrNames(op));
+	newProj->op.properties = op->properties;
 	switchSubtrees(op, (QueryOperator*)newProj);
+	op->parents = singleton(newProj);
 	INFO_OP_LOG("New projection split:", newProj);
 	
 	return (QueryOperator *)newProj;
@@ -5136,7 +5138,9 @@ rewrite_RangeTableAccess(QueryOperator *op)
 	if (HAS_STRING_PROP(op, PROP_SPLIT_ATTR_REF))
 	{
 		addSplitOnTableAccess(op);
-		proj = splitProjectionOperator(proj, (char *) GET_STRING_PROP_STRING_VAL(op, PROP_SPLIT_ATTR_REF), GET_STRING_PROP(op, PROP_SPLIT_COND), 2);
+		QueryOperator *newProj = splitProjectionOperator(copyObject(proj), (char *) GET_STRING_PROP_STRING_VAL(op, PROP_SPLIT_ATTR_REF), GET_STRING_PROP(op, PROP_SPLIT_COND), 2);
+		switchSubtrees(proj, newProj);
+		proj->parents = singleton(newProj);
 	}
 
 	return proj;

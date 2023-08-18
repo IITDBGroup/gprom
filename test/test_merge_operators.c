@@ -220,7 +220,7 @@ testSplit()
 
     Node *whereEqual = (Node *)createOpExpr(OPNAME_EQ,LIST_MAKE(createConstInt(1),getAttrRefByName(op,"a")));
 
-    QueryOperator *op1 = splitProjectionOperator(op, attrName, whereEqual, 2);
+    QueryOperator *op1 = splitProjectionOperator(copyObject(op), attrName, whereEqual, 2);
     if (op == NULL)
         return FAIL;
 
