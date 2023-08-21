@@ -246,18 +246,6 @@ buildStateJoinOp(QueryOperator *op)
 	MAP_ADD_STRING_KEY(stateMap, JOIN_RIGHT_BLOOM_ATT_MAPPING, rightMapping);
 
 	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_JOIN, stateMap);
-	// int val = 1;
-	// INFO_LOG("is 1 exists %d", bloom_check((Bloom *) MAP_GET_STRING(leftBFs, "a"), &val, sizeof(int)));
-	// val = 12;
-	// INFO_LOG("is %d exists %d", val, bloom_check((Bloom *) MAP_GET_STRING(leftBFs, "a"), &val, sizeof(int)));
-	// val = 2;
-	// INFO_LOG("is %d exists %d", val, bloom_check((Bloom *) MAP_GET_STRING(leftBFs, "a"), &val, sizeof(int)));
-	// DEBUG_NODE_BEATIFY_LOG("left mapping", leftMapping);
-
-	// DEBUG_NODE_BEATIFY_LOG("right mapping", rightMapping);
-	// DEBUG_NODE_BEATIFY_LOG("left bloom", leftBFs);
-	// bloom_print((Bloom *) MAP_GET_STRING(leftBFs, "a"));
-	// DEBUG_NODE_BEATIFY_LOG("join state", stateMap);
 }
 
 static void

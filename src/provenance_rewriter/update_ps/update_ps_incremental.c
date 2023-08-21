@@ -1172,6 +1172,11 @@ updateJoin2(QueryOperator *op)
 	// clear temporal delta tables
 	if (hasLeftDelta) {
 		postgresDropTemporalDeltaTable(JOIN_LEFT_BRANCH_DELTA_TABLE);
+		// StringInfo dropTable = makeStringInfo();
+		// appendStringInfo(dropTable, "drop table if exists %s", JOIN_LEFT_BRANCH_DELTA_TABLE);
+		// executeQuery(dropTable->data);
+		// executeQuery(CONCAT_STRINGS("DROP TABLE IF EXISTS ", JOIN_LEFT_BRANCH_DELTA_TABLE));
+
 	}
 
 	if (hasRightDelta) {

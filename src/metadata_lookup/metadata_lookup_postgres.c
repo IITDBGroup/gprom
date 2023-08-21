@@ -2531,8 +2531,11 @@ postgresGetDataChunkJoin(char *query, DataChunk* dcIns, DataChunk *dcDel, int wh
     int numRes = PQntuples(rs);
     int numFields = PQnfields(rs);
 	if (numRes < 1) {
-        STOP_TIMER(METADATA_LOOKUP_TIMER);
-        STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+        INFO_LOG("NO RESULTS");
+        PQclear(rs);
+        execCommit();
+        // STOP_TIMER(METADATA_LOOKUP_TIMER);
+        // STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
         STOP_TIMER("POSTGRES - GET RESULT FROM DB");
         STOP_TIMER("Postgres - execute ExecuteQuery For Join Operator");
 		return;
@@ -2746,6 +2749,7 @@ postgresGetDataChunkUpdate(char *query, DataChunk* dcIns, DataChunk* dcDel, int 
     int numFields = PQnfields(rs);
 
     if (numRes < 1) {
+
         return;
     }
 
@@ -3522,8 +3526,9 @@ void postgresDropTemporalDeltaTable(char *tableName)
     //     CLOSE_RES_CONN_AND_FATAL(res, "DROP TEMPORAL DELTA TABLE FAIL: %s", PQerrorMessage(conn));
     // }
     // PQclear(res);
-    // execStmt(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName, ";"));
-    execStmt(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName));
+    execStmt(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName, ";"));
+    // execStmt(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName));
+    // executeQueryIgnoreResult(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName));
 }
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
