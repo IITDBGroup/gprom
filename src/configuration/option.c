@@ -202,6 +202,7 @@ int update_ps_repetition = 1;
 boolean update_ps_selection_push_down = FALSE;
 boolean update_ps_copy_delta_join = FALSE;
 boolean update_ps_join_using_bf = FALSE;
+char *update_ps_delta_table_updident = NULL;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -800,6 +801,15 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionBool(&update_ps_join_using_bf),
                 defOptionBool(FALSE)
+         },
+         {
+
+                OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT,
+                "-update_ps_delta_table_updident",
+                "indicate the update type in cached delta table",
+                OPTION_STRING,
+                wrapOptionString(&update_ps_delta_table_updident),
+                defOptionString(NULL)
          },
 		 {
 				 OPTION_PS_STORE_TABLE,

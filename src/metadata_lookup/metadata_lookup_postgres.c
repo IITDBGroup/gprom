@@ -2097,6 +2097,202 @@ postgresExecuteQueryIgnoreResult (char *query)
 void postgresExecuteStatement(char* sql) {
 	execStmt(sql);
 }
+
+void
+postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcDel, int psAttrPos, Vector *rangeList, char *psName)
+{
+    START_TIMER(METADATA_LOOKUP_TIMER);
+    START_TIMER("Postgres - execute ExecuteQuery");
+    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+    PGresult *rs = execQuery(query);
+    int numRes = PQntuples(rs);
+    int numFields = PQnfields(rs);
+	HashMap *posToDT = dcIns->posToDatatype;
+	dcIns->tupleFields = numFields;
+    dcDel->tupleFields = numFields;
+    INFO_LOG("res len: %d", numRes);
+	if (numRes < 1) {
+		return;
+	}
+
+    char *updateIdentName = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT);
+    Vector *updType = makeVector(VECTOR_INT, T_Vector);
+    int insNum = 0;
+    int delNum = 0;
+    int updTypeCol = numFields - 1;
+    if (strcmp(updateIdentName, "DELETETUPLES") == 0) {
+        for (int i = 0; i < numRes; i++) {
+            vecAppendInt(updType, -1);
+        }
+        delNum = numRes;
+    } else if (strcmp(updateIdentName, "INSERTTUPLES") == 0) {
+        for (int i = 0; i < numRes; i++) {
+            vecAppendInt(updType, 1);
+        }
+        insNum = numRes;
+    } else {
+        for (int col = 0; col  < numFields; col++) {
+            char *name = PQfname(rs, col);
+            if (strcmp(name, updateIdentName) == 0) {
+                updTypeCol = col;
+                for (int row = 0; row < numRes; row++) {
+                    int value = atoi(PQgetvalue(rs, row, col));
+                    vecAppendInt(updType, value);
+                    if (value == 1) {
+                        insNum++;
+                    } else {
+                        delNum++;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    dcIns->numTuples = insNum;
+    dcDel->numTuples = delNum;
+    // append value to data chunks;
+
+    int *updTypeVals = VEC_TO_IA(updType);
+    Vector *psVecIns = NULL;
+    Vector *psVecDel = NULL;
+    if (psAttrPos != -1) {
+        psVecIns = makeVector(VECTOR_INT, T_Vector);
+        psVecDel = makeVector(VECTOR_INT, T_Vector);
+    }
+    for (int col = 0; col < numFields; col++) {
+        if (col == updTypeCol) {
+            continue;
+        }
+        DataType dataType = INT_VALUE((Constant *) MAP_GET_INT(posToDT, col));
+        Vector *colVecIns = NULL;
+        Vector *colVecDel = NULL;
+        boolean isPSCol = (col == psAttrPos);
+        switch (dataType) {
+            case DT_INT:
+            {
+                colVecIns = makeVector(VECTOR_INT, T_Vector);
+                colVecDel = makeVector(VECTOR_INT, T_Vector);
+
+                for (int row = 0; row < numRes; row++) {
+                    int value = atoi(PQgetvalue(rs, row, col));
+                    if (updTypeVals[row] == 1) {
+                        vecAppendInt(colVecIns, value);
+                    } else {
+                        vecAppendInt(colVecDel, value);
+                    }
+                    if (isPSCol) {
+                        int bitVal = setFragmengtToInt(value, rangeList);
+                        if (updTypeVals[row] == 1) {
+                            vecAppendInt(psVecIns, bitVal);
+                        } else {
+                            vecAppendInt(psVecDel, bitVal);
+                        }
+                    }
+                }
+            }
+            break;
+            case DT_LONG:
+            {
+                colVecIns = makeVector(VECTOR_LONG, T_Vector);
+                colVecDel = makeVector(VECTOR_LONG, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					gprom_long_t value = atol(PQgetvalue(rs, row, col));
+                    if (updTypeVals[row] == 1) {
+					    vecAppendLong(colVecIns, value);
+                    } else {
+					    vecAppendLong(colVecDel, value);
+                    }
+				}
+            }
+            break;
+            case DT_FLOAT:
+            {
+                colVecIns = makeVector(VECTOR_FLOAT, T_Vector);
+                colVecDel = makeVector(VECTOR_FLOAT, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					double value = atof(PQgetvalue(rs, row, col));
+                    if (updTypeVals[row] == 1) {
+					    vecAppendFloat(colVecIns, value);
+                    } else {
+					    vecAppendFloat(colVecDel, value);
+                    }
+				}
+            }
+            break;
+            case DT_BOOL:
+            {
+                colVecIns = makeVector(VECTOR_INT, T_Vector);
+                colVecDel = makeVector(VECTOR_INT, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					char *value = PQgetvalue(rs, row, col);
+					if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true")) {
+                        if (updTypeVals[row] == 1) {
+                            vecAppendInt(colVecIns, 1);
+                        } else {
+                            vecAppendInt(colVecDel, 1);
+
+                        }
+                    }
+    				if (streq(value, "FALSE") || streq(value, "f") || streq(value, "false")) {
+                        if (updTypeVals[row] == 1) {
+                            vecAppendInt(colVecIns, 0);
+                        } else {
+                            vecAppendInt(colVecDel, 0);
+                        }
+                    }
+				}
+            }
+            break;
+            case DT_STRING:
+            case DT_VARCHAR2:
+            {
+                colVecIns = makeVector(VECTOR_STRING, T_Vector);
+                colVecIns = makeVector(VECTOR_STRING, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					char *value = PQgetvalue(rs, row, col);
+                    if (updTypeVals[row] == 1) {
+					    vecAppendString(colVecIns, strdup(value));
+                    } else {
+					    vecAppendString(colVecDel, strdup(value));
+                    }
+				}
+            }
+            break;
+            default:
+				FATAL_LOG("not supported");
+        }
+        if (insNum > 0) {
+            vecAppendNode(dcIns->tuples, (Node *) colVecIns);
+        }
+        if (delNum > 0) {
+            vecAppendNode(dcDel->tuples, (Node *) colVecDel);
+        }
+
+        if (isPSCol) {
+            if (insNum > 0) {
+                addToMap(dcIns->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVecIns);
+                addToMap(dcIns->fragmentsIsInt, (Node *) createConstString(psName), (Node *) createConstBool(TRUE));
+                dcIns->isAPSChunk = TRUE;
+            }
+            if (delNum > 0) {
+                addToMap(dcDel->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVecDel);
+                addToMap(dcDel->fragmentsIsInt, (Node *) createConstString(psName), (Node *) createConstBool(TRUE));
+                dcDel->isAPSChunk = TRUE;
+            }
+        }
+    }
+    for (int i = 0; i < insNum; i++) {
+        vecAppendInt(dcIns->updateIdentifier, 1);
+    }
+    for (int i = 0; i < delNum; i++) {
+        vecAppendInt(dcDel->updateIdentifier, -1);
+    }
+    PQclear(rs);
+    execCommit();
+    STOP_TIMER("Postgres - execute ExecuteQuery");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
+}
+
 void
 postgresGetDataChunkFromDelta(char *query, DataChunk *dc, int psAttrPos, Vector *rangeList, char *psName, boolean isIns)
 {
@@ -2202,6 +2398,8 @@ postgresGetDataChunkFromDelta(char *query, DataChunk *dc, int psAttrPos, Vector 
     STOP_TIMER("Postgres - execute ExecuteQuery");
     STOP_TIMER(METADATA_LOOKUP_TIMER);
 }
+
+
 void
 postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName)
 {

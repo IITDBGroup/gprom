@@ -51,6 +51,7 @@ static void updateJoinByGroupJoin(QueryOperator *op);
 static void updateJoin2(QueryOperator *op);
 
 // chunk operation;
+static HashMap *getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp);
 static HashMap *getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAccessOp);
 static void getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static void getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
@@ -5064,39 +5065,154 @@ updateTableAccess(QueryOperator * op)
 	 * 		No -> nothing to do;
 	 */
 	char* tableName = ((TableAccessOperator *) op)->tableName;
-	//TODO NOTE: code change here, updateTable name can be get from option
-	char* updatedTableName = getStringOption(OPTION_UPDATE_PS_UPDATED_TABLE);
-	// char* updatedTableName = NULL;
-	// DEBUG_NODE_BEATIFY_LOG("what is stmt", updateStatement);
-	// Node* stmt = ((DLMorDDLOperator *) updateStatement)->stmt;
-	// switch(stmt->type) {
-	// 	case T_Update:
-	// 		updatedTableName = ((Update *) stmt)->updateTableName;
-	// 		break;
-	// 	case T_Insert:
-	// 		updatedTableName = ((Insert *) stmt)->insertTableName;
-	// 		break;
-	// 	case T_Delete:
-	// 		updatedTableName = ((Delete *) stmt)->deleteTableName;
-	// 		break;
-	// 	default:
-	// 		FATAL_LOG("error: cannot be here!");
-	// 		break;
-	// }
+
+	boolean isUpdatedDirectFromDelta = getBoolOption(OPTION_UPDATE_PS_DIRECT_DELTA);
+	char *updatedTableName = NULL;
+	if (isUpdatedDirectFromDelta) {
+		updatedTableName = getStringOption(OPTION_UPDATE_PS_UPDATED_TABLE);
+	} else {
+		Node* stmt = ((DLMorDDLOperator *) updateStatement)->stmt;
+		switch(stmt->type) {
+			case T_Update:
+				updatedTableName = ((Update *) stmt)->updateTableName;
+				break;
+			case T_Insert:
+				updatedTableName = ((Insert *) stmt)->insertTableName;
+				break;
+			case T_Delete:
+				updatedTableName = ((Delete *) stmt)->deleteTableName;
+				break;
+			default:
+				FATAL_LOG("error: cannot be here!");
+				break;
+		}
+	}
 
 	if (strcmp(updatedTableName, tableName) != 0) {
 		return;
 	}
-
 	// build a chumk map (insert chunk and delete chunk) based on update type;
 	START_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
-	HashMap* chunkMap = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
+	HashMap *chunkMap = NULL;
+	if (isUpdatedDirectFromDelta) {
+		chunkMap = getDataChunkFromDeltaTable((TableAccessOperator *) op);
+	} else {
+		chunkMap = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
+	}
 	if (mapSize(chunkMap) > 0) {
 		setStringProperty(op, PROP_DATA_CHUNK, (Node *) chunkMap);
 	}
 	STOP_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FRO TABLEACCESS OPERATOR", chunkMap);
+}
+
+static HashMap *
+getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
+{
+
+	QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	List *provAttrDefs = getProvenanceAttrDefs(rewr);
+	char *psName = NULL;
+	if (provAttrDefs != NULL) {
+		psName = ((AttributeDef *) getHeadOfListP(provAttrDefs))->attrName;
+	}
+
+	List *psAttrInfoList = (List *) MAP_GET_STRING(PS_INFO->tablePSAttrInfos, tableAccessOp->tableName);
+	psAttrInfo *attrInfo = (psAttrInfo *) getHeadOfListP(psAttrInfoList);
+
+	// init datachunk and fields;
+	DataChunk *dcIns = initDataChunk();
+	DataChunk *dcDel = initDataChunk();
+
+	Schema *schema = ((QueryOperator *) tableAccessOp)->schema;
+	DEBUG_NODE_BEATIFY_LOG("SCHEMA", schema);
+
+	// ps attr col pos;
+	int psAttrCol = -1;
+
+	int attrIdx = 0;
+	FOREACH(AttributeDef, ad, schema->attrDefs) {
+		addToMap(dcIns->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(attrIdx));
+		addToMap(dcDel->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(attrIdx));
+
+		addToMap(dcIns->posToDatatype, (Node *) createConstInt(attrIdx), (Node *) createConstInt(ad->dataType));
+		addToMap(dcDel->posToDatatype, (Node *) createConstInt(attrIdx), (Node *) createConstInt(ad->dataType));
+
+		if (psName != NULL && psAttrCol == -1 && strcmp(ad->attrName, attrInfo->attrName) == 0) {
+			psAttrCol = attrIdx;
+		}
+
+		attrIdx++;
+	}
+
+	Vector *ranges = NULL;
+	if (psAttrCol != -1) {
+		ranges = makeVector(VECTOR_INT, T_Vector);
+		FOREACH(Constant, c, attrInfo->rangeList) {
+			vecAppendInt(ranges, INT_VALUE(c));
+		}
+	}
+
+	// create TableAccess, Selection, Projection to get delta tuples;
+
+	// get delta Table name;
+	char *deltaTableName = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
+
+	// get names, and types and append the identifier name and type
+	List *attrNames = getAttrNames(schema);
+	attrNames = appendToTailOfList(attrNames, getStringOption(OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT));
+	List *dataTypes = getDataTypes(schema);
+	dataTypes = appendToTailOfListInt(dataTypes, DT_INT);
+
+	// create taop;
+	TableAccessOperator *taOp = NULL;
+	taOp = createTableAccessOp(strdup(deltaTableName), NULL, strdup(deltaTableName), NIL, attrNames, dataTypes);
+
+	// check selection push down and create selection operator;
+	SelectionOperator *selOp = NULL;
+
+	boolean isSelectionPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
+	if (isSelectionPD) {
+		// check parent op is a selection;
+		QueryOperator *parent = OP_FIRST_PARENT(tableAccessOp);
+		if (isA(parent, SelectionOperator)) {
+			Node *conds = (Node *) copyObject(((SelectionOperator *) parent)->cond);
+			selOp = createSelectionOp(conds, (QueryOperator *) taOp, NIL, attrNames);
+			taOp->op.parents = singleton(selOp);
+		}
+	}
+
+	// create projection operator;
+	ProjectionOperator *projOp = NULL;
+	List *projExpr = NIL;
+	attrIdx = 0;
+	FOREACH(AttributeDef, ad, ((QueryOperator *) taOp)->schema->attrDefs) {
+		AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, attrIdx++, 0, ad->dataType);
+		projExpr = appendToTailOfList(projExpr, ar);
+	}
+	if (selOp == NULL) {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, attrNames);
+		taOp->op.parents = singleton(projOp);
+	} else {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, attrNames);
+		selOp->op.parents = singleton(projOp);
+	}
+
+	INFO_OP_LOG("delta query: ", projOp);
+	char *query = serializeQuery((QueryOperator *) projOp);
+	postgresGetDataChunkFromDeltaTable(query, dcIns, dcDel, psAttrCol, ranges, psName);
+
+	HashMap *chunkMap = NEW_MAP(Constant, Node);
+	if (dcIns && dcIns->numTuples > 0) {
+		MAP_ADD_STRING_KEY(chunkMap, PROP_DATA_CHUNK_INSERT, dcIns);
+	}
+
+	if (dcDel && dcDel->numTuples > 0) {
+		MAP_ADD_STRING_KEY(chunkMap, PROP_DATA_CHUNK_DELETE, dcDel);
+	}
+
+	return chunkMap;
 }
 
 static HashMap*
