@@ -5124,8 +5124,11 @@ getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 	// init datachunk and fields;
 	DataChunk *dcIns = initDataChunk();
 	DataChunk *dcDel = initDataChunk();
-
 	Schema *schema = ((QueryOperator *) tableAccessOp)->schema;
+	dcIns->attrNames = (List *) copyObject(schema->attrDefs);
+	dcDel->attrNames = (List *) copyObject(schema->attrDefs);
+	dcIns->tupleFields = LIST_LENGTH(((QueryOperator *) tableAccessOp)->schema->attrDefs);
+	dcDel->tupleFields = LIST_LENGTH(((QueryOperator *) tableAccessOp)->schema->attrDefs);
 	DEBUG_NODE_BEATIFY_LOG("SCHEMA", schema);
 
 	// ps attr col pos;
