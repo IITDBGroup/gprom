@@ -277,7 +277,7 @@ OptionInfo opts[] =
                 "-help",
                 "Show this help text.",
                 OPTION_BOOL,
-                wrapOptionString(&opt_show_help),
+                wrapOptionBool(&opt_show_help),
                 defOptionBool(FALSE)
         },
         // choose test
