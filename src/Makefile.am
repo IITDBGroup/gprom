@@ -7,9 +7,9 @@ SUBDIRS = configuration 		\
 		exception				\
 		instrumentation			\
 		model					\
-		utility					\
-		provenance_rewriter		\
 		parser 					\
+	    utility					\
+		provenance_rewriter		\
 		analysis_and_translate 	\
 		sql_serializer 			\
 		metadata_lookup 		\
