@@ -68,13 +68,16 @@ extern Relation *postgresExecuteQuery(char *query);
 extern void postgresExecuteQueryIgnoreResult (char *query);
 extern void postgresExecuteStatement(char* query);
 
+//update provSketch
+
 extern void postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName);
 extern void postgresGetDataChunkJoin(char *query,DataChunk* dcIns, DataChunk *dcDel, int whichBranch, HashMap *psAttrAndLevel);
 extern void postgresGetDataChunkGroupJoin(char *query,DataChunk* dcIns, DataChunk *dcDel, int whichBranch, HashMap *psAttrAndLevel);
-extern void postgresGetDataChunkUpdate(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName);
 extern void postgresGetDataChunkFromDelta(char *query, DataChunk *dc, int psAttrPos, Vector *rangeList, char *psName, boolean isIns);
 extern List *postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent);
 extern void postgresDropTemporalDeltaTable(char *tableName);
 extern List *postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *updIdent, Vector *insCheck, Vector *delCheck);
 extern void postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcDel, int psAttrPos, Vector *rangeList, char *psName);
+extern void postgresGetDataChunkFromStmtInsDel(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName, int type);
+extern void postgresGetDataChunkFromStmtUpd(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName);
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

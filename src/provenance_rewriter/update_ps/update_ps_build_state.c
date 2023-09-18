@@ -1349,11 +1349,17 @@ buildStateLimitOp(QueryOperator *op)
 static void
 buildStateFinalOp(QueryOperator *op)
 {
-	/* this is the final state keep a map of fragNo -> count*/
+	/* this is the final state keep a map of fragNo -> count
+		and in this step, all ps are bit vector. not int anymore.
+
+	*/
+
+
 	INFO_LOG("ALL PS");
 	QueryOperator *child = (QueryOperator *) copyObject(OP_LCHILD(op));
 	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, child);
 	DEBUG_NODE_BEATIFY_LOG("rewrite final", rewrOp);
+	INFO_OP_LOG("rewrite final", rewrOp);
 	// boolean psAuxIsAgg = isA(OP_LCHILD(op), AggregationOperator);
 	char *sql = serializeQuery(rewrOp);
 	INFO_LOG("FINAL SQL %s", sql);

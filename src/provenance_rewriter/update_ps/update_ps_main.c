@@ -86,55 +86,31 @@ static boolean replaceSetBitsWithFastBitOr (Node *node, void *state);
 static boolean replaceTableAccessWithCompressedTableAccess(Node *node, void *state);
 void removeProvAttrsList(QueryOperator *op);
 static void modifyUncertCapTree(QueryOperator *op);
+static void preprocessJoin(QueryOperator *op);
 //static void localTest();
 /*
  * Function Implementation
  */
-#define JOIN_NUMBER_FROM_TOP "JOIN_NUMBER_FROM_TOP"
+// #define JOIN_NUMBER_FROM_TOP "JOIN_NUMBER_FROM_TOP"
 
-static int joinNumber = 0;
-static void preprocessingJoinOpNumber(QueryOperator *op);
-static void preprocessingSetStartJoinOP(QueryOperator *op);
-
+// static int joinNumber = 0;
+// static void preprocessingJoinOpNumber(QueryOperator *op);
+// static void preprocessingSetStartJoinOP(QueryOperator *op);
 static void
-preprocessingJoinOpNumber(QueryOperator *op)
+preprocessJoin(QueryOperator *op)
 {
 	if (isA(op, TableAccessOperator)) {
 		return;
 	}
 
 	if (isA(op, JoinOperator)) {
-		// SET_STRING_PROP(op, JOIN_NUMBER_FROM_TOP, (Node *) createConstInt(joinNumber++));
-		setStringProperty(op, JOIN_NUMBER_FROM_TOP, (Node *) createConstInt(joinNumber++));
-		// if (isA(getNthOfListP(op->parents, 0), JoinOperator)) {
-			// SET_SING_PROP(op, JOIN_NUMBER_FROM_TOP, createConstInt(joinNumber++));
-		// }
-
+		setStringProperty(op, GROUP_JOIN_START, (Node *) createConstBool(TRUE));
+		return;
 	}
 
 	FOREACH(QueryOperator, q, op->inputs) {
-        preprocessingJoinOpNumber(q);
+        preprocessJoin(q);
     }
-}
-
-static void
-preprocessingSetStartJoinOP(QueryOperator *op)
-{
-	if (isA(op, TableAccessOperator)) {
-		return;
-	}
-
-	if (isA(op, JoinOperator)) {
-		int joinNo = INT_VALUE(GET_STRING_PROP(op, JOIN_NUMBER_FROM_TOP));
-		if (joinNo == joinNumber - 1) {
-			setStringProperty(op, strdup("JOIN_START"), (Node *) createConstBool(TRUE));
-			// SET_STRING_PROP(op, strdup("JOIN_START"), (Node *) creatConstBool(TRUE));
-		}
-	}
-
-	FOREACH(QueryOperator, q, op->inputs) {
-		preprocessingSetStartJoinOP(q);
-	}
 }
 
 char*
@@ -142,31 +118,25 @@ update_ps(ProvenanceComputation *qbModel)
 {
 	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
 	INFO_OP_LOG("qbModel", qbModel);
-
 	/*
 	 *	two children
 	 * 	left: update statements (one or list of statements)
 	 *	right: query
 	 */
 
-	/* Get left(update statements) and right children(query) */
-	DLMorDDLOperator *leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
-	QueryOperator *rightChild = OP_RCHILD((QueryOperator *) qbModel);
-
-	// remove left child from provenance computation;
-	((QueryOperator *) qbModel)->inputs = singleton(rightChild);
-
-	/*
-	// 	TEST AGG PUSH DOWN FOR A QUERY
-	DEBUG_NODE_BEATIFY_LOG("BEFORE AGG PUSH DOWN", OP_LCHILD(qbModel));
-	INFO_OP_LOG("BEFORE AGG PUSH DOWN", OP_LCHILD(qbModel));
-	QueryOperator * aPD = pushDownAggregationThroughJoin(OP_LCHILD(qbModel));
-	INFO_OP_LOG("AFTER AGG PUSH DOWN", OP_LCHILD(aPD));
-	// TEST AGG PUSH DOWN FOR A QUERY
-	if(1 == 1) {
-		return "TRUE";
+	/* Get left(update statements or null if from delta) and right children(query) */
+	DLMorDDLOperator *leftChild = NULL;
+	QueryOperator *rightChild = NULL;
+	if (LIST_LENGTH(qbModel->op.inputs) > 1) {
+		// DLMorDDLOperator *leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
+		// QueryOperator *rightChild = OP_RCHILD((QueryOperator *) qbModel);
+		leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
+		rightChild = OP_RCHILD((QueryOperator *) qbModel);
+		// remove left child from provenance computation;
+		((QueryOperator *) qbModel)->inputs = singleton(rightChild);
+	// } else {
+		// rightChild = OP_LCHILD((QueryOperator *) qbModel);
 	}
-	*/
 
 
 
@@ -176,34 +146,36 @@ update_ps(ProvenanceComputation *qbModel)
 		SET_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, createConstBool(TRUE));
 	}
 
-
 	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
 
+	// check option for group join and preprocess;
 	if (getBoolOption(OPTION_UPDATE_PS_GROUP_JOIN)) {
-		preprocessingJoinOpNumber((QueryOperator *) qbModel);
-		INFO_LOG("join max number %d", joinNumber);
-		preprocessingSetStartJoinOP((QueryOperator *) qbModel);
+		preprocessJoin((QueryOperator *) qbModel);
+		preprocessJoin((QueryOperator *) qbModel);
 	}
 
-	DEBUG_NODE_BEATIFY_LOG("after add join", qbModel);
-	INFO_OP_LOG("AFTER ADD JOIN", qbModel);
 	int repetition = 1;
 	repetition = getIntOption(OPTION_UPDATE_PS_REPETITION);
 	INFO_LOG("execution repetition %d", repetition);
 	/* Update provenance sketch */
-	if (isA(leftChild->stmt, List)) {
-		List *updateStmts = (List *) leftChild->stmt;
-		START_TIMER(INCREMENTAL_UPDATE_TIMER);
-		FOREACH(DLMorDDLOperator, stmt, updateStmts) {
-			update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) stmt);
-		}
-		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
-	} else {
+	if (NULL == leftChild) { // delta from cached table not from statement
 		START_TIMER(INCREMENTAL_UPDATE_TIMER);
 		update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
 		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
+	} else {
+		if (isA(leftChild->stmt, List)) {
+			List *updateStmts = (List *) leftChild->stmt;
+			START_TIMER(INCREMENTAL_UPDATE_TIMER);
+			FOREACH(DLMorDDLOperator, stmt, updateStmts) {
+				update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) stmt);
+			}
+			STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
+		} else {
+			START_TIMER(INCREMENTAL_UPDATE_TIMER);
+			update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
+			STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
+		}
 	}
-
 	// AFTER INCREMENTAL UPDATE STEPS, GET NEW SKETCH;
 	QueryOperator *topOperator = OP_LCHILD((QueryOperator *) qbModel);
 	if (HAS_STRING_PROP(topOperator, PROP_DATA_CHUNK)) {

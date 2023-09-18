@@ -676,34 +676,39 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
     	case PROV_INPUT_UPDATEPS:
     	{
             /* prov->query: list[update statements(single or multiple), query] */
-            ASSERT(LIST_LENGTH((List *) prov->query) == 2);
+            // ASSERT(LIST_LENGTH((List *) prov->query) == 2);
 
-            // get the first of prov->query;
-            Node * first = (Node *) getNthOfListP((List *) prov->query, 0);
-
-            if (isA(first, List))
-            {
-                // append statements to list;
-                List *list = NIL;
-                FOREACH(Node, n, (List *) first)
-                {
-                    child = translateQueryOracleInternal(n, attrsOffsetsList);
-                    list = appendToTailOfList(list, child);
-                }
-                DLMorDDLOperator *op = createDMLDDLOp((Node *) copyObject(list));
-                addChildOperator((QueryOperator *) result, (QueryOperator *) op);
-
-                // query;
-                child = translateQueryOracleInternal((Node *) getNthOfListP((List *) prov->query, 1), attrsOffsetsList);
+            // no update statements, and update from delta table;
+            if (isA(prov->query, QueryBlock)) {
+                child = translateQueryOracleInternal((Node *) prov->query, attrsOffsetsList);
                 addChildOperator((QueryOperator *) result, child);
-            }
-            else
-            {
-                // single update statement and a query;
-                FOREACH(Node, n, (List *) prov->query)
+            } else { // this case is pass updatestatement (single or list) in the command line argumens
+                // get the first of prov->query;
+                Node * first = (Node *) getNthOfListP((List *) prov->query, 0);
+                if (isA(first, List))
                 {
-                    child = translateQueryOracleInternal(n, attrsOffsetsList);
+                    // append statements to list;
+                    List *list = NIL;
+                    FOREACH(Node, n, (List *) first)
+                    {
+                        child = translateQueryOracleInternal(n, attrsOffsetsList);
+                        list = appendToTailOfList(list, child);
+                    }
+                    DLMorDDLOperator *op = createDMLDDLOp((Node *) copyObject(list));
+                    addChildOperator((QueryOperator *) result, (QueryOperator *) op);
+
+                    // query;
+                    child = translateQueryOracleInternal((Node *) getNthOfListP((List *) prov->query, 1), attrsOffsetsList);
                     addChildOperator((QueryOperator *) result, child);
+                }
+                else
+                {
+                    // single update statement and a query;
+                    FOREACH(Node, n, (List *) prov->query)
+                    {
+                        child = translateQueryOracleInternal(n, attrsOffsetsList);
+                        addChildOperator((QueryOperator *) result, child);
+                    }
                 }
             }
     	}

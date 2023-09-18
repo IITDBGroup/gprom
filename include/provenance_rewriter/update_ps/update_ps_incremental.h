@@ -86,6 +86,8 @@ typedef struct ColumnChunk
 #define JOIN_RIGHT_BRANCH_DELTA_TABLE backendifyIdentifier("JOIN_RIGHT_DELTA_TABLE")
 #define JOIN_RIGHT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_RIGHT_TUPLE_IDENTIFIER")
 
+#define GROUP_JOIN_START "GROUP_JOIN_START"
+
 
 // functions;
 extern char* update_ps_incremental(QueryOperator * qbModel, QueryOperator *updateStmt);

@@ -2108,8 +2108,6 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
     int numRes = PQntuples(rs);
     int numFields = PQnfields(rs);
 	HashMap *posToDT = dcIns->posToDatatype;
-	dcIns->tupleFields = numFields;
-    dcDel->tupleFields = numFields;
     INFO_LOG("res len: %d", numRes);
 	if (numRes < 1) {
 		return;
@@ -2247,7 +2245,7 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
             case DT_VARCHAR2:
             {
                 colVecIns = makeVector(VECTOR_STRING, T_Vector);
-                colVecIns = makeVector(VECTOR_STRING, T_Vector);
+                colVecDel = makeVector(VECTOR_STRING, T_Vector);
 				for (int row = 0; row < numRes; row++) {
 					char *value = PQgetvalue(rs, row, col);
                     if (updTypeVals[row] == 1) {
@@ -2399,6 +2397,114 @@ postgresGetDataChunkFromDelta(char *query, DataChunk *dc, int psAttrPos, Vector 
     STOP_TIMER(METADATA_LOOKUP_TIMER);
 }
 
+void
+postgresGetDataChunkFromStmtInsDel(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName, int type)
+{
+    START_TIMER(METADATA_LOOKUP_TIMER);
+    START_TIMER("Postgres - execute ExecuteQuery");
+    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+    PGresult *rs = execQuery(query);
+    int numRes = PQntuples(rs);
+    int numFields = PQnfields(rs);
+	HashMap *posToDT = dc->posToDatatype;
+	dc->numTuples = numRes;
+    INFO_LOG("res len: %d", numRes);
+	if (numRes < 1) {
+		return;
+	}
+
+	Vector *psVec = NULL;
+	if (psAttrPos != -1) {
+		psVec = makeVector(VECTOR_INT, T_Vector);
+	}
+	for (int col = 0; col < numFields; col++) {
+		DataType dataType = INT_VALUE((Constant *) MAP_GET_INT(posToDT, col));
+		Vector *colVec = NULL;
+		boolean isPSCol = (col == psAttrPos);
+		switch (dataType) {
+			case DT_INT:
+			{
+				colVec = makeVector(VECTOR_INT, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					int value = atoi(PQgetvalue(rs, row, col));
+					vecAppendInt(colVec, value);
+					if (isPSCol) {
+						// BitSet *bitset = setFragmentToBitSet(value, rangeList);
+                        int bitSet = setFragmengtToInt(value, rangeList);
+						// vecAppendNode(psVec, (Node *) bitset);
+                        // INFO_LOG("bitset %d", bitSet);
+                        vecAppendInt(psVec, bitSet);
+					}
+				}
+			}
+				break;
+			case DT_LONG:
+			{
+				colVec = makeVector(VECTOR_LONG, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					gprom_long_t value = atol(PQgetvalue(rs, row, col));
+					vecAppendLong(colVec, value);
+				}
+			}
+				break;
+			case DT_FLOAT:
+			{
+				colVec = makeVector(VECTOR_LONG, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					double value = atof(PQgetvalue(rs, row, col));
+					vecAppendFloat(colVec, value);
+				}
+			}
+				break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+			{
+				colVec = makeVector(VECTOR_STRING, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					char *value = PQgetvalue(rs, row, col);
+					vecAppendString(colVec, strdup(value));
+				}
+			}
+				break;
+			case DT_BOOL:
+			{
+				colVec = makeVector(VECTOR_INT, T_Vector);
+				for (int row = 0; row < numRes; row++) {
+					char *value = PQgetvalue(rs, row, col);
+					if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true"))
+					{ vecAppendInt(colVec, 1); }
+    				if (streq(value, "FALSE") || streq(value, "f") || streq(value, "false"))
+					{ vecAppendInt(colVec, 0); }
+				}
+			}
+				break;
+			default:
+				FATAL_LOG("not supported");
+		}
+		vecAppendNode(dc->tuples, (Node *) colVec);
+		if (isPSCol) {
+			addToMap(dc->fragmentsInfo, (Node *) createConstString(psName), (Node *) psVec);
+            addToMap(dc->fragmentsIsInt, (Node *) createConstString(psName), (Node *) createConstBool(TRUE));
+			dc->isAPSChunk = TRUE;
+		}
+	}
+    if (type == 1) {
+        for (int row = 0; row < numRes; row++) {
+		    vecAppendInt(dc->updateIdentifier, 1);
+	    }
+    } else if (type == -1) {
+        for (int row = 0; row < numRes; row++) {
+		    vecAppendInt(dc->updateIdentifier, -1);
+	    }
+    }
+
+    DEBUG_NODE_BEATIFY_LOG("PS:", dc->fragmentsInfo);
+    DEBUG_NODE_BEATIFY_LOG("DELETE CHUNK IN POSTGRES", dc);
+    PQclear(rs);
+    execCommit();
+    STOP_TIMER("Postgres - execute ExecuteQuery");
+    STOP_TIMER(METADATA_LOOKUP_TIMER);
+}
 
 void
 postgresGetDataChunkDelete(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName)
@@ -2936,7 +3042,7 @@ postgresGetDataChunkJoin(char *query, DataChunk* dcIns, DataChunk *dcDel, int wh
 }
 
 void
-postgresGetDataChunkUpdate(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName)
+postgresGetDataChunkFromStmtUpd(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName)
 {
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");

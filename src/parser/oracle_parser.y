@@ -541,6 +541,16 @@ provStmt:
 
 			$$ = (Node *) p;
 		}
+		| UPDATEPS PROVENANCE optionalProvWith OF '(' stmt ')' optionalTranslate
+		{
+			RULELOG("provStmt::UpdatePS from delta");
+			Node *stmt = $6;
+			ProvenanceStmt *p = createProvenanceStmt(stmt);
+			p->options = concatTwoLists($3, $8);
+			p->inputType = PROV_INPUT_UPDATEPS;
+			p->provType = PROV_TYPE_UPDATEPS;
+			$$ = (Node *) p;
+		}
         | CANUSE PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
         {
             RULELOG("provStmt::stmt");
