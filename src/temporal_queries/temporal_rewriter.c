@@ -471,8 +471,8 @@ constructIntervalOverlapCondition(QueryOperator *lChild, QueryOperator *rChild)
 
 	// interval overlap join condition
     cond = AND_EXPRS(
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+                (Node *) createOpExpr(OPNAME_LT, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr(OPNAME_LT, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
             );
 
 	return cond;
@@ -492,8 +492,8 @@ constructNestingIntervalOverlapCondition(QueryOperator *op)
 
 	// interval overlap join condition
     cond = AND_EXPRS(
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+                (Node *) createOpExpr(OPNAME_LT, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr(OPNAME_LT, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
             );
 
 	return cond;
@@ -1030,7 +1030,7 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     // realize normalization (destructive, swaps tree)
 
     // overloading leftAttrs to be the operations normalized with this nested op's left (outer) query
-    NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), NODESET(), NODESET() }; 
+    NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), NODESET(), NODESET() };
     visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, findNormalizationInQuery, &state);
     FOREACH_SET(KeyValue, k, state.leftAttrs) {
         List *leftAttrs = makeNodeListFromSet((Set *)(MAP_GET_STRING((HashMap *)(k->value), "leftAttrs")));
@@ -1061,8 +1061,8 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
 
 	// interval overlap join condition
     correlation = AND_EXPRS(
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
-                (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+                (Node *) createOpExpr(OPNAME_LT, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr(OPNAME_LT, LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
             );
 
     // todo: robustness
