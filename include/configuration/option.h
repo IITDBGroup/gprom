@@ -142,6 +142,8 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_PS_COPY_DELTA_JOIN "update_ps_copy_delta_join"
 #define OPTION_UPDATE_PS_JOIN_USING_BF "update_ps_join_using_bf"
 #define OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT "update_ps_delta_table_updident"
+#define OPTION_UPDATE_PS_QUERY_NAME "update_ps_query_name"
+
 
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"

@@ -87,6 +87,8 @@ static boolean replaceTableAccessWithCompressedTableAccess(Node *node, void *sta
 void removeProvAttrsList(QueryOperator *op);
 static void modifyUncertCapTree(QueryOperator *op);
 static void preprocessJoin(QueryOperator *op);
+static void setOperatorNumber(QueryOperator *op);
+static int OPERATOR_NUM = 0;
 //static void localTest();
 /*
  * Function Implementation
@@ -111,6 +113,19 @@ preprocessJoin(QueryOperator *op)
 	FOREACH(QueryOperator, q, op->inputs) {
         preprocessJoin(q);
     }
+}
+
+static void
+setOperatorNumber(QueryOperator *op)
+{
+	if (op == NULL) {
+		return;
+	}
+	SET_STRING_PROP(op, PROP_OPERATOR_NUMBER, createConstInt(OPERATOR_NUM));
+	OPERATOR_NUM++;
+	FOREACH(QueryOperator, q, op->inputs) {
+		setOperatorNumber(q);
+	}
 }
 
 char*
@@ -138,7 +153,12 @@ update_ps(ProvenanceComputation *qbModel)
 		// rightChild = OP_LCHILD((QueryOperator *) qbModel);
 	}
 
-
+	/* set each operator a number*/
+	setOperatorNumber((QueryOperator *) qbModel);
+	DEBUG_NODE_BEATIFY_LOG("after set number", qbModel);
+	char *queryName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
+	postgresGetQueryMetaInfo(queryName);
+	INFO_LOG("what is the queryname %s", queryName);
 
 	/* Check if there is state for this algebra tree */
 	if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {

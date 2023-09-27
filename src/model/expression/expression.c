@@ -51,7 +51,7 @@ static CastGraphEdge castGraph[] = {
 };
 
 #define PREFSTOPPER -1
-static int typePreferences[] = { DT_BOOL, DT_INT, DT_FLOAT, DT_STRING, PREFSTOPPER };
+static int typePreferences[] = { DT_BOOL, DT_INT, DT_LONG, DT_FLOAT, DT_STRING, PREFSTOPPER };
 
 static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);

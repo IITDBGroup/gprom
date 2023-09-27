@@ -203,6 +203,7 @@ boolean update_ps_selection_push_down = FALSE;
 boolean update_ps_copy_delta_join = FALSE;
 boolean update_ps_join_using_bf = FALSE;
 char *update_ps_delta_table_updident = NULL;
+char *update_ps_query_name = NULL;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -810,6 +811,15 @@ OptionInfo opts[] =
                 OPTION_STRING,
                 wrapOptionString(&update_ps_delta_table_updident),
                 defOptionString(NULL)
+         },
+         {
+                OPTION_UPDATE_PS_QUERY_NAME,
+                "-update_ps_query_name",
+                "indicate the name of the current query",
+                OPTION_STRING,
+                wrapOptionString(&update_ps_query_name),
+                defOptionString(NULL)
+
          },
 		 {
 				 OPTION_PS_STORE_TABLE,

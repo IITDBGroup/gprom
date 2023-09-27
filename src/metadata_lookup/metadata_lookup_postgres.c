@@ -3834,6 +3834,7 @@ void postgresDropTemporalDeltaTable(char *tableName)
     // execStmt(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName));
     // executeQueryIgnoreResult(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName));
 }
+
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
 

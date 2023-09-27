@@ -211,6 +211,12 @@
 #define PROP_PROV_SKETCH_DUP "PROP_PROV_SKETCH_DUP"
 #define PROP_DATA_STRUCTURE_JOIN "PROP_DATA_STRUCTURE_JOIN"
 #define PROP_DATA_STRUCTURE_ORDER_BY "PROP_DATA_STRUCTURE_ORDER_BY"
+#define PROP_OPERATOR_NUMBER "PROP_OPERATOR_NUMBER"
+// materialized operator state prop;
+#define QUERY_LIST_META "query_list_meta"
+#define QUERY_NAME "query_name"
+#define QUERY_HAS_STATE "query_has_state"
+
 
 #define PROP_HAS_DATA_STRUCTURE_BUILT "PROP_HAS_DATA_STRUCTURE_BUILT" // mark the top operator(now is a provenance computation op) for checking whether data stat is built?
 

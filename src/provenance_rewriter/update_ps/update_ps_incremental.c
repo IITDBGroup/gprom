@@ -82,6 +82,7 @@ static ColumnChunk *getColumnChunkOfAttr(char *attrName, DataChunk *dataChunk);
 static ColumnChunk *getColumnChunkOfConst(Constant *c, DataChunk *dc);
 static ColumnChunk *getColumnChunkOfQuantComp(QuantifiedComparison *qc, DataChunk *dc);
 static ColumnChunk *getColumnChunkOfCastExpr(CastExpr *expr, DataChunk *dc);
+static ColumnChunk *getColumnChunkOfFunctionCall(FunctionCall *fc, DataChunk *dc);
 static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType);
 static DataType evaluateTwoDatatypes(DataType dt1, DataType dt2);
 // static Vector *columnChunkToVector(ColumnChunk *cc);
@@ -443,10 +444,18 @@ updateProjection(QueryOperator* op)
 				}
 				vecAppendNode(resultDCDel->tuples, (Node *) cc->data.v);
 			}
+		} else if (isA(node, FunctionCall)) {
+			INFO_LOG("PROJ FC");
+			if (dataChunkIns != NULL) {
+				ColumnChunk *cc = evaluateExprOnDataChunk(node, dataChunkIns);
+				vecAppendNode(resultDCIns->tuples, (Node *) cc->data.v);
+			}
 
-
-
-		} else if (isA(node, CaseExpr)) {
+			if (dataChunkDel != NULL) {
+				ColumnChunk *cc = evaluateExprOnDataChunk(node, dataChunkDel);
+				vecAppendNode(resultDCDel->tuples, (Node *) cc->data.v);
+			}
+		} if (isA(node, CaseExpr)) {
 			// DEBUG_NODE_BEATIFY_LOG("case when", node);
 
 			List *caseWhens = ((CaseExpr *) node)->whenClauses;
@@ -6162,6 +6171,8 @@ evaluateExprOnDataChunk(Node *expr, DataChunk *dc)
 			return getColumnChunkOfQuantComp((QuantifiedComparison *) expr, dc);
 		case T_CastExpr:
 			return getColumnChunkOfCastExpr((CastExpr *) expr, dc);
+		case T_FunctionCall:
+			return getColumnChunkOfFunctionCall((FunctionCall *) expr, dc);
 		default:
 			FATAL_LOG("cannot evaluate this expr");
 	}
@@ -6181,6 +6192,57 @@ getColumnChunkOfCastExpr(CastExpr *expr, DataChunk *dc)
 	return cc;
 }
 
+static ColumnChunk *
+getColumnChunkOfFunctionCall(FunctionCall *fc, DataChunk *dc)
+{
+	// ColumnChunk *cc = makeColumnChunk(DT_STRING, len);
+	if (strcmp(backendifyIdentifier(fc->functionname), backendifyIdentifier("date_part")) == 0){
+		Constant *c = (Constant *) getNthOfListP(fc->args, 0);
+		AttributeReference *ar = (AttributeReference *) getNthOfListP(fc->args, 1);
+		int exprIdx = INT_VALUE((Constant *) MAP_GET_STRING(dc->attriToPos, ar->name));
+		if (strcmp(backendifyIdentifier(STRING_VALUE(c)), backendifyIdentifier("year")) == 0) {
+			// find year start position;
+			// assume year is 4 digit and must exist;
+			char *sample = sample = getVecString((Vector *) getVecNode(dc->tuples, exprIdx), 0);
+			int sampleLen = strlen(sample);
+			Vector *dashPos = makeVector(VECTOR_INT, T_Vector);
+			for (int i = 0; i < sampleLen; i++) {
+				if (sample[i] == '-') {
+					vecAppendInt(dashPos, i);
+				}
+			}
+			int pre = -1;
+			int start = -1;
+			for(int i = 0; i < dashPos->length; i++) {
+				int pos = getVecInt(dashPos, i);
+				if (pos - pre == 5) {
+					start = pre + 1;
+					break;
+				} else {
+					pre = pos;
+				}
+			}
+
+			if (start == -1) {
+				start = pre + 1;
+			}
+
+			int len = dc->numTuples;
+			ColumnChunk *cc = makeColumnChunk(DT_STRING, len);
+			char **ccVals = (char **) VEC_TO_ARR((Vector *) cc->data.v, char);
+			char ** vals = (char **) VEC_TO_ARR((Vector *) getVecNode(dc->tuples, exprIdx), char);
+			for (int i = 0; i < len; i++) {
+				char *res = MALLOC(5);
+				strncpy(res, vals[i] + start, 4);
+				res[4] = '\0';
+				// vecAppendString((Vector *) cc->data.v, res);
+				ccVals[i] = res;
+			}
+			return cc;
+		}
+	}
+	return NULL;
+}
 
 /*
 	this function is specific for where condition that attr in (n1, n2, n3... nn);
