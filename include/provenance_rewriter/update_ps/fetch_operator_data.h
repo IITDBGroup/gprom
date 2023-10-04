@@ -1,0 +1,7 @@
+#ifndef INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_FETCH_OPERATOR_DATA_H_
+#define INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_FETCH_OPERATOR_DATA_H_
+#include "model/query_operator/query_operator.h"
+
+extern void fetchOperatorData(QueryOperator *op);
+
+#endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_FETCH_OPERATOR_DATA_H_ */

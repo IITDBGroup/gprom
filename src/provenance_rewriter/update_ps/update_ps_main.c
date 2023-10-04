@@ -34,6 +34,8 @@
 #include "operator_optimizer/operator_optimizer.h"
 
 #include "provenance_rewriter/update_ps/bloom.h"
+#include "provenance_rewriter/update_ps/store_operator_data.h"
+#include "provenance_rewriter/update_ps/fetch_operator_data.h"
 /*
  * Macro
  */
@@ -143,8 +145,6 @@ update_ps(ProvenanceComputation *qbModel)
 	DLMorDDLOperator *leftChild = NULL;
 	QueryOperator *rightChild = NULL;
 	if (LIST_LENGTH(qbModel->op.inputs) > 1) {
-		// DLMorDDLOperator *leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
-		// QueryOperator *rightChild = OP_RCHILD((QueryOperator *) qbModel);
 		leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
 		rightChild = OP_RCHILD((QueryOperator *) qbModel);
 		// remove left child from provenance computation;
@@ -156,15 +156,35 @@ update_ps(ProvenanceComputation *qbModel)
 	/* set each operator a number*/
 	setOperatorNumber((QueryOperator *) qbModel);
 	DEBUG_NODE_BEATIFY_LOG("after set number", qbModel);
+
+	/* check stored info */
 	char *queryName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
-	postgresGetQueryMetaInfo(queryName);
-	INFO_LOG("what is the queryname %s", queryName);
+
+	boolean isQStored = checkQueryInfoStored(queryName);
 
 	/* Check if there is state for this algebra tree */
-	if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {
+	if (!isQStored) {
 		qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
-		SET_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, createConstBool(TRUE));
+		DEBUG_NODE_BEATIFY_LOG("operator with state before stored", qbModel);
+		storeOperatorData((QueryOperator *) qbModel);
+		setInfoStored(queryName);
+	} else {
+		START_TIMER("module - update provenance sketch - fetching stored data");
+		fetchOperatorData((QueryOperator *) qbModel);
+		STOP_TIMER("module - update provenance sketch - fetching stored data");
 	}
+
+	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
+
+	if (1 == 2) {
+		return "END";
+	}
+	// if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {
+	// 	qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
+
+	// 	store_operator_data((QueryOperator *) qbModel);
+	// 	SET_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, createConstBool(TRUE));
+	// }
 
 	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
 

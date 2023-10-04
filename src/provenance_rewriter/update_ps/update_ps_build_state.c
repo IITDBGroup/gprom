@@ -614,7 +614,7 @@ buildStateAggregationOp(QueryOperator *op)
 							if (provLevel < 2) {
 								addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
 							} else {
-								addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstString(FALSE));
+								addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
 							}
 							addToMap(groupPSMap->provLens, (Node *) copyObject(c), (Node *) createConstInt(provNumFrag));
 						}
@@ -909,7 +909,7 @@ buildStateAggregationOp(QueryOperator *op)
 							if (provLevel < 2) {
 								addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
 							} else {
-								addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstString(FALSE));
+								addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
 							}
 							addToMap(groupPSMap->provLens, (Node *) copyObject(c), (Node *) createConstInt(provNumFrag));
 						}
@@ -1017,89 +1017,177 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 
 		gprom_long_t groupCnt = atol(getVecString(tuple, groupCountPos));
 		vecAppendLong(gbCntVec, groupCnt);
+
+		Vector *cntV = NULL;
 		if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
-			Constant *cnt = (Constant *) MAP_GET_STRING(acs->map, gbVals->data);
-			(*((gprom_long_t *) cnt->value)) += groupCnt;
+			cntV = (Vector *) MAP_GET_STRING(acs->map, gbVals->data);
+			Constant *cnt = (Constant *) getVecNode(cntV, 0);
+			LONG_VALUE(cnt) = LONG_VALUE(cnt) + groupCnt;
+			// (*((gprom_long_t *) cnt->value)) += groupCnt;
 		} else {
-			addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) createConstLong(groupCnt));
+			cntV = makeVector(VECTOR_NODE, T_Vector);
+			vecAppendNode(cntV, (Node *) createConstLong(groupCnt));
+			addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) cntV);
 		}
 	}
-	addToMap(dataStructures, (Node *) createConstString("DUP_STATE"), (Node *) acs);
+	addToMap(dataStructures, (Node *) createConstString(PROP_DATA_STRUCTURE_DUP_DATA), (Node *) acs);
 
 	// deal with ps;
 	if (isFoundPS) {
-		PSMap *groupPSMap = makePSMap();
+		PSMap *psMap = makePSMap();
 		char **gbVals = (char **) VEC_TO_ARR(gbValsVec, char);
 		gprom_long_t *gbCnts = (gprom_long_t *) VEC_TO_LA(gbCntVec);
+
 		FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
 			List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
 			int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
 			int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
 			int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
 
-			addToMap(groupPSMap->provLens, (Node *) copyObject(c), (Node *) createConstInt(provNumFrag));
-
-			HashMap *gpFragCnt = (HashMap *) MAP_GET_STRING(groupPSMap->fragCount, STRING_VALUE(c));
-			if (gpFragCnt == NULL) {
-				gpFragCnt = NEW_MAP(Constant, Node);
+			addToMap(psMap->provLens, (Node *) createConstString(STRING_VALUE(c)), (Node*) createConstInt(provNumFrag));
+			if (provLevel < 2) {
+				addToMap(psMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
+			} else {
+				addToMap(psMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
 			}
 
-			// Here we add a group by and agg, the actural will less than current level;
-			if (provLevel - 1 < 2) {
-				addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
-				for (int row = 0; row < tupleLen; row++) {
-					int psVal = atoi((char *) getVecString((Vector *) getVecNode(resultRel->tuples, row), provPos));
-					// since it is a integer, we only add to map if it does not exists
-					// we do not need to care if it is already there, since all ps are same integer.
-					if (!MAP_HAS_STRING_KEY(groupPSMap->provSketchs, gbVals[row])) {
-						addToMap(groupPSMap->provSketchs, (Node *) createConstString(gbVals[row]), (Node *) createConstInt(psVal));
-					}
+			HashMap *gbFragCnt = NULL;
+			gbFragCnt = (HashMap *) MAP_GET_STRING(psMap->fragCount, STRING_VALUE(c));
+			if (gbFragCnt == NULL) {
+				gbFragCnt = NEW_MAP(Constant, Node);
+				addToMap(psMap->fragCount, (Node *) copyObject(c), (Node *) gbFragCnt);
+			}
 
-					HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gpFragCnt, gbVals[row]);
-					if (fragCnt == NULL) {
-                        fragCnt = NEW_MAP(Constant, Constant);
-						addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstInt((int) gbCnts[row]));
-						addToMap(gpFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
-					} else {
-						Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
-						// (*((gprom_long_t *) cnt->value)) += gbCnts[row];
-						INT_VALUE(cnt) = INT_VALUE(cnt) + (int) gbCnts[row];
-					}
+			HashMap *psMapInGP = NULL;
+			psMapInGP = (HashMap *) MAP_GET_STRING(psMap->provSketchs, STRING_VALUE(c));
+			if (psMapInGP == NULL) {
+				psMapInGP = NEW_MAP(Constant, Node);
+				addToMap(psMap->provSketchs, (Node *) copyObject(c), (Node *) psMapInGP);
+			}
+
+			for (int row = 0; row < tupleLen; row++) {
+				char *psVal = (char *) getVecString((Vector *) getVecNode(resultRel->tuples, row), provPos);
+				HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, gbVals[row]);
+				if (fragCnt == NULL) {
+					fragCnt = NEW_MAP(Constant, Constant);
+					addToMap(gbFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
 				}
-
-			} else {
-				addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
-				for (int row = 0; row < tupleLen; row++) {
-					char *psVal = (char *) getVecString((Vector *) getVecNode(resultRel->tuples, row), provPos);
-					BitSet *oldBitSet = (BitSet *) MAP_GET_STRING(groupPSMap->provSketchs, gbVals[row]);
-					if (oldBitSet == NULL) {
-						oldBitSet = newBitSet(provNumFrag);
-					}
-					HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gpFragCnt, gbVals[row]);
-					if (fragCnt == NULL) {
-						fragCnt = NEW_MAP(Constant, Constant);
-					}
-					for (int bitIdx = 0; bitIdx < provNumFrag; bitIdx++) {
+				if (provLevel < 2) {
+					int whichFrag = atoi(psVal);
+					int cnt = (int) gbCnts[row];
+					addToMap(fragCnt, (Node *) createConstInt(whichFrag), (Node *) createConstInt(cnt));
+					addToMap(psMapInGP, (Node *) createConstString(gbVals[row]), (Node *) createConstInt(whichFrag));
+				} else {
+					BitSet *gbProvSketch = (BitSet *) stringToBitset(psVal);
+					int bitLen = strlen(psVal);
+					for (int bitIdx = 0; bitIdx < bitLen; bitIdx++) {
 						if (psVal[bitIdx] == '1') {
-							Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
-							if (cnt == NULL) {
-								addToMap(fragCnt, (Node *) createConstInt(bitIdx), (Node *) createConstInt(gbCnts[row]));
+							if (MAP_HAS_INT_KEY(fragCnt, bitIdx)) {
+								Constant *ori = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
+								INT_VALUE(ori) = INT_VALUE(ori) + (int) gbCnts[row];
 							} else {
-								// (*((gprom_long_t *) cnt->value)) += gbCnts[row];
-								INT_VALUE(cnt) = INT_VALUE(cnt) + (int)gbCnts[row];
+								addToMap(fragCnt, (Node *) createConstInt(bitIdx), (Node *) createConstInt((int) gbCnts[row]));
+								setBit(gbProvSketch, bitIdx, TRUE);
 							}
-							setBit(oldBitSet, bitIdx, TRUE);
 						}
 					}
-
-					addToMap(groupPSMap->provSketchs, (Node *) copyObject(c), (Node *) oldBitSet);
-					addToMap(gpFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
+					addToMap(psMapInGP, (Node *) createConstString(gbVals[row]), (Node *) gbProvSketch);
 				}
 			}
-
-			addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gpFragCnt);
 		}
-		addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_DUP), (Node *) groupPSMap);
+
+		addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_DUP), (Node *) psMap);
+
+
+
+
+
+
+
+
+
+
+
+
+
+		// PSMap *groupPSMap = makePSMap();
+		// char **gbVals = (char **) VEC_TO_ARR(gbValsVec, char);
+		// gprom_long_t *gbCnts = (gprom_long_t *) VEC_TO_LA(gbCntVec);
+		// FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
+		// 	HashMap *groupPSMap = NULL;
+		// 	if (MAP_HAS_STRING_KEY(psMap->provSketchs, STRING_VALUE(c))) {
+		// 		groupPSMap = MAP_GET_STRING(psMap->provSketchs, STRING_VALUE(c));
+		// 	} else {
+		// 		groupPSMap = NEW_MAP(Constant, Node);
+		// 	}
+		// 	List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
+		// 	int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
+		// 	int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
+		// 	int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
+
+		// 	addToMap(groupPSMap->provLens, (Node *) copyObject(c), (Node *) createConstInt(provNumFrag));
+
+		// 	HashMap *gpFragCnt = (HashMap *) MAP_GET_STRING(groupPSMap->fragCount, STRING_VALUE(c));
+		// 	if (gpFragCnt == NULL) {
+		// 		gpFragCnt = NEW_MAP(Constant, Node);
+		// 	}
+
+		// 	// Here we add a group by and agg, the actural will less than current level;
+		// 	if (provLevel - 1 < 2) {
+		// 		addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
+		// 		for (int row = 0; row < tupleLen; row++) {
+		// 			int psVal = atoi((char *) getVecString((Vector *) getVecNode(resultRel->tuples, row), provPos));
+		// 			// since it is a integer, we only add to map if it does not exists
+		// 			// we do not need to care if it is already there, since all ps are same integer.
+		// 			if (!MAP_HAS_STRING_KEY(groupPSMap->provSketchs, gbVals[row])) {
+		// 				addToMap(groupPSMap->provSketchs, (Node *) createConstString(gbVals[row]), (Node *) createConstInt(psVal));
+		// 			}
+
+		// 			HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gpFragCnt, gbVals[row]);
+		// 			if (fragCnt == NULL) {
+        //                 fragCnt = NEW_MAP(Constant, Constant);
+		// 				addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstInt((int) gbCnts[row]));
+		// 				addToMap(gpFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
+		// 			} else {
+		// 				Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
+		// 				// (*((gprom_long_t *) cnt->value)) += gbCnts[row];
+		// 				INT_VALUE(cnt) = INT_VALUE(cnt) + (int) gbCnts[row];
+		// 			}
+		// 		}
+
+		// 	} else {
+		// 		addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
+		// 		for (int row = 0; row < tupleLen; row++) {
+		// 			char *psVal = (char *) getVecString((Vector *) getVecNode(resultRel->tuples, row), provPos);
+		// 			BitSet *oldBitSet = (BitSet *) MAP_GET_STRING(groupPSMap->provSketchs, gbVals[row]);
+		// 			if (oldBitSet == NULL) {
+		// 				oldBitSet = newBitSet(provNumFrag);
+		// 			}
+		// 			HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gpFragCnt, gbVals[row]);
+		// 			if (fragCnt == NULL) {
+		// 				fragCnt = NEW_MAP(Constant, Constant);
+		// 			}
+		// 			for (int bitIdx = 0; bitIdx < provNumFrag; bitIdx++) {
+		// 				if (psVal[bitIdx] == '1') {
+		// 					Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
+		// 					if (cnt == NULL) {
+		// 						addToMap(fragCnt, (Node *) createConstInt(bitIdx), (Node *) createConstInt(gbCnts[row]));
+		// 					} else {
+		// 						// (*((gprom_long_t *) cnt->value)) += gbCnts[row];
+		// 						INT_VALUE(cnt) = INT_VALUE(cnt) + (int)gbCnts[row];
+		// 					}
+		// 					setBit(oldBitSet, bitIdx, TRUE);
+		// 				}
+		// 			}
+
+		// 			addToMap(groupPSMap->provSketchs, (Node *) copyObject(c), (Node *) oldBitSet);
+		// 			addToMap(gpFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
+		// 		}
+		// 	}
+
+		// 	addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gpFragCnt);
+		// }
+		// addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_DUP), (Node *) groupPSMap);
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("acs duplicate", acs);
