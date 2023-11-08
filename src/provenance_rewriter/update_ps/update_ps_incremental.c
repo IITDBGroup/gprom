@@ -2242,7 +2242,7 @@ updateAggregation(QueryOperator *op)
 
 											(*((double *) sum->value)) += inputVecVals[row];
 											(*((gprom_long_t *) cnt->value)) += 1;
-											vecAppendInt(outputVecInsert, (gprom_long_t) FLOAT_VALUE(sum));
+											vecAppendLong(outputVecInsert, (gprom_long_t) FLOAT_VALUE(sum));
 										}
 									}
 								}
@@ -2268,12 +2268,12 @@ updateAggregation(QueryOperator *op)
 											// gprom_long_t cnt = LONG_VALUE((Constant *) popVecNode(oldL));
 											// double sum = FLOAT_VALUE((Constant *) popVecNode(oldL));
 
-											vecAppendLong(outputVecDelete, FLOAT_VALUE(sum));
+											vecAppendFloat(outputVecDelete, FLOAT_VALUE(sum));
 
 											(*((double *) sum->value)) += inputVecVals[row];
 											(*((gprom_long_t *) cnt->value)) += 1;
 
-											vecAppendInt(outputVecInsert, FLOAT_VALUE(sum));
+											vecAppendFloat(outputVecInsert, FLOAT_VALUE(sum));
 										}
 									}
 								}
@@ -2362,7 +2362,7 @@ updateAggregation(QueryOperator *op)
 											Constant *sum = (Constant *) getVecNode(oldL, 0);
 											Constant *cnt = (Constant *) getVecNode(oldL, 1);
 
-											vecAppendLong(outputVecDelete, (int) FLOAT_VALUE(sum));
+											vecAppendInt(outputVecDelete, (int) FLOAT_VALUE(sum));
 
 											(*((double *) sum->value)) += inputVecVals[row];
 											(*((gprom_long_t *) cnt->value)) += 1;
@@ -2396,7 +2396,7 @@ updateAggregation(QueryOperator *op)
 											(*((double *) sum->value)) += inputVecVals[row];
 											(*((gprom_long_t *) cnt->value)) += 1;
 
-											vecAppendInt(outputVecInsert, (gprom_long_t) FLOAT_VALUE(sum));
+											vecAppendLong(outputVecInsert, (gprom_long_t) FLOAT_VALUE(sum));
 										}
 									}
 								}
@@ -2550,7 +2550,7 @@ updateAggregation(QueryOperator *op)
 											(*((double *) sum->value)) += inputVecVals[row];
 											(*((gprom_long_t *) cnt->value)) += 1;
 
-											vecAppendInt(outputVecInsert, (gprom_long_t) FLOAT_VALUE(sum));
+											vecAppendLong(outputVecInsert, (gprom_long_t) FLOAT_VALUE(sum));
 										}
 									}
 								}

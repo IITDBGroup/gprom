@@ -306,7 +306,7 @@ int bloom_load(Bloom * bloom, char * filename)
   close(fd);
   return rv;
 
- load_error:
+  load_error:
   close(fd);
   bloom->ready = 0;
   return rv;

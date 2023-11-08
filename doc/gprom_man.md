@@ -90,10 +90,10 @@ below).
 if *-time_queries* is activated, then this format is used for printing
 query runtimes. The format is printf compatible and should contain
 exactly on *%f* element (additional formating such as *%12f* is ok). Any
-occurrence of **"\\n"** in the format string is replaced with a newline.
-For instance, "query took\\n%f\\nmsecs\\n" will print the time of a
-query as three lines: "query took", a second line with just the time
-itself, and a third line "msecs".
+occurrence of **"\n"** in the format string is replaced with a newline.
+For instance, "query took\n%f\nmsecs\n" will print the time of a query
+as three lines: "query took", a second line with just the time itself,
+and a third line "msecs".
 
 **-repeat_query_count**  
 execute each query this many times. This is mainly useful for timing

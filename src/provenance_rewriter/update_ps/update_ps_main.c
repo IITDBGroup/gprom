@@ -147,10 +147,7 @@ update_ps(ProvenanceComputation *qbModel)
 	if (LIST_LENGTH(qbModel->op.inputs) > 1) {
 		leftChild = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
 		rightChild = OP_RCHILD((QueryOperator *) qbModel);
-		// remove left child from provenance computation;
 		((QueryOperator *) qbModel)->inputs = singleton(rightChild);
-	// } else {
-		// rightChild = OP_LCHILD((QueryOperator *) qbModel);
 	}
 
 	/* set each operator a number*/
@@ -172,13 +169,10 @@ update_ps(ProvenanceComputation *qbModel)
 		START_TIMER("module - update provenance sketch - fetching stored data");
 		fetchOperatorData((QueryOperator *) qbModel);
 		STOP_TIMER("module - update provenance sketch - fetching stored data");
+		DEBUG_NODE_BEATIFY_LOG("operator with state data after fetch", qbModel);
 	}
 
-	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
 
-	if (1 == 2) {
-		return "END";
-	}
 	// if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {
 	// 	qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
 
@@ -186,7 +180,6 @@ update_ps(ProvenanceComputation *qbModel)
 	// 	SET_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT, createConstBool(TRUE));
 	// }
 
-	DEBUG_NODE_BEATIFY_LOG("operator with state data", qbModel);
 
 	// check option for group join and preprocess;
 	if (getBoolOption(OPTION_UPDATE_PS_GROUP_JOIN)) {

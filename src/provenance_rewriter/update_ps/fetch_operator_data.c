@@ -43,6 +43,9 @@ static void fetchProvenanceComputationData(ProvenanceComputation * op);
 static void fetchDuplicateRemovalData(DuplicateRemoval *op);
 static PSMap *fetchPSMapData(int opNum);
 static GBACSs *fetchGBACSsData(int opNum, char* acsName, int type);
+static void fetchJoinOperatorData(JoinOperator *op);
+static void fetchBloomInfo(HashMap *joinState, int opNum);
+static void fetchBlooms(HashMap *joinState, int opNum);
 
 void
 fetchOperatorData(QueryOperator *op)
@@ -63,11 +66,104 @@ fetchOperatorDataInternal(QueryOperator *op)
         fetchProvenanceComputationData((ProvenanceComputation *) op);
     } else if (isA(op, DuplicateRemoval)) {
         fetchDuplicateRemovalData((DuplicateRemoval *) op);
+    } else if (isA(op, JoinOperator)) {
+        boolean usingBF = getBoolOption(OPTION_UPDATE_PS_JOIN_USING_BF);
+        if (usingBF) {
+            fetchJoinOperatorData((JoinOperator *) op);
+        }
     }
 
     FOREACH(QueryOperator, q, op->inputs) {
         fetchOperatorDataInternal(q);
     }
+}
+
+static void
+fetchJoinOperatorData(JoinOperator *op) {
+    HashMap *joinState = NEW_MAP(Constant, Node);
+    int opNum = INT_VALUE((Constant *) GET_STRING_PROP((QueryOperator*) op, PROP_OPERATOR_NUMBER));
+
+    fetchBloomInfo(joinState, opNum);
+    fetchBlooms(joinState, opNum);
+    setStringProperty((QueryOperator *) op, PROP_DATA_STRUCTURE_JOIN, (Node *) joinState);
+    DEBUG_NODE_BEATIFY_LOG("join state", joinState);
+}
+
+static void
+fetchBlooms(HashMap *joinState, int opNum)
+{
+    char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
+
+    HashMap *leftInfos = (HashMap *) MAP_GET_STRING(joinState, JOIN_LEFT_BLOOM_ATT_MAPPING);
+    HashMap *leftBlooms = NEW_MAP(Constant, Node);
+    FOREACH_HASH_KEY(Constant, c, leftInfos) {
+        StringInfo bloomName = makeStringInfo();
+        appendStringInfo(bloomName, "%s_%s_left_%s", qName, gprom_itoa(opNum), STRING_VALUE(c));
+        Bloom *bloom = createBloomFilter();
+        bloom_load(bloom, bloomName->data);
+        addToMap(leftBlooms, (Node *) copyObject(c), (Node *) bloom);
+    }
+
+    HashMap *rightInfos = (HashMap *) MAP_GET_STRING(joinState, JOIN_RIGHT_BLOOM_ATT_MAPPING);
+    HashMap *rightBlooms = NEW_MAP(Constant, Node);
+    FOREACH_HASH_KEY(Constant, c, rightInfos) {
+        StringInfo bloomName = makeStringInfo();
+        appendStringInfo(bloomName, "%s_%s_right_%s", qName, gprom_itoa(opNum), STRING_VALUE(c));
+        Bloom *bloom = createBloomFilter();
+        bloom_load(bloom, bloomName->data);
+        addToMap(rightBlooms, (Node *) copyObject(c), (Node *) bloom);
+    }
+
+    addToMap(joinState, (Node *) createConstString(JOIN_LEFT_BLOOM), (Node *) leftBlooms);
+    addToMap(joinState, (Node *) createConstString(JOIN_RIGHT_BLOOM), (Node *) rightBlooms);
+}
+
+static void
+fetchBloomInfo(HashMap *joinState, int opNum)
+{
+    char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
+    StringInfo infoName = makeStringInfo();
+    appendStringInfo(infoName, "BLInfos_%s_%s", qName, gprom_itoa(opNum));
+    FILE *file = fopen(infoName->data, "r");
+    if (!file) {
+        return;
+    }
+
+    char line[1000];
+    int LINELEN = 1000;
+    HashMap *leftMapping = NEW_MAP(Constant, Node);
+    HashMap *rightMapping = NEW_MAP(Constant, Node);
+
+    while (fgets(line, LINELEN, file) != NULL) {
+        char branch = line[0] ;
+        int pos = 2;
+        int lineLen = strlen(line);
+        char fromAtt[1000];
+        Vector *vec = makeVector(VECTOR_STRING, T_Vector);
+        for (int i = 3; i < lineLen; i++) {
+            if (line[i] == '-') {
+                strncpy(fromAtt, line + pos, i - pos);
+                fromAtt[i - pos] = '\0';
+                pos = i + 1;
+            } else if (line[i] == ',' || i == lineLen - 1) {
+                char att[1000];
+                strncpy(att, line + pos, i - pos);
+                att[i - pos] = '\0';
+                vecAppendString(vec, strdup(att));
+                pos = i + 1;
+            }
+        }
+
+        if (branch == 'L') {
+            addToMap(leftMapping, (Node *) createConstString(fromAtt), (Node *) vec);
+        } else if (branch == 'R') {
+            addToMap(rightMapping, (Node *) createConstString(fromAtt), (Node *) vec);
+        }
+    }
+    fclose(file);
+
+    addToMap(joinState, (Node *) createConstString(JOIN_LEFT_BLOOM_ATT_MAPPING), (Node *) leftMapping);
+    addToMap(joinState, (Node *) createConstString(JOIN_RIGHT_BLOOM_ATT_MAPPING), (Node *) rightMapping);
 }
 
 static void
@@ -134,7 +230,7 @@ fetchPSMapData(int opNum)
         char *name = (char *) getVecString(v, 0);
         int psLen = atoi((char *) getVecString(v, 1));
         int isPSInt = atoi((char *) getVecString(v, 2));
-        boolean isInt = isPSInt == 1 ? TRUE : FALSE;
+        boolean isInt = (isPSInt == 1 ? TRUE : FALSE);
         addToMap(psMap->isIntSketch, (Node *) createConstString(name), (Node *) createConstBool(isInt));
         addToMap(psMap->provLens, (Node *) createConstString(name), (Node *) createConstInt(psLen));
     }
@@ -190,7 +286,7 @@ fetchPSMapData(int opNum)
                 addToMap(gbPS, (Node *) createConstString(groupby), (Node *) createConstInt(ps));
             } else {
                 BitSet *bitSet = (BitSet *) stringToBitset(bitStr);
-                addToMap(gbPS, (Node *) createConstString(name), (Node *) bitSet);
+                addToMap(gbPS, (Node *) createConstString(groupby), (Node *) bitSet);
             }
         }
 

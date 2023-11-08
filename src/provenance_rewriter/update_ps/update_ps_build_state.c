@@ -62,37 +62,6 @@ buildState(QueryOperator *op)
     return op;
 }
 
-
-/*
-1.
-	translate to datachunk from postgresq libs(functions) instead of to Relation.
-	check time for postgresql.
-2. 	multi gb attrs, group by 1, 2 -> key: 1#2# : hashValue(1#2#) str as byte array.
-	string of char[sizeof(int) * 2];
-	Vector *gb = vectorof (1, 2); then as key.
-
-	select avgb::float8, sum(a)
-	from
-		( select a, avg(b) as avgb
-			from r
-			group by a) tmp
-	group by avgb
-
-	postgres gives: float 2.000000
-	in our machind: float 2.0000000000
-
-	avoid using string representation.
-	for code serialization: select avg(b) -> select avg(b)::float(8).
-
-	figure out: what type postgres use for float(depend on scale of number)
-	float -> int/int
-	number representation.
-
-
-3. other hashmap lib:
-Vector
-*/
-
 static void
 buildStateInternal(QueryOperator *op)
 {
@@ -963,11 +932,12 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 	QueryOperator *child = (QueryOperator *) copyObject(op);
 	child->parents = singleton(aggOp);
 
-	DEBUG_NODE_BEATIFY_LOG("duplicate rewr", aggOp);
+	DEBUG_NODE_BEATIFY_LOG("BEFORE DUP REWRITE", aggOp);
 	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, (QueryOperator *) aggOp);
-	DEBUG_NODE_BEATIFY_LOG("REWR AGG", rewrOp);
+	DEBUG_NODE_BEATIFY_LOG("DUPLICATE REWRITE", rewrOp);
 
 	char *sql = serializeQuery(rewrOp);
+	INFO_LOG("DUPLICATE SQL: %s", sql);
 
 	Relation *resultRel = executeQuery(sql);
 
@@ -1095,102 +1065,11 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 				}
 			}
 		}
-
 		addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_DUP), (Node *) psMap);
-
-
-
-
-
-
-
-
-
-
-
-
-
-		// PSMap *groupPSMap = makePSMap();
-		// char **gbVals = (char **) VEC_TO_ARR(gbValsVec, char);
-		// gprom_long_t *gbCnts = (gprom_long_t *) VEC_TO_LA(gbCntVec);
-		// FOREACH_HASH_KEY(Constant, c, psAttrAndLevel) {
-		// 	HashMap *groupPSMap = NULL;
-		// 	if (MAP_HAS_STRING_KEY(psMap->provSketchs, STRING_VALUE(c))) {
-		// 		groupPSMap = MAP_GET_STRING(psMap->provSketchs, STRING_VALUE(c));
-		// 	} else {
-		// 		groupPSMap = NEW_MAP(Constant, Node);
-		// 	}
-		// 	List *prov_level_num_pos = (List *) MAP_GET_STRING(psAttrAndLevel, STRING_VALUE(c));
-		// 	int provLevel = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 0));
-		// 	int provNumFrag = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 1));
-		// 	int provPos = INT_VALUE((Constant *) getNthOfListP(prov_level_num_pos, 2));
-
-		// 	addToMap(groupPSMap->provLens, (Node *) copyObject(c), (Node *) createConstInt(provNumFrag));
-
-		// 	HashMap *gpFragCnt = (HashMap *) MAP_GET_STRING(groupPSMap->fragCount, STRING_VALUE(c));
-		// 	if (gpFragCnt == NULL) {
-		// 		gpFragCnt = NEW_MAP(Constant, Node);
-		// 	}
-
-		// 	// Here we add a group by and agg, the actural will less than current level;
-		// 	if (provLevel - 1 < 2) {
-		// 		addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(TRUE));
-		// 		for (int row = 0; row < tupleLen; row++) {
-		// 			int psVal = atoi((char *) getVecString((Vector *) getVecNode(resultRel->tuples, row), provPos));
-		// 			// since it is a integer, we only add to map if it does not exists
-		// 			// we do not need to care if it is already there, since all ps are same integer.
-		// 			if (!MAP_HAS_STRING_KEY(groupPSMap->provSketchs, gbVals[row])) {
-		// 				addToMap(groupPSMap->provSketchs, (Node *) createConstString(gbVals[row]), (Node *) createConstInt(psVal));
-		// 			}
-
-		// 			HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gpFragCnt, gbVals[row]);
-		// 			if (fragCnt == NULL) {
-        //                 fragCnt = NEW_MAP(Constant, Constant);
-		// 				addToMap(fragCnt, (Node *) createConstInt(psVal), (Node *) createConstInt((int) gbCnts[row]));
-		// 				addToMap(gpFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
-		// 			} else {
-		// 				Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, psVal);
-		// 				// (*((gprom_long_t *) cnt->value)) += gbCnts[row];
-		// 				INT_VALUE(cnt) = INT_VALUE(cnt) + (int) gbCnts[row];
-		// 			}
-		// 		}
-
-		// 	} else {
-		// 		addToMap(groupPSMap->isIntSketch, (Node *) copyObject(c), (Node *) createConstBool(FALSE));
-		// 		for (int row = 0; row < tupleLen; row++) {
-		// 			char *psVal = (char *) getVecString((Vector *) getVecNode(resultRel->tuples, row), provPos);
-		// 			BitSet *oldBitSet = (BitSet *) MAP_GET_STRING(groupPSMap->provSketchs, gbVals[row]);
-		// 			if (oldBitSet == NULL) {
-		// 				oldBitSet = newBitSet(provNumFrag);
-		// 			}
-		// 			HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gpFragCnt, gbVals[row]);
-		// 			if (fragCnt == NULL) {
-		// 				fragCnt = NEW_MAP(Constant, Constant);
-		// 			}
-		// 			for (int bitIdx = 0; bitIdx < provNumFrag; bitIdx++) {
-		// 				if (psVal[bitIdx] == '1') {
-		// 					Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, bitIdx);
-		// 					if (cnt == NULL) {
-		// 						addToMap(fragCnt, (Node *) createConstInt(bitIdx), (Node *) createConstInt(gbCnts[row]));
-		// 					} else {
-		// 						// (*((gprom_long_t *) cnt->value)) += gbCnts[row];
-		// 						INT_VALUE(cnt) = INT_VALUE(cnt) + (int)gbCnts[row];
-		// 					}
-		// 					setBit(oldBitSet, bitIdx, TRUE);
-		// 				}
-		// 			}
-
-		// 			addToMap(groupPSMap->provSketchs, (Node *) copyObject(c), (Node *) oldBitSet);
-		// 			addToMap(gpFragCnt, (Node *) createConstString(gbVals[row]), (Node *) fragCnt);
-		// 		}
-		// 	}
-
-		// 	addToMap(groupPSMap->fragCount, (Node *) copyObject(c), (Node *) gpFragCnt);
-		// }
-		// addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_DUP), (Node *) groupPSMap);
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("acs duplicate", acs);
+	DEBUG_NODE_BEATIFY_LOG("duplicate ds", dataStructures);
 	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE, (Node *) dataStructures);
 }
 
@@ -1441,10 +1320,9 @@ buildStateFinalOp(QueryOperator *op)
 		and in this step, all ps are bit vector. not int anymore.
 
 	*/
-
-
 	INFO_LOG("ALL PS");
 	QueryOperator *child = (QueryOperator *) copyObject(OP_LCHILD(op));
+	INFO_OP_LOG("final op", child);
 	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, child);
 	DEBUG_NODE_BEATIFY_LOG("rewrite final", rewrOp);
 	INFO_OP_LOG("rewrite final", rewrOp);

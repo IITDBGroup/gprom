@@ -42,8 +42,9 @@ static void storeProvenanceComputationData(ProvenanceComputation *op);
 static void storeDuplicateRemovalData(DuplicateRemoval *op);
 static void storePSMapData(PSMap *psMap, int opNum);
 static void storeGBACSsData(GBACSs *acs, int opNum, char *acsName);
-
-
+static void storeJoinOperatorData(JoinOperator *op);
+static void storeBloom(HashMap *blooms, int opNum, char* branch);
+static void storeBloomInfo(HashMap *leftInfos, HashMap *rightInfos, int opNum);
 
 boolean
 checkQueryInfoStored(char *queryName)
@@ -101,6 +102,11 @@ storeOperatorDataInternal(QueryOperator *op)
         storeProvenanceComputationData((ProvenanceComputation *) op);
     } else if (isA(op, DuplicateRemoval)) {
         storeDuplicateRemovalData((DuplicateRemoval *) op);
+    } else if (isA(op, JoinOperator)) {
+        boolean usingBF = getBoolOption(OPTION_UPDATE_PS_JOIN_USING_BF);
+        if (usingBF) {
+            storeJoinOperatorData((JoinOperator *) op);
+        }
     }
 
 
@@ -109,7 +115,74 @@ storeOperatorDataInternal(QueryOperator *op)
     }
 }
 
+static void
+storeJoinOperatorData(JoinOperator *op) {
+    HashMap *joinState = (HashMap *) getStringProperty((QueryOperator *) op, PROP_DATA_STRUCTURE_JOIN);
+    // DEBUG_NODE_BEATIFY_LOG("join state for store", joinState);
+    HashMap *leftBloom = (HashMap *) MAP_GET_STRING(joinState, JOIN_LEFT_BLOOM);
+    HashMap *leftBloomMapping = (HashMap *) MAP_GET_STRING(joinState, JOIN_LEFT_BLOOM_ATT_MAPPING);
+    HashMap *rightBloom = (HashMap *) MAP_GET_STRING(joinState, JOIN_RIGHT_BLOOM);
+    HashMap *rightBloomMapping = (HashMap *) MAP_GET_STRING(joinState, JOIN_RIGHT_BLOOM_ATT_MAPPING);
 
+    // DEBUG_NODE_BEATIFY_LOG("left bloom", leftBloom);
+    // DEBUG_NODE_BEATIFY_LOG("left mapping", leftBloomMapping);
+    // DEBUG_NODE_BEATIFY_LOG("right bloom", rightBloom);
+    // DEBUG_NODE_BEATIFY_LOG("right mapping", rightBloomMapping);
+    int opNum = INT_VALUE((Constant *) GET_STRING_PROP((QueryOperator *) op, PROP_OPERATOR_NUMBER));
+    storeBloom(leftBloom, opNum, "left");
+    storeBloom(rightBloom, opNum, "right");
+    storeBloomInfo(leftBloomMapping, rightBloomMapping, opNum);
+}
+
+static void
+storeBloom(HashMap *blooms, int opNum, char *branch)
+{
+    char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
+    FOREACH_HASH_KEY(Constant, c, blooms) {
+        StringInfo name = makeStringInfo();
+        appendStringInfo(name, "%s_%s_%s_%s", qName, gprom_itoa(opNum), branch, STRING_VALUE(c));
+        Bloom *bloom = (Bloom *) MAP_GET_STRING(blooms, STRING_VALUE(c));
+        DEBUG_NODE_BEATIFY_LOG("BLOOM", bloom);
+        bloom_save(bloom, name->data);
+    }
+}
+
+static void
+storeBloomInfo(HashMap *leftInfos, HashMap *rightInfos, int opNum) {
+    StringInfo infos = makeStringInfo();
+    int idx = 0;
+    FOREACH_HASH_KEY(Constant, c, leftInfos) {
+        appendStringInfo(infos, "L:%s-", STRING_VALUE(c));
+        Vector *v = (Vector *) MAP_GET_STRING(leftInfos, STRING_VALUE(c)) ;
+        FOREACH_VEC(char, att, v) {
+            if (idx > 0) {
+                appendStringInfoChar(infos, ',');
+            }
+            appendStringInfo(infos, "%s", att);
+        }
+        appendStringInfo(infos, "%s", "\n");
+        idx++;
+    }
+    idx = 0;
+    FOREACH_HASH_KEY(Constant, c, rightInfos) {
+        appendStringInfo(infos, "R:%s-", STRING_VALUE(c));
+        Vector *v = (Vector *) MAP_GET_STRING(rightInfos, STRING_VALUE(c)) ;
+        FOREACH_VEC(char, att, v) {
+            if (idx > 0) {
+                appendStringInfoChar(infos, ',');
+            }
+            appendStringInfo(infos, "%s", att);
+        }
+        appendStringInfo(infos, "%s", "\n");
+        idx++;
+    }
+    char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
+    StringInfo infoName = makeStringInfo();
+    appendStringInfo(infoName, "BLInfos_%s_%s", qName, gprom_itoa(opNum));
+    FILE *file = fopen(infoName->data, "w");
+    fprintf(file, "%s", infos->data);
+    fclose(file);
+}
 
 static void
 storeAggregationData(AggregationOperator *op)

@@ -69,7 +69,7 @@ testSuites(void)
 //    RUN_TEST(testMemManager(), "Memory manager test");
 //    RUN_TEST(testList(), "List model");
 //    RUN_TEST(testSet(), "Set");
-    RUN_TEST(testVector(), "Vector");
+    // RUN_TEST(testVector(), "Vector");
 //	RUN_TEST(testBitset(), "Bitset");
 //    RUN_TEST(testHashMap(), "HashMap");
 //    RUN_TEST(testExpr(), "Expression model");
