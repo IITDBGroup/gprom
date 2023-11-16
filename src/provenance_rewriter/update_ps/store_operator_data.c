@@ -150,10 +150,10 @@ storeBloom(HashMap *blooms, int opNum, char *branch)
 static void
 storeBloomInfo(HashMap *leftInfos, HashMap *rightInfos, int opNum) {
     StringInfo infos = makeStringInfo();
-    int idx = 0;
     FOREACH_HASH_KEY(Constant, c, leftInfos) {
         appendStringInfo(infos, "L:%s-", STRING_VALUE(c));
         Vector *v = (Vector *) MAP_GET_STRING(leftInfos, STRING_VALUE(c)) ;
+        int idx = 0;
         FOREACH_VEC(char, att, v) {
             if (idx > 0) {
                 appendStringInfoChar(infos, ',');
@@ -163,10 +163,10 @@ storeBloomInfo(HashMap *leftInfos, HashMap *rightInfos, int opNum) {
         }
         appendStringInfo(infos, "%s", "\n");
     }
-    idx = 0;
     FOREACH_HASH_KEY(Constant, c, rightInfos) {
         appendStringInfo(infos, "R:%s-", STRING_VALUE(c));
         Vector *v = (Vector *) MAP_GET_STRING(rightInfos, STRING_VALUE(c)) ;
+        int idx = 0;
         FOREACH_VEC(char, att, v) {
             if (idx > 0) {
                 appendStringInfoChar(infos, ',');
