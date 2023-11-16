@@ -159,9 +159,9 @@ storeBloomInfo(HashMap *leftInfos, HashMap *rightInfos, int opNum) {
                 appendStringInfoChar(infos, ',');
             }
             appendStringInfo(infos, "%s", att);
+            idx++;
         }
         appendStringInfo(infos, "%s", "\n");
-        idx++;
     }
     idx = 0;
     FOREACH_HASH_KEY(Constant, c, rightInfos) {
@@ -172,9 +172,9 @@ storeBloomInfo(HashMap *leftInfos, HashMap *rightInfos, int opNum) {
                 appendStringInfoChar(infos, ',');
             }
             appendStringInfo(infos, "%s", att);
+            idx++;
         }
         appendStringInfo(infos, "%s", "\n");
-        idx++;
     }
     char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
     StringInfo infoName = makeStringInfo();
