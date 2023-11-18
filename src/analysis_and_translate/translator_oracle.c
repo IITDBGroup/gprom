@@ -863,7 +863,8 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
             boolean hasCommitSCN = HAS_STRING_PROP(result,PROP_PC_COMMIT_SCN);
             List *updateConds = NIL;
             List *noProv = NIL;
-            int i = 0, j = 0;
+            /* int i = 0; */
+			int j = 0;
 
             // user has asked for provenance?
             if (HAS_STRING_PROP(result, PROP_PC_GEN_PROVENANCE))
@@ -963,7 +964,7 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
                 SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(stmtType));
                 DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
 
-                i++;
+                /* i++; */
 
                 //TODO
             }
@@ -1153,7 +1154,7 @@ translateFromClause(List *fromClause, List **attrsOffsetsList)
 static QueryOperator *
 buildJoinTreeFromOperatorList(List *opList)
 {
-    int pos = 0;
+    /* int pos = 0; */
     DEBUG_LOG("build join tree from operator list\n%s", nodeToString(opList));
 
     QueryOperator *root = (QueryOperator *) getHeadOfListP(opList);
@@ -1226,7 +1227,7 @@ buildJoinTreeFromOperatorList(List *opList)
 				OP_RCHILD(root)->parents = singleton(root);
 			}
         }
-        pos++;
+        /* pos++; */
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));

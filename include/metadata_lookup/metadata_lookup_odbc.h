@@ -59,6 +59,7 @@ extern void odbcCreateEnvironment(ODBCPlugin *p);
 extern void odbcDestroyEnvironment(ODBCPlugin *p);
 extern SQLHDBC odbcOpenDatabaseConnectionFromConnStr(ODBCPlugin *p, char *connstr);
 extern SQLHDBC odbcOpenDatabaseConnection(ODBCPlugin *p);
+extern int odbcDatabaseConnectionClose(void);
 extern int odbcCloseDatabaseConnection(ODBCPlugin *p);
 extern SQLHSTMT odbcCreateStatement(ODBCPlugin *p);
 extern void odbcDestoryStatement(ODBCPlugin *p, SQLHSTMT stmt);
@@ -127,7 +128,6 @@ extern char *odbcGetConnectionDescription(void);
 extern int odbcInitMetadataLookupPlugin (void);
 extern int odbcShutdownMetadataLookupPlugin (void);
 extern int odbcDatabaseConnectionOpen (void);
-extern int odbcDatabaseConnectionClose();
 extern boolean odbcIsInitialized (void);
 
 extern boolean odbcCatalogTableExists (char *tableName);
