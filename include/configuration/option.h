@@ -106,7 +106,9 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS "optimization.pull_up_deplicate_remove_operators"
 /* define optimization options for group by*/
 #define OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN "optimization.push_down_aggregation_through_join"
-
+#define OPTIMIZATION_PUSH_DOWN_NORMALIZATIONS "optimization.push_down_normalizations"
+#define OPTIMIZATION_PUSH_NORMALIZATION_BELOW_SELECT "optimization.push_normalization_below_select"
+#define OPTIMIZATION_NEW_NORMALIZATION_IMPL "optimization.new_normalization_impl"
 
 /* model checking options */
 #define CHECK_OM_UNIQUE_ATTR_NAMES "check.unique_attrs"

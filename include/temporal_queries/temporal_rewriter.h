@@ -21,7 +21,7 @@ extern QueryOperator *rewriteImplicitTemporal (QueryOperator *q);
 extern void addCoalescingAndNormalization (QueryOperator *q);
 extern QueryOperator *addSetCoalesce (QueryOperator *input);
 extern QueryOperator *addCoalesce (QueryOperator *input);
-extern QueryOperator *addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrs);
+extern QueryOperator *addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *leftAttrs, List *rightAttrs);
 extern QueryOperator *addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrs);
 extern QueryOperator *addCoalesceForAllOp(QueryOperator *op);
 extern QueryOperator *rewriteTemporalAggregationWithNormalization(AggregationOperator *agg);

@@ -160,6 +160,9 @@ boolean opt_optimization_selection_move_around = FALSE;
 boolean opt_optimization_remove_unnecessary_columns = FALSE;
 boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
 boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
+boolean opt_optimization_push_down_normalizations = FALSE;
+boolean opt_optimization_push_normalization_below_select = FALSE;
+boolean opt_optimization_new_normalization_impl = FALSE;
 
 // optimization options for group by operator
 boolean opt_optimization_push_down_aggregation_through_join = FALSE;
@@ -905,6 +908,24 @@ OptionInfo opts[] =
 				"-Opush_down_aggregation_through_join",
 				"Optimization: try to push down aggregation through join",
 				opt_optimization_push_down_aggregation_through_join,
+				TRUE
+		),
+        anOptimizationOption(OPTIMIZATION_PUSH_DOWN_NORMALIZATIONS,
+				"-Opush_down_normalizations",
+				"Optimization: try to push down normalizations in nested temporal subqueries",
+				opt_optimization_push_down_normalizations,
+				TRUE
+		),
+        anOptimizationOption(OPTIMIZATION_PUSH_NORMALIZATION_BELOW_SELECT,
+				"-Opush_normalization_below_select",
+				"Optimization: try to push down normalizations below selections in nested temporal subqueries",
+				opt_optimization_push_normalization_below_select,
+				TRUE
+		),
+        anOptimizationOption(OPTIMIZATION_NEW_NORMALIZATION_IMPL,
+				"-Onew_normalization_impl",
+				"Optimization: use optimized normalization implementation",
+				opt_optimization_new_normalization_impl,
 				TRUE
 		),
         // temporal database options for coalesce and normalization
