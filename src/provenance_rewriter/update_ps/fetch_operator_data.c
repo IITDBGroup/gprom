@@ -46,6 +46,12 @@ static GBACSs *fetchGBACSsData(int opNum, char* acsName, int type);
 static void fetchJoinOperatorData(JoinOperator *op);
 static void fetchBloomInfo(HashMap *joinState, int opNum);
 static void fetchBlooms(HashMap *joinState, int opNum);
+static void fetchOrderOperatorData(OrderOperator *op);
+static void fetchOrderByMetadata(OrderOperator * op, RBTRoot * root, char *qName, int opNum);
+static void fetchOrderByValues(OrderOperator *op, RBTRoot *root, char *qName, int opNum);
+
+
+
 
 void
 fetchOperatorData(QueryOperator *op)
@@ -71,11 +77,226 @@ fetchOperatorDataInternal(QueryOperator *op)
         if (usingBF) {
             fetchJoinOperatorData((JoinOperator *) op);
         }
+    } else if (isA(op, OrderOperator)) {
+        fetchOrderOperatorData((OrderOperator *) op);
     }
 
     FOREACH(QueryOperator, q, op->inputs) {
         fetchOperatorDataInternal(q);
     }
+}
+
+static void fetchOrderOperatorData(OrderOperator *op)
+{
+    QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) op)->parents, 0);
+    if (!isA(parent, LimitOperator)) {
+        return;
+    }
+    RBTRoot *root = makeRBT(RBT_ORDER_BY, TRUE);
+    char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
+    int opNum = INT_VALUE((Constant *) GET_STRING_PROP((QueryOperator *) op, PROP_OPERATOR_NUMBER));
+    fetchOrderByMetadata(op, root, qName, opNum);
+    fetchOrderByValues(op, root, qName, opNum);
+
+    HashMap *dataStructures = NEW_MAP(Constant, Node);
+	addToMap(dataStructures, (Node *) createConstString(PROP_DATA_STRUCTURE_ORDER_BY), (Node *) root);
+    DEBUG_NODE_BEATIFY_LOG("order fetch state", dataStructures);
+    SET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE, dataStructures);
+}
+
+static void
+fetchOrderByValues(OrderOperator *op, RBTRoot *root, char *qName, int opNum)
+{
+    StringInfo fetchSQL = makeStringInfo();
+    appendStringInfo(fetchSQL, "select * from %s_%s_order_values;", qName, gprom_itoa(opNum));
+    Relation *rel = executeQuery(fetchSQL->data);
+    Vector *tuples = rel->tuples;
+
+    List *attAds = ((QueryOperator *) op)->schema->attrDefs;
+    // deal with normal attributes;
+    int rows = tuples->length;
+    int cols = LIST_LENGTH(attAds);
+
+    Vector *allKeys = makeVector(VECTOR_NODE, T_Vector);
+    Vector *allVals = makeVector(VECTOR_NODE, T_Vector);
+    for (int row = 0; row < rows; row++) {
+        vecAppendNode(allKeys, (Node *) makeVector(VECTOR_NODE, T_Vector));
+        vecAppendNode(allVals, (Node *) makeVector(VECTOR_NODE, T_Vector));
+    }
+
+    Set *allOrderByAttrs = (Set *) MAP_GET_STRING(root->metadata, ORDER_BY_ATTRS);
+    for (int col = 0; col < cols; col++) {
+        AttributeDef *ad = getNthOfListP(attAds, col);
+        boolean isThisAOrderByAttr = FALSE;
+        if (hasSetElem(allOrderByAttrs, (void *) ad->attrName)) {
+            isThisAOrderByAttr = TRUE;
+        }
+        switch (ad->dataType) {
+            case DT_BOOL:
+            {
+                for (int row = 0; row < rows; row++) {
+                    char * val = (char *) getVecString((Vector *) getVecNode(tuples, row), col);
+
+                    Constant *cVal = createConstInt(atoi(val));
+                    vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) cVal);
+                    if (isThisAOrderByAttr) {
+                        vecAppendNode((Vector *) getVecNode(allKeys, row), (Node *) cVal);
+                    }
+                }
+            }
+            break;
+            case DT_INT:
+            {
+                for (int row = 0; row < rows; row++) {
+                    char * val = (char *) getVecString((Vector *) getVecNode(tuples, row), col);
+
+                    Constant *cVal = createConstInt(atoi(val));
+                    vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) cVal);
+                    if (isThisAOrderByAttr) {
+                        vecAppendNode((Vector *) getVecNode(allKeys, row), (Node *) cVal);
+                    }
+                }
+            }
+            break;
+            case DT_LONG:
+            {
+                for (int row = 0; row < rows; row++) {
+                    char * val = (char *) getVecString((Vector *) getVecNode(tuples, row), col);
+
+                    Constant *cVal = createConstLong(atol(val));
+                    vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) cVal);
+                    if (isThisAOrderByAttr) {
+                        vecAppendNode((Vector *) getVecNode(allKeys, row), (Node *) cVal);
+                    }
+                }
+            }
+            break;
+            case DT_FLOAT:
+            {
+                for (int row = 0; row < rows; row++) {
+                    char * val = (char *) getVecString((Vector *) getVecNode(tuples, row), col);
+
+                    Constant *cVal = createConstFloat(atof(val));
+                    vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) cVal);
+                    if (isThisAOrderByAttr) {
+                        vecAppendNode((Vector *) getVecNode(allKeys, row), (Node *) cVal);
+                    }
+                }
+            }
+            break;
+            case DT_VARCHAR2:
+            case DT_STRING:
+            {
+                for (int row = 0; row < rows; row++) {
+                    char * val = (char *) getVecString((Vector *) getVecNode(tuples, row), col);
+
+                    Constant *cVal = createConstString(val);
+                    vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) cVal);
+                    if (isThisAOrderByAttr) {
+                        vecAppendNode((Vector *) getVecNode(allKeys, row), (Node *) cVal);
+                    }
+
+                }
+            }
+            break;
+        }
+    }
+
+    HashMap *isPSInt = (HashMap *) MAP_GET_STRING(root->metadata, ORDER_BY_IS_PS_INT);
+    for (int col = cols; col < LIST_LENGTH(rel->schema); col++) {
+        char *psName = (char *) getNthOfListP(rel->schema, col);
+        boolean isInt = BOOL_VALUE((Constant *) MAP_GET_STRING(isPSInt, psName));
+
+        for (int row = 0; row < rows; row++) {
+            if (col == cols) {
+                vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) NEW_MAP(Constant, Constant));
+            }
+
+            char *psVal = (char *) getVecString((Vector *) getVecNode(tuples, row), col);
+            HashMap *map = (HashMap *) getVecNode((Vector *) getVecNode(allVals, row), cols);
+            if (isInt) {
+                addToMap(map, (Node *) createConstString(psName), (Node *) createConstInt(atoi(psVal)));
+            } else {
+                addToMap(map, (Node *) createConstString(psName), (Node *) stringToBitset(psVal));
+            }
+        }
+    }
+    INFO_LOG("VEC LEN IN ORDER BY %d", allKeys->length);
+    for (int row = 0; row < rows; row++) {
+        RBTInsert(root, (Node *) getVecNode(allKeys, row), (Node *) getVecNode(allVals, row));
+    }
+    INFO_LOG("order result attrs %s", rel->schema);
+}
+
+static void
+fetchOrderByMetadata(OrderOperator * op, RBTRoot * root, char *qName, int opNum)
+{
+    StringInfo infoName = makeStringInfo();
+    appendStringInfo(infoName, "ORDERInfos_%s_%s", qName, gprom_itoa(opNum));
+    FILE *file = fopen(infoName->data, "r");
+    if (!file) {
+        return;
+    }
+
+    HashMap *psIsInt = NEW_MAP(Constant, Constant);
+    HashMap *psLen = NEW_MAP(Constant, Constant);
+
+    char line[1000];
+    int LINELEN = 1000;
+    while (fgets(line, LINELEN, file) != NULL) {
+        int pos = 0;
+        int comma = 0;
+        int linelen = strlen(line);
+        char psAttr[1000];
+        char isInt[10];
+        char len[100];
+        for (int i = 1; i < linelen; i++) {
+            // line[linelen - 1] = '\n'
+            if (line[i] == ',' || i == linelen - 1) {
+                if (comma == 0) {
+                    strncpy(psAttr, line + pos, i - pos);
+                    psAttr[i - pos] = '\0';
+                    pos = i + 1;
+                } else if (comma == 1) {
+                    strncpy(len, line + pos, i - pos);
+                    len[i - pos] = '\0';
+                    pos = i + 1;
+                } else if (comma == 2) {
+                    strncpy(isInt, line + pos, i - pos);
+                    isInt[i - pos] = '\0';
+                    pos = i + 1;
+                }
+                comma++;
+            }
+        }
+        // INFO_LOG("attr: %s, len: %d, isInt: %d", psAttr, atoi(len), atoi(isInt));
+        addToMap(psLen, (Node *) createConstString(strdup(psAttr)), (Node *) createConstInt(atoi(len)));
+        addToMap(psIsInt, (Node *) createConstString(strdup(psAttr)), (Node *) createConstBool(atoi(isInt)));
+    }
+    fclose(file);
+
+    addToMap(root->metadata, (Node *) createConstString(ORDER_BY_IS_PS_INT), (Node *) psIsInt);
+	addToMap(root->metadata, (Node *) createConstString(ORDER_BY_PS_LENS), (Node *) psLen);
+
+
+	addToMap(root->metadata, (Node *) createConstString(ORDER_BY_ATTR_NUMS), (Node *) createConstInt(LIST_LENGTH(((OrderOperator *) op)->orderExprs)));
+    // addToMap(root->metadata, )
+    // DEBUG_NODE_BEATIFY_LOG("PSISINT", psIsInt);
+    // DEBUG_NODE_BEATIFY_LOG("PSLEN", psLen);
+
+    Vector *orderByASCs = makeVector(VECTOR_INT, T_Vector);
+    Set *orderAttrNameSet = STRSET();
+    FOREACH(OrderExpr, oe, op->orderExprs) {
+        if (oe->order == SORT_ASC) {
+            vecAppendInt(orderByASCs, 1);
+        } else {
+            vecAppendInt(orderByASCs, -1);
+        }
+        addToSet(orderAttrNameSet, strdup(((AttributeReference *) oe->expr)->name));
+    }
+
+    addToMap(root->metadata, (Node *) createConstString(ORDER_BY_ASCS), (Node *) orderByASCs);
+	addToMap(root->metadata, (Node *) createConstString(ORDER_BY_ATTRS), (Node *) orderAttrNameSet);
 }
 
 static void
@@ -146,6 +367,8 @@ fetchBloomInfo(HashMap *joinState, int opNum)
                 fromAtt[i - pos] = '\0';
                 pos = i + 1;
             } else if (line[i] == ',' || i == lineLen - 1) {
+                // NOTE: line[lineLen - 1] == '\n'
+                INFO_LOG("I_POS LEN line: '%s', lenLen: '%d', pos: '%d', char: '%c'", line, lineLen, i - pos, line[i]);
                 char att[1000];
                 strncpy(att, line + pos, i - pos);
                 att[i - pos] = '\0';
@@ -164,6 +387,7 @@ fetchBloomInfo(HashMap *joinState, int opNum)
 
     addToMap(joinState, (Node *) createConstString(JOIN_LEFT_BLOOM_ATT_MAPPING), (Node *) leftMapping);
     addToMap(joinState, (Node *) createConstString(JOIN_RIGHT_BLOOM_ATT_MAPPING), (Node *) rightMapping);
+    DEBUG_NODE_BEATIFY_LOG("JOIN STATE FETCH", joinState);
 }
 
 static void

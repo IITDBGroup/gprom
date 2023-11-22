@@ -80,4 +80,5 @@ extern List *postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableNa
 extern void postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcDel, int psAttrPos, Vector *rangeList, char *psName);
 extern void postgresGetDataChunkFromStmtInsDel(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName, int type);
 extern void postgresGetDataChunkFromStmtUpd(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName);
+extern void postgresCopyToDB(StringInfo createTBL, StringInfo dataInfo, char *tableName);
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

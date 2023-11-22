@@ -45,6 +45,10 @@ static void storeGBACSsData(GBACSs *acs, int opNum, char *acsName);
 static void storeJoinOperatorData(JoinOperator *op);
 static void storeBloom(HashMap *blooms, int opNum, char* branch);
 static void storeBloomInfo(HashMap *leftInfos, HashMap *rightInfos, int opNum);
+static void storeOrderOperatorData(OrderOperator *op);
+static void storeOrderByMetadata(RBTRoot *root, char *qName, int qNum);
+static void storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum);
+
 
 boolean
 checkQueryInfoStored(char *queryName)
@@ -107,12 +111,181 @@ storeOperatorDataInternal(QueryOperator *op)
         if (usingBF) {
             storeJoinOperatorData((JoinOperator *) op);
         }
+    } else if (isA(op, OrderOperator)) {
+        storeOrderOperatorData((OrderOperator *) op);
     }
 
 
     FOREACH(QueryOperator, q, op->inputs) {
         storeOperatorDataInternal(q);
     }
+}
+
+static void
+storeOrderOperatorData(OrderOperator *op)
+{
+    // just dealing with orderby-limit; single order operator will be ignored;
+    QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) op)->parents, 0);
+    if (!isA(parent, LimitOperator)) {
+        return;
+    }
+
+    HashMap * statedata = (HashMap *) getStringProperty((QueryOperator *) op, PROP_DATA_STRUCTURE_STATE);
+    DEBUG_NODE_BEATIFY_LOG("ORDER STATE", statedata);
+
+    RBTRoot * root = (RBTRoot *) MAP_GET_STRING(statedata, PROP_DATA_STRUCTURE_ORDER_BY);
+    DEBUG_NODE_BEATIFY_LOG("RBT ROOT", root);
+
+    char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
+    int opNum = INT_VALUE((Constant *) GET_STRING_PROP((QueryOperator *) op, PROP_OPERATOR_NUMBER));
+    storeOrderByMetadata(root, qName, opNum);
+    storeOrderByValues(op, root, qName, opNum);
+}
+
+static void
+storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum)
+{
+    StringInfo tname = makeStringInfo();
+    appendStringInfo(tname, "%s_%s_order_values", qName, gprom_itoa(opNum));
+
+    StringInfo createTbl = makeStringInfo();
+    appendStringInfo(createTbl, "create table %s (", tname->data);
+
+    int idx = 0;
+    FOREACH(AttributeDef, ad, ((QueryOperator *) op)->schema->attrDefs) {
+        if (idx > 0) {
+            appendStringInfo(createTbl, "%s", ",");
+        }
+        appendStringInfo(createTbl, "%s", strdup(ad->attrName));
+        switch (ad->dataType) {
+            case DT_INT:
+            case DT_BOOL:
+            {
+                appendStringInfo(createTbl, " %s", "int");
+            }
+            break;
+            case DT_LONG:
+            {
+                appendStringInfo(createTbl, " %s", "bigint");
+            }
+            break;
+            case DT_FLOAT:
+            {
+                appendStringInfo(createTbl, " %s", "float");
+            }
+            break;
+            case DT_VARCHAR2:
+            case DT_STRING:
+            {
+                appendStringInfo(createTbl, " %s", "varchar");
+            }
+            break;
+        }
+        idx++;
+    }
+
+    Vector *vPSAttr = makeVector(VECTOR_STRING, T_Vector);
+    HashMap * psIsInt = (HashMap *) MAP_GET_STRING(root->metadata, ORDER_BY_IS_PS_INT);
+    FOREACH_HASH_KEY(Constant, c, psIsInt) {
+        vecAppendString(vPSAttr, STRING_VALUE(c));
+        appendStringInfo(createTbl, ", %s varchar", STRING_VALUE(c));
+    }
+    appendStringInfo(createTbl, "%s;", ")");
+
+    Vector * vec = RBTInorderTraverse(root);
+    DEBUG_NODE_BEATIFY_LOG("RBT VEC:", vec);
+    INFO_LOG("size of vec: %d", vec->length);
+
+    int attrsLen = LIST_LENGTH(((QueryOperator *) op)->schema->attrDefs);
+
+    StringInfo allTuples = makeStringInfo();
+    // int tupNum = 0;
+    FOREACH_VEC(RBTNode, node, vec) {
+        HashMap *map = (HashMap *) node->val;
+        FOREACH_HASH_KEY(Vector, n, map) {
+            DEBUG_NODE_BEATIFY_LOG("RBT VAL KEY:", n);
+            StringInfo vals = makeStringInfo();
+            for (int idx = 0; idx < attrsLen; idx++) {
+                char *format = NULL;
+                if (idx > 0) {
+                    format = ",%s";
+                } else {
+                    format ="%s";
+                }
+                Constant *c = (Constant *) getVecNode(n, idx);
+                switch (c->constType) {
+                    case DT_INT:
+                    {
+                        appendStringInfo(vals, format, gprom_itoa(INT_VALUE(c)));
+                    }
+                    break;
+                    case DT_BOOL:
+                    {
+                        appendStringInfo(vals, format, (BOOL_VALUE(c) == TRUE ? "true" : "false"));
+                    }
+                    break;
+                    case DT_LONG:
+                    {
+                        appendStringInfo(vals, format, gprom_ltoa(LONG_VALUE(c)));
+                    }
+                    break;
+                    case DT_FLOAT:
+                    {
+                        appendStringInfo(vals, format, gprom_ftoa(FLOAT_VALUE(c)));
+                    }
+                    break;
+                    case DT_VARCHAR2:
+                    case DT_STRING:
+                    {
+                        appendStringInfo(vals, format , STRING_VALUE(c));
+                    }
+                    break;
+                }
+
+            }
+            DEBUG_NODE_BEATIFY_LOG("PSs", getVecNode(n, attrsLen));
+            HashMap *allPS = (HashMap *) getVecNode(n, attrsLen);
+            FOREACH_VEC(char, psAttr, vPSAttr) {
+                Node * psVal = MAP_GET_STRING(allPS, psAttr);
+
+                DEBUG_NODE_BEATIFY_LOG("PS", psVal);
+                boolean isThisInt = BOOL_VALUE((Constant *) MAP_GET_STRING(psIsInt, psAttr));
+                if (isThisInt) {
+                    appendStringInfo(vals, ",%s", gprom_itoa(INT_VALUE((Constant *) psVal)));
+                } else {
+                    appendStringInfo(vals, ",%s", (bitSetToString((BitSet *) psVal)));
+
+                }
+            }
+
+            INFO_LOG("data sql %s", vals->data);
+            int rep = INT_VALUE((Constant *) getMap(map, (Node *) n));
+            for (int i = 0; i < rep; i++) {
+                appendStringInfo(allTuples, "%s\r", vals->data);
+            }
+        }
+    }
+    INFO_LOG("ALL TUPLES %s", allTuples->data);
+    postgresCopyToDB(createTbl, allTuples, tname->data);
+}
+
+static void
+storeOrderByMetadata(RBTRoot *root, char *qName, int opNum)
+{
+    StringInfo infos = makeStringInfo();
+    HashMap *metadata = (HashMap *) root->metadata;
+    HashMap *psInt = (HashMap *) MAP_GET_STRING(metadata, ORDER_BY_IS_PS_INT);
+    HashMap *psLen = (HashMap *) MAP_GET_STRING(metadata, ORDER_BY_PS_LENS);
+    FOREACH_HASH_KEY(Constant, c, psInt) {
+        boolean isInt = BOOL_VALUE((Constant *) MAP_GET_STRING(psInt, STRING_VALUE(c)));
+        int len = INT_VALUE((Constant *) MAP_GET_STRING(psLen, STRING_VALUE(c)));
+        appendStringInfo(infos, "%s,%s,%s\n", STRING_VALUE(c), gprom_itoa(len), gprom_itoa(isInt));
+    }
+    StringInfo infoName = makeStringInfo();
+    appendStringInfo(infoName, "ORDERInfos_%s_%s", qName, gprom_itoa(opNum));
+    FILE *file = fopen(infoName->data, "w");
+    fprintf(file, "%s", infos->data);
+    fclose(file);
 }
 
 static void

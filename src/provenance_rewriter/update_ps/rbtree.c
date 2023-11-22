@@ -12,6 +12,7 @@ static void RBTInsertFixup(RBTRoot *root, RBTNode *node);
 static void RBTDeleteFixup(RBTRoot *root, RBTNode *node, RBTNode *parent);
 static RBTNode *RBTSearchNode(RBTRoot *root, Node *node);
 static int compareTwoNodes(RBTRoot *root, Node *node1, Node *node2);
+static void inorderTraverseNodes(RBTNode *node, Vector *v);
 
 RBTRoot *
 makeRBT(RBTType type, boolean isMetadataNeeded)
@@ -202,7 +203,21 @@ RBTInorderTraverse(RBTRoot *root)
         return NULL;
     }
 
-    return RBTGetTopK(root, 100000);
+    // return RBTGetTopK(root, 100000);
+    Vector *vector = makeVector(VECTOR_NODE, T_Vector);
+    inorderTraverseNodes(root->root, vector);
+    return vector;
+}
+
+static void
+inorderTraverseNodes(RBTNode *node, Vector *v)
+{
+    if (node == NULL) {
+        return;
+    }
+    vecAppendNode(v, (Node *) node);
+    inorderTraverseNodes(node->left, v);
+    inorderTraverseNodes(node->right, v);
 }
 
 static RBTNode *

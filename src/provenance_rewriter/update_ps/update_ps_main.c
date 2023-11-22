@@ -184,7 +184,7 @@ update_ps(ProvenanceComputation *qbModel)
 	// check option for group join and preprocess;
 	if (getBoolOption(OPTION_UPDATE_PS_GROUP_JOIN)) {
 		preprocessJoin((QueryOperator *) qbModel);
-		preprocessJoin((QueryOperator *) qbModel);
+		// preprocessJoin((QueryOperator *) qbModel);
 	}
 
 	int repetition = 1;

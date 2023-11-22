@@ -1944,10 +1944,38 @@ updateAggregation(QueryOperator *op)
 					{
 						double *valArr = VEC_TO_FA((Vector *) getVecNode(dataChunkInsert->tuples, pos));
 						for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-							if (gbIndex == 0)
-								gbValsArr[row] = CONCAT_STRINGS(gprom_ftoa(valArr[row]), "#");
-							else
-								gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ftoa(valArr[row]), "#");
+							// version 2: add some processing to gb float
+							char *thisVal = gprom_ftoa(valArr[row]);
+							int valLen = strlen(thisVal);
+							int trim0Pos = valLen - 1;
+							for (int zeroPos = valLen - 1; zeroPos >= 0; zeroPos--) {
+								if (thisVal[zeroPos] != '0') {
+									if (thisVal[zeroPos] == '.') {
+										// in case get 2. we need 2.0
+										trim0Pos = zeroPos + 1;
+									} else {
+										trim0Pos = zeroPos;
+									}
+									break;
+								}
+							}
+
+							char actualStr[1000];
+							strncpy(actualStr, thisVal, trim0Pos + 1);
+							actualStr[trim0Pos + 1] = '\0';
+
+							if (gbIndex == 0) {
+							 	gbValsArr[row] = CONCAT_STRINGS(actualStr, "#");
+							} else {
+							 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], actualStr, "#");
+							}
+							// end of process version 2
+
+							// version 1
+							// if (gbIndex == 0)
+							// 	gbValsArr[row] = CONCAT_STRINGS(gprom_ftoa(valArr[row]), "#");
+							// else
+							// 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ftoa(valArr[row]), "#");
 						}
 					}
 						break;
@@ -2037,10 +2065,38 @@ updateAggregation(QueryOperator *op)
 					{
 						double *valArr = VEC_TO_FA(getVecNode(dataChunkDelete->tuples, pos));
 						for (int row = 0; row < dataChunkDelete->numTuples; row++) {
-							if (gbIndex == 0)
-								gbValsArr[row] = CONCAT_STRINGS(gprom_ftoa(valArr[row]), "#");
-							else
-								gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ftoa(valArr[row]), "#");
+							// version 2: add some processing to gb float
+							char *thisVal = gprom_ftoa(valArr[row]);
+							int valLen = strlen(thisVal);
+							int trim0Pos = valLen - 1;
+							for (int zeroPos = valLen - 1; zeroPos >= 0; zeroPos--) {
+								if (thisVal[zeroPos] != '0') {
+									if (thisVal[zeroPos] == '.') {
+										// in case get 2. we need 2.0
+										trim0Pos = zeroPos + 1;
+									} else {
+										trim0Pos = zeroPos;
+									}
+									break;
+								}
+							}
+
+							char actualStr[1000];
+							strncpy(actualStr, thisVal, trim0Pos + 1);
+							actualStr[trim0Pos + 1] = '\0';
+							INFO_LOG("actural str %s", actualStr);
+							if (gbIndex == 0) {
+							 	gbValsArr[row] = CONCAT_STRINGS(actualStr, "#");
+							} else {
+							 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], actualStr, "#");
+							}
+							// end of process version 2
+
+							// version 1
+							// if (gbIndex == 0)
+							// 	gbValsArr[row] = CONCAT_STRINGS(gprom_ftoa(valArr[row]), "#");
+							// else
+							// 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ftoa(valArr[row]), "#");
 						}
 					}
 						break;

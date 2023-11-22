@@ -3525,6 +3525,37 @@ postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *upd
     return deltaAttrDefs;
 }
 
+void
+postgresCopyToDB(StringInfo createTBL, StringInfo dataInfo, char *tableName)
+{
+    // Connection, Copy;
+    PGresult *res = NULL;
+    PGconn *conn = plugin->conn;
+
+    START_TIMER("Postgres - ORDER OPERATOR COPY DATA INTO DB");
+    INFO_LOG("Create data: %s", tableName);
+    res = PQexec(conn, createTBL->data);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        INFO_LOG("ERROR MSG: %s", PQerrorMessage(conn));
+        // FATAL_LOG("ERROR");
+        CLOSE_RES_CONN_AND_FATAL(res, "create table error: %s", PQerrorMessage(conn));
+    }
+    const char *errormsg = NULL;
+    // copy data: create "COPY XXX FROM STDIN(DELIMITER\',\');"
+    StringInfo copyStartSQL = makeStringInfo();
+    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \',\');", strdup(tableName));
+
+    // approach 2: one bulk
+    PQexec(conn, copyStartSQL->data);
+    PQputCopyData(conn, dataInfo->data, dataInfo->len);
+
+
+    PQputCopyEnd(conn, errormsg);
+    execCommit();
+    STOP_TIMER("Postgres - ORDER OPERATOR COPY DATA INTO DB");
+}
+
+
 List *
 postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent)
 {

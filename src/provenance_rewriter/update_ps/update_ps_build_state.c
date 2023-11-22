@@ -664,8 +664,6 @@ buildStateAggregationOp(QueryOperator *op)
 
 			// set a name to this function call like : sum_a, avg_b, count_c used in outer map;
 			Constant *ACSsName = createConstString(CONCAT_STRINGS(fc->functionname, "_", attrRef->name));
-			INFO_LOG("acs names: %s", STRING_VALUE(ACSsName));
-			// DEBUG_NODE_BEATIFY_LOG("ACSsName", ACSsName);
 
 			// make a GBACSs;
 			GBACSs *acs = makeGBACSs();
@@ -723,6 +721,7 @@ buildStateAggregationOp(QueryOperator *op)
 				} else {
 					for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
 						// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+						// TODO: For float in group by, TPCH-10.
 						appendStringInfo(gbVals, "%s#", getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
 					}
 				}
@@ -1114,7 +1113,6 @@ buildStateOrderOp(QueryOperator *op)
 			vecAppendInt(orderByASCs, -1);
 		}
 
-
 		int pos = listPosString(resultRel->schema, ((AttributeReference *) oe->expr)->name);
 		addIntToSet(orderAttrIndexSet, pos);
 		addToSet(orderAttrNameSet, strdup(((AttributeReference *) oe->expr)->name));
@@ -1225,9 +1223,9 @@ buildStateOrderOp(QueryOperator *op)
 	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE, dataStructures);
 	// show RBT
 	// DEBUG_NODE_BEATIFY_LOG("RBTROOT", orderbyRBT);
-	Vector *tree = RBTInorderTraverse(orderByRBT);
-	INFO_LOG("ele size %d", tree->length);
-	DEBUG_NODE_BEATIFY_LOG("RBT ", tree);
+	// Vector *tree = RBTInorderTraverse(orderByRBT);
+	// INFO_LOG("ele size %d", tree->length);
+	// DEBUG_NODE_BEATIFY_LOG("RBT ", tree);
 }
 
 static void
