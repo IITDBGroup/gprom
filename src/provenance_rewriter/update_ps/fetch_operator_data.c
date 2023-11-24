@@ -209,7 +209,7 @@ fetchOrderByValues(OrderOperator *op, RBTRoot *root, char *qName, int opNum)
 
         for (int row = 0; row < rows; row++) {
             if (col == cols) {
-                vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) NEW_MAP(Constant, Constant));
+                vecAppendNode((Vector *) getVecNode(allVals, row), (Node *) NEW_MAP(Constant, Node));
             }
 
             char *psVal = (char *) getVecString((Vector *) getVecNode(tuples, row), col);
