@@ -747,8 +747,8 @@ HashMap *normalizationStateToMap(NestedNormalizationState *state) {
 
     HashMap *map = NEW_MAP(Constant, Node);
     MAP_ADD_STRING_KEY(map, "op", (Node*)createConstInt(state->op));
-    MAP_ADD_STRING_KEY(map, "leftAttrs", (Node*)deepCopyStringList(state->leftAttrs));
-    MAP_ADD_STRING_KEY(map, "rightAttrs", (Node*)deepCopyStringList(state->rightAttrs));
+    MAP_ADD_STRING_KEY(map, "leftAttrs", (Node*)stringListToConstList(state->leftAttrs));
+    MAP_ADD_STRING_KEY(map, "rightAttrs", (Node*)stringListToConstList(state->rightAttrs));
 
     ACQUIRE_MEM_CONTEXT(ctxt);
     return map;
@@ -796,15 +796,17 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
                     AttributeReference *outerAttr = ((AttributeReference*)getHeadOfListP(op->args))->outerLevelsUp > 0 ? getHeadOfListP(op->args) : getTailOfListP(op->args);
                     AttributeReference *innerAttr = ((AttributeReference*)getHeadOfListP(op->args))->outerLevelsUp == 0 ? getHeadOfListP(op->args) : getTailOfListP(op->args);
 
-                    state->leftAttrs = appendToTailOfList(state->leftAttrs, strdup(outerAttr->name));
-                    state->rightAttrs = appendToTailOfList(state->rightAttrs, strdup(innerAttr->name));
+                    if(eqWithCorrelatedNoOrAbove) {
+                        state->leftAttrs = appendToTailOfList(state->leftAttrs, strdup(outerAttr->name));
+                        state->rightAttrs = appendToTailOfList(state->rightAttrs, strdup(innerAttr->name));
+                    }
                 }
             }
         }
 
         // safest option: no correlated attributes, child is table access, then we can normalize with the selection instead of pushing down
         boolean tableAccessChild = (isA(OP_LCHILD(q), ProjectionOperator) && isA(OP_LCHILD(OP_LCHILD(q)), TableAccessOperator)) || isA(OP_LCHILD(q), TableAccessOperator);
-        boolean here = (!EMPTY_SET(getCorrelatedAttributes((Node*)q, TRUE)) || eqWithCorrelatedNoOrAbove) && tableAccessChild;
+        boolean here = (EMPTY_SET(getCorrelatedAttributes((Node*)q, TRUE))) && tableAccessChild;
 
         if(here) {
             setPropertyInParentCtx((HashMap *)(q->properties), "normalize", (Node*)normalizationStateToMap(state));
@@ -964,7 +966,7 @@ tempRewrNestedSubquery(NestingOperator *op)
     // if normalization is below correlation we can keep it as a nested subquery
     // TODO
     boolean canStayNested = EMPTY_SET(correlatedAttrs);
-    if(!canStayNested) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"));
+    if(0) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"));
 
 	//TODO add other rewrite methods
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && canStayNested)
@@ -975,7 +977,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         int res = callback(2);
 
         // guard against entering this rewriting
-        if (res == 1) {
+        if (res != 1) {
             INFO_LOG("lateral option");
             return tempRewrNestedSubqueryLateralPostFilterTime(op);
         }
@@ -984,7 +986,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         return tempRewrNestedSubqueryCorrelated(op);
     }
 
-    if(canStayNested) {
+    if(!canStayNested) {
         INFO_LOG("subquery option");
         return tempRewrNestedSubqueryCorrelated(op);
     } else {
@@ -1060,12 +1062,12 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
 
         List *leftAttrs = (List*)MAP_GET_STRING(normalizationProps, "leftAttrs");
         List *rightAttrs = (List*)MAP_GET_STRING(normalizationProps, "rightAttrs");
-        INFO_LOG("normalizing with leftAttrs %s and rightAttrs %s", leftAttrs, rightAttrs);
+        INFO_LOG("normalizing with leftAttrs %s and rightAttrs %s", nodeToString(leftAttrs), nodeToString(rightAttrs));
 
         if(getBoolOption(OPTIMIZATION_NEW_NORMALIZATION_IMPL)) {
-            addTemporalNormalizationLWU(OP_LCHILD(op), rightOp, leftAttrs, rightAttrs);
+            addTemporalNormalizationLWU(OP_LCHILD(op), rightOp, constStringListToStringList(leftAttrs), constStringListToStringList(rightAttrs));
         } else {
-            addTemporalNormalization(OP_LCHILD(op), rightOp, leftAttrs, rightAttrs);
+            addTemporalNormalization(OP_LCHILD(op), rightOp, constStringListToStringList(leftAttrs), constStringListToStringList(rightAttrs));
         }
     }
 
