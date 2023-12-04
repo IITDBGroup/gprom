@@ -2259,7 +2259,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
 
 	QueryOperator *left = input;
 	QueryOperator *right = reference;
-	List *parents = left->parents;
+	List *parents = copyList(left->parents);
 	List *newParents;
 
     DEBUG_OP_LOG("add join-based (new version) temporal normalization for operator ", input, reference);
@@ -2374,9 +2374,9 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
             NULL,
 			intervalFuncName, left, NIL);
 
-    left->parents = appendToTailOfList(left->parents, intervalW);
+    left->parents = singleton(intervalW);
 
-    //projection T_B T_E SALARY ID
+    //projection attrs T_B T_E ID (new: T_B AS T)
     QueryOperator *intervalWOp = (QueryOperator *) intervalW;
     List *intervalTempNames = getAttrNames(intervalWOp->schema);
     List *intervalNames = NIL;
@@ -2389,6 +2389,8 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     	else
     		intervalNames = appendToTailOfList(intervalNames,strdup(c));
     }
+    intervalExprs = appendToTailOfList(intervalExprs, getAttrRefByName(left, leftBeginDef->attrName));
+    intervalNames = appendToTailOfList(intervalNames, "T");
 
     ProjectionOperator *interval = createProjectionOp(intervalExprs, intervalWOp, NIL, intervalNames);
     intervalWOp->parents = singleton(interval);
@@ -2429,7 +2431,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     QueryOperator *selJOINCPOp = (QueryOperator *) selJOINCP;
     //proj on top
     List *projJOINCPNames = deepCopyStringList(getAttrNames(intervalOp->schema));
-    projJOINCPNames = appendToTailOfList(projJOINCPNames, "T");
+    // projJOINCPNames = appendToTailOfList(projJOINCPNames, "T");
     List *projJOINCPExprs = NIL;
     FOREACH(char, c, projJOINCPNames)
     	projJOINCPExprs = appendToTailOfList(projJOINCPExprs,getAttrRefByName(selJOINCPOp,c));
@@ -2442,7 +2444,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     // UNION left with window function with JOINed
     SetOperator *leftUnionRight = createSetOperator(SETOP_UNION, LIST_MAKE(interval, projJOINCP), NIL,
         deepCopyStringList(joinCPNames));
-    ((QueryOperator *) intervalOp)->parents = singleton(leftUnionRight);
+    ((QueryOperator *) intervalOp)->parents = appendToTailOfList(intervalOp->parents, leftUnionRight);
     ((QueryOperator *) projJOINCPOp)->parents = singleton(leftUnionRight);
     QueryOperator *leftUnionRightOp = (QueryOperator *) leftUnionRight;
 
@@ -2500,7 +2502,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     }
 
     // switch subtrees
-    newParents = input->parents;
+    newParents = copyList(input->parents);
     input->parents = parents;
     switchSubtrees(input, (QueryOperator *) topProj);
     input->parents = newParents;
