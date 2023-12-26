@@ -81,4 +81,10 @@ extern void postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, Da
 extern void postgresGetDataChunkFromStmtInsDel(char *query, DataChunk* dc, int psAttrPos, Vector *rangeList, char *psName, int type);
 extern void postgresGetDataChunkFromStmtUpd(char *query, DataChunk* dcIns, DataChunk* dcDel, int psAttrPos, Vector *rangeList, char *psName);
 extern void postgresCopyToDB(StringInfo createTBL, StringInfo dataInfo, char *tableName);
+extern void postgresByteATest(Node *node);
+extern Vector *postgresGetByteATest();
+
+// extern void postgresStorePSMap(PSMap *psMap, int opNum, char *qName);
+extern void postgresPrepareUpdatePS(char *query, char *qName, int nParams);
+extern void postgresExecPrepareUpdatePS(char *query, char *qName, int nParams, char **params);
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

@@ -133,6 +133,152 @@ setOperatorNumber(QueryOperator *op)
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
+/*
+	INFO_LOG("HHHHHHE");
+	HashMap *stored = NEW_MAP(Constant, Constant);
+	char *strs[3] = {
+		"aaa",
+		"bbb",
+		"ccc"
+	};
+	size_t strSize = 3;
+	Vector *vec = makeVector(VECTOR_NODE, T_Vector)	;
+	for (int i = 1; i >= 0; i--) {
+		// str + int;
+		char * str = MALLOC(strSize + sizeof(int) + 1);
+		memcpy(str, strs[i], strSize);
+		memcpy(str + strSize, &i, sizeof(int));
+		str[strSize + sizeof(int)] = '\0';
+		StringInfo val = NEW(StringInfoData);
+		val->len = strSize + sizeof(int);
+		val->maxlen = strSize + sizeof(int);
+		val->cursor = 0;
+		val->data = str;
+		vecAppendNode(vec, (Node *) val);
+		addToMap(stored, (Node *) createConstString(str), (Node *) createConstInt(i + 100000));
+
+		// int + str;
+		str = MALLOC(sizeof(int) + strSize + 1);
+		memcpy(str, &i, sizeof(int));
+		memcpy(str + sizeof(int), strs[i], strSize);
+		str[strSize + sizeof(int)] = '\0';
+		val = NEW(StringInfoData);
+		val->len = strSize + sizeof(int);
+		val->cursor = 0;
+		val->maxlen = strSize + sizeof(int);
+		val->data = str;
+		vecAppendNode(vec, (Node *) val);
+		addToMap(stored, (Node *) createConstString(str), (Node *) createConstInt(i + 1000));
+
+		// str + long;
+		str = MALLOC(strSize + sizeof(gprom_long_t) + 1);
+		memcpy(str, strs[i], strSize);
+		gprom_long_t cV = (gprom_long_t) i;
+		memcpy(str + strSize, &cV, sizeof(gprom_long_t));
+		str[strSize + sizeof(gprom_long_t)] = '\0';
+		val = NEW(StringInfoData);
+		val->len = strSize + sizeof(gprom_long_t);
+		val->maxlen = strSize + sizeof(gprom_long_t);
+		val->cursor = 0;
+		val->data = str;
+		vecAppendNode(vec, (Node *) val);
+		addToMap(stored, (Node *) createConstString(str), (Node *) createConstInt(i + 5555));
+
+		//long + str;
+		str = MALLOC(sizeof(gprom_long_t) + strSize + 1);
+		cV = (gprom_long_t) i;
+		memcpy(str, &cV, sizeof(gprom_long_t));
+		memcpy(str + sizeof(gprom_long_t), strs[i], strSize);
+		str[strSize + sizeof(gprom_long_t)] = '\0';
+		val = NEW(StringInfoData);
+		val->len = strSize + sizeof(gprom_long_t);
+		val->cursor = 0;
+		val->maxlen = strSize + sizeof(gprom_long_t);
+		val->data = str;
+		vecAppendNode(vec, (Node *) val);
+		addToMap(stored, (Node *) createConstString(str), (Node *) createConstInt(i + 333));
+
+		// str + float;
+		str = MALLOC(strSize + sizeof(double) + 1);
+		memcpy(str, strs[i], strSize);
+		double dV = (double) i;
+		memcpy(str + strSize, &dV, sizeof(double));
+		str[strSize + sizeof(double)] = '\0';
+		val = NEW(StringInfoData);
+		val->len = strSize + sizeof(double);
+		val->maxlen = strSize + sizeof(double);
+		val->cursor = 0;
+		val->data = str;
+		vecAppendNode(vec, (Node *) val);
+		addToMap(stored, (Node *) createConstString(str), (Node *) createConstInt(i + 5));
+
+		//float + str;
+		str = MALLOC(sizeof(double) + strSize + 1);
+		dV = (double) i;
+		memcpy(str, &dV, sizeof(double));
+		memcpy(str + sizeof(double), strs[i], strSize);
+		str[strSize + sizeof(double)] = '\0';
+		val = NEW(StringInfoData);
+		val->len = strSize + sizeof(double);
+		val->cursor = 0;
+		val->maxlen = strSize + sizeof(double);
+		val->data = str;
+		vecAppendNode(vec, (Node *) val);
+		addToMap(stored, (Node *) createConstString(str), (Node *) createConstInt(i + 333));
+	}
+	postgresByteATest((Node *) vec);
+
+	Vector *vecGet = postgresGetByteATest();
+
+	for (int i = 0; i < vecGet->length; i++) {
+		boolean isInMap = MAP_HAS_STRING_KEY(stored, getVecString(vecGet, i));
+		INFO_LOG("IS this key in map? %d", isInMap);
+		char *vv = getVecString(vecGet, i);
+		// str + int;
+		char *str = MALLOC(4);
+		int mode = i % 6;
+		if (mode == 0) {
+			memcpy(str, vv, 3);
+			str[4] = '\0';
+			INFO_LOG("STR: %s", str);
+			INFO_LOG("INT: %d", *((int *) (vv + 3)));
+		} else if (mode == 1) {
+			INFO_LOG("INT: %d", *((int *) vv));
+			memcpy(str, vv + sizeof(int), 3);
+			str[4] = '\0';
+			INFO_LOG("STR: %s", str);
+		} else if(mode == 2) {
+			memcpy(str, vv, 3);
+			str[4] = '\0';
+			INFO_LOG("STR: %s", str);
+			INFO_LOG("LON: %ld", *((gprom_long_t *) (vv + 3)));
+		} else if (mode == 3) {
+			INFO_LOG("LON: %ld", *((gprom_long_t *) vv));
+			memcpy(str, vv + sizeof(gprom_long_t), 3);
+			str[4] = '\0';
+			INFO_LOG("STR: %s", str);
+		} else if (mode == 4) {
+			memcpy(str, vv, 3);
+			str[4] = '\0';
+			INFO_LOG("STR: %s", str);
+			INFO_LOG("DOB: %lf", *((double *) (vv + 3)));
+		} else if (mode == 5) {
+			INFO_LOG("DOB: %lf", *((double *) vv));
+			memcpy(str, vv + sizeof(double), 3);
+			str[4] = '\0';
+			INFO_LOG("STR: %s", str);
+		}
+	}
+
+
+
+
+
+	if (1 == 1) {
+		return "ENDd";
+	}
+
+*/
 	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
 	INFO_OP_LOG("qbModel", qbModel);
 	/*
@@ -158,8 +304,13 @@ update_ps(ProvenanceComputation *qbModel)
 	char *queryName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
 
 	boolean isQStored = checkQueryInfoStored(queryName);
+	if (isQStored) {
+
+	}
 
 	/* Check if there is state for this algebra tree */
+	// qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
+	// /*
 	if (!isQStored) {
 		qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);
 		DEBUG_NODE_BEATIFY_LOG("operator with state before stored", qbModel);
@@ -171,7 +322,7 @@ update_ps(ProvenanceComputation *qbModel)
 		STOP_TIMER("module - update provenance sketch - fetching stored data");
 		DEBUG_NODE_BEATIFY_LOG("operator with state data after fetch", qbModel);
 	}
-
+// */
 
 	// if (!HAS_STRING_PROP((QueryOperator *) qbModel, PROP_HAS_DATA_STRUCTURE_BUILT)) {
 	// 	qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);

@@ -92,7 +92,7 @@ RBTDelete(RBTRoot *root, Node *key, Node *val)
                 root->size--;
             }
         } else {
-            Node *n = (Node *) getMap((HashMap *) nodeInTree->val, val);
+            Node *n = (Node *) getMap((HashMap *) (nodeInTree->val), val);
             if (INT_VALUE((Constant *) n) > 1) {
                 INT_VALUE((Constant *) n) = INT_VALUE((Constant *) n) - 1;
             } else {
@@ -295,7 +295,7 @@ compareTwoNodes(RBTRoot *root, Node *node1, Node *node2)
                 break;
                 case DT_BOOL:
                 {
-                    res = BOOL_VALUE(c1) - BOOL_VALUE(c1);
+                    res = BOOL_VALUE(c1) - BOOL_VALUE(c2);
                 }
                 break;
                 case DT_FLOAT:

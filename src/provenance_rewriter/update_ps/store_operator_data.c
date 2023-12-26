@@ -36,6 +36,10 @@
 #include "provenance_rewriter/update_ps/bloom.h"
 #include "provenance_rewriter/update_ps/store_operator_data.h"
 
+#if HAVE_POSTGRES_BACKEND
+#include "libpq-fe.h"
+#endif
+
 static void storeOperatorDataInternal(QueryOperator *op);
 static void storeAggregationData(AggregationOperator *op);
 static void storeProvenanceComputationData(ProvenanceComputation *op);
@@ -476,12 +480,21 @@ storePSMapData(PSMap *psMap, int opNum)
             postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", info->data, "(psname varchar, fragno int, fragcnt int);"));
         }
 
+        StringInfo stmt = makeStringInfo() ;
+        char *stmtName = CONCAT_STRINGS("STMT_", info->data);
+        appendStringInfo(stmt, "INSERT INTO %s VALUES($1::varchar, $2::int, $3::int);", info->data);
+        postgresPrepareUpdatePS(stmt->data, stmtName, 3);
+
         FOREACH_HASH_KEY(Constant, c, psMap->fragCount) {
             HashMap *fragCnt = (HashMap *) MAP_GET_STRING(psMap->fragCount, STRING_VALUE(c));
             FOREACH_HASH_KEY(Constant, no, fragCnt) {
                 Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, INT_VALUE(no));
 
-                postgresExecuteStatement(CONCAT_STRINGS("INSERT INTO ", info->data, " VALUES('", STRING_VALUE(c), "',", gprom_itoa(INT_VALUE(no)), ",", gprom_itoa(INT_VALUE(cnt)), ");"));
+                char ** params = CALLOC(sizeof(char *), 3);
+                params[0] = STRING_VALUE(c);
+                params[1] = gprom_itoa(INT_VALUE(no));
+                params[2] = gprom_itoa(INT_VALUE(cnt));
+                postgresExecPrepareUpdatePS(NULL, stmtName, 3, params);
             }
         }
     } else {
@@ -491,35 +504,63 @@ storePSMapData(PSMap *psMap, int opNum)
         if (isTableExists) {
             postgresExecuteStatement(CONCAT_STRINGS("TRUNCATE ", info->data, ";"));
         } else {
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", info->data, "(psname varchar, groupby varchar, provsketch varchar);"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", info->data, "(psname varchar, groupby bytea, provsketch varchar);"));
         }
-
         StringInfo q = makeStringInfo();
-        appendStringInfo(q, "insert into %s (psname, groupby, provsketch) values ", info->data);
-        boolean hasValue = FALSE;
+        appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::bytea, $3::varchar)", info->data);
+        char *stmtName = CONCAT_STRINGS("STMT_", info->data);
+
+        postgresPrepareUpdatePS(q->data, stmtName, 3);
+        PGconn *conn = getPostgresConnection();
+
+        // boolean hasValue = FALSE;
         FOREACH_HASH_KEY(Constant, c, psMap->provSketchs) {
             HashMap *provSketches = (HashMap *) MAP_GET_STRING(psMap->provSketchs, STRING_VALUE(c));
             boolean isIntThisPS = BOOL_VALUE((Constant *) MAP_GET_STRING(psMap->isIntSketch, STRING_VALUE(c)));
 
             if (isIntThisPS) {
                 FOREACH_HASH_KEY(Constant, gb, provSketches) {
-                    hasValue = TRUE;
+                    // hasValue = TRUE;
+                    char **params = CALLOC(sizeof(char *) , 3);
+                    params[0] = (char *) STRING_VALUE(c);
+
+                    // translate gb to bytea;
+                    size_t to_length;
+                    unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
+                    params[1] = (char *) bytea;
+
+                    // get sketch;
                     int sketch = INT_VALUE((Constant *) MAP_GET_STRING(provSketches, STRING_VALUE(gb)));
-                    appendStringInfo(q, "('%s', '%s', '%s'),", STRING_VALUE(c), STRING_VALUE(gb), gprom_itoa(sketch));
+                    params[2] = gprom_itoa(sketch);
+                    postgresExecPrepareUpdatePS(NULL, stmtName, 3, params);
+
                 }
             } else {
                 FOREACH_HASH_KEY(Constant, gb, provSketches) {
-                    hasValue = TRUE;
+                    // hasValue = TRUE;
+                    char **params = CALLOC(sizeof(char *), 3);
+                    params[0] = STRING_VALUE(c);
+
+                    // translate gb to bytea;
+                    size_t to_length;
+                    unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
+
+                    params[1] = (char *) bytea;
+
                     BitSet *sketch = (BitSet *) MAP_GET_STRING(provSketches, STRING_VALUE(gb));
-                    appendStringInfo(q, "('%s', '%s', '%s'),", STRING_VALUE(c), STRING_VALUE(gb), bitSetToString(sketch));
+
+                    params[2] = bitSetToString(sketch);
+                    // appendStringInfo(q, "('%s', '%s', '%s'),", STRING_VALUE(c), STRING_VALUE(gb), bitSetToString(sketch));
+
+                    postgresExecPrepareUpdatePS(NULL, stmtName, 3, params);
                 }
             }
         }
-        q->data[q->len - 1] = ';';
+        // q->data[q->len - 1] = ';';
 
-        if (hasValue) {
-            postgresExecuteStatement(q->data);
-        }
+        // if (hasValue) {
+        //     postgresExecuteStatement(q->data);
+        // }
 
         // fragcnt;
         info = makeStringInfo();
@@ -528,33 +569,51 @@ storePSMapData(PSMap *psMap, int opNum)
         if (isTableExists) {
             postgresExecuteStatement(CONCAT_STRINGS("TRUNCATE ", info->data, ";"));
         } else {
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", info->data, "(psname varchar, groupby varchar, fragno int, fragcnt int);"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", info->data, "(psname varchar, groupby bytea, fragno int, fragcnt int);"));
         }
         q = makeStringInfo();
-        appendStringInfo(q, "insert into %s (psname, groupby, fragno, fragcnt) values ", info->data);
+        // appendStringInfo(q, "insert into %s (psname, groupby, fragno, fragcnt) values ", info->data);
+        appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::bytea, $3:: int, $4::int);", info->data);
+        stmtName = CONCAT_STRINGS("STMT_", info->data);
 
-        hasValue = FALSE;
+        postgresPrepareUpdatePS(q->data, stmtName, 4);
+
+        // hasValue = FALSE;
         FOREACH_HASH_KEY(Constant, c, psMap->fragCount) {
             HashMap *gbFragCnt = (HashMap *) MAP_GET_STRING(psMap->fragCount, STRING_VALUE(c));
             FOREACH_HASH_KEY(Constant, gb, gbFragCnt) {
-                hasValue = TRUE;
+                // hasValue = TRUE;
                 HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, STRING_VALUE(gb));
                 FOREACH_HASH_KEY(Constant, no, fragCnt) {
+                    char ** params = CALLOC(sizeof(char *), 4);
+                    params[0] = STRING_VALUE(c);
+
+                    // bytea;
+                    size_t to_length;
+                    unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
+                    params[1] = (char *) bytea;
+
+                    params[2] = gprom_itoa(INT_VALUE(no));
+
                     Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, INT_VALUE(no));
-                    appendStringInfo(q, "('%s', '%s', %s, %s),", STRING_VALUE(c), STRING_VALUE(gb), gprom_itoa(INT_VALUE(no)),gprom_itoa(INT_VALUE(cnt)));
+
+                    params[3] = gprom_itoa(INT_VALUE(cnt));
+                    postgresExecPrepareUpdatePS(NULL, stmtName, 4, params);
+                    // appendStringInfo(q, "('%s', '%s', %s, %s),", STRING_VALUE(c), STRING_VALUE(gb), gprom_itoa(INT_VALUE(no)),gprom_itoa(INT_VALUE(cnt)));
                 }
             }
         }
-        q->data[q->len - 1] = ';';
-        if (hasValue) {
-            postgresExecuteStatement(q->data);
-        }
+        // q->data[q->len - 1] = ';';
+        // if (hasValue) {
+            // postgresExecuteStatement(q->data);
+        // }
     }
 }
 
 static void
 storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
 {
+    PGconn *conn = getPostgresConnection();
     char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
 
     // get function type;
@@ -575,11 +634,11 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
 
     if (!isInfo) {
         if (type == 3){
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby varchar, avg float, sum float, cnt bigint)"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby bytea, avg float, sum float, cnt bigint)"));
         } else if (type == 2) {
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby varchar, sum float, cnt bigint)"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby bytea, sum float, cnt bigint)"));
         } else if (type == 1) {
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby varchar, cnt bigint)"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby bytea, cnt bigint)"));
         }
 
     } else {
@@ -587,26 +646,64 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
     }
 
     StringInfo q = makeStringInfo();
+    char *stmtName;
     if (type == 1) {
-        appendStringInfo(q, "insert into %s (groupby, cnt) values ", meta->data);
+        // appendStringInfo(q, "insert into %s (groupby, cnt) values ", meta->data);
+        appendStringInfo(q, "INSERT INTO %s VALUES ($1::bytea, $2::bigint);", meta->data);
+        stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        postgresPrepareUpdatePS(q->data, stmtName, 2);
         FOREACH_HASH_KEY(Constant, c, acs->map) {
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
-            appendStringInfo(q, "('%s', %s),", STRING_VALUE(c), gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 0))));
+
+            char ** params = CALLOC(sizeof(char *), 3);
+            //bytea;
+            size_t to_length;
+            unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
+            params[0] = (char *) bytea;
+            params[1] = gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 0)));
+            // appendStringInfo(q, "('%s', %s),", STRING_VALUE(c), gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 0))));
+            postgresExecPrepareUpdatePS(NULL, stmtName, 2, params);
         }
     } else if (type == 2) {
-        appendStringInfo(q, "insert into %s (groupby, sum, cnt) values ", meta->data);
+        appendStringInfo(q, "INSERT INTO %s VALUES ($1::bytea, $2::float,$3::bigint);", meta->data);
+        stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        postgresPrepareUpdatePS(q->data, stmtName, 3);
+        // appendStringInfo(q, "insert into %s (groupby, sum, cnt) values ", meta->data);
         FOREACH_HASH_KEY(Constant, c, acs->map) {
+            char ** params = CALLOC(sizeof(char *), 3);
+
+            size_t to_length;
+            unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
+            params[0] = (char *) bytea;
+
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
-            appendStringInfo(q, "('%s', %s, %s),", STRING_VALUE(c), gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0))), gprom_ltoa((LONG_VALUE((Constant *) getVecNode(v, 1)))));
+            params[1] = gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0)));
+            params[2] = gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 1)));
+            postgresExecPrepareUpdatePS(NULL, stmtName, 3, params);
+            // appendStringInfo(q, "('%s', %s, %s),", STRING_VALUE(c), gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0))), gprom_ltoa((LONG_VALUE((Constant *) getVecNode(v, 1)))));
         }
     } else if (type == 3) {
-        appendStringInfo(q, "insert into %s (groupby, avg, sum, cnt) values ", meta->data);
+        // appendStringInfo(q, "insert into %s (groupby, avg, sum, cnt) values ", meta->data);
+        appendStringInfo(q, "INSERT INTO %s VALUES ($1::bytea, $2::float, $3::float, $4::bigint);", meta->data);
+        stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        postgresPrepareUpdatePS(q->data, stmtName, 4);
         FOREACH_HASH_KEY(Constant, c, acs->map) {
+            char ** params = CALLOC(sizeof(char *), 3);
+
+            size_t to_length;
+            unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
+            params[0] = (char *) bytea;
+
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
-            appendStringInfo(q, "('%s', %s, %s, %s),", STRING_VALUE(c), gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0))), gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 1))), gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 2))));
+
+            params[1] = gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0)));
+            params[2] = gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 1)));
+            params[3] = gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 2)));
+            postgresExecPrepareUpdatePS(NULL, stmtName, 4, params);
+            // appendStringInfo(q, "('%s', %s, %s, %s),", STRING_VALUE(c), gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0))), gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 1))), gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 2))));
         }
     }
 
-    q->data[q->len - 1] = ';';
-    postgresExecuteStatement(q->data);
+    // q->data[q->len - 1] = ';';
+    // postgresExecuteStatement(q->data);
 }

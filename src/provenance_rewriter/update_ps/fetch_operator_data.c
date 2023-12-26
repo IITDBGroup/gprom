@@ -50,6 +50,9 @@ static void fetchOrderOperatorData(OrderOperator *op);
 static void fetchOrderByMetadata(OrderOperator * op, RBTRoot * root, char *qName, int opNum);
 static void fetchOrderByValues(OrderOperator *op, RBTRoot *root, char *qName, int opNum);
 
+#if HAVE_POSTGRES_BACKEND
+#include "libpq-fe.h"
+#endif
 
 
 
@@ -496,7 +499,13 @@ fetchPSMapData(int opNum)
         rel = postgresExecuteQuery(meta->data);
         FOREACH_VEC(Vector, v, rel->tuples) {
             char *name = (char *) getVecString(v, 0);
-            char *groupby = (char *) getVecString(v, 1);
+
+            // unescape bytea;
+            char *groupby_bytea = (char *) getVecString(v, 1);
+            size_t to_length;
+            unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
+            char *groupby = (char *) temp;
+
             char *bitStr = (char *) getVecString(v, 2);
 
             HashMap *gbPS = (HashMap *) MAP_GET_STRING(psMap->provSketchs, name);
@@ -520,7 +529,12 @@ fetchPSMapData(int opNum)
         rel = postgresExecuteQuery(meta->data);
         FOREACH_VEC(Vector, v, rel->tuples) {
             char *name = (char *) getVecString(v, 0);
-            char *groupby = (char *) getVecString(v, 1);
+            //unescape bytea;
+            char *groupby_bytea = (char *) getVecString(v, 1);
+            size_t to_length;
+            unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
+            char *groupby = (char *) temp;
+
             int no = atoi((char *) getVecString(v, 2));
             int cnt = atoi((char *) getVecString(v, 3));
 
@@ -553,7 +567,11 @@ fetchGBACSsData(int opNum, char* acsName, int type)
     Relation *rel = postgresExecuteQuery(meta->data) ;
     if (type == 3) {
         FOREACH_VEC(Vector, v, rel->tuples) {
-            char *groupby = (char *) getVecString(v, 0);
+            char *groupby_bytea = (char *) getVecString(v, 0);
+            size_t to_length;
+            unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
+            char *groupby = (char *) temp;
+
             double avg = atof((char *) getVecString(v, 1));
             double sum = atof((char *) getVecString(v, 2));
             gprom_long_t cnt = atol((char *) getVecString(v, 3));
@@ -565,7 +583,11 @@ fetchGBACSsData(int opNum, char* acsName, int type)
         }
     } else if (type == 2) {
         FOREACH_VEC(Vector, v, rel->tuples) {
-            char *groupby = (char *) getVecString(v, 0);
+            char *groupby_bytea = (char *) getVecString(v, 0);
+            size_t to_length;
+            unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
+            char *groupby = (char *) temp;
+
             double sum = atof((char *) getVecString(v, 1));
             gprom_long_t cnt = atol((char *) getVecString(v, 2));
             Vector *vals = makeVector(VECTOR_NODE, T_Vector);
@@ -575,7 +597,11 @@ fetchGBACSsData(int opNum, char* acsName, int type)
         }
     } else if (type == 1) {
         FOREACH_VEC(Vector, v, rel->tuples) {
-            char *groupby = (char *) getVecString(v, 0);
+            char *groupby_bytea = (char *) getVecString(v, 0);
+            size_t to_length;
+            unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
+            char *groupby = (char *) temp;
+
             gprom_long_t cnt = atol((char *) getVecString(v, 1));
             Vector *vals = makeVector(VECTOR_NODE, T_Vector);
             vecAppendNode(vals, (Node *) createConstLong(cnt));

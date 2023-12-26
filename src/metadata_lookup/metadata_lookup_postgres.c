@@ -3525,9 +3525,86 @@ postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *upd
     return deltaAttrDefs;
 }
 
+Vector *
+postgresGetByteATest()
+{
+    PGresult *rs = execQuery("select * from bytea;");
+    int numRes = PQntuples(rs);
+    int numFields = PQnfields(rs);
+
+    Vector *vec = makeVector(VECTOR_STRING, T_Vector);
+    for (int row = 0; row < numRes; row++) {
+        for (int col = 0; col < numFields; col++) {
+            char * val = PQgetvalue(rs, row, col);
+            size_t to_length;
+            unsigned char *vv = (unsigned char *) PQunescapeBytea((unsigned char *) val, &to_length);
+            vecAppendString(vec, (char *) vv);
+        }
+    }
+
+    return vec;
+
+}
+
+
+void
+postgresByteATest(Node *node)
+{
+    // parameterized query;
+    // postgres prepareSQL;
+    PGresult *res = NULL;
+    PGconn *conn = plugin->conn;
+
+
+    Vector *v = (Vector *) node;
+    StringInfo sqll = makeStringInfo();
+    appendStringInfo(sqll, "insert into bytea (a) values ");
+    for (int i = 0; i < v->length; i++) {
+        StringInfo info = (StringInfo) getVecNode(v, i);
+        size_t to_length;
+
+        unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) info->data, info->len, &to_length);
+        if (i > 0)
+            appendStringInfo(sqll, ",('%s')", (char *) bytea);
+        else
+            appendStringInfo(sqll, "('%s')", (char *) bytea);
+
+    }
+	res = PQexec(conn, sqll->data);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        INFO_LOG("ERROR MSG: %s", PQerrorMessage(conn));
+        // FATAL_LOG("ERROR");
+        CLOSE_RES_CONN_AND_FATAL(res, "create table error: %s", PQerrorMessage(conn));
+    }
+    // PQclear(res);
+    StringInfo sql = makeStringInfo();
+    for (int i = 0; i < v->length; i++) {
+        StringInfo info = (StringInfo) getVecNode(v, i);
+        size_t to_length;
+
+        unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) info->data, info->len, &to_length);
+        appendStringInfo(sql, "'%s'\r", (char *) bytea);
+    }
+    const char *errormsg = NULL;
+    // copy data: create "COPY XXX FROM STDIN(DELIMITER\',\');"
+    StringInfo copyStartSQL = makeStringInfo();
+    INFO_LOG("WHAT IS STRINGINFO %s", sql->data);
+    appendStringInfo(copyStartSQL, "COPY bytea2 (a) FROM STDIN (DELIMITER \',\');");
+
+    // approach 2: one bulk
+    PQexec(conn, copyStartSQL->data);
+    PQputCopyData(conn, sql->data, sql->len);
+
+    PQputCopyEnd(conn, errormsg);
+    execCommit();
+
+}
+
+
 void
 postgresCopyToDB(StringInfo createTBL, StringInfo dataInfo, char *tableName)
 {
+
     // Connection, Copy;
     PGresult *res = NULL;
     PGconn *conn = plugin->conn;
@@ -3864,6 +3941,37 @@ void postgresDropTemporalDeltaTable(char *tableName)
     execStmt(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName, ";"));
     // execStmt(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName));
     // executeQueryIgnoreResult(CONCAT_STRINGS("DROP TABLE IF EXISTS ", tableName));
+}
+
+void postgresPrepareUpdatePS(char *query, char *qName, int nParams)
+{
+    PGconn *conn = plugin->conn;
+    PGresult * res;
+    res = PQprepare(conn, qName, query, nParams, NULL);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        // STOP_TIMER(METADATA_LOOKUP_PREPARE_QUERY_TIME);
+        CLOSE_RES_CONN_AND_FATAL(res, "prepare query %s failed: %s",
+                qName, PQresultErrorMessage(res));
+    }
+    PQclear(res);
+}
+
+void postgresExecPrepareUpdatePS(char *query, char *qName, int nParams, char **params)
+{
+    PGconn *conn = plugin->conn;
+    PGresult * res;
+    res = PQexecPrepared(conn,
+                qName,
+                nParams,
+                (const char *const *) params,
+                NULL,
+                NULL,
+                0);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        // STOP_TIMER(METADATA_LOOKUP_PREPARE_QUERY_TIME);
+        CLOSE_RES_CONN_AND_FATAL(res, "prepare query %s failed: %s",
+                qName, PQresultErrorMessage(res));
+    }
 }
 
 // NO libpq present. Provide dummy methods to keep compiler quiet

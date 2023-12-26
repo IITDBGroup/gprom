@@ -41,6 +41,7 @@ static void buildStateFinalOp(QueryOperator *op);
 static void buildStateJoinOp(QueryOperator *op);
 static void parseJoinConds(Node *conds, Vector *condsVec);
 static void buildBloomFilterFromSQL(char *sql, List *attributeDefs, HashMap *BFMap);
+static Vector *buildGroupByValueVecFromRelation(Relation *rel, List *gbList);
 // static QueryOperator *captureRewriteOp(ProvenanceComputation *pc, QueryOperator *op);
 // static int compareTwoValues(Constant *a, Constant *b, DataType dt);
 static void swapListCell(List *list, int pos1, int pos2);
@@ -319,6 +320,189 @@ parseJoinConds(Node *conds, Vector *condsVec)
 		}
 		vecAppendNode(condsVec, conds);
 	}
+}
+
+static Vector *
+buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
+{
+	Vector *gbValsVec = makeVector(VECTOR_NODE, T_Vector);
+	int numTuples = rel->tuples->length;
+	if (gbList == NULL) {
+		char *dummyGBVal = strdup("##");
+		for (int row = 0; row < numTuples; row++) {
+			StringInfo gb = NEW(StringInfoData);
+			gb->cursor = 0;
+			gb->len = 2;
+			gb->maxlen = 2;
+			gb->data = MALLOC(3);
+			memcpy(gb->data, dummyGBVal, 2);
+			gb->data[2] = '\0';
+		}
+	} else {
+		Vector *gbAttrPos = makeVector(VECTOR_INT, T_Vector);
+		Vector *gbAttrType = makeVector(VECTOR_INT, T_Vector);
+		Vector *gbAttrTypeStringPos = makeVector(VECTOR_INT, T_Vector);
+
+		boolean noStringTypeExists = TRUE;
+		size_t totalSizeIfNoStringType = 0;
+		FOREACH(AttributeReference, ar, gbList) {
+			int pos = listPosString(rel->schema, backendifyIdentifier(ar->name));
+			vecAppendInt(gbAttrPos, pos);
+			vecAppendInt(gbAttrType, (int) ar->attrType);
+			switch (ar->attrType) {
+				case DT_BOOL:
+				case DT_INT:
+					totalSizeIfNoStringType += sizeof(int);
+					break;
+				case DT_FLOAT:
+					totalSizeIfNoStringType += sizeof(double);
+					break;
+				case DT_LONG:
+					totalSizeIfNoStringType += sizeof(gprom_long_t);
+					break;
+				case DT_VARCHAR2:
+				case DT_STRING:
+					{
+					vecAppendInt(gbAttrTypeStringPos, pos);
+					totalSizeIfNoStringType += 0;
+					noStringTypeExists = FALSE;
+					}
+					break;
+			}
+		}
+
+		if (noStringTypeExists) {
+			for (int row = 0; row < numTuples; row++) {
+				StringInfo gb = NEW(StringInfoData);
+				gb->cursor = 0;
+				gb->maxlen = totalSizeIfNoStringType;
+				gb->len = totalSizeIfNoStringType;
+				gb->data = MALLOC(totalSizeIfNoStringType + 1);
+
+				Vector * tuple = (Vector *) getVecNode(rel->tuples, row);
+				size_t preSize = 0;
+				for (int col = 0; col < gbAttrPos->length; col++) {
+					int pos = (int) getVecInt(gbAttrPos, col);
+					DataType dt = (DataType) getVecInt(gbAttrType, col);
+					char *value = (char *) getVecString(tuple, pos);
+
+					switch(dt) {
+						case DT_INT:
+						{
+							int val = atoi(value);
+							memcpy(gb->data + preSize, &val, sizeof(int));
+							preSize += sizeof(int);
+						}
+						break;
+						case DT_LONG:
+						{
+							gprom_long_t val = atol(value);
+							memcpy(gb->data + preSize, &val, sizeof(gprom_long_t));
+							preSize += sizeof(gprom_long_t);
+						}
+						break;
+						case DT_FLOAT:
+						{
+							double val = atof(value);
+							memcpy(gb->data + preSize, &val, sizeof(double));
+							preSize += sizeof(double);
+						}
+						break;
+						case DT_BOOL:
+						{
+							int val = 0;
+							if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true")) {
+								val = 1;
+							}
+							memcpy(gb->data + preSize, &val, sizeof(int));
+							preSize += sizeof(int);
+						}
+						break;
+						case DT_VARCHAR2:
+						case DT_STRING:
+						{
+
+						}
+						break;
+					}
+				}
+				gb->data[preSize] = '\0';
+				vecAppendNode(gbValsVec, (Node *) gb);
+			}
+		} else {
+			for (int row = 0; row < numTuples; row++) {
+				// first check each row size for string type;
+				Vector * tuple = (Vector *) getVecNode(rel->tuples, row);
+
+				size_t totSizeWithStringType = totalSizeIfNoStringType;
+				for (int strCol = 0; strCol < gbAttrTypeStringPos->length; strCol++) {
+					int pos = getVecInt(gbAttrTypeStringPos, strCol);
+					char *strVal = (char *) getVecString(tuple, pos);
+					totSizeWithStringType += strlen(strVal);
+				}
+
+				StringInfo gb = NEW(StringInfoData);
+				gb->cursor = 0;
+				gb->len = totSizeWithStringType;
+				gb->maxlen = totSizeWithStringType;
+				gb->data = MALLOC(totSizeWithStringType + 1);
+
+				// memcpy content to StringInfo->data;
+				size_t preSize = 0;
+				for (int col = 0; col < gbAttrPos->length; col++) {
+					int pos = (int) getVecInt(gbAttrPos, col);
+					DataType dt = (DataType) getVecInt(gbAttrType, col);
+					char *value = (char *) getVecString(tuple, pos);
+
+					switch(dt) {
+						case DT_INT:
+						{
+							int val = atoi(value);
+							memcpy(gb->data + preSize, &val, sizeof(int));
+							preSize += sizeof(int);
+						}
+						break;
+						case DT_LONG:
+						{
+							gprom_long_t val = atol(value);
+							memcpy(gb->data + preSize, &val, sizeof(gprom_long_t));
+							preSize += sizeof(gprom_long_t);
+						}
+						break;
+						case DT_FLOAT:
+						{
+							double val = atof(value);
+							memcpy(gb->data + preSize, &val, sizeof(double));
+							preSize += sizeof(double);
+						}
+						break;
+						case DT_BOOL:
+						{
+							int val = 0;
+							if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true")) {
+								val = 1;
+							}
+							memcpy(gb->data + preSize, &val, sizeof(int));
+							preSize += sizeof(int);
+						}
+						break;
+						case DT_VARCHAR2:
+						case DT_STRING:
+						{
+							size_t lens = strlen(value);
+							memcpy(gb->data + preSize, value, lens);
+							preSize += lens;
+						}
+						break;
+					}
+				}
+				gb->data[preSize] = '\0';
+				vecAppendNode(gbValsVec, (Node *) gb);
+			}
+		}
+	}
+
+	return gbValsVec;
 }
 
 static void
@@ -649,6 +833,9 @@ buildStateAggregationOp(QueryOperator *op)
 			l = appendToTailOfList(l, createConstInt(pos));
 		}
 
+		// build group by value vectors version 2;
+		Vector * groupByVealusVector = buildGroupByValueVecFromRelation(resultRel, aggrGBs);
+
 		for (int i = 0; i < LIST_LENGTH(aggrFCs); i++) {
 			FunctionCall *fc = (FunctionCall *) getNthOfListP(aggrFCs, i);
 
@@ -695,43 +882,40 @@ buildStateAggregationOp(QueryOperator *op)
 			// DEBUG_NODE_BEATIFY_LOG("namesANDposs", namesAndPoss);
 
 			// get group by attributes positions in result "resultRel";
-			List *gbAttrPos = NIL;
-			FOREACH(AttributeReference, ar, aggrGBs) {
-				int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
-				gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
-				// gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
-			}
+			// version 2: do not need this list anymore;
+			// List *gbAttrPos = NIL;
+			// FOREACH(AttributeReference, ar, aggrGBs) {
+			// 	int pos = listPosString(resultRel->schema, backendifyIdentifier(ar->name));
+			// 	gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(pos));
+			// 	// gbAttrPos = appendToTailOfList(gbAttrPos, createConstInt(ar->attrType));
+			// }
 
 			// get group count for avg and sum
 			int groupCountPos = -1;
 			// if (strcmp(fc->functionname, COUNT_FUNC_NAME) != 0) {
 			groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
 			// }
-			DEBUG_NODE_BEATIFY_LOG("gb list", gbAttrPos);
+			// DEBUG_NODE_BEATIFY_LOG("gb list", gbAttrPos);
 			DEBUG_NODE_BEATIFY_LOG("what is name and pos", namesAndPoss);
 			int tupleLen = resultRel->tuples->length;
 			for (int j = 0; j < tupleLen; j++) {
-				// List *tuple = (List *) getNthOfListP(resultRel->tuples, j);
+
 				Vector *tuple = (Vector *) getVecNode(resultRel->tuples, j);
 
 				// get the group by values;
-				StringInfo gbVals = makeStringInfo();
-				if (noGB) {
-					appendStringInfoString(gbVals, "##");
-				} else {
-					for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
-						// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
-						// TODO: For float in group by, TPCH-10.
-						appendStringInfo(gbVals, "%s#", getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
-					}
-				}
+				// StringInfo gbVals = makeStringInfo();
+				// if (noGB) {
+				// 	appendStringInfoString(gbVals, "##");
+				// } else {
+				// 	for (int k = 0; k < LIST_LENGTH(gbAttrPos); k++) {
+				// 		// appendStringInfo(gbVals, "%s#", (char *) getNthOfListP(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+				// 		// TODO: For float in group by, TPCH-10.
+				// 		appendStringInfo(gbVals, "%s#", getVecString(tuple, INT_VALUE((Constant *) getNthOfListP(gbAttrPos, k))));
+				// 	}
+				// }
 
-				// value list;
-				// List *l = NIL;
-				// List *newL = NIL;
+				StringInfo gbVals = (StringInfo ) getVecNode(groupByVealusVector, j);
 
-				// Vector *l = makeVector(VECTOR_NODE, T_Vector);
-				// Vector *l = MAP_GET_STRING(acs->map, gbVals->data);
 				Vector *l = NULL;
 				Vector *newL = makeVector(VECTOR_NODE, T_Vector);
 
@@ -974,29 +1158,40 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 	int	groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
 
 	// deal with tuples
-	Vector *gbValsVec = makeVector(VECTOR_STRING, T_Vector);
+	// Vector *gbValsVec = makeVector(VECTOR_STRING, T_Vector);
 	Vector *gbCntVec = makeVector(VECTOR_LONG, T_Vector);
+	Vector *gbValsVec = buildGroupByValueVecFromRelation(resultRel, gbList);
 	for (int row = 0; row < tupleLen; row++) {
 		Vector *tuple = (Vector *) getVecNode(resultRel->tuples, row);
-		StringInfo gbVals = makeStringInfo();
-		for (int gbAttrIdx = 0; gbAttrIdx < gbAttrCnt; gbAttrIdx++) {
-			appendStringInfo(gbVals, "%s#", getVecString(tuple, getVecInt(gbAttrPos, gbAttrIdx)));
-		}
-		vecAppendString(gbValsVec, gbVals->data);
+		// StringInfo gbVals = makeStringInfo();
+		// for (int gbAttrIdx = 0; gbAttrIdx < gbAttrCnt; gbAttrIdx++) {
+		// 	appendStringInfo(gbVals, "%s#", getVecString(tuple, getVecInt(gbAttrPos, gbAttrIdx)));
+		// }
+		// vecAppendString(gbValsVec, gbVals->data);
 
 		gprom_long_t groupCnt = atol(getVecString(tuple, groupCountPos));
 		vecAppendLong(gbCntVec, groupCnt);
 
 		Vector *cntV = NULL;
-		if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
-			cntV = (Vector *) MAP_GET_STRING(acs->map, gbVals->data);
+		// if (MAP_HAS_STRING_KEY(acs->map, gbVals->data)) {
+		// 	cntV = (Vector *) MAP_GET_STRING(acs->map, gbVals->data);
+		// 	Constant *cnt = (Constant *) getVecNode(cntV, 0);
+		// 	LONG_VALUE(cnt) = LONG_VALUE(cnt) + groupCnt;
+		// 	// (*((gprom_long_t *) cnt->value)) += groupCnt;
+		// } else {
+		// 	cntV = makeVector(VECTOR_NODE, T_Vector);
+		// 	vecAppendNode(cntV, (Node *) createConstLong(groupCnt));
+		// 	addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) cntV);
+		// }
+		char *gbval = getVecString(gbValsVec, row);
+		if (MAP_HAS_STRING_KEY(acs->map, gbval)) {
+			cntV = (Vector *) MAP_GET_STRING(acs->map, gbval);
 			Constant *cnt = (Constant *) getVecNode(cntV, 0);
 			LONG_VALUE(cnt) = LONG_VALUE(cnt) + groupCnt;
-			// (*((gprom_long_t *) cnt->value)) += groupCnt;
 		} else {
 			cntV = makeVector(VECTOR_NODE, T_Vector);
 			vecAppendNode(cntV, (Node *) createConstLong(groupCnt));
-			addToMap(acs->map, (Node *) createConstString(gbVals->data), (Node *) cntV);
+			addToMap(acs->map, (Node *) createConstString(gbval), (Node *) cntV);
 		}
 	}
 	addToMap(dataStructures, (Node *) createConstString(PROP_DATA_STRUCTURE_DUP_DATA), (Node *) acs);
@@ -1214,6 +1409,9 @@ buildStateOrderOp(QueryOperator *op)
 		Vector *val = (Vector *) MAP_GET_INT(tuple, 1);
 		HashMap *ps = (HashMap *) MAP_GET_INT(tuple, 2);
 		vecAppendNode(val, (Node *) ps);
+		DEBUG_NODE_BEATIFY_LOG("KEY INSERT", key);
+		DEBUG_NODE_BEATIFY_LOG("VAL INSERT", val);
+
 		RBTInsert(orderByRBT, (Node *) key, (Node *) val);
 	}
 
