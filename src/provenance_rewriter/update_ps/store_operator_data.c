@@ -655,7 +655,7 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
         FOREACH_HASH_KEY(Constant, c, acs->map) {
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
 
-            char ** params = CALLOC(sizeof(char *), 3);
+            char ** params = CALLOC(sizeof(char *), 2);
             //bytea;
             size_t to_length;
             unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
@@ -688,7 +688,7 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
         stmtName = CONCAT_STRINGS("STMT_", meta->data);
         postgresPrepareUpdatePS(q->data, stmtName, 4);
         FOREACH_HASH_KEY(Constant, c, acs->map) {
-            char ** params = CALLOC(sizeof(char *), 3);
+            char ** params = CALLOC(sizeof(char *), 4);
 
             size_t to_length;
             unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
