@@ -502,9 +502,13 @@ fetchPSMapData(int opNum)
 
             // unescape bytea;
             char *groupby_bytea = (char *) getVecString(v, 1);
-            size_t to_length;
+            size_t to_length = 0;
             unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
-            char *groupby = (char *) temp;
+            // char *groupby = (char *) temp;
+            // size_t gblen = strlen((char*) temp);
+            char *groupby = MALLOC(to_length + 1);
+            memcpy(groupby, (char *) temp, to_length);
+            groupby[to_length] = '\0';
 
             char *bitStr = (char *) getVecString(v, 2);
 
@@ -531,9 +535,13 @@ fetchPSMapData(int opNum)
             char *name = (char *) getVecString(v, 0);
             //unescape bytea;
             char *groupby_bytea = (char *) getVecString(v, 1);
-            size_t to_length;
+            size_t to_length = 0;
             unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
-            char *groupby = (char *) temp;
+            // char *groupby = (char *) temp;
+            // size_t gblen = strlen((char*) temp);
+            char *groupby = MALLOC(to_length + 1);
+            memcpy(groupby, (char *) temp, to_length);
+            groupby[to_length] = '\0';
 
             int no = atoi((char *) getVecString(v, 2));
             int cnt = atoi((char *) getVecString(v, 3));
@@ -544,8 +552,11 @@ fetchPSMapData(int opNum)
                 addToMap(psMap->fragCount, (Node *) createConstString(name), (Node *) gbFragCnt);
             }
 
-            HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, groupby);
-            if (fragCnt == NULL) {
+            // HashMap *fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, groupby);
+            HashMap *fragCnt = NULL;
+            if (MAP_HAS_STRING_KEY(gbFragCnt, groupby)) {
+                fragCnt = (HashMap *) MAP_GET_STRING(gbFragCnt, groupby);
+            } else {
                 fragCnt = NEW_MAP(Constant, Constant);
                 addToMap(gbFragCnt, (Node *) createConstString(groupby), (Node *) fragCnt);
             }
@@ -568,9 +579,13 @@ fetchGBACSsData(int opNum, char* acsName, int type)
     if (type == 3) {
         FOREACH_VEC(Vector, v, rel->tuples) {
             char *groupby_bytea = (char *) getVecString(v, 0);
-            size_t to_length;
+            size_t to_length = 0;
             unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
-            char *groupby = (char *) temp;
+            // char *groupby = (char *) temp;
+            // size_t gblen = strlen((char*) temp);
+            char *groupby = MALLOC(to_length + 1);
+            memcpy(groupby, (char *) temp, to_length);
+            groupby[to_length] = '\0';
 
             double avg = atof((char *) getVecString(v, 1));
             double sum = atof((char *) getVecString(v, 2));
@@ -584,10 +599,13 @@ fetchGBACSsData(int opNum, char* acsName, int type)
     } else if (type == 2) {
         FOREACH_VEC(Vector, v, rel->tuples) {
             char *groupby_bytea = (char *) getVecString(v, 0);
-            size_t to_length;
+            size_t to_length = 0;
             unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
-            char *groupby = (char *) temp;
-
+            // char *groupby = (char *) temp;
+            // size_t gblen = strlen((char*) temp);
+            char *groupby = MALLOC(to_length + 1);
+            memcpy(groupby, (char *) temp, to_length);
+            groupby[to_length] = '\0';
             double sum = atof((char *) getVecString(v, 1));
             gprom_long_t cnt = atol((char *) getVecString(v, 2));
             Vector *vals = makeVector(VECTOR_NODE, T_Vector);
@@ -598,9 +616,13 @@ fetchGBACSsData(int opNum, char* acsName, int type)
     } else if (type == 1) {
         FOREACH_VEC(Vector, v, rel->tuples) {
             char *groupby_bytea = (char *) getVecString(v, 0);
-            size_t to_length;
+            size_t to_length = 0;
             unsigned char* temp = (unsigned char *) PQunescapeBytea((unsigned char *) groupby_bytea, &to_length);
-            char *groupby = (char *) temp;
+            // char *groupby = (char *) temp;
+            // size_t gblen = strlen((char*) temp);
+            char *groupby = MALLOC(to_length + 1);
+            memcpy(groupby, (char *) temp, to_length);
+            groupby[to_length] = '\0';
 
             gprom_long_t cnt = atol((char *) getVecString(v, 1));
             Vector *vals = makeVector(VECTOR_NODE, T_Vector);
