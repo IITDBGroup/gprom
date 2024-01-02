@@ -3240,7 +3240,8 @@ postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *upd
         char *format = NULL;
         if (col > 0) {
             appendStringInfoString(createTableSQL, ",");
-            format = ",%s";
+            // format = ",%s";
+            format = "\t%s";
         } else {
             format = "%s";
         }
@@ -3427,12 +3428,14 @@ postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *upd
                 int infoIdx = 0;
                 for (int row = 0; row < insNum; row++) {
                     if (insCheckValue[row] == 1) {
-                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", gprom_itoa(psInsVals[row]));
+                        // appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", gprom_itoa(psInsVals[row]));
+                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), "\t%s", gprom_itoa(psInsVals[row]));
                     }
                 }
                 for (int row = 0; row < delNum; row++) {
                     if (delCheckValue[row] == 1) {
-                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", gprom_itoa(psDelVals[row]));
+                        // appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", gprom_itoa(psDelVals[row]));
+                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), "\t%s", gprom_itoa(psDelVals[row]));
                     }
                 }
             } else {
@@ -3451,12 +3454,14 @@ postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *upd
                 int infoIdx = 0;
                 for (int row = 0; row < insNum; row++) {
                     if (insCheckValue[row] == 1) {
-                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", bitSetToString(psInsVals[row]));
+                        // appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", bitSetToString(psInsVals[row]));
+                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), "\t%s", bitSetToString(psInsVals[row]));
                     }
                 }
                 for (int row = 0; row < delNum; row++) {
                     if (delCheckValue[row] == 1) {
-                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", bitSetToString(psDelVals[row]));
+                        // appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), ",%s", bitSetToString(psDelVals[row]));
+                        appendStringInfo((StringInfo) getVecNode(deltaTuples, infoIdx++), "\t%s", bitSetToString(psDelVals[row]));
                     }
                 }
             }
@@ -3470,12 +3475,14 @@ postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *upd
     int infoIdx = 0;
     for (int row = 0; row < insNum; row++) {
         if (insCheckValue[row] == 1) {
-            appendStringInfoString((StringInfo) getVecNode(deltaTuples, infoIdx++), ",1");
+            // appendStringInfoString((StringInfo) getVecNode(deltaTuples, infoIdx++), ",1");
+            appendStringInfoString((StringInfo) getVecNode(deltaTuples, infoIdx++), "\t1");
         }
     }
     for (int row = 0; row < delNum; row++) {
         if (delCheckValue[row] == 1) {
-            appendStringInfoString((StringInfo) getVecNode(deltaTuples, infoIdx++), ",-1");
+            // appendStringInfoString((StringInfo) getVecNode(deltaTuples, infoIdx++), ",-1");
+            appendStringInfoString((StringInfo) getVecNode(deltaTuples, infoIdx++), "\t-1");
         }
     }
     appendStringInfoString(createTableSQL, ");");
@@ -3496,7 +3503,8 @@ postgresCopyDeltaToDBWithBF(HashMap *dataChunks, char *deltaTableName, char *upd
 
     // copy data: create "COPY XXX FROM STDIN(DELIMITER\',\');"
     StringInfo copyStartSQL = makeStringInfo();
-    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \',\');", strdup(deltaTableName));
+    // appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \',\');", strdup(deltaTableName));
+    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \'\t\');", strdup(deltaTableName));
     // INFO_LOG("COPY START SQL %s", copyStartSQL->data);
     // PQexec(conn, copyStartSQL->data);
     // // copy data: PQputCopyData()
@@ -3611,6 +3619,7 @@ postgresCopyToDB(StringInfo createTBL, StringInfo dataInfo, char *tableName)
 
     START_TIMER("Postgres - ORDER OPERATOR COPY DATA INTO DB");
     INFO_LOG("Create data: %s", tableName);
+    INFO_LOG("RESTATE %s", dataInfo->data);
     res = PQexec(conn, createTBL->data);
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         INFO_LOG("ERROR MSG: %s", PQerrorMessage(conn));
@@ -3620,14 +3629,18 @@ postgresCopyToDB(StringInfo createTBL, StringInfo dataInfo, char *tableName)
     const char *errormsg = NULL;
     // copy data: create "COPY XXX FROM STDIN(DELIMITER\',\');"
     StringInfo copyStartSQL = makeStringInfo();
-    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \',\');", strdup(tableName));
+    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \'\t\');", strdup(tableName));
 
     // approach 2: one bulk
     PQexec(conn, copyStartSQL->data);
     PQputCopyData(conn, dataInfo->data, dataInfo->len);
 
 
-    PQputCopyEnd(conn, errormsg);
+    int retV = PQputCopyEnd(conn, errormsg);
+    if (retV < 0) {
+        FATAL_LOG(errormsg);
+    //    CLOSE_CONN_AND_FATAL(PQerrorMessage(conn));
+    }
     execCommit();
     STOP_TIMER("Postgres - ORDER OPERATOR COPY DATA INTO DB");
 }
@@ -3684,7 +3697,8 @@ postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent)
         char *format = NULL;
         if (col > 0) {
             appendStringInfoString(createTableSQL, ",");
-            format = ",%s";
+            // format = ",%s";
+            format = "\t%s";
         } else {
             format = "%s";
         }
@@ -3841,10 +3855,12 @@ postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent)
                 }
 
                 for (int row = 0; row < insNum; row++) {
-                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), ",%s", gprom_itoa(psInsVals[row]));
+                    // appendStringInfo((StringInfo) getVecNode(deltaTuples, row), ",%s", gprom_itoa(psInsVals[row]));
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), "\t%s", gprom_itoa(psInsVals[row]));
                 }
                 for (int row = 0; row < delNum; row++) {
-                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), ",%s", gprom_itoa(psDelVals[row]));
+                    // appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), ",%s", gprom_itoa(psDelVals[row]));
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), "\t%s", gprom_itoa(psDelVals[row]));
                 }
             } else {
                 deltaAttrDefs = appendToTailOfList(deltaAttrDefs, createAttributeDef(strdup(STRING_VALUE(c)), DT_STRING));
@@ -3861,10 +3877,12 @@ postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent)
                 }
 
                 for (int row = 0; row < insNum; row++) {
-                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), ",%s", bitSetToString(psInsVals[row]));
+                    // appendStringInfo((StringInfo) getVecNode(deltaTuples, row), ",%s", bitSetToString(psInsVals[row]));
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row), "\t%s", bitSetToString(psInsVals[row]));
                 }
                 for (int row = 0; row < delNum; row++) {
-                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), ",%s", bitSetToString(psDelVals[row]));
+                    // appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), ",%s", bitSetToString(psDelVals[row]));
+                    appendStringInfo((StringInfo) getVecNode(deltaTuples, row + insNum), "\t%s", bitSetToString(psDelVals[row]));
                 }
             }
         }
@@ -3875,10 +3893,12 @@ postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent)
     deltaAttrDefs = appendToTailOfList(deltaAttrDefs, createAttributeDef(strdup(updIdent), DT_INT));
     appendStringInfo(createTableSQL, ", %s %s", strdup(updIdent), "int");
     for (int row = 0; row < insNum; row++) {
-        appendStringInfoString((StringInfo) getVecNode(deltaTuples, row), ",1");
+        // appendStringInfoString((StringInfo) getVecNode(deltaTuples, row), ",1");
+        appendStringInfoString((StringInfo) getVecNode(deltaTuples, row), "\t1");
     }
     for (int row = 0; row < delNum; row++) {
-        appendStringInfoString((StringInfo) getVecNode(deltaTuples, insNum + row), ",-1");
+        // appendStringInfoString((StringInfo) getVecNode(deltaTuples, insNum + row), ",-1");
+        appendStringInfoString((StringInfo) getVecNode(deltaTuples, insNum + row), "\t-1");
     }
     appendStringInfoString(createTableSQL, ");");
 
@@ -3898,7 +3918,8 @@ postgresCopyDeltaToDB(HashMap *dataChunks, char *deltaTableName, char *updIdent)
 
     // copy data: create "COPY XXX FROM STDIN(DELIMITER\',\');"
     StringInfo copyStartSQL = makeStringInfo();
-    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \',\');", strdup(deltaTableName));
+    // appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \',\');", strdup(deltaTableName));
+    appendStringInfo(copyStartSQL, "COPY %s FROM STDIN(DELIMITER \'\t\');", strdup(deltaTableName));
     // INFO_LOG("COPY START SQL %s", copyStartSQL->data);
     // PQexec(conn, copyStartSQL->data);
     // // copy data: PQputCopyData()

@@ -1109,8 +1109,6 @@ updateJoin2(QueryOperator *op)
 			QueryOperator *cOp = (QueryOperator *) copyObject(rewrOp);
 
 			leftDelta = createTableAccessOp(strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), NULL, strdup(JOIN_LEFT_BRANCH_DELTA_TABLE), singleton(OP_LCHILD(cOp)), getAttrDefNames(deltaInfos), getAttrDataTypes(deltaInfos));
-			INFO_OP_LOG("LEFT DELTA ", leftDelta);
-			INFO_OP_LOG("copy ccc", cOp);
 			// List *provAttrDefs = getProvenanceAttrDefs(OP_LCHILD(OP_LCHILD(cOp)));
 
 			// create a project

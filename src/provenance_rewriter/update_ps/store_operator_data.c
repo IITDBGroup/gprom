@@ -223,7 +223,7 @@ storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum)
             for (int idx = 0; idx < attrsLen; idx++) {
                 char *format = NULL;
                 if (idx > 0) {
-                    format = ",%s";
+                    format = "\t%s";
                 } else {
                     format ="%s";
                 }
@@ -266,9 +266,11 @@ storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum)
                 DEBUG_NODE_BEATIFY_LOG("PS", psVal);
                 boolean isThisInt = BOOL_VALUE((Constant *) MAP_GET_STRING(psIsInt, psAttr));
                 if (isThisInt) {
-                    appendStringInfo(vals, ",%s", gprom_itoa(INT_VALUE((Constant *) psVal)));
+                    // appendStringInfo(vals, ",%s", gprom_itoa(INT_VALUE((Constant *) psVal)));
+                    appendStringInfo(vals, "\t%s", gprom_itoa(INT_VALUE((Constant *) psVal)));
                 } else {
-                    appendStringInfo(vals, ",%s", (bitSetToString((BitSet *) psVal)));
+                    // appendStringInfo(vals, ",%s", (bitSetToString((BitSet *) psVal)));
+                    appendStringInfo(vals, "\t%s", (bitSetToString((BitSet *) psVal)));
 
                 }
             }
