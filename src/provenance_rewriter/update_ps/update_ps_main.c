@@ -361,7 +361,14 @@ update_ps(ProvenanceComputation *qbModel)
 		}
 	}
 	// AFTER INCREMENTAL UPDATE STEPS, GET NEW SKETCH;
+
 	QueryOperator *topOperator = OP_LCHILD((QueryOperator *) qbModel);
+	PSMap *prePS = (PSMap *) GET_STRING_PROP((QueryOperator *) qbModel, PROP_DATA_STRUCTURE_STATE)	;
+
+	FOREACH_HASH_KEY(Constant, c, prePS->provSketchs) {
+		BitSet *bs = (BitSet *) MAP_GET_STRING(prePS->provSketchs, STRING_VALUE(c));
+		DEBUG_NODE_BEATIFY_LOG("OLD: ", bs);
+	}
 	if (HAS_STRING_PROP(topOperator, PROP_DATA_CHUNK)) {
 		HashMap *inputChunkMaps = (HashMap *) GET_STRING_PROP(topOperator, PROP_DATA_CHUNK);
 		DataChunk *inputDCIns = (DataChunk *) MAP_GET_STRING(inputChunkMaps, PROP_DATA_CHUNK_INSERT);

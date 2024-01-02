@@ -143,4 +143,6 @@ extern List *heapifyListSiftUp(List *list, int pos, char *type, DataType valData
 extern List *heapifyListSiftDown(List *list, int pos, char *type, DataType valDataType);
 extern List *heapInsert(List *list, char* type, Node *ele);
 extern List *heapDelete(List *list, char* type, Node *ele);
+extern boolean hasLimitOpAbove(QueryOperator *op);
+extern boolean hasOrderOpBelow(QueryOperator *op);
 #endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_UPDATE_PS_BUILD_STATE_H_ */

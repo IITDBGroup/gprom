@@ -59,6 +59,7 @@ static void getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunkIn
 static DataChunk *filterDataChunk(DataChunk* dataChunk, Node* condition);
 static QueryOperator *captureRewrite(QueryOperator *operator);
 static ConstRelMultiListsOperator *createConstRelMultiListsFromDataChunk(DataChunk *leftDC, DataChunk *rightDC, boolean isLeftBranch, List *parentList, List *provAttrDefs);
+static HashMap *getStateFromOrderOp(QueryOperator *op);
 static ColumnChunk *makeColumnChunk(DataType dataType, size_t len);
 static ColumnChunk *evaluateExprOnDataChunk(Node *expr, DataChunk *dc);
 static ColumnChunk *evaluateOperatorOnDataChunk(Operator *op, DataChunk *dc);
@@ -2113,108 +2114,6 @@ updateAggregation(QueryOperator *op)
 		}
 		hasBuildGBAttrsPosTypeVec = TRUE;
 	}
-	// 	char ** gbValsArr = (char **) VEC_TO_ARR(gbValsInsert, char);
-	// 	if (noGB) {
-	// 		for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-	// 			gbValsArr[row] = strdup("##");
-	// 		}
-	// 	} else {
-	// 		for (int gbIndex = 0; gbIndex < gbAttrCnt; gbIndex++) {
-	// 			DataType type = getVecInt(gbType, gbIndex);
-	// 			int pos = getVecInt(gbPoss, gbIndex);
-	// 			switch (type) {
-	// 				case DT_INT:
-	// 				{
-	// 					int *valArr = VEC_TO_IA((Vector *) getVecNode(dataChunkInsert->tuples, pos));
-	// 					for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 							gbValsArr[row] = CONCAT_STRINGS(gprom_itoa(valArr[row]), "#");
-	// 						else
-	// 							gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_itoa(valArr[row]), "#");
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_LONG:
-	// 				{
-	// 					gprom_long_t *valArr = VEC_TO_LA((Vector *) getVecNode(dataChunkInsert->tuples, pos));
-	// 					for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 							gbValsArr[row] = CONCAT_STRINGS(gprom_ltoa(valArr[row]), "#");
-	// 						else
-	// 							gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ltoa(valArr[row]), "#");
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_FLOAT:
-	// 				{
-	// 					double *valArr = VEC_TO_FA((Vector *) getVecNode(dataChunkInsert->tuples, pos));
-	// 					for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-	// 						// version 2: add some processing to gb float
-	// 						char *thisVal = gprom_ftoa(valArr[row]);
-	// 						int valLen = strlen(thisVal);
-	// 						int trim0Pos = valLen - 1;
-	// 						for (int zeroPos = valLen - 1; zeroPos >= 0; zeroPos--) {
-	// 							if (thisVal[zeroPos] != '0') {
-	// 								if (thisVal[zeroPos] == '.') {
-	// 									// in case get 2. we need 2.0
-	// 									trim0Pos = zeroPos + 1;
-	// 								} else {
-	// 									trim0Pos = zeroPos;
-	// 								}
-	// 								break;
-	// 							}
-	// 						}
-
-	// 						char actualStr[1000];
-	// 						strncpy(actualStr, thisVal, trim0Pos + 1);
-	// 						actualStr[trim0Pos + 1] = '\0';
-
-	// 						if (gbIndex == 0) {
-	// 						 	gbValsArr[row] = CONCAT_STRINGS(actualStr, "#");
-	// 						} else {
-	// 						 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], actualStr, "#");
-	// 						}
-	// 						// end of process version 2
-
-	// 						// version 1
-	// 						// if (gbIndex == 0)
-	// 						// 	gbValsArr[row] = CONCAT_STRINGS(gprom_ftoa(valArr[row]), "#");
-	// 						// else
-	// 						// 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ftoa(valArr[row]), "#");
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_BOOL:
-	// 				{
-	// 					int *valArr = VEC_TO_IA((Vector *) getVecNode(dataChunkInsert->tuples, pos));
-	// 					for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 							gbValsArr[row] = CONCAT_STRINGS(gprom_itoa(valArr[row]), "#");
-	// 						else
-	// 							gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_itoa(valArr[row]), "#");
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_STRING:
-	// 				case DT_VARCHAR2:
-	// 				{
-	// 					char **valArr = (char **) VEC_TO_ARR((Vector *) getVecNode(dataChunkInsert->tuples, pos), char);
-	// 					for (int row = 0; row < dataChunkInsert->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 							gbValsArr[row] = CONCAT_STRINGS(valArr[row], "#");
-	// 						else
-	// 							gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], valArr[row], "#");
-	// 					}
-
-	// 				}
-	// 					break;
-	// 				default:
-	// 					FATAL_LOG("data type is not supproted");
-	// 			}
-	// 		}
-	// 	}
-	// 	// ASSERT(gbValsInsert->length == dataChunkInsert->numTuples);
-	// }
 
 	Vector *gbValsDelete = NULL;
 	DataChunk *dataChunkDelete = NULL;
@@ -2222,12 +2121,8 @@ updateAggregation(QueryOperator *op)
 		dataChunkDelete = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_DELETE);
 		gbValsDelete = buildGroupByValueVecFromDataChunk(dataChunkDelete, aggGBList);
 	}
-	//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-	//>>>>>>>> remove below code>>>>>>>>>>>>>>>>>>>
 	if (MAP_HAS_STRING_KEY(chunkMaps, PROP_DATA_CHUNK_DELETE)) {
 		dataChunkDelete = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_DELETE);
-		// gbValsDelete = makeVectorOfSize(VECTOR_STRING, T_Vector, dataChunkDelete->numTuples);
-		// gbValsDelete->length = dataChunkDelete->numTuples;
 
 		if (!hasBuildGBAttrsPosTypeVec) {
 			FOREACH(AttributeReference, ar, aggGBList) {
@@ -2241,110 +2136,6 @@ updateAggregation(QueryOperator *op)
 		}
 	}
 
-	// 	char ** gbValsArr = (char **) VEC_TO_ARR(gbValsDelete, char);
-	// 	if (noGB) {
-	// 		for (int row = 0; row < dataChunkDelete->numTuples; row++) {
-	// 			gbValsArr[row] = strdup("##");
-	// 		}
-	// 	} else {
-	// 		for (int gbIndex = 0; gbIndex < gbAttrCnt; gbIndex++) {
-	// 			DataType type = getVecInt(gbType, gbIndex);
-	// 			int pos = getVecInt(gbPoss, gbIndex);
-	// 			switch (type) {
-	// 				case DT_INT:
-	// 				{
-	// 					int *valArr = VEC_TO_IA((Vector *) getVecNode(dataChunkDelete->tuples, pos));
-	// 					for (int row = 0; row < dataChunkDelete->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 						{ gbValsArr[row] = CONCAT_STRINGS(gprom_itoa(valArr[row]), "#"); }
-	// 						else
-	// 						{ gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_itoa(valArr[row]), "#"); }
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_LONG:
-	// 				{
-	// 					gprom_long_t *valArr = VEC_TO_LA(getVecNode(dataChunkDelete->tuples, pos));
-	// 					for (int row = 0; row < dataChunkDelete->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 							gbValsArr[row] = CONCAT_STRINGS(gprom_ltoa(valArr[row]), "#");
-	// 						else
-	// 							gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ltoa(valArr[row]), "#");
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_FLOAT:
-	// 				{
-	// 					double *valArr = VEC_TO_FA(getVecNode(dataChunkDelete->tuples, pos));
-	// 					for (int row = 0; row < dataChunkDelete->numTuples; row++) {
-	// 						// version 2: add some processing to gb float
-	// 						char *thisVal = gprom_ftoa(valArr[row]);
-	// 						int valLen = strlen(thisVal);
-	// 						int trim0Pos = valLen - 1;
-	// 						for (int zeroPos = valLen - 1; zeroPos >= 0; zeroPos--) {
-	// 							if (thisVal[zeroPos] != '0') {
-	// 								if (thisVal[zeroPos] == '.') {
-	// 									// in case get 2. we need 2.0
-	// 									trim0Pos = zeroPos + 1;
-	// 								} else {
-	// 									trim0Pos = zeroPos;
-	// 								}
-	// 								break;
-	// 							}
-	// 						}
-
-	// 						char actualStr[1000];
-	// 						strncpy(actualStr, thisVal, trim0Pos + 1);
-	// 						actualStr[trim0Pos + 1] = '\0';
-	// 						INFO_LOG("actural str %s", actualStr);
-	// 						if (gbIndex == 0) {
-	// 						 	gbValsArr[row] = CONCAT_STRINGS(actualStr, "#");
-	// 						} else {
-	// 						 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], actualStr, "#");
-	// 						}
-	// 						// end of process version 2
-
-	// 						// version 1
-	// 						// if (gbIndex == 0)
-	// 						// 	gbValsArr[row] = CONCAT_STRINGS(gprom_ftoa(valArr[row]), "#");
-	// 						// else
-	// 						// 	gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_ftoa(valArr[row]), "#");
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_BOOL:
-	// 				{
-	// 					int *valArr = VEC_TO_IA(getVecNode(dataChunkDelete->tuples, pos));
-	// 					for (int row = 0; row < dataChunkDelete->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 							gbValsArr[row] = CONCAT_STRINGS(gprom_itoa(valArr[row]), "#");
-	// 						else
-	// 							gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], gprom_itoa(valArr[row]), "#");
-	// 					}
-	// 				}
-	// 					break;
-	// 				case DT_STRING:
-	// 				case DT_VARCHAR2:
-	// 				{
-	// 					char **valArr = (char **) VEC_TO_ARR((Vector *) getVecNode(dataChunkDelete->tuples, pos), char);
-	// 					for (int row = 0; row < dataChunkDelete->numTuples; row++) {
-	// 						if (gbIndex == 0)
-	// 							gbValsArr[row] = CONCAT_STRINGS(valArr[row], "#");
-	// 						else
-	// 							gbValsArr[row] = CONCAT_STRINGS(gbValsArr[row], valArr[row], "#");
-	// 					}
-
-	// 				}
-	// 					break;
-	// 				default:
-	// 					FATAL_LOG("data type is not supproted");
-	// 			}
-	// 		}
-	// 	}
-	// 	ASSERT(gbValsDelete->length == dataChunkDelete->numTuples);
-	// }
-	//<<<<<<<<<<<<<<<<<<remove above code <<<<<<<<<<<<<<
-	//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 	DEBUG_NODE_BEATIFY_LOG("insert gbs", gbValsInsert);
 	DEBUG_NODE_BEATIFY_LOG("delete gbs", gbValsDelete);
 
@@ -5311,6 +5102,22 @@ updateOrder(QueryOperator *op)
 	removeStringProperty(lchild, PROP_DATA_CHUNK);
 }
 
+static HashMap *
+getStateFromOrderOp(QueryOperator *op)
+{
+	HashMap *state = NULL;
+	if (isA(op, OrderOperator)) {
+		state = (HashMap *) GET_STRING_PROP(op, PROP_DATA_STRUCTURE_STATE);
+		return state;
+	}
+
+	FOREACH(QueryOperator, o, op->inputs) {
+		state = getStateFromOrderOp(o);
+	}
+
+	return state;
+}
+
 static void
 updateLimit(QueryOperator *op)
 {
@@ -5323,13 +5130,25 @@ updateLimit(QueryOperator *op)
 		return;
 	}
 
-	if (!isA(OP_LCHILD(op), OrderOperator)) {
+	boolean hasOrderBelow = hasOrderOpBelow(op);
+	// if (!isA(OP_LCHILD(op), OrderOperator)) {
 		// special case;
+		// return;
+	// }
+	INFO_LOG("LIMIT: HAS ORDER BELOW %d", hasOrderBelow);
+	if (!hasOrderBelow) {
 		return;
 	}
 
+
 	// get the rbtree from child(order operator);
-	HashMap *dataStructures = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_STRUCTURE_STATE);
+	// HashMap *dataStructures = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_STRUCTURE_STATE);
+	HashMap *dataStructures = getStateFromOrderOp(op);
+	if (dataStructures == NULL) {
+		INFO_LOG("ORDER STATE IS NULL");
+		return;
+	}
+
 	RBTRoot *rbtree = NULL;
 	rbtree = (RBTRoot *) MAP_GET_STRING(dataStructures, PROP_DATA_STRUCTURE_ORDER_BY);
 

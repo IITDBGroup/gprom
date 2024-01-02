@@ -129,8 +129,14 @@ static void
 storeOrderOperatorData(OrderOperator *op)
 {
     // just dealing with orderby-limit; single order operator will be ignored;
-    QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) op)->parents, 0);
-    if (!isA(parent, LimitOperator)) {
+    // QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) op)->parents, 0);
+
+    boolean hasLimitAbove = hasLimitOpAbove((QueryOperator *) op);
+    // if (!isA(parent, LimitOperator)) {
+        // return;
+    // }
+    INFO_LOG("HAS LIMIT ABOVE %d", hasLimitAbove);
+    if (!hasLimitAbove) {
         return;
     }
 
@@ -197,6 +203,11 @@ storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum)
     appendStringInfo(createTbl, "%s;", ")");
 
     Vector * vec = RBTInorderTraverse(root);
+
+    if (vec == NULL || vec->length < 1) {
+        return;
+    }
+
     DEBUG_NODE_BEATIFY_LOG("RBT VEC:", vec);
     INFO_LOG("size of vec: %d", vec->length);
 

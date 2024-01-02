@@ -91,8 +91,14 @@ fetchOperatorDataInternal(QueryOperator *op)
 
 static void fetchOrderOperatorData(OrderOperator *op)
 {
-    QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) op)->parents, 0);
-    if (!isA(parent, LimitOperator)) {
+    // QueryOperator *parent = (QueryOperator *) getNthOfListP(((QueryOperator *) op)->parents, 0);
+
+    boolean hasLimitAbove = hasLimitOpAbove((QueryOperator *) op);
+    // if (!isA(parent, LimitOperator)) {
+        // return;
+    // }
+    INFO_LOG("FETCH: HAS LIMIT ABOVE: %d", hasLimitAbove);
+    if (!hasLimitAbove) {
         return;
     }
     RBTRoot *root = makeRBT(RBT_ORDER_BY, TRUE);
