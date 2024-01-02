@@ -236,7 +236,7 @@ storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum)
                     break;
                     case DT_BOOL:
                     {
-                        appendStringInfo(vals, format, (BOOL_VALUE(c) == TRUE ? "true" : "false"));
+                        appendStringInfo(vals, format, (BOOL_VALUE(c) == TRUE ? gprom_itoa(1) : gprom_itoa(0)));
                     }
                     break;
                     case DT_LONG:

@@ -380,6 +380,7 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 			gb->data = MALLOC(3);
 			memcpy(gb->data, dummyGBVal, 2);
 			gb->data[2] = '\0';
+			vecAppendNode(gbValsVec, (Node *) gb);
 		}
 	} else {
 		Vector *gbAttrPos = makeVector(VECTOR_INT, T_Vector);
@@ -1328,7 +1329,11 @@ buildStateOrderOp(QueryOperator *op)
 {
 	// if a query only has order by, no limit operator, we ca just skip this order by;
 	// because only order by, it just sort all the tuples from the lower level;
-	if (!isA(getHeadOfListP(op->parents), LimitOperator)) {
+	// if (!isA(getHeadOfListP(op->parents), LimitOperator)) {
+	// 	return;
+	// }
+	boolean hasLimitAbove = hasLimitOpAbove(op);
+	if (!hasLimitAbove) {
 		return;
 	}
 	DEBUG_NODE_BEATIFY_LOG("build state order op", op);
