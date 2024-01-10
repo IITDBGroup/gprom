@@ -27,6 +27,8 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/update_ps/bloom.h"
+#include "provenance_rewriter/update_ps/base64.h"
+
 //#include "provenance_rewriter/update_ps/update_ps_main.h"
 //#include "provenance_rewriter/update_ps/update_ps_incremental.h"
 #include "provenance_rewriter/update_ps/update_ps_build_state.h"
@@ -417,12 +419,7 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 
 		if (noStringTypeExists) {
 			for (int row = 0; row < numTuples; row++) {
-				StringInfo gb = NEW(StringInfoData);
-				gb->cursor = 0;
-				gb->maxlen = totalSizeIfNoStringType;
-				gb->len = totalSizeIfNoStringType;
-				gb->data = MALLOC(totalSizeIfNoStringType + 1);
-
+				char *gb = (char *) MALLOC(totalSizeIfNoStringType + 1);
 				Vector * tuple = (Vector *) getVecNode(rel->tuples, row);
 				size_t preSize = 0;
 				for (int col = 0; col < gbAttrPos->length; col++) {
@@ -434,21 +431,21 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 						case DT_INT:
 						{
 							int val = atoi(value);
-							memcpy(gb->data + preSize, &val, sizeof(int));
+							memcpy(gb + preSize, &val, sizeof(int));
 							preSize += sizeof(int);
 						}
 						break;
 						case DT_LONG:
 						{
 							gprom_long_t val = atol(value);
-							memcpy(gb->data + preSize, &val, sizeof(gprom_long_t));
+							memcpy(gb + preSize, &val, sizeof(gprom_long_t));
 							preSize += sizeof(gprom_long_t);
 						}
 						break;
 						case DT_FLOAT:
 						{
 							double val = atof(value);
-							memcpy(gb->data + preSize, &val, sizeof(double));
+							memcpy(gb + preSize, &val, sizeof(double));
 							preSize += sizeof(double);
 						}
 						break;
@@ -458,7 +455,7 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 							if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true")) {
 								val = 1;
 							}
-							memcpy(gb->data + preSize, &val, sizeof(int));
+							memcpy(gb + preSize, &val, sizeof(int));
 							preSize += sizeof(int);
 						}
 						break;
@@ -470,8 +467,15 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 						break;
 					}
 				}
-				gb->data[preSize] = '\0';
-				vecAppendNode(gbValsVec, (Node *) gb);
+				gb[preSize] = '\0';
+				int flen;
+				char *base64Str = (char *) base64(gb, (int) preSize, &flen);
+				StringInfo gbv = NEW(StringInfoData);
+				gbv->cursor = 0;
+				gbv->maxlen = flen;
+				gbv->len = flen;
+				gbv->data = base64Str;
+				vecAppendNode(gbValsVec, (Node *) gbv);
 			}
 		} else {
 			for (int row = 0; row < numTuples; row++) {
@@ -485,12 +489,7 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 					totSizeWithStringType += strlen(strVal);
 				}
 
-				StringInfo gb = NEW(StringInfoData);
-				gb->cursor = 0;
-				gb->len = totSizeWithStringType;
-				gb->maxlen = totSizeWithStringType;
-				gb->data = MALLOC(totSizeWithStringType + 1);
-
+				char *gb = (char *) MALLOC(totSizeWithStringType + 1);
 				// memcpy content to StringInfo->data;
 				size_t preSize = 0;
 				for (int col = 0; col < gbAttrPos->length; col++) {
@@ -502,21 +501,21 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 						case DT_INT:
 						{
 							int val = atoi(value);
-							memcpy(gb->data + preSize, &val, sizeof(int));
+							memcpy(gb + preSize, (char *) &val, sizeof(int));
 							preSize += sizeof(int);
 						}
 						break;
 						case DT_LONG:
 						{
 							gprom_long_t val = atol(value);
-							memcpy(gb->data + preSize, &val, sizeof(gprom_long_t));
+							memcpy(gb + preSize, (char *) &val, sizeof(gprom_long_t));
 							preSize += sizeof(gprom_long_t);
 						}
 						break;
 						case DT_FLOAT:
 						{
 							double val = atof(value);
-							memcpy(gb->data + preSize, &val, sizeof(double));
+							memcpy(gb + preSize, (char *) &val, sizeof(double));
 							preSize += sizeof(double);
 						}
 						break;
@@ -526,7 +525,7 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 							if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true")) {
 								val = 1;
 							}
-							memcpy(gb->data + preSize, &val, sizeof(int));
+							memcpy(gb + preSize, (char *) &val, sizeof(int));
 							preSize += sizeof(int);
 						}
 						break;
@@ -534,18 +533,47 @@ buildGroupByValueVecFromRelation(Relation *rel, List *gbList)
 						case DT_STRING:
 						{
 							size_t lens = strlen(value);
-							memcpy(gb->data + preSize, value, lens);
+							memcpy(gb + preSize, value, lens);
 							preSize += lens;
 						}
 						break;
 					}
 				}
-				gb->data[preSize] = '\0';
-				vecAppendNode(gbValsVec, (Node *) gb);
+				gb[preSize] = '\0';
+
+				int flen;
+				char *base64Str = (char *) base64(gb, preSize, &flen);
+				StringInfo gbv = NEW(StringInfoData);
+				gbv->cursor = 0;
+				gbv->len = flen;
+				gbv->maxlen = flen;
+				gbv->data = base64Str;
+				vecAppendNode(gbValsVec, (Node *) gbv);
 			}
 		}
 	}
+	// INFO_LOG("gb len %d", gbValsVec->length);
 
+	// HashMap *map = NEW_MAP(Constant, Constant);
+	// for (int i = 0; i < gbValsVec->length; i++) {
+	// 	StringInfo info = (StringInfo) getVecNode(gbValsVec, i);
+	// 	if (MAP_HAS_STRING_KEY(map, info->data)) {
+	// 		char *data = info->data;
+	// 		for (int i = 0; i < 20; i++) {
+	// 			INFO_LOG("pos: %d, char: '%c', ascii: %d", i, data[i], data[i]);
+	// 		}
+	// 		INFO_LOG("val %d", *((int*) data));
+	// 		INFO_LOG("HASH THIS KEY FOR POS %d", i);
+	// 		Constant *cnt = (Constant *) MAP_GET_STRING(map, info->data);
+	// 		INFO_LOG("previous pos %d", INT_VALUE(cnt));
+	// 	} else {
+
+	// 		addToMap(map, (Node *) createConstString(info->data), (Node *) createConstInt(i));
+	// 	}
+	// }
+
+	// INFO_LOG("WHAT IS MAP SIZE %d", mapSize(map));
+	// DEBUG_NODE_BEATIFY_LOG("WHAT IS MAP", map);
 	return gbValsVec;
 }
 
@@ -1410,6 +1438,7 @@ buildStateOrderOp(QueryOperator *op)
 	int tupleLens = resultRel->tuples->length;
 	int attrLens = LIST_LENGTH(resultRel->schema);
 	Vector *allTuples = makeVector(VECTOR_NODE, T_Vector);
+	INFO_LOG("ORDER TUPLES: %d", tupleLens);
 	for (int row = 0; row < tupleLens; row++) {
 		HashMap *tuple = NEW_MAP(Constant, Node);
 		// 0: key, 1: val, 2: ps
@@ -1470,8 +1499,8 @@ buildStateOrderOp(QueryOperator *op)
 		Vector *val = (Vector *) MAP_GET_INT(tuple, 1);
 		HashMap *ps = (HashMap *) MAP_GET_INT(tuple, 2);
 		vecAppendNode(val, (Node *) ps);
-		DEBUG_NODE_BEATIFY_LOG("KEY INSERT", key);
-		DEBUG_NODE_BEATIFY_LOG("VAL INSERT", val);
+		// DEBUG_NODE_BEATIFY_LOG("KEY INSERT", key);
+		// DEBUG_NODE_BEATIFY_LOG("VAL INSERT", val);
 
 		RBTInsert(orderByRBT, (Node *) key, (Node *) val);
 	}
@@ -1864,13 +1893,16 @@ makeValue(DataType dataType, char* value)
 			c = createConstInt(atoi(value));
 			break;
 		case DT_LONG:
-			c = createConstLong(atol(value));
+			c = createConstLong((gprom_long_t) atol(value));
 			break;
 		case DT_STRING:
 			c = createConstString(value);
 			break;
 		case DT_FLOAT:
-			c = createConstFloat(atof(value));
+		{
+			double d = atof((const char *) value);
+			c = createConstFloat(d);
+		}
 			break;
 		case DT_BOOL:
 			c = createConstBoolFromString(value);

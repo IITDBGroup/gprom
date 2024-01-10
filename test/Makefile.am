@@ -36,7 +36,9 @@ testmain_SOURCES = test_main.c \
 	test_string_utils.c \
 	test_to_string.c \
 	test_vector.c \
-	test_z3.c
+	test_z3.c \
+	test_rbt.c \
+	test_rbtree.c
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
 

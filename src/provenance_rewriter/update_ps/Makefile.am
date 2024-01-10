@@ -9,4 +9,5 @@ libupdate_ps_la_SOURCES		    = update_ps_main.c \
                                 fetch_operator_data.c \
                                 rbtree.c \
 								bloom.c \
-								MurmurHash2.c
+								MurmurHash2.c \
+                                base64.c

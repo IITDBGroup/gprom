@@ -159,9 +159,10 @@ extern rc testStringUtils(void);
 extern rc testParameter(void);
 extern rc testDatalogModel(void);
 extern rc testHash(void);
-//extern rc testLibGProM(void);
+// extern rc testLibGProM(void);
 extern rc testRPQ(void);
 extern rc testAutocast(void);
 extern rc testZ3(void);
-
+extern rc testRBT(void);
+extern rc testRBTREE(void);
 #endif

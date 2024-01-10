@@ -410,7 +410,7 @@ fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
         int oidInt = atoi(oid);
         char *typName = PQgetvalue(res,i,1);
 
-        DEBUG_LOG("oid = %s, typename = %s", oid, typName);
+        // DEBUG_LOG("oid = %s, typename = %s", oid, typName);
         MAP_ADD_INT_KEY(oidToDT,oidInt,
                 createConstInt(postgresTypenameToDT(typName)));
     }
@@ -428,14 +428,14 @@ fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
         char *oid = PQgetvalue(res,i,0);
         int oidInt = atoi(oid);
 
-        DEBUG_LOG("anyoid = %s", oid);
+        // DEBUG_LOG("anyoid = %s", oid);
         addIntToSet(anyOids,oidInt);
     }
 
     PQclear(res);
     execCommit();
 
-    DEBUG_NODE_BEATIFY_LOG("oid -> DT map:", oidToDT);
+    // DEBUG_NODE_BEATIFY_LOG("oid -> DT map:", oidToDT);
 }
 
 static void
@@ -1932,7 +1932,7 @@ prepareQuery(char *qName, char *query, int parameters, Oid *types)
     }
     PQclear(res);
 
-    DEBUG_LOG("prepared query: %s AS\n%s", qName, query);
+    // DEBUG_LOG("prepared query: %s AS\n%s", qName, query);
     STOP_TIMER(METADATA_LOOKUP_PREPARE_QUERY_TIME);
     return TRUE;
 }

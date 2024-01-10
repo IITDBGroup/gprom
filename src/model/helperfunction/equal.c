@@ -316,6 +316,15 @@ equalConstant (Constant *a, Constant *b, HashMap *seenOps, MemContext *c)
         case DT_INT:
             return INT_VALUE(a) == INT_VALUE(b);
         case DT_FLOAT:
+            if (FLOAT_VALUE(a) != FLOAT_VALUE(b)) {
+                double *da = ((double *)a->value);
+                double *db = ((double *)b->value);
+                DEBUG_NODE_LOG("a >>>>", a);
+                DEBUG_NODE_LOG("b >>>>", b);
+                for (int i = 0; i < sizeof(double); i++) {
+                INFO_LOG("da[%d]: %d, db[%d] %d", i, ((char *) da)[i], i, ((char *) db)[i]);
+                }
+            }
             return FLOAT_VALUE(a) == FLOAT_VALUE(b);
         case DT_BOOL:
             return BOOL_VALUE(a) == BOOL_VALUE(b);
@@ -611,8 +620,13 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
             bA = VEC_TO_IA(b);
 
             for(int i = 0; i < VEC_LENGTH(a); i++)
+            {
                 if (aA[i] != bA[i])
+                {
+                    INFO_LOG("NOT EQUAL int at %d", i);
                     return FALSE;
+                }
+            }
         }
         break;
         case VECTOR_STRING:
@@ -622,8 +636,13 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
             bA = VEC_TO_ARR(b,char);
 
             for(int i = 0; i < VEC_LENGTH(a); i++)
-            	if (!equal(aA[i], bA[i]))
+            {
+                if (!equal(aA[i], bA[i]))
+                {
+                    INFO_LOG("NOT EQUAL str at %d", i);
                     return FALSE;
+                }
+            }
         }
         break;
         case VECTOR_NODE:
@@ -633,8 +652,14 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
             bA = VEC_TO_ARR(b,Node);
 
             for(int i = 0; i < VEC_LENGTH(a); i++)
+            {
                 if (!equal(aA[i],bA[i]))
+                {
+                    INFO_LOG("NOT EQUAL node at %d", i);
                     return FALSE;
+                }
+            }
+
         }
         break;
         case VECTOR_LONG:
@@ -644,8 +669,12 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
         	bA = VEC_TO_LA(b);
 
         	for (int i = 0; i < VEC_LENGTH(a); i++)
-        		if (aA[i] != bA[i])
-        			return FALSE;
+        	{	if (aA[i] != bA[i])
+        		{
+                    INFO_LOG("NOT EQUAL long at %d", i);
+                    return FALSE;
+                }
+            }
         }
         break;
         case VECTOR_FLOAT:
@@ -655,8 +684,13 @@ equalVector (Vector *a, Vector *b, HashMap *seenOps, MemContext *c)
            	bA = VEC_TO_FA(b);
 
           	for (int i = 0; i < VEC_LENGTH(a); i++)
-        		if (aA[i] != bA[i])
-           			return FALSE;
+        	{
+                if (aA[i] != bA[i])
+           		{
+                    INFO_LOG("NOT EQUAL float at %d", i);
+                    return FALSE;
+                }
+            }
         }
         break;
     }

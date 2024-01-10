@@ -1,83 +1,60 @@
-/*
- * rbtree.h
- *
- */
+#ifndef _RBTREE_H_
+#define	_RBTREE_H_
 
-#ifndef INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_RBTREE_H_
-#define INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_RBTREE_H_
-
-#include "model/node/nodetype.h"
-#include "model/set/vector.h"
 #include "model/node/nodetype.h"
 #include "model/set/hashmap.h"
-// TNIL
-#define TNIL NULL
+#include "model/set/vector.h"
 
-// color;
-#define RBT_RED 0
-#define RBT_BLACK 1
-
-// parent;
-#define RBT_PARENT(n) ((n)->parent)
-#define RBT_SET_PARENT(n, p) ((n)->parent = (p))
-
-// child
-#define RBT_LCHILD(n) ((n)->left)
-#define RBT_RCHILD(n) ((n)->right)
-
-// color
-#define RBT_COLOR(n) ((n)->color)
-#define RBT_SET_COLOR(n, c) ((n)->color = (c))
-#define RBT_IS_RED(n) ((n)->color == RBT_RED)
-#define RBT_IS_BLACK(n) ((n)->color == RBT_BLACK)
-#define RBT_SET_RED(n) ((n)->color = RBT_RED)
-#define RBT_SET_BLACK(n) ((n)->color = RBT_BLACK)
-
-// db: min heap, for top k, then compare new value wit min-heap,
-// TODO: if applicable of RB tree, replace RB tree with heap in min/max;
-
-typedef enum RBTTYpe
+typedef enum RBTType
 {
-    RBT_MIN_HEAP,
-    RBT_MAX_HEAP,
-    RBT_ORDER_BY
+	RBT_MIN_HEAP,
+	RBT_MAX_HEAP,
+	RBT_ORDER_BY
 } RBTType;
 
-
-// treenode;
-typedef struct RBTNode
-{
-    NodeTag type;
-    Node *key;               // key;
-    Node *val;               // value; for min/max heap it is a count; for top-k it is a map(key: tuple, val:count)
-    struct RBTNode *left;    // left child;
-    struct RBTNode *right;   // right child;
-    struct RBTNode *parent;  // parent ;
-    unsigned char color;     // color: RBT_RED or RBT_BLACK;
+typedef struct RBTNode {
+	NodeTag    		 type;
+	struct RBTNode   *parent;
+	struct RBTNode   *left;
+	struct RBTNode   *right;
+	Node      		 *key;
+	Node      		 *val;
+	uint8_t	         color;
 } RBTNode;
 
-// tree;
-typedef struct RBTRoot
-{
-    NodeTag tag;
-    RBTNode *root;
-    RBTType type;
-    int size;
-    HashMap *metadata;       // store some metadata info for order by operator: attr num, asc/desc, ;
+/** The nullpointer, points to empty node */
+#define	RBTREE_NULL &rbtree_null_node
+/** the global empty node */
+extern	RBTNode	rbtree_null_node;
+
+/** An entire red black tree */
+// typedef struct RBTRoot RBTRoot;
+/** definition for tree struct */
+typedef struct RBTRoot {
+	NodeTag type;
+	RBTNode    *root;
+	size_t      size;
+	RBTType treeType;
+	HashMap *metadata;
 } RBTRoot;
 
-// for makeRBT: isMetadataNeeded to indicate if need some data, sometimes, is order by one attribute, we can treat orderby as min/max heap but we need to know some info about the ps;
-extern RBTRoot *makeRBT(RBTType type, boolean isMetadataNeeded);
-extern RBTNode *makeRBTNode(Node *node);
-// extern void RBTInsert(RBTRoot *root, RBTNode *node, int (*cmp) (const void **, const void **) cmp);
-// extern void RBTDelete(RBTRoot *root, RBTNode *node, int (*cmp) (const void **, const void **) cmp);
-// extern RBTNode *RBTSearch(RBTRoot *root, Node *key, int (*cmp) (const void **, const void **) cmp);
+RBTRoot *rbtree_create(int (*cmpf)(const void *, const void *));
+void rbtree_init(RBTRoot *rbtree, int (*cmpf)(const void *, const void *));
 
-// get top K: return a vector size <= K;
-extern Vector *RBTGetTopK(RBTRoot *root, int k);
-extern RBTNode *RBTGetMin(RBTRoot *root);
-extern RBTNode *RBTGetMax(RBTRoot *root);
+extern RBTRoot *makeRBT(RBTType treeType, boolean isMetadataNeeded);
+extern RBTNode *makeRBTNode(Node *key);
 extern void RBTInsert(RBTRoot *root, Node *key, Node *val);
 extern void RBTDelete(RBTRoot *root, Node *key, Node *val);
+extern Vector *RBTGetTopK(RBTRoot *root, int K);
+extern RBTNode *RBTGetMin(RBTRoot *root);
+extern RBTNode *RBTGetMax(RBTRoot *root);
 extern Vector *RBTInorderTraverse(RBTRoot *root);
-#endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_RBTREE_H_ */
+#define RBTREE_FOR(node, type, rbtree) \
+	for(node=(type)rbtree_first(rbtree); \
+		(RBTNode*)node != RBTREE_NULL; \
+		node = (type)rbtree_next((RBTNode*)node))
+extern void traverse_postorder(RBTRoot* tree, void (*func)(RBTNode*, void*),
+	void* arg);
+extern RBTNode *rbtree_next(RBTNode *rbtree);
+extern RBTNode *rbtree_previous(RBTNode *rbtree);
+#endif /* _RBTREE_H_ */

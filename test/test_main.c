@@ -56,6 +56,8 @@ static TestNameToFunc testFuncs [] = {
         { "tostring", testToString },
         { "vector", testVector },
 		{ "z3", testZ3 },
+		{ "rbt", testRBT },
+		{ "rbtree", testRBTREE },
         { NULL, NULL }
 };
 
@@ -67,7 +69,7 @@ testSuites(void)
 {
 //    RUN_TEST(testLogger(), "Logger test");
 //    RUN_TEST(testMemManager(), "Memory manager test");
-//    RUN_TEST(testList(), "List model");
+   RUN_TEST(testList(), "List model");
 //    RUN_TEST(testSet(), "Set");
     // RUN_TEST(testVector(), "Vector");
 //	RUN_TEST(testBitset(), "Bitset");

@@ -1358,7 +1358,7 @@ outRBTRoot(StringInfo str, RBTRoot * node)
 static void
 outRBTNode(StringInfo str, RBTNode * node)
 {
-    if (node != NULL) {
+    if (node != NULL && node != RBTREE_NULL) {
         WRITE_NODE_TYPE(RBTNode);
         WRITE_NODE_FIELD(key);
         WRITE_NODE_FIELD(val);
