@@ -707,7 +707,7 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
             // size_t to_length;
             // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
             // params[0] = (char *) bytea;
-            params[1] = (char *) STRING_VALUE(c);
+            params[0] = (char *) STRING_VALUE(c);
 
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
 

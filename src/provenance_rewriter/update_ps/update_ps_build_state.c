@@ -1202,6 +1202,10 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 
 	DEBUG_NODE_BEATIFY_LOG("BEFORE DUP REWRITE", aggOp);
 	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, (QueryOperator *) aggOp);
+
+	if (LIST_LENGTH(rewrOp->provAttrs) == 0) {
+		return;
+	}
 	DEBUG_NODE_BEATIFY_LOG("DUPLICATE REWRITE", rewrOp);
 
 	char *sql = serializeQuery(rewrOp);

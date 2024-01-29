@@ -439,8 +439,14 @@ fetchProvenanceComputationData(ProvenanceComputation *op) {
 static void
 fetchDuplicateRemovalData(DuplicateRemoval *op)
 {
-    HashMap *dataStructures = NEW_MAP(Constant, Node);
+
+    char *queryName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
     int opNum = INT_VALUE((Constant *) GET_STRING_PROP((QueryOperator *) op, PROP_OPERATOR_NUMBER));
+    boolean isMetaTableExisted = postgresCatalogTableExists(CONCAT_STRINGS(queryName, "_op_", gprom_itoa(opNum), "_count_dup"));
+    if (!isMetaTableExisted) {
+        return;
+    }
+    HashMap *dataStructures = NEW_MAP(Constant, Node);
     PSMap * psMap = fetchPSMapData(opNum);
     addToMap(dataStructures, (Node *) createConstString(PROP_PROV_SKETCH_DUP), (Node *) psMap);
     GBACSs *acs = fetchGBACSsData(opNum, "count_dup", 1);
