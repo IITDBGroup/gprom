@@ -646,11 +646,11 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
 
     if (!isInfo) {
         if (type == 3){
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby bytea, avg float, sum float, cnt bigint)"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby varchar, avg float, sum float, cnt bigint)"));
         } else if (type == 2) {
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby bytea, sum float, cnt bigint)"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby varchar, sum float, cnt bigint)"));
         } else if (type == 1) {
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby bytea, cnt bigint)"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby varchar, cnt bigint)"));
         }
 
     } else {
