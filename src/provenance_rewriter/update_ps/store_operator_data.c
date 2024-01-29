@@ -579,7 +579,7 @@ storePSMapData(PSMap *psMap, int opNum)
         if (isTableExists) {
             postgresExecuteStatement(CONCAT_STRINGS("TRUNCATE ", info->data, ";"));
         } else {
-            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", info->data, "(psname varchar, groupby bytea, fragno int, fragcnt int);"));
+            postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", info->data, "(psname varchar, groupby varchar, fragno int, fragcnt int);"));
         }
         q = makeStringInfo();
         // appendStringInfo(q, "insert into %s (psname, groupby, fragno, fragcnt) values ", info->data);
