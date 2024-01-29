@@ -469,6 +469,7 @@ storePSMapData(PSMap *psMap, int opNum)
     }
 
     // store ps and frag cnt;
+    // the top operator;
     if (opNum == 0) {
         StringInfo info = makeStringInfo();
         appendStringInfo(info, "%s_op_%s_psinfo", qName, gprom_itoa(opNum));
@@ -524,7 +525,7 @@ storePSMapData(PSMap *psMap, int opNum)
         char *stmtName = CONCAT_STRINGS("STMT_", info->data);
 
         postgresPrepareUpdatePS(q->data, stmtName, 3);
-        PGconn *conn = getPostgresConnection();
+        // PGconn *conn = getPostgresConnection();
 
         // boolean hasValue = FALSE;
         FOREACH_HASH_KEY(Constant, c, psMap->provSketchs) {
@@ -538,9 +539,10 @@ storePSMapData(PSMap *psMap, int opNum)
                     params[0] = (char *) STRING_VALUE(c);
 
                     // translate gb to bytea;
-                    size_t to_length;
-                    unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
-                    params[1] = (char *) bytea;
+                    // size_t to_length;
+                    // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
+                    // params[1] = (char *) bytea;
+                    params[1] = (char *) STRING_VALUE(gb);
 
                     // get sketch;
                     int sketch = INT_VALUE((Constant *) MAP_GET_STRING(provSketches, STRING_VALUE(gb)));
@@ -555,25 +557,20 @@ storePSMapData(PSMap *psMap, int opNum)
                     params[0] = STRING_VALUE(c);
 
                     // translate gb to bytea;
-                    size_t to_length;
-                    unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
-
-                    params[1] = (char *) bytea;
+                    // size_t to_length;
+                    // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
+                    // params[1] = (char *) bytea;
+                    params[1] = (char *) STRING_VALUE(gb);
 
                     BitSet *sketch = (BitSet *) MAP_GET_STRING(provSketches, STRING_VALUE(gb));
 
-                    params[2] = bitSetToString(sketch);
+                    params[2] = (char *) bitSetToString(sketch);
                     // appendStringInfo(q, "('%s', '%s', '%s'),", STRING_VALUE(c), STRING_VALUE(gb), bitSetToString(sketch));
 
                     postgresExecPrepareUpdatePS(NULL, stmtName, 3, params);
                 }
             }
         }
-        // q->data[q->len - 1] = ';';
-
-        // if (hasValue) {
-        //     postgresExecuteStatement(q->data);
-        // }
 
         // fragcnt;
         info = makeStringInfo();
@@ -586,7 +583,7 @@ storePSMapData(PSMap *psMap, int opNum)
         }
         q = makeStringInfo();
         // appendStringInfo(q, "insert into %s (psname, groupby, fragno, fragcnt) values ", info->data);
-        appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::bytea, $3:: int, $4::int);", info->data);
+        appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::bytea, $3::int, $4::int);", info->data);
         stmtName = CONCAT_STRINGS("STMT_", info->data);
 
         postgresPrepareUpdatePS(q->data, stmtName, 4);
@@ -602,9 +599,10 @@ storePSMapData(PSMap *psMap, int opNum)
                     params[0] = STRING_VALUE(c);
 
                     // bytea;
-                    size_t to_length;
-                    unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
-                    params[1] = (char *) bytea;
+                    // size_t to_length;
+                    // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
+                    // params[1] = (char *) bytea;
+                    params[1] = (char *) STRING_VALUE(gb);
 
                     params[2] = gprom_itoa(INT_VALUE(no));
 
@@ -626,7 +624,7 @@ storePSMapData(PSMap *psMap, int opNum)
 static void
 storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
 {
-    PGconn *conn = getPostgresConnection();
+    // PGconn *conn = getPostgresConnection();
     char *qName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
 
     // get function type;
@@ -670,9 +668,10 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
 
             char ** params = CALLOC(sizeof(char *), 2);
             //bytea;
-            size_t to_length;
-            unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
-            params[0] = (char *) bytea;
+            // size_t to_length;
+            // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
+            // params[0] = (char *) bytea;
+            params[0] = STRING_VALUE(c);
             params[1] = gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 0)));
             // appendStringInfo(q, "('%s', %s),", STRING_VALUE(c), gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 0))));
             postgresExecPrepareUpdatePS(NULL, stmtName, 2, params);
@@ -685,9 +684,10 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
         FOREACH_HASH_KEY(Constant, c, acs->map) {
             char ** params = CALLOC(sizeof(char *), 3);
 
-            size_t to_length;
-            unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
-            params[0] = (char *) bytea;
+            // size_t to_length;
+            // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
+            // params[0] = (char *) bytea;
+            params[0] = (char *) STRING_VALUE(c);
 
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
             params[1] = gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0)));
@@ -703,9 +703,10 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
         FOREACH_HASH_KEY(Constant, c, acs->map) {
             char ** params = CALLOC(sizeof(char *), 4);
 
-            size_t to_length;
-            unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
-            params[0] = (char *) bytea;
+            // size_t to_length;
+            // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
+            // params[0] = (char *) bytea;
+            params[1] = (char *) STRING_VALUE(c);
 
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
 

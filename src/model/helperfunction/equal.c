@@ -316,15 +316,6 @@ equalConstant (Constant *a, Constant *b, HashMap *seenOps, MemContext *c)
         case DT_INT:
             return INT_VALUE(a) == INT_VALUE(b);
         case DT_FLOAT:
-            if (FLOAT_VALUE(a) != FLOAT_VALUE(b)) {
-                double *da = ((double *)a->value);
-                double *db = ((double *)b->value);
-                DEBUG_NODE_LOG("a >>>>", a);
-                DEBUG_NODE_LOG("b >>>>", b);
-                for (int i = 0; i < sizeof(double); i++) {
-                INFO_LOG("da[%d]: %d, db[%d] %d", i, ((char *) da)[i], i, ((char *) db)[i]);
-                }
-            }
             return FLOAT_VALUE(a) == FLOAT_VALUE(b);
         case DT_BOOL:
             return BOOL_VALUE(a) == BOOL_VALUE(b);

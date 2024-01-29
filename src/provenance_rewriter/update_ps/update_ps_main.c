@@ -134,8 +134,6 @@ char*
 update_ps(ProvenanceComputation *qbModel)
 {
 
-	DEBUG_NODE_BEATIFY_LOG("qbModel", qbModel);
-	INFO_OP_LOG("qbModel", qbModel);
 	/*
 	 *	two children
 	 * 	left: update statements (one or list of statements)

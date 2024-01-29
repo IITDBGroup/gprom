@@ -6,9 +6,6 @@
 #include "model/set/hashmap.h"
 #include "mem_manager/mem_mgr.h"
 
-// #include "config.h"
-// #include "log.h"
-// #include "fptr_wlist.h"
 
 /** Node colour black */
 #define	BLACK	0
@@ -17,7 +14,6 @@
 
 /** the NULL node, global alloc */
 RBTNode	rbtree_null_node = {
-	T_Invalid,       /* it should be T_RBTNODE node type but in the NetBSD, the RBTNode == NULL should be the first to make null node*/
 	RBTREE_NULL,		/* Parent.  */
 	RBTREE_NULL,		/* Left.  */
 	RBTREE_NULL,		/* Right.  */
@@ -40,22 +36,41 @@ static int rbtree_find_less_equal(RBTRoot *rbtree, Node *key, RBTNode **result);
 // static void traverse_postorder(RBTRoot* tree, void (*func)(RBTNode*, void*),void* arg);
 static int compareTwoNodes(RBTRoot *root, Node *node1, Node *node2);
 static void inorderTraverseNodes(RBTNode *node, Vector *v);
+static void debug_rbtnode_beatify_log(RBTNode *node);
 
 #define RBTREE_FOR(node, type, rbtree) \
 	for(node=(type)rbtree_first(rbtree); \
 		(RBTNode*)node != RBTREE_NULL; \
 		node = (type)rbtree_next((RBTNode*)node))
 
+void debug_rbtree_beatify_log(RBTRoot *tree)
+{
+	INFO_LOG("TREE SIZE: %d", tree->size);
+	INFO_LOG("TREE TYPE: %d", tree->treeType);
+	DEBUG_NODE_BEATIFY_LOG("TREE METADATA:", tree->metadata);
+	debug_rbtnode_beatify_log(tree->root);
+}
+
+static void debug_rbtnode_beatify_log(RBTNode *node) {
+	if (node != NULL && node != RBTREE_NULL) {
+		DEBUG_NODE_BEATIFY_LOG("NODE KEY:", node->key);
+		DEBUG_NODE_BEATIFY_LOG("NODE VAL:", node->val);
+		debug_rbtnode_beatify_log(node->left);
+		debug_rbtnode_beatify_log(node->right);
+	}
+}
+
+
+
 RBTRoot *
 makeRBT(RBTType treeType, boolean isMetadataNeeded)
 {
-	RBTRoot *tree = makeNode(RBTRoot);
-	// Node *node = CALLOC(sizeof(RBTRoot), 1);
-	// node->type = T_RBTRoot;
-	// RBTRoot *tree = (RBTRoot *) node;
-	tree->treeType = treeType;
+	// RBTRoot *tree = makeNode(RBTRoot);
+	RBTRoot *tree = (RBTRoot *) CALLOC(sizeof(RBTRoot), 1);
+
 	tree->root = RBTREE_NULL;
 	tree->size = 0;
+	tree->treeType = treeType;
 	tree->metadata = NULL;
 	if (isMetadataNeeded) {
 		tree->metadata = NEW_MAP(Constant, Node);
@@ -67,7 +82,8 @@ makeRBT(RBTType treeType, boolean isMetadataNeeded)
 RBTNode *
 makeRBTNode(Node *key)
 {
-	RBTNode *node = makeNode(RBTNode);
+	RBTNode *node = (RBTNode *) CALLOC(sizeof(RBTNode), 1);
+
 	node->key = key;
 	node->val = NULL;
 	node->left = NULL;
@@ -85,8 +101,11 @@ RBTInsert(RBTRoot *root, Node *key, Node *val)
 
 	} else {
 		RBTNode *data = rbtree_search(root, key);
-		// if (data != RBTREE_NULL) {
 		if (data != NULL) {
+			INFO_LOG("KEY ALREADY EXISTS");
+			DEBUG_NODE_BEATIFY_LOG("KEY IN TREE STATE", data->key);
+			DEBUG_NODE_BEATIFY_LOG("KEY IN CURRENT", key);
+
 			Constant *cnt = (Constant *) getMap((HashMap *) data->val, val);
 			if (cnt != NULL) {
 				incrConst(cnt);
@@ -94,6 +113,7 @@ RBTInsert(RBTRoot *root, Node *key, Node *val)
 				addToMap((HashMap *) data->val, val, (Node *) createConstInt(1));
 			}
 		} else {
+			INFO_LOG("NEW NODE");
 			data = makeRBTNode(key);
 			data->val = (Node *) NEW_MAP(Node, Node);
 			addToMap((HashMap *) data->val, val, (Node *) createConstInt(1));
@@ -378,7 +398,7 @@ rbtree_insert_fixup(RBTRoot *rbtree, RBTNode *node)
 static RBTNode *
 rbtree_insert (RBTRoot *rbtree, RBTNode *data)
 {
-
+	INFO_LOG("START INSERT");
 	/* XXX Not necessary, but keeps compiler quiet... */
 	int r = 0;
 
@@ -423,7 +443,7 @@ rbtree_insert (RBTRoot *rbtree, RBTNode *data)
 
 	/* Fix up the red-black properties... */
 	rbtree_insert_fixup(rbtree, data);
-
+	INFO_LOG("FINISH INSERT");
 	return data;
 }
 
@@ -828,7 +848,9 @@ compareTwoNodes(RBTRoot *root, Node *node1, Node *node2)
                 break;
                 case DT_FLOAT:
                 {
-                    res = FLOAT_VALUE(c1) - FLOAT_VALUE(c2);
+					double val = FLOAT_VALUE(c1) - FLOAT_VALUE(c2);
+                	res = (val < 0 ? -1 : (val > 0 ? 1 : 0));
+                    // res = FLOAT_VALUE(c1) - FLOAT_VALUE(c2);
                 }
                 break;
                 case DT_LONG:

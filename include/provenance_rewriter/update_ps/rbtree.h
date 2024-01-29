@@ -5,6 +5,8 @@
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
 
+#define DEBUG_RBTREE_BEATIFY_LOG(root) debug_rbtree_beatify_log((RBTRoot *) root)
+
 typedef enum RBTType
 {
 	RBT_MIN_HEAP,
@@ -13,7 +15,6 @@ typedef enum RBTType
 } RBTType;
 
 typedef struct RBTNode {
-	NodeTag    		 type;
 	struct RBTNode   *parent;
 	struct RBTNode   *left;
 	struct RBTNode   *right;
@@ -31,7 +32,6 @@ extern	RBTNode	rbtree_null_node;
 // typedef struct RBTRoot RBTRoot;
 /** definition for tree struct */
 typedef struct RBTRoot {
-	NodeTag type;
 	RBTNode    *root;
 	size_t      size;
 	RBTType treeType;
@@ -57,4 +57,5 @@ extern void traverse_postorder(RBTRoot* tree, void (*func)(RBTNode*, void*),
 	void* arg);
 extern RBTNode *rbtree_next(RBTNode *rbtree);
 extern RBTNode *rbtree_previous(RBTNode *rbtree);
+extern void debug_rbtree_beatify_log(RBTRoot *root);
 #endif /* _RBTREE_H_ */
