@@ -152,14 +152,12 @@ update_ps(ProvenanceComputation *qbModel)
 	/* set each operator a number*/
 	setOperatorNumber((QueryOperator *) qbModel);
 	DEBUG_NODE_BEATIFY_LOG("after set number", qbModel);
+	INFO_OP_LOG("after set num", qbModel);
 
 	/* check stored info */
 	char *queryName = getStringOption(OPTION_UPDATE_PS_QUERY_NAME);
 
 	boolean isQStored = checkQueryInfoStored(queryName);
-	if (isQStored) {
-
-	}
 
 	/* Check if there is state for this algebra tree */
 	// qbModel = (ProvenanceComputation *) buildState((QueryOperator *) qbModel);

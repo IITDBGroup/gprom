@@ -1369,9 +1369,20 @@ buildStateOrderOp(QueryOperator *op)
 		return;
 	}
 	DEBUG_NODE_BEATIFY_LOG("build state order op", op);
+	int orderBySafeNum = getIntOption(OPTION_UPDATE_PS_ORDER_SAFE_NUM);
+	INFO_LOG("WHAT IS SAFE NUM IN ORDER BY %d", orderBySafeNum);
+
 	INFO_OP_LOG("order by operator ", op);
 	QueryOperator *lchild = (QueryOperator *) copyObject(OP_LCHILD(op));
-	QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, lchild);
+	// QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, lchild);
+	QueryOperator *rewrOp = NULL;
+	if (orderBySafeNum == 0) {
+		rewrOp = captureRewriteOp(PC_BuildState, lchild);
+	} else {
+		LimitOperator *limParent = (LimitOperator *) copyObject(getNthOfListP(op->parents, 0));
+		limParent->limitExpr = (Node *) createConstInt(orderBySafeNum);
+		rewrOp = captureRewriteOp(PC_BuildState, (QueryOperator *) limParent);
+	}
 	// QueryOperator *rewrOp = captureRewriteOp(PC_BuildState, (QueryOperator *) copyObject(op));
 
 	DEBUG_NODE_BEATIFY_LOG("rewrite order by", rewrOp);
@@ -1525,7 +1536,7 @@ buildStateLimitOp(QueryOperator *op)
 {
     /* support ONLY for ORDER BY - LIMIT */
 	/* only LIMIT without ORDER BY is not supported */
-	DEBUG_NODE_BEATIFY_LOG("limit Op", op);
+	// DEBUG_NODE_BEATIFY_LOG("limit Op", op);
 	QueryOperator *lchild = (QueryOperator *) copyObject(OP_LCHILD(op));
 	/* if lchild is not a OrderOperator, not support currently */
 	if(!isA(lchild, OrderOperator)) {

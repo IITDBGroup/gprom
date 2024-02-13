@@ -5135,7 +5135,6 @@ static void
 updateLimit(QueryOperator *op)
 {
 	updateByOperators(OP_LCHILD(op));
-
 	INFO_LOG("LIMIT OPERATOR");
 	QueryOperator *lchild = OP_LCHILD(op);
 
