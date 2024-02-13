@@ -204,7 +204,7 @@ boolean update_ps_copy_delta_join = FALSE;
 boolean update_ps_join_using_bf = FALSE;
 char *update_ps_delta_table_updident = NULL;
 char *update_ps_query_name = NULL;
-int update_ps_order_by_safe_num = 0;
+int update_ps_order_safe_num = 0;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -824,11 +824,11 @@ OptionInfo opts[] =
          },
          {
                 OPTION_UPDATE_PS_ORDER_SAFE_NUM,
-                "-update_ps_order_by_safe_num",
+                "-update_ps_order_safe_num",
                 "indicate how many of tuple can be guarantee to be deleted",
                 OPTION_INT,
-                wrapOptionInt(&update_ps_order_by_safe_num),
-                defOptionInt(0),
+                wrapOptionInt(&update_ps_order_safe_num),
+                defOptionInt(0)
          },
 		 {
 				 OPTION_PS_STORE_TABLE,

@@ -143,6 +143,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_PS_JOIN_USING_BF "update_ps_join_using_bf"
 #define OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT "update_ps_delta_table_updident"
 #define OPTION_UPDATE_PS_QUERY_NAME "update_ps_query_name"
+#define OPTION_UPDATE_PS_ORDER_SAFE_NUM "update_ps_order_safe_num"
 
 
 /* Uncertainty rewriter options */
