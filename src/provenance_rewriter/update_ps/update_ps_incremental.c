@@ -5836,7 +5836,7 @@ updateTableAccess(QueryOperator * op)
 	// build a chumk map (insert chunk and delete chunk) based on update type;
 	START_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
 	HashMap *chunkMap = NULL;
-	printf("is directed from delta %d\n",isUpdatedDirectFromDelta);
+	// printf("is directed from delta %d\n",isUpdatedDirectFromDelta);
 	if (isUpdatedDirectFromDelta) {
     	// START_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 		chunkMap = getDataChunkFromDeltaTable((TableAccessOperator *) op);
