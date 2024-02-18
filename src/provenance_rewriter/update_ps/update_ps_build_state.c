@@ -55,6 +55,7 @@ buildState(QueryOperator *op)
 {
 	START_TIMER(BUILD_STATE_TIMER);
 	PC_BuildState = (ProvenanceComputation *) copyObject(op);
+	PC_BuildState->op.inputs = NIL;
 
     buildStateInternal(op);
 

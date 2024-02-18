@@ -58,7 +58,7 @@ static void getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, 
 static void getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static void getDataChunkOfUpdate(QueryOperator* updateOp, DataChunk* dataChunkInsert, DataChunk *dataChunkDelete, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo);
 static DataChunk *filterDataChunk(DataChunk* dataChunk, Node* condition);
-static QueryOperator *captureRewrite(QueryOperator *operator);
+// static QueryOperator *captureRewrite(QueryOperator *operator);
 static ConstRelMultiListsOperator *createConstRelMultiListsFromDataChunk(DataChunk *leftDC, DataChunk *rightDC, boolean isLeftBranch, List *parentList, List *provAttrDefs);
 static HashMap *getStateFromOrderOp(QueryOperator *op);
 static ColumnChunk *makeColumnChunk(DataType dataType, size_t len);
@@ -146,6 +146,7 @@ char *
 update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 {
 	PC = (ProvenanceComputation *) copyObject(operator);
+	PC->op.inputs = NIL;
 	PS_INFO = createPSInfo((Node *) getStringProperty(operator, PROP_PC_COARSE_GRAINED));
 
 	DEBUG_NODE_BEATIFY_LOG("CURRENT PROVENANCE COMPUTATION OPERATOR: \n", operator);
@@ -163,6 +164,7 @@ update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 	return strInfo->data;
 }
 
+/*
 static QueryOperator*
 captureRewrite(QueryOperator *operator)
 {
@@ -196,6 +198,7 @@ captureRewrite(QueryOperator *operator)
 	// INFO_OP_LOG("AFTER REQEIRE", newPC);
 	return result;
 }
+*/
 
 static void
 updateByOperators(QueryOperator * op)
@@ -768,7 +771,8 @@ updateSelection(QueryOperator* op)
 static void
 updateJoinByGroupJoin(QueryOperator *op) {
 	// for test purpose, now we have two level join;
-	QueryOperator *thisJoinRewrite = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+	// QueryOperator *thisJoinRewrite = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+	QueryOperator *thisJoinRewrite = captureRewriteOp(PC, (QueryOperator *) copyObject(op));
 
 	INFO_OP_LOG("join rewrite in grou join", thisJoinRewrite);
 
@@ -839,7 +843,8 @@ updateJoinByGroupJoin(QueryOperator *op) {
 	resDCDel->tupleFields = pos;
 	resDCIns->attrNames = (List *) copyObject(op->schema->attrDefs);
 	resDCDel->attrNames = (List *) copyObject(op->schema->attrDefs);
-	QueryOperator *cOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(childJoin));
+	// QueryOperator *cOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(childJoin));
+	QueryOperator *cOp = captureRewriteOp(PC, (QueryOperator *) copyObject(childJoin));
 	// int deltaBranches = 0;
 	if (HAS_STRING_PROP(OP_LCHILD(childJoin), PROP_DATA_CHUNK)) {
 		HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(childJoin), PROP_DATA_CHUNK);
@@ -898,7 +903,8 @@ updateJoin2(QueryOperator *op)
 		return;
 	}
 
-	QueryOperator *rewrOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+	// QueryOperator *rewrOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+	QueryOperator *rewrOp = captureRewriteOp(PC, (QueryOperator *) copyObject(op));
 
 	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
 
@@ -1430,7 +1436,8 @@ updateJoin(QueryOperator * op)
 	}
 
 	INFO_OP_LOG("join operator before rewrite", op);
-	QueryOperator *rewrOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+	// QueryOperator *rewrOp = captureRewriteOp((ProvenanceComputation *) copyObject(PC), (QueryOperator *) copyObject(op));
+	QueryOperator *rewrOp = captureRewriteOp(PC, (QueryOperator *) copyObject(op));
 	INFO_OP_LOG("join operator after rewrite", rewrOp);
 
 	HashMap *psAttrAndLevel = (HashMap *) getNthOfListP((List *) GET_STRING_PROP(OP_LCHILD(rewrOp), PROP_LEVEL_AGGREGATION_MARK), 0);
@@ -5829,14 +5836,21 @@ updateTableAccess(QueryOperator * op)
 	// build a chumk map (insert chunk and delete chunk) based on update type;
 	START_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
 	HashMap *chunkMap = NULL;
+	printf("is directed from delta %d\n",isUpdatedDirectFromDelta);
 	if (isUpdatedDirectFromDelta) {
+    	START_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 		chunkMap = getDataChunkFromDeltaTable((TableAccessOperator *) op);
+    	STOP_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 	} else {
+    	START_TIMER("module - update provenance sketch - incremental update fetching data - A2");
 		chunkMap = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
+    	STOP_TIMER("module - update provenance sketch - incremental update fetching data - A2");
 	}
+    START_TIMER("module - update provenance sketch - incremental update fetching data - A3");
 	if (mapSize(chunkMap) > 0) {
 		setStringProperty(op, PROP_DATA_CHUNK, (Node *) chunkMap);
 	}
+    STOP_TIMER("module - update provenance sketch - incremental update fetching data - A3");
 	STOP_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FRO TABLEACCESS OPERATOR", chunkMap);
@@ -5845,8 +5859,12 @@ updateTableAccess(QueryOperator * op)
 static HashMap *
 getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 {
-
-	QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	START_TIMER("module - update provenance sketch - incremental update fetching data - before build query");
+	printf("what is taop: %s", nodeToString(tableAccessOp));
+	START_TIMER("module - update provenance sketch - incremental update fetching data - Rewrite Table Access");
+	// QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	QueryOperator *rewr = captureRewriteOp(PC, (QueryOperator *) copyObject(tableAccessOp));
+	STOP_TIMER("module - update provenance sketch - incremental update fetching data - Rewrite Table Access");
 	List *provAttrDefs = getProvenanceAttrDefs(rewr);
 	char *psName = NULL;
 	if (provAttrDefs != NULL) {
@@ -5864,11 +5882,6 @@ getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 	dcDel->attrNames = (List *) copyObject(schema->attrDefs);
 	dcIns->tupleFields = LIST_LENGTH(((QueryOperator *) tableAccessOp)->schema->attrDefs);
 	dcDel->tupleFields = LIST_LENGTH(((QueryOperator *) tableAccessOp)->schema->attrDefs);
-	DEBUG_NODE_BEATIFY_LOG("SCHEMA", schema);
-	INFO_LOG("SIZE OF ATTRIS: %d", LIST_LENGTH(schema->attrDefs));
-	INFO_LOG("SIZE OF ATTRIS: %d", LIST_LENGTH(((QueryOperator *) tableAccessOp)->schema->attrDefs));
-
-	INFO_LOG("what is size %d, %d", dcIns->tupleFields, dcDel->tupleFields);
 
 	// ps attr col pos;
 	int psAttrCol = -1;
@@ -5895,7 +5908,9 @@ getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 			vecAppendInt(ranges, INT_VALUE(c));
 		}
 	}
+	STOP_TIMER("module - update provenance sketch - incremental update fetching data - before build query");
 
+	START_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
 	// create TableAccess, Selection, Projection to get delta tuples;
 
 	// get delta Table name;
@@ -5941,7 +5956,7 @@ getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, attrNames);
 		selOp->op.parents = singleton(projOp);
 	}
-
+	STOP_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
 	DEBUG_NODE_BEATIFY_LOG("delta query: ", projOp);
 	char *query = serializeQuery((QueryOperator *) projOp);
 	postgresGetDataChunkFromDeltaTable(query, dcIns, dcDel, psAttrCol, ranges, psName);
@@ -6014,7 +6029,8 @@ getDataChunkFromUpdateStatement(QueryOperator* op, TableAccessOperator *tableAcc
 static void
 getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo)
 {
-	QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	// QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	QueryOperator *rewr = captureRewriteOp(PC, (QueryOperator *) copyObject(tableAccessOp));
 	List *provAttrDefs = getProvenanceAttrDefs(rewr);
 	char *psName = NULL;
 	if (provAttrDefs != NIL) {
@@ -6162,7 +6178,8 @@ getDataChunkOfInsert(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 static void
 getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo)
 {
-	QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	// QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	QueryOperator *rewr = captureRewriteOp(PC, (QueryOperator *) copyObject(tableAccessOp));
 	List *provAttrDefs = getProvenanceAttrDefs(rewr);
 
 	DEBUG_NODE_BEATIFY_LOG("what is prov attr defs", provAttrDefs);
@@ -6255,7 +6272,8 @@ getDataChunkOfDelete(QueryOperator* updateOp, DataChunk* dataChunk, TableAccessO
 static void
 getDataChunkOfUpdate(QueryOperator *updateOp, DataChunk *dataChunkInsert, DataChunk *dataChunkDelete, TableAccessOperator *tableAccessOp, psAttrInfo *attrInfo)
 {
-	QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	// QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
+	QueryOperator *rewr = captureRewriteOp(PC, (QueryOperator *) copyObject(tableAccessOp));
 
 	List *provAttrDefs = getProvenanceAttrDefs(rewr);
 
