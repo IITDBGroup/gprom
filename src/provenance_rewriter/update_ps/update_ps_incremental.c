@@ -5838,19 +5838,19 @@ updateTableAccess(QueryOperator * op)
 	HashMap *chunkMap = NULL;
 	printf("is directed from delta %d\n",isUpdatedDirectFromDelta);
 	if (isUpdatedDirectFromDelta) {
-    	START_TIMER("module - update provenance sketch - incremental update fetching data - A1");
+    	// START_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 		chunkMap = getDataChunkFromDeltaTable((TableAccessOperator *) op);
-    	STOP_TIMER("module - update provenance sketch - incremental update fetching data - A1");
+    	// STOP_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 	} else {
-    	START_TIMER("module - update provenance sketch - incremental update fetching data - A2");
+    	// START_TIMER("module - update provenance sketch - incremental update fetching data - A2");
 		chunkMap = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
-    	STOP_TIMER("module - update provenance sketch - incremental update fetching data - A2");
+    	// STOP_TIMER("module - update provenance sketch - incremental update fetching data - A2");
 	}
-    START_TIMER("module - update provenance sketch - incremental update fetching data - A3");
+    // START_TIMER("module - update provenance sketch - incremental update fetching data - A3");
 	if (mapSize(chunkMap) > 0) {
 		setStringProperty(op, PROP_DATA_CHUNK, (Node *) chunkMap);
 	}
-    STOP_TIMER("module - update provenance sketch - incremental update fetching data - A3");
+    // STOP_TIMER("module - update provenance sketch - incremental update fetching data - A3");
 	STOP_TIMER(INCREMENTAL_FETCHING_DATA_TIMER);
 
 	DEBUG_NODE_BEATIFY_LOG("DATACHUNK BUILT FRO TABLEACCESS OPERATOR", chunkMap);
@@ -5859,12 +5859,12 @@ updateTableAccess(QueryOperator * op)
 static HashMap *
 getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 {
-	START_TIMER("module - update provenance sketch - incremental update fetching data - before build query");
-	printf("what is taop: %s", nodeToString(tableAccessOp));
-	START_TIMER("module - update provenance sketch - incremental update fetching data - Rewrite Table Access");
+	// START_TIMER("module - update provenance sketch - incremental update fetching data - before build query");
+	// printf("what is taop: %s", nodeToString(tableAccessOp));
+	// START_TIMER("module - update provenance sketch - incremental update fetching data - Rewrite Table Access");
 	// QueryOperator *rewr = captureRewrite((QueryOperator *) copyObject(tableAccessOp));
 	QueryOperator *rewr = captureRewriteOp(PC, (QueryOperator *) copyObject(tableAccessOp));
-	STOP_TIMER("module - update provenance sketch - incremental update fetching data - Rewrite Table Access");
+	// STOP_TIMER("module - update provenance sketch - incremental update fetching data - Rewrite Table Access");
 	List *provAttrDefs = getProvenanceAttrDefs(rewr);
 	char *psName = NULL;
 	if (provAttrDefs != NULL) {
@@ -5908,9 +5908,9 @@ getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 			vecAppendInt(ranges, INT_VALUE(c));
 		}
 	}
-	STOP_TIMER("module - update provenance sketch - incremental update fetching data - before build query");
+	// STOP_TIMER("module - update provenance sketch - incremental update fetching data - before build query");
 
-	START_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
+	// START_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
 	// create TableAccess, Selection, Projection to get delta tuples;
 
 	// get delta Table name;
@@ -5956,7 +5956,7 @@ getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, attrNames);
 		selOp->op.parents = singleton(projOp);
 	}
-	STOP_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
+	// STOP_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
 	DEBUG_NODE_BEATIFY_LOG("delta query: ", projOp);
 	char *query = serializeQuery((QueryOperator *) projOp);
 	postgresGetDataChunkFromDeltaTable(query, dcIns, dcDel, psAttrCol, ranges, psName);

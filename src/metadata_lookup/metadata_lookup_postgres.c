@@ -2104,9 +2104,9 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");
     START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
-    START_TIMER("module - update provenance sketch - incremental update fetching data - access DB");
+    // START_TIMER("module - update provenance sketch - incremental update fetching data - access DB");
     PGresult *rs = execQuery(query);
-    STOP_TIMER("module - update provenance sketch - incremental update fetching data - access DB");
+    // STOP_TIMER("module - update provenance sketch - incremental update fetching data - access DB");
     int numRes = PQntuples(rs);
     int numFields = PQnfields(rs);
 	HashMap *posToDT = dcIns->posToDatatype;
@@ -2121,7 +2121,7 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
     int delNum = 0;
     int updTypeCol = numFields - 1;
 
-    START_TIMER("module - update provenance sketch - incremental update fetching data - find updident");
+    // START_TIMER("module - update provenance sketch - incremental update fetching data - find updident");
     if (strcmp(updateIdentName, "DELETETUPLES") == 0) {
         for (int i = 0; i < numRes; i++) {
             vecAppendInt(updType, -1);
@@ -2150,12 +2150,12 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
             }
         }
     }
-    STOP_TIMER("module - update provenance sketch - incremental update fetching data - find updident");
+    // STOP_TIMER("module - update provenance sketch - incremental update fetching data - find updident");
     dcIns->numTuples = insNum;
     dcDel->numTuples = delNum;
     // append value to data chunks;
 
-    START_TIMER("module - update provenance sketch - incremental update fetching data - build data chunk");
+    // START_TIMER("module - update provenance sketch - incremental update fetching data - build data chunk");
     int *updTypeVals = VEC_TO_IA(updType);
     Vector *psVecIns = NULL;
     Vector *psVecDel = NULL;
@@ -2285,17 +2285,17 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
             }
         }
     }
-    STOP_TIMER("module - update provenance sketch - incremental update fetching data - build data chunk");
+    // STOP_TIMER("module - update provenance sketch - incremental update fetching data - build data chunk");
     for (int i = 0; i < insNum; i++) {
         vecAppendInt(dcIns->updateIdentifier, 1);
     }
     for (int i = 0; i < delNum; i++) {
         vecAppendInt(dcDel->updateIdentifier, -1);
     }
-    START_TIMER("module - update provenance sketch - incremental update fetching data - postgres clear and commit");
+    // START_TIMER("module - update provenance sketch - incremental update fetching data - postgres clear and commit");
     PQclear(rs);
     execCommit();
-    STOP_TIMER("module - update provenance sketch - incremental update fetching data - postgres clear and commit");
+    // STOP_TIMER("module - update provenance sketch - incremental update fetching data - postgres clear and commit");
     STOP_TIMER("Postgres - execute ExecuteQuery");
     STOP_TIMER(METADATA_LOOKUP_TIMER);
 }
