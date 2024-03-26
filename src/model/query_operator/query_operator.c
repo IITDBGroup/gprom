@@ -28,6 +28,7 @@ typedef struct CorrelatedAttrsState {
 	Set *result;
 	boolean corrInsideSubquery;
 	boolean childrenCanBeKeptCorrelated;
+    boolean seenNormalization;
 } CorrelatedAttrsState;
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
@@ -38,6 +39,7 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
         Set *haveSeen);
 static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
+static boolean canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state);
 
 
 QueryOperator *
@@ -1570,6 +1572,18 @@ getCorrelatedAttributes(Node *op, boolean corrInSubquery) // boolean traverseInt
 	return result;
 }
 
+boolean 
+noCorrelationBelowNormalization(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
+{
+	Set *result = STRSET();
+
+	CorrelatedAttrsState state = { 1, result, corrInSubquery, TRUE };
+
+	canStayCorrelatedVisitor((Node *)op, &state);
+
+	return state.childrenCanBeKeptCorrelated;
+}
+
 
 static boolean
 findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
@@ -1617,10 +1631,87 @@ findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
 		newState.curDepth++;
 
 		visit(no->cond, findCorrelatedAttrsVisitor, state);
-		return visit((Node *) OP_LCHILD(no), findCorrelatedAttrsVisitor, &newState);
+        visit((Node *) OP_LCHILD(no), findCorrelatedAttrsVisitor, state);
+		return visit((Node *) OP_RCHILD(no), findCorrelatedAttrsVisitor, &newState);
 	}
 
 	return visit(n, findCorrelatedAttrsVisitor, state);
+}
+
+
+static boolean
+canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
+{
+	if (n == NULL)
+		return TRUE;
+
+	//TODO
+	// rules: N can be kept if (i) all of N's childresn can be kept, 
+    // if (ii) all  of N's correlated attributes are one level up only, 
+    // and (iii) we can push normalization below N's correlated attributes
+    //
+	//   N [CAN KEEP SUBQUERY] depends on CAN KEEP SUBQUERY
+	//      SELECTION[R.A = R.C] -- R is outer
+	//         JOIN
+	//             N' [CAN KEEP SUBQUERY] correlated attribute
+	//                SELECTION[S.B[1] = T.C[0]] -- T is inner most
+	//                     T
+	//                X
+	//             S
+	//      R
+	/* List *attrRefs = queryOperatorGetAttrRefs(op); // --> current operator */
+	/* FOREACH(AttributeReference,a,attrRefs) */
+	/* { */
+	/* 	if(a->outerLevelsUp != 0) */
+	/* 	{ */
+	/* 		addToSet(state->result, a); */
+	/* 		//TODO append to state */
+	/* 	} */
+	/* } */
+
+	/* visitQOGraph(op, TRAVERSAL_PRE, findCorrelatedAttrsVisitor , state); */
+
+	if(isA(n, NestingOperator))
+	{
+		NestingOperator *no = (NestingOperator *) n;
+		CorrelatedAttrsState newState = *state;
+		newState.curDepth++;
+        newState.seenNormalization = FALSE; // Reset as we descend into children nesting operators
+
+        if(no->cond) {
+            visit(no->cond, canStayCorrelatedVisitor, state);
+        }
+        visit((Node *) OP_LCHILD(no), canStayCorrelatedVisitor, state);
+		visit((Node *) OP_RCHILD(no), canStayCorrelatedVisitor, &newState);
+        state->childrenCanBeKeptCorrelated &= newState.childrenCanBeKeptCorrelated;
+        return TRUE;
+	}
+    else if(IS_OP(n)) {
+        QueryOperator *q = (QueryOperator *) n;
+
+        if(isA(q->properties, HashMap) && MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
+            state->seenNormalization = TRUE;       
+            FOREACH(QueryOperator, a, q->inputs) {
+                visit((Node *)a, canStayCorrelatedVisitor, state);
+            }
+            state->seenNormalization = FALSE;
+            return TRUE;
+        }
+    }
+	else if(isA(n, AttributeReference))
+	{
+		AttributeReference *a = (AttributeReference *) n;
+
+		if(a->outerLevelsUp > 0)
+		{
+			addToSet(state->result, strdup(a->name));
+            // We assume that at the time of calling the normalization has already been pushed down as far as it can go (assuming this part of the state is relevant)
+            state->childrenCanBeKeptCorrelated = (!state->seenNormalization && a->outerLevelsUp <= 1) && state->childrenCanBeKeptCorrelated;
+		}
+	}
+
+
+	return visit(n, canStayCorrelatedVisitor, state);
 }
 
 

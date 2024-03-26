@@ -954,19 +954,20 @@ tempRewrNestedSubquery(NestingOperator *op)
         NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), NIL, NIL };
         visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, &state);
     } else {
-        NestedNormalizationState state = {  INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), NIL, NIL };
+        NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), NIL, NIL };
         MAP_ADD_STRING_KEY((HashMap *)(OP_RCHILD(op)->properties), "normalize", (Node*)normalizationStateToMap(&state));
     }
-    // pushDownNormalization(OP_RCHILD(op), (Node *)createNodeKeyValue((Node *)NIL, (Node *)op)); // <NormalizationAttrs, NormalizationOp>
 
-    // check its validity
-    Set *correlatedAttrs = getNestingCorrelatedAttributes(op, TRUE);
-    // otherwise we dont need to normalize as we cant rewrite with correlated subquery, and we need to use lateral instead
+    // (query_operator.c findCorrelatedattrsVisitor comment) 
+    // rules: N can be kept if 
+    //     (i) all of N's childresn can be kept, 
+    //  if (ii) all  of N's correlated attributes are one level up only, 
+    // and (iii) we can push normalization below N's correlated attributes
+    boolean canStayNested = noCorrelationBelowNormalization((Node *) OP_RCHILD(op), TRUE);
+    // boolean canStayNested = TRUE; 
 
-    // if normalization is below correlation we can keep it as a nested subquery
-    // TODO
-    boolean canStayNested = EMPTY_SET(correlatedAttrs);
-    if(0) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"));
+    // If we can't keep it a nested subquery, remove the normalization tags
+    if(!canStayNested) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"));
 
 	//TODO add other rewrite methods
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && canStayNested)
@@ -986,7 +987,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         return tempRewrNestedSubqueryCorrelated(op);
     }
 
-    if(!canStayNested) {
+    if(canStayNested) {
         INFO_LOG("subquery option");
         return tempRewrNestedSubqueryCorrelated(op);
     } else {
@@ -2416,13 +2417,13 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
         joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP);
     }
 
-    //c.T >= l.TSTART, c.T < l.TEND
+    //c.T > l.TSTART, c.T < l.TEND
     AttributeReference *oJoinCPT = getAttrRefByName(joinCPOp, "T");
     AttributeReference *oJoinCPB = getAttrRefByName(joinCPOp, TBEGIN_NAME);
     AttributeReference *oJoinCPE = getAttrRefByName(joinCPOp, TEND_NAME);
 
-    Operator *oJoinCP1 = createOpExpr(OPNAME_GE, LIST_MAKE(oJoinCPT,oJoinCPB));
-    Operator *oJoinCP2 = createOpExpr(OPNAME_LT , LIST_MAKE(copyObject(oJoinCPT),oJoinCPE));
+    Operator *oJoinCP1 = createOpExpr(OPNAME_GT, LIST_MAKE(oJoinCPT,oJoinCPB));
+    Operator *oJoinCP2 = createOpExpr(OPNAME_LT, LIST_MAKE(copyObject(oJoinCPT),oJoinCPE));
     joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP1);
     joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP2);
 
