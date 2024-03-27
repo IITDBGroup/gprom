@@ -205,6 +205,7 @@ boolean update_ps_join_using_bf = FALSE;
 char *update_ps_delta_table_updident = NULL;
 char *update_ps_query_name = NULL;
 int update_ps_order_safe_num = 0;
+boolean update_ps_store_new_state = FALSE;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -829,6 +830,14 @@ OptionInfo opts[] =
                 OPTION_INT,
                 wrapOptionInt(&update_ps_order_safe_num),
                 defOptionInt(0)
+         },
+         {
+                OPTION_UPDATE_PS_STORE_NEW_STATE,
+                "-update_ps_store_new_state",
+                "indicate if store new state after update(for continuously update)",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_store_new_state),
+                defOptionBool(FALSE)
          },
 		 {
 				 OPTION_PS_STORE_TABLE,

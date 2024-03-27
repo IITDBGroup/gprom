@@ -158,6 +158,10 @@ storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum)
     StringInfo tname = makeStringInfo();
     appendStringInfo(tname, "%s_%s_order_values", qName, gprom_itoa(opNum));
 
+    boolean isExists = postgresCatalogTableExists(tname->data);
+    if (isExists) {
+        postgresExecuteStatement(CONCAT_STRINGS("DROP TABLE ", tname->data, ";"));
+    }
     StringInfo createTbl = makeStringInfo();
     appendStringInfo(createTbl, "create table %s (", tname->data);
 
@@ -599,10 +603,6 @@ storePSMapData(PSMap *psMap, int opNum)
                     char ** params = CALLOC(sizeof(char *), 4);
                     params[0] = STRING_VALUE(c);
 
-                    // bytea;
-                    // size_t to_length;
-                    // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(gb), strlen(STRING_VALUE(gb)), &to_length);
-                    // params[1] = (char *) bytea;
                     params[1] = (char *) STRING_VALUE(gb);
 
                     params[2] = gprom_itoa(INT_VALUE(no));
@@ -615,10 +615,6 @@ storePSMapData(PSMap *psMap, int opNum)
                 }
             }
         }
-        // q->data[q->len - 1] = ';';
-        // if (hasValue) {
-            // postgresExecuteStatement(q->data);
-        // }
     }
 }
 
@@ -652,7 +648,6 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
         } else if (type == 1) {
             postgresExecuteStatement(CONCAT_STRINGS("CREATE TABLE ", meta->data, "(groupby varchar, cnt bigint)"));
         }
-
     } else {
         postgresExecuteStatement(CONCAT_STRINGS("TRUNCATE ", meta->data, ";"));
     }
@@ -685,16 +680,12 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
         FOREACH_HASH_KEY(Constant, c, acs->map) {
             char ** params = CALLOC(sizeof(char *), 3);
 
-            // size_t to_length;
-            // unsigned char *bytea = PQescapeByteaConn(conn, (unsigned char *) STRING_VALUE(c), strlen(STRING_VALUE(c)), &to_length);
-            // params[0] = (char *) bytea;
             params[0] = (char *) STRING_VALUE(c);
 
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
             params[1] = gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0)));
             params[2] = gprom_ltoa(LONG_VALUE((Constant *) getVecNode(v, 1)));
             postgresExecPrepareUpdatePS(NULL, stmtName, 3, params);
-            // appendStringInfo(q, "('%s', %s, %s),", STRING_VALUE(c), gprom_ftoa(FLOAT_VALUE((Constant *) getVecNode(v, 0))), gprom_ltoa((LONG_VALUE((Constant *) getVecNode(v, 1)))));
         }
     } else if (type == 3) {
         // appendStringInfo(q, "insert into %s (groupby, avg, sum, cnt) values ", meta->data);

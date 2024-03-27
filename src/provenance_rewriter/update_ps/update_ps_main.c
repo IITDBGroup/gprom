@@ -211,6 +211,12 @@ update_ps(ProvenanceComputation *qbModel)
 			STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 		}
 	}
+
+	// AFTER INCREMENTAL UPDATE STEPS, STORE NEW STATE IF NEEDED;
+	boolean storeNewState = getBoolOption(OPTION_UPDATE_PS_STORE_NEW_STATE);
+	if (storeNewState) {
+		storeOperatorData((QueryOperator *) qbModel);
+	}
 	// AFTER INCREMENTAL UPDATE STEPS, GET NEW SKETCH;
 
 	QueryOperator *topOperator = OP_LCHILD((QueryOperator *) qbModel);

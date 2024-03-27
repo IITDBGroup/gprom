@@ -260,8 +260,8 @@ buildStateJoinOp(QueryOperator *op)
 	MAP_ADD_STRING_KEY(stateMap, JOIN_RIGHT_BLOOM, rightBFs);
 	MAP_ADD_STRING_KEY(stateMap, JOIN_LEFT_BLOOM_ATT_MAPPING, leftMapping);
 	MAP_ADD_STRING_KEY(stateMap, JOIN_RIGHT_BLOOM_ATT_MAPPING, rightMapping);
-
 	SET_STRING_PROP(op, PROP_DATA_STRUCTURE_JOIN, stateMap);
+	DEBUG_NODE_BEATIFY_LOG("JOIN MAPS BF: ", stateMap);
 }
 
 static void
@@ -332,7 +332,7 @@ buildBloomFilterFromSQL(char *sql, List *attributeDefs, HashMap *BFMap)
 				for (int row = 0; row < tupleLen; row++) {
 					char *val = getVecString((Vector *) getVecNode(rel->tuples, row), col);
 					if (!streq(val, "NULL")) {
-						bloom_add(bf, val, sizeof(strlen(val)));
+						bloom_add(bf, val, strlen(val));
 					}
 				}
 			}

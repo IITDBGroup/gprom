@@ -144,7 +144,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT "update_ps_delta_table_updident"
 #define OPTION_UPDATE_PS_QUERY_NAME "update_ps_query_name"
 #define OPTION_UPDATE_PS_ORDER_SAFE_NUM "update_ps_order_safe_num"
-
+#define OPTION_UPDATE_PS_STORE_NEW_STATE "update_ps_store_new_state"
 
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"

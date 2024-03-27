@@ -87,6 +87,7 @@ static ColumnChunk *getColumnChunkOfCastExpr(CastExpr *expr, DataChunk *dc);
 static ColumnChunk *getColumnChunkOfFunctionCall(FunctionCall *fc, DataChunk *dc);
 static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType);
 static DataType evaluateTwoDatatypes(DataType dt1, DataType dt2);
+static void updateBloomFilter(DataChunk *insDC, HashMap *mapping, HashMap *bloomMap);
 // static Vector *columnChunkToVector(ColumnChunk *cc);
 // static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
 // static int limitCmp(const void **a, const void **b);
@@ -1407,10 +1408,81 @@ updateJoin2(QueryOperator *op)
 		removeStringProperty(OP_RCHILD(op), PROP_DATA_CHUNK);
 	}
 
+	// update bloom based on OPTION: STORE_NEW_STATE( for continuously update)
+	// we only deal with insert;
+	boolean isUpdateState = getBoolOption(OPTION_UPDATE_PS_STORE_NEW_STATE);
+	if (isUpdateState) {
+		HashMap *bloomStates = (HashMap *) getStringProperty(op, PROP_DATA_STRUCTURE_JOIN);
+
+		// update left;
+		HashMap *leftDC = (HashMap *) getStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+		if (leftDC && MAP_HAS_STRING_KEY(leftDC, PROP_DATA_CHUNK_INSERT)) {
+			DataChunk *leftDCIns = (DataChunk *) MAP_GET_STRING(leftDC, PROP_DATA_CHUNK_INSERT);
+			HashMap *leftMapping = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_LEFT_BLOOM_ATT_MAPPING);
+			HashMap *leftBloom = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_LEFT_BLOOM);
+			updateBloomFilter(leftDCIns, leftMapping, leftBloom);
+		}
+
+		HashMap *rightDC = (HashMap *) getStringProperty(OP_RCHILD(op), PROP_DATA_CHUNK);
+		if (rightDC && MAP_HAS_STRING_KEY(rightDC, PROP_DATA_CHUNK_INSERT)) {
+			DataChunk *rightDCIns = (DataChunk *) MAP_GET_STRING(rightDC, PROP_DATA_CHUNK_INSERT);
+			HashMap *rightMapping = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_RIGHT_BLOOM_ATT_MAPPING);
+			HashMap *rightBloom = (HashMap *) MAP_GET_STRING(bloomStates, JOIN_RIGHT_BLOOM);
+			updateBloomFilter(rightDCIns, rightMapping, rightBloom);
+		}
+	}
+
 	DEBUG_NODE_BEATIFY_LOG("insChunk", resDCIns);
 	DEBUG_NODE_BEATIFY_LOG("delChunk", resDCDel);
 }
 
+static void
+updateBloomFilter(DataChunk *insDC, HashMap *mapping, HashMap *bloomMap)
+{
+	FOREACH_HASH_KEY(Constant, attrKey, mapping) {
+		Bloom *bloom = (Bloom *) MAP_GET_STRING(bloomMap, STRING_VALUE(attrKey));
+		int colPos = INT_VALUE((Constant *) MAP_GET_STRING(insDC->attriToPos, STRING_VALUE(attrKey)));
+		DataType attrDT = INT_VALUE((Constant *) MAP_GET_INT(insDC->posToDatatype, colPos));
+		Vector *insVec = (Vector *) getVecNode(insDC->tuples, colPos);
+		int vecLen = insVec->length;
+		switch (attrDT) {
+			case DT_BOOL:
+			case DT_INT:
+			{
+				for (int idx = 0; idx < vecLen; idx++) {
+					int val = getVecInt(insVec, idx);
+					bloom_add(bloom, &val, sizeof(int));
+				}
+			}
+			break;
+			case DT_FLOAT:
+			{
+				for (int idx = 0; idx < vecLen; idx++) {
+					double val = getVecFloat(insVec, idx);
+					bloom_add(bloom, &val, sizeof(double));
+				}
+			}
+			break;
+			case DT_LONG:
+			{
+				for (int idx = 0; idx < vecLen; idx++) {
+					gprom_long_t val = getVecLong(insVec, idx);
+					bloom_add(bloom, &val, sizeof(gprom_long_t));
+				}
+			}
+			break;
+			case DT_STRING:
+			case DT_VARCHAR2:
+			{
+				for (int idx = 0; idx < vecLen; idx++) {
+					char *val = getVecString(insVec, idx);
+					bloom_add(bloom, val, strlen(val));
+				}
+			}
+			break;
+		}
+	}
+}
 
 static void
 updateJoin(QueryOperator * op)
@@ -5838,9 +5910,9 @@ updateTableAccess(QueryOperator * op)
 	HashMap *chunkMap = NULL;
 	// printf("is directed from delta %d\n",isUpdatedDirectFromDelta);
 	if (isUpdatedDirectFromDelta) {
-    	// START_TIMER("module - update provenance sketch - incremental update fetching data - A1");
+    	START_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 		chunkMap = getDataChunkFromDeltaTable((TableAccessOperator *) op);
-    	// STOP_TIMER("module - update provenance sketch - incremental update fetching data - A1");
+    	STOP_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 	} else {
     	// START_TIMER("module - update provenance sketch - incremental update fetching data - A2");
 		chunkMap = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
