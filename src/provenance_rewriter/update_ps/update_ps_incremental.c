@@ -721,6 +721,7 @@ updateSelection(QueryOperator* op)
 		return;
 	}
 
+	START_TIMER(INCREMENTAL_SELECTION_TIMER);
 	boolean updatePSSelPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
 	if (updatePSSelPD) {
 		// return only if this is a selection just above table access operator;
@@ -766,6 +767,8 @@ updateSelection(QueryOperator* op)
 
 	// remove child's chunks;
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+
+	STOP_TIMER(INCREMENTAL_SELECTION_TIMER);
 	DEBUG_NODE_BEATIFY_LOG("selection operator output chunks", resChunkMaps);
 }
 
