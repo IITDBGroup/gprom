@@ -721,7 +721,6 @@ updateSelection(QueryOperator* op)
 		return;
 	}
 
-	START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	boolean updatePSSelPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
 	if (updatePSSelPD) {
 		// return only if this is a selection just above table access operator;
@@ -735,6 +734,7 @@ updateSelection(QueryOperator* op)
 		}
 	}
 
+	START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 
 	Node * selCond = ((SelectionOperator *) op)->cond;
