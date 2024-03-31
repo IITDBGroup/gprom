@@ -207,13 +207,21 @@ updateByOperators(QueryOperator * op)
 	switch(op->type)
 	{
 		case T_ProvenanceComputation:
+		{
+			START_TIMER(INCREMENTAL_PROVENANCE_COMPUTATION);
 			updateProvenanceComputation(op);
+			STOP_TIMER(INCREMENTAL_PROVENANCE_COMPUTATION);
+		}
 			break;
 		case T_ProjectionOperator:
+		{
 			updateProjection(op);
+		}
 			break;
 		case T_SelectionOperator:
+		{
 			updateSelection(op);
+		}
 			break;
 		case T_JoinOperator:
 		{
