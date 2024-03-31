@@ -85,6 +85,9 @@ typedef struct ColumnChunk
 #define INCREMENTAL_AGGREGATION_OPERATOR "module - update provenance sketch - incremental update aggregation operator"
 #define INCREMENTAL_SELECTION_OPERATOR   "module - update provenance sketch - incremental update selection operator"
 #define INCREMENTAL_PROVENANCE_COMPUTATION "module - update provenance sketch - incremental update provenance computation"
+#define INCREMENTAL_PROJECTION_OPERATOR "module - update provenance sketch - incremental update projection operator"
+#define INCREMENTAL_JOIN_OPERATOR "module - update provenance sketch - incremental update join operator"
+#define INCREMENTAL_TABLE_OPERATOR "module - update provenance sketch - incremental update table access operator"
 
 
 // define left and right update for join;

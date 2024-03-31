@@ -215,28 +215,42 @@ updateByOperators(QueryOperator * op)
 			break;
 		case T_ProjectionOperator:
 		{
+			START_TIMER(INCREMENTAL_PROJECTION_OPERATOR);
 			updateProjection(op);
+			STOP_TIMER(INCREMENTAL_PROJECTION_OPERATOR);
 		}
 			break;
 		case T_SelectionOperator:
 		{
+			START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 			updateSelection(op);
+			STOP_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 		}
 			break;
 		case T_JoinOperator:
 		{
+			START_TIMER(INCREMENTAL_JOIN_OPERATOR);
 			if (option_copy_join) {
 				updateJoin2(op);
 			} else {
 				updateJoin(op);
 			}
+			STOP_TIMER(INCREMENTAL_JOIN_OPERATOR);
 		}
 			break;
 		case T_AggregationOperator:
+		{
+			START_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
 			updateAggregation(op);
+			STOP_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
+		}
 			break;
 		case T_TableAccessOperator:
+		{
+			START_TIMER(INCREMENTAL_TABLE_OPERATOR);
 			updateTableAccess(op);
+			STOP_TIMER(INCREMENTAL_TABLE_OPERATOR);
+		}
 			break;
 		case T_DuplicateRemoval:
 			updateDuplicateRemoval(op);
