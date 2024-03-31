@@ -2098,7 +2098,7 @@ updateAggregation(QueryOperator *op)
 	if (!HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
 		return;
 	}
-
+	START_TIMER(INCREMENTAL_AGGREGATION_TIMER)
 	// get input data chunk;
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 
@@ -4542,6 +4542,7 @@ updateAggregation(QueryOperator *op)
 		SET_STRING_PROP(op, PROP_DATA_CHUNK, resChunkMaps);
 	}
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
+	STOP_TIMER(INCREMENTAL_AGGREGATION_TIMER)
 	DEBUG_NODE_BEATIFY_LOG("AGG CHUNK", resChunkMaps);
 }
 

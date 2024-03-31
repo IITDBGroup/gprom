@@ -80,7 +80,7 @@ typedef struct ColumnChunk
 #define INCREMENTAL_FETCHING_DATA_TIMER "module - update provenance sketch - incremental update fetching data"
 #define INCREMENTAL_JOIN_TIMER "module - update provenance sketch - incremental update join fetching data"
 #define INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER "module - update provenance sketch - incremental update fetching data - build query"
-
+#define INCREMENTAL_AGGREGATION_TIMER "module - update provenance sketch - incremental update aggregation timer"
 // define left and right update for join;
 #define JOIN_LEFT_BRANCH_DELTA_TABLE backendifyIdentifier("JOIN_LEFT_DELTA_TABLE")
 #define JOIN_LEFT_BRANCH_IDENTIFIER backendifyIdentifier("JOIN_LEFT_TUPLE_IDENTIFIER")
