@@ -756,7 +756,7 @@ updateSelection(QueryOperator* op)
 		}
 	}
 
-	START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
+	// START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 
 	Node * selCond = ((SelectionOperator *) op)->cond;
@@ -790,7 +790,7 @@ updateSelection(QueryOperator* op)
 	// remove child's chunks;
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
 
-	STOP_TIMER(INCREMENTAL_SELECTION_OPERATOR);
+	// STOP_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	DEBUG_NODE_BEATIFY_LOG("selection operator output chunks", resChunkMaps);
 }
 
@@ -2123,7 +2123,7 @@ updateAggregation(QueryOperator *op)
 	if (!HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
 		return;
 	}
-	START_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
+	// START_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
 	// get input data chunk;
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 
@@ -4567,7 +4567,7 @@ updateAggregation(QueryOperator *op)
 		SET_STRING_PROP(op, PROP_DATA_CHUNK, resChunkMaps);
 	}
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
-	STOP_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
+	// STOP_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
 	DEBUG_NODE_BEATIFY_LOG("AGG CHUNK", resChunkMaps);
 }
 
