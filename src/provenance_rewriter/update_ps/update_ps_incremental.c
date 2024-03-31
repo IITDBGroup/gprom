@@ -721,7 +721,7 @@ updateSelection(QueryOperator* op)
 		return;
 	}
 
-	START_TIMER(INCREMENTAL_SELECTION_TIMER);
+	START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	boolean updatePSSelPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
 	if (updatePSSelPD) {
 		// return only if this is a selection just above table access operator;
@@ -768,7 +768,7 @@ updateSelection(QueryOperator* op)
 	// remove child's chunks;
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
 
-	STOP_TIMER(INCREMENTAL_SELECTION_TIMER);
+	STOP_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	DEBUG_NODE_BEATIFY_LOG("selection operator output chunks", resChunkMaps);
 }
 
@@ -2101,7 +2101,7 @@ updateAggregation(QueryOperator *op)
 	if (!HAS_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK)) {
 		return;
 	}
-	START_TIMER(INCREMENTAL_AGGREGATION_TIMER);
+	START_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
 	// get input data chunk;
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 
@@ -4545,7 +4545,7 @@ updateAggregation(QueryOperator *op)
 		SET_STRING_PROP(op, PROP_DATA_CHUNK, resChunkMaps);
 	}
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
-	STOP_TIMER(INCREMENTAL_AGGREGATION_TIMER);
+	STOP_TIMER(INCREMENTAL_AGGREGATION_OPERATOR);
 	DEBUG_NODE_BEATIFY_LOG("AGG CHUNK", resChunkMaps);
 }
 
