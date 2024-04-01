@@ -160,6 +160,7 @@ update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 	updateStatement = updateStmt;
 
 
+	STOP_TIMER("module - update provenance sketch - pre");
 	option_copy_join = getBoolOption(OPTION_UPDATE_PS_COPY_DELTA_JOIN);
 
 	START_TIMER(INCREMENTAL_UPDATE_ACTUAL_TIMER);
