@@ -78,7 +78,8 @@ typedef struct ColumnChunk
 #define DATA_CHUNK_PROP "DATA_CHUNK"
 
 // TIMER FOR OPERATORs
-#define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update all steps"
+#define INCREMENTAL_UPDATE_TIMER "module - update provenance sketch - incremental update total cost"
+#define INCREMENTAL_UPDATE_ACTUAL_TIMER "module - update provenance sketch - incremental update all steps"
 #define INCREMENTAL_FETCHING_DATA_TIMER "module - update provenance sketch - incremental update fetching data"
 #define INCREMENTAL_JOIN_TIMER "module - update provenance sketch - incremental update join fetching data"
 #define INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER "module - update provenance sketch - incremental update fetching data - build query"

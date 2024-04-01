@@ -146,6 +146,7 @@ initDataChunk()
 char *
 update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 {
+	START_TIMER("module - update provenance sketch - pre");
 	PC = (ProvenanceComputation *) copyObject(operator);
 	PC->op.inputs = NIL;
 	PS_INFO = createPSInfo((Node *) getStringProperty(operator, PROP_PC_COARSE_GRAINED));
@@ -160,7 +161,10 @@ update_ps_incremental(QueryOperator* operator, QueryOperator *updateStmt)
 
 
 	option_copy_join = getBoolOption(OPTION_UPDATE_PS_COPY_DELTA_JOIN);
+
+	START_TIMER(INCREMENTAL_UPDATE_ACTUAL_TIMER);
 	updateByOperators((QueryOperator*) OP_LCHILD(operator));
+	STOP_TIMER(INCREMENTAL_UPDATE_ACTUAL_TIMER);
 
 	return strInfo->data;
 }
@@ -208,34 +212,26 @@ updateByOperators(QueryOperator * op)
 	{
 		case T_ProvenanceComputation:
 		{
-			START_TIMER(INCREMENTAL_PROVENANCE_COMPUTATION);
 			updateProvenanceComputation(op);
-			STOP_TIMER(INCREMENTAL_PROVENANCE_COMPUTATION);
 		}
 			break;
 		case T_ProjectionOperator:
 		{
-			START_TIMER(INCREMENTAL_PROJECTION_OPERATOR);
 			updateProjection(op);
-			STOP_TIMER(INCREMENTAL_PROJECTION_OPERATOR);
 		}
 			break;
 		case T_SelectionOperator:
 		{
-			START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 			updateSelection(op);
-			STOP_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 		}
 			break;
 		case T_JoinOperator:
 		{
-			START_TIMER(INCREMENTAL_JOIN_OPERATOR);
 			if (option_copy_join) {
 				updateJoin2(op);
 			} else {
 				updateJoin(op);
 			}
-			STOP_TIMER(INCREMENTAL_JOIN_OPERATOR);
 		}
 			break;
 		case T_AggregationOperator:
@@ -370,7 +366,7 @@ updateProjection(QueryOperator* op)
 	if (!HAS_STRING_PROP(childOp, PROP_DATA_CHUNK)) {
 		return;
 	}
-
+	START_TIMER(INCREMENTAL_PROJECTION_OPERATOR);
 	HashMap *chunkMaps = (HashMap *) getStringProperty(childOp, PROP_DATA_CHUNK);
 	DataChunk *dataChunkIns = (DataChunk *) MAP_GET_STRING(chunkMaps, PROP_DATA_CHUNK_INSERT);
 	DataChunk *resultDCIns = NULL;
@@ -731,6 +727,7 @@ updateProjection(QueryOperator* op)
 	DEBUG_NODE_BEATIFY_LOG("projection output chunks", resChunkMaps);
 	// remove child data chunk;
 	removeStringProperty(childOp, PROP_DATA_CHUNK);
+	STOP_TIMER(INCREMENTAL_PROJECTION_OPERATOR);
 }
 
 static void
@@ -756,7 +753,7 @@ updateSelection(QueryOperator* op)
 		}
 	}
 
-	// START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
+	START_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	HashMap *chunkMaps = (HashMap *) GET_STRING_PROP(OP_LCHILD(op), PROP_DATA_CHUNK);
 
 	Node * selCond = ((SelectionOperator *) op)->cond;
@@ -790,7 +787,7 @@ updateSelection(QueryOperator* op)
 	// remove child's chunks;
 	removeStringProperty(OP_LCHILD(op), PROP_DATA_CHUNK);
 
-	// STOP_TIMER(INCREMENTAL_SELECTION_OPERATOR);
+	STOP_TIMER(INCREMENTAL_SELECTION_OPERATOR);
 	DEBUG_NODE_BEATIFY_LOG("selection operator output chunks", resChunkMaps);
 }
 
@@ -5936,9 +5933,7 @@ updateTableAccess(QueryOperator * op)
 	HashMap *chunkMap = NULL;
 	// printf("is directed from delta %d\n",isUpdatedDirectFromDelta);
 	if (isUpdatedDirectFromDelta) {
-    	START_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 		chunkMap = getDataChunkFromDeltaTable((TableAccessOperator *) op);
-    	STOP_TIMER("module - update provenance sketch - incremental update fetching data - A1");
 	} else {
     	// START_TIMER("module - update provenance sketch - incremental update fetching data - A2");
 		chunkMap = getDataChunkFromUpdateStatement(updateStatement, (TableAccessOperator *) op);
