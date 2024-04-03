@@ -348,6 +348,7 @@ extern List *getNestingResultAttributeNames(NestingOperator *op);
 extern char *getSingleNestingResultAttribute(NestingOperator *op);
 extern Set *getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery);
 extern Set *getCorrelatedAttributes(Node *op, boolean corrInSubquery);
+extern boolean noCorrelationBelowNormalization(Node *op, boolean corrInSubquery);
 
 /* change operator schema and adapt references in parents */
 extern void removeAttrFromOp(QueryOperator *op, char *attr);

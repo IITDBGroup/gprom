@@ -2349,16 +2349,15 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     FOREACH(char, c, projCPTempNames)
     {
     	projCPExprs = appendToTailOfList(projCPExprs,getAttrRefByName(distinctRightOp,c));
+
+        char *cc = CONCAT_STRINGS(c,"_1");
     	if(!streq(c, "T"))
     	{
-        DEBUG_LOG("Unequal to T");
-    		char *cc = CONCAT_STRINGS(c,"_1");
-    		projCPNames = appendToTailOfList(projCPNames,cc);
+            DEBUG_LOG("Unequal to T");
     		leftList = appendToTailOfList(leftList, strdup(c));
     		rightList = appendToTailOfList(rightList, strdup(cc));
     	}
-    	else
-    		projCPNames = appendToTailOfList(projCPNames,strdup(c));
+        projCPNames = appendToTailOfList(projCPNames,cc);
     }
 
     ProjectionOperator *projCP = createProjectionOp(projCPExprs, distinctRightOp, NIL, projCPNames);
@@ -2418,7 +2417,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     }
 
     //c.T > l.TSTART, c.T < l.TEND
-    AttributeReference *oJoinCPT = getAttrRefByName(joinCPOp, "T");
+    AttributeReference *oJoinCPT = getAttrRefByName(joinCPOp, "T_1");
     AttributeReference *oJoinCPB = getAttrRefByName(joinCPOp, TBEGIN_NAME);
     AttributeReference *oJoinCPE = getAttrRefByName(joinCPOp, TEND_NAME);
 
@@ -2437,7 +2436,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     // projJOINCPNames = appendToTailOfList(projJOINCPNames, "T");
     List *projJOINCPExprs = NIL;
     FOREACH(char, c, projJOINCPNames)
-    	projJOINCPExprs = appendToTailOfList(projJOINCPExprs,getAttrRefByName(selJOINCPOp,c));
+        projJOINCPExprs = appendToTailOfList(projJOINCPExprs,getAttrRefByName(selJOINCPOp,streq(c, "T") ? "T_1" : c)); // We want T to be from the right-hand side of the join
 
     ProjectionOperator *projJOINCP = createProjectionOp(projJOINCPExprs, selJOINCPOp, NIL, projJOINCPNames);
     selJOINCPOp->parents = singleton(projJOINCP);
