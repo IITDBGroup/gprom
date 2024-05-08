@@ -310,7 +310,10 @@ update_ps(ProvenanceComputation *qbModel)
 		int provLens = INT_VALUE((Constant *) MAP_GET_STRING(psMap->provLens, STRING_VALUE(c)));
 		BitSet *ps = newBitSet(provLens);
 		FOREACH_HASH_KEY(Constant, c, fragCnt) {
-			setBit(ps, INT_VALUE(c), TRUE);
+			int fCnt = INT_VALUE((Constant *) MAP_GET_INT(fragCnt, INT_VALUE(c)));
+            if (fCnt > 0) {
+                setBit(ps, INT_VALUE(c), TRUE);
+            }
 		}
 		MAP_ADD_STRING_KEY(psMap->provSketchs, STRING_VALUE(c), ps);
 

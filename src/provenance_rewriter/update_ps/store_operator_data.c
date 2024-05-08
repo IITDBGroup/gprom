@@ -505,6 +505,11 @@ storePSMapData(PSMap *psMap, int opNum)
 
         FOREACH_HASH_KEY(Constant, c, psMap->fragCount) {
             HashMap *fragCnt = (HashMap *) MAP_GET_STRING(psMap->fragCount, STRING_VALUE(c));
+
+            // initialyze if empty;
+            if (!fragCnt || mapSize(fragCnt) == 0) {
+                addToMap(fragCnt, (Node *) createConstInt(0), (Node *) createConstInt(0));
+            }
             FOREACH_HASH_KEY(Constant, no, fragCnt) {
                 Constant *cnt = (Constant *) MAP_GET_INT(fragCnt, INT_VALUE(no));
 
