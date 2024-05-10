@@ -95,6 +95,7 @@ void
 storeOperatorData(QueryOperator *op)
 {
     storeOperatorDataInternal(op);
+    preparedStmtNoIndicator++;
 }
 
 static void
@@ -499,7 +500,7 @@ storePSMapData(PSMap *psMap, int opNum)
         }
 
         StringInfo stmt = makeStringInfo() ;
-        char *stmtName = CONCAT_STRINGS("STMT_", info->data);
+        char *stmtName = CONCAT_STRINGS("STMT_", gprom_itoa(preparedStmtNoIndicator),"_", info->data);
         appendStringInfo(stmt, "INSERT INTO %s VALUES($1::varchar, $2::int, $3::int);", info->data);
         postgresPrepareUpdatePS(stmt->data, stmtName, 3);
 
@@ -531,7 +532,8 @@ storePSMapData(PSMap *psMap, int opNum)
         }
         StringInfo q = makeStringInfo();
         appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::varchar, $3::varchar)", info->data);
-        char *stmtName = CONCAT_STRINGS("STMT_", info->data);
+        // char *stmtName = CONCAT_STRINGS("STMT_", info->data);
+        char *stmtName = CONCAT_STRINGS("STMT_", gprom_itoa(preparedStmtNoIndicator),"_", info->data);
 
         postgresPrepareUpdatePS(q->data, stmtName, 3);
         // PGconn *conn = getPostgresConnection();
@@ -594,7 +596,8 @@ storePSMapData(PSMap *psMap, int opNum)
         // appendStringInfo(q, "insert into %s (psname, groupby, fragno, fragcnt) values ", info->data);
         // appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::bytea, $3::int, $4::int);", info->data);
         appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::varchar, $3::int, $4::int);", info->data);
-        stmtName = CONCAT_STRINGS("STMT_", info->data);
+        // stmtName = CONCAT_STRINGS("STMT_", info->data);
+        stmtName = CONCAT_STRINGS("STMT_", gprom_itoa(preparedStmtNoIndicator),"_", info->data);
 
         postgresPrepareUpdatePS(q->data, stmtName, 4);
 
@@ -662,7 +665,8 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
     if (type == 1) {
         // appendStringInfo(q, "insert into %s (groupby, cnt) values ", meta->data);
         appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::bigint);", meta->data);
-        stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        // stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        stmtName = CONCAT_STRINGS("STMT_", gprom_itoa(preparedStmtNoIndicator),"_", meta->data);
         postgresPrepareUpdatePS(q->data, stmtName, 2);
         FOREACH_HASH_KEY(Constant, c, acs->map) {
             Vector *v = (Vector *) MAP_GET_STRING(acs->map, STRING_VALUE(c));
@@ -679,7 +683,8 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
         }
     } else if (type == 2) {
         appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::float,$3::bigint);", meta->data);
-        stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        // stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        stmtName = CONCAT_STRINGS("STMT_", gprom_itoa(preparedStmtNoIndicator),"_", meta->data);
         postgresPrepareUpdatePS(q->data, stmtName, 3);
         // appendStringInfo(q, "insert into %s (groupby, sum, cnt) values ", meta->data);
         FOREACH_HASH_KEY(Constant, c, acs->map) {
@@ -695,7 +700,8 @@ storeGBACSsData(GBACSs *acs, int opNum, char *acsName)
     } else if (type == 3) {
         // appendStringInfo(q, "insert into %s (groupby, avg, sum, cnt) values ", meta->data);
         appendStringInfo(q, "INSERT INTO %s VALUES ($1::varchar, $2::float, $3::float, $4::bigint);", meta->data);
-        stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        // stmtName = CONCAT_STRINGS("STMT_", meta->data);
+        stmtName = CONCAT_STRINGS("STMT_", gprom_itoa(preparedStmtNoIndicator),"_", meta->data);
         postgresPrepareUpdatePS(q->data, stmtName, 4);
         FOREACH_HASH_KEY(Constant, c, acs->map) {
             char ** params = CALLOC(sizeof(char *), 4);

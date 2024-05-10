@@ -91,6 +91,11 @@ static void modifyUncertCapTree(QueryOperator *op);
 static void preprocessJoin(QueryOperator *op);
 static void setOperatorNumber(QueryOperator *op);
 static int OPERATOR_NUM = 0;
+
+/*
+	define the global variable
+*/
+int preparedStmtNoIndicator = 0;
 //static void localTest();
 /*
  * Function Implementation
@@ -212,11 +217,7 @@ update_ps(ProvenanceComputation *qbModel)
 		}
 	}
 
-	// AFTER INCREMENTAL UPDATE STEPS, STORE NEW STATE IF NEEDED;
-	boolean storeNewState = getBoolOption(OPTION_UPDATE_PS_STORE_NEW_STATE);
-	if (storeNewState) {
-		storeOperatorData((QueryOperator *) qbModel);
-	}
+
 	// AFTER INCREMENTAL UPDATE STEPS, GET NEW SKETCH;
 
 	QueryOperator *topOperator = OP_LCHILD((QueryOperator *) qbModel);
@@ -320,6 +321,11 @@ update_ps(ProvenanceComputation *qbModel)
 		appendStringInfo(allPSs, "%s:%s\n", STRING_VALUE(c), bitSetToString(ps));
 	}
 
+	// AFTER INCREMENTAL UPDATE STEPS, STORE NEW STATE IF NEEDED;
+	boolean storeNewState = getBoolOption(OPTION_UPDATE_PS_STORE_NEW_STATE);
+	if (storeNewState) {
+		storeOperatorData((QueryOperator *) qbModel);
+	}
 
 	return allPSs->data;
 

@@ -6,4 +6,5 @@
 extern boolean checkQueryInfoStored(char *queryName);
 extern void storeOperatorData(QueryOperator *op);
 extern void setInfoStored(char *queryName);
+extern int preparedStmtNoIndicator;
 #endif /* INCLUDE_PROVENANCE_REWRITER_UPDATE_PS_UPDATE_PS_INCREMENTAL_H_ */
