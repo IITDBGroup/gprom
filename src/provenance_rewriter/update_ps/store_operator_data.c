@@ -94,8 +94,10 @@ setInfoStored(char *queryName)
 void
 storeOperatorData(QueryOperator *op)
 {
+    START_TIMER("module - update provenance sketch - store state data");
     storeOperatorDataInternal(op);
     preparedStmtNoIndicator++;
+    STOP_TIMER("module - update provenance sketch - store state data");
 }
 
 static void
