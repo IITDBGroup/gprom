@@ -846,6 +846,7 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
         case PROV_INPUT_UNCERTAIN_QUERY:
      	case PROV_INPUT_RANGE_QUERY:
 	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
+        case PROV_INPUT_ZONO_UNCERT_QUERY://TODO
         {
             child = translateQueryOracleInternal(prov->query, attrsOffsetsList);
             addChildOperator((QueryOperator *) result, child);

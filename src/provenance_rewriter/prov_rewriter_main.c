@@ -127,7 +127,7 @@ findProvenanceComputations (QueryOperator *op, Set *haveSeen)
 //}
 
 static QueryOperator *
-rewriteProvenanceComputation (ProvenanceComputation *op)
+rewriteProvenanceComputation(ProvenanceComputation *op)
 {
     QueryOperator *result = NULL;
     boolean requiresPostFiltering = FALSE;

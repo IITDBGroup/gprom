@@ -2279,6 +2279,19 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             //INFO_NODE_BEATIFY_LOG("RANGE:", q);
         }
         break;
+        case PROV_INPUT_ZONO_UNCERT_QUERY:
+        {
+            List *provAttrNames = NIL;
+            List *provDts = NIL;
+
+            // analyze input query
+            analyzeQueryBlockStmt(q->query, parentFroms);
+            correctFromTableVisitor(q->query, NULL);
+            getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+            q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+            q->dts = concatTwoLists(q->dts,provDts);
+        };
         case PROV_INPUT_TEMPORAL_QUERY:
         {
             DataType *tempDT = NULL;
