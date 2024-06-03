@@ -11,6 +11,7 @@
  */
 
 #include "parser/parser.h"
+#include "common.h"
 #include "parser/parser_hive.h"
 #include "parser/parser_oracle.h"
 #include "parser/parser_postgres.h"
@@ -34,19 +35,28 @@ static ParserPluginType getPluginTypeFromString (char *type);
 
 // wrapper interface
 Node *
-parseStream (FILE *stream)
+parseStream(FILE *stream)
 {
     ASSERT(plugin);
     return plugin->parseStream(stream);
 }
 
 Node *
-parseFromString (char *input)
+parseFromString(char *input)
 {
     ASSERT(plugin);
 
     INFO_LOG("parse SQL:\n%s", input);
     return plugin->parseFromString(input);
+}
+
+Node *
+parseExprFromString (char *input)
+{
+	ASSERT(plugin);
+
+	INFO_LOG("parse expr:\n%s", input);
+	return plugin->parseExprFromString(input);
 }
 
 // plugin management
@@ -114,6 +124,7 @@ assembleOraclePlugin(void)
     p->type = PARSER_PLUGIN_ORACLE;
     p->parseStream = parseStreamOracle;
     p->parseFromString = parseFromStringOracle;
+	p->parseExprFromString = parseExprFromStringOracle;
     p->languageHelp = languageHelpOracle();
 
     return p;
@@ -127,6 +138,7 @@ assemblePostgresPlugin(void)
     p->type = PARSER_PLUGIN_POSTGRES;
     p->parseStream = parseStreamPostgres;
     p->parseFromString = parseFromStringPostgres;
+	p->parseExprFromString = NULL;
     p->languageHelp = "";
 
     return p;
@@ -139,7 +151,7 @@ assembleHivePlugin(void)
 
     //    p->parseStream = parseStreamHive;
     //    p->parseFromString = parseFromStringHive;
-    FATAL_LOG("not implemented yet");
+	TODO_IMPL;
 
     return p;
 }

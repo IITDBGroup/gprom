@@ -535,7 +535,7 @@ getLBExpr(Node *expr, HashMap *hmp)
 Node *
 getUncertaintyExpr(Node *expr, HashMap *hmp)
 {
-	INFO_LOG("expression: %s ,  %p", exprToSQL(expr, NULL), expr); //TODO deal with nested subqueries
+	INFO_LOG("expression: %s ,  %p", exprToSQL(expr, NULL, FALSE), expr); //TODO deal with nested subqueries
 	switch(expr->type){
 		case T_Constant: {
 			return (Node *)createConstInt(1);

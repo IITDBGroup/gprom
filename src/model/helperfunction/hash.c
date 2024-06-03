@@ -13,15 +13,19 @@
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "model/graph/graph.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
+#include "model/integrity_constraints/integrity_constraints.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
 #include "model/bitset/bitset.h"
 #include "model/list/list.h"
 #include "log/logger.h"
+#include <stdint.h>
 
 // hash constants
 #define FNV_OFFSET ((uint64_t) 14695981039346656037U)
@@ -51,6 +55,8 @@ static uint64_t hashHashMap (uint64_t cur, HashMap *node);
 static uint64_t hashVector (uint64_t cur, Vector *node);
 static uint64_t hashBitSet (uint64_t cur, BitSet *node);
 static uint64_t hashKeyValue (uint64_t cur, KeyValue *node);
+static uint64_t hashBitSet (uint64_t cur, BitSet *node);
+static uint64_t hashGraph(uint64_t cur, Graph *node);
 
 // hash for expression nodes
 static uint64_t hashConstant (uint64_t cur, Constant *node);
@@ -63,6 +69,10 @@ static uint64_t hashWindowBound (uint64_t cur, WindowBound *node);
 static uint64_t hashWindowFrame (uint64_t cur, WindowFrame *node);
 static uint64_t hashWindowDef (uint64_t cur, WindowDef *node);
 static uint64_t hashWindowFunction (uint64_t cur, WindowFunction *node);
+
+// hash functions for integrity constraints
+static uint64_t hashFD(uint64_t cur, FD *node);
+static uint64_t hashFOdep(uint64_t cur, FOdep *node);
 
 // hash functions for query block model
 static uint64_t hashFunctionCall (uint64_t cur, FunctionCall *node);
@@ -79,6 +89,7 @@ static uint64_t hashSelectItem (uint64_t cur, SelectItem *node);
 static uint64_t hashFromProvInfo (uint64_t cur, FromProvInfo *node);
 static uint64_t hashFromTableRef (uint64_t cur, FromTableRef *node);
 static uint64_t hashFromSubquery (uint64_t cur, FromSubquery *node);
+static uint64_t hashFromLateralSubquery (uint64_t cur, FromLateralSubquery *node);
 static uint64_t hashFromJoinExpr (uint64_t cur, FromJoinExpr *node);
 static uint64_t hashDistinctClause (uint64_t cur, DistinctClause *node);
 static uint64_t hashNestedSubquery (uint64_t cur, NestedSubquery *node);
@@ -93,6 +104,9 @@ static uint64_t hashUtilityStatement (uint64_t cur, UtilityStatement *node);
 static uint64_t hashSchema (uint64_t cur, Schema *node);
 static uint64_t hashAttributeDef (uint64_t cur, AttributeDef *node);
 static uint64_t hashQueryOperator (uint64_t cur, QueryOperator *node);
+static uint64_t hashParameterizedQuery (uint64_t cur, ParameterizedQuery *node);
+static uint64_t hashPreparedQuery(uint64_t cur, PreparedQuery *node);
+static uint64_t hashExecQuery(uint64_t cur, ExecQuery *node);
 static uint64_t hashSelectionOperator (uint64_t cur, SelectionOperator *node);
 static uint64_t hashProjectionOperator (uint64_t cur, ProjectionOperator *node);
 static uint64_t hashJoinOperator (uint64_t cur, JoinOperator *node);
@@ -106,6 +120,7 @@ static uint64_t hashNestingOperator (uint64_t cur, NestingOperator *node);
 static uint64_t hashWindowOperator (uint64_t cur, WindowOperator *node);
 static uint64_t hashOrderOperator (uint64_t cur, OrderOperator *node);
 static uint64_t hashLimitOperator (uint64_t cur, LimitOperator *node);
+static uint64_t hashExecPreparedOperator (uint64_t cur, ExecPreparedOperator *node);
 
 // hash functions for datalog model
 static uint64_t hashDLNode (uint64_t cur, DLNode *node);
@@ -114,6 +129,11 @@ static uint64_t hashDLVar (uint64_t cur, DLVar *node);
 static uint64_t hashDLRule (uint64_t cur, DLRule *node);
 static uint64_t hashDLProgram (uint64_t cur, DLProgram *node);
 static uint64_t hashDLComparison (uint64_t cur, DLComparison *node);
+
+// hash structure for provenance sketch
+static uint64_t hashPSInfo (uint64_t cur, psInfo *node);
+static uint64_t hashPSAttrInfo (uint64_t cur, psAttrInfo *node);
+static uint64_t hashPSInfoCell (uint64_t cur, psInfoCell *node);
 
 // hash function entry point
 static uint64_t hashValueInternal(uint64_t h, void *a);
@@ -248,15 +268,15 @@ hashVector (uint64_t cur, Vector *node)
     {
         case VECTOR_INT:
             FOREACH_VEC_INT(i,node)
-                hashInt(cur,*i);
+                hashInt(cur,i);
         break;
         case VECTOR_NODE:
             FOREACH_VEC(Node,n,node)
-                hashValueInternal(cur, *n);
+                hashValueInternal(cur, n);
             break;
         case VECTOR_STRING:
             FOREACH_VEC(char,c,node)
-                hashString(cur, *c);
+                hashString(cur, c);
             break;
     }
 
@@ -393,8 +413,24 @@ hashWindowFunction (uint64_t cur, WindowFunction *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashFD(uint64_t cur, FD *node)
+{
+	HASH_STRING(table);
+	HASH_NODE(lhs);
+	HASH_NODE(rhs);
 
+	HASH_RETURN();
+}
 
+static uint64_t
+hashFOdep(uint64_t cur, FOdep *node)
+{
+	HASH_NODE(lhs);
+	HASH_NODE(rhs);
+
+	HASH_RETURN();
+}
 
 static uint64_t
 hashKeyValue (uint64_t cur, KeyValue *node)
@@ -405,6 +441,14 @@ hashKeyValue (uint64_t cur, KeyValue *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashGraph(uint64_t cur, Graph *node)
+{
+	HASH_NODE(nodes);
+	HASH_NODE(edges);
+
+	HASH_RETURN();
+}
 
 static uint64_t
 hashFunctionCall (uint64_t cur, FunctionCall *node)
@@ -462,6 +506,9 @@ hashCastExpr (uint64_t cur, CastExpr *node)
 {
     HASH_INT(resultDT);
     HASH_NODE(expr);
+
+    HASH_STRING(otherDT);
+    HASH_INT(num);
 
     HASH_RETURN();
 }
@@ -540,7 +587,7 @@ hashFromProvInfo (uint64_t cur, FromProvInfo *node)
 {
     HASH_BOOLEAN(baserel);
     HASH_BOOLEAN(intermediateProv);
-    HASH_NODE(userProvAttrs);
+    HASH_STRING_LIST(userProvAttrs);
     HASH_NODE(provProperties);
     HASH_RETURN();
 }
@@ -563,6 +610,7 @@ hashFromTableRef (uint64_t cur, FromTableRef *node)
 {
     HASH_FROM_ITEM();
     HASH_STRING(tableId);
+    HASH_BOOLEAN(backendified);
 
     HASH_RETURN();
 }
@@ -570,6 +618,15 @@ hashFromTableRef (uint64_t cur, FromTableRef *node)
 
 static uint64_t
 hashFromSubquery (uint64_t cur, FromSubquery *node)
+{
+    HASH_FROM_ITEM();
+    HASH_NODE(subquery);
+
+    HASH_RETURN();
+}
+
+static uint64_t
+hashFromLateralSubquery (uint64_t cur, FromLateralSubquery *node)
 {
     HASH_FROM_ITEM();
     HASH_NODE(subquery);
@@ -705,6 +762,36 @@ hashQueryOperator (uint64_t cur, QueryOperator *node)
 
     HASH_RETURN();
 }
+
+static uint64_t
+hashParameterizedQuery (uint64_t cur, ParameterizedQuery *node)
+{
+	HASH_NODE(q);
+	HASH_NODE(parameters);
+
+	HASH_RETURN();
+}
+
+static uint64_t
+hashPreparedQuery(uint64_t cur, PreparedQuery *node)
+{
+	HASH_STRING(name);
+	HASH_NODE(q);
+	HASH_STRING(sqlText);
+	HASH_NODE(dts);
+
+	HASH_RETURN();
+}
+
+static uint64_t
+hashExecQuery(uint64_t cur, ExecQuery *node)
+{
+	HASH_STRING(name);
+	HASH_NODE(params);
+
+	HASH_RETURN();
+}
+
 
 #define HASH_QO() hashQueryOperator (cur, (QueryOperator *) node)
 
@@ -848,6 +935,15 @@ hashLimitOperator (uint64_t cur, LimitOperator *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashExecPreparedOperator (uint64_t cur, ExecPreparedOperator *node)
+{
+	HASH_QO();
+	HASH_STRING(name);
+	HASH_NODE(params);
+
+	HASH_RETURN();
+}
 
 static uint64_t
 hashDLNode (uint64_t cur, DLNode *node)
@@ -914,6 +1010,42 @@ hashDLComparison (uint64_t cur, DLComparison *node)
 }
 
 
+static uint64_t
+hashPSInfo (uint64_t cur, psInfo *node)
+{
+	HASH_STRING(psType);
+	HASH_NODE(tablePSAttrInfos);
+
+	HASH_RETURN();
+}
+
+
+static uint64_t
+hashPSAttrInfo (uint64_t cur, psAttrInfo *node)
+{
+	HASH_STRING(attrName);
+	HASH_NODE(rangeList);
+	HASH_NODE(BitVector);
+	HASH_NODE(psIndexList);
+
+	HASH_RETURN();
+}
+
+static uint64_t
+hashPSInfoCell (uint64_t cur, psInfoCell *node)
+{
+//	HASH_STRING(storeTable);
+//	HASH_STRING(pqSql);
+//	HASH_STRING(paraValues);
+	HASH_STRING(tableName);
+	HASH_STRING(provTableAttr);
+	HASH_INT(numRanges);
+	HASH_INT(psSize);
+	HASH_NODE(ps);
+
+	HASH_RETURN();
+}
+
 
 
 /* generic hash function */
@@ -946,6 +1078,8 @@ hashValueInternal(uint64_t h, void *a)
       		return hashBitSet(h, (BitSet *)n );
         case T_KeyValue:
             return hashKeyValue(h, (KeyValue *) n);
+    	case T_Graph:
+    		return hashGraph(h, (Graph *) n);
         case T_Constant:
             return hashConstant(h,(Constant *) n);
         case T_AttributeReference:
@@ -978,6 +1112,11 @@ hashValueInternal(uint64_t h, void *a)
             return hashQuantifiedComparison(h, (QuantifiedComparison *) n);
         case T_CastExpr:
             return hashCastExpr(h, (CastExpr *) n);
+			/* integrity constraints */
+        case T_FD:
+            return hashFD(h, (FD *) n);
+        case T_FOdep:
+            return hashFOdep(h, (FOdep *) n);
             /* query block nodes */
         case T_SetQuery:
             return hashSetQuery(h, (SetQuery *) n);
@@ -995,7 +1134,9 @@ hashValueInternal(uint64_t h, void *a)
             return hashFromTableRef(h, (FromTableRef *) n);
         case T_FromSubquery:
             return hashFromSubquery(h, (FromSubquery *) n);
-        case T_FromJoinExpr:
+        case T_FromLateralSubquery:
+            return hashFromLateralSubquery(h, (FromLateralSubquery *) n);
+	    case T_FromJoinExpr:
             return hashFromJoinExpr(h, (FromJoinExpr *) n);
         case T_DistinctClause:
             return hashDistinctClause(h, (DistinctClause *) n);
@@ -1018,6 +1159,12 @@ hashValueInternal(uint64_t h, void *a)
             return hashSchema(h, (Schema *) n);
         case T_AttributeDef:
             return hashAttributeDef(h, (AttributeDef *) n);
+	    case T_ParameterizedQuery:
+			return hashParameterizedQuery(h, (ParameterizedQuery *) n);
+	    case T_PreparedQuery:
+		    return hashPreparedQuery(h, (PreparedQuery *) n);
+	    case T_ExecQuery:
+		    return hashExecQuery(h, (ExecQuery *) n);
         case T_SelectionOperator:
             return hashSelectionOperator(h, (SelectionOperator *) n);
         case T_ProjectionOperator:
@@ -1044,6 +1191,9 @@ hashValueInternal(uint64_t h, void *a)
             return hashOrderOperator(h, (OrderOperator *) n);
         case T_LimitOperator:
             return hashLimitOperator(h, (LimitOperator *) n);
+	    case T_ExecPreparedOperator:
+            return hashExecPreparedOperator(h, (ExecPreparedOperator *) n);
+
             /* datalog model */
         case T_DLAtom:
             return hashDLAtom(h, (DLAtom *) n);
@@ -1055,6 +1205,14 @@ hashValueInternal(uint64_t h, void *a)
             return hashDLProgram(h, (DLProgram *) n);
         case T_DLComparison:
             return hashDLComparison(h, (DLComparison *) n);
+
+        /* provenance sketch */
+	    case T_psInfo:
+      		return hashPSInfo(h, (psInfo *)n );
+	    case T_psAttrInfo:
+      		return hashPSAttrInfo(h, (psAttrInfo *)n );
+	    case T_psInfoCell:
+      		return hashPSInfoCell(h, (psInfoCell *)n );
         default:
             FATAL_LOG("unknown node type");
             break;

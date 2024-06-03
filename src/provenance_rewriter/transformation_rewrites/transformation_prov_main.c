@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * transformation_prov_main.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -297,7 +297,7 @@ rewriteTransformationProvenance(QueryOperator *op)
     	copyDrOp = removeFromTail(copyDrOp);
     	DuplicateRemoval *dr1 = (DuplicateRemoval *)getTailOfListP(copyDrOp);
     	so1 = createSetOperator(SETOP_UNION, LIST_MAKE(dr1, dr2), NIL,
-    			unionNames);
+								unionNames);
     	OP_LCHILD(so1)->parents = singleton(so1);
     	OP_RCHILD(so1)->parents = singleton(so1);
 
@@ -306,7 +306,7 @@ rewriteTransformationProvenance(QueryOperator *op)
         	copyDrOp = removeFromTail(copyDrOp);
         	DuplicateRemoval *dr3 = (DuplicateRemoval *)getTailOfListP(copyDrOp);
         	SetOperator *so2 = createSetOperator(SETOP_UNION, LIST_MAKE(dr3, so1), NIL,
-        			unionNames);
+												 unionNames);
         	OP_LCHILD(so2)->parents = singleton(so2);
         	OP_RCHILD(so2)->parents = singleton(so2);
         	so1 = so2;
@@ -316,11 +316,15 @@ rewriteTransformationProvenance(QueryOperator *op)
 	//Introduce union operator
     SetOperator *so = NULL;
     if(LIST_LENGTH(drOp) == 1)
+    {
     	so = createSetOperator(SETOP_UNION, LIST_MAKE(dr, getHeadOfListP(drOp)), NIL,
-    			unionNames);
+							   unionNames);
+    }
     else
+	{
     	so = createSetOperator(SETOP_UNION, LIST_MAKE(dr, so1), NIL,
-    			unionNames);
+							   unionNames);
+	}
 
 	OP_LCHILD(so)->parents = singleton(so);
 	OP_RCHILD(so)->parents = singleton(so);
@@ -379,7 +383,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 		Operator *NormalODB1 = generateOp((Node *) cPrefixDB, (Node *) firstNormalAttrDefDB,namePosMap);
 
 		wholeAttrs = removeFromHead(wholeAttrs);
-		FOREACH(AttributeDef, a, wholeAttrs) {
+		FOREACH(AttributeDef, a, wholeAttrs)
+		{
 			Operator *o2 = generateOp((Node *) NormalODB1, (Node *) cBar, namePosMap);
 			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
 			NormalODB1 = copyObject(o3);
@@ -400,7 +405,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 		Operator *provO1 = generateOp((Node *) DBo4, (Node *) firstProvAttrDef1, namePosMap);
 
 		provAttrs1 = removeFromHead(provAttrs1);
-		FOREACH(AttributeDef, a, provAttrs1) {
+		FOREACH(AttributeDef, a, provAttrs1)
+		{
 			Operator *o2 = generateOp((Node *) provO1, (Node *) cBar, namePosMap);
 			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
 			provO1 = copyObject(o3);
@@ -431,7 +437,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 		Operator *midNor3 = generateOp((Node *) midNorO2, (Node *) firstNorAttrDef3, namePosMap);
 
 		normalAttrs3 = removeFromHead(normalAttrs3);
-		FOREACH(AttributeDef, a, normalAttrs3) {
+		FOREACH(AttributeDef, a, normalAttrs3)
+		{
 			Operator *o2 = generateOp((Node *) midNor3, (Node *) cBar, namePosMap);
 			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
 			midNor3 = copyObject(o3);
@@ -681,7 +688,7 @@ rewriteTransformationProvenance(QueryOperator *op)
     	copyUbProjList = removeFromTail(copyUbProjList);
     	ProjectionOperator *pj1 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
     	u2 = createSetOperator(SETOP_UNION, LIST_MAKE(pj1, pj2), NIL,
-    			ubUnionNames);
+                               ubUnionNames);
     	OP_LCHILD(u2)->parents = singleton(u2);
     	OP_RCHILD(u2)->parents = singleton(u2);
 
@@ -690,7 +697,7 @@ rewriteTransformationProvenance(QueryOperator *op)
         	copyUbProjList = removeFromTail(copyUbProjList);
         	ProjectionOperator *pj3 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
         	SetOperator *u3 = createSetOperator(SETOP_UNION, LIST_MAKE(pj3, u2), NIL,
-        			ubUnionNames);
+                                                ubUnionNames);
         	OP_LCHILD(u3)->parents = singleton(u3);
         	OP_RCHILD(u3)->parents = singleton(u3);
         	u2 = u3;
@@ -1262,4 +1269,3 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 
 	return (QueryOperator *) pj;
 }
-

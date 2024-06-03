@@ -67,6 +67,7 @@ extern LogLevel maxLevel;
 #define GENERIC_LOG(level, file, line, template, ...)
 #define INFO_NODE_LOG(message, ...)
 #define DEBUG_NODE_LOG(message, ...)
+#define TRACE_NODE_LOG(message, ...)
 #define ERROR_NODE_BEATIFY_LOG(message, ...)
 #define INFO_NODE_BEATIFY_LOG(message, ...)
 #define DEBUG_NODE_BEATIFY_LOG(message, ...)
@@ -120,6 +121,7 @@ extern LogLevel maxLevel;
         logNodes_(loglevel, __FILE__, __LINE__, FALSE, nodeToString, (message),  ##__VA_ARGS__, NULL); \
     } while (0)
 
+#define TRACE_NODE_LOG(message, ...) NODE_LOG(LOG_TRACE,message, ##__VA_ARGS__)
 #define DEBUG_NODE_LOG(message, ...) NODE_LOG(LOG_DEBUG,message, ##__VA_ARGS__)
 #define INFO_NODE_LOG(message, ...) NODE_LOG(LOG_INFO,message, ##__VA_ARGS__)
 #define ERROR_NODE_LOG(message, ...) NODE_LOG(LOG_ERROR,message, ##__VA_ARGS__)
@@ -174,6 +176,13 @@ extern LogLevel maxLevel;
         OP_LOG(LOG_FATAL,message, ##__VA_ARGS__); \
         THROW(SEVERITY_RECOVERABLE,(message), ##__VA_ARGS__); \
     } while (0);
+
+
+#define INFO_AND_DEBUG_OP_LOG(_msg, _op)							\
+	do {												\
+	    DEBUG_NODE_BEATIFY_LOG(_msg " details:", _op);	\
+	    INFO_OP_LOG(_msg " overview:", _op);			\
+	} while(0)
 
 
 #endif

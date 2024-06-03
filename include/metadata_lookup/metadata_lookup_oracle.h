@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * metadata_lookup_oracle.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -90,6 +90,8 @@ extern int oracleGetRowNum(char* tableName);
 
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);
+extern List *oracleGetHist(char *tableName, char *attrName, int numPartitions);
+extern HashMap *oracleGetPS(char *sql, List *attrNames);
 extern Node *oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern boolean oracleIsAgg(char *functionName);
 extern boolean oracleIsWindowFunction(char *functionName);

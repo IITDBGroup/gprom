@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/relation/relation.h"
+#include "model/set/vector.h"
 #include "parser/parser.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "utility/string_utils.h"
@@ -639,6 +640,130 @@ oracleGetAttributeNames(char *tableName) {
 	return attrNames;
 }
 
+
+List *
+oracleGetHist(char *tableName, char *attrName, int numPartitions)
+{
+	List *l = NIL;
+	StringInfo setStatement = makeStringInfo();
+	StringInfo statement = makeStringInfo();
+	StringInfo intervalPoints = makeStringInfo();
+
+
+    ACQUIRE_MEM_CONTEXT(context);
+    START_TIMER("module - metadata lookup");
+
+    DEBUG_LOG("Get histogram for %s.%s with number of ps %d", tableName, attrName, numPartitions);
+
+
+    appendStringInfo(setStatement, "BEGIN  DBMS_STATS.GATHER_TABLE_STATS (  \n"
+            "  ownname  => 'TPCH_1GB' \n"
+            ", tabname  => '%s' \n"
+            ", method_opt  => 'FOR COLUMNS %s SIZE %d' \n"
+			", estimate_percent => 100 \n"
+			"); \n"
+			"END;",
+			tableName, attrName, numPartitions);
+
+    appendStringInfo(statement, "SELECT ENDPOINT_NUMBER, ENDPOINT_VALUE \n"
+            "FROM USER_HISTOGRAMS \n"
+            "WHERE  TABLE_NAME='%s'\n"
+            "AND    COLUMN_NAME='%s'",
+			tableName, attrName);
+
+    if ((conn = getConnection()) != NULL)
+    {
+    		executeStatement(setStatement->data);
+        OCI_Resultset *rs = executeStatement(statement->data);
+        char *defaultExpr = NULL;
+        //Node *result = NULL;
+
+        // loop through
+        int cnt = 0;
+        char *min = "";
+        char *max = "";
+        appendStringInfo(intervalPoints, "{");
+        while(OCI_FetchNext(rs))
+        {
+            defaultExpr = (char *) OCI_GetString(rs,2);
+            if(cnt == 0)
+            		min = strdup(defaultExpr);
+            if(cnt == numPartitions)
+            		max = strdup(defaultExpr);
+            appendStringInfo(intervalPoints, defaultExpr);
+            appendStringInfo(intervalPoints, ",");
+
+            cnt ++;
+            DEBUG_LOG("histogram for %s.%s is <%s>",
+                    tableName, attrName, defaultExpr);
+        }
+        removeTailingStringInfo(intervalPoints,1);
+        appendStringInfo(intervalPoints, "}");
+        DEBUG_LOG("Statement: %s executed successfully.", statement->data);
+        DEBUG_LOG("intervalPoints: %s .", intervalPoints->data);
+        l = appendToTailOfList(l, intervalPoints->data);
+        l = appendToTailOfList(l, min);
+        l = appendToTailOfList(l, max);
+
+        FREE(statement);
+
+        STOP_TIMER("module - metadata lookup");
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+    }
+    else
+    {
+        FATAL_LOG("Statement: %s failed.", statement);
+        FREE(statement);
+    }
+    STOP_TIMER("module - metadata lookup");
+    RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(l);
+
+}
+
+HashMap *
+oracleGetPS(char *sql, List *attrNames)
+{
+	HashMap *hm = NEW_MAP(Constant,Constant);
+	StringInfo statement = makeStringInfo();
+
+    ACQUIRE_MEM_CONTEXT(context);
+    START_TIMER("module - metadata lookup");
+
+    appendStringInfo(statement, sql);
+    removeTailingStringInfo(statement,1);
+    DEBUG_LOG("Get ps using sql: %s", statement->data);
+
+    if ((conn = getConnection()) != NULL)
+    {
+        OCI_Resultset *rs = executeStatement(statement->data);
+        char *defaultExpr = NULL;
+
+        // loop through
+        while(OCI_FetchNext(rs))
+        {
+    			for(int j = 0; j < LIST_LENGTH(attrNames); j++) {
+    				defaultExpr = (char *) OCI_GetString(rs,j+1);
+    				char *attrName = getNthOfListP(attrNames, j);
+    				MAP_ADD_STRING_KEY(hm, attrName, createConstInt(atoi(defaultExpr)));
+
+    				DEBUG_LOG("capture for %s is <%s>",
+    				                    attrName, defaultExpr);
+    			}
+        }
+
+        FREE(statement);
+        STOP_TIMER("module - metadata lookup");
+        RELEASE_MEM_CONTEXT_AND_RETURN_COPY(HashMap, hm);
+    }
+    else
+    {
+        FATAL_LOG("Statement: %s failed.", statement->data);
+        FREE(statement);
+    }
+    STOP_TIMER("module - metadata lookup");
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(HashMap, hm);
+}
+
 Node *
 oracleGetAttributeDefaultVal(char *schema, char *tableName, char *attrName) {
 	StringInfo statement = makeStringInfo();
@@ -765,7 +890,8 @@ boolean oracleIsAgg(char* functionName) {
 	if (functionName == NULL)
 		return FALSE;
 
-	for (int i = 0; i < AGG_FUNCTION_COUNT; i++) {
+	for (int i = 0; i < AGG_FUNCTION_COUNT; i++)
+	{
 		if (strcasecmp(aggList[i], functionName) == 0)
 			return TRUE;
 	}
@@ -1134,7 +1260,9 @@ oracleGetViewDefinition(char *viewName) {
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
-DataType oracleGetOpReturnType(char *oName, List *dataTypes, boolean *opExists) {
+DataType
+oracleGetOpReturnType(char *oName, List *dataTypes, boolean *opExists)
+{
 	*opExists = TRUE;
 
 	if (streq(oName,
@@ -1541,7 +1669,7 @@ oracleExecuteAsTransactionAndGetXID(List *statements, IsolationLevel isoLevel) {
 
 Relation *
 oracleGenExecQuery(char *query) {
-	List *rel = NIL;
+	Vector *rel = makeVector(VECTOR_NODE, T_Vector);
 	int numAttrs;
 	OCI_Resultset *rs;
 	Relation *r = makeNode(Relation);
@@ -1559,13 +1687,15 @@ oracleGenExecQuery(char *query) {
 
 	// fetch tuples
 	while (OCI_FetchNext(rs)) {
-		List *tuple = NIL;
+	    Vector *tuple = makeVectorOfSize(VECTOR_STRING, -1, LIST_LENGTH(r->schema));
 
 		for (int i = 1; i <= numAttrs; i++)
-			tuple = appendToTailOfList(tuple,
-					strdup((char * ) OCI_GetString(rs, i)));
+		{
+			vecAppendString(tuple, strdup((char * ) OCI_GetString(rs, i)));
+		}
 
-		rel = appendToTailOfList(rel, tuple);
+		VEC_ADD_NODE(rel, tuple);
+		/* rel = appendToTailOfList(rel, tuple); */
 	}
 	r->tuples = rel;
 

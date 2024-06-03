@@ -23,7 +23,9 @@
 #include "model/set/set.h"
 #include "model/relation/relation.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
 
 /* types of supported plugins */
@@ -32,6 +34,8 @@ NEW_ENUM_WITH_TO_STRING(MetadataLookupPluginType,
     METADATA_LOOKUP_PLUGIN_POSTGRES,
     METADATA_LOOKUP_PLUGIN_SQLITE,
     METADATA_LOOKUP_PLUGIN_MONETDB,
+    METADATA_LOOKUP_PLUGIN_ODBC,
+    METADATA_LOOKUP_PLUGIN_MSSQL,
     METADATA_LOOKUP_PLUGIN_EXTERNAL
 );
 
@@ -71,6 +75,7 @@ typedef struct MetadataLookupPlugin
     boolean (*checkPostive) (char *tableName, char *colName);
     Constant * (*trasnferRawData) (char *data, char *dataType);
     HashMap * (*getMinAndMax) (char *tableName, char *colName);
+    List * (*getAllMinAndMax) (TableAccessOperator *table);
 //TODO	Constant *(*getMinAndMaxForDT) (DataType t);
     int (*getRowNum) (char *tableName);
 
@@ -103,6 +108,19 @@ typedef struct MetadataLookupPlugin
     CatalogCache *cache;
     MemContext *metadataLookupContext;
 
+    /* histogram */
+    List * (*getHistogram) (char *tableName, char *attrName, int numPartitions);
+    HashMap * (*getProvenanceSketch) (char *sql, List *attrNames);
+    HashMap *(*getProvenanceSketchInfoFromTable) ();
+    HashMap *(*getProvenanceSketchTemplateFromTable) ();
+    HashMap *(*getProvenanceSketchHistogramFromTable) ();
+    void (*storePsInformation) (int tNo, char *paras, psInfoCell *psc);
+    void (*storePsTemplates) (KeyValue *kv);
+    void (*storePsHistogram) (KeyValue *kv, int n);
+    void (*createProvenanceSketchTemplateTable) ();
+    void (*createProvenanceSketchInfoTable) ();
+    void (*createProvenanceSketchHistTable) ();
+
 } MetadataLookupPlugin;
 
 #define INVALID_SCN -1
@@ -126,10 +144,23 @@ extern int databaseConnectionClose(void);
 extern boolean isInitialized (void);
 extern char *getConnectionDescription (void);
 
-extern boolean catalogTableExists (char * tableName);
-extern boolean catalogViewExists (char * viewName);
-extern List *getAttributes (char *tableName);
+extern boolean catalogTableExists(char * tableName);
+extern boolean catalogViewExists(char * viewName);
+extern List *getAttributes(char *tableName);
 extern List *getAttributeNames (char *tableName);
+extern List *getHist (char *tableName, char *attrName, int numPartitions);
+extern HashMap *getPS (char *sql, List *attrNames);
+extern HashMap *getPSInfoFromTable();
+extern HashMap *getPSTemplateFromTable();
+extern HashMap *getPSHistogramFromTable();
+
+extern void createPSTemplateTable();
+extern void createPSInfoTable();
+extern void createPSHistTable();
+
+extern void storePsInfo (int tNo, char *paras, psInfoCell *psc);
+extern void storePsTemplate (KeyValue *kv);
+extern void storePsHist (KeyValue *kv, int n);
 extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);
@@ -137,7 +168,7 @@ extern boolean isWindowFunction(char *functionName);
 extern DataType getFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
 extern DataType getOpReturnType (char *oName, List *argTypes, boolean *opExists);
 extern DataType backendSQLTypeToDT (char *sqlType);
-extern char * backendDatatypeToSQL (DataType dt);
+extern char *backendDatatypeToSQL (DataType dt);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern List *getKeyInformation (char *tableName);
@@ -156,6 +187,7 @@ extern CatalogCache *createCache(void);
 //extern boolean isPostive(char *tableName, char *colName);
 extern Constant *transferRawData(char *data, char *dataType);
 extern HashMap *getMinAndMax(char *tableName, char *colName);
+extern List *getAllMinAndMax(TableAccessOperator *table);
 extern int getRowNum(char* tableName);
 
 #endif /* METADATA_LOOKUP_H_ */

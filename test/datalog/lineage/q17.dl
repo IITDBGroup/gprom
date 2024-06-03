@@ -1,0 +1,10 @@
+Qsub(l_pk,avg(0.2*l_q)):- 
+    lineitem(l1,l_pk,l2,l3,l_q,l_ep,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13).
+
+Q(sum(l_ep / 7.0)):-
+    Qsub(l_pk,q2),
+    part(l_pk,p1,p2,'Brand#23',p3,p4,'MED BOX',p5,p6),
+    lineitem(l1,l_pk,l2,l3,l_q,l_ep,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13),
+    l_q < q2.
+
+ANS: Q.

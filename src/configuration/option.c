@@ -76,6 +76,7 @@ typedef struct BackendInfo {
 // show help only
 boolean opt_show_help = FALSE;
 char *opt_test = NULL;
+boolean opt_listtests = FALSE;
 char *opt_language_help = NULL;
 
 // connection options
@@ -89,11 +90,14 @@ int connection_port = 0;
 char *oracle_audit_log_table = NULL;
 boolean oracle_use_service_name = FALSE;
 
+char *odbc_driver = NULL;
+
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
 boolean opt_log_operator_colorize = TRUE;
 boolean opt_log_operator_verbose = FALSE;
+int opt_log_operator_verbose_props = 0;
 
 // input options
 char *sql = NULL;
@@ -126,6 +130,7 @@ boolean opt_show_query_result = TRUE;
 boolean opt_aggressive_model_checking = FALSE;
 boolean opt_update_only_conditions = FALSE;
 boolean opt_treeify_opterator_model = FALSE;
+boolean opt_treeify_all = FALSE;
 boolean opt_only_updated_use_history = FALSE;
 boolean opt_pi_cs_composable = FALSE;
 boolean opt_pi_cs_rewrite_agg_window = FALSE;
@@ -174,7 +179,21 @@ boolean temporal_agg_combine_with_norm = TRUE;
 
 // lateral rewrite for nesting operator
 boolean opt_lateral_rewrite = FALSE;
+boolean opt_unnest_rewrite = FALSE;
 boolean opt_agg_reduction_model_rewrite = FALSE;
+
+// use provenance scratch
+int max_number_paritions_for_uses = 0;
+int bit_vector_size = 32;
+boolean ps_binary_search = FALSE;
+boolean ps_binary_search_case_when = FALSE;
+boolean ps_settings = FALSE;
+boolean ps_set_bits = FALSE;
+boolean ps_use_brin_op = FALSE;
+boolean ps_analyze = TRUE;
+boolean ps_use_nest = FALSE;
+boolean ps_post_to_oracle = FALSE;
+char *ps_store_table = NULL;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -192,6 +211,9 @@ struct option_state {
 
 // dl rewrite options
 boolean opt_whynot_adv = FALSE;
+boolean opt_dl_min_with_fds = FALSE;
+boolean opt_merge_dl = FALSE;
+boolean opt_load_fds = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -269,7 +291,7 @@ OptionInfo opts[] =
 {
         // show help only and quit
         {
-                "help",
+                OPTION_SHOW_HELP,
                 "-help",
                 "Show this help text.",
                 OPTION_BOOL,
@@ -278,16 +300,25 @@ OptionInfo opts[] =
         },
         // choose test
         {
-                "test",
+                OPTION_TEST_NAME,
                 "-test",
                 "choose the test to run (ignored by all binaries except test_main)",
                 OPTION_STRING,
                 wrapOptionString(&opt_test),
                 defOptionString(NULL)
         },
+        // list tests
+        {
+                OPTION_LIST_TESTS,
+                "-listtests",
+                "list available tests (only used by test_main)",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_listtests),
+                defOptionBool(FALSE)
+        },
         // show help only and quit
         {
-                "languagehelp",
+                OPTION_SHOW_LANGUAGE_HELP,
                 "-languagehelp",
                 "Show supported provenance requests for a supported frontend language.",
                 OPTION_STRING,
@@ -352,6 +383,14 @@ OptionInfo opts[] =
                 wrapOptionString(&oracle_use_service_name),
                 defOptionBool(FALSE)
         },
+        {
+                OPTION_ODBC_DRIVER,
+                "-Bodbc.driver",
+                "Name of the ODBC driver to use.",
+                OPTION_STRING,
+                wrapOptionString(&odbc_driver),
+                defOptionString("")
+        },
         // logging options
         {
                 OPTION_LOG_LEVEL,
@@ -384,6 +423,14 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionBool(&opt_log_operator_verbose),
                 defOptionBool(FALSE)
+        },
+        {
+                OPTION_LOG_OPERATOR_VERBOSE_PROPS,
+                "-Loperator_verbose_props",
+                "Relational algebra operator overviews print properties (requires -Loperator_verbose): KEYS&VALUES=2, KEYS=1, NONE=0",
+                OPTION_INT,
+                wrapOptionInt(&opt_log_operator_verbose_props),
+                defOptionInt(0)
         },
         // input options
         {
@@ -589,6 +636,11 @@ OptionInfo opts[] =
                 "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
                 opt_treeify_opterator_model,
                 TRUE),
+        aRewriteOption(OPTION_ALWAYS_TREEIFY,
+                "-treeify-all",
+                "Turn AGM graph into a tree passing it to serializer.",
+                opt_treeify_all,
+                FALSE),
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
                 "-prov_use_composable",
                 "Use composable version of PI-CS provenance that adds additional columns which"
@@ -607,9 +659,14 @@ OptionInfo opts[] =
                 TRUE),
 		aRewriteOption(OPTION_LATERAL_REWRITE,
 				"-lateral_rewrite",
-				"Activate lateral rewrite",
+				"Activate automatic rewrite of nested subqueries into LATERAL queries.",
 				opt_lateral_rewrite,
 				FALSE),
+		aRewriteOption(OPTION_UNNEST_REWRITE,
+						"-unnest_rewrite",
+						"Activate unnest & de-correlation rewrites.",
+						opt_unnest_rewrite,
+						FALSE),
 		aRewriteOption(OPTION_AGG_REDUCTION_MODEL_REWRITE,
 				"-agg_reduction_model_rewrite",
 				"Activate aggregation reduction model rewrite",
@@ -672,6 +729,94 @@ OptionInfo opts[] =
                  wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
                  defOptionInt(1)
          },
+         {
+        		 OPTION_MAX_NUMBER_PARTITIONS_FOR_USE,
+                 "-cmax_number_paritions_for_uses",
+                 "max number of partitions can be used in any clause",
+                 OPTION_INT,
+                 wrapOptionInt(&max_number_paritions_for_uses),
+                 defOptionInt(0)
+         },
+		 {
+				 OPTION_BIT_VECTOR_SIZE,
+				 "-ps_bit_vector_size",
+				 "bit vector length used in bit or",
+				 OPTION_INT,
+				 wrapOptionInt(&bit_vector_size),
+				 defOptionInt(32)
+		 },
+		 {
+				 OPTION_PS_STORE_TABLE,
+				 "-ps_store_table",
+				 "the table name used to store the ps information",
+				 OPTION_STRING,
+				 wrapOptionString(&ps_store_table),
+				 defOptionString(NULL)
+		 },
+		 {
+				 OPTION_PS_BINARY_SEARCH,
+				 "-ps_binary_search",
+				 "Activate binary search instead of case when",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_binary_search),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_BINARY_SEARCH_CASE_WHEN,
+				 "-ps_binary_search_case_when",
+				 "Activate binary search case when",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_binary_search_case_when),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_SETTINGS,
+				 "-ps_settings",
+				 "Activate settings about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_settings),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_SET_BITS,
+				 "-ps_set_bits",
+				 "Activate set_bits about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_set_bits),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_ANALYZE,
+				 "-ps_analyze",
+				 "Activate ps_analyze about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_analyze),
+				 defOptionBool(TRUE)
+		 },
+		 {
+				 OPTION_PS_USE_NEST,
+				 "-ps_use_nest",
+				 "Activate ps_use_nest about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_use_nest),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_POST_TO_ORACLE,
+				 "-ps_post_to_oracle",
+				 "Activate using postgres generate oracle sql",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_post_to_oracle),
+				 defOptionBool(FALSE)
+		 },
+		 {
+				 OPTION_PS_USE_BRIN_OP,
+				 "-ps_use_brin_op",
+				 "Activate use_brin_op about provenance sketch",
+				 OPTION_BOOL,
+				 wrapOptionBool(&ps_use_brin_op),
+				 defOptionBool(FALSE)
+		 },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",
@@ -782,7 +927,7 @@ OptionInfo opts[] =
                 FALSE
         ),
         anTemporaldbOption(TEMPORAL_AGG_WITH_NORM,
-                "-" TEMPORAL_AGG_WITH_NORM,
+                "-temporal_agg_combine_with_norm",
                 "Temporaldb: rewrite and aggregation by applying a rewrite that combines aggregation with normalization",
                 temporal_agg_combine_with_norm,
                 TRUE
@@ -827,6 +972,30 @@ OptionInfo opts[] =
 				OPTION_BOOL,
 				wrapOptionBool(&opt_whynot_adv),
 				defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_SEMANTIC_OPT,
+			"-Osemantic_opt",
+			"Use functional dependencies to minimizing a provenance capture datalog query.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_dl_min_with_fds),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_MERGE_RULES,
+			"-Oflatten_dl",
+			"Merge Datalog rules by substituting idb predicates in bodies with the rules that define them.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_merge_dl),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_DL_FETCH_PK_FDS_FROM_DB,
+			"-dl_load_fds",
+			"Merge Datalog rules by substituting idb predicates in bodies with the rules that define them.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_load_fds),
+			defOptionBool(FALSE)
 		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
                 "-Cdata_structure_consistency",
@@ -905,6 +1074,15 @@ BackendInfo backends[]  = {
             "sqlite",    // sqlserializer
             "oracle"   // translator
         },
+		{
+			BACKEND_MSSQL,
+            "mssql",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "mssql",   // metadata
+            "postgres",    // sqlserializer
+            "oracle"   // translator
+		},
         {
             BACKEND_ORACLE, STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
@@ -1332,6 +1510,11 @@ char *
 getBackendPlugin(char *be, char *pluginOpt)
 {
     HashMap *bInfo = (HashMap *) MAP_GET_STRING(backendInfo, be);
+
+	if(bInfo == NULL)
+	{
+		FATAL_LOG("backend %s not defined", be);
+	}
 
     return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
 }

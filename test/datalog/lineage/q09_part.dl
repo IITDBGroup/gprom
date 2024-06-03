@@ -1,0 +1,20 @@
+Q1(o_odate,l_extend*(1-l_discount),n_name) :-
+supplier(s_key,x1,x2,s_nkey,x3,x4,x5),
+nation(s_nkey,n_name,x6,x7),
+customer(c_ckey,x8,x9,c_nkey,x10,x11,x12,x13),
+nation(c_nkey,x14,n_rkey,x15),
+region(n_rkey,'AMERICA',x16),
+orders(o_okey,x17,x18,x19,o_odate,x20,x21,x22,x23),
+lineitem(o_okey,l_pkey,s_key,x24,x25,l_extend,l_discount,x26,x27,x28,x29,x30,x31,x32,x33,x34),
+part(l_pkey,x35,x36,x37,'ECONOMY ANODIZED STEEL',x38,x39,x40,x41),
+o_odate >= '1995-01-01',
+o_odate < '1996-12-31'.
+
+Q(q1date) :-
+Q1(q1date,q1volume,'BRAZIL').
+
+ANS:Q1.
+
+RP(x1, x2, x3) :- rtpcq08(x1, x2, x3).
+
+LINEAGE FOR part FOR RESULTS FROM RP.

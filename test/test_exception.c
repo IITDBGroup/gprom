@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_exception.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -234,7 +234,7 @@ testCatching(void)
     {
         i = 5;
 //        rewriteQueryWithRethrow("SELEC a FROM r;");
-        processInput("SELECT x(a) FROM r;");
+        processInput("SELECT x(a) FROM r;", NULL);
     }
     ON_EXCEPTION
     {

@@ -34,7 +34,7 @@ else
     	AC_MSG_RESULT([yes, found at $with_oci])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no OCI library found in location $with_oci])
+    	AC_MSG_WARN(no OCI library found in location $with_oci)
 	fi
 fi
 ])
@@ -48,7 +48,7 @@ if test "x$with_oci_lib" != x; then
     	AC_MSG_RESULT([yes, found at $with_oci_lib])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no library for OCI found in location $with_oci_lib])
+    	AC_MSG_WARN(no library for OCI found in location $with_oci_lib)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -64,7 +64,7 @@ if test "x$with_oci_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_oci_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for OCI found in location $with_oci_headers])
+    	AC_MSG_WARN(no headers for OCI found in location $with_oci_headers)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -81,7 +81,24 @@ if test "x$with_ocilib" != x; then
     	AC_MSG_RESULT([yes, $with_ocilib])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no OCI library found in location $with_ocilib])
+    	AC_MSG_WARN(no OCI library found in location $with_ocilib)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# z3 libz3 library location
+AC_DEFUN([AC_LIBZ3_LOCATION],
+[AC_ARG_WITH(libz3, [  --with-libz3], , )
+AC_MSG_CHECKING([for user provided libz3 location])
+if test "x$with_libz3" != x; then
+	if test -d "$with_libz3"; then
+		LDFLAGS="$LDFLAGS -L$with_libz3"
+    	CPPFLAGS="$CPPFLAGS -I$with_libz3/../include"
+    	AC_MSG_RESULT([yes, $with_libz3])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no libz3 library found in location $with_libz3)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -112,6 +129,110 @@ AC_DEFUN([AC_ORACLE_ALL_CHECKS],
     AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
 ])
+# ODBC header location
+AC_DEFUN([AC_ODBC_HEADER_LOCATION],
+[AC_ARG_WITH(odbc-headers, [  --with-odbc-headers], , )
+AC_MSG_CHECKING([for user provided odbc header location])
+if test "x$with_odbc_headers" != x; then
+	if test -f "$with_odbc_headers/sql.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_odbc_headers"
+    	AC_MSG_RESULT([yes, found at $with_odbc_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no headers for ODBC found in location $with_ODBC_headers)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# ODBC library location
+AC_DEFUN([AC_ODBC_LOCATION],
+[AC_ARG_WITH(odbc, [  --with-odbc], , )
+AC_MSG_CHECKING([for user provided odbc location])
+if test "x$with_odbc" != x; then
+	if test -d "$with_odbc"; then
+		LDFLAGS="$LDFLAGS -L$with_odbc"
+    	CPPFLAGS="$CPPFLAGS -I$with_odbc/../include"
+    	AC_MSG_RESULT([yes, $with_odbc])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no odbc library found in location $with_odbc)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# All ODBC Checks
+AC_DEFUN([AC_ODBC_ALL_CHECKS],
+[
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_ODBC_LOCATION
+  AC_ODBC_HEADER_LOCATION
+  AC_CHECK_HEADERS([sql.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find ODBC sql.h])]
+  )
+  AC_CHECK_HEADERS([sqlext.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find ODBC sqlext.h])]
+  )
+# check for the libpq library
+  AC_CHECK_LIB([odbc],[SQLAllocEnv],[],[
+    AC_MSG_ERROR([missing ODBC library - if you want to compile without ODBC backend support use --disable-odbc])
+  ])
+]
+)
+# MSSQL header location
+AC_DEFUN([AC_MSSQL_HEADER_LOCATION],
+[AC_ARG_WITH(mssql-headers, [  --with-mssql-headers], , )
+AC_MSG_CHECKING([for user provided mssql header location])
+if test "x$with_mssql_headers" != x; then
+	if test -f "$with_mssql_headers/msodbcsql.h"; then
+    	AC_MSG_RESULT([yes, found at $with_mssql_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no headers for MSSQL found in location $with_mssql_headers)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# MSSQL library location
+AC_DEFUN([AC_MSSQL_LOCATION],
+[AC_ARG_WITH(mssql, [  --with-mssql], , )
+AC_MSG_CHECKING([for user provided MSSQL location])
+if test "x$with_mssql" != x; then
+	if test -f "$with_mssql/msodbcsql.h"; then
+    	AC_MSG_RESULT([yes, $with_mssql])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no mssql library found in location $with_mssql)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# All MSSQL Checks
+AC_DEFUN([AC_MSSQL_ALL_CHECKS],
+[
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_MSSQL_HEADER_LOCATION
+#  AC_CHECK_HEADERS([msodbcsql.h],
+# nothing when found
+#    [],
+# fail if not found
+#    [AC_MSG_ERROR([Unable to find MSSSQL msodbcsql.h])]
+#  )
+# check for the libpq library
+#  AC_CHECK_LIB([libmsodbcsql],[bcp_gettypenameA],[],[
+#    AC_MSG_ERROR([missing MSSQL ODBC library - if you want to compile without MSSQL backend support use --disable-mssql])
+#  ])
+]
+)
 # Postgres libpq header location
 AC_DEFUN([AC_LIBPQ_HEADER_LOCATION],
 [AC_ARG_WITH(libpq-headers, [  --with-libpq-headers], , )
@@ -122,7 +243,7 @@ if test "x$with_libpq_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_libpq_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for Postgres libpq found in location $with_libpq_headers])
+    	AC_MSG_WARN(no headers for Postgres libpq found in location $with_libpq_headers)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -139,7 +260,7 @@ if test "x$with_libpq" != x; then
     	AC_MSG_RESULT([yes, $with_libpq])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no libpq library found in location $with_libpq])
+    	AC_MSG_WARN(no libpq library found in location $with_libpq)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -173,7 +294,7 @@ if test "x$with_mapi_headers" != x; then
     	AC_MSG_RESULT([yes, found at $with_mapi_headers])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no headers for MonetDB mapi found in location $with_mapi_headers])
+    	AC_MSG_WARN(no headers for MonetDB mapi found in location $with_mapi_headers)
 	fi
 else
     # monetdb install in monetdb subdir of include directory
@@ -191,7 +312,7 @@ if test "x$with_mapi_lib" != x; then
     	AC_MSG_RESULT([yes, $with_mapi_lib])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no libmapi library found in location $with_mapi_lib])
+    	AC_MSG_WARN(no libmapi library found in location $with_mapi_lib)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -237,7 +358,7 @@ if test "x$with_cplex" != x; then
     	AC_MSG_RESULT([yes, $with_cplex])
 	else
     	AC_MSG_RESULT([no])
-    	AC_WARN([no cplex library found in location $with_cplex])
+    	AC_MSG_WARN(no cplex library found in location $with_cplex)
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -297,6 +418,17 @@ AS_IF([test "x$enable_cplex" == "xyes"], [
   AC_MSG_RESULT([no])
 ])
 ])
+# Activate z3 support
+AC_DEFUN([AC_ENABLE_Z3],
+[
+AC_ARG_ENABLE(Z3, AS_HELP_STRING([--enable-z3],[activate support for Z3]))
+AC_MSG_CHECKING([activate linking against Z3])
+AS_IF([test "x$enable_z3" == "xyes"], [
+  AC_MSG_RESULT([yes])
+],[
+  AC_MSG_RESULT([no])
+])
+])
 # enable or disable assertions
 AC_DEFUN([AC_ASSERT_ACTIVE],
 [
@@ -346,12 +478,12 @@ AC_DEFUN([AC_ENABLE_SQLITE],
 AC_MSG_CHECKING([should be compiled with support for SQLite backends])
 AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--disable-sqlite],[Disable compilation with support for SQLite backends]))
 
-AS_IF([test "x$enable_sqlite" == "xno"], [
-  AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_sqlite" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # compile with MonetDB support
@@ -360,12 +492,41 @@ AC_DEFUN([AC_ENABLE_MONETDB],
 AC_MSG_CHECKING([should be compiled with support for MonetDB backends])
 AC_ARG_ENABLE(monetdb, AS_HELP_STRING([--disable-monetdb],[Disable compilation with support for MonetDB backends]))
 
-AS_IF([test "x$enable_monetdb" == "xno"], [
-  AC_DEFINE([DISABLE_MONETDB],[],[Disable support for MonetDB backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_monetdb" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
+  AC_MSG_RESULT([no])
+  AC_DEFINE([DISABLE_MONETDB],[],[Disable support for MonetDB backends])
+])
+])
+# compile with ODBC support
+AC_DEFUN([AC_ENABLE_ODBC],
+[
+AC_MSG_CHECKING([should be compiled with support for ODBC backends])
+AC_ARG_ENABLE(odbc, AS_HELP_STRING([--disable-odbc],[Disable compilation with support for ODBC backends]))
+
+AS_IF([test "x$enable_odbc" == "xyes"], [
   AC_MSG_RESULT([yes])
+],
+[
+  AC_DEFINE([DISABLE_ODBC],[],[Disable support for ODBC backends])
+  AC_MSG_RESULT([no])
+])
+])
+# compile with MSSQL support
+AC_DEFUN([AC_ENABLE_MSSQL],
+[
+AC_MSG_CHECKING([should be compiled with support for MSSQL ODBC backends])
+AC_ARG_ENABLE(mssql, AS_HELP_STRING([--enable-mssql],[Enable compilation with support for MSSQL ODBC backends]))
+
+AS_IF([test "x$enable_mssql" == "xyes"], [
+  AC_DEFINE([HAVE_MSSQL_ODBC_DRIVER],[1],[Have MSSQL ODBC driver])
+  AC_MSG_RESULT([yes])
+],
+[
+  AC_DEFINE([DISABLE_MSSQL],[],[Disable support for ODBC MSSQL backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # compile with Postgres support
@@ -374,42 +535,42 @@ AC_DEFUN([AC_ENABLE_POSTGRES],
 AC_MSG_CHECKING([should be compiled with support for Postgres backends])
 AC_ARG_ENABLE(postgres, AS_HELP_STRING([--disable-postgres],[Disable compilation with support for Postgres backends]))
 
-AS_IF([test "x$enable_postgres" == "xno"], [
-  AC_DEFINE([DISABLE_POSTGRES],[],[Disable support for Postgres backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_postgres" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_POSTGRES],[],[Disable support for Postgres backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # compile with Oracle support
 AC_DEFUN([AC_ENABLE_ORACLE],
 [
 AC_MSG_CHECKING([should be compiled with support for Oracle backends])
-AC_ARG_ENABLE(oracle, AS_HELP_STRING([--disable-oracle],[Disable compilation with support for Oracle backends]))
+AC_ARG_ENABLE(oracle, AS_HELP_STRING([--enable-oracle],[Disable compilation with support for Oracle backends]))
 
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_DEFINE([DISABLE_ORACLE],[],[Disable support for Oracle backends])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_oracle" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_ORACLE],[],[Disable support for Oracle backends])
+  AC_MSG_RESULT([no])
 ])
 ])
 # enable/disable Java bindings
 AC_DEFUN([AC_ENABLE_JAVA_BINDING],
 [
 AC_MSG_CHECKING([build with Java bindings including JDBC driver])
-AC_ARG_ENABLE(java, AS_HELP_STRING([--disable-java],[Disable building of Java bindings]))
+AC_ARG_ENABLE(java, AS_HELP_STRING([--enable-java],[Enable building of Java bindings and tests]))
 
-AS_IF([test "x$enable_java" == "xno"], [
-  AC_DEFINE([DISABLE_JAVA],[],[Disable building of Java binding])
-  AC_MSG_RESULT([no])
+AS_IF([test "x$enable_java" == "xyes"], [
+  AC_MSG_RESULT([yes])
 ],
 [
-  AC_MSG_RESULT([yes])
+  AC_DEFINE([DISABLE_JAVA],[],[Disable building of Java binding])
+  AC_MSG_RESULT([no])
 ])
-AM_CONDITIONAL(JAVABINDING, test "x$enable_java" != "xno")
+AM_CONDITIONAL(JAVABINDING, test "x$enable_java" = "xyes")
 ])
 # enable/disable readline support
 AC_DEFUN([AC_ENABLE_READLINE],
@@ -440,7 +601,7 @@ AS_IF([test "x$enable_debug" == "xno"],
 	GPROM_CFLAGS_ERR="-Wall -Werror"
 	GPROM_CFLAGS_OPT="-O0"
 ])
-GPROM_CFLAGS="${GPROM_CFLAGS_DEBUG} ${GPROM_CFLAGS_OPT} ${GPROM_CFLAGS_ERR}"
+GPROM_CFLAGS="${GPROM_CFLAGS_DEBUG} ${GPROM_CFLAGS_OPT} ${GPROM_CFLAGS_ERR} ${GPROM_EXTRA_CFLAGS}"
 AC_SUBST([GPROM_CFLAGS],[$GPROM_CFLAGS])
 AC_SUBST([GPROM_CFLAGS_OPT],[$GPROM_CFLAGS_OPT])
 AC_SUBST([GPROM_CFLAGS_ERROR],[$GPROM_CFLAGS_ERROR])
@@ -485,7 +646,7 @@ AC_MACHINE_ARCH
 ################################################################################
 # CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
 #CFLAGS="${GPROM_CFLAGS}"
-AC_PROG_CC_STDC
+AC_PROG_CC
 # restore user CFLAGS
 #CFLAGS=""
 #AS_IF([test "x$userCFLAGS" == "x"],
@@ -500,20 +661,48 @@ AC_PROG_CC_STDC
 AC_C_INLINE
 ################################################################################
 # SET OUTPUT VARIABLE FOR TOP SOURCE DIR
-mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
-AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
-GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
+#mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
+#AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
+gprom_srcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
+AC_SUBST([GPROM_TOP_SRCDIR],[$gprom_srcdir])
 ################################################################################
-# CHECK FOR PROGRAM BINARIES
+# CHECK FOR PROGRAM BINARIES AND FEATURES
 AM_PROG_AR
 AC_PROG_YACC
 BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`"
 AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
+#TODO check that versions are sufficient
+# check for pandoc and test whether we can use it for man -> html translation of the documentation
 AC_CHECK_PROG([pandoc],[pandoc],[yes])
+AS_IF([ test "x$pandoc" == "xyes" ],
+[
+AC_CACHE_CHECK([checking for pandoc that supports man],
+               [ac_cv_path_PANDOC],
+               [AC_PATH_PROGS_FEATURE_CHECK([PANDOC], [pandoc],
+                    [[$ac_path_PANDOC -f man ./doc/gprom.man > /dev/null ;
+                      test "x$?" = x0 \
+                      && ac_cv_path_PANDOC=$ac_path_PANDOC ac_path_PANDOC_found=:]],
+                    [AC_MSG_WARN([could not find pandoc that supports the man format may not be able to build documentation])])
+               ])
+],
+[]
+)
+AC_SUBST([PANDOC], [$ac_cv_path_PANDOC])
 AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
+AM_CONDITIONAL([HAVE_PROG_PANDOC_WITH_MAN], [test "x$ac_cv_path_PANDOC" != "x"])
 AC_CHECK_PROG([rman],[rman],[yes])
 AM_CONDITIONAL([HAVE_PROG_RMAN], [test "x$rman" = xyes])
+# set tool for building documentation
+if test "x$pandoc" = "xyes" -a "x$ac_cv_path_PANDOC" != "x"; then
+   AC_SUBST([DOCTOOL], ["pandoc"])
+else
+    if test "x$rman" = "xyes"; then
+       AC_SUBST([DOCTOOL], ["rman"])
+    else
+       AC_SUBST([DOCTOOL], ["none"])
+    fi
+fi
 # INIT LIBTOOL
 LT_INIT([win32-dll])
 ################################################################################
@@ -573,6 +762,8 @@ AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
 AC_ENABLE_SQLITE
 AC_ENABLE_MONETDB
+AC_ENABLE_ODBC
+AC_ENABLE_MSSQL
 ################################################################################
 # Check which language bindings to build
 AC_ENABLE_JAVA_BINDING
@@ -614,13 +805,6 @@ AS_CASE(["$enable_cplex"],
   []
 )
 ################################################################################
-# Oracle access libraries (OCI and OCILIB)
-AS_CASE(["$enable_oracle"],
-  [yes], [AC_ORACLE_ALL_CHECKS],
-  [no], [],
-  [AC_ORACLE_ALL_CHECKS]
-)
-################################################################################
 # Readline
 AC_CHECK_LIB([readline],[readline],[],[
 AS_IF([test "x$enable_readline" == "xno"], [
@@ -636,13 +820,37 @@ AS_IF([test "x$enable_readline" == "xno"], [
 #  AC_MSG_ERROR([missing cplex library])
 #])
 ################################################################################
+# Oracle access libraries (OCI and OCILIB)
+AS_CASE(["$enable_oracle"],
+  [yes], [AC_ORACLE_ALL_CHECKS],
+  [no], [],
+  []
+)
+################################################################################
 # Postgres C client library (libpq)
 AS_CASE(["$enable_postgres"],
   [yes], [AC_POSTGRES_ALL_CHECKS],
   # Deactivated
   [no], [],
-  # Default (active)
-  [AC_POSTGRES_ALL_CHECKS]
+  # Default (inactive)
+  []
+)
+################################################################################
+# Z3 library (libz3)
+AS_CASE(["$enable_z3"],
+  [yes], [
+# check if user has provided us with a non-standard location for libz3 library
+  AC_LIBZ3_LOCATION
+  AC_CHECK_HEADERS([z3.h])
+# check for the libz3 library
+  AC_CHECK_LIB([z3],[Z3_get_version],[],[
+    AC_MSG_ERROR([missing libz3 library - if you want to compile without z3 support use --disable-z3])
+  ])
+  ],
+  # Deactivated
+  [no], [],
+  # Default (inactive)
+  []
 )
 ################################################################################
 # SQlite library (libsqlite3)
@@ -651,8 +859,8 @@ AS_CASE(["$enable_sqlite"],
 	[yes], [AC_SQLITE_ALL_CHECKS],
     # Deactivated
     [no], [],
-    # Default (active)
-	[AC_SQLITE_ALL_CHECKS]
+    # Default (inactive)
+	[]
 )
 ################################################################################
 # MonetDB C client library (mapi)
@@ -660,8 +868,26 @@ AS_CASE(["$enable_monetdb"],
   [yes], [AC_MONETDB_ALL_CHECKS],
 # Deactivated
   [no], [],
-# Default (active)
-  [AC_MONETDB_ALL_CHECKS]
+# Default (inactive)
+  []
+)
+################################################################################
+# ODBC
+AS_CASE(["$enable_odbc"],
+  [yes], [AC_ODBC_ALL_CHECKS],
+# Deactivated
+  [no], [],
+# Default (inactive)
+  []
+)
+################################################################################
+# MSSQL ODBC driver
+AS_CASE(["$enable_mssql"],
+  [yes], [AC_MSSQL_ALL_CHECKS],
+# Deactivated
+  [no], [],
+# Default (inactive)
+  []
 )
 ################################################################################
 # enable/disable features
@@ -701,15 +927,18 @@ AC_CONFIG_FILES([
 	src/model/helperfunction/Makefile
 	src/model/list/Makefile
 	src/model/bitset/Makefile
+    src/model/integrity_constraints/Makefile
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
 	src/model/rpq/Makefile
 	src/model/set/Makefile
+    src/model/graph/Makefile
     src/operator_optimizer/Makefile
+    src/parameterized_queries/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
-  src/provenance_rewriter/coarse_grained/Makefile
+    src/provenance_rewriter/coarse_grained/Makefile
 	src/provenance_rewriter/game_provenance/Makefile
 	src/provenance_rewriter/semiring_combiner/Makefile
 	src/provenance_rewriter/uncertainty_rewrites/Makefile
@@ -718,7 +947,11 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/provenance_rewriter/summarization_rewrites/Makefile
 	src/provenance_rewriter/xml_rewrites/Makefile
-  src/provenance_rewriter/lateral_rewrites/Makefile
+	src/provenance_rewriter/lateral_rewrites/Makefile
+	src/provenance_rewriter/unnest_rewrites/Makefile
+    src/provenance_rewriter/datalog_lineage/Makefile
+    src/provenance_rewriter/semantic_optimization/Makefile
+    src/provenance_sketches/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile
@@ -730,18 +963,20 @@ AC_CONFIG_FILES([
 ])
 AC_OUTPUT
 
+
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   OS.................: $OSTYPE-$OSARCH ($OSDETAILS)
   Prefix.............: $prefix
-  Top src dir........: $GPROM_SRCDIR
+  Top src dir........: $GPROM_TOP_SRCDIR
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
-  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
-  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}, MonetDB - ${enable_monetdb:=yes}
-  Language bindings..: Java - ${enable_java:=yes}
+  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no} Z3:${enable_z3:=no}
+  Backends supported.: Oracle - ${enable_oracle:=no}, Postgres - ${enable_postgres:=no}, SQLite - ${enable_sqlite:=no}, MonetDB - ${enable_monetdb:=no}, ODBC - ${enable_odbc:=no}, MSSQL - ${enable_mssql:=no}
+  Language bindings..: Java - ${enable_java:=no}
   Readline support...: ${enable_readline:=yes}
+  Documentation......: Tool to build documentation: $DOCTOOL
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   CFLAGS ........: $CFLAGS
   CPPFLAGS ......: $CPPFLAGS

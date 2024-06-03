@@ -13,8 +13,11 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 
 // set parameters in an SQL statement to the list of constants provided (values).
+extern Node *applyBinds(ParameterizedQuery *p, List *values);
 extern Node *setParameterValues (Node *qbModel, List *values);
 extern Node *setParValsByName (Node *qbModel, List *values, List *names);
 

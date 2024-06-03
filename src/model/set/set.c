@@ -141,6 +141,19 @@ makeSetLong(gprom_long_t elem, ...)
 }
 
 Set *
+makeStringSetFromConstSet(Set *s)
+{
+	Set *result = STRSET();
+
+	FOREACH_SET(char,str,s)
+	{
+		addToSet(result, STRING_VALUE(str));
+	}
+
+	return result;
+}
+
+Set *
 makeStrSetFromList(List *strList)
 {
     Set *result = STRSET();
@@ -160,6 +173,19 @@ makeNodeSetFromList(List *list)
         addToSet(result, n);
 
     return result;
+}
+
+List *
+makeNodeListFromSet(Set *s)
+{
+	List *result = NIL;
+
+	FOREACH_SET(Node,n,s)
+	{
+		result = appendToTailOfList(result, n);
+	}
+
+	return result;
 }
 
 boolean
@@ -358,6 +384,15 @@ removeSetLongElem (Set *set, gprom_long_t elem)
     }
 }
 
+/**
+ * @brief Union two sets.
+ *
+ * @param left left set
+ * @param right right set
+ * @return a new set that is the union of left and right
+ */
+
+
 Set *
 unionSets (Set *left, Set *right)
 {
@@ -393,6 +428,34 @@ unionSets (Set *left, Set *right)
     TRACE_LOG("union result set %s", nodeToString(result));
 
     return result;
+}
+
+void
+unionIntoSet(Set *left, Set *right)
+{
+	SetElem *s;
+
+    ASSERT(left->setType == right->setType);
+    ASSERT(left->cpy && right->cpy);
+
+	if (left->setType == SET_TYPE_INT)
+    {
+        for(s = right->elem; s != NULL; s = s->hh.next)
+		{
+            if (!hasSetIntElem(left, *((int *) s->data)))
+            {
+                addIntToSet(left, *((int *) s->data));
+            }
+		}
+    }
+    else
+    {
+        for(s = right->elem; s != NULL; s = s->hh.next)
+            if (!hasSetElem(left, s->data))
+            {
+                addToSet(left, right->cpy(s->data));
+            }
+    }
 }
 
 Set *
@@ -496,6 +559,45 @@ containsSet(Set *left, Set *right)
     		break;
     }
 	return containedElem;
+}
+
+void *
+popSet(Set *set)
+{
+    ASSERT(!EMPTY_SET(set));
+	SetElem *e = set->elem;
+
+	if(set->setType == SET_TYPE_STRING)
+	{
+		char *el = strdup(e->data);
+		removeSetElem(set, el);
+		return el;
+	}
+	else
+	{
+		Node *el = copyObject(e->data);
+		removeSetElem(set, el);
+		return el;
+	}
+}
+
+void *
+peekSet(Set *set)
+{
+    ASSERT(!EMPTY_SET(set));
+
+	SetElem *e = set->elem;
+
+	if(set->setType == SET_TYPE_STRING)
+	{
+		char *el = strdup(e->data);
+		return el;
+	}
+	else
+	{
+		Node *el = copyObject(e->data);
+		return el;
+	}
 }
 
 int

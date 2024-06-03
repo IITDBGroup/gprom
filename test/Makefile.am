@@ -7,17 +7,42 @@ AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(top_srcdir)/\"
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
 				testrpq testlibgprom testuncert
-bin_PROGRAMS = testexprcplex
+bin_PROGRAMS = testexprcplex testmain
 
 # testcplex
 
-testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
-		   test_logger.c test_mem_mgr.c test_to_string.c \
-		   test_parse.c test_list.c test_main.h \
-		   test_metadata_lookup.c test_string.c test_set.c test_hashmap.c \
-		   test_vector.c test_parameter.c test_metadata_postgres.c test_string_utils.c \
-		   test_dl.c test_hash.c test_exception.c test_rpq.c test_common.c \
-		   test_autocast.c test_bitset.c
+testmain_SOURCES = \
+	test_main.h \
+	test_main.c \
+	test_autocast.c \
+	test_bitset.c \
+	test_common.c \
+	test_copy.c \
+	test_dl.c \
+	test_equal.c \
+	test_exception.c \
+	test_expr.c \
+	test_graph.c \
+	test_hash.c \
+	test_hashmap.c \
+	test_ic.c \
+	test_list.c \
+	test_logger.c \
+	test_mem_mgr.c \
+	test_metadata_lookup.c \
+	test_metadata_postgres.c \
+	test_parameter.c \
+	test_parse.c \
+	test_rpq.c \
+	test_semantic_optimization.c \
+	test_set.c \
+	test_string.c \
+	test_string_utils.c \
+	test_temporal.c \
+	test_to_string.c \
+	test_vector.c \
+	test_z3.c 
+
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
 

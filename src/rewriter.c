@@ -41,11 +41,13 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 //#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
+static void treeifyAll(Node *rewrittenPlan);
 static void setupPlugin(const char *pluginType);
 //static void summarizationPlan(Node *parse);
 //static List *summOpts = NIL;
@@ -82,7 +84,7 @@ readOptions (char *appName, char *appHelpText, int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption("help"))
+    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption(OPTION_SHOW_HELP))
     {
         printOptionsHelp(stdout, appName, appHelpText, FALSE);
         return EXIT_FAILURE;
@@ -205,6 +207,11 @@ setupPluginsFromOptions(void)
         chooseOptimizerPluginFromString(pluginName);
     else
         chooseOptimizerPluginFromString("exhaustive");
+
+    // for self-turning of ps - load the stored provenance sketches from table first
+    if(getStringOption(OPTION_PS_STORE_TABLE) != NULL)
+    	loadPSInfoFromTable();
+
 }
 
 static void
@@ -268,6 +275,36 @@ setupPlugin(const char *pluginType)
         else
             chooseOptimizerPluginFromString("exhaustive");
     }
+}
+
+static void
+treeifyAll(Node *rewrittenPlan)
+{
+	if (isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY))
+	{
+		if(isA(rewrittenPlan,List))
+		{
+			FOREACH(Node,n,(List *) rewrittenPlan)
+			{
+				if(IS_OP(n))
+				{
+					QueryOperator *q = (QueryOperator *) n;
+					treeify(q);
+					INFO_OP_LOG("treeified operator model:", q);
+					DEBUG_NODE_BEATIFY_LOG("treeified operator model:", q);
+					ASSERT(isTree(q));
+				}
+			}
+		}
+		else if (IS_OP(rewrittenPlan))
+		{
+			QueryOperator *q = (QueryOperator *) rewrittenPlan;
+			treeify((QueryOperator *) q);
+			INFO_OP_LOG("treeified operator model:", q);
+			DEBUG_NODE_BEATIFY_LOG("treeified operator model:", q);
+			ASSERT(isTree((QueryOperator *) q));
+		}
+	}
 }
 
 void
@@ -339,7 +376,7 @@ shutdownApplication(void)
 }
 
 void
-processInput(char *input)
+processInput(char *input, FILE *stream)
 {
     char *q = NULL;
     Node *parse;
@@ -347,7 +384,14 @@ processInput(char *input)
     TRY
     {
         NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
-        parse = parseFromString(input);
+		if(stream == NULL)
+		{
+			parse = parseFromString(input);
+		}
+		else
+		{
+			parse = parseStream(stream);
+		}
         q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
         execute(q);
         FREE_AND_RELEASE_CUR_MEM_CONTEXT();
@@ -446,15 +490,18 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-    //Ziyu Liu
-	//TODO only run check if
-	/* HashMap *checkResult; //TODO only call if we are computing prov sketches */
-	/* checkResult = monotoneCheck(oModel); */
-	// FREE(checkResult); //TODO why free this?
-	//Ziyu Liu
+    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
+	{
+		oModel = lateralTranslateQBModel(oModel);
+		INFO_AND_DEBUG_OP_LOG("subqueries rewritten into lateral", oModel);
+	}
 
-    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE))
-    		oModel = lateralTranslateQBModel(oModel);
+    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
+	{
+		oModel = unnestTranslateQBModel(oModel);
+		INFO_AND_DEBUG_OP_LOG("unnested subqueries", oModel);
+	}
+
     rewrittenTree = provRewriteQBModel(oModel);
 
 	if (IS_QB(rewrittenTree))
@@ -527,6 +574,9 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
 
+	// turn operator graph into a tree if the users asked for it
+	treeifyAll(rewrittenTree);
+
 	START_TIMER("SQLcodeGen");
 	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
 	STOP_TIMER("SQLcodeGen");
@@ -539,7 +589,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 }
 
 static char *
-rewriteParserOutput (Node *parse, boolean applyOptimizations)
+rewriteParserOutput(Node *parse, boolean applyOptimizations)
 {
     char *rewrittenSQL = NULL;
     Node *oModel;

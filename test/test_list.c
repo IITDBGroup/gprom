@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * test_list.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -20,11 +20,16 @@
 
 static rc testIntList(void);
 static rc testPList(void);
+static rc testPopList(void);
 static rc testListConstruction(void);
 static rc testListOperations(void);
 static rc testListGenericOps(void);
+static rc testSort(void);
+static rc testUnique(void);
+static rc testRemove(void);
 
-static boolean cmpConstFirst (void *a, void *b);
+static boolean eqConstFirst (void *a, void *b);
+static int cmpConstFirst (const void **a, const void **b);
 
 rc
 testList()
@@ -33,7 +38,11 @@ testList()
     RUN_TEST(testPList(), "test pointer lists");
     RUN_TEST(testListConstruction(), "test list construction");
     RUN_TEST(testListOperations(), "test list operations");
+	RUN_TEST(testPopList(), "test pop from list");
     RUN_TEST(testListGenericOps(), "test generic list operations");
+	RUN_TEST(testSort(), "test generic list sorting");
+	RUN_TEST(testUnique(), "test duplicate elimination");
+	RUN_TEST(testRemove(), "test removing list elements");
 
     return PASS;
 }
@@ -61,8 +70,6 @@ testIntList(void)
     {
         ASSERT_EQUALS_INT(1, i, "first element is 1");
     }
-
-
 
     return PASS;
 }
@@ -159,6 +166,13 @@ testListOperations(void)
     ASSERT_EQUALS_INT(1, LIST_LENGTH(l2), "... of length 1");
 
     // reverse list
+	l = LIST_MAKE("a","b","c");
+	reverseList(l);
+	l2 = LIST_MAKE("c","b","a");
+
+	ASSERT_EQUALS_STRING(stringListToString(l2),
+						 stringListToString(l),
+						 "reverse list");
 
     // search list
     CREATE_INT_SEQ(l,0,5,1);
@@ -176,6 +190,23 @@ testListOperations(void)
 }
 
 static rc
+testPopList(void)
+{
+	List  *l = LIST_MAKE("a","b","c");
+	List *l2 = LIST_MAKE("c");
+
+	ASSERT_EQUALS_STRING("a", popHeadOfListP(l), "pop a");
+	ASSERT_EQUALS_STRING("b", popHeadOfListP(l), "pop b");
+
+	ASSERT_EQUALS_STRING(stringListToString(l2), stringListToString(l), "after poping two elements = (c)");
+
+	ASSERT_EQUALS_STRING("c", popHeadOfListP(l), "pop c");
+	ASSERT_TRUE(LIST_EMPTY(l), "is empty");
+
+	return PASS;
+}
+
+static rc
 testListGenericOps(void)
 {
     Constant *c1 = createConstString("abc");
@@ -185,21 +216,95 @@ testListGenericOps(void)
     List *l = LIST_MAKE(c1,c2,c3);
 
     // search
-    ASSERT_TRUE(genericSearchList(l, cmpConstFirst, createConstString("bbb")), "has string starting with b");
-    ASSERT_FALSE(genericSearchList(l, cmpConstFirst, createConstString("cbc")), "doe not have string starting with c");
+    ASSERT_TRUE(genericSearchList(l, eqConstFirst, createConstString("bbb")), "has string starting with b");
+    ASSERT_FALSE(genericSearchList(l, eqConstFirst, createConstString("cbc")), "doe not have string starting with c");
 
     // remove
-    l = genericRemoveFromList(l, cmpConstFirst, createConstString("axxxx"));
+    l = genericRemoveFromList(l, eqConstFirst, createConstString("axxxx"));
     ASSERT_EQUALS_NODE(l, LIST_MAKE(c3), "after removal list is: (\"bcd\")");
     return PASS;
 }
 
+static rc
+testSort(void)
+{
+	Constant *c1 = createConstString("abc");
+	Constant *c2 = createConstString("caa");
+	Constant *c3 = createConstString("bbb");
+
+	List *l = LIST_MAKE(c1,c2,c3);
+	List *exp = LIST_MAKE(c1,c3,c2);
+	List *actual = sortList(l, cmpConstFirst);
+
+	ASSERT_EQUALS_NODE(exp, actual, "sorted is [abc, bbb, caa]");
+
+	return PASS;
+}
+
+static rc
+testUnique(void)
+{
+	Constant *c1 = createConstString("abc");
+	Constant *c2 = createConstString("aaa");
+	Constant *c3 = createConstString("bbb");
+
+	List *l = LIST_MAKE(c1,c2,c3);
+
+	// remove dups based on first character equality
+	List *exp = LIST_MAKE(c1,c3);
+	List *actual = unique(l, cmpConstFirst);
+
+	ASSERT_EQUALS_NODE(exp, actual, "unique removes one element starting with a.");
+
+	return PASS;
+}
+
+#define CS(s) createConstString(s)
+
+static rc
+testRemove(void)
+{
+	List *l = LIST_MAKE_INT(1,2,3,5,6);
+
+	l = removeFromListInt(l, 3);
+	l = removeFromListInt(l, 7);
+	l = removeFromListInt(l, 4);
+
+	ASSERT_EQUALS_NODE(LIST_MAKE_INT(1,2,5,6), l, "(1,2,5,6)");
+
+	l = LIST_MAKE(CS("a"), CS("b"), CS("c"));
+
+	l = REMOVE_FROM_LIST_NODE(l, CS("b"));
+	l = REMOVE_FROM_LIST_NODE(l, CS("d"));
+
+	ASSERT_EQUALS_NODE(LIST_MAKE(CS("a"), CS("c")), l, "(a,c)");
+
+	return PASS;
+}
+
+
 static boolean
-cmpConstFirst (void *a, void *b)
+eqConstFirst (void *a, void *b)
 {
     char *c1 = STRING_VALUE(a);
     char *c2 = STRING_VALUE(b);
 
-    return c1[0] == c2[0];
+	return c2[0] == c1[0];
 }
 
+static int
+cmpConstFirst (const void **a, const void **b)
+{
+    char *c1;
+	char *c2;
+
+	if(*a == *b)
+		return 0;
+	if(*a == NULL || *b == NULL)
+		return -1;
+
+    c1 = STRING_VALUE(*a);
+    c2 = STRING_VALUE(*b);
+
+	return c1[0] - c2[0];
+}

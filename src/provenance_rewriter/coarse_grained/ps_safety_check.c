@@ -475,7 +475,7 @@ findOrderOperator(List* operatorList){
 char*
 findTable(HashMap *table_map, char *colName) {
 	//DEBUG_NODE_BEATIFY_LOG("The TABLE_map is:",table_map);
-	char *tableName;
+	char *tableName = NULL;
 	List *key_List = getKeys(table_map);
 	//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
 	FOREACH(Constant, table, key_List)
@@ -1105,7 +1105,7 @@ boolean checkPageSafety_rownum(HashMap *data){
 boolean checkAllIsPostive(HashMap *table_map, char *colName) {
 	//DEBUG_NODE_BEATIFY_LOG("The TABLE_map is:",table_map);
 	List *key_List = getKeys(table_map);
-	boolean postive;
+	boolean postive = FALSE;
 	//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
 	FOREACH(Constant, table, key_List)
 	{

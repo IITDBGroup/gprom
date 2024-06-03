@@ -28,8 +28,8 @@
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_dt_inference.h"
 #include "model/query_operator/query_operator_model_checker.h"
-
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
+#include "provenance_rewriter/prov_schema.h"
 
 #define NUM_PROV_ATTR "NumInProv"
 #define NUM_NONPROV_ATTR "NumInNonProv"
@@ -485,7 +485,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 
 		FOREACH(AttributeDef,a,newEdgeBase->schema->attrDefs)
 		{
-			if(isPrefix(a->attrName,"PROV_") || a->dataType == DT_BOOL)
+			if(isPrefix(a->attrName,PROV_ATTR_PREFIX) || a->dataType == DT_BOOL)
 			{
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -1452,7 +1452,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 	}
 
 	int attrCount = 0;
-	int relCount = 0;
+	/* int relCount = 0; */
 	char *relName = NULL;
 //	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
@@ -1607,7 +1607,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 				attrCount++;
 			}
 		}
-		relCount++;
+		/* relCount++; */
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("dom attrs for summarization:", (Node *) result);
@@ -1732,7 +1732,7 @@ rewriteCandidateOutput (Node *scanSampleInput, ProvQuestion qType, List *fPatter
 	{
 //		AttributeDef *a = (AttributeDef *) n;
 
-		if (isPrefix(n->attrName,"PROV_"))
+		if (isPrefix(n->attrName,PROV_ATTR_PREFIX))
 		{
 			Node *cond = (Node *) createIsNullExpr((Node *) n);
 			Node *then = (Node *) createConstInt(0);
@@ -1788,7 +1788,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 		FOREACH(AttributeDef,al,samples->schema->attrDefs)
 		{
-			if(isSubstr(ar->attrName,al->attrName) && isPrefix(al->attrName,"PROV_"))
+			if(isSubstr(ar->attrName,al->attrName) && isPrefix(al->attrName,PROV_ATTR_PREFIX))
 			{
 				int alPos = LIST_LENGTH(normAttrs) + aPos;
 				lA = createFullAttrReference(strdup(al->attrName), 0, alPos, 0, al->dataType);
@@ -1834,7 +1834,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 		}
 		else if (pos > hasPos && hasPos != 0)
 		{
-			if (isPrefix(p->attrName,"PROV_"))
+			if (isPrefix(p->attrName,PROV_ATTR_PREFIX))
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
 		}
@@ -1850,7 +1850,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	List *subAttrs = NIL;
 	FOREACH(char,a,getAttrNames(patterns->schema))
-		if (isPrefix(a,"PROV_"))
+		if (isPrefix(a,PROV_ATTR_PREFIX))
 			subAttrs = appendToTailOfList(subAttrs,a);
 
 	if(LIST_EMPTY(failExpr))
@@ -1962,7 +1962,7 @@ rewritePatternOutput (char *summaryType, Node *unionSample, Node *randProv)
 		{
 			AttributeDef *a = (AttributeDef *) r;
 
-			if(isPrefix(a->attrName,"PROV_"))
+			if(isPrefix(a->attrName,PROV_ATTR_PREFIX))
 			{
 				provAttrNames = appendToTailOfList(provAttrNames,a->attrName);
 
@@ -2286,14 +2286,14 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, ProvQues
 	}
 	else if(qType == PROV_Q_WHYNOT)
 	{
-//		// make attr name with "PROV_"
+//		// make attr name with PROV_ATTR_PREFIX
 //		FOREACH(AttributeDef,a,randomProv->schema->attrDefs)
 //			if(!streq(a->attrName,HAS_PROV_ATTR))
-//				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+//				a->attrName = CONCAT_STRINGS(PROV_ATTR_PREFIX,a->attrName);
 
 		FOREACH(AttributeDef,a,((QueryOperator *) randNonProv)->schema->attrDefs)
 			if(!streq(a->attrName,HAS_PROV_ATTR))
-				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+				a->attrName = CONCAT_STRINGS(PROV_ATTR_PREFIX,a->attrName);
 
 		allInput = LIST_MAKE(randomProv,randNonProv);
 	}
@@ -2490,7 +2490,7 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, Lis
 		{
 //			// make the boolean type attribute not a provenance attr if exists
 //			if(p->dataType == DT_BOOL)
-//				p->attrName = replaceSubstr(p->attrName,"PROV_","");
+//				p->attrName = replaceSubstr(p->attrName,PROV_ATTR_PREFIX,"");
 
 			projExpr = appendToTailOfList(projExpr,
 					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
@@ -2566,10 +2566,10 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, Lis
 		randomProv->parents = singleton(projOp);
 		randomProv = (QueryOperator *) projOp;
 
-		// make attr name with "PROV_"
+		// make attr name with PROV_ATTR_PREFIX
 		FOREACH(AttributeDef,a,randomProv->schema->attrDefs)
 			if(!streq(a->attrName,HAS_PROV_ATTR) && a->dataType != DT_BOOL)
-				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+				a->attrName = CONCAT_STRINGS(PROV_ATTR_PREFIX,a->attrName);
 	}
 
 	// create order by operator
@@ -2839,14 +2839,14 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 	// For dl, make attr names starting with "PROV"
 	if(isDL)
 	{
-		// replace the attr names starting with "PROV_"
+		// replace the attr names starting with PROV_ATTR_PREFIX
 		FOREACH(QueryOperator,q,prov->inputs)
 			FOREACH(AttributeDef,a,q->schema->attrDefs)
-				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+				a->attrName = CONCAT_STRINGS(PROV_ATTR_PREFIX,a->attrName);
 
 		FOREACH(AttributeDef,a,prov->schema->attrDefs)
 //			if (a->dataType != DT_BOOL)
-				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+				a->attrName = CONCAT_STRINGS(PROV_ATTR_PREFIX,a->attrName);
 
 		// store orig data types
 		origDataTypes = getDataTypes(prov->schema);
@@ -2933,7 +2933,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 	// create projection for adding HAS_PROV_ATTR attribute
 	FOREACH(AttributeDef,p,prov->schema->attrDefs)
 	{
-		if(isPrefix(p->attrName,"PROV_"))
+		if(isPrefix(p->attrName,PROV_ATTR_PREFIX))
 		{
 			projExpr = appendToTailOfList(projExpr,
 					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
@@ -3261,7 +3261,7 @@ rewriteUserQuestion (List *userQ, Node *rewrittenTree)
 
 	FOREACH(AttributeDef,p,input->schema->attrDefs)
 	{
-//		if(isPrefix(p->attrName,"PROV_"))
+//		if(isPrefix(p->attrName,PROV_ATTR_PREFIX))
 //		{
 //			attrs = appendToTailOfList(attrs,p->attrName);
 

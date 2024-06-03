@@ -231,8 +231,10 @@ postgrescast    "::"
 (?i:INCOMPLETE)		UPCASE_TOK(INCOMPLETE)
 (?i:XTABLE) 		UPCASE_TOK(XTABLE)
 (?i:URANGE)			UPCASE_TOK(URANGE)
+(?i:ZUNCERT)		UPCASE_TOK(ZUNCERT)
 (?i:RADB)			UPCASE_TOK(RADB)
 (?i:UADB)			UPCASE_TOK(UADB)
+(?i:VTABLE)			UPCASE_TOK(VTABLE)
 (?i:CAPTURE)		UPCASE_TOK(CAPTURE)
 (?i:COARSE)			UPCASE_TOK(COARSE)
 (?i:GRAINED)		UPCASE_TOK(GRAINED)
@@ -240,6 +242,14 @@ postgrescast    "::"
 (?i:PAGE)		    UPCASE_TOK(PAGE)
 (?i:RANGESA)		UPCASE_TOK(RANGESA)
 (?i:RANGESB)		UPCASE_TOK(RANGESB)
+(?i:HASH)		    UPCASE_TOK(HASH)
+(?i:CAPTUREUSE)		UPCASE_TOK(CAPTUREUSE)
+(?i:BIND)		    UPCASE_TOK(BIND)
+(?i:FOR)		    UPCASE_TOK(FOR)
+(?i:CANUSE)		    UPCASE_TOK(CANUSE)
+(?i:LATERAL)        UPCASE_TOK(LATERAL)
+(?i:EXECUTE)        UPCASE_TOK(EXECUTE)
+(?i:PREPARE)        UPCASE_TOK(PREPARE)
 
 	/* booleans */
 {bool}			TOK(boolConst)
@@ -259,13 +269,13 @@ postgrescast    "::"
 	}
 
 	/* punctuation */
-[(),.;] TOKSELF()
+[(),.;\[\]] TOKSELF()
 
 	/* operators */
 {comparisonOps}		TOK(comparisonOps)
 {strconcat}			TOK(STRINGCONCAT)
 {postgrescast}      TOK(POSTGRESCAST)
-[-+*%/^~&|!]		TOKSELF()
+[-+*%/^~&|![\]]		TOKSELF()
 
 
 

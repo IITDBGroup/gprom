@@ -79,6 +79,8 @@ extern char *_testStringBuf;
 
 #define TOSTRING_TOKENIZE(a) TOSTRING_ ## a
 
+#define ENUM_TO_STRING(a) a ## ToString
+
 #define ASSERT_EQUALS_INTERNAL(_type,a,b,_equals,message,format,_tostring) \
 	    do { \
 	        _type _aVal = (_type) (a); \
@@ -86,16 +88,39 @@ extern char *_testStringBuf;
 	        boolean result = _equals(_aVal,_bVal); \
 	        TRACE_LOG("result was: <%s>", result ? "TRUE": "FALSE"); \
 	        if (!result) \
+			{ \
 	            sprintf(_testStringBuf, ("expected <" format ">, but was " \
                         "<" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
+			} \
 	        else \
+			{ \
 	            sprintf(_testStringBuf, ("as expected <" format "> was equal to" \
                         " <" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
+			} \
 	        CHECK_RESULT((result ? PASS : FAIL), _testStringBuf); \
 	    } while(0)
 
+#define ASSERT_EQUALS_ENUM(_type,a,b,message) \
+	    do { \
+	        _type _aVal = (_type) (a); \
+	        _type _bVal = (_type) (b); \
+	        boolean result = (_aVal == _bVal); \
+	        TRACE_LOG("result was: <%s>", result ? "TRUE": "FALSE"); \
+	        if (!result) \
+	            sprintf(_testStringBuf, ("expected <%s>, but was <%s>: %s"), \
+						ENUM_TO_STRING(_type)(_aVal), ENUM_TO_STRING(_type)(_bVal), message); \
+	        else \
+	            sprintf(_testStringBuf, ("as expected <%s> was equal to" \
+                        " <%s>: %s"), ENUM_TO_STRING(_type)(_aVal), ENUM_TO_STRING(_type)(_bVal), message); \
+	        CHECK_RESULT((result ? PASS : FAIL), _testStringBuf); \
+	    } while(0)
+
+
 #define ASSERT_EQUALS_NODE(a,b,message) \
-    ASSERT_EQUALS_INTERNAL(Node*,a,b,EQUALS_EQUALS,message,"%s",NODE)
+	do { \
+		DEBUG_LOG("expected\n\n<%s>\n\nand was:\n\n<%s>", beatify(nodeToString(a)), beatify(nodeToString(a))); \
+		ASSERT_EQUALS_INTERNAL(Node*,a,b,EQUALS_EQUALS,message,"%s",NODE); \
+	} while(0)
 
 #define ASSERT_EQUALS_INT(a,b,message) \
     ASSERT_EQUALS_INTERNAL(int,a,b,EQUALS_EQ,message,"%u",SELF);
@@ -132,21 +157,28 @@ extern boolean testQuery (char *query, char *expectedResult);
 extern boolean fileExists (char *file);
 
 /* individual tests */
-extern rc testList(void);
-extern rc testSet(void);
-extern rc testHashMap(void);
-extern rc testVector(void);
+//extern rc testLibGProM(void);
+extern rc testAutocast(void);
 extern rc testBitset(void);
-extern rc testExpr(void);
 extern rc testCopy(void);
+extern rc testDatalogModel(void);
 extern rc testEqual(void);
-extern rc testToString(void);
+extern rc testException(void);
+extern rc testExpr(void);
+extern rc testGraph(void);
+extern rc testHash(void);
+extern rc testHashMap(void);
+extern rc testIntegrityConstraints(void);
+extern rc testList(void);
 extern rc testLogger(void);
 extern rc testMemManager(void);
-extern rc testException(void);
-extern rc testParse(void);
 extern rc testMetadataLookup(void);
 extern rc testMetadataLookupPostgres(void);
+extern rc testParameter(void);
+extern rc testParse(void);
+extern rc testRPQ(void);
+extern rc testSemanticOptimization(void);
+extern rc testSet(void);
 extern rc testString(void);
 extern rc testStringUtils(void);
 extern rc testParameter(void);
@@ -155,5 +187,9 @@ extern rc testHash(void);
 //extern rc testLibGProM(void);
 extern rc testRPQ(void);
 extern rc testAutocast(void);
+extern rc testTemporal(void);
+extern rc testZ3(void);
+extern rc testToString(void);
+extern rc testVector(void);
 
 #endif

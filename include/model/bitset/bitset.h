@@ -38,8 +38,8 @@ extern BitSet *bitNot(BitSet *b);
 
 extern boolean bitsetEquals(BitSet *b1, BitSet *b2);
 extern BitSet *copyBitSet(BitSet *in);
-extern char* bitSetToString (BitSet *bitset);
-extern BitSet *stringToBitset (char *v);
+extern char *bitSetToString(BitSet *bitset);
+extern BitSet *stringToBitset(char *v);
 //extern boolean doubleLength(BitSet *bitset);
 
 

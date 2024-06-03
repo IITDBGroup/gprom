@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * operator_optimizer.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -36,6 +36,7 @@ extern QueryOperator *removeUnnecessaryWindowOperator(QueryOperator *root);
 /* try to remove unnecessary columns */
 extern QueryOperator *removeUnnecessaryColumns(QueryOperator *root);
 extern QueryOperator *removeUnnecessaryColumnsFromProjections(QueryOperator *root);
+/* extern void restrictOperatorToColumns(QueryOperator *root, Set *columns); */
 extern QueryOperator *removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op);
 
 /* try to remove redundant duplicate operator */

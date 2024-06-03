@@ -13,6 +13,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 
@@ -163,6 +164,13 @@ typedef struct LimitOperator
 	Node *offsetExpr;
 } LimitOperator;
 
+typedef struct ExecPreparedOperator
+{
+	QueryOperator op;
+	char *name;
+	List *params;
+} ExecPreparedOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator) \
@@ -182,6 +190,11 @@ typedef struct LimitOperator
         || isA(op,SetOperator)                          \
         || isA(op,NestingOperator))
 
+#define IS_SPECIAL_OP(op) (isA(op,ProvenanceComputation) \
+    || isA(op,/UpdateOperator) \
+    || isA(op,/ExecPreparedOperator) \
+    )
+
 #define IS_OP(op) (IS_NULLARY_OP(op) || IS_UNARY_OP(op) || IS_BINARY_OP(op))
 
 #define IS_QB(op) (IS_OP(op) || (isA(op,List) && (op == NULL || IS_OP(getNthOfListP((List *) op, 0)))))
@@ -192,7 +205,7 @@ extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames,
         List *dataTypes);
 extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
-extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
+extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name, boolean adaptProvAttrs);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
 extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs);
@@ -208,6 +221,9 @@ extern List *getAttrDefNames (List *defs);
 extern List *getAttrDataTypes (List *defs);
 extern List *inferOpResultDTs (QueryOperator *op);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
+
+/* shallow copy of a query operator (do not copy children or parents) */
+extern QueryOperator *shallowCopyQueryOperator(QueryOperator *op);
 
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
@@ -252,12 +268,17 @@ extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOper
 #define getAttrDef(op,aPos) \
     ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
+extern QueryOperator *getFirstRoot(QueryOperator *op);
+
 /* deal with properties */
-extern void setProperty (QueryOperator *op, Node *key, Node *value);
-extern Node *getProperty (QueryOperator *op, Node *key);
-extern void setStringProperty (QueryOperator *op, char *key, Node *value);
-extern Node *getStringProperty (QueryOperator *op, char *key);
-extern void removeStringProperty (QueryOperator *op, char *key);
+extern void setProperty(QueryOperator *op, Node *key, Node *value);
+extern Node *getProperty(QueryOperator *op, Node *key);
+extern void setStringProperty(QueryOperator *op, char *key, Node *value);
+extern Node *getStringProperty(QueryOperator *op, char *key);
+extern void removeStringProperty(QueryOperator *op, char *key);
+extern List *appendToListProperty(QueryOperator *op, Node *key, Node *newTail);
+extern List *appendToListStringProperty(QueryOperator *op, char *key, Node *newTail);
+
 #define SET_KEYVAL_PROPERTY(op,kv) (setProperty(((QueryOperator *) op), kv->key, kv->value))
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
@@ -265,6 +286,12 @@ extern void removeStringProperty (QueryOperator *op, char *key);
         key, (Node *) value))
 #define SET_BOOL_STRING_PROP(op,key) (setStringProperty((QueryOperator *) op, \
         key, (Node *) createConstBool(TRUE)))
+#define APPEND_PROP(op,key,value) (appendToListProperty((QueryOperator *) op, \
+														key,			\
+														(Node *) value))
+#define APPEND_STRING_PROP(op,key,value) (appendToListStringProperty((QueryOperator *) op, \
+																	 key, \
+																	 (Node *) value))
 #define GET_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key))
 #define GET_STRING_PROP_STRING_VAL(op,key) (HAS_STRING_PROP(op,key) ? STRING_VALUE(getStringProperty((QueryOperator *) op, key)) : NULL)
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
@@ -302,7 +329,8 @@ extern AttributeReference *getAttrRefByPos (QueryOperator *op, int pos);
 extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
-extern List *getAttrRefsInOperator (QueryOperator *op);
+extern List *getAttrRefsInOperator(QueryOperator *op);
+extern boolean opReferencesAttr(QueryOperator *op, char *a);
 
 /* operator specific functions */
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
@@ -314,6 +342,15 @@ extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
 extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
 extern List *getProjExprsForAllAttrs(QueryOperator *op);
+extern List *getProjResultAttrNamesForProjExpr(ProjectionOperator *op, Node *expr);
+
+extern List *getNestingResultAttributeNames(NestingOperator *op);
+extern char *getSingleNestingResultAttribute(NestingOperator *op);
+extern Set *getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery);
+extern Set *getCorrelatedAttributes(Node *op, boolean corrInSubquery);
+
+/* change operator schema and adapt references in parents */
+extern void removeAttrFromOp(QueryOperator *op, char *attr);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
@@ -329,6 +366,9 @@ extern unsigned int numOpsInGraph (QueryOperator *root);
 extern unsigned int numOpsInTree (QueryOperator *root);
 
 //find NestingOperator based on levelsUp
-extern QueryOperator* findNestingOperator (QueryOperator *op, int levelsUp);
+extern QueryOperator*findNestingOperator(QueryOperator *op, int levelsUp);
+extern char *getNestingAttrPrefix();
+extern char *getNestingResultAttribute(int number);
+extern boolean isNestingAttribute(char *attr);
 
 #endif /* QUERY_OPERATOR_H_ */

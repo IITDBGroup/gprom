@@ -1,0 +1,14 @@
+Q1(sum(CASE WHEN p_type LIKE 'PROMO%' THEN l_extp*(1-l_discount) ELSE 0 END),
+   sum(l_extp*(1-l_discount))) :-
+    part(p_partkey,p1,p2,p3,p_type,p4,p5,p6,p7),
+    lineitem(l1,p_partkey,l2,l3,l4,l_extp,l_discount,l5,l6,l7,l_shipdate,l8,l9,l10,l11,l12),
+    l_shipdate >= '1995-09-01',
+    l_shipdate < '1995-10-01'.
+
+Q(100 * (X / Y)) :- Q1(X,Y).
+
+ANS: Q.
+
+RP(x1) :- rtpcq14(x1).
+
+LINEAGE FOR lineitem FOR RESULTS FROM RP.

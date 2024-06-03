@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * hashmap.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -178,7 +178,7 @@ getEntries(HashMap *map)
 }
 
 boolean
-addToMap (HashMap *map, Node *key, Node *value)
+addToMap(HashMap *map, Node *key, Node *value)
 {
     HashElem *entry = getHashElem(map, key);
 
@@ -201,6 +201,24 @@ addToMap (HashMap *map, Node *key, Node *value)
 
         return FALSE;
     }
+}
+
+void
+addToMapValueList(HashMap *map, Node *key, Node *item, boolean dupl)
+{
+	if(!hasMapKey(map, key))
+	{
+		List *l = singleton(item);
+		addToMap(map, key, (Node *) l);
+	}
+	else
+	{
+		List *l = (List *) getMap(map, key);
+		if(!(dupl && searchListNode(l, item)))
+		{
+			appendToTailOfList(l, item);
+		}
+	}
 }
 
 int
@@ -238,6 +256,22 @@ mapIncrString(HashMap *map, char *key)
     }
     stringDummy->value = key;
     return mapIncr(map, (Node *) stringDummy);
+}
+
+int
+mapIncrPointer(HashMap *map, void *key)
+{
+    static Constant *longDummy = NULL;
+    if (longDummy == NULL)
+    {
+        if (hashContext == NULL)
+            hashContext = NEW_MEM_CONTEXT(HASHMAP_MEM_CONTEXT_NAME);
+        ACQUIRE_MEM_CONTEXT(hashContext);
+        longDummy = createConstLong(0L);
+        RELEASE_MEM_CONTEXT();
+    }
+	LONG_VALUE(longDummy) = (gprom_long_t) key;
+	return mapIncr(map, (Node *) longDummy);
 }
 
 void
@@ -290,4 +324,28 @@ mapSize (HashMap *map)
     if (map == NULL)
         return 0;
     return HASH_COUNT(map->elem);
+}
+
+void
+unionMap(HashMap *res, HashMap *new)
+{
+	FOREACH_HASH_ENTRY(kv,new)
+	{
+		if(!hasMapKey(res, kv->key))
+		{
+			addToMap(res, copyObject(kv->key), copyObject(kv->value));
+		}
+	}
+}
+
+void
+diffMap(HashMap *res, HashMap *new)
+{
+	FOREACH_HASH_ENTRY(kv,new)
+	{
+		if(hasMapKey(res, kv->key))
+		{
+			removeMapElem(res, kv->key);
+		}
+	}
 }

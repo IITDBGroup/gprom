@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * string_utils.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -244,6 +244,17 @@ strRemPostfix(char *str, int postFixSize)
     return result;
 }
 
+char *
+strRemPrefix(char *str, int postFixSize)
+{
+   ASSERT(postFixSize < strlen(str));
+   int len = strlen(str) - postFixSize;
+   char *result = MALLOC(len + 1);
+   memcpy(result, str + postFixSize, len);
+   result[len] = '\0';
+   return result;
+}
+
 boolean
 isPrefix(char *str, char *prefix)
 {
@@ -335,7 +346,7 @@ specializeTemplate(char *template, List *args)
 }
 
 int
-strCompare(const void *a, const void *b)
+strCompare(const void **a, const void **b)
 {
     const char **l = ((const char **) a);
     const char **r = ((const char **) b);
@@ -371,4 +382,31 @@ strToLower(const char *input)
         *p = tolower(*p);
 
     return result;
+}
+
+#define BUFSIZE 1024
+
+char *
+readStringFromFile(char *file)
+{
+	FILE *rfile;
+	StringInfo str = makeStringInfo();
+	char *result;
+	char buf[BUFSIZE];
+
+	if(access(file, F_OK) != 0)
+		FATAL_LOG("could not open file %s with error %s", file, strerror(errno));
+
+	rfile = fopen(file, "r");
+	if (rfile == NULL)
+		FATAL_LOG("could not open file %s with error %s", file, strerror(errno));
+
+	while(fgets(buf,BUFSIZE,rfile))
+	{
+		appendStringInfoString(str, buf);
+	}
+
+	result = str->data;
+	FREE(str);
+	return result;
 }

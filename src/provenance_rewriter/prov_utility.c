@@ -1,17 +1,18 @@
 /*-----------------------------------------------------------------------------
  *
  * prov_utility.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
 
 #include "common.h"
 
+#include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
@@ -19,6 +20,9 @@
 #include "mem_manager/mem_mgr.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "log/logger.h"
+
+static boolean hasProvVisitor(Node *q, boolean *found);
+
 
 void
 clearAttrsFromSchema(QueryOperator *target)
@@ -40,6 +44,28 @@ addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
     int curAttrLen = LIST_LENGTH(target->schema->attrDefs);
     int numProvAttrs = LIST_LENGTH(newProvAttrs);
     List *newProvPos;
+
+    DEBUG_LOG("add provenance attributes\n%s", nodeToString(newProvAttrs));
+
+    CREATE_INT_SEQ(newProvPos, curAttrLen, curAttrLen + numProvAttrs - 1, 1);
+    target->schema->attrDefs = concatTwoLists(target->schema->attrDefs, newProvAttrs);
+    target->provAttrs = concatTwoLists(target->provAttrs, newProvPos);
+
+    DEBUG_LOG("new prov attr list is \n%s\n\nprov attr pos %s", nodeToString(target->schema->attrDefs), nodeToString(target->provAttrs));
+}
+
+void
+addProvenanceAttrsToSchemaWithRename(QueryOperator *target, QueryOperator * source, char *suffix)
+{
+    List *newProvAttrs = (List *) copyObject(getProvenanceAttrDefs(source));
+    int curAttrLen = LIST_LENGTH(target->schema->attrDefs);
+    int numProvAttrs = LIST_LENGTH(newProvAttrs);
+    List *newProvPos;
+
+	FOREACH(AttributeDef,a,newProvAttrs)
+	{
+		a->attrName = CONCAT_STRINGS(a->attrName, suffix);
+	}
 
     DEBUG_LOG("add provenance attributes\n%s", nodeToString(newProvAttrs));
 
@@ -109,6 +135,23 @@ getNormalAttrProjectionExprs(QueryOperator *op)
     return result;
 }
 
+List *
+getAllAttrProjectionExprs(QueryOperator *op)
+{
+	List *result = NIL;
+	int i = 0;
+
+	FOREACH(AttributeDef,a,op->schema->attrDefs)
+	{
+		AttributeReference *at;
+
+		at = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+		result = appendToTailOfList(result, at);
+	}
+
+	return result;
+}
+
 QueryOperator *
 createProjOnAllAttrs(QueryOperator *op)
 {
@@ -151,7 +194,7 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
 
     DEBUG_LOG("projection expressions: %s", nodeToString((Node*) projExprs));
 
-    p = createProjectionOp (projExprs, NULL, NIL, attrNames);
+    p = createProjectionOp(projExprs, NULL, NIL, attrNames);
     p->op.provAttrs = copyObject(op->provAttrs); //TODO create real prov attrs list
 
     return (QueryOperator *) p;
@@ -442,4 +485,64 @@ substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp)
                 pChild_his_cell->data.ptr_value = newOp;
         }
     }
+}
+
+boolean
+hasProvComputation(Node *op)
+{
+	boolean found = FALSE;
+
+	hasProvVisitor(op, &found);
+	return found;
+}
+
+static boolean
+hasProvVisitor(Node *q, boolean *found)
+{
+	if(q == NULL)
+		return TRUE;
+
+	if(isA(q, ProvenanceComputation))
+	{
+		*found = TRUE;
+		return FALSE;
+	}
+
+	return visit(q, hasProvVisitor, found);
+}
+
+boolean
+isOpRewritten(HashMap *opToRewrittenOp, QueryOperator *op)
+{
+	return MAP_HAS_LONG_KEY(opToRewrittenOp, (gprom_long_t) op);
+}
+
+QueryOperator *
+getRewrittenOp(HashMap *opToRewrittenOp, QueryOperator *op)
+{
+	return (QueryOperator *) MAP_GET_LONG(opToRewrittenOp, (gprom_long_t) op);
+}
+
+QueryOperator *
+setRewrittenOp(HashMap *opToRewrittenOp, QueryOperator *op, QueryOperator *rewrittenOp)
+{
+	MAP_ADD_LONG_KEY(opToRewrittenOp, (gprom_long_t) op, (gprom_long_t) rewrittenOp);
+	return rewrittenOp;
+}
+
+QueryOperator *
+getOrSetOpCopy(HashMap *origOps, QueryOperator *op)
+{
+	QueryOperator *opCopy;
+
+	if(MAP_HAS_LONG_KEY(origOps, (gprom_long_t) op))
+	{
+		opCopy = (QueryOperator *) MAP_GET_LONG(origOps, (gprom_long_t) op);
+	}
+	else {
+		opCopy = copyUnrootedSubtree(op);
+		MAP_ADD_LONG_KEY(origOps, (gprom_long_t) op, (gprom_long_t) opCopy);
+	}
+
+	return opCopy;
 }

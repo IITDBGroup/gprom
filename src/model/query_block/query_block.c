@@ -66,6 +66,12 @@ getQBAttrDTs (Node *qb)
             DTs = pStmt->dts;
         }
         break;
+        case T_WithStmt:
+        {
+            WithStmt *wStmt = (WithStmt *) qb;
+            DTs = getQBAttrDTs(wStmt->query);
+        }
+        break;
         default:
             FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;
@@ -102,6 +108,12 @@ getQBAttrNames (Node *qb)
         {
             ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
             attrs = deepCopyStringList(pStmt->selectClause);
+        }
+        break;
+        case T_WithStmt:
+        {
+            WithStmt *wStmt = (WithStmt *) qb;
+            attrs = getQBAttrNames(wStmt->query);
         }
         break;
         default:
@@ -198,6 +210,20 @@ FromItem *
 createFromSubquery(char *alias, List *attrNames, Node *query)
 {
     FromSubquery *result = makeNode(FromSubquery);
+
+    ((FromItem *) result)->name = alias;
+    ((FromItem *) result)->attrNames = attrNames;
+    ((FromItem *) result)->provInfo = NULL;
+
+    result->subquery = query;
+
+    return (FromItem *) result;
+}
+
+FromItem *
+createFromLateralSubquery(char *alias, List *attrNames, Node *query)
+{
+    FromLateralSubquery *result = makeNode(FromLateralSubquery);
 
     ((FromItem *) result)->name = alias;
     ((FromItem *) result)->attrNames = attrNames;
@@ -444,6 +470,31 @@ createAlterTableRemoveColumn (char *tName, char *colName)
     result->beforeSchema = NIL;
 
     return result;
+}
+
+
+ExecQuery *
+createExecQuery (char *name, List *vals)
+{
+	ExecQuery *result = makeNode(ExecQuery);
+
+	result->name = name;
+	result->params = vals;
+
+	return result;
+}
+
+PreparedQuery *
+createPrepareQuery (char *name, Node *q, List *dts, char *sqlText)
+{
+	PreparedQuery *result = makeNode(PreparedQuery);
+
+	result->name = name;
+	result->q = q;
+	result->dts = dts;
+	result->sqlText = sqlText;
+
+	return result;
 }
 
 
