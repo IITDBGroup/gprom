@@ -2600,20 +2600,20 @@ rewrite_RangeAggregation(QueryOperator *op){
 				}
 			}
 
-			Node *ubMtCase = (Node *)createCaseExpr(NULL, 
+			Node *ubMtCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(optimizeExpr
 						,(Node *)createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(join, fname_ub), (Node *)getAttrRefByName(join, ROW_POSSIBLE)))
 					)),
 				ubMult
 			);
-			Node *lbMtCase = (Node *)createCaseExpr(NULL, 
+			Node *lbMtCase = (Node *)createCaseExpr(NULL,
 				singleton((Node *)createCaseWhen(optimizeExpr
 						,(Node *)createOpExpr("*", LIST_MAKE((Node *)getAttrRefByName(join, fname_lb), (Node *)getAttrRefByName(join, ROW_CERTAIN)))
 					)),
 				lbMult
 			);
-			INFO_LOG("[Aggregation] optimization for certain group by ub: %s", exprToSQL(ubMtCase, NULL));
-			INFO_LOG("[Aggregation] optimization for certain group by lb: %s", exprToSQL(lbMtCase, NULL));
+			INFO_LOG("[Aggregation] optimization for certain group by ub: %s", exprToSQL(ubMtCase, NULL, FALSE));
+			INFO_LOG("[Aggregation] optimization for certain group by lb: %s", exprToSQL(lbMtCase, NULL, FALSE));
 
 			projList = appendToTailOfList(projList, bgMult);
 			projList = appendToTailOfList(projList, ubMtCase);
