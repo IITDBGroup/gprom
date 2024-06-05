@@ -115,10 +115,11 @@ Node *oracleParseResult = NULL;
 
 /* Arithmetic operators : FOR TESTING */
 %nonassoc DUMMYEXPR
-%right POSTGRESCAST
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
+
+%right POSTGRESCAST
 
 %nonassoc SUBQUERYEXPR
 %left '(' ')'
@@ -1603,7 +1604,8 @@ unaryOperatorExpression:
 		 | expression POSTGRESCAST identifier
 		 {
 			 RULELOG("postgres castExpression");
-			 CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3));
+			 /* CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3)); */
+			 CastExpr *c = createCastExprOtherDT($1, strToLower($3), -1, SQLdataTypeToDataType($3));
 			 $$ = (Node *) c;
 		 }
     ;

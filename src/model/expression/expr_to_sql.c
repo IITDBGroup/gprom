@@ -468,9 +468,20 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries, boolean tr
             exprToSQLString(str, c->expr, nestedSubqueries, trimAttrNames);
             appendStringInfoString(str, ")::");
             if(c->otherDT && streq(c->otherDT, "bit"))
+            {
 				appendStringInfo(str, "%s(%d)", c->otherDT, c->num);
+            }
+            else if(c->otherDT && (
+                        streq(c->otherDT, "date")
+                        || streq(c->otherDT, "interval")
+                        || streq(c->otherDT, "timestamp")))
+            {
+                appendStringInfoString(str, c->otherDT);
+            }
             else
+            {
 				dataTypeToSQL(str, c->resultDT);
+            }
         }
         break;
         default:
