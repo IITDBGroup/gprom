@@ -29,6 +29,7 @@
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
+#include "provenance_rewriter/zonotope_rewrites/zonotope_rewriter.h"
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
@@ -174,6 +175,10 @@ rewriteProvenanceComputation(ProvenanceComputation *op)
     if (op->inputType == PROV_INPUT_RANGE_QUERY)
     {
     	return rewriteRange((QueryOperator *) op);
+    }
+    if (op->inputType == PROV_INPUT_ZONO_UNCERT_QUERY)
+    {
+    	(void*) rewriteZono((QueryOperator *) op);
     }
 
     // turn operator graph into a tree since provenance rewrites currently expect a tree
@@ -379,6 +384,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op)
 		}
 		break;
         case USE_PROV_COARSE_GRAINED_BIND:
+        {
     			if(isRewriteOptionActivated(OPTION_PS_USE_NEST))
     				op = originalOp;
 
@@ -428,16 +434,23 @@ rewriteProvenanceComputation(ProvenanceComputation *op)
 
             result = rewritePI_CS(op);
             removeParent(result, (QueryOperator *) op);
-        	break;
+        }
+        break;
         case PROV_TRANSFORMATION:
+        {
             result =  rewriteTransformationProvenance((QueryOperator *) op);
-            break;
+        }
+        break;
         case PROV_XML:
+        {
             result = rewriteXML(op); //TODO
-            break;
+        }
+        break;
         case PROV_NONE:
+        {
             result = OP_LCHILD(op);
-            break;
+        }
+        break;
     }
 
 

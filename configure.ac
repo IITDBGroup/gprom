@@ -951,6 +951,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/unnest_rewrites/Makefile
     src/provenance_rewriter/datalog_lineage/Makefile
     src/provenance_rewriter/semantic_optimization/Makefile
+    src/provenance_rewriter/zonotope_rewrites/Makefile
     src/provenance_sketches/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile

@@ -2291,7 +2291,8 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
             q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
-        };
+        }
+        break;
         case PROV_INPUT_TEMPORAL_QUERY:
         {
             DataType *tempDT = NULL;
@@ -2315,9 +2316,15 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         }
         break;
         case PROV_INPUT_UPDATE_SEQUENCE:
-            break;
+        {
+
+        }
+        break;
         default:
-            break;
+        {
+
+        }
+        break;
     }
 
     analyzeProvenanceOptions(q);
