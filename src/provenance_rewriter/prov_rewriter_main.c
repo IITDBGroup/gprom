@@ -163,7 +163,6 @@ rewriteProvenanceComputation(ProvenanceComputation *op)
     {
         return rewriteImplicitTemporal((QueryOperator *) op);
     }
-
     if (op->inputType == PROV_INPUT_UNCERTAIN_QUERY)
     {
         return rewriteUncert((QueryOperator *) op);
@@ -178,7 +177,7 @@ rewriteProvenanceComputation(ProvenanceComputation *op)
     }
     if (op->inputType == PROV_INPUT_ZONO_UNCERT_QUERY)
     {
-    	(void*) rewriteZono((QueryOperator *) op);
+        return rewriteZono((QueryOperator *) op);
     }
 
     // turn operator graph into a tree since provenance rewrites currently expect a tree

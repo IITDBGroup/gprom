@@ -340,6 +340,16 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_BESTGUESS));
         *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_POSSIBLE));
     }
+    if (stmt->inputType == PROV_INPUT_ZONO_UNCERT_QUERY)
+    {
+    	INFO_LOG("<><><><><><><><><><><> %s", stringListToString(*attrNames));
+    	// add attribute range attributes
+
+        // TODO: RE-add attributes here and in the rewriter
+        // add row Range attribute
+        // *dts = appendToTailOfListInt(*dts, DT_INT);
+        // *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier("TEST"));
+    }
 }
 
 static boolean
