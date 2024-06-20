@@ -1,6 +1,8 @@
 #include "common.h"
 #include "log/logger.h"
 
+// TODO: Clean up dead functions and headers
+
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/node/nodetype.h"
@@ -12,7 +14,7 @@
 #include "model/query_operator/query_operator_model_checker.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "provenance_rewriter/prov_utility.h"
-#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
+#include "provenance_rewriter/zonotope_rewrites/zonotope_rewriter.h"
 #include "utility/enum_magic.h"
 #include "utility/string_utils.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
@@ -40,7 +42,7 @@
 #define AGG_ATTR_RENAME backendifyIdentifier("AGG_ATTR")
 #define RANK_ATTR_RENAME backendifyIdentifier("RANKR")
 
-#define UNCERT_MAPPING_PROP "UNCERT_MAPPING"
+#define ZONO_MAPPING_PROP "ZONO_MAPPING"
 
 
 
@@ -89,6 +91,7 @@ QueryOperator *rewriteZono(QueryOperator * op)
 
 static QueryOperator *rewrite_ZonoProvComp(QueryOperator *op)
 {
+    // Zono only supports 1 statement!
     ASSERT(LIST_LENGTH(op->inputs) == 1);
 
     QueryOperator *top = getHeadOfListP(op->inputs);
@@ -163,8 +166,18 @@ static Node *removeZonoOpFromExpr(Node *expr)
 }
 
 
+static void
+addZonoRowToSchema(HashMap *hmp, QueryOperator *target)
+{
+    addAttrToSchema(target, ROW_ZONO, DT_INT);
+    ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_ZONO), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+}
+
+
 static QueryOperator *rewrite_ZonoProjection(QueryOperator *op)
 {
+    (void) removeZonoOpFromExpr(NULL);
+
     ASSERT(OP_LCHILD(op));
 
     //rewrite child first
@@ -173,26 +186,75 @@ static QueryOperator *rewrite_ZonoProjection(QueryOperator *op)
     INFO_LOG("REWRITE-ZONO - Projection");
     INFO_OP_LOG("Operator tree ", op);
 
-    HashMap * hmp = NEW_MAP(Node, Node);
+    HashMap *hmp = NEW_MAP(Node, Node);
+    HashMap *hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), ZONO_MAPPING_PROP);
 
-    //get child hashmap
-    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
-    List *attrExpr = getProjExprsForAllAttrs(op);
-    List *uncertlist = NIL;
-    int ict = 0;
-    FOREACH(Node, nd, attrExpr){
-        (void)nd;
-        Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,ict);
-        ict ++;
-        replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeZonoOpFromExpr(projexpr));
-    }
-    ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
-    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_CERTAIN)));
-    setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
+    addZonoRowToSchema(hmp, op);
+    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_ZONO)));
+    setStringProperty(op, ZONO_MAPPING_PROP, (Node *)hmp);
 
     LOG_RESULT("Zono: Rewritten Operator tree [PROJECTION]", op);
-
     return op;
+}
+
+
+char *
+getZonoString(char *in)
+{
+    StringInfo str = makeStringInfo();
+    appendStringInfo(str, "%s", backendifyIdentifier("ZONO_"));
+    appendStringInfo(str, "%s", in);
+    return backendifyIdentifier(str->data);
+}
+
+
+// static void
+// addZonoAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
+// {
+//     ((AttributeReference *)aRef)->outerLevelsUp = 0;
+//     addAttrToSchema(target, getZonoString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
+//     List *refs = singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target)));
+//     // Map each attribute to their upper&lower bounds list
+//     ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)refs));
+// }
+
+
+static void
+markZonoAttrsAsProv(QueryOperator *op)
+{
+    HashMap *hmp = (HashMap *)getStringProperty(op, ZONO_MAPPING_PROP);
+    Set *uncertAttrs = STRSET();
+    int pos = 0;
+
+    // INFO_LOG("MARK ATTRIBUTES AS UNCERTAIN FOR: \n%s",singleOperatorToOverview(op));
+
+    FOREACH_HASH(Node, n, hmp)
+    {
+        if (isA(n, List))
+        {
+            List *l = (List *)n;
+            AttributeReference *la = (AttributeReference *)(getHeadOfListP(l));
+            AttributeReference *ra = (AttributeReference *)getNthOfListP(l, 1);
+            addToSet(uncertAttrs, la->name);
+            addToSet(uncertAttrs, ra->name);
+        }
+    }
+
+    // INFO_LOG("Uncertainty Attributes: %s",nodeToString(uncertAttrs));
+
+    FOREACH(AttributeDef, a, op->schema->attrDefs)
+    {
+        // INFO_LOG("check attribute %s", a->attrName);
+        if (streq(a->attrName, ROW_ZONO) ||
+            hasSetElem(uncertAttrs, a->attrName))
+        {
+            op->provAttrs = appendToTailOfListInt(op->provAttrs, pos);
+        }
+        pos++;
+    }
+
+    DEBUG_LOG("after marking attributes as uncertain: \n%s",
+              singleOperatorToOverview(op));
 }
 
 
@@ -201,14 +263,21 @@ static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op)
     INFO_LOG("REWRITE-ZONO - TableAccess");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
-    // HashMap * hmp = NEW_MAP(Node, Node);
+    HashMap *hmp = NEW_MAP(Node, Node);
     QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getQueryOperatorAttrNames(op));
     switchSubtrees(op, proj);
     op->parents = singleton(proj);
     // List *attrExpr = getNormalAttrProjectionExprs(op);
+    // FOREACH(Node, nd, attrExpr)
+    // {
+    //     addZonoAttrToSchema(hmp, proj, nd);
+    //     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+    // }
+    addZonoRowToSchema(hmp, proj);
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+    setStringProperty(proj, ZONO_MAPPING_PROP, (Node *)hmp);
+    markZonoAttrsAsProv(proj);
 
-    // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
-    // setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
-
+    LOG_RESULT("ZONO: Rewritten Operator tree [TABLE ACCESS]", op);
     return proj;
 }

@@ -65,3 +65,4 @@ GTAGS
 .ccls-cache
 /src/.project
 .cache
+.vscode/

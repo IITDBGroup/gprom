@@ -27,6 +27,8 @@
 #include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
+#include "provenance_rewriter/zonotope_rewrites/zonotope_rewriter.h"
+
 
 /* data types */
 typedef struct ProvSchemaInfo
@@ -320,7 +322,6 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     if (stmt->inputType == PROV_INPUT_RANGE_QUERY)
     {
     	List *qAttrDef =  getQBAttrDefs(stmt->query);
-    	INFO_LOG("=======================%s", stringListToString(*attrNames));
     	// add attribute range attributes
     	FOREACH(Node,n,qAttrDef)
     	{
@@ -339,16 +340,19 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_CERTAIN));
         *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_BESTGUESS));
         *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ROW_POSSIBLE));
+    
+        INFO_LOG("=======================%s", stringListToString(*attrNames));
     }
     if (stmt->inputType == PROV_INPUT_ZONO_UNCERT_QUERY)
-    {
-    	INFO_LOG("<><><><><><><><><><><> %s", stringListToString(*attrNames));
-    	// add attribute range attributes
-
+    {   
         // TODO: RE-add attributes here and in the rewriter
-        // add row Range attribute
-        // *dts = appendToTailOfListInt(*dts, DT_INT);
-        // *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier("TEST"));
+        List *qAttrDef =  getQBAttrDefs(stmt->query);
+		AttributeDef *nd = (AttributeDef *)getTailOfListP(qAttrDef);
+
+        *dts = appendToTailOfListInt(*dts, nd->dataType);
+        *attrNames = appendToTailOfList(*attrNames, ROW_ZONO);
+
+        INFO_LOG("<><><><><><><><><><><> %s", stringListToString(*attrNames));
     }
 }
 
