@@ -311,7 +311,7 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
         	}
         	break;
         default:
-            FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
+            FATAL_LOG("no rewrite implemented for operator [%s]", operatorToOverviewString(op));
             return NULL;
     }
 
