@@ -345,12 +345,25 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     }
     if (stmt->inputType == PROV_INPUT_ZONO_UNCERT_QUERY)
     {   
-        // TODO: RE-add attributes here and in the rewriter
+        // 
         List *qAttrDef =  getQBAttrDefs(stmt->query);
-		AttributeDef *nd = (AttributeDef *)getTailOfListP(qAttrDef);
+		FOREACH(Node,n,qAttrDef)
+    	{
+            char *ubName = backendifyIdentifier(getZonoUBString(((AttributeDef *)n)->attrName));
+            char *lbName = backendifyIdentifier(getZonoLBString(((AttributeDef *)n)->attrName));
+            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *attrNames = appendToTailOfList(*attrNames, strdup(ubName));
+            *attrNames = appendToTailOfList(*attrNames, strdup(lbName));
+        }
 
-        *dts = appendToTailOfListInt(*dts, nd->dataType);
-        *attrNames = appendToTailOfList(*attrNames, ROW_ZONO);
+        // 
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ZONO_ROW_CERTAIN));
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ZONO_ROW_BESTGUESS));
+        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ZONO_ROW_POSSIBLE));
 
         INFO_LOG("<><><><><><><><><><><> %s", stringListToString(*attrNames));
     }

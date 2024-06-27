@@ -21,18 +21,17 @@ static QueryOperator *rewrite_ZonoProvComp(QueryOperator *op);
 static QueryOperator *rewrite_ZonoProjection(QueryOperator *op);
 static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op);
 
-static Node *removeZonoOpFromExpr(Node *expr);
 static void markZonoAttrsAsProv(QueryOperator *op);
 static void addZonoRowToSchema(HashMap *hmp, QueryOperator *target);
-static void markZonoAttrsAsProv(QueryOperator *op);
-// static void addZonoAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef);
-
-char *getZonoString(char *in);
+static void addZonoAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef);
 
 
 // ------------- Rewriter Functions ------------- 
 
 
+/// @brief Recursive entry point for Zonotope rewriting
+/// @param op operator to begin rewrite on
+/// @return The root operator transformed into a proper sql operator
 QueryOperator *rewriteZono(QueryOperator * op)
 {
     QueryOperator *rewrittenOp;
@@ -72,6 +71,9 @@ QueryOperator *rewriteZono(QueryOperator * op)
 }
 
 
+/// @brief Recursive entry point for any custom GProM statement
+/// @param op operator to begin rewrite on
+/// @return The root operator transformed into a proper sql operator
 static QueryOperator *rewrite_ZonoProvComp(QueryOperator *op)
 {
     INFO_LOG("REWRITE-ZONO - Provenance");
@@ -94,6 +96,9 @@ static QueryOperator *rewrite_ZonoProvComp(QueryOperator *op)
 }
 
 
+/// @brief Recursive entry point for any Projection statement (i.e SELECT)
+/// @param op operator to begin rewrite on
+/// @return The root operator transformed into a proper sql operator
 static QueryOperator *rewrite_ZonoProjection(QueryOperator *op)
 {
     (void) removeZonoOpFromExpr(NULL);
@@ -109,8 +114,28 @@ static QueryOperator *rewrite_ZonoProjection(QueryOperator *op)
     HashMap *hmp = NEW_MAP(Node, Node);
     HashMap *hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), ZONO_MAPPING_PROP);
 
+    // Create list of child expressions
+    int ict = 0;
+    List *uncertlist = NIL;
+    List *attrExpr = getProjExprsForAllAttrs(op);
+    FOREACH(Node, nd, attrExpr)
+    {
+        addZonoAttrToSchema(hmp, op, nd);
+        Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs, ict);
+        Node *ubExpr = getUBExpr(projexpr, hmpIn);
+        Node *lbExpr = getLBExpr(projexpr, hmpIn);
+
+        ict++;
+        uncertlist = appendToTailOfList(uncertlist, ubExpr);
+        uncertlist = appendToTailOfList(uncertlist, lbExpr);
+        replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeZonoOpFromExpr(projexpr));
+    }
+    ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
+
     addZonoRowToSchema(hmp, op);
-    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ROW_ZONO)));
+    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ZONO_ROW_CERTAIN)));
+    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ZONO_ROW_BESTGUESS)));
+    appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ZONO_ROW_POSSIBLE)));
     setStringProperty(op, ZONO_MAPPING_PROP, (Node *)hmp);
 
     LOG_RESULT("Zono: Rewritten Operator tree [PROJECTION]", op);
@@ -118,22 +143,32 @@ static QueryOperator *rewrite_ZonoProjection(QueryOperator *op)
 }
 
 
+/// @brief Recursive entry point for any Table Access statement (i.e FROM)
+/// @param op operator to begin rewrite on
+/// @return The root operator transformed into a proper sql operator
 static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op)
 {
     INFO_LOG("REWRITE-ZONO - TableAccess");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
     HashMap *hmp = NEW_MAP(Node, Node);
+
+    // Create new Projection Operator to assign stuff to instead of access op
     QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getQueryOperatorAttrNames(op));
     switchSubtrees(op, proj);
     op->parents = singleton(proj);
-    // List *attrExpr = getNormalAttrProjectionExprs(op);
-    // FOREACH(Node, nd, attrExpr)
-    // {
-    //     addZonoAttrToSchema(hmp, proj, nd);
-    //     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
-    // }
+
+    List *attrExpr = getNormalAttrProjectionExprs(op);
+    FOREACH(Node, nd, attrExpr)
+    {
+        addZonoAttrToSchema(hmp, proj, nd);
+        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+    }
+
     addZonoRowToSchema(hmp, proj);
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+    appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
     setStringProperty(proj, ZONO_MAPPING_PROP, (Node *)hmp);
     markZonoAttrsAsProv(proj);
@@ -146,8 +181,69 @@ static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op)
 // ------------- Helper Functions -------------
 
 
-// Not sure, but it is needed, ripped from uncert_rewriter.c
-static Node *removeZonoOpFromExpr(Node *expr)
+/// @brief Adds CET_R, BST_R, POS_R to the result schema
+/// @param hmp Hashmap to store data to
+/// @param target The operator which is being modified
+static void addZonoRowToSchema(HashMap *hmp, QueryOperator *target)
+{
+    addAttrToSchema(target, ZONO_ROW_CERTAIN, DT_INT);
+    ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ZONO_ROW_CERTAIN), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+    addAttrToSchema(target, ZONO_ROW_BESTGUESS, DT_INT);
+    ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ZONO_ROW_BESTGUESS), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+    addAttrToSchema(target, ZONO_ROW_POSSIBLE, DT_INT);
+    ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ZONO_ROW_POSSIBLE), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+}
+
+
+/// @brief Add Z_UB_x and Z_LB_x to the schema for provided attribute
+/// @param hmp Hashmap to store data to
+/// @param target The operator which is being modified
+/// @param aRef ???
+static void addZonoAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
+{
+    ((AttributeReference *)aRef)->outerLevelsUp = 0;
+    addAttrToSchema(target, getZonoUBString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
+    List *refs = singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target)));
+    addAttrToSchema(target, getZonoLBString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
+    appendToTailOfList(refs, (Node *)getTailOfListP(getProjExprsForAllAttrs(target)));
+
+    // Map each attribute to their upper&lower bounds list
+    ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)refs));
+}
+
+
+static void markZonoAttrsAsProv(QueryOperator *op)
+{
+    HashMap *hmp = (HashMap *)getStringProperty(op, ZONO_MAPPING_PROP);
+    Set *uncertAttrs = STRSET();
+    int pos = 0;
+
+    FOREACH_HASH(Node, n, hmp)
+    {
+        if (isA(n, List))
+        {
+            List *l = (List *)n;
+            AttributeReference *la = (AttributeReference *)(getHeadOfListP(l));
+            AttributeReference *ra = (AttributeReference *)getNthOfListP(l, 1);
+            addToSet(uncertAttrs, la->name);
+            addToSet(uncertAttrs, ra->name);
+        }
+    }
+
+    FOREACH(AttributeDef, a, op->schema->attrDefs)
+    {
+        if (streq(a->attrName, ROW_ZONO) || hasSetElem(uncertAttrs, a->attrName))
+        {
+            op->provAttrs = appendToTailOfListInt(op->provAttrs, pos);
+        }
+        pos++;
+    }
+
+    DEBUG_LOG("after marking attributes as uncertain: \n%s", singleOperatorToOverview(op));
+}
+
+
+Node *removeZonoOpFromExpr(Node *expr)
 {
     if (!expr)
     {
@@ -206,66 +302,70 @@ static Node *removeZonoOpFromExpr(Node *expr)
 }
 
 
-static void addZonoRowToSchema(HashMap *hmp, QueryOperator *target)
-{
-    addAttrToSchema(target, ROW_ZONO, DT_INT);
-    ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_ZONO), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
-}
-
-
-static void markZonoAttrsAsProv(QueryOperator *op)
-{
-    HashMap *hmp = (HashMap *)getStringProperty(op, ZONO_MAPPING_PROP);
-    Set *uncertAttrs = STRSET();
-    int pos = 0;
-
-    // INFO_LOG("MARK ATTRIBUTES AS UNCERTAIN FOR: \n%s",singleOperatorToOverview(op));
-
-    FOREACH_HASH(Node, n, hmp)
-    {
-        if (isA(n, List))
-        {
-            List *l = (List *)n;
-            AttributeReference *la = (AttributeReference *)(getHeadOfListP(l));
-            AttributeReference *ra = (AttributeReference *)getNthOfListP(l, 1);
-            addToSet(uncertAttrs, la->name);
-            addToSet(uncertAttrs, ra->name);
-        }
-    }
-
-    // INFO_LOG("Uncertainty Attributes: %s",nodeToString(uncertAttrs));
-
-    FOREACH(AttributeDef, a, op->schema->attrDefs)
-    {
-        // INFO_LOG("check attribute %s", a->attrName);
-        if (streq(a->attrName, ROW_ZONO) ||
-            hasSetElem(uncertAttrs, a->attrName))
-        {
-            op->provAttrs = appendToTailOfListInt(op->provAttrs, pos);
-        }
-        pos++;
-    }
-
-    DEBUG_LOG("after marking attributes as uncertain: \n%s",
-              singleOperatorToOverview(op));
-}
-
-
-char *getZonoString(char *in)
+char *getZonoUBString(char *in)
 {
     StringInfo str = makeStringInfo();
-    appendStringInfo(str, "%s", backendifyIdentifier("ZONO_"));
+    appendStringInfo(str, "%s", ZONO_ATTR_HIGH_BOUND);
     appendStringInfo(str, "%s", in);
     return backendifyIdentifier(str->data);
 }
 
 
-// static void addZonoAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
-// {
-//     ((AttributeReference *)aRef)->outerLevelsUp = 0;
-//     addAttrToSchema(target, getZonoString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
-//     List *refs = singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target)));
-//     // Map each attribute to their upper&lower bounds list
-//     ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)refs));
-// }
+char *getZonoLBString(char *in)
+{
+    StringInfo str = makeStringInfo();
+    appendStringInfo(str, "%s", ZONO_ATTR_LOW_BOUND);
+    appendStringInfo(str, "%s", in);
+    return backendifyIdentifier(str->data);
+}
+
+
+Node *getUBExpr(Node *expr, HashMap *hmp)
+{
+    switch (expr->type)
+    {
+        case T_AttributeReference:
+        {
+            if (((AttributeReference *)expr)->outerLevelsUp == -1)
+            {
+                ((AttributeReference *)expr)->outerLevelsUp = 0;
+            }
+
+            Node *ret = getNthOfListP((List *)getMap(hmp, expr), 0);
+            ((AttributeReference *)ret)->outerLevelsUp = 0;
+            return ret;
+        }
+        default:
+        {
+            FATAL_LOG("[getUBExpr] Unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
+            break;
+        }
+    }
+    return NULL;
+}
+
+
+Node *getLBExpr(Node *expr, HashMap *hmp)
+{
+    switch (expr->type)
+    {
+        case T_AttributeReference:
+        {
+            if (((AttributeReference *)expr)->outerLevelsUp == -1)
+            {
+                ((AttributeReference *)expr)->outerLevelsUp = 0;
+            }
+            
+            Node *ret = getNthOfListP((List *)getMap(hmp, expr), 0);
+            ((AttributeReference *)ret)->outerLevelsUp = 0;
+            return ret;
+        }
+        default:
+        {
+            FATAL_LOG("[getLBExpr] Unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
+            break;
+        }
+    }
+    return NULL;
+}
 
