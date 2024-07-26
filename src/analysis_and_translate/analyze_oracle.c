@@ -2261,6 +2261,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         }
         break;
         case PROV_INPUT_RANGE_QUERY:
+        case PROV_INPUT_ZONO_UNCERT_QUERY:
         {
             List *provAttrNames = NIL;
             List *provDts = NIL;
@@ -2277,20 +2278,6 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
             //INFO_NODE_BEATIFY_LOG("RANGE:", q);
-        }
-        break;
-        case PROV_INPUT_ZONO_UNCERT_QUERY:
-        {
-            List *provAttrNames = NIL;
-            List *provDts = NIL;
-
-            // analyze input query
-            analyzeQueryBlockStmt(q->query, parentFroms);
-            correctFromTableVisitor(q->query, NULL);
-            getQBProvenanceAttrList(q,&provAttrNames,&provDts);
-
-            q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
-            q->dts = concatTwoLists(q->dts,provDts);
         }
         break;
         case PROV_INPUT_TEMPORAL_QUERY:

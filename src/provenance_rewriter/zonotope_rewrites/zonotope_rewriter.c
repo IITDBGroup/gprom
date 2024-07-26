@@ -22,8 +22,8 @@ static QueryOperator *rewrite_ZonoProjection(QueryOperator *op);
 static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op);
 
 static void markZonoAttrsAsProv(QueryOperator *op);
-static void addZonoRowToSchema(HashMap *hmp, QueryOperator *target);
-static void addZonoAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef);
+static void addZonoWorldRowToSchema(HashMap *hmp, QueryOperator *target);
+static void addZonoBoundAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef);
 
 
 // ------------- Rewriter Functions ------------- 
@@ -118,21 +118,38 @@ static QueryOperator *rewrite_ZonoProjection(QueryOperator *op)
     int ict = 0;
     List *uncertlist = NIL;
     List *attrExpr = getProjExprsForAllAttrs(op);
+    List *tempList = NIL;   // TODO: REMOVE ME
+
     FOREACH(Node, nd, attrExpr)
     {
-        addZonoAttrToSchema(hmp, op, nd);
+        addZonoBoundAttrToSchema(hmp, op, nd);
         Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs, ict);
+        // INFO_LOG("Expr: %s", nodeToString(projexpr));
         Node *ubExpr = getUBExpr(projexpr, hmpIn);
+        // INFO_LOG("Ub: %s", nodeToString(ubExpr));
         Node *lbExpr = getLBExpr(projexpr, hmpIn);
+        // INFO_LOG("Lb: %s", nodeToString(lbExpr));
 
         ict++;
         uncertlist = appendToTailOfList(uncertlist, ubExpr);
         uncertlist = appendToTailOfList(uncertlist, lbExpr);
         replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeZonoOpFromExpr(projexpr));
-    }
-    ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
 
-    addZonoRowToSchema(hmp, op);
+        // TODO: THIS IS A TEMP FIX
+        // IDEALLY THIS WILL SHOW THE VALUE OF THE PARENT ATTRIBUTE IF IT IS A VALID OPERATION, IF NOT
+        // THEN THE ATTRIBUTE SHOULD BE OMMITED ENTIRELY, THIS IS A PROBLEM FOR L;ATER...
+        if (((AttributeReference *) ((Node*)nd))->attrType == DT_STRING) {
+            tempList = appendToTailOfList(tempList, copyObject(nd));
+        }
+        else {
+            tempList = appendToTailOfList(tempList, (Node *)createConstInt(0));
+        }
+        // ^^
+    }
+    // ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
+    ((ProjectionOperator *)op)->projExprs = concatTwoLists(tempList, uncertlist);
+
+    addZonoWorldRowToSchema(hmp, op);
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ZONO_ROW_CERTAIN)));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ZONO_ROW_BESTGUESS)));
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ZONO_ROW_POSSIBLE)));
@@ -161,12 +178,14 @@ static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op)
     List *attrExpr = getNormalAttrProjectionExprs(op);
     FOREACH(Node, nd, attrExpr)
     {
-        addZonoAttrToSchema(hmp, proj, nd);
+        addZonoBoundAttrToSchema(hmp, proj, nd);
         appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
         appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+        // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
+        // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
     }
 
-    addZonoRowToSchema(hmp, proj);
+    addZonoWorldRowToSchema(hmp, proj);
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
     appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
@@ -184,7 +203,7 @@ static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op)
 /// @brief Adds CET_R, BST_R, POS_R to the result schema
 /// @param hmp Hashmap to store data to
 /// @param target The operator which is being modified
-static void addZonoRowToSchema(HashMap *hmp, QueryOperator *target)
+static void addZonoWorldRowToSchema(HashMap *hmp, QueryOperator *target)
 {
     addAttrToSchema(target, ZONO_ROW_CERTAIN, DT_INT);
     ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ZONO_ROW_CERTAIN), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
@@ -199,16 +218,22 @@ static void addZonoRowToSchema(HashMap *hmp, QueryOperator *target)
 /// @param hmp Hashmap to store data to
 /// @param target The operator which is being modified
 /// @param aRef ???
-static void addZonoAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
+static void addZonoBoundAttrToSchema(HashMap *hmp, QueryOperator *target, Node *aRef)
 {
     ((AttributeReference *)aRef)->outerLevelsUp = 0;
-    addAttrToSchema(target, getZonoUBString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
-    List *refs = singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target)));
-    addAttrToSchema(target, getZonoLBString(((AttributeReference *)aRef)->name), ((AttributeReference *)aRef)->attrType);
-    appendToTailOfList(refs, (Node *)getTailOfListP(getProjExprsForAllAttrs(target)));
+    List* refs = NIL;
 
-    // Map each attribute to their upper&lower bounds list
-    ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)refs));
+    char* zonoUBString = getZonoUBString(((AttributeReference *)aRef)->name);
+    addAttrToSchema(target, zonoUBString, DT_FLOAT);
+    Node* ubNode = (Node*) createFunctionCall("get_ub", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+    refs = appendToTailOfList(refs, ubNode);
+
+    char* zonoLBString = getZonoLBString(((AttributeReference *)aRef)->name);
+    addAttrToSchema(target, zonoLBString, DT_FLOAT);
+    Node* lbNode = (Node*) createFunctionCall("get_lb", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+    refs = appendToTailOfList(refs, lbNode);
+
+    ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node*)refs));
 }
 
 
@@ -320,6 +345,232 @@ char *getZonoLBString(char *in)
 }
 
 
+static Node *ZonoUBOp(Operator *expr, HashMap *hmp)
+{
+    if (!expr)
+    {
+        return NULL;
+    }
+    if (strcmp(expr->name, ZUNCERT_FUNC_NAME) == 0)
+    {
+        return (Node *)createConstInt(0);
+    }
+    if (strcmp(expr->name, "+") == 0)
+    {
+        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+        // Upper bound of addition is the sum of upper bounds
+        Node *ret = (Node *)createFunctionCall("z_add", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+        // INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
+        return ret;
+    }
+    if (strcmp(expr->name, "-") == 0)
+    {
+        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+        // Upper bound of subtraction is the ub-lb
+        Node *ret = (Node *)createFunctionCall("z_sub", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+        return ret;
+    }
+    // if (strcmp(expr->name, OPNAME_EQ) == 0)
+    // {
+    //     // INFO_LOG("rewrite = ");
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     // Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+    //     // Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+    //     // Node *c3 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+    //     // Node *c4 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+    //     // Node *c5 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+    //     // Node *c6 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+    //     // Node *c12 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c1),c2));
+    //     // Node *c34 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c3),c4));
+    //     // Node *c56 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c5),c6));
+    //     // Node *c1234 = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c12),c34));
+    //     // Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c1234),c56));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(c1, c2));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_GT) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_GT, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_GE) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_LT) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_LT, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_LE) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, "*") == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *c1 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     Node *c2 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     Node *c3 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     Node *c4 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     Node *c12 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c1), c2));
+    //     Node *c34 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c3), c4));
+    //     Node *ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
+    //     return ret;
+    // }
+    // else if (strcmp(strToUpper(expr->name), OPNAME_OR) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // else if (strcmp(strToUpper(expr->name), OPNAME_AND) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // else
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     return (Node *)createOpExpr(expr->name, LIST_MAKE(getUBExpr(e1, hmp), getUBExpr(e2, hmp)));
+    // }
+    return NULL;
+}
+
+
+static Node *ZonoLBOp(Operator *expr, HashMap *hmp)
+{
+    if (!expr)
+    {
+        return NULL;
+    }
+    if (strcmp(expr->name, ZUNCERT_FUNC_NAME) == 0)
+    {
+        return (Node *)createConstInt(0);
+    }
+    if (strcmp(expr->name, "+") == 0)
+    {
+        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+        // Upper bound of addition is the sum of upper bounds
+        Node *ret = (Node *)createFunctionCall("z_add", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+        // INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
+        return ret;
+    }
+    if (strcmp(expr->name, "-") == 0)
+    {
+        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+        // Upper bound of subtraction is the ub-lb
+        Node *ret = (Node *)createFunctionCall("z_sub", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+        return ret;
+    }
+    // if (strcmp(expr->name, OPNAME_EQ) == 0)
+    // {
+    //     // INFO_LOG("rewrite = ");
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     // Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+    //     // Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+    //     // Node *c3 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+    //     // Node *c4 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+    //     // Node *c5 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+    //     // Node *c6 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+    //     // Node *c12 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c1),c2));
+    //     // Node *c34 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c3),c4));
+    //     // Node *c56 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c5),c6));
+    //     // Node *c1234 = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c12),c34));
+    //     // Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c1234),c56));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(c1, c2));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_GT) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_GT, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_GE) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_LT) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_LT, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, OPNAME_LE) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // if (strcmp(expr->name, "*") == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *c1 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     Node *c2 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     Node *c3 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     Node *c4 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+    //     Node *c12 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c1), c2));
+    //     Node *c34 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c3), c4));
+    //     Node *ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
+    //     return ret;
+    // }
+    // else if (strcmp(strToUpper(expr->name), OPNAME_OR) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // else if (strcmp(strToUpper(expr->name), OPNAME_AND) == 0)
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+    //     return ret;
+    // }
+    // else
+    // {
+    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    //     return (Node *)createOpExpr(expr->name, LIST_MAKE(getUBExpr(e1, hmp), getUBExpr(e2, hmp)));
+    // }
+    return NULL;
+}
+
+
 Node *getUBExpr(Node *expr, HashMap *hmp)
 {
     switch (expr->type)
@@ -334,6 +585,15 @@ Node *getUBExpr(Node *expr, HashMap *hmp)
             Node *ret = getNthOfListP((List *)getMap(hmp, expr), 0);
             ((AttributeReference *)ret)->outerLevelsUp = 0;
             return ret;
+        }
+        case T_Operator:
+        {
+            return ZonoUBOp((Operator *)expr, hmp);
+        }
+        case T_FunctionCall:
+        {
+            FATAL_LOG("[getUBExpr] Called a function");
+            break;
         }
         default:
         {
@@ -356,9 +616,18 @@ Node *getLBExpr(Node *expr, HashMap *hmp)
                 ((AttributeReference *)expr)->outerLevelsUp = 0;
             }
             
-            Node *ret = getNthOfListP((List *)getMap(hmp, expr), 0);
+            Node *ret = getNthOfListP((List *)getMap(hmp, expr), 1);
             ((AttributeReference *)ret)->outerLevelsUp = 0;
             return ret;
+        }
+        case T_Operator:
+        {
+            return ZonoLBOp((Operator *)expr, hmp);
+        }
+        case T_FunctionCall:
+        {
+            FATAL_LOG("[getLBExpr] Called a function");
+            break;
         }
         default:
         {

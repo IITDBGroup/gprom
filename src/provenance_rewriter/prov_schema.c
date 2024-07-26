@@ -351,8 +351,10 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     	{
             char *ubName = backendifyIdentifier(getZonoUBString(((AttributeDef *)n)->attrName));
             char *lbName = backendifyIdentifier(getZonoLBString(((AttributeDef *)n)->attrName));
-            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
-            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            // *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            // *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *dts = appendToTailOfListInt(*dts, DT_FLOAT);
+            *dts = appendToTailOfListInt(*dts, DT_FLOAT);
             *attrNames = appendToTailOfList(*attrNames, strdup(ubName));
             *attrNames = appendToTailOfList(*attrNames, strdup(lbName));
         }
