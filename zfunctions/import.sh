@@ -1,0 +1,1 @@
+for f in *.sql ; do psql test -f $f ; done

@@ -225,12 +225,12 @@ static void addZonoBoundAttrToSchema(HashMap *hmp, QueryOperator *target, Node *
 
     char* zonoUBString = getZonoUBString(((AttributeReference *)aRef)->name);
     addAttrToSchema(target, zonoUBString, DT_FLOAT);
-    Node* ubNode = (Node*) createFunctionCall("get_ub", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+    Node* ubNode = (Node*) createFunctionCall("_z_get_ub", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
     refs = appendToTailOfList(refs, ubNode);
 
     char* zonoLBString = getZonoLBString(((AttributeReference *)aRef)->name);
     addAttrToSchema(target, zonoLBString, DT_FLOAT);
-    Node* lbNode = (Node*) createFunctionCall("get_lb", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+    Node* lbNode = (Node*) createFunctionCall("_z_get_lb", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
     refs = appendToTailOfList(refs, lbNode);
 
     ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node*)refs));
@@ -360,7 +360,7 @@ static Node *ZonoUBOp(Operator *expr, HashMap *hmp)
         Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
         Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
         // Upper bound of addition is the sum of upper bounds
-        Node *ret = (Node *)createFunctionCall("z_add", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+        Node *ret = (Node *)createFunctionCall("_z_op_add", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
         // INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
         return ret;
     }
@@ -369,7 +369,7 @@ static Node *ZonoUBOp(Operator *expr, HashMap *hmp)
         Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
         Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
         // Upper bound of subtraction is the ub-lb
-        Node *ret = (Node *)createFunctionCall("z_sub", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+        Node *ret = (Node *)createFunctionCall("_z_op_sub", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
         return ret;
     }
     // if (strcmp(expr->name, OPNAME_EQ) == 0)
@@ -473,7 +473,7 @@ static Node *ZonoLBOp(Operator *expr, HashMap *hmp)
         Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
         Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
         // Upper bound of addition is the sum of upper bounds
-        Node *ret = (Node *)createFunctionCall("z_add", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
+        Node *ret = (Node *)createFunctionCall("_z_op_add", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
         // INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
         return ret;
     }
@@ -482,7 +482,7 @@ static Node *ZonoLBOp(Operator *expr, HashMap *hmp)
         Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
         Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
         // Upper bound of subtraction is the ub-lb
-        Node *ret = (Node *)createFunctionCall("z_sub", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
+        Node *ret = (Node *)createFunctionCall("_z_op_sub", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
         return ret;
     }
     // if (strcmp(expr->name, OPNAME_EQ) == 0)
