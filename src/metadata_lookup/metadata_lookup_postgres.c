@@ -596,7 +596,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
         List *argOids = oidVecToOidList(candArgTypes);
 
         DEBUG_LOG("argDTs: %s, argTypes: %s", nodeToString(argDTs), nodeToString(argTypes));
-        if (equal(argDTs, argTypes)) //TODO compatible data types
+        if (equal(argDTs, argTypes)) //TODO: compatible data types
         {
             DataType retDT = postgresOidToDT(retType);
             DEBUG_LOG("return type %s for %s(%s)", DataTypeToString(retDT), fName, nodeToString(argTypes));
@@ -620,6 +620,18 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 
     RELEASE_MEM_CONTEXT();
     STOP_TIMER(METADATA_LOOKUP_TIMER);
+
+    // TODO: THIS IS A QUICK FIX...
+    // THE LOOKUP FOR FUNCTIONS NEEDS TO BE FIXED!!!!
+    if (streq(fName, "_z_best_guess") 
+        || streq(fName, "_z_get_ub")
+        || streq(fName, "_z_get_lb")
+        )
+    {
+        resType = DT_FLOAT;
+    }
+
+    ERROR_LOG("CHECKING RETURN NTYPE OF \"%s\" - %s", fName, DataTypeToString(resType));
     return resType;
 }
 
@@ -2033,6 +2045,7 @@ postgresTypenameToDT (char *typName)
         return DT_BOOL;
 	}
 
+    ERROR_LOG("Could not find legal type for \"%s\", defaulting to DT_STRING", typName);
     return DT_STRING;
 }
 

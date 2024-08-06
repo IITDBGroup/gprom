@@ -179,10 +179,10 @@ static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op)
     FOREACH(Node, nd, attrExpr)
     {
         addZonoBoundAttrToSchema(hmp, proj, nd);
-        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
-        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
-        // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
-        // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
+        // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+        // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
+        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
+        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
     }
 
     addZonoWorldRowToSchema(hmp, proj);
@@ -224,14 +224,13 @@ static void addZonoBoundAttrToSchema(HashMap *hmp, QueryOperator *target, Node *
     List* refs = NIL;
 
     char* zonoUBString = getZonoUBString(((AttributeReference *)aRef)->name);
-    addAttrToSchema(target, zonoUBString, DT_FLOAT);
-    Node* ubNode = (Node*) createFunctionCall("_z_get_ub", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
-    refs = appendToTailOfList(refs, ubNode);
-
     char* zonoLBString = getZonoLBString(((AttributeReference *)aRef)->name);
-    addAttrToSchema(target, zonoLBString, DT_FLOAT);
-    Node* lbNode = (Node*) createFunctionCall("_z_get_lb", singleton((Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
+    Node* ubNode = (Node*) createFunctionCall("_z_get_ub", singleton(aRef));
+    Node* lbNode = (Node*) createFunctionCall("_z_get_lb", singleton(aRef));
+    refs = appendToTailOfList(refs, ubNode);
     refs = appendToTailOfList(refs, lbNode);
+    addAttrToSchema(target, zonoUBString, DT_FLOAT);
+    addAttrToSchema(target, zonoLBString, DT_FLOAT);
 
     ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node*)refs));
 }

@@ -262,7 +262,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         return;
     }
     if (stmt->provType == PROV_COARSE_GRAINED
-    			|| stmt->provType == USE_PROV_COARSE_GRAINED
+            || stmt->provType == USE_PROV_COARSE_GRAINED
 			|| stmt->provType == CAP_USE_PROV_COARSE_GRAINED
 			|| stmt->provType == USE_PROV_COARSE_GRAINED_BIND)
     {
@@ -347,25 +347,32 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     {   
         // 
         List *qAttrDef =  getQBAttrDefs(stmt->query);
-		FOREACH(Node,n,qAttrDef)
+
+        // Duplicate original schema at beginnning of new one
+        FOREACH(Node, n, qAttrDef)
     	{
-            char *ubName = backendifyIdentifier(getZonoUBString(((AttributeDef *)n)->attrName));
-            char *lbName = backendifyIdentifier(getZonoLBString(((AttributeDef *)n)->attrName));
-            // *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
-            // *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
-            *dts = appendToTailOfListInt(*dts, DT_FLOAT);
-            *dts = appendToTailOfListInt(*dts, DT_FLOAT);
-            *attrNames = appendToTailOfList(*attrNames, strdup(ubName));
-            *attrNames = appendToTailOfList(*attrNames, strdup(lbName));
+            *dts = appendToTailOfListInt(*dts, ((AttributeDef *)n)->dataType);
+            *attrNames = appendToTailOfList(*attrNames, strdup(((AttributeDef *)n)->attrName));
         }
 
-        // 
+        // Append the new schema data
+        // TODO: THIS SHOULD CHANGE DEPENDING ON WHAT FLAGS WERE PROVIDED BY OTHER KEYWORDS!!!
+        // CURRENTLY THIS WILL ONLY DO UB/LB SCHEMA
+		FOREACH(Node, n, qAttrDef)
+    	{
+            *dts = appendToTailOfListInt(*dts, DT_FLOAT);
+            *dts = appendToTailOfListInt(*dts, DT_FLOAT);
+            *attrNames = appendToTailOfList(*attrNames, strdup(backendifyIdentifier(getZonoUBString(((AttributeDef *)n)->attrName))));
+            *attrNames = appendToTailOfList(*attrNames, strdup(backendifyIdentifier(getZonoLBString(((AttributeDef *)n)->attrName))));
+        }
+
+        // World schema data
         *dts = appendToTailOfListInt(*dts, DT_INT);
         *dts = appendToTailOfListInt(*dts, DT_INT);
         *dts = appendToTailOfListInt(*dts, DT_INT);
-        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ZONO_ROW_CERTAIN));
-        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ZONO_ROW_BESTGUESS));
-        *attrNames = appendToTailOfList(*attrNames, backendifyIdentifier(ZONO_ROW_POSSIBLE));
+        *attrNames = appendToTailOfList(*attrNames, strdup(backendifyIdentifier(ZONO_ROW_CERTAIN)));
+        *attrNames = appendToTailOfList(*attrNames, strdup(backendifyIdentifier(ZONO_ROW_BESTGUESS)));
+        *attrNames = appendToTailOfList(*attrNames, strdup(backendifyIdentifier(ZONO_ROW_POSSIBLE)));
 
         INFO_LOG("<><><><><><><><><><><> %s", stringListToString(*attrNames));
     }

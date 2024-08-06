@@ -252,6 +252,9 @@ checkSchemaConsistency (QueryOperator *op, void *context)
                             " be the same: %s = %s",
                             DataTypeToString(typeOf(p)),
                             DataTypeToString(def->dataType));
+                    ERROR_LOG("TYPEOF(%s) != TYPEOF(%s)",
+                            ((AttributeDef *)p)->attrName,
+                            ((AttributeDef *)a)->attrName);
                     DEBUG_LOG("details: %s", beatify(nodeToString(o)));
                     return FALSE;
                 }

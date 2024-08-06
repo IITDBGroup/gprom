@@ -2164,6 +2164,12 @@ optionalFromProv:
 			p->userProvAttrs = $4;
 			$$ = (Node *) p;
 		}
+        /* Add the following options for zuncert:
+            - SHOW BOUNDS
+            - GIVEN TERMS ( e1, e2, e3, ... )
+            - ...
+            - any others???
+        */
 	;
 
 optionalAttrAlias:
