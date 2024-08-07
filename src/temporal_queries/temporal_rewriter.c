@@ -797,6 +797,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
                     AttributeReference *innerAttr = ((AttributeReference*)getHeadOfListP(op->args))->outerLevelsUp == 0 ? getHeadOfListP(op->args) : getTailOfListP(op->args);
 
                     if(eqWithCorrelatedNoOrAbove) {
+                        INFO_LOG("adding correlated attributes to normalization attributes: %s (outer) and %s (inner)", outerAttr->name, innerAttr->name);
                         state->leftAttrs = appendToTailOfList(state->leftAttrs, strdup(outerAttr->name));
                         state->rightAttrs = appendToTailOfList(state->rightAttrs, strdup(innerAttr->name));
                     }
@@ -833,15 +834,20 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
             {
                 aRef = (AttributeReference *) projExpr;
                 if (!streq(aRef->name, aDef->attrName)) {
-                    ListCell *l = getNthOfList(state->rightAttrs, listPosString(state->rightAttrs, aRef->name));
-                    l->data.ptr_value = strdup(aDef->attrName);
+                    int pos = listPosString(state->rightAttrs, aRef->name);
+                    if (pos != -1) {
+                        ListCell *l = getNthOfList(state->rightAttrs, listPosString(state->rightAttrs, aRef->name));
+                        l->data.ptr_value = strdup(aDef->attrName);
+                    }
                 }
             }
             else // we are in an expression like C := A + B
             {
                 int pos = listPosString(state->rightAttrs, aRef->name);
-                state->leftAttrs = removeListElemAtPos(state->leftAttrs, pos);
-                state->rightAttrs = removeListElemAtPos(state->rightAttrs, pos);
+                if (pos != -1) {
+                    state->leftAttrs = removeListElemAtPos(state->leftAttrs, pos);
+                    state->rightAttrs = removeListElemAtPos(state->rightAttrs, pos);
+                }
             }
         }
     }
@@ -980,6 +986,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         // guard against entering this rewriting
         if (res != 1) {
             INFO_LOG("lateral option");
+            // lateral_prov_main.c:lateralRewriteQuery
             return tempRewrNestedSubqueryLateralPostFilterTime(op);
         }
 
@@ -992,6 +999,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         return tempRewrNestedSubqueryCorrelated(op);
     } else {
         INFO_LOG("lateral option");
+        // lateral_prov_main.c:lateralRewriteQuery
         return tempRewrNestedSubqueryLateralPostFilterTime(op);
     }
 }
