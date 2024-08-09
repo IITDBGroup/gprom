@@ -268,8 +268,8 @@ extern uint64_t hashValue(void *a);
  */
 extern boolean visit (Node *node, boolean (*checkNode) (), void *state);
 extern Node *mutate (Node *node, Node *(*modifyNode) (), void *state);
-extern boolean visitWithPointers (Node *node,
+extern boolean visitWithPointers(Node *node,
         boolean (*userF) (),
-        void **parentLink, void *state);
+        void *parentLink, void *state);
 
 #endif /*NODETYPE_H*/
