@@ -24,5 +24,6 @@ extern char *getZonoString(char *in);
 extern char *getZonoUBString(char *in);
 extern char *getZonoLBString(char *in);
 
+extern Node *getZExpr(Node *expr, HashMap *hmp);
 extern Node *getUBExpr(Node *expr, HashMap *hmp);
 extern Node *getLBExpr(Node *expr, HashMap *hmp);

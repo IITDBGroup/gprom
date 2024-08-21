@@ -631,7 +631,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
         resType = DT_FLOAT;
     }
 
-    ERROR_LOG("CHECKING RETURN NTYPE OF \"%s\" - %s", fName, DataTypeToString(resType));
+    ERROR_LOG("CHECKING RETURN TYPE OF \"%s\" - %s", fName, DataTypeToString(resType));
     return resType;
 }
 

@@ -117,37 +117,29 @@ static QueryOperator *rewrite_ZonoProjection(QueryOperator *op)
     // Create list of child expressions
     int ict = 0;
     List *uncertlist = NIL;
-    List *attrExpr = getProjExprsForAllAttrs(op);
-    List *tempList = NIL;   // TODO: REMOVE ME
+    List *zExprList = NIL;
 
+    List *attrExpr = getProjExprsForAllAttrs(op);
     FOREACH(Node, nd, attrExpr)
     {
         addZonoBoundAttrToSchema(hmp, op, nd);
-        Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs, ict);
+        Node *projexpr = (Node*) getNthOfListP(((ProjectionOperator *)op)->projExprs, ict);
         // INFO_LOG("Expr: %s", nodeToString(projexpr));
+        Node *zExpr = getZExpr(projexpr, hmpIn);
+        // INFO_LOG("Z: %s", nodeToString(zExpr));
         Node *ubExpr = getUBExpr(projexpr, hmpIn);
         // INFO_LOG("Ub: %s", nodeToString(ubExpr));
         Node *lbExpr = getLBExpr(projexpr, hmpIn);
         // INFO_LOG("Lb: %s", nodeToString(lbExpr));
 
         ict++;
+        zExprList = appendToTailOfList(zExprList, zExpr);
         uncertlist = appendToTailOfList(uncertlist, ubExpr);
         uncertlist = appendToTailOfList(uncertlist, lbExpr);
         replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeZonoOpFromExpr(projexpr));
-
-        // TODO: THIS IS A TEMP FIX
-        // IDEALLY THIS WILL SHOW THE VALUE OF THE PARENT ATTRIBUTE IF IT IS A VALID OPERATION, IF NOT
-        // THEN THE ATTRIBUTE SHOULD BE OMMITED ENTIRELY, THIS IS A PROBLEM FOR L;ATER...
-        if (((AttributeReference *) ((Node*)nd))->attrType == DT_STRING) {
-            tempList = appendToTailOfList(tempList, copyObject(nd));
-        }
-        else {
-            tempList = appendToTailOfList(tempList, (Node *)createConstInt(0));
-        }
-        // ^^
     }
-    // ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
-    ((ProjectionOperator *)op)->projExprs = concatTwoLists(tempList, uncertlist);
+
+    ((ProjectionOperator *)op)->projExprs = concatTwoLists(zExprList, uncertlist);
 
     addZonoWorldRowToSchema(hmp, op);
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, (List *)getMap(hmpIn, (Node *)createAttributeReference(ZONO_ROW_CERTAIN)));
@@ -181,8 +173,8 @@ static QueryOperator *rewrite_ZonoTableAccess(QueryOperator *op)
         addZonoBoundAttrToSchema(hmp, proj, nd);
         // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
         // appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
-        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
-        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(1.0));
+        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(0.0));
+        appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstFloat(0.0));
     }
 
     addZonoWorldRowToSchema(hmp, proj);
@@ -344,8 +336,11 @@ char *getZonoLBString(char *in)
 }
 
 
-static Node *ZonoUBOp(Operator *expr, HashMap *hmp)
+static Node *ZonoOp(Operator *expr, HashMap *hmp)
 {
+    Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+
     if (!expr)
     {
         return NULL;
@@ -354,111 +349,144 @@ static Node *ZonoUBOp(Operator *expr, HashMap *hmp)
     {
         return (Node *)createConstInt(0);
     }
-    if (strcmp(expr->name, "+") == 0)
+    if (strcmp(expr->name, OPNAME_ADD) == 0)
     {
-        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-        // Upper bound of addition is the sum of upper bounds
-        Node *ret = (Node *)createFunctionCall("_z_op_add", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-        // INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
-        return ret;
+        return (Node *)createFunctionCall("_z_op_add", appendToTailOfList(singleton(e1), e2));
     }
-    if (strcmp(expr->name, "-") == 0)
+    if (strcmp(expr->name, OPNAME_MINUS) == 0)
     {
-        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-        // Upper bound of subtraction is the ub-lb
-        Node *ret = (Node *)createFunctionCall("_z_op_sub", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-        return ret;
+        return (Node *)createFunctionCall("_z_op_sub", appendToTailOfList(singleton(e1), e2));
     }
-    // if (strcmp(expr->name, OPNAME_EQ) == 0)
-    // {
-    //     // INFO_LOG("rewrite = ");
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     // Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-    //     // Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-    //     // Node *c3 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-    //     // Node *c4 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-    //     // Node *c5 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-    //     // Node *c6 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-    //     // Node *c12 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c1),c2));
-    //     // Node *c34 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c3),c4));
-    //     // Node *c56 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c5),c6));
-    //     // Node *c1234 = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c12),c34));
-    //     // Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c1234),c56));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(c1, c2));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_GT) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_GT, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_GE) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_LT) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_LT, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_LE) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, "*") == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *c1 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     Node *c2 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     Node *c3 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     Node *c4 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     Node *c12 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c1), c2));
-    //     Node *c34 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c3), c4));
-    //     Node *ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
-    //     return ret;
-    // }
-    // else if (strcmp(strToUpper(expr->name), OPNAME_OR) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // else if (strcmp(strToUpper(expr->name), OPNAME_AND) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // else
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     return (Node *)createOpExpr(expr->name, LIST_MAKE(getUBExpr(e1, hmp), getUBExpr(e2, hmp)));
-    // }
+    if (strcmp(expr->name, OPNAME_MULT) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_MULT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_DIV) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_DIV not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_EQ) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_EQ not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_GT) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_GT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_GE) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_GE not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_LT) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_LT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_LE) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_LE not implemented yet");
+        return NULL;
+    }
+    else if (strcmp(strToUpper(expr->name), OPNAME_OR) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_OR not implemented yet");
+        return NULL;
+    }
+    else if (strcmp(strToUpper(expr->name), OPNAME_AND) == 0)
+    {
+        FATAL_LOG("[ZonoOp] - OPNAME_AND not implemented yet");
+        return NULL;
+    }
+
+    FATAL_LOG("[ZonoOp] - Unknown OP not implemented yet");
+    return NULL;
+}
+
+
+static Node *ZonoUBOp(Operator *expr, HashMap *hmp)
+{
+    Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+    
+    if (!expr)
+    {
+        return NULL;
+    }
+    if (strcmp(expr->name, ZUNCERT_FUNC_NAME) == 0)
+    {
+        return (Node *)createConstInt(0);
+    }
+    if (strcmp(expr->name, OPNAME_ADD) == 0)
+    {
+        Node *fun = (Node *)createFunctionCall("_z_op_add", appendToTailOfList(singleton(e1), e2));
+        return (Node*) createFunctionCall("_z_get_ub", singleton(fun));
+    }
+    if (strcmp(expr->name, OPNAME_MINUS) == 0)
+    {
+        Node *fun = (Node *)createFunctionCall("_z_op_sub", appendToTailOfList(singleton(e1), e2));
+        return (Node*) createFunctionCall("_z_get_ub", singleton(fun));
+    }
+    if (strcmp(expr->name, OPNAME_MULT) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_MULT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_DIV) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_DIV not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_EQ) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_EQ not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_GT) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_GT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_GE) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_GE not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_LT) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_LT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_LE) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_LE not implemented yet");
+        return NULL;
+    }
+    else if (strcmp(strToUpper(expr->name), OPNAME_OR) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_OR not implemented yet");
+        return NULL;
+    }
+    else if (strcmp(strToUpper(expr->name), OPNAME_AND) == 0)
+    {
+        FATAL_LOG("[ZonoUBOp] - OPNAME_AND not implemented yet");
+        return NULL;
+    }
+
+    FATAL_LOG("[ZonoUBOp] - Unknown OP not implemented yet");
     return NULL;
 }
 
 
 static Node *ZonoLBOp(Operator *expr, HashMap *hmp)
 {
+    Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
+    Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
+
     if (!expr)
     {
         return NULL;
@@ -467,105 +495,90 @@ static Node *ZonoLBOp(Operator *expr, HashMap *hmp)
     {
         return (Node *)createConstInt(0);
     }
-    if (strcmp(expr->name, "+") == 0)
+    if (strcmp(expr->name, OPNAME_ADD) == 0)
     {
-        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-        // Upper bound of addition is the sum of upper bounds
-        Node *ret = (Node *)createFunctionCall("_z_op_add", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-        // INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
-        return ret;
+        Node *fun = (Node *)createFunctionCall("_z_op_add", appendToTailOfList(singleton(e1), e2));
+        return (Node*) createFunctionCall("_z_get_lb", singleton(fun));
     }
-    if (strcmp(expr->name, "-") == 0)
+    if (strcmp(expr->name, OPNAME_MINUS) == 0)
     {
-        Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-        Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-        // Upper bound of subtraction is the ub-lb
-        Node *ret = (Node *)createFunctionCall("_z_op_sub", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-        return ret;
+        Node *fun = (Node *)createFunctionCall("_z_op_sub", appendToTailOfList(singleton(e1), e2));
+        return (Node*) createFunctionCall("_z_get_lb", singleton(fun));
     }
-    // if (strcmp(expr->name, OPNAME_EQ) == 0)
-    // {
-    //     // INFO_LOG("rewrite = ");
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     // Node *c1 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-    //     // Node *c2 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-    //     // Node *c3 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-    //     // Node *c4 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-    //     // Node *c5 = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-    //     // Node *c6 = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-    //     // Node *c12 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c1),c2));
-    //     // Node *c34 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c3),c4));
-    //     // Node *c56 = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(c5),c6));
-    //     // Node *c1234 = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c12),c34));
-    //     // Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(c1234),c56));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(c1, c2));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_GT) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_GT, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_GE) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_GE, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_LT) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_LT, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, OPNAME_LE) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_LE, appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // if (strcmp(expr->name, "*") == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *c1 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     Node *c2 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getUBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     Node *c3 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     Node *c4 = (Node *)createOpExpr("*", appendToTailOfList(singleton(getLBExpr(e1, hmp)), getLBExpr(e2, hmp)));
-    //     Node *c12 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c1), c2));
-    //     Node *c34 = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c3), c4));
-    //     Node *ret = (Node *)createFunctionCall(GREATEST_FUNC_NAME, appendToTailOfList(singleton(c12), c34));
-    //     return ret;
-    // }
-    // else if (strcmp(strToUpper(expr->name), OPNAME_OR) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_OR, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // else if (strcmp(strToUpper(expr->name), OPNAME_AND) == 0)
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     Node *ret = (Node *)createOpExpr(OPNAME_AND, appendToTailOfList(singleton(getUBExpr(e1, hmp)), getUBExpr(e2, hmp)));
-    //     return ret;
-    // }
-    // else
-    // {
-    //     Node *e1 = (Node *)(getNthOfListP(expr->args, 0));
-    //     Node *e2 = (Node *)(getNthOfListP(expr->args, 1));
-    //     return (Node *)createOpExpr(expr->name, LIST_MAKE(getUBExpr(e1, hmp), getUBExpr(e2, hmp)));
-    // }
+    if (strcmp(expr->name, OPNAME_MULT) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_MULT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_DIV) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_DIV not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_EQ) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_EQ not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_GT) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_GT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_GE) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_GE not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_LT) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_LT not implemented yet");
+        return NULL;
+    }
+    if (strcmp(expr->name, OPNAME_LE) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_LE not implemented yet");
+        return NULL;
+    }
+    else if (strcmp(strToUpper(expr->name), OPNAME_OR) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_OR not implemented yet");
+        return NULL;
+    }
+    else if (strcmp(strToUpper(expr->name), OPNAME_AND) == 0)
+    {
+        FATAL_LOG("[ZonoLBOp] - OPNAME_AND not implemented yet");
+        return NULL;
+    }
+
+    FATAL_LOG("[ZonoLBOp] - Unknown OP not implemented yet");
+    return NULL;
+}
+
+
+Node *getZExpr(Node *expr, HashMap *hmp)
+{
+    switch (expr->type)
+    {
+        case T_AttributeReference:
+        {
+            return expr;
+        }
+        case T_Operator:
+        {
+            return ZonoOp((Operator *)expr, hmp);
+        }
+        case T_FunctionCall:
+        {
+            FATAL_LOG("[getZExpr] Called a function");
+            break;
+        }
+        default:
+        {
+            FATAL_LOG("[getUBExpr] Unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
+            break;
+        }
+    }
     return NULL;
 }
 
@@ -591,8 +604,8 @@ Node *getUBExpr(Node *expr, HashMap *hmp)
         }
         case T_FunctionCall:
         {
-            FATAL_LOG("[getUBExpr] Called a function");
-            break;
+            // FATAL_LOG("[getUBExpr] Called a function");
+            return (Node*) createFunctionCall("_z_get_ub", singleton(expr));
         }
         default:
         {
@@ -625,8 +638,8 @@ Node *getLBExpr(Node *expr, HashMap *hmp)
         }
         case T_FunctionCall:
         {
-            FATAL_LOG("[getLBExpr] Called a function");
-            break;
+            // FATAL_LOG("[getLBExpr] Called a function");
+            return expr;
         }
         default:
         {
