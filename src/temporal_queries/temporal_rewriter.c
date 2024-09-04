@@ -834,19 +834,25 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
             {
                 aRef = (AttributeReference *) projExpr;
                 if (!streq(aRef->name, aDef->attrName)) {
-                    int pos = listPosString(state->rightAttrs, aRef->name);
-                    if (pos != -1) {
-                        ListCell *l = getNthOfList(state->rightAttrs, listPosString(state->rightAttrs, aRef->name));
-                        l->data.ptr_value = strdup(aDef->attrName);
+                    // check whether any normalization attributes added yet
+                    if (state->rightAttrs && state->leftAttrs) {
+                        int pos = listPosString(state->rightAttrs, aRef->name);
+                        if (pos != -1) {
+                            ListCell *l = getNthOfList(state->rightAttrs, listPosString(state->rightAttrs, aRef->name));
+                            l->data.ptr_value = strdup(aDef->attrName);
+                        }
                     }
                 }
             }
             else // we are in an expression like C := A + B
             {
-                int pos = listPosString(state->rightAttrs, aRef->name);
-                if (pos != -1) {
-                    state->leftAttrs = removeListElemAtPos(state->leftAttrs, pos);
-                    state->rightAttrs = removeListElemAtPos(state->rightAttrs, pos);
+                // check whether any normalization attributes added yet
+                if (state->rightAttrs && state->leftAttrs) {
+                    int pos = listPosString(state->rightAttrs, aRef->name);
+                    if (pos != -1) {
+                        state->leftAttrs = removeListElemAtPos(state->leftAttrs, pos);
+                        state->rightAttrs = removeListElemAtPos(state->rightAttrs, pos);
+                    }
                 }
             }
         }
