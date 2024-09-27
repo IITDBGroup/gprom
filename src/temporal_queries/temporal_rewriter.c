@@ -848,7 +848,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
             {
                 // check whether any normalization attributes added yet
                 if (state->rightAttrs && state->leftAttrs) {
-                    int pos = listPosString(state->rightAttrs, aRef->name);
+                    int pos = listPosString(state->rightAttrs, aDef->attrName);
                     if (pos != -1) {
                         state->leftAttrs = removeListElemAtPos(state->leftAttrs, pos);
                         state->rightAttrs = removeListElemAtPos(state->rightAttrs, pos);
@@ -970,13 +970,13 @@ tempRewrNestedSubquery(NestingOperator *op)
         MAP_ADD_STRING_KEY((HashMap *)(OP_RCHILD(op)->properties), "normalize", (Node*)normalizationStateToMap(&state));
     }
 
-    // (query_operator.c findCorrelatedattrsVisitor comment) 
-    // rules: N can be kept if 
-    //     (i) all of N's childresn can be kept, 
-    //  if (ii) all  of N's correlated attributes are one level up only, 
+    // (query_operator.c findCorrelatedattrsVisitor comment)
+    // rules: N can be kept if
+    //     (i) all of N's childresn can be kept,
+    //  if (ii) all  of N's correlated attributes are one level up only,
     // and (iii) we can push normalization below N's correlated attributes
     boolean canStayNested = noCorrelationBelowNormalization((Node *) OP_RCHILD(op), TRUE);
-    // boolean canStayNested = TRUE; 
+    // boolean canStayNested = TRUE;
 
     // If we can't keep it a nested subquery, remove the normalization tags
     if(!canStayNested) visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id"));
