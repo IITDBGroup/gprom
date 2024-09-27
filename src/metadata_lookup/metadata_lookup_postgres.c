@@ -1641,6 +1641,8 @@ postgresGetAllMinAndMax(TableAccessOperator* table)
     List *attrNames = getAttrDefNames(attrDefs);
     statement = makeStringInfo();
 
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
 	appendStringInfo(statement, "SELECT ");
     FOREACH(char, c, attrNames)
     {
@@ -1735,6 +1737,8 @@ postgresGetMinAndMax(char* tableName, char* colName)
 			return result_map;
 		}
 	}
+
+	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
 
 	result_map = NEW_MAP(Constant, Node);
     statement = makeStringInfo();
@@ -1850,12 +1854,12 @@ execQuery(char *query)
     START_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
     START_TIMER("Postgres - execute query - BEGIN TRANSACTION");
     res = PQexec(c, "BEGIN TRANSACTION;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK){
-            STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
-            STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
-            CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
-                    PQerrorMessage(c));
-        }
+    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+        STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
+        STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
+        CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
+                                 PQerrorMessage(c));
+    }
     PQclear(res);
     STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
 
@@ -1866,7 +1870,7 @@ execQuery(char *query)
         STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
         STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
-                PQerrorMessage(c));
+                                 PQerrorMessage(c));
     }
     PQclear(res);
     STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
@@ -2036,6 +2040,7 @@ postgresExecuteQuery(char *query)
 {
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");
+    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     Relation *r = makeNode(Relation);
     PGresult *rs = execQuery(query);
     int numRes = PQntuples(rs);
@@ -2084,6 +2089,7 @@ postgresExecuteQueryIgnoreResult (char *query)
     PGconn *c = plugin->conn;
     boolean done = FALSE;
     START_TIMER(METADATA_LOOKUP_TIMER);
+    START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     START_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
     START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
     // start transaction

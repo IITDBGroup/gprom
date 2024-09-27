@@ -159,7 +159,7 @@ odbcShutdownMetadataLookupPlugin(void)
 void
 odbcDestroyEnvironment(ODBCPlugin *p)
 {
-	odbcDatabaseConnectionClose(p);
+	odbcDatabaseConnectionClose();
 	if (p->environment != SQL_NULL_HENV)
 	{
 		SQLFreeHandle(SQL_HANDLE_ENV,p->environment);
@@ -688,7 +688,7 @@ odbcExecuteQueryWithPluginIgnoreResult (ODBCPlugin *p, char *query)
 {
 	SQLSMALLINT numcols;
 	Relation *r = makeNode(Relation);
-	int numtup = 0;
+	/* int numtup = 0; */
 
 	RUN_WITH_ERROR_HANDLING(plugin->stmt, SQL_HANDLE_STMT,
 							SQLNumResultCols(plugin->stmt, &numcols)
@@ -704,7 +704,7 @@ odbcExecuteQueryWithPluginIgnoreResult (ODBCPlugin *p, char *query)
 	// loop over tuples
 	FOR_RESULTS(plugin->stmt)
 	{
-		numtup++;
+		/* numtup++; */
 	}
 }
 
@@ -790,7 +790,7 @@ odbcDatabaseConnectionOpen (void)
 }
 
 int
-odbcDatabaseConnectionClose()
+odbcDatabaseConnectionClose(void)
 {
     return EXIT_SUCCESS;
 }

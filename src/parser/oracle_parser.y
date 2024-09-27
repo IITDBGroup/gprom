@@ -66,7 +66,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE ZUNCERT
 %token <stringVal> TIP INCOMPLETE VTABLE XTABLE RADB UADB
 
 %token <stringVal> FROM LATERAL
@@ -115,10 +115,11 @@ Node *oracleParseResult = NULL;
 
 /* Arithmetic operators : FOR TESTING */
 %nonassoc DUMMYEXPR
-%right POSTGRESCAST
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
+
+%right POSTGRESCAST
 
 %nonassoc SUBQUERYEXPR
 %left '(' ')'
@@ -498,7 +499,7 @@ provStmt:
         {
             RULELOG("provStmt::stmt");
             Node *stmt = $7;
-	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
+    		ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = USE_PROV_COARSE_GRAINED;
 		    p->asOf = (Node *) $3;
@@ -552,6 +553,16 @@ provStmt:
 			RULELOG("provStmt::range");
 			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
 			p->inputType = PROV_INPUT_RANGE_QUERY;
+			p->provType = PROV_NONE;
+			p->asOf = NULL;
+			p->options = NIL;
+			$$ = (Node *) p;
+		}
+		| ZUNCERT '(' stmt ')'
+		{
+			RULELOG("provStmt::zonotope-range");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
+			p->inputType = PROV_INPUT_ZONO_UNCERT_QUERY;
 			p->provType = PROV_NONE;
 			p->asOf = NULL;
 			p->options = NIL;
@@ -1593,7 +1604,8 @@ unaryOperatorExpression:
 		 | expression POSTGRESCAST identifier
 		 {
 			 RULELOG("postgres castExpression");
-			 CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3));
+			 /* CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3)); */
+			 CastExpr *c = createCastExprOtherDT($1, strToLower($3), -1, SQLdataTypeToDataType($3));
 			 $$ = (Node *) c;
 		 }
     ;
