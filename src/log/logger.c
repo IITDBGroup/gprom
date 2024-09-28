@@ -128,6 +128,12 @@ _debugMessage(char *mes)
 }
 
 void
+_debugOperatorOverview(QueryOperator *op)
+{
+    log_(LOG_ERROR, "debugger", 0, "%s", operatorToOverviewString(op));
+}
+
+void
 log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 {
     ASSERT(buffer != NULL);

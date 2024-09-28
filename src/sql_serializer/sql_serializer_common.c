@@ -256,7 +256,7 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 			DEBUG_LOG("nestName %s", nestName);
 
 			if(!hasMapStringKey(*map, nestName))
-			{
+ 			{
 				StringInfo s = makeStringInfo();
 				if(nest->nestingType == NESTQ_EXISTS)
 					appendStringInfoString(s, "EXISTS ");
@@ -575,7 +575,7 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 	// determine for any nested subquery part of this block where it should be serialized to
 	genMarkSubqueriesSerializationLocation(matchInfo, matchInfo->fromRoot, api);
 	attrNames = getAttrNames(q->schema);
-	
+
     // translate each clause
     DEBUG_LOG("serializeFrom");
     FromAttrsContext *cfac = copyFromAttrsContext(fac);

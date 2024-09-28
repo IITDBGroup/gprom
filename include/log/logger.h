@@ -25,6 +25,7 @@
 
 #include "common.h"
 #include "exception/exception.h"
+#include "model/query_operator/query_operator.h"
 
 typedef struct logger_state LoggerState;
 
@@ -50,6 +51,7 @@ extern void log_(LogLevel level, const char *file, unsigned line,
 extern char *formatMes(const char *template, ...);
 extern void _debugNode(void *p);
 extern void _debugMessage(char *mes);
+extern void _debugOperatorOverview(QueryOperator *op);
 extern void registerLogCallback (void (*callback) (const char *,const char *,
         int,int));
 

@@ -2265,6 +2265,12 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
 }
 
 // same as above but with the modified implementation by anton
+
+#define NORMALIZATION_TP_ATTR "T"
+#define NORMALIZATION_TP_ATTR_RIGHT "T_1"
+#define RIGHT_ATTR_SUFFIX "__RIGHT__"
+#define INTERVAL_ID_ATTR "__IDD__"
+
 static QueryOperator *
 addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, List *leftAttrs, List *rightAttrs)
 {
@@ -2289,13 +2295,19 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     // List *leftProjExpr2 = NIL;
 
     AttributeDef *leftBeginDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TBEGIN_ATTR);
-    leftBeginDef = leftBeginDef ? leftBeginDef : getAttrDefByName(left, (char*)getHeadOfListP((List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
+    leftBeginDef = leftBeginDef ?
+        leftBeginDef :
+        getAttrDefByName(left, (char*)getHeadOfListP(
+                             (List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     // int leftBeginPos = getAttrPos(left, leftBeginDef->attrName);
     // AttributeReference *leftBeginRef = createFullAttrReference(strdup(leftBeginDef->attrName), 0, leftBeginPos, INVALID_ATTR, leftBeginDef->dataType);
     // leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
 
     AttributeDef *leftEndDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TEND_ATTR);
-    leftEndDef = leftEndDef ? leftEndDef : getAttrDefByName(left, (char*)getTailOfListP((List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
+    leftEndDef = leftEndDef ?
+        leftEndDef :
+        getAttrDefByName(left, (char*)getTailOfListP(
+                             (List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     // int leftEndPos = getAttrPos(left, leftEndDef->attrName);
     // AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, INVALID_ATTR, leftEndDef->dataType);
     // leftProjExpr2 = appendToTailOfList(leftProjExpr2, leftEndRef);
@@ -2308,7 +2320,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     // }
 
     // //construct schema T SALARY  for BOTH
-    // List *leftAttrNames = singleton("T");
+    // List *leftAttrNames = singleton(NORMALIZATION_TP_ATTR);
     // leftAttrNames = concatTwoLists(leftAttrNames,deepCopyStringList(leftAttrs));
 
     // Projection expressions for right's start and end timestamps
@@ -2330,7 +2342,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     	rightEndingExprs = appendToTailOfList(rightEndingExprs, copyObject(rightRef));
     }
 
-    List *rightAttrNames = singleton("T");
+    List *rightAttrNames = singleton(NORMALIZATION_TP_ATTR);
     rightAttrNames = concatTwoLists(rightAttrNames,deepCopyStringList(rightAttrs));
 
     ProjectionOperator *rightBeginningProj = createProjectionOp(rightBeginningExprs, right, NIL, deepCopyStringList(rightAttrNames));
@@ -2357,6 +2369,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     List *projCPExprs = NIL;
 
     //keep two list used in later for condition e.g., salary, job  and salary_1, job_1  (salary=salary_1, job=job_1)
+    //FIXME this needs to use the left attributes
     List *leftList = NIL;
     List *rightList = NIL;
 
@@ -2364,8 +2377,8 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     {
     	projCPExprs = appendToTailOfList(projCPExprs,getAttrRefByName(distinctRightOp,c));
 
-        char *cc = CONCAT_STRINGS(c,"_1");
-    	if(!streq(c, "T"))
+        char *cc = CONCAT_STRINGS(c,RIGHT_ATTR_SUFFIX);
+    	if(!streq(c, NORMALIZATION_TP_ATTR))
     	{
             DEBUG_LOG("Unequal to T");
     		leftList = appendToTailOfList(leftList, strdup(c));
@@ -2380,7 +2393,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
 
     //---------------------------------------------------------------------------------------
 	//INTERVALS
-    FunctionCall *intervalFunc = createFunctionCall("ROW_NUMBER",NIL);
+    FunctionCall *intervalFunc = createFunctionCall(ROW_NUMBER_FUNC_NAME,NIL);
     List *intervalOrderBy = singleton(copyObject(c1));
 
     char *intervalFuncName = "winf_0";
@@ -2401,12 +2414,12 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     {
     	intervalExprs = appendToTailOfList(intervalExprs,getAttrRefByName(intervalWOp,c));
     	if(streq(c, intervalFuncName))
-    		intervalNames = appendToTailOfList(intervalNames,"IDD");
+    		intervalNames = appendToTailOfList(intervalNames,INTERVAL_ID_ATTR);
     	else
     		intervalNames = appendToTailOfList(intervalNames,strdup(c));
     }
     intervalExprs = appendToTailOfList(intervalExprs, getAttrRefByName(left, leftBeginDef->attrName));
-    intervalNames = appendToTailOfList(intervalNames, "T");
+    intervalNames = appendToTailOfList(intervalNames, NORMALIZATION_TP_ATTR);
 
     ProjectionOperator *interval = createProjectionOp(intervalExprs, intervalWOp, NIL, intervalNames);
     intervalWOp->parents = singleton(interval);
@@ -2431,7 +2444,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     }
 
     //c.T > l.TSTART, c.T < l.TEND
-    AttributeReference *oJoinCPT = getAttrRefByName(joinCPOp, "T_1");
+    AttributeReference *oJoinCPT = getAttrRefByName(joinCPOp, NORMALIZATION_TP_ATTR_RIGHT);
     AttributeReference *oJoinCPB = getAttrRefByName(joinCPOp, TBEGIN_NAME);
     AttributeReference *oJoinCPE = getAttrRefByName(joinCPOp, TEND_NAME);
 
@@ -2447,10 +2460,12 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     QueryOperator *selJOINCPOp = (QueryOperator *) selJOINCP;
     //proj on top
     List *projJOINCPNames = deepCopyStringList(getAttrNames(intervalOp->schema));
-    // projJOINCPNames = appendToTailOfList(projJOINCPNames, "T");
+    // projJOINCPNames = appendToTailOfList(projJOINCPNames, NORMALIZATION_TP_ATTR);
     List *projJOINCPExprs = NIL;
     FOREACH(char, c, projJOINCPNames)
-        projJOINCPExprs = appendToTailOfList(projJOINCPExprs,getAttrRefByName(selJOINCPOp,streq(c, "T") ? "T_1" : c)); // We want T to be from the right-hand side of the join
+        projJOINCPExprs = appendToTailOfList(projJOINCPExprs,
+                                             getAttrRefByName(selJOINCPOp,
+                                                              streq(c, NORMALIZATION_TP_ATTR) ? NORMALIZATION_TP_ATTR_RIGHT : c)); // We want T to be from the right-hand side of the join
 
     ProjectionOperator *projJOINCP = createProjectionOp(projJOINCPExprs, selJOINCPOp, NIL, projJOINCPNames);
     selJOINCPOp->parents = singleton(projJOINCP);
@@ -2467,8 +2482,8 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     //---------------------------------------------------------------------------------------
     //top
     //top window
-    AttributeReference *topT = getAttrRefByName(projJOINCPOp,"T");
-    AttributeReference *topID = getAttrRefByName(projJOINCPOp,"IDD");
+    AttributeReference *topT = getAttrRefByName(projJOINCPOp,NORMALIZATION_TP_ATTR);
+    AttributeReference *topID = getAttrRefByName(projJOINCPOp,INTERVAL_ID_ATTR);
 
     FunctionCall *topFunc = createFunctionCall(AGGNAME_LEAD,singleton(copyObject(topT)));
     List *topOrderBy = singleton(copyObject(topT));
@@ -3857,7 +3872,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 			AttributeReference *a = getAttrRefByName(agg1CPRightOp, ad->attrName);
 			projExprU2 = appendToTailOfList(projExprU2, a);
 
-			if(streq(ad->attrName, "T_B"))
+			if(streq(ad->attrName, TBEGIN_NAME))
 				nameListU2 = appendToTailOfList(nameListU2, "T");
 			else
 				nameListU2 = appendToTailOfList(nameListU2, ad->attrName);
