@@ -2266,9 +2266,9 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
 
 // same as above but with the modified implementation by anton
 
-#define NORMALIZATION_TP_ATTR "T"
-#define NORMALIZATION_TP_ATTR_RIGHT "T_1"
 #define RIGHT_ATTR_SUFFIX "__RIGHT__"
+#define NORMALIZATION_TP_ATTR "T"
+#define NORMALIZATION_TP_ATTR_RIGHT ("T" RIGHT_ATTR_SUFFIX )
 #define INTERVAL_ID_ATTR "__IDD__"
 
 static QueryOperator *
@@ -2369,8 +2369,8 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     List *projCPExprs = NIL;
 
     //keep two list used in later for condition e.g., salary, job  and salary_1, job_1  (salary=salary_1, job=job_1)
-    //FIXME this needs to use the left attributes
-    List *leftList = NIL;
+    //FIXME this needs to use the left attributes for left list!
+    List *leftList = leftAttrs;
     List *rightList = NIL;
 
     FOREACH(char, c, projCPTempNames)
@@ -2381,11 +2381,15 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     	if(!streq(c, NORMALIZATION_TP_ATTR))
     	{
             DEBUG_LOG("Unequal to T");
-    		leftList = appendToTailOfList(leftList, strdup(c));
+    		//TODO check, should not create left list here leftList = appendToTailOfList(leftList, strdup(c));
     		rightList = appendToTailOfList(rightList, strdup(cc));
     	}
-        projCPNames = appendToTailOfList(projCPNames,cc);
+        projCPNames = appendToTailOfList(projCPNames,
+                                         cc);
     }
+    DEBUG_LOG("normalizing on left attrs <%s> and renamed right attrs <%s>",
+              stringListToString(leftList),
+              stringListToString(rightList));
 
     ProjectionOperator *projCP = createProjectionOp(projCPExprs, distinctRightOp, NIL, projCPNames);
     distinctRightOp->parents = singleton(projCP);
@@ -2430,6 +2434,8 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     JoinOperator *joinCP = createJoinOp(JOIN_CROSS,NULL, LIST_MAKE(interval,projCP), NIL, joinCPNames);
     intervalOp->parents = singleton(joinCP);
     projCPOp->parents = singleton(joinCP);
+
+    DEBUG_LOG("Join attribute names: <%s>", stringListToString(joinCPNames));
 
     // TODO: join on multiple attributes or cross product
     QueryOperator *joinCPOp = (QueryOperator *)joinCP;

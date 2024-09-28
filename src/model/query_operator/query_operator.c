@@ -1334,7 +1334,10 @@ getAttrRefByName(QueryOperator *op, char *attr)
 {
     AttributeDef *d = getAttrDefByName(op, attr);
 
-    ASSERT(d != NULL);
+    ASSERT_WITH_MESSAGE(d != NULL,
+                        "did for not attr %s in op <%s>",
+                        attr,
+                        singleOperatorToOverview(op));
 
     AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
             getAttrPos(op, attr),
@@ -1572,7 +1575,7 @@ getCorrelatedAttributes(Node *op, boolean corrInSubquery) // boolean traverseInt
 	return result;
 }
 
-boolean 
+boolean
 noCorrelationBelowNormalization(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
 {
 	Set *result = STRSET();
@@ -1646,8 +1649,8 @@ canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
 		return TRUE;
 
 	//TODO
-	// rules: N can be kept if (i) all of N's childresn can be kept, 
-    // if (ii) all  of N's correlated attributes are one level up only, 
+	// rules: N can be kept if (i) all of N's childresn can be kept,
+    // if (ii) all  of N's correlated attributes are one level up only,
     // and (iii) we can push normalization below N's correlated attributes
     //
 	//   N [CAN KEEP SUBQUERY] depends on CAN KEEP SUBQUERY
@@ -1690,7 +1693,7 @@ canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
         QueryOperator *q = (QueryOperator *) n;
 
         if(isA(q->properties, HashMap) && MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
-            state->seenNormalization = TRUE;       
+            state->seenNormalization = TRUE;
             FOREACH(QueryOperator, a, q->inputs) {
                 visit((Node *)a, canStayCorrelatedVisitor, state);
             }
