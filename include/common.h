@@ -255,6 +255,10 @@ typedef (void *) gprom_long_t;
     if (!(expr)) { \
     	THROW(SEVERITY_RECOVERABLE, "%s: %s\n", "failed assertion", #expr); \
     }
+#define ASSERT_WITH_MESSAGE(expr,template, ...)         \
+    if (!(expr)) { \
+        THROW(SEVERITY_RECOVERABLE, "%s: %s\n\n" # template, "failed assertion", #expr, __VA_ARGS__); \
+    }
 
 #define TIME_ASSERT(expr) \
     do { \
