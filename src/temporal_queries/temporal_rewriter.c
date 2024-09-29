@@ -2506,10 +2506,12 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
 
     QueryOperator *topWOp = (QueryOperator *) topW;
 
+
+
     //topProj
     AttributeReference *topProjE = getAttrRefByName(topWOp,TEND_NAME);
     AttributeReference *topProjwin = getAttrRefByName(topWOp,topFuncName);
-    FunctionCall *topProjFunc = createFunctionCall(COALESCE_FUNC_NAME,LIST_MAKE(topProjwin,topProjE));
+    FunctionCall *topProjFunc = createFunctionCall(COALESCE_FUNC_NAME,LIST_MAKE(topProjwin,topProjE));//FIXME: this needs to be a window function
     List *topProjExprs = NIL;
     List *topProjNames = NIL;
 

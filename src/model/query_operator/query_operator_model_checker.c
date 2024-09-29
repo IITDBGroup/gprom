@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "configuration/option.h"
@@ -52,7 +53,7 @@ isTree(QueryOperator *op)
         } while (0)
 
 boolean
-checkModel (QueryOperator *op)
+checkModel(QueryOperator *op)
 {
     NEW_AND_ACQUIRE_MEMCONTEXT("QO_MODEL_CHECKER");
 
@@ -72,6 +73,11 @@ static boolean
 checkAttributeRefConsistency (QueryOperator *op, void *context)
 {
     List *attrRefs = NIL;
+
+    if(HAS_STRING_PROP(op,PROP_NO_MODEL_CHECKING_ROOT))
+    {
+        return TRUE;
+    }
 
     //TODO correlations in nested subqueries and missing operators
     switch(op->type)
@@ -222,6 +228,11 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
 static boolean
 checkSchemaConsistency (QueryOperator *op, void *context)
 {
+    if(HAS_STRING_PROP(op,PROP_NO_MODEL_CHECKING_ROOT))
+    {
+        return TRUE;
+    }
+
     if (LIST_LENGTH(op->schema->attrDefs) == 0 && !isA(op,ProvenanceComputation))
     {
         ERROR_OP_LOG("Cannot have an operator with no result attributes", op);
@@ -410,6 +421,11 @@ checkForDatastructureReuse (QueryOperator *op, void *context)
     Set *c;
     gprom_long_t opAddr = (gprom_long_t) op;
 
+    if(HAS_STRING_PROP(op,PROP_NO_MODEL_CHECKING_ROOT))
+    {
+        return TRUE;
+    }
+
     c =  PSET();
     checkReuseVisitor((Node *) op, c);
 
@@ -501,6 +517,11 @@ makeAttrNamesUnique(QueryOperator *op)
 static boolean
 checkParentChildLinks(QueryOperator *op, void *context)
 {
+    if(HAS_STRING_PROP(op,PROP_NO_MODEL_CHECKING_ROOT))
+    {
+        return TRUE;
+    }
+
     // check that no operator has itself as child or parent
     FOREACH(QueryOperator,o,op->inputs)
         if (o == op)

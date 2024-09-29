@@ -20,10 +20,13 @@
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
+#include "provenance_rewriter/prov_utility.h"
+
 
 #if HAVE_ORACLE_BACKEND
 #include "ocilib.h"
@@ -229,7 +232,9 @@ static HashMap *
 getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
 	HashMap *map = NEW_MAP(Constant, Constant);
-	setNestAttrMap(op, &map, fac, api);
+	FromAttrsContext *subqueryFac = copyFromAttrsContext(fac);
+
+    setNestAttrMap(op, &map, subqueryFac, api);
 
 	return map;
 }
@@ -237,12 +242,6 @@ getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *ap
 static void
 setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
-	FromAttrsContext *subqueryFac = copyFromAttrsContext(fac);
-
-	// subquery from clause starts empty but has current query's from clause as an "outer"
-	subqueryFac->fromAttrs = NIL;
-	subqueryFac->fromAttrsList = appendToHeadOfList(subqueryFac->fromAttrsList, copyList(fac->fromAttrs));
-
 	if(isA(op, NestingOperator))
 	{
 		NestingOperator *nest = (NestingOperator *) op;
@@ -253,13 +252,15 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 		{
 			List *names = getAttrNames(op->schema);
 			char *nestName = (char *) getTailOfListP(names);
-			DEBUG_LOG("nestName %s", nestName);
+			DEBUG_LOG("nesting attribut name %s for nested subquery in selection", nestName);
 
 			if(!hasMapStringKey(*map, nestName))
  			{
 				StringInfo s = makeStringInfo();
 				if(nest->nestingType == NESTQ_EXISTS)
+                {
 					appendStringInfoString(s, "EXISTS ");
+                }
 				else if(nest->nestingType == NESTQ_ANY)
 				{
 					Operator *cond = (Operator *) nest->cond;
@@ -275,14 +276,39 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 					appendStringInfo(s, "%s %s ALL ", name, cond->name);
 				}
 
+                // subquery from clause starts empty but has current query's from clause as an "outer"
+                FromAttrsContext *subqueryFac = copyFromAttrsContext(fac);
+                subqueryFac->fromAttrs = NIL;
+                subqueryFac->fromAttrsList = appendToHeadOfList(subqueryFac->fromAttrsList, copyList(fac->fromAttrs));
+                fac = subqueryFac;
+
 				appendStringInfoString(s, "(");
 				api->serializeQueryOperator(OP_RCHILD(op), s, NULL, subqueryFac, api);
 				appendStringInfoString(s, ")");
-				DEBUG_LOG("serialized nested subquery: %s", s->data);
+				DEBUG_LOG("serialized nested subquery for selection: %s", s->data);
 				MAP_ADD_STRING_KEY(*map, strdup(nestName),
 								   createConstString(strdup(s->data)));
+
+                //TODO remove nesting operator
+                QueryOperator *lChild = OP_LCHILD(op);
+                switchSubtreeWithExisting(op, lChild);
+                DEBUG_OP_LOG("query after nesting attr got removed", getFirstRoot(lChild));
+                //TODO does not work as selection is now referring to non-existing nesting attr in its definition need to give check an options or
+                /* if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING)) */
+                /* { */
+                /*     QueryOperator *root = getFirstRoot(lChild); */
+                /*     SET_BOOL_STRING_PROP(op, PROP_NO_MODEL_CHECKING_ROOT); */
+
+                /*     ASSERT(checkModel(root)); */
+                /* } */
 			}
+            else
+            {
+                DEBUG_NODE_BEATIFY_LOG("already in map", *map);
+            }
 		}
+        setNestAttrMap(OP_LCHILD(op), map, fac, api);
+        return;
 	}
 
 	FOREACH(QueryOperator, o, op->inputs)
@@ -576,6 +602,16 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 	genMarkSubqueriesSerializationLocation(matchInfo, matchInfo->fromRoot, api);
 	attrNames = getAttrNames(q->schema);
 
+    // if from root is a nested subquery that got removed then change from root
+    if (HAS_STRING_PROP(matchInfo->fromRoot, PROP_INLINED_NESTED_QUERY))
+    {
+        while(HAS_STRING_PROP(matchInfo->fromRoot, PROP_INLINED_NESTED_QUERY))
+        {
+            matchInfo->fromRoot = OP_LCHILD(matchInfo->fromRoot);
+        }
+        OUT_BLOCK_MATCH(DEBUG,matchInfo, "adjusted match after inlining nested subqueries into WHERE");
+    }
+
     // translate each clause
     DEBUG_LOG("serializeFrom");
     FromAttrsContext *cfac = copyFromAttrsContext(fac);
@@ -661,7 +697,7 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
  *
  * for some systems 2) and 3) may require modifications to the nesting operator
  *
- * results are sroted as a property PROP_NESTING_LOCATIONS of the operator
+ * results are stored as a property PROP_NESTING_LOCATIONS of the operator
  *
  * @param qbMatch operators that will go into the current query block
  * @param op operator to check (skip if this is no nesting operator)
@@ -703,8 +739,12 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 
 		if(serLocations & NEST_SER_SELECTION)
 		{
+            DEBUG_LOG("Serialize nested subquery into WHERE: <%s>", singleOperatorToOverview(op));
 			// remove the attribute from other operators to avoid problems later
+            SET_BOOL_STRING_PROP(op, PROP_INLINED_NESTED_QUERY);
 			removeNestingAttributeFromOperators(op, getSingleNestingResultAttribute(n));
+
+            DEBUG_OP_LOG("After removing nested subquery attribute from parent operators", getFirstRoot(op));
 		}
 
 		setStringProperty(op, PROP_NESTING_LOCATIONS, (Node *) createConstInt(serLocations));
@@ -1068,12 +1108,15 @@ void
 genSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
 	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api);
+    char *condStr;
 
 	appendStringInfoString(where, "\nWHERE ");
 	fac->nestAttrMap = nestAttrMap;
 	updateAttributeNames((Node *) q->cond, fac);
 	fac->nestAttrMap = NULL;
-    appendStringInfoString(where, exprToSQL(q->cond, nestAttrMap, FALSE));
+    condStr = exprToSQL(q->cond, nestAttrMap, FALSE);
+    DEBUG_LOG("translated where clause condition: <%s>", condStr);
+    appendStringInfoString(where, condStr);
 }
 
 void

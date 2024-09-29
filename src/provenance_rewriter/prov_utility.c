@@ -304,7 +304,7 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
  * to replace "orig" with "new" if "new" is part of an existing tree
  */
 void
-switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new)
+switchSubtreeWithExisting(QueryOperator *orig, QueryOperator *new)
 {
 	new->parents = CONCAT_LISTS(new->parents, orig->parents);
 	orig->parents = NIL;

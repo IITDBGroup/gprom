@@ -14,6 +14,7 @@
 /* define keys for properties used to annotate operators */
 /* general operator properties */
 #define PROP_MATERIALIZE "MATERIALIZE"                      // hint to materialize output of this operator
+#define PROP_NO_MODEL_CHECKING_ROOT "NO_CHECKING_ROOT"      // model checking will ignore this operator and everything below
 
 // exec and prepared queries
 #define PROP_PREPARED_QUERY_NAME "PREPARED_QUERY"
@@ -108,6 +109,8 @@
 #define PROP_NESTING_TO_SERIALIZE "NESTED_SERIALIZE_SUBQUERIES" // nested subqueries to serialize into thie operator
 #define PROP_NESTING_LOCATIONS "NESTED_SUBQUERY_LOCATIONS" //
 #define PROP_NESTING_CORRELATED_ATTRS "NESTEDE_SUBQUERY_CORRELATED_ATTRS" // store set of correlated attributes
+#define PROP_INLINED_NESTED_QUERY "INLINED_NESTED_QUERY_REMOVE" // mark nesting operators that correspond to nested subqueries that will be serialized into WHERE
+
 
 /* Operator type specific properties */
 /* table access properties */
