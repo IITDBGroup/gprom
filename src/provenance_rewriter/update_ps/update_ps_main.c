@@ -36,6 +36,8 @@
 #include "provenance_rewriter/update_ps/bloom.h"
 #include "provenance_rewriter/update_ps/store_operator_data.h"
 #include "provenance_rewriter/update_ps/fetch_operator_data.h"
+#include "provenance_rewriter/update_ps/sketch_based_checking.h"
+
 /*
  * Macro
  */
@@ -138,7 +140,26 @@ setOperatorNumber(QueryOperator *op)
 char*
 update_ps(ProvenanceComputation *qbModel)
 {
-
+	///////////////////////////////////////
+	// Start test for sketch based filter
+	///////////////////////////////////////
+	boolean isTest = getBoolOption(OPTION_UPDATE_PS_SOMETEST);
+	if (isTest) {
+		DEBUG_NODE_BEATIFY_LOG("QBMODEL:",qbModel);
+		DLMorDDLOperator *leftChildtest = NULL;
+		QueryOperator *rightChildtest = NULL;
+		INFO_LOG("QB CHILD LENGTH: %d", LIST_LENGTH(qbModel->op.inputs));
+		if (LIST_LENGTH(qbModel->op.inputs) > 1) {
+			leftChildtest = (DLMorDDLOperator *) OP_LCHILD((QueryOperator *) qbModel);
+			rightChildtest = OP_RCHILD((QueryOperator *) qbModel);
+			((QueryOperator *) qbModel)->inputs = singleton(rightChildtest);
+		}
+		sketch_based_checking((QueryOperator *) qbModel, (QueryOperator *) leftChildtest);
+		return "END";
+	}
+	///////////////////////////////////////
+	// End test for sketch based filter
+	///////////////////////////////////////
 	/*
 	 *	two children
 	 * 	left: update statements (one or list of statements)

@@ -206,6 +206,10 @@ char *update_ps_delta_table_updident = NULL;
 char *update_ps_query_name = NULL;
 int update_ps_order_safe_num = 0;
 boolean update_ps_store_new_state = FALSE;
+// sketch based filter test
+boolean update_ps_sketch_based_filter = FALSE;
+char *update_ps_sketch_based_sketch = NULL;
+boolean update_ps_sometest = FALSE;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -837,6 +841,30 @@ OptionInfo opts[] =
                 "indicate if store new state after update(for continuously update)",
                 OPTION_BOOL,
                 wrapOptionBool(&update_ps_store_new_state),
+                defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_SKETCH_BASED_FILTER,
+                "-update_ps_sketch_based_filter",
+                "indicate if use sketch to filter delta table",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_sketch_based_filter),
+                defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_SKETCH_BASED_SKETCH,
+                "-update_ps_sketch_based_sketch",
+                "indicate the sketch file(absolute path) when enabling sketch based filter",
+                OPTION_STRING,
+                wrapOptionString(&update_ps_sketch_based_sketch),
+                defOptionString(NULL)
+         },
+         {
+                OPTION_UPDATE_PS_SOMETEST,
+                "-update_ps_sometest",
+                "indicate if running some specific test for update provenance sketch",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_sometest),
                 defOptionBool(FALSE)
          },
 		 {

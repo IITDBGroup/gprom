@@ -10,4 +10,5 @@ libupdate_ps_la_SOURCES		    = update_ps_main.c \
                                 rbtree.c \
 								bloom.c \
 								MurmurHash2.c \
-                                base64.c
+                                base64.c \
+                                sketch_based_checking.c

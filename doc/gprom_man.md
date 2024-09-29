@@ -296,7 +296,7 @@ information.
 The parser plugin determines what input language is used.
 
 > **orcle** - Oracle SQL dialect
->
+
 > **dl** - Datalog
 
 ## executor
@@ -307,9 +307,9 @@ is called instrumentation). The executor plugin determines what is done
 with the instrumented query produced by GProM.
 
 > **sql** - Print the generated query to *stdout*
->
+
 > **run** - Run the generated query and show its result
->
+
 > **dl** - Output a datalog program (only works if *dl* analyzer,
 > translator, and parser plugins have been chosen
 
@@ -319,7 +319,7 @@ This plugin checks the output of the parser for semantic correctness.
 
 > **oracle** - Assumes the input is an SQL query written in Oracle's SQL
 > dialect
->
+
 > **dl** - Analyses Datalog inputs
 
 ## translator
@@ -328,9 +328,9 @@ This plugin translates the input language into **relational algebra**
 which is used as an internal code representation by GProM.
 
 > **oracle** - Translates Oracle SQL into relational algebra
->
+
 > **dl** - Translates Datalog into relational algebra
->
+
 > **dummy** - Do not translate the input (this can be used to produce an
 > output language other than SQL to circumvent the limitations of
 > GProM's relational algebra model, e.g., we currently do not support
@@ -350,13 +350,13 @@ connection parameters will be interpreted.
 > **oracle** - This plugin manages communication with an Oracle database
 > backend. We use Oracle's *OCI* interface wrapped by the open source
 > library *OCILIB*.
->
+
 > **postgres** - This plugin manages communication with a PostgreSQL
 > database backend. We use PostgreSQL's *libpq* library.
->
+
 > **sqlite** - This plugin manages communication with a SQLite database
 > backend. We use the *sqlite3-dev* library.
->
+
 > **monetdb** - This plugin manages communication with a MonetDB
 > database backend. We use the MonetDB's *mapi* library.
 
@@ -366,11 +366,11 @@ This plugin translates GProM's internal relational algebra model of
 queries into queries written in a backend's SQL dialect.
 
 > **dl** - Output a Datalog program
->
+
 > **oracle** - Output SQL code written in Oracle's SQL dialect
->
+
 > **postgres** - Output SQL code written in PostgreSQL's SQL dialect
->
+
 > **sqlite** - Output SQL code written in SQLite's SQL dialect
 
 ## cbo
@@ -378,10 +378,10 @@ queries into queries written in a backend's SQL dialect.
 Select search strategy of the cost-based optimizer
 
 > **exhaustive** - enumerate all options
->
+
 > **balance** - stop optimization after optimization time exceeds
 > estimated runtime of best plan found so far
->
+
 > **sim_ann** - use simmulated annealing meta-heuristic
 
 # OPTIMIZATION
