@@ -149,6 +149,10 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UPDATE_PS_SKETCH_BASED_FILTER "update_ps_sketch_based_filter"
 #define OPTION_UPDATE_PS_SKETCH_BASED_SKETCH "update_ps_sketch_based_sketch"
 #define OPTION_UPDATE_PS_SOMETEST "update_ps_sometest"
+// for endtoend, lazy update but need to batch updates to a table;
+#define OPTION_UPDATE_PS_BATCHING_UPDATE "update_ps_batching_updates"
+#define OPTION_UPDATE_PS_BEGIN_UPDATE_VERSION "update_ps_begin_update_version"
+#define OPTION_UPDATE_PS_END_UPDATE_VERSION "update_ps_end_update_version"
 
 /* Uncertainty rewriter options */
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"

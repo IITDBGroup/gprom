@@ -862,7 +862,9 @@ buildStateAggregationOp(QueryOperator *op)
 	}
 
 	// get avg/sum/count rewrite;
-	if (LIST_LENGTH(avg_sum_count) != 0) {
+	// if (LIST_LENGTH(avg_sum_count) != 0) {
+	// NOTE since we have a dummy count function call, so the count have to > 1;
+	if (LIST_LENGTH(avg_sum_count) > 1) {
 		INFO_LOG("rewrite new agg");
 
 		// get current aggregation input;

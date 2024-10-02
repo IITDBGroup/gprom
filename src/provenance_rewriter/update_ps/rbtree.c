@@ -98,7 +98,14 @@ void
 RBTInsert(RBTRoot *root, Node *key, Node *val)
 {
 	if (root->treeType == RBT_MAX_HEAP || root->treeType == RBT_MAX_HEAP) {
-
+		RBTNode *data = rbtree_search(root, key);
+		if (data != NULL) {
+			incrConst((Constant *) data->val);
+		} else {
+			data = makeRBTNode(key);
+			data->val = (Node *) createConstInt(1);
+			rbtree_insert(root, data);
+		}
 	} else {
 		RBTNode *data = rbtree_search(root, key);
 		if (data != NULL) {
@@ -128,7 +135,12 @@ RBTDelete(RBTRoot *root, Node *key, Node *val)
 	RBTNode *node = rbtree_search(root, key);
 	if (node != NULL) {
 		if (root->treeType == RBT_MAX_HEAP || root->treeType == RBT_MIN_HEAP) {
-
+			Constant *cnt = (Constant *) (node->val);
+			if (INT_VALUE(cnt) > 1) {
+				INT_VALUE(cnt) = INT_VALUE(cnt) - 1;
+			} else {
+				rbtree_delete(root, key);
+			}
 		} else {
 			Constant *cnt = (Constant *) getMap((HashMap *) node->val, val);
 			if (INT_VALUE(cnt) > 1) {

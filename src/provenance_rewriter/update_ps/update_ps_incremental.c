@@ -88,6 +88,7 @@ static ColumnChunk *getColumnChunkOfFunctionCall(FunctionCall *fc, DataChunk *dc
 static ColumnChunk *castColumnChunk(ColumnChunk *cc, DataType fromType, DataType toType);
 static DataType evaluateTwoDatatypes(DataType dt1, DataType dt2);
 static void updateBloomFilter(DataChunk *insDC, HashMap *mapping, HashMap *bloomMap);
+static HashMap *getDataChunkFromDeltaTableWithUpdateVersion(TableAccessOperator * tableAccessOp);
 // static Vector *columnChunkToVector(ColumnChunk *cc);
 // static BitSet *computeIsNullBitSet(Node *expr, DataChunk *dc);
 // static int limitCmp(const void **a, const void **b);
@@ -5953,6 +5954,10 @@ updateTableAccess(QueryOperator * op)
 static HashMap *
 getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 {
+	boolean isBatchUpdate = getBoolOption(OPTION_UPDATE_PS_BATCHING_UPDATE);
+	if (isBatchUpdate) {
+		return getDataChunkFromDeltaTableWithUpdateVersion(tableAccessOp);
+	}
 	// START_TIMER("module - update provenance sketch - incremental update fetching data - before build query");
 	// printf("what is taop: %s", nodeToString(tableAccessOp));
 	// START_TIMER("module - update provenance sketch - incremental update fetching data - Rewrite Table Access");
@@ -6042,6 +6047,146 @@ getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 		AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, attrIdx++, 0, ad->dataType);
 		projExpr = appendToTailOfList(projExpr, ar);
 	}
+	DEBUG_NODE_BEATIFY_LOG("proj list", projExpr);
+	if (selOp == NULL) {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, attrNames);
+		taOp->op.parents = singleton(projOp);
+	} else {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, attrNames);
+		selOp->op.parents = singleton(projOp);
+	}
+	// STOP_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
+	DEBUG_NODE_BEATIFY_LOG("delta query: ", projOp);
+	char *query = serializeQuery((QueryOperator *) projOp);
+	postgresGetDataChunkFromDeltaTable(query, dcIns, dcDel, psAttrCol, ranges, psName);
+
+	HashMap *chunkMap = NEW_MAP(Constant, Node);
+	if (dcIns && dcIns->numTuples > 0) {
+		MAP_ADD_STRING_KEY(chunkMap, PROP_DATA_CHUNK_INSERT, dcIns);
+	}
+
+	if (dcDel && dcDel->numTuples > 0) {
+		MAP_ADD_STRING_KEY(chunkMap, PROP_DATA_CHUNK_DELETE, dcDel);
+	}
+	DEBUG_NODE_BEATIFY_LOG("DC FOR TABLE", chunkMap);
+	return chunkMap;
+}
+
+static HashMap *
+getDataChunkFromDeltaTableWithUpdateVersion(TableAccessOperator * tableAccessOp)
+{
+	QueryOperator *rewr = captureRewriteOp(PC, (QueryOperator *) copyObject(tableAccessOp));
+	List *provAttrDefs = getProvenanceAttrDefs(rewr);
+	char *psName = NULL;
+	if (provAttrDefs != NULL) {
+		psName = ((AttributeDef *) getHeadOfListP(provAttrDefs))->attrName;
+	}
+
+	List *psAttrInfoList = (List *) MAP_GET_STRING(PS_INFO->tablePSAttrInfos, tableAccessOp->tableName);
+	psAttrInfo *attrInfo = (psAttrInfo *) getHeadOfListP(psAttrInfoList);
+
+	// init datachunk and fields;
+	DataChunk *dcIns = initDataChunk();
+	DataChunk *dcDel = initDataChunk();
+	Schema *schema = ((QueryOperator *) tableAccessOp)->schema;
+	dcIns->attrNames = (List *) copyObject(schema->attrDefs);
+	dcDel->attrNames = (List *) copyObject(schema->attrDefs);
+	dcIns->tupleFields = LIST_LENGTH(((QueryOperator *) tableAccessOp)->schema->attrDefs);
+	dcDel->tupleFields = LIST_LENGTH(((QueryOperator *) tableAccessOp)->schema->attrDefs);
+
+	// ps attr col pos;
+	int psAttrCol = -1;
+
+	int attrIdx = 0;
+	FOREACH(AttributeDef, ad, schema->attrDefs) {
+		addToMap(dcIns->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(attrIdx));
+		addToMap(dcDel->attriToPos, (Node *) createConstString(ad->attrName), (Node *) createConstInt(attrIdx));
+
+		addToMap(dcIns->posToDatatype, (Node *) createConstInt(attrIdx), (Node *) createConstInt(ad->dataType));
+		addToMap(dcDel->posToDatatype, (Node *) createConstInt(attrIdx), (Node *) createConstInt(ad->dataType));
+
+		if (psName != NULL && psAttrCol == -1 && strcmp(ad->attrName, attrInfo->attrName) == 0) {
+			psAttrCol = attrIdx;
+		}
+
+		attrIdx++;
+	}
+
+	Vector *ranges = NULL;
+	if (psAttrCol != -1) {
+		ranges = makeVector(VECTOR_INT, T_Vector);
+		FOREACH(Constant, c, attrInfo->rangeList) {
+			vecAppendInt(ranges, INT_VALUE(c));
+		}
+	}
+
+	// get delta Table name;
+	char *deltaTableName = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
+
+	// get names, and types and append the identifier name and type
+	List *attrNames = getAttrNames(schema);
+	attrNames = appendToTailOfList(attrNames, strdup(getStringOption(OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT)));
+	List *dataTypes = getDataTypes(schema);
+	dataTypes = appendToTailOfListInt(dataTypes, DT_INT);
+
+	// if batching update create another attrNames;
+	int updAttrIdx = (attrIdx + 1);
+	INFO_LOG("updateAttrIdx %d", updAttrIdx);
+	attrNames = appendToTailOfList(attrNames, strdup("updateversion"));
+	dataTypes = appendToTailOfListInt(dataTypes, DT_INT);
+
+	// create taop;
+	TableAccessOperator *taOp = NULL;
+	taOp = createTableAccessOp(strdup(deltaTableName), NULL, strdup(deltaTableName), NIL, attrNames, dataTypes);
+
+	// check selection push down and create selection operator;
+	SelectionOperator *selOp = NULL;
+
+	boolean isSelectionPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
+	if (isSelectionPD) {
+		// check parent op is a selection;
+		QueryOperator *parent = OP_FIRST_PARENT(tableAccessOp);
+		if (isA(parent, SelectionOperator)) {
+			Node *conds = (Node *) copyObject(((SelectionOperator *) parent)->cond);
+			selOp = createSelectionOp(conds, (QueryOperator *) taOp, NIL, attrNames);
+			taOp->op.parents = singleton(selOp);
+		}
+	}
+
+	// build an condition based on update version id
+	// FOR BATCHING UPDATE;
+	// build where condition
+	// "WHERE updateversion >= start AND updateversion <= end"
+	int startVersionId = getIntOption(OPTION_UPDATE_PS_BEGIN_UPDATE_VERSION);
+	int endVersionId = getIntOption(OPTION_UPDATE_PS_END_UPDATE_VERSION);
+	// AttributeReference *updAttrRef = createAttributeReference("updateversion");
+	AttributeReference *updAttrRef = createFullAttrReference("updateversion", 0, updAttrIdx, 0, DT_INT);
+	Operator *lOp = createOpExpr(">=", LIST_MAKE((Node *) updAttrRef, (Node *) createConstInt(startVersionId)));
+	Operator *rOp = createOpExpr("<=", LIST_MAKE((Node *) updAttrRef, (Node *) createConstInt(endVersionId)));
+	Node *whereCondition = andExprList(LIST_MAKE(lOp, rOp));
+
+	if (selOp == NULL) {
+		selOp = createSelectionOp(whereCondition, (QueryOperator *) taOp, NIL, attrNames);
+		taOp->op.parents = singleton(selOp);
+	} else {
+		selOp->cond = andExprList(LIST_MAKE(selOp->cond, whereCondition));
+	}
+
+
+	// create projection operator;
+	ProjectionOperator *projOp = NULL;
+	List *projExpr = NIL;
+	attrIdx = 0;
+	// create proj expr without last one(update version id);
+	DEBUG_NODE_BEATIFY_LOG("TAOP->SCHEMA->ATTRDEFS", ((QueryOperator *) taOp)->schema->attrDefs);
+	FOREACH(AttributeDef, ad, ((QueryOperator *) taOp)->schema->attrDefs) {
+		if (attrIdx < updAttrIdx) {
+			AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, attrIdx++, 0, ad->dataType);
+			projExpr = appendToTailOfList(projExpr, ar);
+		}
+	}
+
+
 	DEBUG_NODE_BEATIFY_LOG("proj list", projExpr);
 	if (selOp == NULL) {
 		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, attrNames);

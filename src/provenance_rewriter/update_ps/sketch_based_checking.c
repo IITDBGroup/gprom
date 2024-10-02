@@ -51,7 +51,7 @@ static void updateOrder(QueryOperator *op);
 static void updateLimit(QueryOperator * op);
 static HashMap *getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp);
 static Node *buildWhereClauseFromSketch(AttributeReference *psAttrRef, Vector *ranges);
-
+static void genSQL(TableAccessOperator *tableAccessOp);
 
 static ProvenanceComputation *PC = NULL;
 static QueryOperator* updateStatement = NULL;
@@ -61,6 +61,16 @@ static StringInfo strInfo;
 char *
 sketch_based_checking(QueryOperator* operator, QueryOperator *updateStmt)
 {
+
+	boolean isBatching = getBoolOption(OPTION_UPDATE_PS_BATCHING_UPDATE) ;
+
+	if (isBatching) {
+		INFO_LOG("\nBATCH TEST\n");
+		DEBUG_NODE_BEATIFY_LOG("OPERATOR\n", operator);
+		updateByOperators((QueryOperator*) OP_LCHILD(operator));
+		return "XXX";
+	}
+
 	START_TIMER("module - update provenance sketch - pre");
 	PC = (ProvenanceComputation *) copyObject(operator);
 	PC->op.inputs = NIL;
@@ -209,6 +219,15 @@ updateLimit(QueryOperator *op)
 static void
 updateTableAccess(QueryOperator * op)
 {
+	INFO_LOG("\nINSIDE UPDATE TABLE ACCESSS\n");
+	boolean isBatching = getBoolOption(OPTION_UPDATE_PS_BATCHING_UPDATE) ;
+
+	if (isBatching) {
+		INFO_LOG("BATCH TEST");
+		genSQL((TableAccessOperator *) op);
+		return ;
+	}
+
 	char* tableName = ((TableAccessOperator *) op)->tableName;
 	boolean isUpdatedDirectFromDelta = getBoolOption(OPTION_UPDATE_PS_DIRECT_DELTA);
 	char *updatedTableName = NULL;
@@ -238,9 +257,110 @@ updateTableAccess(QueryOperator * op)
 
 }
 
+static void
+genSQL(TableAccessOperator *tableAccessOp)
+{
+	INFO_LOG("\nBEGIN GEN SQL\n");
+
+	Schema *schema = ((QueryOperator *) tableAccessOp)->schema;
+	int attrIdx = 0;
+	List *adsl = NIL;
+	FOREACH(AttributeDef, ad, schema->attrDefs) {
+		adsl = appendToTailOfList(adsl, (AttributeDef *) copyObject(ad));
+		attrIdx++;
+	}
+	// get delta Table name;
+	char *deltaTableName = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE);
+
+	// get names, and types and append the identifier name and type
+	List *attrNames = getAttrNames(schema);
+	attrNames = appendToTailOfList(attrNames, strdup(getStringOption(OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT)));
+	List *dataTypes = getDataTypes(schema);
+	dataTypes = appendToTailOfListInt(dataTypes, DT_INT);
+
+	int updAttrIdx = (attrIdx + 1);
+	INFO_LOG("updateAttrIdx %d", updAttrIdx);
+	attrNames = appendToTailOfList(attrNames, strdup("updateversion"));
+	dataTypes = appendToTailOfListInt(dataTypes, DT_INT);
+
+	// create taop;
+	TableAccessOperator *taOp = NULL;
+	taOp = createTableAccessOp(strdup(deltaTableName), NULL, strdup(deltaTableName), NIL, attrNames, dataTypes);
+
+	// check selection push down and create selection operator;
+	SelectionOperator *selOp = NULL;
+
+	boolean isSelectionPD = getBoolOption(OPTION_UPDATE_PS_SELECTION_PUSH_DOWN);
+	if (isSelectionPD) {
+		// check parent op is a selection;
+		QueryOperator *parent = OP_FIRST_PARENT(tableAccessOp);
+		if (isA(parent, SelectionOperator)) {
+			Node *conds = (Node *) copyObject(((SelectionOperator *) parent)->cond);
+			selOp = createSelectionOp(conds, (QueryOperator *) taOp, NIL, attrNames);
+			taOp->op.parents = singleton(selOp);
+		}
+	}
+
+	// build an condition based on update version id
+	// FOR BATCHING UPDATE;
+	// build where condition
+	// "WHERE updateversion >= start AND updateversion <= end"
+	int startVersionId = getIntOption(OPTION_UPDATE_PS_BEGIN_UPDATE_VERSION);
+	int endVersionId = getIntOption(OPTION_UPDATE_PS_END_UPDATE_VERSION);
+	// AttributeReference *updAttrRef = createAttributeReference("updateversion");
+	AttributeReference *updAttrRef = createFullAttrReference("updateversion", 0, updAttrIdx, 0, DT_INT);
+	Operator *lOp = createOpExpr(">=", LIST_MAKE((Node *) updAttrRef, (Node *) createConstInt(startVersionId)));
+	Operator *rOp = createOpExpr("<=", LIST_MAKE((Node *) updAttrRef, (Node *) createConstInt(endVersionId)));
+	Node *whereCondition = andExprList(LIST_MAKE(lOp, rOp));
+
+	if (selOp == NULL) {
+		selOp = createSelectionOp(whereCondition, (QueryOperator *) taOp, NIL, attrNames);
+		taOp->op.parents = singleton(selOp);
+	} else {
+		selOp->cond = andExprList(LIST_MAKE(selOp->cond, whereCondition));
+	}
+
+
+	// create projection operator;
+	ProjectionOperator *projOp = NULL;
+	List *projExpr = NIL;
+	attrIdx = 0;
+	// create proj expr without last one(update version id);
+	DEBUG_NODE_BEATIFY_LOG("TAOP->SCHEMA->ATTRDEFS", ((QueryOperator *) taOp)->schema->attrDefs);
+	FOREACH(AttributeDef, ad, ((QueryOperator *) taOp)->schema->attrDefs) {
+		if (attrIdx < updAttrIdx) {
+			AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, attrIdx++, 0, ad->dataType);
+			projExpr = appendToTailOfList(projExpr, ar);
+		}
+	}
+
+
+	DEBUG_NODE_BEATIFY_LOG("proj list", projExpr);
+	if (selOp == NULL) {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) taOp, NIL, attrNames);
+		taOp->op.parents = singleton(projOp);
+	} else {
+		projOp = createProjectionOp(projExpr, (QueryOperator *) selOp, NIL, attrNames);
+		selOp->op.parents = singleton(projOp);
+	}
+	// STOP_TIMER(INCREMENTAL_FETCHING_DATA_BUILD_QUERY_TIMER);
+	DEBUG_NODE_BEATIFY_LOG("delta query: ", projOp);
+	char *query = serializeQuery((QueryOperator *) projOp);
+	INFO_LOG("DELTA QUERY %s ", query);
+}
+
+
 static HashMap *
 getDataChunkFromDeltaTable(TableAccessOperator * tableAccessOp)
 {
+	boolean isBatching = getBoolOption(OPTION_UPDATE_PS_BATCHING_UPDATE) ;
+
+	if (isBatching) {
+		INFO_LOG("BATCH TEST");
+		genSQL(tableAccessOp);
+		return NULL;
+	}
+
 	QueryOperator *rewr = captureRewriteOp(PC, (QueryOperator *) copyObject(tableAccessOp));
 	List *provAttrDefs = getProvenanceAttrDefs(rewr);
 	char *psName = NULL;

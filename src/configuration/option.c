@@ -210,6 +210,10 @@ boolean update_ps_store_new_state = FALSE;
 boolean update_ps_sketch_based_filter = FALSE;
 char *update_ps_sketch_based_sketch = NULL;
 boolean update_ps_sometest = FALSE;
+// end to end, batch updates
+boolean update_ps_batching_update = FALSE;
+int update_ps_begin_update_version = 0;
+int update_ps_end_update_version = 0;
 
 // Uncertainty rewriter options
 boolean range_optimize_join = TRUE;
@@ -866,6 +870,30 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionBool(&update_ps_sometest),
                 defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_BATCHING_UPDATE,
+                "-update_ps_batching_update",
+                "indicate if batching updates to an delta table under lazy style",
+                OPTION_BOOL,
+                wrapOptionBool(&update_ps_batching_update),
+                defOptionBool(FALSE)
+         },
+         {
+                OPTION_UPDATE_PS_BEGIN_UPDATE_VERSION,
+                "-update_ps_begin_update_version",
+                "The start transaction id for a PS when need lazy incremental maintenance",
+                OPTION_INT,
+                wrapOptionInt(&update_ps_begin_update_version),
+                defOptionInt(0)
+         },
+         {
+                OPTION_UPDATE_PS_END_UPDATE_VERSION,
+                "-update_ps_end_update_version",
+                "The end transaction id for a PS when need lazy incremental maintenance",
+                OPTION_INT,
+                wrapOptionInt(&update_ps_end_update_version),
+                defOptionInt(0)
          },
 		 {
 				 OPTION_PS_STORE_TABLE,
