@@ -477,7 +477,7 @@ OptionInfo opts[] =
         {
                 OPTION_BACKEND,
                 "-backend",
-                "select backend database type: postgres, oracle, sqlite - this determines analyzer, parser, metadata-lookup, sql-code generator, and translator plugins",
+                "select backend database type: postgres, oracle, sqlite, duckdb - this determines analyzer, parser, metadata-lookup, sql-code generator, and translator plugins",
                 OPTION_STRING,
                 wrapOptionString(&backend),
                 defOptionString(NULL)
@@ -493,7 +493,7 @@ OptionInfo opts[] =
         {
                 OPTION_PLUGIN_METADATA,
                 "-Pmetadata",
-                "select metadatalookup plugin: oracle, postgres, sqlite",
+                "select metadatalookup plugin: oracle, postgres, sqlite, duckdb",
                 OPTION_STRING,
                 wrapOptionString(&plugin_metadata),
                 defOptionString(NULL)
@@ -509,7 +509,7 @@ OptionInfo opts[] =
         {
                 OPTION_PLUGIN_SQLCODEGEN,
                 "-Psqlcodegen",
-                "select SQL code generator plugin: oracle, postgres, sqlite",
+                "select SQL code generator plugin: oracle, postgres, sqlite, duckdb",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
@@ -533,7 +533,7 @@ OptionInfo opts[] =
         {
                 OPTION_PLUGIN_SQLSERIALIZER,
                 "-Psqlserializer",
-                "select SQL code generator plugin: oracle, postgres, sqlite, dl, lb",
+                "select SQL code generator plugin: oracle, postgres, sqlite, duckdb, dl, lb",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
@@ -1062,6 +1062,15 @@ BackendInfo backends[]  = {
             "oracle",   // analyzer
             "oracle",   // parser
             "sqlite",   // metadata
+            "sqlite",    // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            BACKEND_DUCKDB,
+            "duckdb",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "duckdb",   // metadata
             "sqlite",    // sqlserializer
             "oracle"   // translator
         },

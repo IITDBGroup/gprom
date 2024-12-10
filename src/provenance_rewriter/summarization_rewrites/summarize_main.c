@@ -316,11 +316,11 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 		 * then generate sample domain queries at the very first stage,
 		 * e.g., idb negated atoms in the why question or positive atoms in the why-not
 		 */
-		if(!LIST_EMPTY(domRels))
+		if(!MY_LIST_EMPTY(domRels))
 		{
 			doms = domAttrsOutput(eachRewrittenTree, sampleSize, qType, varRelPair, domRels, fPattern);
 
-			if(LIST_EMPTY(sampleDoms))
+			if(MY_LIST_EMPTY(sampleDoms))
 				sampleDoms = joinOnSeqOutput(doms);
 			else
 				FOREACH(QueryOperator,qo,joinOnSeqOutput(doms))
@@ -339,10 +339,10 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 		 */
 		if(qType == PROV_Q_WHY)
 		{
-			if(!LIST_EMPTY(domRels))
+			if(!MY_LIST_EMPTY(domRels))
 				eachRewrittenTree = replaceDomWithSampleDom(sampleDoms, domRels, eachRewrittenTree);
 
-			if (!LIST_EMPTY(userQuestion) && !isDL)
+			if (!MY_LIST_EMPTY(userQuestion) && !isDL)
 				eachRewrittenTree = rewriteUserQuestion(userQuestion, eachRewrittenTree);
 
 			provJoin = rewriteProvJoinOutput(eachRewrittenTree, nonProvOpt);
@@ -404,9 +404,9 @@ rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType
 		eachResults = appendToTailOfList(eachResults, result);
 
 		// swith the question type by the existence of domain
-		if(qType == PROV_Q_WHY && !LIST_EMPTY(domRels))
+		if(qType == PROV_Q_WHY && !MY_LIST_EMPTY(domRels))
 			qType = PROV_Q_WHYNOT;
-//		else if(streq(qType,"WHYNOT") && !LIST_EMPTY(domRels))
+//		else if(streq(qType,"WHYNOT") && !MY_LIST_EMPTY(domRels))
 //			qType = "WHY";
 	}
 
@@ -509,7 +509,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 		attrNames = CONCAT_LISTS(attrNames,measureAttrs);
 
 	//	// bring the failure pattern back before merge with edge rel for WHYNOT
-	//	if(!LIST_EMPTY(fPattern))
+	//	if(!MY_LIST_EMPTY(fPattern))
 	//	{
 	//		FOREACH(Node,n,fPattern)
 	//		{
@@ -1359,7 +1359,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 			QueryOperator *tBase = (QueryOperator *) t;
 			QueryOperator *parent = NULL;
 
-			if(!LIST_EMPTY(tBase->parents))
+			if(!MY_LIST_EMPTY(tBase->parents))
 				parent = (QueryOperator *) getHeadOfListP(tBase->parents);
 
 			if(isA((Node *) parent,SelectionOperator) && parent != NULL)
@@ -1493,7 +1493,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 //					if(existAttrCnt == 0)
 //					{
 						// count for why
-						if(qType == PROV_Q_WHY && LIST_EMPTY(domRels))
+						if(qType == PROV_Q_WHY && MY_LIST_EMPTY(domRels))
 						{
 							// create count attr
 							AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
@@ -1509,7 +1509,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 							result = appendToTailOfList(result, (Node *) aggCount);
 						}
 						// random sample from attr domain for whynot
-						else if(qType == PROV_Q_WHYNOT || (qType == PROV_Q_WHY && !LIST_EMPTY(domRels)))
+						else if(qType == PROV_Q_WHYNOT || (qType == PROV_Q_WHY && !MY_LIST_EMPTY(domRels)))
 						{
 							/*
 							 *  TODO: compute percentile for random sample based on the sample size
@@ -1575,7 +1575,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 								else if(sampleSize >= 1000)
 								{
 									// more sample needed for the case where a particular pattern is given
-									if(!LIST_EMPTY(fPattern))
+									if(!MY_LIST_EMPTY(fPattern))
 										perc = (s + (s / 10 * 5)) * 100;
 									else
 										perc = (s + (s / 10) + (s / 100 * 5)) * 100;
@@ -1701,7 +1701,7 @@ rewriteCandidateOutput (Node *scanSampleInput, ProvQuestion qType, List *fPatter
 		pos++;
 	}
 
-	if (nonProvOpt && !LIST_EMPTY(fPattern))
+	if (nonProvOpt && !MY_LIST_EMPTY(fPattern))
 	{
 		int attrNum = LIST_LENGTH(scanSamples->schema->attrDefs) - 2;
 
@@ -1853,7 +1853,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 		if (isPrefix(a,PROV_ATTR_PREFIX))
 			subAttrs = appendToTailOfList(subAttrs,a);
 
-	if(LIST_EMPTY(failExpr))
+	if(MY_LIST_EMPTY(failExpr))
 	{
 		projExpr = CONCAT_LISTS(projExpr, hasExpr);
 		attrNames = CONCAT_LISTS(subAttrs, singleton(HAS_PROV_ATTR));
@@ -2509,7 +2509,7 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, Lis
 		int numAttrInput = LIST_LENGTH(randomProv->schema->attrDefs);
 		int lenOfPattern, patternPos, pos = 0;
 
-		if(!LIST_EMPTY(fPattern))
+		if(!MY_LIST_EMPTY(fPattern))
 		{
 			lenOfPattern = LIST_LENGTH(fPattern);
 			patternPos = numAttrInput - lenOfPattern;
@@ -2874,7 +2874,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 				QueryOperator *tBase = (QueryOperator *) t;
 				QueryOperator *parent = NULL;
 
-				if(!LIST_EMPTY(tBase->parents))
+				if(!MY_LIST_EMPTY(tBase->parents))
 					parent = (QueryOperator *) getHeadOfListP(tBase->parents);
 
 				if(isA((Node *) parent,SelectionOperator) && parent != NULL)

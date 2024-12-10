@@ -329,7 +329,7 @@
 		<!-- setup basic properties -->
 		<property name="srctar" value="gprom-${ivy.revision}.tar" />
 		<property name="srctarball" value="${srctar}.gz" />
-		<property name="configure.options" value="--disable-postgres --disable-oracle --disable-sqlite --disable-monetdb --disable-readline --disable-java" />
+		<property name="configure.options" value="--disable-postgres --disable-oracle --disable-sqlite --disable-duckdb --disable-monetdb --disable-readline --disable-java" />
 		<property name="make.options" value="-j 4" />
 
 		<propertyregex property="gprom.major.version"
@@ -510,6 +510,7 @@
 			    <arg value="--disable-postgres" />
 			    <arg value="--disable-oracle" />
 			    <arg value="--disable-sqlite" />
+			    <arg value="--disable-duckdb" />
 			    <arg value="--disable-monetdb" />
 			    <arg value="--disable-readline" />
 			    <arg value="--disable-java" />

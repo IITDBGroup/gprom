@@ -30,7 +30,7 @@ typedef struct List
 
 #define NIL ((List *)NULL)
 #define LIST_LENGTH(l) ((l == NULL) ? 0 : ((List *) l)->length)
-#define LIST_EMPTY(l) (LIST_LENGTH(l) == 0)
+#define MY_LIST_EMPTY(l) (LIST_LENGTH(l) == 0)
 
 /*
  * Loop through list _list_ and access each element of type _type_ using name

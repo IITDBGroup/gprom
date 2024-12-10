@@ -133,7 +133,7 @@ Host IP address for backend DB connection, e.g., \fI127.0.0.1\fR or \fImyhost.co
 \"********************
 .TP
 .BR \-db " " \fIorcl\fR
-Database name for the backend DB connection. The meaning of this option is backend specific. For Oracle connections this determines \fISID\fR or \fISERVICE_NAME\fR. For PostgreSQL databases it is the database name. For SQLite databases this is a path to the database file. Default value: \fIorcl\fR
+Database name for the backend DB connection. The meaning of this option is backend specific. For Oracle connections this determines \fISID\fR or \fISERVICE_NAME\fR. For PostgreSQL databases it is the database name. For SQLite databases this is a path to the database file. For DuckDB databases this is a path to the database file. Default value: \fIorcl\fR
 \"********************
 .TP
 .BR \-user " " \fIuser\fR
@@ -250,7 +250,8 @@ The metadata lookup plugin handles communication with the backend database. This
 \fBsqlite\fR \- This plugin manages communication with a SQLite database backend. We use the \fIsqlite3-dev\fR library.
 .IP
 \fBmonetdb\fR \- This plugin manages communication with a MonetDB database backend. We use the MonetDB's \fImapi\fR library.
-
+.IP
+\fBduckdb\fR \- This plugin manages communication with a DuckDB database backend. We use DuckDB's \fIlibduckdb\fR library, which provides a C API to execute queries and retrieve metadata.
 \"****************************************
 .SS sqlcodegen
 This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect. 
@@ -262,6 +263,9 @@ This plugin translates GProM's internal relational algebra model of queries into
 \fBpostgres\fR \- Output SQL code written in PostgreSQL's SQL dialect
 .IP
 \fBsqlite\fR \- Output SQL code written in SQLite's SQL dialect
+.IP
+\fBduckdb\fR \- Output SQL code written in DuckDB's SQL dialect
+
 \"****************************************
 .SS cbo
 Select search strategy of the cost-based optimizer
@@ -379,6 +383,16 @@ gprom -backend sqlite -db test.db \\
 .RS
 gprom -backend sqlite -frontend dl -db test.db \\
       -query "Q(X) :- R(X,Y)."
+.RE
+.fi
+.PP
+\"****************************************
+\fBExample 6.\fR Connect to DuckDB database test.duckdb and return provenance for the query \fBSELECT a FROM r\fR:
+.PP
+.nf
+.RS
+gprom -backend duckdb -db test.duckdb \\
+      -query "PROVENANCE OF (SELECT a FROM r);"
 .RE
 .fi
 .PP

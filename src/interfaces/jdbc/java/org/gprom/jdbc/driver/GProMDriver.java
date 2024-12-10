@@ -23,6 +23,7 @@ import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.gprom.jdbc.metadata_lookup.postgres.PostgresMetadataLookup;
 import org.gprom.jdbc.metadata_lookup.sqlite.SQLiteMetadataLookup;
+import org.gprom.jdbc.metadata_lookup.duckdb.DuckDBMetadataLookup;
 import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
@@ -164,6 +165,8 @@ public class GProMDriver implements Driver {
 				return new PostgresMetadataLookup(con).getPlugin();
 			case SQLite:
 				return new SQLiteMetadataLookup(con).getPlugin();
+			case DuckDB:
+				return new DuckDBMetadataLookup(con).getPlugin();
 			default:
 				throw new SQLException("no JDBC metadata lookup for Backend " + backend.toString());
 		}

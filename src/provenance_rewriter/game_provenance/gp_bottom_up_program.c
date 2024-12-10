@@ -1870,7 +1870,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 					}
 				}
 
-				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
+				if(isA(atom,DLAtom) && !MY_LIST_EMPTY(boolArgs))
 				{
 					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
 					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
@@ -2798,7 +2798,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	int getMatched = 0;
 
 	// store orig program to analyze later on
-	if(!LIST_EMPTY(solvedProgram->doms))
+	if(!MY_LIST_EMPTY(solvedProgram->doms))
 	{
 		origProg = solvedProgram->rules;
 		FOREACH(DLRule,a,origProg)
@@ -3302,7 +3302,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 	//        List *endArgs = NIL;
 	//
-	//        if(!LIST_EMPTY(origArgs))
+	//        if(!MY_LIST_EMPTY(origArgs))
 	//        {
 
 	//        // store all args
@@ -4257,7 +4257,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 //	List *associateDomainRule;
 
-    if (!LIST_EMPTY(solvedProgram->doms))
+    if (!MY_LIST_EMPTY(solvedProgram->doms))
 	{
 //    	associateDomainRule = NIL;
 //    	DLRule *newDomRule;
@@ -4447,7 +4447,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			h = eachNegheadRule;
 		}
 	}
-    else if(LIST_EMPTY(solvedProgram->doms) && !LIST_EMPTY(negedbRules))
+    else if(MY_LIST_EMPTY(solvedProgram->doms) && !MY_LIST_EMPTY(negedbRules))
     {
 //    	if(DL_HAS_PROP(solvedProgram,DL_PROV_WHYNOT))
 //    	{
@@ -4967,10 +4967,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 		if(!ruleWon)
 		{
-			if(!LIST_EMPTY(negedbRules))
+			if(!MY_LIST_EMPTY(negedbRules))
 				solvedProgram->rules = CONCAT_LISTS(solvedProgram->rules, negedbRules);
 
-			if(!LIST_EMPTY(unLinkedHelpRules))
+			if(!MY_LIST_EMPTY(unLinkedHelpRules))
 				solvedProgram->rules = CONCAT_LISTS(solvedProgram->rules, unLinkedHelpRules);
 		}
 
@@ -5008,10 +5008,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 		if(!ruleWon)
 		{
-			if(!LIST_EMPTY(negedbRules))
+			if(!MY_LIST_EMPTY(negedbRules))
 				solvedProgram->rules = CONCAT_LISTS(solvedProgram->rules, negedbRules);
 
-			if(!LIST_EMPTY(unLinkedHelpRules))
+			if(!MY_LIST_EMPTY(unLinkedHelpRules))
 				solvedProgram->rules = CONCAT_LISTS(solvedProgram->rules, unLinkedHelpRules);
 		}
 
@@ -5176,7 +5176,7 @@ createSkolemExpr (GPNodeType type, char *id, List *args)
 
     // create expression to concatenate parts of the skolem string
     result = popHeadOfListP(concatArgs);
-    while(!LIST_EMPTY(concatArgs))
+    while(!MY_LIST_EMPTY(concatArgs))
    		result = (Node *) createOpExpr("||",
     				LIST_MAKE(result,popHeadOfListP(concatArgs)));
 
@@ -5430,7 +5430,7 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
         }
 
         // recursively set WON/LOST status for all
-        while(!LIST_EMPTY(todoStack))
+        while(!MY_LIST_EMPTY(todoStack))
         {
             DLRule *r = (DLRule *) popHeadOfListP(todoStack);
             boolean ruleWon = DL_HAS_PROP(r,DL_WON)

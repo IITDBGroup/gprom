@@ -820,7 +820,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
 {
     List *stack = copyList(fromClause);
 
-    while(!LIST_EMPTY(stack))
+    while(!MY_LIST_EMPTY(stack))
     {
         FromItem *cur = (FromItem *) popHeadOfListP(stack);
 

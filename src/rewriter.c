@@ -543,7 +543,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    )
 
         // rewrite for summarization
-//		if (!LIST_EMPTY(summOpts) && qType != NULL)
+//		if (!MY_LIST_EMPTY(summOpts) && qType != NULL)
 //			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
 
 	    if(applyOptimizations)
@@ -638,7 +638,7 @@ rewriteParserOutput(Node *parse, boolean applyOptimizations)
 ////    {
 ////        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 ////
-////    	if (!LIST_EMPTY(ps->sumOpts))
+////    	if (!MY_LIST_EMPTY(ps->sumOpts))
 ////    		FOREACH(Node,n,ps->sumOpts)
 ////    			summOpts = appendToTailOfList(summOpts,n);
 ////
@@ -710,7 +710,7 @@ rewriteParserOutput(Node *parse, boolean applyOptimizations)
 //    		}
 //
 //    		// store edb information for negated atoms and why-not questions
-//    		if(!LIST_EMPTY(negAtoms))
+//    		if(!MY_LIST_EMPTY(negAtoms))
 //    		{
 //        		FOREACH(char,c,negAtoms)
 //        		{
@@ -726,7 +726,7 @@ rewriteParserOutput(Node *parse, boolean applyOptimizations)
 //        		}
 //    		}
 //
-//    		if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
+//    		if(MY_LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
 //    		{
 //				FOREACH_HASH(List,edbs,headEdbPair)
 //					FOREACH(char,e,edbs)

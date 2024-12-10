@@ -14,6 +14,7 @@ import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.backends.OracleBackendInfo;
 import org.gprom.jdbc.backends.PostgresBackendInfo;
 import org.gprom.jdbc.backends.SQLiteBackendInfo;
+import org.gprom.jdbc.backends.DuckDBBackendInfo;
 import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
@@ -29,7 +30,8 @@ public interface GProMJDBCUtil {
 		HSQL,
 		Postgres,
 		Hive,
-		SQLite
+		SQLite,
+		DuckDB
 	}
 	
 	// interface
@@ -125,6 +127,8 @@ public interface GProMJDBCUtil {
 				return PostgresBackendInfo.inst;
 			case SQLite:
 				return SQLiteBackendInfo.inst;
+			case DuckDB:
+				return DuckDBBackendInfo.inst;
 			default:
 				return null;
 			}

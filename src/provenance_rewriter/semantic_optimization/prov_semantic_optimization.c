@@ -119,7 +119,7 @@ optimizeDLRule(DLProgram *p, DLRule *r, List *inFDs, DLAtom *target, char *filte
 	// determine minimal rewritings for all seeds
 	Set *results = NODESET();
 
-	while(!LIST_EMPTY(todo))
+	while(!MY_LIST_EMPTY(todo))
 	{
 		RewriteSearchState *cur = (RewriteSearchState *) popHeadOfListP(todo);
 		LOG_STATE(cur);
@@ -420,7 +420,7 @@ computeSeeds(DLRule *r, List *fds, DLAtom *target)
 
 
 	// expand candidates until they cover the target goals variables
-	while(!LIST_EMPTY(candidates))
+	while(!MY_LIST_EMPTY(candidates))
 	{
 		Set *c = (Set *) popHeadOfListP(candidates);
 		Set *vars = varNamesForAtoms(c);

@@ -12,6 +12,7 @@ config.h
 stamp-h1
 config.log
 config.status
+include/duckdb/*
 *~
 test/testparser
 test/testupana
