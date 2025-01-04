@@ -174,6 +174,7 @@ extern boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 extern FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
 extern void printFromAttrsContext(FromAttrsContext *fac);
 extern FromAttrsContext *initializeFromAttrsContext ();
+extern HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api, boolean where);
 
 #define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
     do { \

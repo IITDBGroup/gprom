@@ -1421,7 +1421,7 @@ getAttrRefsInOperator(QueryOperator *op)
 boolean
 opReferencesAttr(QueryOperator *op, char *a)
 {
-	List *refs =getAttrRefsInOperator(op);
+	List *refs = getAttrRefsInOperator(op);
 
 	FOREACH(AttributeReference,ar,refs)
 	{

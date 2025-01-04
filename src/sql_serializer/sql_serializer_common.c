@@ -49,8 +49,9 @@ static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
 static char *createAttrName (char *name, int fItem, FromAttrsContext *fac);
-static HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api);
-static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api);
+static char *nestMapToString(HashMap *m);
+static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api, boolean where);
+static boolean nestedSubqueryFirstUsedInProjection(QueryOperator *op, char *a, QueryBlockMatch *m);
 static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
 static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr);
 
@@ -228,19 +229,33 @@ printFromAttrsContext(FromAttrsContext *fac)
 	}
 }
 
-static HashMap *
-getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api)
+static char *
+nestMapToString(HashMap *m)
+{
+    StringInfo s = makeStringInfo();
+
+    FOREACH_HASH_ENTRY(kv, m)
+    {
+        appendStringInfo(s, "%s -> %s\n", STRING_VALUE(kv->key), STRING_VALUE(kv->value));
+    }
+
+    return s->data;
+}
+
+HashMap *
+getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api, boolean where)
 {
 	HashMap *map = NEW_MAP(Constant, Constant);
 	FromAttrsContext *subqueryFac = copyFromAttrsContext(fac);
 
-    setNestAttrMap(op, &map, subqueryFac, api);
+    setNestAttrMap(op, &map, subqueryFac, api, where);
+    DEBUG_LOG("inlined nested subqueries for %s:\n%s", (where ? "WHERE": "SELECT"), nestMapToString(map));
 
 	return map;
 }
 
 static void
-setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api)
+setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api,  boolean where)
 {
 	if(isA(op, NestingOperator))
 	{
@@ -248,11 +263,12 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 		int nestingLocations = INT_VALUE(getStringProperty(op, PROP_NESTING_LOCATIONS));
 
 		// only store nested subqueries that should be serialized into WHERE / HAVING
-		if(nestingLocations & NEST_SER_SELECTION)
+		if((where && (nestingLocations & NEST_SER_SELECTION))
+		   || (!where && (nestingLocations & NEST_SER_SELECT)))
 		{
 			List *names = getAttrNames(op->schema);
 			char *nestName = (char *) getTailOfListP(names);
-			DEBUG_LOG("nesting attribut name %s for nested subquery in selection", nestName);
+			DEBUG_LOG("nesting attribute name %s for nested subquery in %s", nestName, where ? "WHERE": "SELECT");
 
 			if(!hasMapStringKey(*map, nestName))
  			{
@@ -285,7 +301,7 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 				appendStringInfoString(s, "(");
 				api->serializeQueryOperator(OP_RCHILD(op), s, NULL, subqueryFac, api);
 				appendStringInfoString(s, ")");
-				DEBUG_LOG("serialized nested subquery for selection: %s", s->data);
+				DEBUG_LOG("serialized nested subquery for %s: %s", s->data, where ? "WHERE" : "SELECT");
 				MAP_ADD_STRING_KEY(*map, strdup(nestName),
 								   createConstString(strdup(s->data)));
 
@@ -307,12 +323,14 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
                 DEBUG_NODE_BEATIFY_LOG("already in map", *map);
             }
 		}
-        setNestAttrMap(OP_LCHILD(op), map, fac, api);
+        setNestAttrMap(OP_LCHILD(op), map, fac, api, where);
         return;
 	}
 
 	FOREACH(QueryOperator, o, op->inputs)
-		setNestAttrMap(o, map, fac, api);
+    {
+	    setNestAttrMap(o, map, fac, api, where);
+    }
 }
 
 /*
@@ -609,7 +627,7 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
         {
             matchInfo->fromRoot = OP_LCHILD(matchInfo->fromRoot);
         }
-        OUT_BLOCK_MATCH(DEBUG,matchInfo, "adjusted match after inlining nested subqueries into WHERE");
+        OUT_BLOCK_MATCH(DEBUG,matchInfo, "adjusted match after inlining nested subqueries into WHERE or SELECT");
     }
 
     // translate each clause
@@ -727,17 +745,47 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 										!(isA(p,NestingOperator)
 										  || isA(p,JoinOperator)));
 			}
+			// can serialize into WHERE, do that
 			if (inMatchedSel && !inNonSelOrNonMatched) //TODO should we allow simultanous serialization to WHERE/HAVING and elsewhere?
 			{
-				serLocations |= NEST_SER_SELECTION;
+				serLocations = NEST_SER_SELECTION;
 			}
+			// serialization into WHERE is not possible
 			else
 			{
 				serLocations &= ~NEST_SER_SELECTION; // cannot put into a selection
 			}
 		}
+		// no WHERE or HAVING to serialize into remove selection as possible location
+		else
+		{
+			serLocations &= ~NEST_SER_SELECTION;
+		}
 
-		if(serLocations & NEST_SER_SELECTION)
+		// serialize into SELECT, remove nesting operator result attribute from intermediate operators
+		if((serLocations & NEST_SER_SELECT)
+		   && (qbMatch->firstProj || qbMatch->secondProj))
+		{
+			char *curTrackAtt = strdup(getSingleNestingResultAttribute(n));
+
+			// check that nested subquery result attribute is not used before projection
+			if(nestedSubqueryFirstUsedInProjection(op, curTrackAtt, qbMatch))
+			{
+			    DEBUG_LOG("Serialize nested subquery into SELECT: <%s>", singleOperatorToOverview(op));
+				serLocations = NEST_SER_SELECT;
+			}
+			else
+			{
+				serLocations &= ~NEST_SER_SELECT;
+			}
+		}
+		else
+		{
+			serLocations &= ~NEST_SER_SELECT;
+		}
+
+		// serialize into WHERE, remove nesting operator result attribute from intermediate operators
+		if(serLocations == NEST_SER_SELECTION)
 		{
             DEBUG_LOG("Serialize nested subquery into WHERE: <%s>", singleOperatorToOverview(op));
 			// remove the attribute from other operators to avoid problems later
@@ -746,10 +794,18 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 
             DEBUG_OP_LOG("After removing nested subquery attribute from parent operators", getFirstRoot(op));
 		}
+		// serialize into SELECT, mark nesting operator to be inlined
+		if(serLocations == NEST_SER_SELECT)
+		{
+			DEBUG_LOG("Serialize nested subquery into SELECT: <%s>", singleOperatorToOverview(op));
+            SET_BOOL_STRING_PROP(op, PROP_INLINED_NESTED_QUERY);
+			//TODO
+			//ASSERT_WITH_MESSAGE(FALSE, "SERIALIZE INTO SELECT NOT SUPPORTED YET", "");
+		}
 
 		setStringProperty(op, PROP_NESTING_LOCATIONS, (Node *) createConstInt(serLocations));
 		DEBUG_LOG("Subquery: %s\nshould be serialized into %s", singleOperatorToOverview(op), serLocationsToString(serLocations));
-		ASSERT(serLocations != NEST_SER_SELECT); //TODO implement serialization into SELECT
+		//ASSERT(serLocations != NEST_SER_SELECT); //TODO implement serialization into SELECT
 	}
 	// from clause operators to traverse into
 	if(isA(op,NestingOperator)
@@ -814,6 +870,44 @@ removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr)
 }
 
 
+static boolean
+nestedSubqueryFirstUsedInProjection(QueryOperator *op, char *a, QueryBlockMatch *m)
+{
+	/* boolean secondProj = FALSE; */
+
+	// no projections, can not serialize into SELECT
+	if(!(m->firstProj || m->secondProj))
+	{
+		return FALSE;
+	}
+
+	// only one projection using the nested subquery or first of two projections using nested subquery
+    if(!(m->firstProj && m->secondProj && opReferencesAttr((QueryOperator *) m->firstProj, a))
+       && !(m->secondProj && opReferencesAttr((QueryOperator *) m->secondProj, a)))
+    {
+        return FALSE;
+    }
+    DEBUG_LOG("Used subquery in inner projection, may be able to serialize into SELECT.");
+
+	// check that the nested subquery result attribute is not used in WHERE
+	if(m->where)
+	{
+		if(opReferencesAttr((QueryOperator *) m->where, a))
+		{
+			return FALSE;
+		}
+	}
+	if(m->having)
+	{
+		if(opReferencesAttr((QueryOperator *) m->having, a))
+		{
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
 /**
  * @brief Find operators which use the result attribute of NestingOperator.
  *
@@ -826,7 +920,7 @@ removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr)
  *
  */
 
-void
+static void
 findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom)
 {
 	char *newA = a;
@@ -834,133 +928,133 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 
 	switch (op->type)
 	{
-	case T_NestingOperator:
-	{
-		// if nesting operator references attribute in condition then for now we
-		// do not consider serialization into WHERE/ HAVING
-		//TODO in some cases this would still be possible, e.g., WHERE (SELECT count(*) FROM R) = (SELECT count(*) FROM S)
-		if(opReferencesAttr(op, a))
-		{
-			*inNonMatchSel = TRUE;
-		}
-	}
-	break;
-	case T_ProjectionOperator:
-	{
-		ProjectionOperator *p = (ProjectionOperator *) op;
-		// for projection we need to check whether the attribute is only referenced or also used in an expression.
-		if(opReferencesAttr(op, a))
-		{
-			List *resultNames = NIL;
-			int pos = 0;
+    	case T_NestingOperator:
+    	{
+    		// if nesting operator references attribute in condition then for now we
+    		// do not consider serialization into WHERE/ HAVING
+    		//TODO in some cases this would still be possible, e.g., WHERE (SELECT count(*) FROM R) = (SELECT count(*) FROM S)
+    		if(opReferencesAttr(op, a))
+    		{
+    			*inNonMatchSel = TRUE;
+    		}
+    	}
+    	break;
+    	case T_ProjectionOperator:
+    	{
+    		ProjectionOperator *p = (ProjectionOperator *) op;
+    		// for projection we need to check whether the attribute is only referenced or also used in an expression.
+    		if(opReferencesAttr(op, a))
+    		{
+    			List *resultNames = NIL;
+    			int pos = 0;
 
-			FOREACH(Node,e,p->projExprs)
-			{
-				if(isA(e,AttributeReference))
-				{
-					AttributeReference *ar = (AttributeReference *) e;
-					if(streq(ar->name, a))
-					{
-						resultNames = appendToTailOfList(resultNames, getAttrNameByPos(op, pos));
-					}
-				}
-				// an expression referencing the attribute, we cannot serialize into WHERE / HAVING
-				else
-				{
-					if(doesExprReferenceAttribute(e, a))
-					{
-						*inNonMatchSel = TRUE;
-					}
-				}
-				pos++;
-			}
-			//TODO currently do not consider putting this into WHERE / HAVING if we are projecting the attribute out more than once
-			switch(LIST_LENGTH(resultNames))
-			{
-			case 0:
-			{
-				attrExistsInOutput = FALSE;
-			}
-			break;
-			case 1:
-			{
-				// we postpone making a decision
-				newA = getNthOfListP(resultNames, 0);
-			}
-			// more than one reference
-			default:
-			{
-				*inNonMatchSel = TRUE;
-			}
-			}
-			outOfFrom = TRUE;
-		}
-		// no references, attribute no longer there
-		else
-		{
-			attrExistsInOutput = FALSE;
-		}
-	}
-		break;
-		// if selection operator
-		case T_SelectionOperator:
-		{
-			outOfFrom = TRUE;
-			boolean parentNeedsNestingAttr = FALSE;
+    			FOREACH(Node,e,p->projExprs)
+    			{
+    				if(isA(e,AttributeReference))
+    				{
+    					AttributeReference *ar = (AttributeReference *) e;
+    					if(streq(ar->name, a))
+    					{
+    						resultNames = appendToTailOfList(resultNames, getAttrNameByPos(op, pos));
+    					}
+    				}
+    				// an expression referencing the attribute, we cannot serialize into WHERE / HAVING
+    				else
+    				{
+    					if(doesExprReferenceAttribute(e, a))
+    					{
+    						*inNonMatchSel = TRUE;
+    					}
+    				}
+    				pos++;
+    			}
+    			//TODO currently do not consider putting this into WHERE / HAVING if we are projecting the attribute out more than once
+    			switch(LIST_LENGTH(resultNames))
+    			{
+    			case 0:
+    			{
+    				attrExistsInOutput = FALSE;
+    			}
+    			break;
+    			case 1:
+    			{
+    				// we postpone making a decision
+    				newA = getNthOfListP(resultNames, 0);
+    			}
+    			// more than one reference
+    			default:
+    			{
+    				*inNonMatchSel = TRUE;
+    			}
+    			}
+    			outOfFrom = TRUE;
+    		}
+    		// no references, attribute no longer there
+    		else
+    		{
+    			attrExistsInOutput = FALSE;
+    		}
+    	}
+    	break;
+    	// if selection operator
+    	case T_SelectionOperator:
+    	{
+    		outOfFrom = TRUE;
+    		boolean parentNeedsNestingAttr = FALSE;
 
-			FOREACH(QueryOperator,p,op->parents)
-			{
-				parentNeedsNestingAttr |= isAttrRequired(p,a);
-			}
+    		FOREACH(QueryOperator,p,op->parents)
+    		{
+    			parentNeedsNestingAttr |= isAttrRequired(p,a);
+    		}
 
-			// does selection operator reference subquery
-			if(opReferencesAttr(op, a))
-			{
-				// is this a matched operator or from a different query block
-				if(!parentNeedsNestingAttr && (((QueryOperator *) m->where) == op || ((QueryOperator *) m->having) == op))
-				{
-					*inMatchSel = TRUE;
-				}
-				// not a matched operator
-				else
-				{
-					*inNonMatchSel = TRUE;
-				}
-			}
-		}
-		break;
-		case T_JoinOperator:
-		{
-			QueryOperator *l = OP_LCHILD(op);
-			QueryOperator *r = OP_RCHILD(op);
-			int pos;
+    		// does selection operator reference subquery
+    		if(opReferencesAttr(op, a))
+    		{
+    			// is this a matched operator or from a different query block
+    			if(!parentNeedsNestingAttr && (((QueryOperator *) m->where) == op || ((QueryOperator *) m->having) == op))
+    			{
+    				*inMatchSel = TRUE;
+    			}
+    			// not a matched operator
+    			else
+    			{
+    				*inNonMatchSel = TRUE;
+    			}
+    		}
+    	}
+    	break;
+    	case T_JoinOperator:
+    	{
+    		QueryOperator *l = OP_LCHILD(op);
+    		QueryOperator *r = OP_RCHILD(op);
+    		int pos;
 
-			//TODO technically we could serialize into joins, but let's not do that
-			if(opReferencesAttr(op, a))
-			{
-				*inNonMatchSel = TRUE;
-			}
+    		//TODO technically we could serialize into joins, but let's not do that
+    		if(opReferencesAttr(op, a))
+    		{
+    			*inNonMatchSel = TRUE;
+    		}
 
-			pos = getAttrPos(l, a);
-			if(pos == -1)
-			{
-				pos = getAttrPos(r, a) + LIST_LENGTH(l->schema->attrDefs);
-			}
+    		pos = getAttrPos(l, a);
+    		if(pos == -1)
+    		{
+    			pos = getAttrPos(r, a) + LIST_LENGTH(l->schema->attrDefs);
+    		}
 
-			newA = getAttrNameByPos(op, pos);
-		}
-		break;
-		default: //TODO there may be some other cases where the nesting operator
-			//result attribute is in the result schema but could be ommitted
-		{
-			outOfFrom = TRUE;
-			// does  operator reference subquery, for now only
-			if(opReferencesAttr(op, a))
-			{
-				*inNonMatchSel = TRUE;
-			}
-		}
-		break;
+    		newA = getAttrNameByPos(op, pos);
+    	}
+    	break;
+    	default: //TODO there may be some other cases where the nesting operator
+    			//result attribute is in the result schema but could be ommitted
+    	{
+    		outOfFrom = TRUE;
+    		// does  operator reference subquery, for now only
+    		if(opReferencesAttr(op, a))
+    		{
+    			*inNonMatchSel = TRUE;
+    		}
+    	}
+    	break;
 	}
 
 	// check for usage in parents if the attribute still exists in the result of the operator
@@ -971,7 +1065,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 			findNestedSubqueryUsage(p, newA, inMatchSel, inNonMatchSel, m, outOfFrom);
 		}
 	}
-	}
+}
 
 
 int
@@ -1039,15 +1133,15 @@ genSerializeFromItem(QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
 					  serLocationsToString(location));
 
 			// only serialize to FROM clause if we do not serialize elsewhere
-			if((location & NEST_SER_FROM) && !(location & NEST_SER_SELECTION))
+			if((location & NEST_SER_FROM) && !(location & NEST_SER_SELECTION) && !(location & NEST_SER_SELECT))
 			{
 				QueryOperator *outer = OP_LCHILD(nest);
 				QueryOperator *subquery = OP_RCHILD(nest);
 				FromAttrsContext *subqueryFac;
 				List *subqueryNames;
 
-				//TODO translate into lateral when necessary
-				ASSERT(nest->nestingType == NESTQ_LATERAL);
+				//TODO translate into lateral when necessary (currently only scalar which does not require any changes)
+				ASSERT(nest->nestingType == NESTQ_LATERAL || nest->nestingType == NESTQ_SCALAR);
 
 				// serialize left input (the outer query)
 				api->serializeFromItem(fromRoot, outer, from, curFromItem, attrOffset, fac, api);
@@ -1107,7 +1201,7 @@ genSerializeFromItem(QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
 void
 genSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
-	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api);
+	HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) q, fac, api, TRUE);
     char *condStr;
 
 	appendStringInfoString(where, "\nWHERE ");

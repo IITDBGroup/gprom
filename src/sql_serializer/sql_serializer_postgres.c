@@ -301,11 +301,15 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     // Projection for aggregation inputs and group-by
     if (m->secondProj != NULL && (agg != NULL || winR != NULL))
     {
+	    HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) m->secondProj, fac, api, FALSE);
+
+        fac->nestAttrMap = nestAttrMap;
         FOREACH(Node,n,m->secondProj->projExprs)
         {
             updateAttributeNames(n, fac);
-            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE));
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, nestAttrMap, FALSE));
         }
+        fac->nestAttrMap = NULL;
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
     }
@@ -407,10 +411,12 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         int pos = 0;
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
+        HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) p, fac, api, FALSE);
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
         DEBUG_LOG("outer projection");
 
+        fac->nestAttrMap = nestAttrMap;
         FOREACH(Node,a,p->projExprs)
         {
             char *attrName = (char *) getNthOfListP(attrNames, pos);
@@ -426,8 +432,9 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             // is projection in query without aggregation
             else
                 updateAttributeNames(a, fac);
-            appendStringInfo(select, "%s%s", exprToSQL(a, NULL, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+            appendStringInfo(select, "%s%s", exprToSQL(a, nestAttrMap, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
+        fac->nestAttrMap = NULL;
 
         resultAttrs = attrNames;
         DEBUG_LOG("second projection expressions %s", select->data);
