@@ -960,6 +960,7 @@ static boolean
 findAttrRefInFrom (AttributeReference *a, List *fromClauses)
 {
     boolean isFound = FALSE;
+    int foundAtLevel = -1;
     int fromPos = 0, attrPos, levelsUp = 0;
 
 	DEBUG_LOG_FROM_CLAUSES("find attribute in:\n%s", fromClauses);
@@ -971,13 +972,29 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
         {
             attrPos = findAttrInFromItem(f, a);
 
-            if (attrPos != INVALID_ATTR)
+            if(attrPos != INVALID_ATTR)
             {
-                if (isFound)
-                    FATAL_LOG("ambigious attribute reference %s", a->name);
+                // not the first reference that matches
+                if(isFound)
+                {
+                    // if we have another candidate at the same scope (nesting level) then this is an error
+                    if(levelsUp == foundAtLevel)
+                    {
+                        FATAL_LOG("ambigious attribute reference %s", a->name);
+                    }
+                    else
+                    {
+                        DEBUG_LOG("found another candidate for <%s> in an outer scope (%u) the first was found at (%u)",
+                                  a->name,
+                                  levelsUp,
+                                  foundAtLevel
+                                  );
+                    }
+                }
                 else
                 {
                     isFound = TRUE;
+                    foundAtLevel = levelsUp;
                     a->fromClauseItem = fromPos;
                     a->attrPosition = attrPos;
                     a->outerLevelsUp = levelsUp;
@@ -996,7 +1013,7 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
 }
 
 static FromItem *
-findNamedFromItem (FromItem *fromItem, char *name)
+findNamedFromItem(FromItem *fromItem, char *name)
 {
     if (isA(fromItem, FromJoinExpr))
     {
@@ -1026,7 +1043,7 @@ findNamedFromItem (FromItem *fromItem, char *name)
 }
 
 static int
-findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
+findAttrInFromItem(FromItem *fromItem, AttributeReference *attr)
 {
     boolean isFound = FALSE;
     int attrPos = 0, foundAttr = INVALID_ATTR;
