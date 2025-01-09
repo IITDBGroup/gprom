@@ -111,7 +111,7 @@
 #define PROP_NESTING_LOCATIONS "NESTED_SUBQUERY_LOCATIONS" //
 #define PROP_NESTING_CORRELATED_ATTRS "NESTEDE_SUBQUERY_CORRELATED_ATTRS" // store set of correlated attributes
 #define PROP_INLINED_NESTED_QUERY "INLINED_NESTED_QUERY_REMOVE" // mark nesting operators that correspond to nested subqueries that will be serialized into WHERE
-
+#define PROP_NESTED_RESULT_ATTR "NEST_RESULT_ATTR"              // mark nesting result attribute
 
 /* Operator type specific properties */
 /* table access properties */

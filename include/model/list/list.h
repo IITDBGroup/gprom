@@ -216,6 +216,7 @@ extern void deepFreeList(List *list);
 extern void deepFreeStringList(List *list);
 extern List *stringListToConstList(List *list);
 extern List *constStringListToStringList(List *list);
+extern char *constStringListToString(List *list);
 
 /* compare lists */
 extern boolean equalStringList (List *a, List *b);

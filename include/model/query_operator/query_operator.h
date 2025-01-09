@@ -331,6 +331,7 @@ extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
 extern List *getCorrelatedAttrRefsInOperator(QueryOperator *op);
 extern List *getAttrRefsInOperator(QueryOperator *op);
+extern boolean nestingOpUsesAttrInCond(NestingOperator *op, char *a);
 extern boolean opReferencesAttr(QueryOperator *op, char *a);
 
 /* operator specific functions */
@@ -346,6 +347,8 @@ extern List *getProjExprsForAllAttrs(QueryOperator *op);
 extern List *getProjResultAttrNamesForProjExpr(ProjectionOperator *op, Node *expr);
 
 extern List *getNestingResultAttributeNames(NestingOperator *op);
+extern List *nestingOperatorGetResultAttributes(NestingOperator *n);
+extern int nestingOperatorGetNumResultAttrs(NestingOperator *op);
 extern char *getSingleNestingResultAttribute(NestingOperator *op);
 extern Set *getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery);
 extern Set *getCorrelatedAttributes(Node *op, boolean corrInSubquery);

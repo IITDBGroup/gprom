@@ -18,6 +18,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_model_checker.h"
@@ -26,6 +27,7 @@
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/prov_utility.h"
+#include <string.h>
 
 
 #if HAVE_ORACLE_BACKEND
@@ -138,6 +140,18 @@ quoteAttributeNames(Node *node, void *context)
     // do not traverse into query operator nodes to avoid repeated traversal of paths in the graph
     if (node != context && IS_OP(node))
         return TRUE;
+
+    // for nesting operators adjust result attribute names
+    if(isA(node,NestingOperator))
+    {
+        NestingOperator *n = (NestingOperator *) node;
+        List *attrNames = (List *) GET_STRING_PROP(n, PROP_NESTED_RESULT_ATTR);
+
+        FOREACH(Constant,c,attrNames)
+        {
+            c->value = quoteIdentifier(STRING_VALUE(c));
+        }
+    }
 
     if (isA(node, AttributeReference))
     {
@@ -261,6 +275,9 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 	{
 		NestingOperator *nest = (NestingOperator *) op;
 		int nestingLocations = INT_VALUE(getStringProperty(op, PROP_NESTING_LOCATIONS));
+        QueryOperator *lChild = OP_LCHILD(op); // cache left child before hand for traversal
+
+        DEBUG_LOG("traverse nesting operator %s", singleOperatorToOverview(op));
 
 		// only store nested subqueries that should be serialized into WHERE / HAVING
 		if((where && (nestingLocations & NEST_SER_SELECTION))
@@ -268,7 +285,7 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 		{
 			List *names = getAttrNames(op->schema);
 			char *nestName = (char *) getTailOfListP(names);
-			DEBUG_LOG("nesting attribute name %s for nested subquery in %s", nestName, where ? "WHERE": "SELECT");
+			DEBUG_LOG("nesting attribute name %s for nested subquery in %s:\n%s", nestName, where ? "WHERE": "SELECT", singleOperatorToOverview(op));
 
 			if(!hasMapStringKey(*map, nestName))
  			{
@@ -305,10 +322,10 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
 				MAP_ADD_STRING_KEY(*map, strdup(nestName),
 								   createConstString(strdup(s->data)));
 
-                //TODO remove nesting operator
-                QueryOperator *lChild = OP_LCHILD(op);
+                // remove nesting operator
                 switchSubtreeWithExisting(op, lChild);
                 DEBUG_OP_LOG("query after nesting attr got removed", getFirstRoot(lChild));
+
                 //TODO does not work as selection is now referring to non-existing nesting attr in its definition need to give check an options or
                 /* if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING)) */
                 /* { */
@@ -323,7 +340,7 @@ setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, Serializ
                 DEBUG_NODE_BEATIFY_LOG("already in map", *map);
             }
 		}
-        setNestAttrMap(OP_LCHILD(op), map, fac, api, where);
+        setNestAttrMap(lChild, map, fac, api, where);
         return;
 	}
 
@@ -729,6 +746,16 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 	{
 		NestingOperator *n = (NestingOperator *) op;
 		int serLocations = api->getNestedSerLocations(n, api);
+        List *resultAttrs;
+
+        // store result attributes for nesting operator
+        resultAttrs = nestingOperatorGetResultAttributes(n);
+        //resultAttrs = getNestingResultAttributeNames(n);
+
+        DEBUG_LOG("Nesting operator locations <%s> result attrs: <%s>:\n\n%s",
+                  serLocationsToString(serLocations),
+                  stringListToString(resultAttrs),
+                  singleOperatorToOverview(op));
 
 		// check for case 1: operator can be serialized into WHERE or HAVING
 		if((qbMatch->where || qbMatch->having) // we have a condition clause to serialize into
@@ -741,6 +768,7 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 
 			FOREACH(QueryOperator,p,op->parents)
 			{
+                //TODO check: nesting operator should be ok?
 				findNestedSubqueryUsage(op,curTrackAtt, &inMatchedSel, &inNonSelOrNonMatched, qbMatch,
 										!(isA(p,NestingOperator)
 										  || isA(p,JoinOperator)));
@@ -764,7 +792,8 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 
 		// serialize into SELECT, remove nesting operator result attribute from intermediate operators
 		if((serLocations & NEST_SER_SELECT)
-		   && (qbMatch->firstProj || qbMatch->secondProj))
+		   && (qbMatch->firstProj || qbMatch->secondProj)
+           && nestingOperatorGetNumResultAttrs((NestingOperator *) op) == 1)
 		{
 			char *curTrackAtt = strdup(getSingleNestingResultAttribute(n));
 
@@ -862,10 +891,14 @@ removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr)
 		removeNestingAttributeFromOperators(p, newAttr);
 	}
 
-	// add back attribute for nesting operators
+	// add back attribute for nesting operators, but only if it is the nesting operators own result attribute
 	if(isA(op,NestingOperator))
 	{
-		op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, ad);
+        char *ownNestingAttr = getSingleNestingResultAttribute((NestingOperator *) op);
+        if(streq(ownNestingAttr, nestingAttr))
+        {
+		    op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, ad);
+        }
 	}
 }
 
@@ -933,7 +966,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
     		// if nesting operator references attribute in condition then for now we
     		// do not consider serialization into WHERE/ HAVING
     		//TODO in some cases this would still be possible, e.g., WHERE (SELECT count(*) FROM R) = (SELECT count(*) FROM S)
-    		if(opReferencesAttr(op, a))
+    		if(nestingOpUsesAttrInCond((NestingOperator *) op, a))
     		{
     			*inNonMatchSel = TRUE;
     		}

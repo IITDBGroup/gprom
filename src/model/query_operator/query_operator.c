@@ -1438,6 +1438,12 @@ getAttrRefsInOperator(QueryOperator *op)
 }
 
 boolean
+nestingOpUsesAttrInCond(NestingOperator *op, char *a)
+{
+    return doesExprReferenceAttribute(op->cond, a);
+}
+
+boolean
 opReferencesAttr(QueryOperator *op, char *a)
 {
 	List *refs = getAttrRefsInOperator(op);
@@ -1554,11 +1560,54 @@ getNestingResultAttributeNames(NestingOperator *op)
 	return attrs;
 }
 
+
+int
+nestingOperatorGetNumResultAttrs(NestingOperator *op)
+{
+    return LIST_LENGTH(nestingOperatorGetResultAttributes(op));
+}
+
+List *
+nestingOperatorGetResultAttributes(NestingOperator *n)
+{
+    NestingExprType nestType = n->nestingType;
+    List *nestResultAttrs = NIL;
+
+    if(!HAS_STRING_PROP(n, PROP_NESTED_RESULT_ATTR))
+    {
+        if(nestType == NESTQ_EXISTS
+           || nestType == NESTQ_ANY
+           || nestType == NESTQ_ALL
+           || nestType == NESTQ_UNIQUE
+           || nestType == NESTQ_SCALAR)
+        {
+            char *nestName = getTailOfListP(getAttrNames(n->op.schema));
+            nestResultAttrs = singleton(createConstString(nestName));
+        }
+        else
+        {
+            nestResultAttrs = stringListToConstList(getAttrNames(OP_RCHILD(n)->schema));
+        }
+
+        SET_STRING_PROP(n, PROP_NESTED_RESULT_ATTR, nestResultAttrs);
+        DEBUG_LOG("result attributes <%s> for nesting operator:\n\n%s",
+                  constStringListToString(nestResultAttrs),
+                  singleOperatorToOverview(n));
+    }
+
+    nestResultAttrs = (List *) GET_STRING_PROP(n, PROP_NESTED_RESULT_ATTR);
+
+    return constStringListToStringList(nestResultAttrs);
+}
+
 char *
 getSingleNestingResultAttribute(NestingOperator *op)
 {
-	ASSERT(getNumAttrs(OP_LCHILD(op)) + 1 == getNumAttrs((QueryOperator *) op));
-	return getTailOfListP(getQueryOperatorAttrNames((QueryOperator *) op));
+    List *attrs = nestingOperatorGetResultAttributes(op);
+
+    ASSERT(LIST_LENGTH(attrs) == 1);
+
+    return getHeadOfListP(attrs);
 }
 
 
@@ -1652,7 +1701,10 @@ findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
 		CorrelatedAttrsState newState = *state;
 		newState.curDepth++;
 
-		visit(no->cond, findCorrelatedAttrsVisitor, state);
+        if (no->cond)
+        {
+		    visit(no->cond, findCorrelatedAttrsVisitor, state);
+        }
         visit((Node *) OP_LCHILD(no), findCorrelatedAttrsVisitor, state);
 		return visit((Node *) OP_RCHILD(no), findCorrelatedAttrsVisitor, &newState);
 	}

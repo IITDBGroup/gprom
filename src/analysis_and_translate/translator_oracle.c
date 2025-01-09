@@ -129,7 +129,7 @@ static boolean visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList);
 
 static char *summaryType = NULL;
 static Node *prop = NULL;
-
+static int nestedSubqueryCnt = -1;
 
 Node *
 translateParseOracle (Node *q)
@@ -140,7 +140,7 @@ translateParseOracle (Node *q)
     List *attrsOffsetsList = NIL;
 
     // INFO_NODE_BEATIFY_LOG("translate QB model", q);
-
+    nestedSubqueryCnt = 1;
     result = translateGeneral(q, &attrsOffsetsList);
 
     //DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
@@ -1209,6 +1209,8 @@ buildJoinTreeFromOperatorList(List *opList)
 			{
 				List *dts = CONCAT_LISTS(getDataTypes(oldRoot->schema),
 										 getDataTypes(op->schema));
+                List *resultAttrNames;
+
 				root = (QueryOperator *) createNestingOp(NESTQ_LATERAL,
 														 NULL,
 														 inputs,
@@ -1217,6 +1219,12 @@ buildJoinTreeFromOperatorList(List *opList)
 														 dts);
 				addParent(OP_LCHILD(root), root);
 				addParent(OP_RCHILD(root), root);
+
+                resultAttrNames = nestingOperatorGetResultAttributes((NestingOperator *) root);
+
+                INFO_LOG("Translated LATERAL subquery <%s>:\n %s",
+                         stringListToString(resultAttrNames),
+                         singleOperatorToOverview(root));
 			}
             // create join operator
 			else
@@ -1670,16 +1678,15 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
     HashMap *subqueryToAttribute = NEW_MAP(Node,KeyValue);
     QueryOperator *lChild = joinTreeRoot;
     NestingOperator *no = NULL;
-    int i = 1;
 
     FOREACH(NestedSubquery, nsq, nestedSubqueries)
     {
         // change attributes positions in "expr = ANY(...)"
         visitAttrRefToSetNewAttrPos(nsq->expr, attrsOffsets);
         Node *cond = NULL;
-        // create condition node for nesting operator, such like "a = ANY(...)"
-        if (nsq->nestingType != NESTQ_EXISTS
-                && nsq->nestingType != NESTQ_SCALAR) {
+        // create condition node for nesting operator, such like "a = ANY(...)" or ALL
+        if (nsq->nestingType == NESTQ_ALL
+            || nsq->nestingType == NESTQ_ANY) {
             SelectItem *s = (SelectItem *) getHeadOfListP(
                     ((QueryBlock *) nsq->query)->selectClause);
             AttributeReference *subqueryAttr = createFullAttrReference(
@@ -1688,41 +1695,59 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
             cond = (Node *) createOpExpr(nsq->comparisonOp, args);
         }
 
+        // currently only SCALAR subqueries with a single attribute are supported
+        if(nsq->nestingType == NESTQ_SCALAR
+           && getQBNumAttrs(nsq->query) > 1)
+        {
+            FATAL_NODE_BEATIFY_LOG("Scalar subqueries in GProM can currently only have one result attribute:\n\n%s",
+                      nsq);
+        }
+
         // create children of nesting operator
         // left child is the root of "from" translation tree or previous nesting operator
         // right child is the root of the current nested subquery's translation tree
         QueryOperator *rChild = translateQueryBlock((QueryBlock *) nsq->query, attrsOffsetsList);
         List *inputs = LIST_MAKE(lChild, rChild);
 
-        // create attribute names of nesting operator
+        // create attribute names of nesting operator -> first left input attributes
         List *attrNames = getAttrNames(lChild->schema);
         List *dts = getDataTypes(lChild->schema);
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
-        char *attrName = getNestingResultAttribute(i++);
+        //TODO this seems wrong for lateral subqueries (lateral does not show up here for some reason
+        char *attrName = getNestingResultAttribute(nestedSubqueryCnt++);
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
-                                            (Node *)createConstInt(LIST_LENGTH(attrNames))));
+                                            (Node *) createConstInt(LIST_LENGTH(attrNames))));
 
         attrNames = appendToTailOfList(attrNames,strdup(attrName));
         if (nsq->nestingType == NESTQ_EXISTS)
+        {
             dts = appendToTailOfListInt(dts, DT_BOOL);
-
+        }
         else if (nsq->nestingType == NESTQ_SCALAR)
         {
 			nsq->nestingAttrDatatype = getAttrDefByPos(rChild, 0)->dataType;
             dts = appendToTailOfListInt(dts, getAttrDefByPos(rChild, 0)->dataType);
         }
         else
+        {
             dts = appendToTailOfListInt(dts, typeOf(cond));
-
+        }
 
         // create nesting operator
         no = createNestingOp(nsq->nestingType, cond, inputs, NIL, attrNames, dts);
 
+        // already store the result attribute here before anything gets manipulated later
+        List *nestResultNames = nestingOperatorGetResultAttributes(no);
+
         // set the nesting operator as the parent of its children
         OP_LCHILD(no)->parents = singleton(no);
         OP_RCHILD(no)->parents = singleton(no);
+
+        INFO_LOG("translated nesting operator <%s>:\n%s",
+                  stringListToString(nestResultNames),
+                  singleOperatorToOverview(no));
 
         // set this nesting operator as the next nesting operator's left child
         lChild = (QueryOperator *) no;
