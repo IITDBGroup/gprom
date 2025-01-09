@@ -1353,18 +1353,24 @@ genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *pare
     if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) &&
 		(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)) &&
         !HAS_STRING_PROP(q, PROP_DO_NOT_MATERIALIZE))
-        return api->createTempView (q, str, parent, fac, api);
+    {
+        return api->createTempView(q, str, parent, fac, api);
+    }
     else if (isA(q, SetOperator))
+    {
         return api->serializeSetOperator(q, str, fac, api);
+    }
     else
+    {
         return api->serializeQueryBlock(q, str, fac, api);
+    }
 }
 
 /*
  * Create a temporary view
  */
 List *
-genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
+genCreateTempView(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     StringInfo viewDef = makeStringInfo();
     char *viewName = createViewName(api);
@@ -1373,14 +1379,13 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, From
     HashMap *view;
 
     // check whether we already have create a view for this op
-
     if (MAP_HAS_POINTER(tempViewMap, q))
     {
         view = (HashMap *) MAP_GET_POINTER(tempViewMap, q);
         char *name = strdup(TVIEW_GET_NAME(view));
 
 //        if (isA(parent, SetOperator))
-            appendStringInfo(str, "SELECT * FROM %s", name);
+        appendStringInfo(str, "SELECT * FROM %s", name);
 //        else
 //            appendStringInfoString(str, name);
 
@@ -1396,11 +1401,11 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, From
 
     appendStringInfoString(viewDef, ")");
 
-    DEBUG_LOG("created view definition:\n%s for %p", viewDef->data, q);
+    DEBUG_LOG("created view definition:\n%s:\n\n %s", singleOperatorToOverview(q), viewDef->data);
 
     // add reference to view
 //    if (isA(parent, SetOperator))
-        appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
+    appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
 //    else
 //        appendStringInfoString(str, strdup(viewName));
 

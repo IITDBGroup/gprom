@@ -224,14 +224,14 @@ optimizeOneGraph (QueryOperator *root)
 }
 
 QueryOperator *
-materializeProjectionSequences (QueryOperator *root)
+materializeProjectionSequences(QueryOperator *root)
 {
     visitQOGraph(root, TRAVERSAL_PRE, internalMaterializeProjectionSequences, NULL);
     return root;
 }
 
 static boolean
-internalMaterializeProjectionSequences (QueryOperator *root, void *context)
+internalMaterializeProjectionSequences(QueryOperator *root, void *context)
 {
     QueryOperator *lChild = OP_LCHILD(root);
 
@@ -242,7 +242,7 @@ internalMaterializeProjectionSequences (QueryOperator *root, void *context)
 }
 
 QueryOperator *
-mergeAdjacentOperators (QueryOperator *root)
+mergeAdjacentOperators(QueryOperator *root)
 {
     QueryOperator *newRoot;
 
@@ -254,7 +254,7 @@ mergeAdjacentOperators (QueryOperator *root)
 
 
 static QueryOperator *
-mergeAdjacentOperatorInternal (QueryOperator *root)
+mergeAdjacentOperatorInternal(QueryOperator *root)
 {
     QueryOperator *child = OP_LCHILD(root);
 

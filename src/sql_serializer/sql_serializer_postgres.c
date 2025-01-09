@@ -55,8 +55,9 @@ serializeOperatorModelPostgres(Node *q)
     // quote idents for postgres
 
     if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+    {
 		genQuoteAttributeNames(q);
-
+    }
     DEBUG_OP_LOG("after attr quoting", q);
 
     // add casts to null constants to make postgres aware of their types
@@ -69,13 +70,17 @@ serializeOperatorModelPostgres(Node *q)
         appendStringInfoChar(str,';');
     }
     else if (isA(q, List))
+    {
         FOREACH(QueryOperator,o,(List *) q)
         {
             appendStringInfoString(str, serializeQueryPostgres(o));
             appendStringInfoString(str,";\n\n");
         }
+    }
     else
+    {
         FATAL_LOG("cannot serialize non-operator to SQL: %s", nodeToString(q));
+    }
 
     result = str->data;
     FREE(str);
@@ -138,7 +143,7 @@ serializeQueryPostgres(QueryOperator *q)
      *  prepend the temporary view definition to create something like
      *      WITH a AS (q1), b AS (q2) ... SELECT ...
      */
-    if (mapSize(api->tempViewMap) > 0)
+    if(mapSize(api->tempViewMap) > 0)
     {
         appendStringInfoString(viewDef, "WITH ");
 

@@ -15,6 +15,7 @@
 #include "configuration/option.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
@@ -170,7 +171,12 @@ avoidCTEforCorrelatedSubqueries(QueryOperator *root)
     }
 
     // if there are correlated attributes below then do not CTE
-    if(maxchildDepth > 0 && LIST_LENGTH(root->parents) > 1)
+    if(maxchildDepth > 0) /* && */
+       /* (LIST_LENGTH(root->parents) > 1 */
+       /*  || */
+       /*  (isA(root, type) */
+       /*  ) */
+        //TODO needed to avoid other code marking some operators to materialize
     {
         SET_BOOL_STRING_PROP(root,PROP_DO_NOT_MATERIALIZE);
         DEBUG_LOG("do not use CTEs for %s", singleOperatorToOverview(root));
