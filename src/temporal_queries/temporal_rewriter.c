@@ -1136,7 +1136,7 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     switchSubtrees(inner, selection);
 
     // if this is a scalar nested subquery, project out any temporal attributes
-    if(op->nestingType == NESTQ_SCALAR) {
+    if(op->nestingType == NESTQ_SCALAR || op->nestingType == NESTQ_ALL || op->nestingType == NESTQ_ANY) {
         QueryOperator *projectionInner = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selection), selection, NIL, getNormalAttrNames(selection));
         selection->parents = appendToTailOfList(selection->parents, projectionInner);
         switchSubtrees(selection, projectionInner);
