@@ -14,6 +14,7 @@
 /* define keys for properties used to annotate operators */
 /* general operator properties */
 #define PROP_MATERIALIZE "MATERIALIZE"                      // hint to materialize output of this operator
+#define PROP_DO_NOT_MATERIALIZE "DO_NOT_MATERIALIZE"        // marks operators that should never be materialized as a CTE
 #define PROP_NO_MODEL_CHECKING_ROOT "NO_CHECKING_ROOT"      // model checking will ignore this operator and everything below
 
 // exec and prepared queries

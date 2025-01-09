@@ -1096,7 +1096,10 @@ genSerializeFromItem(QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
     // if operator has more than one parent then it will be represented as a CTE
     // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
 	// also do not materialized if the user forced a tree structions
-    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) || q == fromRoot || isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY))
+    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE))
+        || q == fromRoot
+        || isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY)
+        || !HAS_STRING_PROP(q, PROP_DO_NOT_MATERIALIZE))
     {
         switch(q->type)
         {
@@ -1348,7 +1351,8 @@ genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *pare
 		return NIL;
 	}
     if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) &&
-		(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)))
+		(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)) &&
+        !HAS_STRING_PROP(q, PROP_DO_NOT_MATERIALIZE))
         return api->createTempView (q, str, parent, fac, api);
     else if (isA(q, SetOperator))
         return api->serializeSetOperator(q, str, fac, api);
