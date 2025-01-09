@@ -1053,7 +1053,7 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     QueryOperator *outer = OP_LCHILD(op);
 	QueryOperator *inner = OP_RCHILD(op);
     int numOuterAttrs = getNumAttrs(OP_LCHILD(op)); // track pre-rewrite
-    Schema *innerSchemaPreRewrite = copyObject(inner->schema);
+    // Schema *innerSchemaPreRewrite = copyObject(inner->schema);
 
     // List *innerAttrs = copyObject(inner->schema->attrDefs);
 
@@ -1069,14 +1069,14 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     addProvenanceAttrsToSchema(asq, outer); // we need the prov attrs for making overlap condition
     // addProvenanceAttrsToSchemaWithRename(asq, inner, JOIN_RIGHT_TEMP_ATTR_SUFFIX); // "
 
-    List *intersection = NIL;
-    FOREACH(char, attrR, getAttrNames(innerSchemaPreRewrite)) {
-        FOREACH(char, attrL, getAttrNames(outer->schema)) {
-            if (streq(attrR, attrL)) {
-                intersection = appendToTailOfList(intersection, attrR);
-            }
-        }
-    }
+    // List *intersection = NIL;
+    // FOREACH(char, attrR, getAttrNames(innerSchemaPreRewrite)) {
+    //     FOREACH(char, attrL, getAttrNames(outer->schema)) {
+    //         if (streq(attrR, attrL)) {
+    //             intersection = appendToTailOfList(intersection, attrR);
+    //         }
+    //     }
+    // }
 
     //outer = addTemporalNormalization(outer, copyObject(inner), intersection);
 
@@ -1134,6 +1134,13 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     selection->provAttrs = copyObject(inner->provAttrs);
     inner->parents = appendToTailOfList(inner->parents, selection);
     switchSubtrees(inner, selection);
+
+    // if this is a scalar nested subquery, project out any temporal attributes
+    if(op->nestingType == NESTQ_SCALAR) {
+        QueryOperator *projectionInner = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selection), selection, NIL, getNormalAttrNames(selection));
+        selection->parents = appendToTailOfList(selection->parents, projectionInner);
+        switchSubtrees(selection, projectionInner);
+    }
 
     // return a projection on top of "asq" to reorder schema
 
