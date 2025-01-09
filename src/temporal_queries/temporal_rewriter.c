@@ -42,6 +42,7 @@ static QueryOperator *tempRewrNestedSubqueryCorrelated(NestingOperator *op);
 static QueryOperator *tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op);
 static QueryOperator *tempRewrDuplicateRemOp (DuplicateRemoval *o);
 
+static QueryOperator *avoidCTEforCorrelatedSubqueries(QueryOperator *root);
 static QueryOperator *temporalLateralizeAndUnnestSubqueries(QueryOperator *root);
 static QueryOperator *constructJoinIntervalIntersection(QueryOperator *op);
 static Node *constructNestingIntervalOverlapCondition(QueryOperator *op);
@@ -105,7 +106,11 @@ rewriteImplicitTemporal(QueryOperator *q)
     setCoalesce = isSetCoalesceSufficient(top);
     addCoalescingAndNormalization(top);
 
+    // rewrite for snapshot reducible semantics
     top = temporalRewriteOperator(top);
+
+    // nested queries with correlation and their subqueries cannot be put into CTEs, we treeify them to make sure
+    top = avoidCTEforCorrelatedSubqueries(top);
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
@@ -144,6 +149,15 @@ rewriteImplicitTemporal(QueryOperator *q)
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
     return top;
+}
+
+static QueryOperator *
+avoidCTEforCorrelatedSubqueries(QueryOperator *root)
+{
+
+
+
+    return root;
 }
 
 static QueryOperator *
