@@ -2346,6 +2346,12 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
     // List *leftProjExpr1 = NIL;
     // List *leftProjExpr2 = NIL;
 
+    //FIXME if we haven't set temporal attributes for the left input there is something wrong, but for now let's try to fix this by adding the attrs
+    if(!(HAS_STRING_PROP(left, PROP_TEMP_TBEGIN_ATTR) && HAS_STRING_PROP(left, PROP_TEMP_TEND_ATTR)))
+    {
+        setTempAttrProps(left);
+    }
+
     AttributeDef *leftBeginDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TBEGIN_ATTR);
     leftBeginDef = leftBeginDef ?
         leftBeginDef :
