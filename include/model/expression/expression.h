@@ -254,6 +254,7 @@ extern Constant *makeConst(DataType dt);
 extern Constant *minConsts(Constant *l, Constant *r, boolean nullIsMin);
 extern Constant *maxConsts(Constant *l, Constant *r, boolean nullIsMax);
 extern void incrConst(Constant *c);
+extern boolean isConstString(Node *n);
 
 /* functions for determining the type of an expression */
 extern DataType typeOf(Node *expr);
@@ -264,6 +265,7 @@ extern boolean isAggFunction(Node *expr);
 
 /* expression node type accessors */
 extern char *getAttributeReferenceName(AttributeReference *a);
+extern boolean isAttrCorrelated(AttributeReference *a);
 
 /* backend specific */
 extern char *backendifyIdentifier(char *name);

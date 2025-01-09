@@ -40,7 +40,7 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         Set *haveSeen);
 static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
 static boolean canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state);
-
+static boolean isAttrCorrelatedFilter(void *a, void *context);
 
 QueryOperator *
 findNestingOperator (QueryOperator *op, int levelsUp)
@@ -1346,6 +1346,25 @@ getAttrRefByName(QueryOperator *op, char *attr)
 
     return res;
 }
+
+
+
+List *
+getCorrelatedAttrRefsInOperator(QueryOperator *op)
+{
+    List *refs = getAttrRefsInOperator(op);
+
+    refs = genericSublist(refs, isAttrCorrelatedFilter, NULL);
+
+    return refs;
+}
+
+static boolean
+isAttrCorrelatedFilter(void *a, void *context)
+{
+    return isAttrCorrelated((AttributeReference *) a);
+}
+
 
 List *
 getAttrRefsInOperator(QueryOperator *op)

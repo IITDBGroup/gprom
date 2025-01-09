@@ -329,6 +329,7 @@ extern AttributeReference *getAttrRefByPos (QueryOperator *op, int pos);
 extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
+extern List *getCorrelatedAttrRefsInOperator(QueryOperator *op);
 extern List *getAttrRefsInOperator(QueryOperator *op);
 extern boolean opReferencesAttr(QueryOperator *op, char *a);
 

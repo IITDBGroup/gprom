@@ -42,7 +42,7 @@ static QueryOperator *tempRewrNestedSubqueryCorrelated(NestingOperator *op);
 static QueryOperator *tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op);
 static QueryOperator *tempRewrDuplicateRemOp (DuplicateRemoval *o);
 
-static QueryOperator *avoidCTEforCorrelatedSubqueries(QueryOperator *root);
+static int avoidCTEforCorrelatedSubqueries(QueryOperator *root);
 static QueryOperator *temporalLateralizeAndUnnestSubqueries(QueryOperator *root);
 static QueryOperator *constructJoinIntervalIntersection(QueryOperator *op);
 static Node *constructNestingIntervalOverlapCondition(QueryOperator *op);
@@ -109,8 +109,9 @@ rewriteImplicitTemporal(QueryOperator *q)
     // rewrite for snapshot reducible semantics
     top = temporalRewriteOperator(top);
 
-    // nested queries with correlation and their subqueries cannot be put into CTEs, we treeify them to make sure
-    top = avoidCTEforCorrelatedSubqueries(top);
+    // nested queries with correlation and their subqueries cannot be put into
+    // CTEs, we mark them to not be turned into CTEs
+    avoidCTEforCorrelatedSubqueries(top);
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
@@ -151,13 +152,37 @@ rewriteImplicitTemporal(QueryOperator *q)
     return top;
 }
 
-static QueryOperator *
+static int
 avoidCTEforCorrelatedSubqueries(QueryOperator *root)
 {
+    int maxchildDepth = 0;
+    List *attrRefs = getCorrelatedAttrRefsInOperator(root);
 
+    FOREACH(QueryOperator,child,root->inputs)
+    {
+        int childDepth = avoidCTEforCorrelatedSubqueries(child);
+        maxchildDepth = MAX(maxchildDepth, childDepth);
+    }
 
+    FOREACH(AttributeReference,a,attrRefs)
+    {
+        maxchildDepth = MAX(maxchildDepth, a->outerLevelsUp);
+    }
 
-    return root;
+    // if there are correlated attributes below then do not CTE
+    if(maxchildDepth > 0 && LIST_LENGTH(root->parents) > 1)
+    {
+        SET_BOOL_STRING_PROP(root,PROP_DO_NOT_MATERIALIZE);
+        DEBUG_LOG("do not use CTEs for %s", singleOperatorToOverview(root));
+    }
+
+    // each nesting operator reduces the maxchildDepth by 1
+    if(isA(root,NestingOperator))
+    {
+        maxchildDepth--;
+    }
+
+    return MAX(maxchildDepth,0);
 }
 
 static QueryOperator *
@@ -785,7 +810,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
     if(isA(q, SelectionOperator)) {
         //SELECT * FROM r WHERE EXISTS (SELECT * FROM s WHERE r.a = s.b)
         // pass directly through
-        if(!getBoolOption(OPTIMIZATION_PUSH_NORMALIZATION_BELOW_SELECT)) return 2;
+        if(!getBoolOption(OPTIMIZATION_PUSH_NORMALIZATION_BELOW_SELECT)) return 2; //FIXME I think this wrong, if the optimization is off we always have to push through selections? If it is on we have to still push through any correlations
 
         // equality with correlation ok if all operators above are AND
         List *condOperators = NIL;
@@ -909,7 +934,7 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
         return 1;
     }
-    else if(isA(q, AggregationOperator)) {
+    else if(isA(q, AggregationOperator)) {//TODO is it correct to do nothing here? Should we push normalization on intersection with GB attributes?
         // normalize(R, agg(S), (A from R, A from S))
         // --> normalize(R, S, A intersect group-by attrs of the agg)
 

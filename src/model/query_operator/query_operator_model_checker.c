@@ -70,7 +70,7 @@ checkModel(QueryOperator *op)
 }
 
 static boolean
-checkAttributeRefConsistency (QueryOperator *op, void *context)
+checkAttributeRefConsistency(QueryOperator *op, void *context)
 {
     List *attrRefs = NIL;
 

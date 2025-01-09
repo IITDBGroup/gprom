@@ -654,6 +654,17 @@ incrConst(Constant *c)
 	}
 }
 
+boolean
+isConstString(Node *n)
+{
+    if(!isA(n,Constant))
+        return FALSE;
+
+    Constant *c = (Constant *) n;
+
+    return c->constType == DT_STRING;
+}
+
 DataType
 typeOf (Node *expr)
 {
@@ -876,6 +887,12 @@ char *
 getAttributeReferenceName(AttributeReference *a)
 {
     return a->name;
+}
+
+boolean
+isAttrCorrelated(AttributeReference *a)
+{
+    return a->outerLevelsUp > 0;
 }
 
 char *
