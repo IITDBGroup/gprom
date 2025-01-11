@@ -486,7 +486,7 @@ checkUniqueAttrNames (QueryOperator *op)
     {
         if (hasSetElem(names,a->attrName))
         {
-            ERROR_LOG("Attribute <%s> appears more than once in\n\n%s",
+            INFO_LOG("Attribute <%s> appears more than once in\n\n%s",
                     a->attrName, operatorToOverviewString((Node *) op));
             return FALSE;
         }

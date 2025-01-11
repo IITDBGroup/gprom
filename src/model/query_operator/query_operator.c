@@ -232,7 +232,7 @@ deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 }
 
 void
-reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
+reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, Set *nestResultAttr)
 {
 	int cnt;
 	DEBUG_LOG("resetAttrRefs %s\nbased references: %s",
@@ -245,7 +245,7 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
         FOREACH(AttributeDef, a2, op2->schema->attrDefs)
         {
 
-            if(strpeq(a1->name, a2->attrName))
+            if(strpeq(a1->name, a2->attrName) && !(nestResultAttr && hasSetElem(nestResultAttr, a1->name)))
             {
                 a1->attrPosition = cnt;
                 DEBUG_LOG("set attr %s position to %d", a1->name, cnt);
@@ -257,7 +257,7 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
 }
 
 void
-resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *child)
+resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *child, Set *nestResultAttr)
 {
 	List *attrRefs = NIL;
 
@@ -317,7 +317,7 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *ch
 	{
 		attrRefs = getAttrReferences((Node *) ((OrderOperator *) parent)->orderExprs);
 	}
-    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, attrRefs);
+    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, attrRefs, nestResultAttr);
 }
 
 /*List *

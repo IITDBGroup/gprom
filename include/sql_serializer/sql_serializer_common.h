@@ -137,6 +137,8 @@ typedef struct SerializeClausesAPI {
     List *(*createTempView) (QueryOperator *q, StringInfo str,
             QueryOperator *parent, FromAttrsContext *fac, struct SerializeClausesAPI *api);
     HashMap *tempViewMap;
+    HashMap *nestAttrMap;
+    Set *inlinedNestResultAttrs;
     int viewCounter;
 } SerializeClausesAPI;
 
