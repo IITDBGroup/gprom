@@ -758,8 +758,9 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
                   singleOperatorToOverview(op));
 
 		// check for case 1: operator can be serialized into WHERE or HAVING
-		if((qbMatch->where || qbMatch->having) // we have a condition clause to serialize into
-		   && (serLocations & NEST_SER_SELECTION)) // this type of subquery can be put into a condition
+		if(//TODO should allow serialization into ancestor block if possible? (qbMatch->where || qbMatch->having) // we have a condition clause to serialize into
+           // &&
+           (serLocations & NEST_SER_SELECTION)) // this type of subquery can be put into a condition
 		{
 			// determine whether the result attribute is only used in selections that are matched to the current query block
 			boolean inMatchedSel = FALSE;
@@ -988,6 +989,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
     					AttributeReference *ar = (AttributeReference *) e;
     					if(streq(ar->name, a))
     					{
+                            DEBUG_LOG("Nested subquery inline, projection projects on attr <%s> in %s", a, beatify(nodeToString(ar)));
     						resultNames = appendToTailOfList(resultNames, getAttrNameByPos(op, pos));
     					}
     				}
@@ -996,6 +998,7 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
     				{
     					if(doesExprReferenceAttribute(e, a))
     					{
+                            DEBUG_LOG("Nested subquery inline, projection uses attr <%s> in EXPRESSION %s", a, beatify(nodeToString(e)));
     						*inNonMatchSel = TRUE;
     					}
     				}
@@ -1004,21 +1007,27 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
     			//TODO currently do not consider putting this into WHERE / HAVING if we are projecting the attribute out more than once
     			switch(LIST_LENGTH(resultNames))
     			{
-    			case 0:
-    			{
-    				attrExistsInOutput = FALSE;
-    			}
-    			break;
-    			case 1:
-    			{
-    				// we postpone making a decision
-    				newA = getNthOfListP(resultNames, 0);
-    			}
-    			// more than one reference
-    			default:
-    			{
-    				*inNonMatchSel = TRUE;
-    			}
+    			    case 0://TODO should be dead code now, remove?
+    			    {
+                        FATAL_LOG("Should never end up here");
+                        DEBUG_LOG("Nested subquery inlining, projection removes nesting result attr <%s>", a);
+    				    attrExistsInOutput = FALSE;
+    			    }
+    			    break;
+    			    case 1:
+    			    {
+    				    // we postpone making a decision
+                        DEBUG_LOG("Nested subquery inlining, projection projects ones on nesting result attr <%s>", a);
+    				    newA = getNthOfListP(resultNames, 0);
+    			    }
+                    break;
+    			    // more than one reference
+    			    default:
+    			    {
+                        DEBUG_LOG("Nested subquery inlining, projection removes nesting result attr <%s>", a);
+    				    *inNonMatchSel = TRUE;
+    			    }
+                    break;
     			}
     			outOfFrom = TRUE;
     		}
@@ -1040,12 +1049,20 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
     			parentNeedsNestingAttr |= isAttrRequired(p,a);
     		}
 
+            DEBUG_LOG("nesting operator inlining: in selection and parents need the nesting attribute? %s\n\n%s",
+                      parentNeedsNestingAttr ? "YES": "NO",
+                      singleOperatorToOverview(op));
+
     		// does selection operator reference subquery
     		if(opReferencesAttr(op, a))
     		{
     			// is this a matched operator or from a different query block
-    			if(!parentNeedsNestingAttr && (((QueryOperator *) m->where) == op || ((QueryOperator *) m->having) == op))
+    			if(!parentNeedsNestingAttr)
+                    //TODO we should not limit serialization to the same query block as long as there are no uses between the nesting operator and the selection that cannot be removed
+                    //&& (((QueryOperator *) m->where) == op || ((QueryOperator *) m->having) == op))
     			{
+                    DEBUG_LOG("can materialize into WHERE");
+
     				*inMatchSel = TRUE;
     			}
     			// not a matched operator
@@ -1080,10 +1097,14 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
     	default: //TODO there may be some other cases where the nesting operator
     			//result attribute is in the result schema but could be ommitted
     	{
+            DEBUG_LOG("Nested subquery inling, other operator %s", singleOperatorToOverview(op));
     		outOfFrom = TRUE;
     		// does  operator reference subquery, for now only
     		if(opReferencesAttr(op, a))
     		{
+                DEBUG_LOG("Other operator references nesting result attribute <%s>:\n%s\n\nCANNOT SERAILIZE INTO WHERE",
+                          a,
+                          singleOperatorToOverview(op));
     			*inNonMatchSel = TRUE;
     		}
     	}
