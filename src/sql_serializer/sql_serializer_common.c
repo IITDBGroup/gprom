@@ -56,7 +56,7 @@ static void setNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeCl
 static boolean nestedSubqueryFirstUsedInProjection(QueryOperator *op, char *a, QueryBlockMatch *m);
 static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
 static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, SerializeClausesAPI *api);
-static List *removeAllStringsFromList(List *l, HashMap *strs);
+static List *removeAllStringsFromList(List *l, Set *strs);
 static boolean hasInlinedAttr(FromAttrsContext *fac);
 static boolean updateAttributeNamesInternal(Node *node, FromAttrsContext *fac);
 static boolean analyzeNestingVisitor(QueryOperator *q, void *api);
@@ -301,7 +301,7 @@ nestingOperatorBookkeepingToString(SerializeClausesAPI *api)
                              stringListToString((List *) kv->value));
         }
     }
-    if(api->nestingCorrelatedReferences && maxLevel >= LOG_DEBUG)//TODO hardcode here?
+    if(api->nestingCorrelatedReferences && maxLevel >= LOG_INFO)//TODO hardcode here?
     {
         FOREACH_HASH_ENTRY(kv, api->nestingCorrelatedReferences)
         {
@@ -1062,10 +1062,17 @@ removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, Serial
 void
 removeInlinedNestingFromAttrsContext(FromAttrsContext *fac)
 {
-    HashMap *inlinedA = fac->api->nestAttrMap;
+    Set *inlinedA = fac->api->inlinedNestResultAttrs;
     List *newFromAttrsList = NIL;
+    List *newFromAttrs = NIL;
 
-    fac->fromAttrs = removeAllStringsFromList(fac->fromAttrs, inlinedA);
+    FOREACH(List,attrs,fac->fromAttrs)
+    {
+        newFromAttrs = appendToTailOfList(newFromAttrs,
+                                          removeAllStringsFromList(attrs, inlinedA));
+    }
+
+    fac->fromAttrs = newFromAttrs;
 
     FOREACH(List,outer,fac->fromAttrsList)
     {
@@ -1082,13 +1089,13 @@ removeInlinedNestingFromAttrsContext(FromAttrsContext *fac)
 }
 
 static List *
-removeAllStringsFromList(List *l, HashMap *strs)
+removeAllStringsFromList(List *l, Set *strs)
 {
     List *result = NIL;
 
     FOREACH(char,s,l)
     {
-        if(!MAP_HAS_STRING_KEY(strs, s))
+        if(!hasSetElem(strs, s))
         {
             result = appendToTailOfList(result, s);
         }
@@ -1923,9 +1930,10 @@ gatherCorrelatedAttrs(QueryOperator *q, List *nestScopes, SerializeClausesAPI *a
         NestingOperator *n = (NestingOperator *) q;
         char *id = getNestingOperatorId(n);
 
-        gatherCorrelatedAttrs(OP_LCHILD(q), newScope, api);
+        gatherCorrelatedAttrs(OP_LCHILD(q), nestScopes, api);
 
-        newScope = appendToTailOfList(newScope, strdup(id));
+        newScope = deepCopyStringList(nestScopes);
+        newScope = appendToHeadOfList(newScope, strdup(id));
 
         gatherCorrelatedAttrs(OP_RCHILD(q), newScope, api);
     }
