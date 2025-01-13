@@ -312,6 +312,12 @@ strtrim (char *in)
 }
 
 boolean
+stringEquals(char *left, char *right)
+{
+    return streq(left,right);
+}
+
+boolean
 strieq(char *left, char *right)
 {
     if (left == NULL && right == NULL)

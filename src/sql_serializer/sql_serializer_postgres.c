@@ -53,7 +53,6 @@ serializeOperatorModelPostgres(Node *q)
     createAPI();
 
     // quote idents for postgres
-
     if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
     {
 		genQuoteAttributeNames(q);
@@ -62,6 +61,7 @@ serializeOperatorModelPostgres(Node *q)
 
     // add casts to null constants to make postgres aware of their types
     visitWithPointers(q,addNullCasts,(void **) &q, PSET());
+
 
     // serialize query
     if (IS_OP(q))
@@ -133,8 +133,12 @@ serializeQueryPostgres(QueryOperator *q)
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
 
+    // gather data on nesting operators
+    analyzeNesting(q, api);
+
     // initialize FromAttrsContext structure
   	FromAttrsContext *fac = initializeFromAttrsContext();
+    fac->api = api;
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, fac, api);
@@ -217,7 +221,7 @@ quoteIdentifierPostgres (char *ident)
 }
 
 static void
-createAPI (void)
+createAPI(void)
 {
     if (api == NULL)
     {
@@ -308,13 +312,13 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
 	    HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) m->secondProj, fac, api, FALSE);
 
-        fac->nestAttrMap = nestAttrMap;
+        removeInlinedNestingFromAttrsContext(fac);
+
         FOREACH(Node,n,m->secondProj->projExprs)
         {
             updateAttributeNames(n, fac);
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, nestAttrMap, FALSE));
         }
-        fac->nestAttrMap = NULL;
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
     }
@@ -417,11 +421,12 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         int pos = 0;
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
         HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) p, fac, api, FALSE);
+        removeInlinedNestingFromAttrsContext(fac);
+
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
         DEBUG_LOG("outer projection");
 
-        fac->nestAttrMap = nestAttrMap;
         FOREACH(Node,a,p->projExprs)
         {
             char *attrName = (char *) getNthOfListP(attrNames, pos);
@@ -439,7 +444,6 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 updateAttributeNames(a, fac);
             appendStringInfo(select, "%s%s", exprToSQL(a, nestAttrMap, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
-        fac->nestAttrMap = NULL;
 
         resultAttrs = attrNames;
         DEBUG_LOG("second projection expressions %s", select->data);

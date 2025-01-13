@@ -96,6 +96,7 @@ serializeQuerySQLite(QueryOperator *q)
 
     // initialize FromAttrsContext structure
   	struct FromAttrsContext *fac = initializeFromAttrsContext();
+    fac->api = api;
 
 	// replace functions not supported by SQLite with equivalent alternatives
 	replaceFunctionsWithEquivalent((Node *) q, NULL);

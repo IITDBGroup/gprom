@@ -56,15 +56,19 @@ attributeReferenceToSQL(StringInfo str, AttributeReference *node, HashMap *map, 
 {
 	char *lastNamePart = lastAttrNamePart(node->name);
     TRACE_LOG("attributeReferenceToSQL %s with last part %s", node->name, lastNamePart);
+
+    // serialize nested subquery that was inlined
 	if(map != NULL && isNestingAttribute(lastNamePart))
 	{
 		char *extractName = lastNamePart; //TODO use splitting on . which is safer
 		TRACE_LOG("Extract Name %s", extractName);
+        DEBUG_LOG("Reference to nested subquery: %s", extractName);
 
 		if(hasMapStringKey(map, extractName))
 		{
 			char *sql = STRING_VALUE(getMapString(map, extractName));
 			TRACE_LOG("Nested subquery: %s", sql);
+            DEBUG_LOG("inline nested subquery for attribute <%s>\n\n%s", extractName, sql);
 			appendStringInfoString(str, sql);
 		}
 		else

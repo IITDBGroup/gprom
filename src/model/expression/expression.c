@@ -78,7 +78,7 @@ createAttributeReference (char *name)
     result->name = strdup(name);
     result->fromClauseItem = INVALID_FROM_ITEM;
     result->attrPosition = INVALID_ATTR;
-    result->outerLevelsUp = INVALID_ATTR;
+    result->outerLevelsUp = 0; // INVALID_ATTR;
     result->attrType= DT_STRING;
 
     return result;

@@ -14,6 +14,8 @@
 
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "model/expression/expression.h"
+#include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
@@ -25,6 +27,7 @@
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
 static boolean checkParentChildLinks (QueryOperator *op, void *context);
 static boolean checkAttributeRefConsistency (QueryOperator *op, void *context);
+static List *filterOutInlinedSubqueries(List *attrRefs, Set *inlined);
 static boolean checkSchemaConsistency (QueryOperator *op, void *context);
 static boolean checkForDatastructureReuse (QueryOperator *op, void *context);
 static boolean checkReuseVisitor (Node *node, void *context);
@@ -69,6 +72,21 @@ checkModel(QueryOperator *op)
     FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
 }
 
+boolean
+checkSingleOperator(QueryOperator *op)
+{
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_MODEL_CHECKER");
+
+    if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !checkParentChildLinks(op, NULL))
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+    if (SHOULD(CHECK_OM_ATTR_REF) && !checkAttributeRefConsistency(op, NULL))
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+    if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !checkSchemaConsistency(op, NULL))
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+
+    FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
+}
+
 static boolean
 checkAttributeRefConsistency(QueryOperator *op, void *context)
 {
@@ -92,6 +110,11 @@ checkAttributeRefConsistency(QueryOperator *op, void *context)
         {
             SelectionOperator *o = (SelectionOperator *) op;
             attrRefs = getAttrReferences(o->cond);
+
+            if(HAS_STRING_PROP(op, PROP_NESTED_INLINED_NESTED_QUERY))
+            {
+                attrRefs = filterOutInlinedSubqueries(attrRefs, (Set *) GET_STRING_PROP(op,PROP_NESTED_INLINED_NESTED_QUERY));
+            }
         }
         break;
         case T_JoinOperator:
@@ -126,12 +149,18 @@ checkAttributeRefConsistency(QueryOperator *op, void *context)
         {
 
         }
-            break;
+        break;
         // Check Attribute that we use as Json Column should be from/should exist in child
         case T_JsonTableOperator:
         {
             JsonTableOperator *o = (JsonTableOperator *)op;
             attrRefs = singleton(o->jsonColumn);
+        }
+        break;
+        case T_NestingOperator:
+        {
+            NestingOperator *n = (NestingOperator *) op;
+            attrRefs = getAttrReferences((Node *) n->cond);
         }
         break;
         default:
@@ -140,15 +169,27 @@ checkAttributeRefConsistency(QueryOperator *op, void *context)
     if(!checkAttributeRefList(attrRefs, op->inputs, op))
         return FALSE;
 
-//    FOREACH(QueryOperator,child,op->inputs)
-//        if (!checkAttributeRefConsistency(child))
-//            return FALSE;
-
     return TRUE;
 }
 
+static List *
+filterOutInlinedSubqueries(List *attrRefs, Set *inlined)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeReference,a,attrRefs)
+    {
+        if(!hasSetElem(inlined, a->name))
+        {
+            result = appendToTailOfList(result, a);
+        }
+    }
+
+    return result;
+}
+
 static boolean
-checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
+checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
 {
     FOREACH(AttributeReference,a,attrRefs)
     {
@@ -176,17 +217,19 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         //child = (QueryOperator *) getNthOfListP(children, input);
         if(levelsUp > 0)
         {
-        	        QueryOperator *tempChild = OP_LCHILD(parent);
-                QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(tempChild, levelsUp);
-                child = (QueryOperator *) getNthOfListP(nestingOp->inputs, input);
+        	QueryOperator *tempChild = OP_LCHILD(parent);
+            QueryOperator *nestingOp = (QueryOperator *) findNestingOperator(tempChild, levelsUp);
+            child = (QueryOperator *) getNthOfListP(nestingOp->inputs, input);
         }
         else
-                child = (QueryOperator *) getNthOfListP(children, input);
+        {
+            child = (QueryOperator *) getNthOfListP(children, input);
+        }
 
         if (attrPos < 0 || attrPos >= getNumAttrs(child))
         {
             ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "
-                                "exist in child:",a);
+                                   "exist in child:",a);
             ERROR_OP_LOG("parent is",parent);
             return FALSE;
         }
@@ -210,23 +253,13 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
         }
-       /* else
-        {
-            DEBUG_LOG("attribute datatype and child attrdef datatypes are not the "
-                    "same: <%s> and <%s> in\n\n%s",
-                    DataTypeToString(childA->dataType),
-                    DataTypeToString(a->attrType),
-                    operatorToOverviewString((Node *) parent));;
-            DEBUG_LOG("details are: \n%s\n\n%s\n\n", nodeToString(a),
-                    nodeToString(childA));
-        }*/
     }
 
     return TRUE;
 }
 
 static boolean
-checkSchemaConsistency (QueryOperator *op, void *context)
+checkSchemaConsistency(QueryOperator *op, void *context)
 {
     if(HAS_STRING_PROP(op,PROP_NO_MODEL_CHECKING_ROOT))
     {
@@ -290,14 +323,6 @@ checkSchemaConsistency (QueryOperator *op, void *context)
                         "number of attributes of its child:", op);
                 return FALSE;
             }
-
-//            if (!equal(op->schema->attrDefs,child->schema->attrDefs))
-//            {
-//                ERROR_LOG("Attributes of a selection operator should match the "
-//                        "attributes of its child:\n%s",
-//                        operatorToOverviewString((Node *) op));
-//                return FALSE;
-//            }
         }
         break;
         case T_JoinOperator:
@@ -351,7 +376,6 @@ checkSchemaConsistency (QueryOperator *op, void *context)
         break;
         case T_WindowOperator:
         {
-//            WindowOperator *o = (WindowOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = sublist(copyObject(op->schema->attrDefs), 0,
                     LIST_LENGTH(op->schema->attrDefs) - 2);
@@ -367,7 +391,6 @@ checkSchemaConsistency (QueryOperator *op, void *context)
         break;
         case T_OrderOperator:
         {
-//            OrderOperator *o = (OrderOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = op->schema->attrDefs;
 
@@ -383,10 +406,10 @@ checkSchemaConsistency (QueryOperator *op, void *context)
         // We should Check that the schema of JsonTable has the attributes of the Child plus new JsonTable Attributes
         case T_JsonTableOperator:
         {
-	    QueryOperator *lChild = OP_LCHILD(op);
-	    FOREACH(Node, n, lChild->schema->attrDefs)
-	    {
-		if(!searchListNode(op->schema->attrDefs, n))
+	        QueryOperator *lChild = OP_LCHILD(op);
+	        FOREACH(Node, n, lChild->schema->attrDefs)
+	        {
+		        if(!searchListNode(op->schema->attrDefs, n))
                 {
                     ERROR_LOG("Attributes of a Json Table operator should be the "
                               "attributes of its left child plus new JsonTable Attributes:\n%s",
@@ -396,13 +419,28 @@ checkSchemaConsistency (QueryOperator *op, void *context)
             }
         }
         break;
+        case T_NestingOperator:
+        {
+            /* NestingOperator *n = (NestingOperator *) op; */
+            QueryOperator *lChild = OP_LCHILD(op);
+            int offset = -2 + ((HAS_STRING_PROP(op,PROP_INLINED_NESTED_QUERY)
+                               && LIST_LENGTH(op->schema->attrDefs) == LIST_LENGTH(lChild->schema->attrDefs))
+                               ? 1 : 0);
+            List *expected = sublist(copyObject(op->schema->attrDefs),
+                                     0,
+                                     LIST_LENGTH(op->schema->attrDefs) + offset);
+
+            if (!equal(expected, lChild->schema->attrDefs))
+            {
+                ERROR_LOG("Attributes of a nesting operator should be the "
+                          "attributes of its left child + nesting result function (except if it has been inlined):\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+        }
         default:
             break;
     }
-
-//    FOREACH(QueryOperator,o,op->inputs)
-//        if (!checkSchemaConsistency(o))
-//            return FALSE;
 
     return !SHOULD(CHECK_OM_UNIQUE_ATTR_NAMES)
             || checkUniqueAttrNames(op);

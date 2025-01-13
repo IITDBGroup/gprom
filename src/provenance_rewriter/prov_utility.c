@@ -106,7 +106,7 @@ getProvAttrProjectionExprs(QueryOperator *op)
         AttributeDef *d = getNthOfListP(pDefs, pos++);
         char *name = strdup(d->attrName);
 
-        a = createFullAttrReference(name, 0, i, INVALID_ATTR, d->dataType);
+        a = createFullAttrReference(name, 0, i, 0, d->dataType);
         result = appendToTailOfList(result, a);
     }
 
@@ -127,7 +127,7 @@ getNormalAttrProjectionExprs(QueryOperator *op)
             AttributeReference *a;
             AttributeDef *d = getNthOfListP(attrDefs, i);
             char *name = strdup(d->attrName);
-            a = createFullAttrReference(name, 0, i, INVALID_ATTR, d->dataType);
+            a = createFullAttrReference(name, 0, i, 0, d->dataType);
             result = appendToTailOfList(result, a);
         }
     }
@@ -145,7 +145,7 @@ getAllAttrProjectionExprs(QueryOperator *op)
 	{
 		AttributeReference *at;
 
-		at = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+		at = createFullAttrReference(a->attrName, 0, i++, 0, a->dataType);
 		result = appendToTailOfList(result, at);
 	}
 
@@ -164,7 +164,7 @@ createProjOnAllAttrs(QueryOperator *op)
     {
         AttributeReference *att;
 
-        att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+        att = createFullAttrReference(a->attrName, 0, i++, 0, a->dataType);
         projExprs = appendToTailOfList(projExprs, att);
         attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
     }
@@ -187,7 +187,7 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
         AttributeDef *a = getAttrDefByPos(op, i);
         AttributeReference *att;
 
-        att = createFullAttrReference(strdup(a->attrName), 0, i, INVALID_ATTR, a->dataType);
+        att = createFullAttrReference(strdup(a->attrName), 0, i, 0, a->dataType);
         projExprs = appendToTailOfList(projExprs, att);
         attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
     }
@@ -230,7 +230,7 @@ createAttrsRefByName(QueryOperator *op, char *attrNames)
 {
 	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
 	int pos = getAttrPos(op, ad->attrName);
-	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
+	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, 0, ad->dataType);
 
 	return ar;
 }
@@ -244,7 +244,7 @@ createAttrsRefByName(QueryOperator *op, char *attrNames)
 //	ASSERT(ad != NULL);
 //
 //	int defPos = getAttrPos(op, ad->attrName);
-//	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, defPos, INVALID_ATTR, ad->dataType);
+//	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, defPos, 0, ad->dataType);
 //
 //	return ar;
 //}
@@ -255,7 +255,7 @@ createAttrsRefByName(QueryOperator *op, char *attrNames)
 //    AttributeDef *ad = copyObject(getAttrDefByPos(op, pos));
 //    ASSERT(ad != NULL);
 //
-//    AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
+//    AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, 0, ad->dataType);
 //
 //    return ar;
 //}

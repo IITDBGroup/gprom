@@ -346,13 +346,19 @@ extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
 extern List *getProjExprsForAllAttrs(QueryOperator *op);
 extern List *getProjResultAttrNamesForProjExpr(ProjectionOperator *op, Node *expr);
 
+// nesting operator
 extern List *getNestingResultAttributeNames(NestingOperator *op);
 extern List *nestingOperatorGetResultAttributes(NestingOperator *n);
 extern int nestingOperatorGetNumResultAttrs(NestingOperator *op);
 extern char *getSingleNestingResultAttribute(NestingOperator *op);
+extern char *getNestingOperatorId(NestingOperator *op);
 extern Set *getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery);
 extern Set *getCorrelatedAttributes(Node *op, boolean corrInSubquery);
 extern boolean noCorrelationBelowNormalization(Node *op, boolean corrInSubquery);
+#define IS_LATERAL(_op) (((NestingOperator *) _op)->nestingType == NESTQ_LATERAL)
+#define IS_LATERAL_NESTING_OP(_op) (isA(_op,NestingOperator) && IS_LATERAL(_op))
+#define IS_NONLATERAL_NESTING_OP(_op) (isA(_op,NestingOperator) && !IS_LATERAL(_op))
+
 
 /* change operator schema and adapt references in parents */
 extern void removeAttrFromOp(QueryOperator *op, char *attr);
@@ -373,6 +379,7 @@ extern unsigned int numOpsInTree (QueryOperator *root);
 //find NestingOperator based on levelsUp
 extern QueryOperator*findNestingOperator(QueryOperator *op, int levelsUp);
 extern char *getNestingAttrPrefix();
+extern char *getLateralNestingId(int number);
 extern char *getNestingResultAttribute(int number);
 extern boolean isNestingAttribute(char *attr);
 

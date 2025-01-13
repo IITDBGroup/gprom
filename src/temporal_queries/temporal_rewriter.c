@@ -58,6 +58,12 @@ static QueryOperator *addTemporalNormalizationLWU (QueryOperator *input, QueryOp
 static List *getAttrRefsByNames (QueryOperator *op, List *attrNames);
 static void markTemporalAttrsAsProv (QueryOperator *op);
 
+typedef enum QOVisitorState {
+    GLOBAL_ABORT=0,
+    LOCAL_ABORT=1,
+    CONTINUE=2
+}  QOVisitorState;
+
 #define ONE 1
 #define ZERO 0
 #define INT_MINVAL -2000000000
@@ -660,7 +666,7 @@ tempRewrTemporalSource (QueryOperator *op)
         attr = createAttributeDef(newName, origAttr->dataType);
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, attr);
 
-        aRef = createFullAttrReference(strdup(name),0,pos,INVALID_ATTR, origAttr->dataType);
+        aRef = createFullAttrReference(strdup(name),0,pos,0, origAttr->dataType);
         p->projExprs = appendToTailOfList(p->projExprs, aRef);
         tempAttrPos++;
     }
@@ -712,56 +718,74 @@ tempRewrSetOperator (SetOperator *o)
 // 0 - Global Abort
 // 1 - Local Abort (don't visit children)
 // 2 - Continue
-static int
-internalVisitQOGraphLocal (QueryOperator *q, TraversalOrder tOrder,
-        int (*visitF) (QueryOperator *op, void *context, Set *haveSeen), void *context, Set *haveSeen)
+
+#define CHECK_GLOBAL_ABORT(_result) \
+   do { \
+       if(_result == GLOBAL_ABORT) return GLOBAL_ABORT; \
+   } while (0);
+
+static QOVisitorState
+internalVisitQOGraphLocal (QueryOperator *q,
+                           TraversalOrder tOrder,
+                           QOVisitorState (*visitF) (QueryOperator *op, void *context, Set *haveSeen),
+                           void *context,
+                           Set *haveSeen)
 {
-    int result = -1;
-    if (tOrder == TRAVERSAL_PRE) {
+    QOVisitorState result = -1;
+
+    if (tOrder == TRAVERSAL_PRE)
+    {
         result = visitF(q, context, haveSeen);
-        if(!result) return 0;
+        CHECK_GLOBAL_ABORT(result);
     }
 
-    if(result == 2) {
+    if(result == CONTINUE)
+    {
         FOREACH(QueryOperator,c,q->inputs)
         {
             if (!hasSetElem(haveSeen, c))
             {
-                int result = FALSE;
+                QOVisitorState result = GLOBAL_ABORT;
                 // MemContext *ctxt;
                 addToSet(haveSeen, c);
                 // ctxt = RELEASE_MEM_CONTEXT();
                 result = internalVisitQOGraphLocal(c, tOrder, visitF, context, haveSeen);
                 // ACQUIRE_MEM_CONTEXT(ctxt);
-                if (!result) return 0;
+                CHECK_GLOBAL_ABORT(result);
             }
         }
     }
 
     if (tOrder == TRAVERSAL_POST) {
         result = visitF(q, context, haveSeen);
-        if(!result) return 0;
+        CHECK_GLOBAL_ABORT(result);
     }
 
-    return 2;
+    return CONTINUE;
 }
 
 // borrowed from query_operator.c
 // extended to support local aborts as well as global
-static int
-visitQOGraphLocal (QueryOperator *q, TraversalOrder tOrder,
-        int (*visitF) (QueryOperator *op, void *context, Set *haveSeen), void *context, Set *haveSeen)
+static QOVisitorState
+visitQOGraphLocal(QueryOperator *q,
+                  TraversalOrder tOrder,
+                  QOVisitorState (*visitF) (QueryOperator *op, void *context, Set *haveSeen),
+                  void *context,
+                  Set *haveSeen)
 {
-    int result = FALSE;
+    QOVisitorState result = GLOBAL_ABORT;
     result = internalVisitQOGraphLocal(q, tOrder, visitF, context, haveSeen);
     return result;
 }
 
-static int
-visitQOGraphLocalWithNewCtx (QueryOperator *q, TraversalOrder tOrder,
-        int (*visitF) (QueryOperator *op, void *context, Set *haveSeen), void *context)
+
+static QOVisitorState
+visitQOGraphLocalWithNewCtx(QueryOperator *q,
+                            TraversalOrder tOrder,
+                            QOVisitorState (*visitF) (QueryOperator *op, void *context, Set *haveSeen),
+                            void *context)
 {
-    int result = FALSE;
+    QOVisitorState result = GLOBAL_ABORT;
     NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
     Set *haveSeen = PSET();
     result = internalVisitQOGraphLocal(q, tOrder, visitF, context, haveSeen);
@@ -804,20 +828,21 @@ typedef struct LocateNormalizationState {
     List *normalizations;
 } LocateNormalizationState;
 
-static int
+static QOVisitorState
 pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 {
     NestedNormalizationState *state = context;
 
-    if (q == NULL) {
-        return 0;
+    if (q == NULL)
+	{
+        return GLOBAL_ABORT;
     }
 
-    if(isA(q, SelectionOperator)) {
+    if(isA(q, SelectionOperator))
+	{
         //SELECT * FROM r WHERE EXISTS (SELECT * FROM s WHERE r.a = s.b)
         // pass directly through
-        if(!getBoolOption(OPTIMIZATION_PUSH_NORMALIZATION_BELOW_SELECT)) return 2; //FIXME I think this wrong, if the optimization is off we always have to push through selections? If it is on we have to still push through any correlations
-
+        if(!getBoolOption(OPTIMIZATION_PUSH_NORMALIZATION_BELOW_SELECT)) return CONTINUE;
         // equality with correlation ok if all operators above are AND
         List *condOperators = NIL;
         getSelectionCondOperatorList(((SelectionOperator*)q)->cond, &condOperators);
@@ -855,9 +880,9 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         boolean here = (EMPTY_SET(getCorrelatedAttributes((Node*)q, TRUE))) && tableAccessChild;
 
         if(here) {
-            setPropertyInParentCtx((HashMap *)(q->properties), "normalize", (Node*)normalizationStateToMap(state));
+            setPropertyInParentCtx((HashMap *)(q->properties), PROP_TEMP_NORMALIZE, (Node*)normalizationStateToMap(state));
             INFO_OP_LOG("tagged operator", q);
-            return 1;
+            return LOCAL_ABORT;
         }
     }
     else if(isA(q, ProjectionOperator)) {
@@ -902,7 +927,8 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
             }
         }
     }
-    else if(isA(q, JoinOperator)) {
+    else if(isA(q, JoinOperator))
+	{
         // rules
 
         // cardinality estimation: sometimes its better to leave above (unless there are correlations below, in which case we must push down still)
@@ -912,21 +938,21 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 
             if(res == 1) {
                 FOREACH(QueryOperator, parent, q->parents) {
-                    setPropertyInParentCtx((HashMap *)(parent->properties), "normalize", (Node*)normalizationStateToMap(state));
+                    setPropertyInParentCtx((HashMap *)(parent->properties), PROP_TEMP_NORMALIZE, (Node*)normalizationStateToMap(state));
                 }
-                return 1;
+                return LOCAL_ABORT;
             }
 
             visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
             visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
-            return 1;
+            return LOCAL_ABORT;
         }
 
         if(!correlated) {
             FOREACH(QueryOperator, parent, q->parents) {
-                setPropertyInParentCtx((HashMap *)(parent->properties), "normalize", (Node*)normalizationStateToMap(state));
+                setPropertyInParentCtx((HashMap *)(parent->properties), PROP_TEMP_NORMALIZE, (Node*)normalizationStateToMap(state));
             }
-            return 1;
+            return LOCAL_ABORT;
         }
 
         // normalize R, S join T
@@ -938,9 +964,10 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
         // two calls to pushDownNormalization on the two branches
         visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
         visitQOGraphLocal(OP_RCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
-        return 1;
+        return LOCAL_ABORT;
     }
-    else if(isA(q, AggregationOperator)) {//TODO is it correct to do nothing here? Should we push normalization on intersection with GB attributes?
+    else if(isA(q, AggregationOperator))
+	{//FIXME I believe it is not correct to do nothing here? Should we push normalization on intersection with GB attributes? This is only relevant if there is an aggregation below a correlated filter
         // normalize(R, agg(S), (A from R, A from S))
         // --> normalize(R, S, A intersect group-by attrs of the agg)
 
@@ -948,14 +975,25 @@ pushDownNormalization(QueryOperator *q, void *context, Set *haveSeen)
 
         //return visitQOGraph(q, TRAVERSAL_PRE, pushDownNormalization, normalizationFor);
     }
-    else {
+	// if we are sure that the nesting operator will be inlined into WHERE then it is safe to push into the left input
+	else if(isA(q, NestingOperator))
+	{
+		//NestingOperator *n = (NestingOperator *) q;
+
+        //FIXME in general it is not save to push into left side, only if we can serialize the nested subquery into WHERE
+
+        visitQOGraphLocal(OP_LCHILD(q), TRAVERSAL_PRE, pushDownNormalization, state, haveSeen);
+        return LOCAL_ABORT;
+	}
+    else
+	{
         // at base level (tableaccess, new subquery?) append normalization
-        setPropertyInParentCtx((HashMap *)(q->properties), "normalize", (Node*)normalizationStateToMap(state));
+        setPropertyInParentCtx((HashMap *)(q->properties), PROP_TEMP_NORMALIZE, (Node*)normalizationStateToMap(state));
         INFO_OP_LOG("tagged operator", q);
-        return 0;
+        return GLOBAL_ABORT;
     }
 
-    return 2;
+    return CONTINUE;
 }
 
 // note: this will return the last operator that has the normalization flag set for the appropriate op
@@ -969,8 +1007,8 @@ findNormalizationInQuery(QueryOperator *q, void *c)
     if (q == NULL)
         return TRUE;
 
-    if(q->properties && MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
-        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
+    if(q->properties && MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE)) {
+        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), PROP_TEMP_NORMALIZE));
         if(state->op == INT_VALUE(MAP_GET_STRING(map, "op"))) {
             INFO_LOG("located normalization");
             state->normalizations = appendToTailOfList(state->normalizations, createNodeKeyValue((Node*)q, (Node*)map));
@@ -989,11 +1027,11 @@ removeNormalizationFromQuery(QueryOperator *q, void *context)
         return FALSE;
     }
 
-    if (MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
-        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), "normalize"));
+    if (MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE)) {
+        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), PROP_TEMP_NORMALIZE));
         if(equal((QueryOperator *)removeFrom, MAP_GET_STRING(map, "op"))) {
             INFO_LOG("removing normalization");
-            removeMapStringElem((HashMap *)(q->properties), "normalize");
+            removeMapStringElem((HashMap *)(q->properties), PROP_TEMP_NORMALIZE);
         }
     }
 
@@ -1012,7 +1050,7 @@ tempRewrNestedSubquery(NestingOperator *op)
         visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, &state);
     } else {
         NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), "id")), NIL, NIL };
-        MAP_ADD_STRING_KEY((HashMap *)(OP_RCHILD(op)->properties), "normalize", (Node*)normalizationStateToMap(&state));
+        MAP_ADD_STRING_KEY((HashMap *)(OP_RCHILD(op)->properties), PROP_TEMP_NORMALIZE, (Node*)normalizationStateToMap(&state));
     }
 
     // (query_operator.c findCorrelatedattrsVisitor comment)
@@ -1295,7 +1333,7 @@ getTempAttrRef (QueryOperator *o, boolean begin)
     }
 
     pos = getAttrPos(o, d->attrName);
-    result = createFullAttrReference(strdup(d->attrName), 0, pos, INVALID_ATTR, T_BEtype); //TODO use actual temporal DT
+    result = createFullAttrReference(strdup(d->attrName), 0, pos, 0, T_BEtype); //TODO use actual temporal DT
     return result;
 }
 
@@ -1657,11 +1695,11 @@ addCoalesce (QueryOperator *input)
 
     AttributeDef *t1BeginDef  = (AttributeDef *) getStringProperty(op, PROP_TEMP_TBEGIN_ATTR);
     int t1BeginPos = getAttrPos(op, t1BeginDef->attrName);
-    AttributeReference *t1BeginRef = createFullAttrReference(strdup(t1BeginDef->attrName), 0, t1BeginPos, INVALID_ATTR, t1BeginDef->dataType);
+    AttributeReference *t1BeginRef = createFullAttrReference(strdup(t1BeginDef->attrName), 0, t1BeginPos, 0, t1BeginDef->dataType);
 
     AttributeDef *t1EndDef  = (AttributeDef *) getStringProperty(op, PROP_TEMP_TEND_ATTR);
     int t1EndPos = getAttrPos(op, t1EndDef->attrName);
-    AttributeReference *t1EndRef = createFullAttrReference(strdup(t1EndDef->attrName), 0, t1EndPos, INVALID_ATTR, t1EndDef->dataType);
+    AttributeReference *t1EndRef = createFullAttrReference(strdup(t1EndDef->attrName), 0, t1EndPos, 0, t1EndDef->dataType);
 
     t1ProjExpr1 = appendToTailOfList(t1ProjExpr1, t1EndRef);
     t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, t1BeginRef);
@@ -1695,21 +1733,21 @@ addCoalesce (QueryOperator *input)
     FOREACH(char, c, norAttrnames)
     {
         AttributeDef *t2PBDef1 = getAttrDefByName(t1Op, c);
-        AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, attrPos, INVALID_ATTR, t2PBDef1->dataType);
+        AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, attrPos, 0, t2PBDef1->dataType);
         t2PartitionBy1 = appendToTailOfList(t2PartitionBy1,t2PBRef1);
         attrPos++;
     }
 
     // order-by
     AttributeDef *t2GBDef1 = (AttributeDef *) getTailOfListP(t1Op->schema->attrDefs);
-    AttributeReference *t2GBRef1 = createFullAttrReference(strdup(t2GBDef1->attrName), 0, LIST_LENGTH(t1Op->schema->attrDefs) - 1, INVALID_ATTR, t2GBDef1->dataType);
+    AttributeReference *t2GBRef1 = createFullAttrReference(strdup(t2GBDef1->attrName), 0, LIST_LENGTH(t1Op->schema->attrDefs) - 1, 0, t2GBDef1->dataType);
     List *t2GroupBy1 = singleton(t2GBRef1);
 
     WindowDef *t2WD1 = createWindowDef(t2PartitionBy1,t2GroupBy1,wfT2W1);
 
     AttributeDef *t1TBDef = copyObject(getAttrDefByName(t1Op, TBEGIN_NAME));
     int t1TBDefPos = getAttrPos(op, t1TBDef->attrName);
-    AttributeReference *t2FCRef = createFullAttrReference(strdup(t1TBDef->attrName), 0, t1TBDefPos, INVALID_ATTR, t1TBDef->dataType);
+    AttributeReference *t2FCRef = createFullAttrReference(strdup(t1TBDef->attrName), 0, t1TBDefPos, 0, t1TBDef->dataType);
     FunctionCall *t2FC = createFunctionCall(AGGNAME_SUM,singleton(t2FCRef));
 
     WindowFunction *t2WF = createWindowFunction(t2FC,t2WD1);
@@ -1731,7 +1769,7 @@ addCoalesce (QueryOperator *input)
 
     //groupBy
     AttributeDef *t2GBDef2 = (AttributeDef *) getAttrDefByName(t2W1Op, TS);
-    AttributeReference *t2GBRef2 = createFullAttrReference(strdup(t2GBDef2->attrName), 0, LIST_LENGTH(t1Op->schema->attrDefs) - 1, INVALID_ATTR, t2GBDef2->dataType);
+    AttributeReference *t2GBRef2 = createFullAttrReference(strdup(t2GBDef2->attrName), 0, LIST_LENGTH(t1Op->schema->attrDefs) - 1, 0, t2GBDef2->dataType);
     List *t2GroupBy2 = singleton(t2GBRef2);
 
     WindowDef *t2WD2 = createWindowDef(t2PartitionBy2,t2GroupBy2,wfT2W2);
@@ -1785,7 +1823,7 @@ addCoalesce (QueryOperator *input)
 
     //groupBy
     AttributeDef *t3gbDef1 = (AttributeDef *) getTailOfListP(t2Op->schema->attrDefs);
-    AttributeReference *t3gbRef1 = createFullAttrReference(strdup(t3gbDef1->attrName), 0, LIST_LENGTH(t2Op->schema->attrDefs) - 1, INVALID_ATTR, t3gbDef1->dataType);
+    AttributeReference *t3gbRef1 = createFullAttrReference(strdup(t3gbDef1->attrName), 0, LIST_LENGTH(t2Op->schema->attrDefs) - 1, 0, t3gbDef1->dataType);
     List *t3GroupBy1 = singleton(t3gbRef1);
 
     WindowDef *t3wd1 = createWindowDef(t3PartitionBy1,t3GroupBy1,NULL);
@@ -1911,7 +1949,7 @@ addCoalesce (QueryOperator *input)
     FOREACH(AttributeDef,a,t5wOp->schema->attrDefs)
     {
         AttributeReference *att;
-        att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+        att = createFullAttrReference(a->attrName, 0, i++, 0, a->dataType);
         t5ProjExpr = appendToTailOfList(t5ProjExpr, att);
         if(i < t5DefLen-1)
         	    t5ProjNames = appendToTailOfList(t5ProjNames, strdup(a->attrName));
@@ -2056,13 +2094,13 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     AttributeDef *leftBeginDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TBEGIN_ATTR);
     leftBeginDef = leftBeginDef ? leftBeginDef : getAttrDefByName(left, (char*)getHeadOfListP((List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     int leftBeginPos = getAttrPos(left, leftBeginDef->attrName);
-    AttributeReference *leftBeginRef = createFullAttrReference(strdup(leftBeginDef->attrName), 0, leftBeginPos, INVALID_ATTR, leftBeginDef->dataType);
+    AttributeReference *leftBeginRef = createFullAttrReference(strdup(leftBeginDef->attrName), 0, leftBeginPos, 0, leftBeginDef->dataType);
     leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
 
     AttributeDef *leftEndDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TEND_ATTR);
     leftEndDef = leftEndDef ? leftEndDef : getAttrDefByName(left, (char*)getTailOfListP((List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     int leftEndPos = getAttrPos(left, leftEndDef->attrName);
-    AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, INVALID_ATTR, leftEndDef->dataType);
+    AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, 0, leftEndDef->dataType);
     leftProjExpr2 = appendToTailOfList(leftProjExpr2, leftEndRef);
 
     FOREACH(char, c, leftAttrs)
@@ -2358,7 +2396,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
         getAttrDefByName(left, (char*)getHeadOfListP(
                              (List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     // int leftBeginPos = getAttrPos(left, leftBeginDef->attrName);
-    // AttributeReference *leftBeginRef = createFullAttrReference(strdup(leftBeginDef->attrName), 0, leftBeginPos, INVALID_ATTR, leftBeginDef->dataType);
+    // AttributeReference *leftBeginRef = createFullAttrReference(strdup(leftBeginDef->attrName), 0, leftBeginPos, 0, leftBeginDef->dataType);
     // leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
 
     AttributeDef *leftEndDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TEND_ATTR);
@@ -2367,7 +2405,7 @@ addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, Lis
         getAttrDefByName(left, (char*)getTailOfListP(
                              (List *)getStringProperty(left, PROP_USER_PROV_ATTRS)));
     // int leftEndPos = getAttrPos(left, leftEndDef->attrName);
-    // AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, INVALID_ATTR, leftEndDef->dataType);
+    // AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, 0, leftEndDef->dataType);
     // leftProjExpr2 = appendToTailOfList(leftProjExpr2, leftEndRef);
 
     // FOREACH(char, c, leftAttrs)
@@ -2650,7 +2688,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     FOREACH(AttributeDef, ad, left->schema->attrDefs)
     {
     	int leftBeginPos = getAttrPos(left, ad->attrName);
-    	AttributeReference *leftBeginRef = createFullAttrReference(strdup(ad->attrName), 0, leftBeginPos, INVALID_ATTR, ad->dataType);
+    	AttributeReference *leftBeginRef = createFullAttrReference(strdup(ad->attrName), 0, leftBeginPos, 0, ad->dataType);
     	leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
     }
 
@@ -3718,7 +3756,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     FOREACH(AttributeDef, ad, left->schema->attrDefs)
     {
     	int leftBeginPos = getAttrPos(left, ad->attrName);
-    	AttributeReference *leftBeginRef = createFullAttrReference(strdup(ad->attrName), 0, leftBeginPos, INVALID_ATTR, ad->dataType);
+    	AttributeReference *leftBeginRef = createFullAttrReference(strdup(ad->attrName), 0, leftBeginPos, 0, ad->dataType);
     	leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
     }
 
@@ -3872,7 +3910,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     FOREACH(AttributeDef, ad, right->schema->attrDefs)
     {
     	int rightBeginPos = getAttrPos(right, ad->attrName);
-    	AttributeReference *rightBeginRef = createFullAttrReference(strdup(ad->attrName), 0, rightBeginPos, INVALID_ATTR, ad->dataType);
+    	AttributeReference *rightBeginRef = createFullAttrReference(strdup(ad->attrName), 0, rightBeginPos, 0, ad->dataType);
     	rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightBeginRef);
     }
 

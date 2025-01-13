@@ -76,6 +76,12 @@ getNestingResultAttribute(int number)
 	return backendifyIdentifier(CONCAT_STRINGS("nesting_eval_", gprom_itoa(number)));
 }
 
+char *
+getLateralNestingId(int number)
+{
+    return CONCAT_STRINGS("nesting_lateral_", gprom_itoa(number));
+}
+
 boolean
 isNestingAttribute(char *attr)
 {
@@ -260,6 +266,10 @@ void
 resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *child, Set *nestResultAttr)
 {
 	List *attrRefs = NIL;
+
+    DEBUG_LOG("adjust attribute positions based on child schema PARENT:\n%s\nCHILD:\n%s",
+              singleOperatorToOverview(parent),
+              singleOperatorToOverview(child));
 
 	// collect attribute references in parent and adapt them based on child
 	if (isA(child,JoinOperator) || isA(child,ProjectionOperator))
@@ -1321,10 +1331,11 @@ getAttrRefByPos (QueryOperator *op, int pos)
 
     ASSERT(d != NULL);
 
-    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
-                pos,
-                INVALID_ATTR,
-                d->dataType);
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName),
+                                                      0,
+                                                      pos,
+                                                      0,
+                                                      d->dataType);
 
     return res;
 }
@@ -1601,6 +1612,18 @@ nestingOperatorGetResultAttributes(NestingOperator *n)
 }
 
 char *
+getNestingOperatorId(NestingOperator *op)
+{
+    if(IS_LATERAL(op))
+    {
+        ASSERT(HAS_STRING_PROP(op, PROP_NESTING_OP_ID));
+        return GET_STRING_PROP_STRING_VAL(op, PROP_NESTING_OP_ID);
+    }
+
+    return getSingleNestingResultAttribute(op);
+}
+
+char *
 getSingleNestingResultAttribute(NestingOperator *op)
 {
     List *attrs = nestingOperatorGetResultAttributes(op);
@@ -1763,7 +1786,7 @@ canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
     else if(IS_OP(n)) {
         QueryOperator *q = (QueryOperator *) n;
 
-        if(isA(q->properties, HashMap) && MAP_HAS_STRING_KEY((HashMap *)(q->properties), "normalize")) {
+        if(isA(q->properties, HashMap) && MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE)) {
             state->seenNormalization = TRUE;
             FOREACH(QueryOperator, a, q->inputs) {
                 visit((Node *)a, canStayCorrelatedVisitor, state);

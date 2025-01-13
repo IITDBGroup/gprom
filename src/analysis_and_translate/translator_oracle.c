@@ -1657,6 +1657,7 @@ translateFromLateralSubquery(FromLateralSubquery *fsq, List **attrsOffsetsList)
 	//TODO use translateNestedSubquery to take care of
     result = translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
 	SET_BOOL_STRING_PROP(result, PROP_OP_IS_LATERAL);
+    SET_STRING_PROP(result, PROP_NESTING_OP_ID, getLateralNestingId(nestedSubqueryCnt++));
 	DEBUG_LOG("translated lateral subquery.");
 
 	return result;

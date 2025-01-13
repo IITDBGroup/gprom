@@ -55,9 +55,12 @@ static char *nestMapToString(HashMap *m);
 static void setNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api, boolean where);
 static boolean nestedSubqueryFirstUsedInProjection(QueryOperator *op, char *a, QueryBlockMatch *m);
 static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
-static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, Set *nestResultAttr);
-
-
+static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, SerializeClausesAPI *api);
+static List *removeAllStringsFromList(List *l, HashMap *strs);
+static boolean hasInlinedAttr(FromAttrsContext *fac);
+static boolean updateAttributeNamesInternal(Node *node, FromAttrsContext *fac);
+static boolean analyzeNestingVisitor(QueryOperator *q, void *api);
+static void gatherCorrelatedAttrs(QueryOperator *q, List *nestScopes, SerializeClausesAPI *api);
 
 /*
  * create API struct
@@ -84,12 +87,21 @@ createAPIStub(void)
 	api->serializePreparedStatment = genSerializePreparedStatement;
 	api->getNestedSerLocations = genGetNestedSerializationLocations;
     api->createTempView = genCreateTempView;
+
+    cleanAPIState(api);
+
+    return api;
+}
+
+void
+cleanAPIState(SerializeClausesAPI *api)
+{
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->nestAttrMap = NEW_MAP(Constant, Constant);
     api->inlinedNestResultAttrs = STRSET();
+    api->nestingLeftSchemas = NEW_MAP(Constant,List);
+    api->nestingCorrelatedReferences = NEW_MAP(Constant,List);
     api->viewCounter = 0;
-
-    return api;
 }
 
 char *
@@ -192,6 +204,7 @@ copyFromAttrsContext(FromAttrsContext *fac)
   	result =  CALLOC(sizeof(FromAttrsContext),1);
   	result->fromAttrsList = copyList(fac->fromAttrsList);
   	result->fromAttrs = copyList(fac->fromAttrs);
+    result->api = fac->api; // this data structure is shared for the whole serialization process, do deep copy it
 
   	return result;
 }
@@ -199,51 +212,109 @@ copyFromAttrsContext(FromAttrsContext *fac)
 void
 printFromAttrsContext(FromAttrsContext *fac)
 {
-	DEBUG_LOG("FromAttrsContext:");
+    DEBUG_LOG_FAC("FAC\n\n%s", fac);
+}
+
+char *
+fromAttrsContextToString(FromAttrsContext *fac)
+{
+    StringInfo str = makeStringInfo();
+
+	appendStringInfo(str,"FromAttrsContext:\n");
 	if(fac->fromAttrsList != NIL)
 	{
-		StringInfo s1 = makeStringInfo();
-		appendStringInfo(s1,"Len: %d, FromAttrsContext->fromAttrsList: ", LIST_LENGTH(fac->fromAttrsList));
+		appendStringInfo(str,"Len: %d, FromAttrsContext->fromAttrsList: \n", LIST_LENGTH(fac->fromAttrsList));
 		FOREACH(List, l1, fac->fromAttrsList)
 		{
-			appendStringInfoString(s1, "[");
+			appendStringInfoString(str, "[");
 			FOREACH(List, l2, l1)
 			{
-				appendStringInfo(s1, "(");
+				appendStringInfo(str, "(");
 				FOREACH(char, c, l2)
 				{
-					appendStringInfo(s1, " %s ", c);
+					appendStringInfo(str, " %s ", c);
 				}
-				appendStringInfo(s1, ")%s", FOREACH_HAS_MORE(l2) ? ", " : "");
+				appendStringInfo(str, ")%s", FOREACH_HAS_MORE(l2) ? ", " : "");
 			}
-			appendStringInfo(s1, "]%s", FOREACH_HAS_MORE(l1) ? ", " : "");
+			appendStringInfo(str, "]%s\n", FOREACH_HAS_MORE(l1) ? ", " : "");
 		}
-		DEBUG_LOG(" %s ", s1->data);
 	}
 	else
-		DEBUG_LOG("FromAttrsContext->fromAttrsList: NULL");
+		appendStringInfo(str,"FromAttrsContext->fromAttrsList: NULL");
 
 	if(fac->fromAttrs != NIL)
 	{
-		StringInfo s2 = makeStringInfo();
-		appendStringInfo(s2,"Len: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
+		appendStringInfo(str,"\nLen: %d, FromAttrsContext->fromAttrs: ",LIST_LENGTH(fac->fromAttrs));
 		FOREACH(List, l1, fac->fromAttrs)
 		{
-    	    appendStringInfo(s2, "(");
+    	    appendStringInfo(str, "(");
 			FOREACH(char, c, l1)
-				appendStringInfo(s2, " %s ", c);
-			appendStringInfo(s2, ")%s", FOREACH_HAS_MORE(l1) ? ", " : "");
+				appendStringInfo(str, " %s ", c);
+			appendStringInfo(str, ")%s", FOREACH_HAS_MORE(l1) ? ", " : "");
 		}
-		DEBUG_LOG(" %s ", s2->data);
 	}
 	else
-		DEBUG_LOG("FromAttrsContext->fromAttrs: NULL");
+		appendStringInfo(str,"\nFromAttrsContext->fromAttrs: NULL");
 
-	if(fac->nestAttrMap)
+	if(fac->api)
 	{
-	    DEBUG_LOG("FromAttrsContext->nestAttrMap: %s", nodeToString(fac->nestAttrMap));
+        appendStringInfo(str, nestingOperatorBookkeepingToString(fac->api));
 	}
+
+    return str->data;
 }
+
+char *
+nestingOperatorBookkeepingToString(SerializeClausesAPI *api)
+{
+    StringInfo str = makeStringInfo();
+
+	if(api->nestAttrMap)
+	{
+	    appendStringInfo(str,
+                         "\nAPI->NESTATTRMAP:\n%s\n\n",
+                         nestMapToString(api->nestAttrMap));
+	}
+    if(api->inlinedNestResultAttrs)
+    {
+        appendStringInfo(str,
+                         "\napi->inlinedNestResultAttrs:\n{");
+
+        FOREACH_SET(char, s, api->inlinedNestResultAttrs)
+        {
+            appendStringInfo(str,
+                             "%s%s",
+                             s,
+                             FOREACH_SET_HAS_MORE(s) ? ", ": "");
+        }
+
+        appendStringInfoString(str, "}\n");
+    }
+    if(api->nestingLeftSchemas)
+    {
+        appendStringInfo(str, "\napi->nestingLeftSchemas:\n");
+
+        FOREACH_HASH_ENTRY(kv, api->nestingLeftSchemas)
+        {
+            appendStringInfo(str, "%s -> %s\n",
+                             STRING_VALUE(kv->key),
+                             stringListToString((List *) kv->value));
+        }
+    }
+    if(api->nestingCorrelatedReferences && maxLevel >= LOG_DEBUG)//TODO hardcode here?
+    {
+        FOREACH_HASH_ENTRY(kv, api->nestingCorrelatedReferences)
+        {
+            appendStringInfo(str,
+                             "\n\nCorrelations for <%s>:\n\n%s\n",
+                             STRING_VALUE(kv->key),
+                             beatify(nodeToString(kv->value)));
+        }
+    }
+
+    return str->data;
+}
+
 
 static char *
 nestMapToString(HashMap *m)
@@ -318,14 +389,19 @@ setNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *ap
                 FromAttrsContext *subqueryFac = copyFromAttrsContext(fac);
                 subqueryFac->fromAttrs = NIL;
                 subqueryFac->fromAttrsList = appendToHeadOfList(subqueryFac->fromAttrsList, copyList(fac->fromAttrs));
-                fac = subqueryFac;
+                //TODO this is where things break? fac = subqueryFac;
+
+                DEBUG_LOG("going to serialize nested subquery for inlining <%s> for %s:\n\n%s",
+                          strdup(nestName),
+                          where ? "WHERE" : "SELECT",
+                          operatorToOverviewString(op));
 
 				appendStringInfoString(s, "(");
 				api->serializeQueryOperator(OP_RCHILD(op), s, NULL, subqueryFac, api);
 				appendStringInfoString(s, ")");
                 if(maxLevel >= LOG_DEBUG)
                 {
-                    DEBUG_LOG("SERIALIZED NESTED SUBQUERY <%s> for %s: %s",
+                    DEBUG_LOG("SERIALIZED NESTED SUBQUERY <%s> for %s:\n\n%s",
                               strdup(nestName),
                               where ? "WHERE" : "SELECT",
                               s->data);
@@ -345,10 +421,11 @@ setNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *ap
                 DEBUG_OP_LOG("query after nesting attr got removed", getFirstRoot(lChild));
 
                 //TODO does not work as selection is now referring to non-existing nesting attr in its definition need to give check an options or
+                //TODO too early have not adjusted everything yet
                 /* if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING)) */
                 /* { */
                 /*     QueryOperator *root = getFirstRoot(lChild); */
-                /*     SET_BOOL_STRING_PROP(op, PROP_NO_MODEL_CHECKING_ROOT); */
+                /*     //SET_BOOL_STRING_PROP(op, PROP_NO_MODEL_CHECKING_ROOT); */
 
                 /*     ASSERT(checkModel(root)); */
                 /* } */
@@ -663,6 +740,9 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
             matchInfo->fromRoot = OP_LCHILD(matchInfo->fromRoot);
         }
         OUT_BLOCK_MATCH(DEBUG,matchInfo, "adjusted match after inlining nested subqueries into WHERE or SELECT");
+
+        //FIXME fix from context and remove delete nesting result attributes
+        removeInlinedNestingFromAttrsContext(fac);
     }
 
     // translate each clause
@@ -846,7 +926,7 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
 			// remove the attribute from other operators to avoid problems later
             SET_BOOL_STRING_PROP(op, PROP_INLINED_NESTED_QUERY);
             addToSet(api->inlinedNestResultAttrs, strdup(nestResultAttr));
-			removeNestingAttributeFromOperators(op, nestResultAttr, api->inlinedNestResultAttrs);
+			removeNestingAttributeFromOperators(op, nestResultAttr, api);
 
             DEBUG_OP_LOG("After removing nested subquery attribute from parent operators", getFirstRoot(op));
 		}
@@ -887,14 +967,32 @@ genMarkSubqueriesSerializationLocation(QueryBlockMatch *qbMatch, QueryOperator *
  */
 
 static void
-removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, Set *nestResultAttr)
+removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, SerializeClausesAPI *api)
 {
+    Set *nestResultAttr = api->inlinedNestResultAttrs;
 	AttributeDef *ad = getAttrDefByName(op, nestingAttr);
 	int pos;
 	char *newAttr = nestingAttr;
 
+    // have nesting attribute, we still need to fix the operator itself as its child has changed
 	if(ad == NULL)
+    {
+        FOREACH(QueryOperator,c,op->inputs)
+        {
+            // adjust attribute positions
+            // if selection, then keep the nesting operator result attr in the
+            // condition, but adjust other attribute reference to
+	        if(isA(op,SelectionOperator))
+	        {
+		        resetPosOfAttrRefBaseOnBelowLayerSchema(op, c, nestResultAttr);
+	        }
+            else
+            {
+                resetPosOfAttrRefBaseOnBelowLayerSchema(op, c, NULL);
+            }
+        }
 		return;
+    }
 
 	pos = getAttrPos(op, nestingAttr);
 
@@ -908,32 +1006,100 @@ removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, Set *n
 	// delete the attribute
 	deleteAttrFromSchemaByName(op, nestingAttr, TRUE); //FIXME need to adjust also for nesting operators if there multiple ones !isA(op, NestingOperator));
 
+    // record inlined attributes for selection operator
+	if(isA(op,SelectionOperator))
+	{
+        SET_STRING_PROP(op, PROP_NESTED_INLINED_NESTED_QUERY, copyObject(nestResultAttr));
+    }
+
+    FOREACH(QueryOperator,c,op->inputs)
+    {
+        // adjust attribute positions
+        // if selection, then keep the nesting operator result attr in the
+        // condition, but adjust other attribute reference to
+	    if(isA(op,SelectionOperator))
+	    {
+		    resetPosOfAttrRefBaseOnBelowLayerSchema(op, c, nestResultAttr);
+	    }
+        else
+        {
+            resetPosOfAttrRefBaseOnBelowLayerSchema(op, c, NULL);
+        }
+    }
+
+    if(isA(op,NestingOperator))
+    {
+        List *newAttrNames = getQueryOperatorAttrNames(OP_LCHILD(op));
+        char *id = getNestingOperatorId((NestingOperator *) op);
+        List *correlations = (List *) ((MAP_HAS_STRING_KEY(api->nestingCorrelatedReferences,id)) ? (List *) MAP_GET_STRING(api->nestingCorrelatedReferences, id) : NIL);
+
+        DEBUG_LOG("NestingOperator left input schema has changed, adjust correlated references:\n%s\n%s",
+                  singleOperatorToOverview(op),
+                  beatify(nodeToString(api->nestingCorrelatedReferences)));
+
+        MAP_ADD_STRING_KEY(api->nestingLeftSchemas, id, newAttrNames);
+
+        FOREACH(AttributeReference,a,correlations)
+        {
+            int newpos = listPosString(newAttrNames, a->name);
+            DEBUG_LOG("a: %s: %u -> %u", a->name, a->attrPosition, newpos);
+            a->attrPosition = newpos;
+        }
+    }
+
 	// remove attribute from parents
 	FOREACH(QueryOperator,p,op->parents)
 	{
-        // if selection, then keep the nesting operator result, but adjust other attribute reference to
-		if((isA(p,SelectionOperator)))
-		{
-			resetPosOfAttrRefBaseOnBelowLayerSchema(p,op, nestResultAttr);
-		}
-        else
-        {
-            resetPosOfAttrRefBaseOnBelowLayerSchema(p,op, NULL);
-        }
-		removeNestingAttributeFromOperators(p, newAttr, nestResultAttr);
+		removeNestingAttributeFromOperators(p, newAttr, api);
 	}
 
-	// add back attribute for nesting operators, but only if it is the nesting operators own result attribute
-	/* if(isA(op,NestingOperator)) */
-	/* { */
-    /*     char *ownNestingAttr = getSingleNestingResultAttribute((NestingOperator *) op); */
-    /*     if(streq(ownNestingAttr, nestingAttr)) */
-    /*     { */
-	/* 	    op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, ad); */
-    /*     } */
-	/* } */
+    if(isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+    {
+        ASSERT(checkSingleOperator(op));
+    }
 }
 
+void
+removeInlinedNestingFromAttrsContext(FromAttrsContext *fac)
+{
+    HashMap *inlinedA = fac->api->nestAttrMap;
+    List *newFromAttrsList = NIL;
+
+    fac->fromAttrs = removeAllStringsFromList(fac->fromAttrs, inlinedA);
+
+    FOREACH(List,outer,fac->fromAttrsList)
+    {
+        List *newOuter = NIL;
+        FOREACH(List, attrs, outer)
+        {
+            newOuter = appendToTailOfList(newOuter,
+                                          removeAllStringsFromList(attrs, inlinedA));
+        }
+        newFromAttrsList = appendToTailOfList(newFromAttrsList, newOuter);
+    }
+
+    fac->fromAttrsList = newFromAttrsList;
+}
+
+static List *
+removeAllStringsFromList(List *l, HashMap *strs)
+{
+    List *result = NIL;
+
+    FOREACH(char,s,l)
+    {
+        if(!MAP_HAS_STRING_KEY(strs, s))
+        {
+            result = appendToTailOfList(result, s);
+        }
+        else
+        {
+            DEBUG_LOG("removed attribute from FromAttrsContext %s", s);
+        }
+    }
+
+    return result;
+}
 
 static boolean
 nestedSubqueryFirstUsedInProjection(QueryOperator *op, char *a, QueryBlockMatch *m)
@@ -1293,9 +1459,8 @@ genSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac,
     char *condStr;
 
 	appendStringInfoString(where, "\nWHERE ");
-	fac->nestAttrMap = nestAttrMap;
+    removeInlinedNestingFromAttrsContext(fac);
 	updateAttributeNames((Node *) q->cond, fac);
-	//fac->nestAttrMap = NULL;
     condStr = exprToSQL(q->cond, nestAttrMap, FALSE);
     DEBUG_LOG("translated where clause condition: <%s>", condStr);
     appendStringInfoString(where, condStr);
@@ -1372,9 +1537,20 @@ genSerializeOrderByOperator (OrderOperator *q, StringInfo order, FromAttrsContex
     appendStringInfoString(order, ordExpr);
 }
 
-
 boolean
 updateAttributeNames(Node *node, FromAttrsContext *fac)
+{
+    removeInlinedNestingFromAttrsContext(fac);
+    if(hasInlinedAttr(fac))
+    {
+        printFromAttrsContext(fac);
+        FATAL_LOG("Should not have attribute for inlined nested subquery <%s> in FromAttrsContext", beatify(nodeToString(fac->api->nestAttrMap)));
+    }
+    return updateAttributeNamesInternal(node, fac);
+}
+
+static boolean
+updateAttributeNamesInternal(Node *node, FromAttrsContext *fac)
 {
     if (node == NULL)
         return TRUE;
@@ -1388,12 +1564,14 @@ updateAttributeNames(Node *node, FromAttrsContext *fac)
         int fromItem = -1;
         int attrPos = 0;
 
-		if(!fac->nestAttrMap || !MAP_HAS_STRING_KEY(fac->nestAttrMap, a->name))
+		if(!fac->api || !fac->api->nestAttrMap || !MAP_HAS_STRING_KEY(fac->api->nestAttrMap, a->name))
 		{
 			List *attrsList = NIL;
 			if(a->outerLevelsUp > 0) // outer query correlated attributes
-            {
-				attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp - 1);
+            { //TODO double check
+                int pos = a->outerLevelsUp - 1;
+                ASSERT(pos >=0 && pos < LIST_LENGTH(fac->fromAttrsList));
+				attrsList = (List *) getNthOfListP(fac->fromAttrsList, pos);
             }
 			else // attribute from current query block
             {
@@ -1410,21 +1588,87 @@ updateAttributeNames(Node *node, FromAttrsContext *fac)
 					break;
 				}
 			}
+
+            // if we have not found outer the there is something wrong
+            if(outer == NIL)
+            {
+                printFromAttrsContext(fac);
+                FATAL_LOG("Cannot update attribute name, reference to non-existing attribute %s", beatify(nodeToString(node)));
+            }
+
+            // we find inlined attributes in schema: fix that
+            if(hasInlinedAttr(fac))
+            {
+                FATAL_LOG("found inlined subquery attribute in FromAttrsContext");
+                printFromAttrsContext(fac);
+                removeInlinedNestingFromAttrsContext(fac);
+            }
+
 			attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
 			newName = getNthOfListP(outer, attrPos);
 
+            //FIXME this does no longer happen?
 			if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
             {
-				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", newName);
+                DEBUG_LOG("update attribute names for nested orig name <%s> to <%s>", a->name, newName);
+				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_",
+                                         gprom_itoa(LIST_LENGTH(fac->fromAttrsList)),
+                                         ".",
+                                         newName);
             }
 			else
             {
-				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-(a->outerLevelsUp)) , ".", newName);
+                char *updatedName = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_",
+                                                   gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-(a->outerLevelsUp)),
+                                                   ".",
+                                                   newName);
+
+                if(!streq(a->name,updatedName) && !streq(a->name, newName))
+                {
+                    ERROR_LOG_FAC("Messed up attributes:\n\n%s", fac);
+                    ERROR_LOG("WARNING: different attribute name used <%s> new name <%s> <%s>",
+                              a->name,
+                              newName,
+                              updatedName
+                              );
+                }
+
+                a->name = updatedName;
             }
 		}
     }
 
     return visit(node, updateAttributeNames, fac);
+}
+
+static boolean
+hasInlinedAttr(FromAttrsContext *fac)
+{
+    HashMap *inlinedA = fac->api->nestAttrMap;
+
+    FOREACH(char,a,fac->fromAttrs)
+    {
+        if(MAP_HAS_STRING_KEY(inlinedA, a))
+        {
+            return TRUE;
+        }
+    }
+
+    FOREACH(List,fromItem,fac->fromAttrsList)
+    {
+        FOREACH(List,attrs, fromItem)
+        {
+            FOREACH(char,a,attrs)
+            {
+                if(MAP_HAS_STRING_KEY(inlinedA, a))
+                {
+                    return TRUE;
+                }
+            }
+        }
+    }
+
+    return FALSE;
 }
 
 /*
@@ -1637,4 +1881,68 @@ updateAttributeNamesSimple(Node *node, List *attrNames)
     }
 
     return visit(node, updateAttributeNamesSimple, attrNames);
+}
+
+void
+analyzeNesting(QueryOperator *q, SerializeClausesAPI *api)
+{
+    // gather result attributes to
+    visitQOGraph(q, TRAVERSAL_PRE, analyzeNestingVisitor, api);
+    // store correlated attribute references
+    gatherCorrelatedAttrs(q, NIL, api);
+}
+
+static boolean
+analyzeNestingVisitor(QueryOperator *q, void *context)
+{
+    SerializeClausesAPI *api = (SerializeClausesAPI *) context;
+
+    if(isA(q,NestingOperator))
+    {
+        NestingOperator *n = (NestingOperator *) q;
+
+        List *leftResultAttrs = getQueryOperatorAttrNames(q);
+        char *resultAttr = getSingleNestingResultAttribute(n);
+        MAP_ADD_STRING_KEY(api->nestingLeftSchemas, resultAttr, leftResultAttrs);
+    }
+
+    return TRUE;
+}
+
+#define LATERAL_DUMMY_ID "LATERAL_DUMMY"
+
+static void
+gatherCorrelatedAttrs(QueryOperator *q, List *nestScopes, SerializeClausesAPI *api)
+{
+    List *corrAttrs = getCorrelatedAttrRefsInOperator(q);
+    List *newScope = nestScopes;
+
+    // if this is a nesting operator, add it to the scope
+    if(isA(q,NestingOperator))
+    {
+        NestingOperator *n = (NestingOperator *) q;
+        char *id = getNestingOperatorId(n);
+
+        gatherCorrelatedAttrs(OP_LCHILD(q), newScope, api);
+
+        newScope = appendToTailOfList(newScope, strdup(id));
+
+        gatherCorrelatedAttrs(OP_RCHILD(q), newScope, api);
+    }
+    else
+    {
+        FOREACH(QueryOperator,c,q->inputs)
+        {
+            gatherCorrelatedAttrs(c, newScope, api);
+        }
+    }
+
+    FOREACH(AttributeReference,a,corrAttrs)
+    {
+        int scopepos = a->outerLevelsUp - 1;
+        ASSERT(LIST_LENGTH(nestScopes) >= a->outerLevelsUp);
+        char *scope = getNthOfListP(nestScopes, scopepos);
+
+        MAP_ADD_STRING_KEY_TO_VALUE_LIST(api->nestingCorrelatedReferences, scope, a, FALSE);
+    }
 }

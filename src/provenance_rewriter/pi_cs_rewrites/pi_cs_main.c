@@ -679,7 +679,7 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
         attr = createAttributeDef(newName, origAttr->dataType);
         opCopy->schema->attrDefs = appendToTailOfList(opCopy->schema->attrDefs, attr);
 
-        aRef = createFullAttrReference(name,0,pos,INVALID_ATTR, origAttr->dataType);
+        aRef = createFullAttrReference(name,0,pos,0, origAttr->dataType);
         p->projExprs = appendToTailOfList(p->projExprs, aRef);
     }
 
@@ -924,7 +924,7 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
 		    char *name = getNthOfListP(groupByNames, pos);
-			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR, a->attrType);
+			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, 0, a->attrType);
 			AttributeReference *rA = createFullAttrReference(
 			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR, a->attrType);
 			if(joinCond)
@@ -1053,7 +1053,7 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op, PICSRewriteState
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
 		    char *name = getNthOfListP(groupByNames, pos);
-			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR, a->attrType);
+			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, 0, a->attrType);
 			AttributeReference *rA = createFullAttrReference(
 			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos + aggAttrsLen, INVALID_ATTR, a->attrType);
 			if(joinCond)
@@ -1075,7 +1075,7 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op, PICSRewriteState
 			joinT = JOIN_LEFT_OUTER;
 
 		AttributeDef *ad = getNthOfListP(((QueryOperator *) op)->schema->attrDefs, 0);
-		AttributeReference *lA = createFullAttrReference(strdup(ad->attrName), 0, 0, INVALID_ATTR, ad->dataType);
+		AttributeReference *lA = createFullAttrReference(strdup(ad->attrName), 0, 0, 0, ad->dataType);
 
 		List *attrList = getAttrReferences((Node *) fc);
 		AttributeReference *ar = getNthOfListP(attrList, 0);
@@ -1191,7 +1191,7 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
         FOREACH(AttributeDef,a,getNormalAttrs(rewrRightInput))
         {
             AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR, a->dataType);
+            att = createFullAttrReference(strdup(a->attrName), 0, i++, 0, a->dataType);
             projExprs = appendToTailOfList(projExprs, att);
         }
 
@@ -1209,7 +1209,7 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
         FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrRightInput))
         {
             AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, INVALID_ATTR, a->dataType);
+            att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, 0, a->dataType);
             projExprs = appendToTailOfList(projExprs, att);
             provAttrs = appendToTailOfListInt(provAttrs, i++);
         }
@@ -1248,8 +1248,8 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
             lDef = getAttrDefByPos(lChild, i);
             rDef = getAttrDefByPos(rChild, i);
             comparisons = appendToTailOfList(comparisons, createOpExpr(OPNAME_EQ,
-                    LIST_MAKE(createFullAttrReference (strdup(lDef->attrName),0,i,INVALID_ATTR, lDef->dataType),
-                            createFullAttrReference (strdup(rDef->attrName),1,i,INVALID_ATTR, rDef->dataType))
+                    LIST_MAKE(createFullAttrReference (strdup(lDef->attrName),0,i,0, lDef->dataType),
+                            createFullAttrReference (strdup(rDef->attrName),1,i,0, rDef->dataType))
                     ));
         }
         joinCond = andExprList(comparisons);

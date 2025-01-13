@@ -112,6 +112,8 @@
 #define PROP_NESTING_CORRELATED_ATTRS "NESTEDE_SUBQUERY_CORRELATED_ATTRS" // store set of correlated attributes
 #define PROP_INLINED_NESTED_QUERY "INLINED_NESTED_QUERY_REMOVE" // mark nesting operators that correspond to nested subqueries that will be serialized into WHERE
 #define PROP_NESTED_RESULT_ATTR "NEST_RESULT_ATTR"              // mark nesting result attribute
+#define PROP_NESTED_INLINED_NESTED_QUERY "NEST_INLINED_ATTR_REFERENCES"                     // inlined nesting operator result attributes references
+#define PROP_NESTING_OP_ID "NEST_ID"                        // unique name for each nested subquery
 
 /* Operator type specific properties */
 /* table access properties */
@@ -160,6 +162,7 @@
 #define PROP_TEMP_TNTAB "PROP_TEMP_TNTAB"
 #define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
+#define PROP_TEMP_NORMALIZE "normalize"
 
 /* for data skipping  */
 #define PROP_COARSE_GRAINED_TABLEACCESS_MARK "COARSE_GRAINED_TABLEACCESS_MARK"

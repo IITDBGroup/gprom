@@ -28,6 +28,7 @@ extern boolean isSuffix(char *str, char *suffix);
 extern boolean isSubstr(char *str, char *substr);
 extern char *specializeTemplate(char *template, List *args);
 extern char *strtrim(char *in);
+extern boolean stringEquals(char *left, char *right);
 extern boolean strieq(char *left, char *right);
 extern char *readStringFromFile(char *file);
 

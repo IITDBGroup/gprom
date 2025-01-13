@@ -74,41 +74,16 @@ typedef struct UpdateAggAndGroupByAttrState {
     List *groupByNames;
 } UpdateAggAndGroupByAttrState;
 
-
 typedef struct FromAttrsContext {
     List *fromAttrs;
     List *fromAttrsList;
-	HashMap *nestAttrMap;
+	struct SerializeClausesAPI *api;
 } FromAttrsContext;
 
 typedef struct JoinAttrRenameState {
     int rightFromOffsets;
     FromAttrsContext *fac;
 } JoinAttrRenameState;
-
-
-//typedef struct JoinStateFac {
-//	JoinAttrRenameState *state;
-//	FromAttrsContext *fac;
-//} JoinStateFac;
-
-#define TVIEW_NAME_FIELD "ViewName"
-#define TVIEW_ATTRNAMES_FIELD "AttrNames"
-#define TVIEW_DEF_FIELD "Definition"
-
-#define TVIEW_GET_NAME(tview) STRING_VALUE(MAP_GET_STRING(tview, TVIEW_NAME_FIELD))
-#define TVIEW_GET_ATTRNAMES(tview) ((List *) MAP_GET_STRING(tview, TVIEW_ATTRNAMES_FIELD))
-#define TVIEW_GET_DEF(tview) STRING_VALUE(MAP_GET_STRING(tview, TVIEW_DEF_FIELD))
-
-#define TVIEW_SET_NAME(tview, name) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_NAME_FIELD), createConstString(name))
-#define TVIEW_SET_ATTRNAMES(tview, attrs) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_ATTRNAMES_FIELD), attrs)
-#define TVIEW_SET_DEF(tview,def) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_DEF_FIELD), createConstString(def))
-
-typedef enum {
-	NEST_SER_SELECTION = 1,
-	NEST_SER_FROM = 2,
-	NEST_SER_SELECT = 4
-} NestedQSerLocationFlags;
 
 // struct that stores functions that serialize clauses of a select statement
 typedef struct SerializeClausesAPI {
@@ -139,12 +114,41 @@ typedef struct SerializeClausesAPI {
     HashMap *tempViewMap;
     HashMap *nestAttrMap;
     Set *inlinedNestResultAttrs;
+    HashMap *nestingLeftSchemas;
+    HashMap *nestingCorrelatedReferences;
     int viewCounter;
+    FromAttrsContext *fac;
 } SerializeClausesAPI;
+
+
+
+//typedef struct JoinStateFac {
+//	JoinAttrRenameState *state;
+//	FromAttrsContext *fac;
+//} JoinStateFac;
+
+#define TVIEW_NAME_FIELD "ViewName"
+#define TVIEW_ATTRNAMES_FIELD "AttrNames"
+#define TVIEW_DEF_FIELD "Definition"
+
+#define TVIEW_GET_NAME(tview) STRING_VALUE(MAP_GET_STRING(tview, TVIEW_NAME_FIELD))
+#define TVIEW_GET_ATTRNAMES(tview) ((List *) MAP_GET_STRING(tview, TVIEW_ATTRNAMES_FIELD))
+#define TVIEW_GET_DEF(tview) STRING_VALUE(MAP_GET_STRING(tview, TVIEW_DEF_FIELD))
+
+#define TVIEW_SET_NAME(tview, name) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_NAME_FIELD), createConstString(name))
+#define TVIEW_SET_ATTRNAMES(tview, attrs) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_ATTRNAMES_FIELD), attrs)
+#define TVIEW_SET_DEF(tview,def) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_DEF_FIELD), createConstString(def))
+
+typedef enum {
+	NEST_SER_SELECTION = 1,
+	NEST_SER_FROM = 2,
+	NEST_SER_SELECT = 4
+} NestedQSerLocationFlags;
 
 /* generic functions for serializing queries that call an API provided as a parameter */
 extern char *serLocationsToString(int serloc);
 extern SerializeClausesAPI *createAPIStub (void);
+extern void cleanAPIState(SerializeClausesAPI *api);
 extern void genQuoteAttributeNames (Node *q);
 extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
         QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api);
@@ -173,10 +177,31 @@ extern boolean updateAttributeNames(Node *node, FromAttrsContext *fac);
 extern boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 
 //for nesting
+extern void analyzeNesting(QueryOperator *q, SerializeClausesAPI *api);
 extern FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
 extern void printFromAttrsContext(FromAttrsContext *fac);
+extern char *fromAttrsContextToString(FromAttrsContext *fac);
+extern char*nestingOperatorBookkeepingToString(SerializeClausesAPI *api);
 extern FromAttrsContext *initializeFromAttrsContext ();
 extern HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api, boolean where);
+extern void removeInlinedNestingFromAttrsContext(FromAttrsContext *fac);
+
+#define DEBUG_LOG_FAC(template, _fac) \
+    do { \
+        if (maxLevel >= LOG_DEBUG) \
+           log_(LOG_DEBUG, __FILE__, __LINE__, (template), fromAttrsContextToString(_fac)); \
+    } while (0)
+#define INFO_LOG_FAC(template, _fac) \
+    do { \
+        if (maxLevel >= LOG_INFO) \
+           log_(LOG_INFO, __FILE__, __LINE__, (template), fromAttrsContextToString(_fac)); \
+    } while (0)
+#define ERROR_LOG_FAC(template, _fac) \
+    do { \
+        if (maxLevel >= LOG_ERROR) \
+           log_(LOG_ERROR, __FILE__, __LINE__, (template), fromAttrsContextToString(_fac)); \
+    } while (0)
+
 
 #define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
     do { \
