@@ -882,14 +882,18 @@ char *
 backendifyIdentifier(char *name)
 {
     char *result;
+    BackendType backend = getBackend();
 
     // remove quotes of quoted identifier
     if (strlen(name) > 0 && name[0] == '"')
     {
         result = substr(name, 1, strlen(name) - 2);
-		// SQLite ignores all cases for matching, make sure we do too!
-		if (getBackend() == BACKEND_SQLITE)
+		// SQLite and DuckDB ignores all cases for matching, make sure we do too!
+		if (backend == BACKEND_SQLITE
+            || backend == BACKEND_DUCKDB)
+        {
 			result = strToUpper(result);
+        }
     }
     // non quoted part upcase or downcase based on database system
     else
@@ -907,7 +911,7 @@ backendifyIdentifier(char *name)
 				result = strToUpper(name);
 				break;
             case BACKEND_DUCKDB:
-				result = name;
+				result = strToUpper(name);
 				break;
 		    case BACKEND_MSSQL:
 				result = strToLower(name);

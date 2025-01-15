@@ -384,14 +384,14 @@ postgresDatabaseConnectionOpen (void)
 }
 
 static char *
-postgresGetConnectionDescription (void)
+postgresGetConnectionDescription(void)
 {
     return CONCAT_STRINGS("Postgres:", getStringOption("connection.user"), "@",
             getStringOption("connection.host"), ":", getStringOption("connection.db"));
 }
 
 static void
-fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
+fillOidToDTMap(HashMap *oidToDT, Set *anyOids)
 {
     PGresult *res = NULL;
     int numRes = 0;
@@ -792,8 +792,9 @@ postgresCatalogTableExists (char * tableName)
     PGresult *res = NULL;
     START_TIMER(METADATA_LOOKUP_TIMER);
 
-    if (hasSetElem(plugin->plugin.cache->tableNames,tableName)){
-   	STOP_TIMER(METADATA_LOOKUP_TIMER);
+    if (hasSetElem(plugin->plugin.cache->tableNames,tableName))
+    {
+   	    STOP_TIMER(METADATA_LOOKUP_TIMER);
         return TRUE;
     }
 

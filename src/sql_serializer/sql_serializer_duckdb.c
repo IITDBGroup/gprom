@@ -131,7 +131,7 @@ serializeQueryDuckDB(QueryOperator *q)
 }
 
 char *
-quoteIdentifierSQLite (char *ident)
+quoteIdentifierDuckDB (char *ident)
 {
     int i = 0;
     boolean needsQuotes = FALSE;
@@ -609,9 +609,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
                     (*curFromItem)++);
         }
-        //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-        //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
     }
     else
     {
@@ -638,17 +636,11 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             }
         }
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
-       // *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
         DEBUG_LOG("table access append fac->fromAttrsList");
-        //append fromAttrs into fromAttrsList, e.g., fromAttrs: ((A,B)), fromAttrsList: ( ((A,B)) )
-        //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
         printFromAttrsContext(fac);
-//        appendStringInfo(from, "%s%s AS F%u",
-//                quoteIdentifierSQLite(t->tableName), asOf ? asOf : "",
-//                (*curFromItem)++);
 		appendStringInfo(from, "%s%s F%u_%u",
-				quoteIdentifierSQLite(t->tableName), asOf ? asOf : "",
+				quoteIdentifierDuckDB(t->tableName), asOf ? asOf : "",
 				(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
     }
 }

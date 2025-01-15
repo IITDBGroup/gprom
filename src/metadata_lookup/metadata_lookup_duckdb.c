@@ -1,4 +1,5 @@
 #include "common.h"
+#include "duckdb.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
@@ -15,13 +16,19 @@
 #include "model/set/vector.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "utility/string_utils.h"
+#include <stdint.h>
 #include <stdlib.h>
 
 // Mem context
 #define CONTEXT_NAME "DuckDBMemContext"
 
-#define QUERY_TABLE_COL_COUNT "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '%s';"
+// DuckDB ignores case for identifier, but when creating tables quoted case taken literally and stored like this in the stystem catalog
+#define QUERY_TABLE_EXISTS "SELECT COUNT(*) FROM information_schema.tables WHERE upper(table_name)='%s' AND table_type = 'BASE TABLE';"
+#define QUERY_VIEW_EXISTS "SELECT COUNT(*) FROM information_schema.tables WHERE upper(table_name)='%s' AND table_type = 'VIEW';"
+#define QUERY_TABLE_COL_COUNT "SELECT upper(column_name), data_type FROM information_schema.columns WHERE upper(table_name) = '%s';"
 #define QUERY_TABLE_ATTR_MIN_MAX "SELECT %s FROM %s"
+#define QUERY_FUNC_IS_AGG "SELECT EXISTS (SELECT * FROM duckdb_functions() WHERE function_type = 'aggregate' AND function_name = '%s') AS found"
+#define QUERY_FUNC_GET_AGG_FUNCS "SELECT DISTINCT function_name FROM duckdb_functions() WHERE function_type = 'aggregate';"
 
 // Only define real plugin structure and methods if duckdb is present
 #ifdef HAVE_DUCKDB_BACKEND
@@ -31,9 +38,9 @@ typedef struct DuckDBPlugin
 {
     MetadataLookupPlugin plugin;
     boolean initialized;
-    duckdb_connection conn; 
+    duckdb_connection conn;
     duckdb_database db;
-} DuckDBPlugin; 
+} DuckDBPlugin;
 
 // global vars
 static DuckDBPlugin *plugin = NULL;
@@ -44,6 +51,8 @@ static MemContext *memContext = NULL;
 static DataType stringToDT (char *dataType);
 static char *duckdbGetConnectionDescription (void);
 static void initCache(CatalogCache *c);
+static duckdb_result duckdbQueryInternal(char *sql);
+
 
 MetadataLookupPlugin *
 assembleDuckDBMetadataLookupPlugin (void)
@@ -53,12 +62,12 @@ assembleDuckDBMetadataLookupPlugin (void)
 
     p->type = METADATA_LOOKUP_PLUGIN_DUCKDB;
 
-    p->initMetadataLookupPlugin = duckdbInitMetadataLookupPlugin; 
-    p->databaseConnectionOpen = duckdbDatabaseConnectionOpen; 
-    p->databaseConnectionClose = duckdbDatabaseConnectionClose; 
-    p->shutdownMetadataLookupPlugin = duckdbShutdownMetadataLookupPlugin; 
-    p->isInitialized = duckdbIsInitialized; 
-    p->catalogTableExists = duckdbCatalogTableExists; 
+    p->initMetadataLookupPlugin = duckdbInitMetadataLookupPlugin;
+    p->databaseConnectionOpen = duckdbDatabaseConnectionOpen;
+    p->databaseConnectionClose = duckdbDatabaseConnectionClose;
+    p->shutdownMetadataLookupPlugin = duckdbShutdownMetadataLookupPlugin;
+    p->isInitialized = duckdbIsInitialized;
+    p->catalogTableExists = duckdbCatalogTableExists;
     p->catalogViewExists = duckdbCatalogViewExists;
     p->getAttributes = duckdbGetAttributes;
     p->getAttributeNames = duckdbGetAttributeNames;
@@ -68,10 +77,10 @@ assembleDuckDBMetadataLookupPlugin (void)
     p->getOpReturnType = duckdbGetOpReturnType;
     p->getTableDefinition = duckdbGetTableDefinition;
     p->getViewDefinition = duckdbGetViewDefinition;
-    p->getTransactionSQLAndSCNs = duckdbGetTransactionSQLAndSCNs; 
+    p->getTransactionSQLAndSCNs = duckdbGetTransactionSQLAndSCNs;
     p->executeAsTransactionAndGetXID = duckdbExecuteAsTransactionAndGetXID;
     p->getCostEstimation = duckdbGetCostEstimation;
-    p->getKeyInformation = duckdbGetKeyInformation; 
+    p->getKeyInformation = duckdbGetKeyInformation;
     p->executeQuery = duckdbExecuteQuery;
     p->executeQueryIgnoreResult = duckdbExecuteQueryIgnoreResults;
     p->connectionDescription = duckdbGetConnectionDescription;
@@ -90,13 +99,15 @@ duckdbInitMetadataLookupPlugin (void)
         INFO_LOG("tried to initialize metadata lookup plugin more than once");
         return EXIT_SUCCESS;
     }
+
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();
 
     // create cache
     plugin->plugin.cache = createCache();
-    initCache(plugin->plugin.cache);
 
     plugin->initialized = TRUE;
+    RELEASE_MEM_CONTEXT();
 
     return EXIT_SUCCESS;
 }
@@ -119,32 +130,41 @@ duckdbDatabaseConnectionOpen (void)
     if (dbfile == NULL)
         FATAL_LOG("no database file given (<connection.db> parameter)");
 
+    ACQUIRE_MEM_CONTEXT(memContext);
     rc = duckdb_open(dbfile, &(plugin->db));
     if(rc != DuckDBSuccess)
     {
-          fprintf(stderr, "Can not open database <%s>", dbfile);
-          duckdb_close(&(plugin->db)); 
-          return EXIT_FAILURE;
+        RELEASE_MEM_CONTEXT();
+        ERROR_LOG("Can not open database <%s>", dbfile);
+        duckdb_close(&(plugin->db));
+        return EXIT_FAILURE;
     }
 
     rc = duckdb_connect(plugin->db, &(plugin->conn));
     if(rc != DuckDBSuccess)
     {
-        fprintf(stderr, "Can not connect to database <%s>", dbfile);
-        duckdb_disconnect(&(plugin->conn)); 
+        RELEASE_MEM_CONTEXT();
+        ERROR_LOG("Can not connect to database <%s>", dbfile);
+        duckdb_disconnect(&(plugin->conn));
         return EXIT_FAILURE;
     }
 
+    initCache(plugin->plugin.cache);
+
+    RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
 
 int
 duckdbDatabaseConnectionClose()
 {
+    ACQUIRE_MEM_CONTEXT(memContext);
+    ASSERT(plugin && plugin->initialized);
 
-    duckdb_disconnect(&(plugin->conn)); 
-    duckdb_close(&(plugin->db)); 
+    duckdb_disconnect(&(plugin->conn));
+    duckdb_close(&(plugin->db));
 
+    RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
 
@@ -168,56 +188,62 @@ duckdbIsInitialized (void)
 boolean
 duckdbCatalogTableExists (char * tableName)
 {
-
     duckdb_result result;
-    duckdb_connection c = plugin->conn;
+    StringInfo str;
+    int table_count = -1;
 
-    char query[256];
-    snprintf(query, sizeof(query),
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='%s';", tableName);
+    ACQUIRE_MEM_CONTEXT(memContext);
 
-    int rc;
-    rc = duckdb_query(c, query, &result);
+    str = makeStringInfo();
+    appendStringInfo(str, QUERY_TABLE_EXISTS, tableName);
 
-    if (rc != DuckDBSuccess) {
-        fprintf(stderr, "Failed to execute query to check duckdbCatalogTableExists.");
-        return EXIT_FAILURE;
-    }
-
-    int table_count = duckdb_value_int32(&result, 0, 0);
+    result = duckdbQueryInternal(str->data);
+    table_count = duckdb_value_int32(&result, 0, 0);
 
     duckdb_destroy_result(&result);
 
+    RELEASE_MEM_CONTEXT();
     return table_count > 0;
 }
 
 boolean
 duckdbCatalogViewExists (char * viewName)
 {
-    return FALSE;//TODO
+    duckdb_result result;
+    StringInfo str;
+    int table_count = -1;
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    str = makeStringInfo();
+    appendStringInfo(str, QUERY_VIEW_EXISTS, viewName);
+    result = duckdbQueryInternal(str->data);
+
+    table_count = duckdb_value_int32(&result, 0, 0);
+    duckdb_destroy_result(&result);
+
+    RELEASE_MEM_CONTEXT();
+    return table_count > 0;
 }
 
-List * 
-duckdbGetAttributes(char *tableName) {
+List *
+duckdbGetAttributes(char *tableName)
+{
     duckdb_result result;
     StringInfo q;
     List *resultList = NIL;
 
+    ACQUIRE_MEM_CONTEXT(memContext);
+
     q = makeStringInfo();
     appendStringInfo(q, QUERY_TABLE_COL_COUNT, tableName);
 
-    int rc = duckdb_query(plugin->conn, q->data, &result);
-
-    // Execute the query
-    if (rc != DuckDBSuccess) {
-        fprintf(stderr, "error getting attributes of table <%s>", tableName);
-    }
+    result = duckdbQueryInternal(q->data);
 
     // Iterate over the result set
     for (idx_t row = 0; row < duckdb_row_count(&result); row++) {
         const char *colName = duckdb_value_varchar(&result, 0, row);
         const char *dt = duckdb_value_varchar(&result, 1, row);
-        
+
         DataType ourDT = stringToDT((char *)dt);
 
         AttributeDef *a = createAttributeDef(
@@ -232,6 +258,7 @@ duckdbGetAttributes(char *tableName) {
     duckdb_destroy_result(&result);
     DEBUG_NODE_LOG("columns are: ", resultList);
 
+    RELEASE_MEM_CONTEXT();
     return resultList;
 }
 
@@ -247,7 +274,9 @@ duckdbIsAgg(char *functionName)
     char *f = strToLower(functionName);
 
     if (hasSetElem(plugin->plugin.cache->aggFuncNames, f))
+    {
         return TRUE;
+    }
 
     return FALSE;
 }
@@ -258,7 +287,9 @@ duckdbIsWindowFunction(char *functionName)
     char *f = strToLower(functionName);
 
     if (hasSetElem(plugin->plugin.cache->winFuncNames, f))
+    {
         return TRUE;
+    }
 
     return FALSE;
 }
@@ -273,7 +304,6 @@ duckdbGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 DataType
 duckdbGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
-
     *opExists = TRUE;
 
     if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
@@ -284,7 +314,7 @@ duckdbGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
             DataType rType = getNthOfListInt(argTypes, 1);
 
             if (lType == rType)
-            {            
+            {
                 if (lType == DT_INT || lType == DT_FLOAT)
                 {
                     return lType;
@@ -319,12 +349,14 @@ duckdbGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 char *
 duckdbGetTableDefinition(char *tableName)
 {
+    THROW(SEVERITY_RECOVERABLE,"%s","not supported yet");
     return NULL;//TODO
 }
 
 char *
 duckdbGetViewDefinition(char *viewName)
 {
+    THROW(SEVERITY_RECOVERABLE,"%s","not supported yet");
     return NULL;//TODO
 }
 
@@ -335,7 +367,7 @@ duckdbGetCostEstimation(char *query)
     return -1;
 }
 
-List* 
+List*
 duckdbGetKeyInformation(char *tableName) {
     duckdb_result result;
     StringInfo q;
@@ -349,12 +381,12 @@ duckdbGetKeyInformation(char *tableName) {
 
     if (rc != DuckDBSuccess) {
         fprintf(stderr, "Error getting primary key information for table <%s>", tableName);
-        return NULL; 
+        return NULL;
     }
 
     for (idx_t row = 0; row < duckdb_row_count(&result); row++) {
         const char *colname = duckdb_value_varchar(&result, row, 0);
-        
+
         addToSet(key, strToUpper(strdup((char *) colname)));
 
         duckdb_free((void *)colname);
@@ -424,8 +456,9 @@ duckdbBackendDatatypeToSQL (DataType dt)
     return "TEXT";
 }
 
-HashMap 
-*duckdbGetMinAndMax(char* tableName, char* colName) {
+HashMap *
+duckdbGetMinAndMax(char* tableName, char* colName)
+{
     HashMap *result_map = NEW_MAP(Constant, HashMap);
     duckdb_result rs;
     StringInfo q;
@@ -448,9 +481,10 @@ HashMap
 
     rc = duckdb_query(plugin->conn, q->data, &rs);
 
-    if (rc != DuckDBSuccess) {
+    if (rc != DuckDBSuccess)
+    {
         fprintf(stderr, "Error executing query to get min and max values for table <%s>", tableName);
-        return NULL; 
+        return NULL;
     }
 
     // Iterate over the result set
@@ -458,8 +492,8 @@ HashMap
         char *aname = getNthOfListP(aNames, attr_idx);
         DataType dt = (DataType) getNthOfListInt(aDTs, attr_idx);
         HashMap *minmax = NEW_MAP(Constant, Constant);
-        const char *minVal = duckdb_value_varchar(&rs, 0, pos++);  
-        const char *maxVal = duckdb_value_varchar(&rs, 0, pos++);  
+        const char *minVal = duckdb_value_varchar(&rs, 0, pos++);
+        const char *maxVal = duckdb_value_varchar(&rs, 0, pos++);
         Constant *min, *max;
 
         switch(dt) {
@@ -514,13 +548,15 @@ duckdbExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     return NULL;
 }
 
-Relation *duckdbExecuteQuery(char *query) {
+Relation *
+duckdbExecuteQuery(char *query)
+{
     Relation *r = makeNode(Relation);
     duckdb_result rs;
     int rc;
 
     rc = duckdb_query(plugin->conn, query, &rs);
-    
+
     if (rc != DuckDBSuccess) {
         fprintf(stderr, "Failed to execute query <%s>", query);
         return NULL;
@@ -544,7 +580,7 @@ Relation *duckdbExecuteQuery(char *query) {
             } else {
                 const char *val = duckdb_value_varchar(&rs, j, row);
                 vecAppendString(tuple, strdup((char *) val));
-                duckdb_free((void *)val); 
+                duckdb_free((void *)val);
             }
         }
         VEC_ADD_NODE(r->tuples, tuple);
@@ -556,22 +592,24 @@ Relation *duckdbExecuteQuery(char *query) {
     return r;
 }
 
-void 
+void
 duckdbExecuteQueryIgnoreResults(char *query) {
-    duckdb_result rs;
+    duckdb_result result;
     int rc;
 
-    rc = duckdb_query(plugin->conn, query, &rs);
+    rc = duckdb_query(plugin->conn, query, &result);
 
     if (rc != DuckDBSuccess) {
-        fprintf(stderr, "Failed to execute query <%s>", query);
+        FATAL_LOG("Failed to execute query. Error:\n%s\n\n%s",
+                  duckdb_result_error(&result),
+                  query);
         return;
     }
 
-    duckdb_destroy_result(&rs);
+    duckdb_destroy_result(&result);
 }
 
-// static duckdb_result 
+// static duckdb_result
 // runQuery(char *q) {
 //     duckdb_result result;
 //     duckdb_state rc;
@@ -586,7 +624,7 @@ duckdbExecuteQueryIgnoreResults(char *query) {
 //         StringInfo _errMes = makeStringInfo();
 //         appendStringInfo(_errMes, duckdb_result_error(&result)); // DuckDB provides error message
 //         FATAL_LOG("error (%s)\n%u\n\n%s", _errMes->data, rc, _newmes->data);
-        
+
 //         duckdb_destroy_result(&result);
 //     }
 
@@ -626,13 +664,32 @@ duckdbGetConnectionDescription (void)
 static void
 initCache(CatalogCache *c)
 {
-    ADD_BOTH_FUNC("avg");
-    ADD_BOTH_FUNC("count");
-    ADD_BOTH_FUNC("group_concat");
-    ADD_BOTH_FUNC("max");
-    ADD_BOTH_FUNC("min");
-    ADD_BOTH_FUNC("sum");
-    ADD_BOTH_FUNC("total");
+    duckdb_result result;
+    int numRows;
+
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
+
+    // aggregation function names from duckdb
+    result = duckdbQueryInternal(QUERY_FUNC_GET_AGG_FUNCS);
+    numRows = duckdb_row_count(&result);
+
+    for(int i = 0; i < numRows; i++)
+    {
+        char *fname = duckdb_value_varchar(&result, 0, i);
+        ADD_BOTH_FUNC(fname);
+
+        duckdb_free(fname);
+    }
+
+    duckdb_destroy_result(&result);
+
+    /* ADD_BOTH_FUNC("avg"); */
+    /* ADD_BOTH_FUNC("count"); */
+    /* ADD_BOTH_FUNC("group_concat"); */
+    /* ADD_BOTH_FUNC("max"); */
+    /* ADD_BOTH_FUNC("min"); */
+    /* ADD_BOTH_FUNC("sum"); */
+    /* ADD_BOTH_FUNC("total"); */
 
     ADD_WIN_FUNC("row_number");
     ADD_WIN_FUNC("rank");
@@ -645,6 +702,29 @@ initCache(CatalogCache *c)
     ADD_WIN_FUNC("first_value");
     ADD_WIN_FUNC("last_value");
     ADD_WIN_FUNC("nth_value");
+
+    RELEASE_MEM_CONTEXT();
+}
+
+static duckdb_result
+duckdbQueryInternal(char *sql)
+{
+    duckdb_result result;
+    duckdb_connection c = plugin->conn;
+    int rc;
+
+    rc = duckdb_query(c, sql, &result);
+
+    if (rc != DuckDBSuccess)
+    {
+        RELEASE_MEM_CONTEXT();
+        FATAL_LOG("Failed to run query [%i]\n%s\n\n%s",
+                  rc,
+                  duckdb_result_error(&result),
+                  sql);
+    }
+
+    return result;
 }
 
 #else

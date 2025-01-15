@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer_duckdb.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -16,7 +16,7 @@
 
 extern char *serializeOperatorModelDuckDB(Node *q);
 extern char *serializeQueryDuckDB(QueryOperator *q);
-extern char *quoteIdentifierDuckDB (char *ident);
+extern char *quoteIdentifierDuckDB(char *ident);
 
 
 #endif /* INCLUDE_SQL_SERIALIZER_SQL_SERIALIZER_DUCKDB_H_ */

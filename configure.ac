@@ -113,11 +113,12 @@ AC_DEFUN([AC_ORACLE_ALL_CHECKS],
   AC_OCIH_LOCATION
   AC_OCI_LIB_LOCATION
   AC_OCILIB_LOCATION
-  AC_CHECK_HEADERS([ocilib.h],
+#TODO some instantclient versions use oci.h instead of ocilib.h
+  AC_CHECK_HEADERS([oci.h],
 # do nothing if header exists
     [],
 # fail if header not found
-    [AC_MSG_ERROR([missing Oracle ocilib.h header])]
+    [AC_MSG_ERROR([missing Oracle oci.h header])]
     )
 # check for the libraries
   AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
