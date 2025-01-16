@@ -100,8 +100,8 @@ typedef enum QOVisitorState {
     LIST_MAKE(createConstString("1992"),createConstString("1"), createConstString("1")): \
     LIST_MAKE(createConstString("1992-01-01"), createConstString("YYYY-MM-DD")))
 #define DATE_MAX ((getBackend() == BACKEND_DUCKDB) ? \
-    LIST_MAKE(createConstString("1992"),createConstString("1"), createConstString("1")): \
-    LIST_MAKE(createConstString("1992-01-01"), createConstString("YYYY-MM-DD")))
+    LIST_MAKE(createConstString("9999"),createConstString("1"), createConstString("1")): \
+    LIST_MAKE(createConstString("9999-01-01"), createConstString("YYYY-MM-DD")))
 
 static int T_BEtype = -1;
 
