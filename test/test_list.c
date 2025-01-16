@@ -201,7 +201,7 @@ testPopList(void)
 	ASSERT_EQUALS_STRING(stringListToString(l2), stringListToString(l), "after poping two elements = (c)");
 
 	ASSERT_EQUALS_STRING("c", popHeadOfListP(l), "pop c");
-	ASSERT_TRUE(LIST_EMPTY(l), "is empty");
+	ASSERT_TRUE(MY_LIST_EMPTY(l), "is empty");
 
 	return PASS;
 }

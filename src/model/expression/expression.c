@@ -883,6 +883,14 @@ isAggFunction(Node *expr)
 	return FALSE;
 }
 
+boolean
+isNumericType(DataType dt)
+{
+    return dt == DT_INT
+           || dt == DT_LONG
+           || dt == DT_FLOAT;
+}
+
 char *
 getAttributeReferenceName(AttributeReference *a)
 {
@@ -899,14 +907,18 @@ char *
 backendifyIdentifier(char *name)
 {
     char *result;
+    BackendType backend = getBackend();
 
     // remove quotes of quoted identifier
     if (strlen(name) > 0 && name[0] == '"')
     {
         result = substr(name, 1, strlen(name) - 2);
-		// SQLite ignores all cases for matching, make sure we do too!
-		if (getBackend() == BACKEND_SQLITE)
+		// SQLite and DuckDB ignores all cases for matching, make sure we do too!
+		if (backend == BACKEND_SQLITE
+            || backend == BACKEND_DUCKDB)
+        {
 			result = strToUpper(result);
+        }
     }
     // non quoted part upcase or downcase based on database system
     else
@@ -923,6 +935,9 @@ backendifyIdentifier(char *name)
 		    case BACKEND_SQLITE: // treat everything as upper case since SQLite completely ignores all cases when it comes to matching attribute names even through internally identifiers are stored case sensitive
 				result = strToUpper(name);
 				break;
+            case BACKEND_DUCKDB:
+				result = strToUpper(name);
+				break;
 		    case BACKEND_MSSQL:
 				result = strToLower(name);
 				break;
@@ -935,6 +950,18 @@ backendifyIdentifier(char *name)
     return result;
 }
 
+List *
+backendifyIdentifierList(List *idents)
+{
+    List *result = NIL;
+
+    FOREACH(char,id,idents)
+    {
+        result = appendToTailOfList(result, backendifyIdentifier(id));
+    }
+
+    return result;
+}
 
 List *
 createCasts(Node *lExpr, Node *rExpr)

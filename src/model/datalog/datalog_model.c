@@ -395,7 +395,7 @@ mergeSubqueries(DLProgram *p, boolean allowRuleNumberIncrease)
 
 		// loop until we have exaustively replaced idb predicates in rules for
 		// the predicate.
-		while(!LIST_EMPTY(todoR))
+		while(!MY_LIST_EMPTY(todoR))
 		{
 			DLRule *curR = popHeadOfListP(todoR);
 			/* List *aggPredNames = NIL; */

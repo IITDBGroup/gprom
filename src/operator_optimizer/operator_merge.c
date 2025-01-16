@@ -87,10 +87,10 @@ mergeProjection(ProjectionOperator *op)
     }
 
     // merge one child parent pair at a time
-    if (!LIST_EMPTY(stack))
+    if (!MY_LIST_EMPTY(stack))
         parent = (ProjectionOperator *) popHeadOfListP(stack);
 
-    while(!LIST_EMPTY(stack))
+    while(!MY_LIST_EMPTY(stack))
     {
         Vector *opRefCount;
         Vector *childRefCount;

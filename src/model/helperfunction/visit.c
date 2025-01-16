@@ -66,22 +66,27 @@
             VISIT(op.schema); \
         } while(0)
 
+#define VISIT_FROM_ITEM() \
+        VISIT_NODE(((FromItem *) n)->provInfo)
+
 boolean
 visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
 {
     switch(node->type)
     {
         case T_List:
+        {
+            if (node == NULL)
             {
-            	if (node == NULL)
-            		break;
-                PREP_VISIT(List);
-                FOREACH(Node,el,n)
-                	VISIT_NODE(el);
+            	break;
             }
-            break;
+            PREP_VISIT(List);
+            FOREACH(Node,el,n)
+            VISIT_NODE(el);
+        }
+        break;
         case T_IntList:
-        	break;
+        break;
     	case T_KeyValue:
 	    {
 			PREP_VISIT(KeyValue);
@@ -115,97 +120,97 @@ visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
 
         /* expression nodes */
         case T_Constant:
-        	{
-        	    LOG_VISIT_ONLY(Constant);
-        	}
-            break;
+        {
+        	LOG_VISIT_ONLY(Constant);
+        }
+        break;
         case T_AttributeReference:
-            break;
+        break;
         case T_FunctionCall:
-            {
-                PREP_VISIT(FunctionCall);
-                VISIT(args);
-            }
-            break;
+        {
+            PREP_VISIT(FunctionCall);
+            VISIT(args);
+        }
+        break;
         case T_Operator:
-            {
-                PREP_VISIT(Operator);
-                VISIT(args);
-            }
-            break;
+        {
+            PREP_VISIT(Operator);
+            VISIT(args);
+        }
+        break;
         case T_CaseExpr:
-            {
-                PREP_VISIT(CaseExpr);
-                VISIT(expr);
-                VISIT(whenClauses);
-                VISIT(elseRes);
-            }
-            break;
+        {
+            PREP_VISIT(CaseExpr);
+            VISIT(expr);
+            VISIT(whenClauses);
+            VISIT(elseRes);
+        }
+        break;
         case T_CaseWhen:
-            {
-                PREP_VISIT(CaseWhen);
-                VISIT(when);
-                VISIT(then);
-            }
-            break;
+        {
+            PREP_VISIT(CaseWhen);
+            VISIT(when);
+            VISIT(then);
+        }
+        break;
         case T_IsNullExpr:
-            {
-                PREP_VISIT(IsNullExpr);
-                VISIT(expr);
-            }
-            break;
+        {
+            PREP_VISIT(IsNullExpr);
+            VISIT(expr);
+        }
+        break;
         case T_CastExpr:
-            {
-                PREP_VISIT(CastExpr);
-                VISIT(expr);
-            }
-            break;
+        {
+            PREP_VISIT(CastExpr);
+            VISIT(expr);
+        }
+        break;
         case T_WindowBound:
-            {
-                PREP_VISIT(WindowBound);
-                VISIT(expr);
-            }
+        {
+            PREP_VISIT(WindowBound);
+            VISIT(expr);
+        }
         break;
         case T_WindowFrame:
-            {
-                PREP_VISIT(WindowFrame);
-                VISIT(lower);
-                VISIT(higher);
-            }
+        {
+            PREP_VISIT(WindowFrame);
+            VISIT(lower);
+            VISIT(higher);
+        }
         break;
         case T_WindowDef:
-            {
-                PREP_VISIT(WindowDef);
-                VISIT(partitionBy);
-                VISIT(orderBy);
-                VISIT(frame);
-            }
+        {
+            PREP_VISIT(WindowDef);
+            VISIT(partitionBy);
+            VISIT(orderBy);
+            VISIT(frame);
+        }
         break;
         case T_WindowFunction:
-            {
-                PREP_VISIT(WindowFunction);
-                VISIT(f);
-                VISIT(win);
-            }
+        {
+            PREP_VISIT(WindowFunction);
+            VISIT(f);
+            VISIT(win);
+        }
         break;
         case T_RowNumExpr:
-            break;
+        break;
         case T_OrderExpr:
-            {
-                PREP_VISIT(OrderExpr);
-                VISIT(expr);
-            }
+        {
+            PREP_VISIT(OrderExpr);
+            VISIT(expr);
+        }
         break;
         case T_QuantifiedComparison:
-            {
-                PREP_VISIT(QuantifiedComparison);
-                VISIT(checkExpr);
-                VISIT(exprList);
-            }
+        {
+            PREP_VISIT(QuantifiedComparison);
+            VISIT(checkExpr);
+            VISIT(exprList);
+        }
         break;
         /* integrity constraint nodes */
     	case T_FD:
-    		break;
+    	break;
     	case T_FOdep:
     	{
     		PREP_VISIT(FOdep);
@@ -215,95 +220,100 @@ visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
 		break;
         /* query block model nodes */
         case T_SetQuery:
-            {
-                PREP_VISIT(SetQuery);
-                VISIT(lChild);
-                VISIT(rChild);
-            }
-            break;
+        {
+            PREP_VISIT(SetQuery);
+            VISIT(lChild);
+            VISIT(rChild);
+        }
+        break;
         case T_ProvenanceStmt:
-            {
-                PREP_VISIT(ProvenanceStmt);
-                VISIT(query);
-            }
-            break;
+        {
+            PREP_VISIT(ProvenanceStmt);
+            VISIT(query);
+        }
+        break;
         case T_QueryBlock:
-        	{
-        		PREP_VISIT(QueryBlock);
-        		VISIT(selectClause);
-        		VISIT(distinct);
-        		VISIT(fromClause);
-        		VISIT(whereClause);
-        		VISIT(groupByClause);
-        		VISIT(havingClause);
-        		VISIT(orderByClause);
-        		VISIT(limitClause);
-				VISIT(offsetClause);
-        	}
-        	break;
+        {
+        	PREP_VISIT(QueryBlock);
+        	VISIT(selectClause);
+        	VISIT(distinct);
+        	VISIT(fromClause);
+        	VISIT(whereClause);
+        	VISIT(groupByClause);
+        	VISIT(havingClause);
+        	VISIT(orderByClause);
+        	VISIT(limitClause);
+			VISIT(offsetClause);
+        }
+        break;
         case T_SelectItem:
-        	{
-        		PREP_VISIT(SelectItem);
-        		VISIT(expr);
-        	}
-        	break;
+        {
+        	PREP_VISIT(SelectItem);
+        	VISIT(expr);
+        }
+        break;
         case T_FromTableRef:
-        	{
-        	    LOG_VISIT_ONLY(FromTableRef);
-        	}
-        	break;
+        {
+            PREP_VISIT(FromTableRef);
+            VISIT_FROM_ITEM();
+        	LOG_VISIT_ONLY(FromTableRef);
+        }
+        break;
         case T_FromSubquery:
-        	{
-        		PREP_VISIT(FromSubquery);
-        		VISIT(subquery);
-        	}
-        	break;
+        {
+        	PREP_VISIT(FromSubquery);
+            VISIT_FROM_ITEM();
+        	VISIT(subquery);
+        }
+        break;
         case T_FromLateralSubquery:
-        	{
-        		PREP_VISIT(FromLateralSubquery);
-        		VISIT(subquery);
-        	}
-        	break;
+        {
+        	PREP_VISIT(FromLateralSubquery);
+            VISIT_FROM_ITEM();
+        	VISIT(subquery);
+        }
+        break;
 	    case T_FromJoinExpr:
-        	{
-        		PREP_VISIT(FromJoinExpr);
-        		VISIT(left);
-        		VISIT(right);
-        		VISIT(cond);
-        	}
-        	break;
+        {
+        	PREP_VISIT(FromJoinExpr);
+            VISIT_FROM_ITEM();
+        	VISIT(left);
+        	VISIT(right);
+        	VISIT(cond);
+        }
+        break;
         case T_DistinctClause:
-        	{
-        		PREP_VISIT(DistinctClause);
-        		VISIT(distinctExprs);
-        	}
-        	break;
+        {
+        	PREP_VISIT(DistinctClause);
+        	VISIT(distinctExprs);
+        }
+        break;
         case T_NestedSubquery:
-        	{
-        		PREP_VISIT(NestedSubquery);
-        		VISIT(expr);
-        		VISIT(query);
-        	}
-        	break;
+        {
+        	PREP_VISIT(NestedSubquery);
+        	VISIT(expr);
+        	VISIT(query);
+        }
+        break;
         case T_Insert:
-        	{
-        		PREP_VISIT(Insert);
-        		VISIT(query);
-        	}
-        	break;
+        {
+        	PREP_VISIT(Insert);
+        	VISIT(query);
+        }
+        break;
         case T_Delete:
-        	{
-        		PREP_VISIT(Delete);
-        		VISIT(cond);
-        	}
-        	break;
+        {
+        	PREP_VISIT(Delete);
+        	VISIT(cond);
+        }
+        break;
         case T_Update:
-        	{
-        		PREP_VISIT(Update);
-        		VISIT(selectClause);
-        		VISIT(cond);
-        	}
-        	break;
+        {
+        	PREP_VISIT(Update);
+        	VISIT(selectClause);
+        	VISIT(cond);
+        }
+        break;
 	    case T_PreparedQuery:
 		{
 			PREP_VISIT(PreparedQuery);
@@ -326,17 +336,17 @@ visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
 		break;
         /* query operator model nodes */
         case T_Schema:
-        	{
-        		PREP_VISIT(Schema);
-        		VISIT(attrDefs);
-        	}
-        	break;
+        {
+        	PREP_VISIT(Schema);
+        	VISIT(attrDefs);
+        }
+        break;
         case T_AttributeDef:
-        	{
-        	    LOG_VISIT_ONLY(AttributeDef);
-        		//VISIT();
-        	}
-        	break;
+        {
+        	LOG_VISIT_ONLY(AttributeDef);
+        	//VISIT();
+        }
+        break;
 	    case T_ParameterizedQuery:
 		{
 			PREP_VISIT(ParameterizedQuery);
@@ -344,97 +354,97 @@ visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
 			VISIT(parameters);
 		}
         case T_SelectionOperator:
-            {
-                PREP_VISIT(SelectionOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(cond);
-            }
-            break;
+        {
+            PREP_VISIT(SelectionOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(cond);
+        }
+        break;
         case T_ProjectionOperator:
-            {
-                PREP_VISIT(ProjectionOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(projExprs);
-            }
-            break;
+        {
+            PREP_VISIT(ProjectionOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(projExprs);
+        }
+        break;
         case T_JoinOperator:
-            {
-                PREP_VISIT(JoinOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(cond);
-            }
-            break;
+        {
+            PREP_VISIT(JoinOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(cond);
+        }
+        break;
         case T_AggregationOperator:
-            {
-                PREP_VISIT(AggregationOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(aggrs);
-                VISIT(groupBy);
-            }
-            break;
+        {
+            PREP_VISIT(AggregationOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(aggrs);
+            VISIT(groupBy);
+        }
+        break;
         case T_ProvenanceComputation:
-        	{
-        		PREP_VISIT(ProvenanceComputation);
-        		VISIT_OPERATOR_FIELDS();
-        	}
-        	break;
+        {
+        	PREP_VISIT(ProvenanceComputation);
+        	VISIT_OPERATOR_FIELDS();
+        }
+        break;
         case T_TableAccessOperator:
-        	{
-        		PREP_VISIT(TableAccessOperator);
-        		VISIT_OPERATOR_FIELDS();
-        	}
-        	break;
+        {
+        	PREP_VISIT(TableAccessOperator);
+        	VISIT_OPERATOR_FIELDS();
+        }
+        break;
         case T_SampleClauseOperator:
-        	{
-        		PREP_VISIT(SampleClauseOperator);
-        		VISIT_OPERATOR_FIELDS();
-        	}
-        	break;
+        {
+        	PREP_VISIT(SampleClauseOperator);
+        	VISIT_OPERATOR_FIELDS();
+        }
+        break;
         case T_SetOperator:
-        	{
-        		PREP_VISIT(SetOperator);
-        		VISIT_OPERATOR_FIELDS();
-        	}
-        	break;
+        {
+        	PREP_VISIT(SetOperator);
+        	VISIT_OPERATOR_FIELDS();
+        }
+        break;
         case T_DuplicateRemoval:
-        	{
-        		PREP_VISIT(DuplicateRemoval);
-        		VISIT_OPERATOR_FIELDS();
-        		VISIT(attrs);
-        	}
-            break;
+        {
+        	PREP_VISIT(DuplicateRemoval);
+        	VISIT_OPERATOR_FIELDS();
+        	VISIT(attrs);
+        }
+        break;
         case T_NestingOperator:
-            {
-                PREP_VISIT(NestingOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(cond);
-            }
-            break;
+        {
+            PREP_VISIT(NestingOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(cond);
+        }
+        break;
         case T_WindowOperator:
-            {
-                PREP_VISIT(WindowOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(partitionBy);
-                VISIT(orderBy);
-                VISIT(frameDef);
-                VISIT(f);
-            }
-            break;
+        {
+            PREP_VISIT(WindowOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(partitionBy);
+            VISIT(orderBy);
+            VISIT(frameDef);
+            VISIT(f);
+        }
+        break;
         case T_OrderOperator:
-            {
-                PREP_VISIT(OrderOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(orderExprs);
-            }
-            break;
+        {
+            PREP_VISIT(OrderOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(orderExprs);
+        }
+        break;
 	    case T_LimitOperator:
-            {
-                PREP_VISIT(LimitOperator);
-                VISIT_OPERATOR_FIELDS();
-                VISIT(limitExpr);
-                VISIT(offsetExpr);
-            }
-            break;
+        {
+            PREP_VISIT(LimitOperator);
+            VISIT_OPERATOR_FIELDS();
+            VISIT(limitExpr);
+            VISIT(offsetExpr);
+        }
+        break;
      	case T_ExecPreparedOperator:
 		{
 			PREP_VISIT(ExecPreparedOperator);
@@ -490,20 +500,20 @@ visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
         break;
         case T_psInfoCell:
         {
-//            PREP_VISIT(psInfoCell);
-//            VISIT(storeTable);
-//            VISIT(pqSql);
-//            VISIT(paraValues);
-//            VISIT(tableName);
-//            VISIT(attrName);
-//            VISIT(provTableAttr);
-//            VISIT(numRanges);
-//            VISIT(psSize);
-//            VISIT(ps);
+            //            PREP_VISIT(psInfoCell);
+            //            VISIT(storeTable);
+            //            VISIT(pqSql);
+            //            VISIT(paraValues);
+            //            VISIT(tableName);
+            //            VISIT(attrName);
+            //            VISIT(provTableAttr);
+            //            VISIT(numRanges);
+            //            VISIT(psSize);
+            //            VISIT(ps);
         }
         break;
         default:
-            break;
+        break;
     }
 
     return TRUE;
@@ -542,12 +552,12 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
     switch(node->type)
     {
         case T_List:
-        	{
-        		NEWN(List);
-        		FOREACH(Node, el, newN)
-        			el_his_cell->data.ptr_value = (void *) modifyNode((Node *) el, state);
-        	}
-        	break;
+        {
+        	NEWN(List);
+        	FOREACH(Node, el, newN)
+        	el_his_cell->data.ptr_value = (void *) modifyNode((Node *) el, state);
+        }
+        break;
         case T_IntList:
         	return node;
 	    case T_Set:
@@ -575,86 +585,86 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
         case T_AttributeReference:
             return node;
         case T_FunctionCall:
-            {
-                NEWN(FunctionCall);
-                MUTATE(List,args);
-            }
-            break;
+        {
+            NEWN(FunctionCall);
+            MUTATE(List,args);
+        }
+        break;
         case T_Operator:
-            {
-                NEWN(Operator);
-                MUTATE(List,args);
-            }
-            break;
+        {
+            NEWN(Operator);
+            MUTATE(List,args);
+        }
+        break;
         case T_CaseExpr:
-            {
-                NEWN(CaseExpr);
-                MUTATE(Node, expr);
-                MUTATE(List, whenClauses);
-                MUTATE(Node, elseRes);
-            }
-            break;
+        {
+            NEWN(CaseExpr);
+            MUTATE(Node, expr);
+            MUTATE(List, whenClauses);
+            MUTATE(Node, elseRes);
+        }
+        break;
         case T_CaseWhen:
-            {
-                NEWN(CaseWhen);
-                MUTATE(Node, when);
-                MUTATE(Node, then);
-            }
-            break;
+        {
+            NEWN(CaseWhen);
+            MUTATE(Node, when);
+            MUTATE(Node, then);
+        }
+        break;
         case T_CastExpr:
-            {
-                NEWN(CastExpr);
-                MUTATE(Node, expr);
-            }
-            break;
+        {
+            NEWN(CastExpr);
+            MUTATE(Node, expr);
+        }
+        break;
         case T_IsNullExpr:
-            {
-                NEWN(IsNullExpr);
-                MUTATE(Node, expr);
-            }
-            break;
+        {
+            NEWN(IsNullExpr);
+            MUTATE(Node, expr);
+        }
+        break;
         case T_WindowBound:
-            {
-                NEWN(WindowBound);
-                MUTATE(Node, expr);
-            }
-            break;
+        {
+            NEWN(WindowBound);
+            MUTATE(Node, expr);
+        }
+        break;
         case T_WindowFrame:
-            {
-                NEWN(WindowFrame);
-                MUTATE(WindowBound, lower);
-                MUTATE(WindowBound, higher);
-            }
-            break;
+        {
+            NEWN(WindowFrame);
+            MUTATE(WindowBound, lower);
+            MUTATE(WindowBound, higher);
+        }
+        break;
         case T_WindowDef:
-            {
-                NEWN(WindowDef);
-                MUTATE(List, partitionBy);
-                MUTATE(List, orderBy);
-                MUTATE(WindowFrame, frame);
-            }
-            break;
+        {
+            NEWN(WindowDef);
+            MUTATE(List, partitionBy);
+            MUTATE(List, orderBy);
+            MUTATE(WindowFrame, frame);
+        }
+        break;
         case T_WindowFunction:
-            {
-                NEWN(WindowFunction);
-                MUTATE(FunctionCall, f);
-                MUTATE(WindowDef, win);
-            }
-            break;
+        {
+            NEWN(WindowFunction);
+            MUTATE(FunctionCall, f);
+            MUTATE(WindowDef, win);
+        }
+        break;
         case T_RowNumExpr:
             return node;
         case T_OrderExpr:
-            {
-                NEWN(OrderExpr);
-                MUTATE(Node,expr);
-            }
+        {
+            NEWN(OrderExpr);
+            MUTATE(Node,expr);
+        }
         break;
         case T_QuantifiedComparison:
-            {
-                NEWN(QuantifiedComparison);
-                MUTATE(Node,checkExpr);
-                MUTATE(List,exprList);
-            }
+        {
+            NEWN(QuantifiedComparison);
+            MUTATE(Node,checkExpr);
+            MUTATE(List,exprList);
+        }
         break;
 		/* integrity constraint nodes */
     	case T_FD:
@@ -668,33 +678,33 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
 		break;
         /* query block model nodes */
         case T_SetQuery:
-            {
-                NEWN(SetQuery);
-                MUTATE(List,selectClause);
-                MUTATE(Node,lChild);
-                MUTATE(Node,rChild);
-            }
-            break;
+        {
+            NEWN(SetQuery);
+            MUTATE(List,selectClause);
+            MUTATE(Node,lChild);
+            MUTATE(Node,rChild);
+        }
+        break;
         case T_ProvenanceStmt:
-        	{
-        		NEWN(ProvenanceStmt);
-        		MUTATE(Node, query);
-        	}
-        	break;
+        {
+        	NEWN(ProvenanceStmt);
+        	MUTATE(Node, query);
+        }
+        break;
         case T_QueryBlock:
-        	{
-        		NEWN(QueryBlock);
-        		MUTATE(List, selectClause);
-        		MUTATE(Node, distinct);
-        		MUTATE(List, fromClause);
-        		MUTATE(Node, whereClause);
-        		MUTATE(List, groupByClause);
-        		MUTATE(Node, havingClause);
-        		MUTATE(List, orderByClause);
-        		MUTATE(Node, limitClause);
-				MUTATE(Node, offsetClause);
-        	}
-        	break;
+        {
+        	NEWN(QueryBlock);
+        	MUTATE(List, selectClause);
+        	MUTATE(Node, distinct);
+        	MUTATE(List, fromClause);
+        	MUTATE(Node, whereClause);
+        	MUTATE(List, groupByClause);
+        	MUTATE(Node, havingClause);
+        	MUTATE(List, orderByClause);
+        	MUTATE(Node, limitClause);
+			MUTATE(Node, offsetClause);
+        }
+        break;
 	    case T_ExecQuery:
 		{
 			NEWN(ExecQuery);
@@ -708,87 +718,87 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
 		}
 		break;
         case T_SelectItem:
-        	{
-        		NEWN(SelectItem);
-        		MUTATE(Node, expr);
-        	}
-        	break;
+        {
+        	NEWN(SelectItem);
+        	MUTATE(Node, expr);
+        }
+        break;
         case T_FromItem:
-        	{
-        		//NEWN(FromItem);
-        		//MUTATE(List, attrNames);
-        	}
-        	break;
+        {
+        	//NEWN(FromItem);
+        	//MUTATE(List, attrNames);
+        }
+        break;
         case T_FromTableRef:
-        	{
-        		NEWN(FromTableRef);
-        		MUTATE(List, from.attrNames);
-        	}
-        	break;
+        {
+        	NEWN(FromTableRef);
+        	MUTATE(List, from.attrNames);
+        }
+        break;
         case T_FromSubquery:
-        	{
-        		NEWN(FromSubquery);
-        		MUTATE(List, from.attrNames);
-        		MUTATE(Node, subquery);
-        	}
-        	break;
+        {
+        	NEWN(FromSubquery);
+        	MUTATE(List, from.attrNames);
+        	MUTATE(Node, subquery);
+        }
+        break;
         case T_FromLateralSubquery:
-        	{
-        		NEWN(FromLateralSubquery);
-        		MUTATE(List, from.attrNames);
-        		MUTATE(Node, subquery);
-        	}
-        	break;
+        {
+        	NEWN(FromLateralSubquery);
+        	MUTATE(List, from.attrNames);
+        	MUTATE(Node, subquery);
+        }
+        break;
         case T_FromJoinExpr:
-        	{
-        		NEWN(FromJoinExpr);
-        		MUTATE(List, from.attrNames);
-        		MUTATE(FromItem, left);
-        		MUTATE(FromItem, right);
-        		MUTATE(Node, cond);
-        	}
-        	break;
+        {
+        	NEWN(FromJoinExpr);
+        	MUTATE(List, from.attrNames);
+        	MUTATE(FromItem, left);
+        	MUTATE(FromItem, right);
+        	MUTATE(Node, cond);
+        }
+        break;
         case T_DistinctClause:
-        	{
-        		NEWN(DistinctClause);
-        		MUTATE(List, distinctExprs);
-        	}
-        	break;
+        {
+        	NEWN(DistinctClause);
+        	MUTATE(List, distinctExprs);
+        }
+        break;
         case T_NestedSubquery:
-        	{
-        		NEWN(NestedSubquery);
-        		MUTATE(Node, expr);
-        		MUTATE(Node, query);
-        	}
-        	break;
+        {
+        	NEWN(NestedSubquery);
+        	MUTATE(Node, expr);
+        	MUTATE(Node, query);
+        }
+        break;
         case T_Insert:
-        	{
-        		NEWN(Insert);
-        		MUTATE(Node, query);
-        	}
-            break;
+        {
+        	NEWN(Insert);
+        	MUTATE(Node, query);
+        }
+        break;
         case T_Delete:
-        	{
-        		NEWN(Delete);
-        		MUTATE(Node, cond);
-        	}
-        	break;
+        {
+        	NEWN(Delete);
+        	MUTATE(Node, cond);
+        }
+        break;
         case T_Update:
-        	{
-        		NEWN(Update);
-        		MUTATE(List, selectClause);
-        		MUTATE(Node, cond);
-        	}
-        	break;
+        {
+        	NEWN(Update);
+        	MUTATE(List, selectClause);
+        	MUTATE(Node, cond);
+        }
+        break;
 
         /* query operator model nodes */
         case T_Schema:
-        	{
-        		NEWN(Schema);
-        		//MUTATE_OPERATOR();
-        		MUTATE(List, attrDefs);
-        	}
-            break;
+        {
+        	NEWN(Schema);
+        	//MUTATE_OPERATOR();
+        	MUTATE(List, attrDefs);
+        }
+        break;
         case T_AttributeDef:
         	return node;
 	    case T_ParameterizedQuery:
@@ -798,95 +808,95 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
 			MUTATE(List, parameters);
 		}
         case T_SelectionOperator:
-            {
-                NEWN(SelectionOperator);
-                MUTATE_OPERATOR();
-                MUTATE(Node,cond);
-            }
-            break;
+        {
+            NEWN(SelectionOperator);
+            MUTATE_OPERATOR();
+            MUTATE(Node,cond);
+        }
+        break;
         case T_ProjectionOperator:
-            {
-                NEWN(ProjectionOperator);
-                MUTATE_OPERATOR();
-                MUTATE(List,projExprs);
-            }
-            break;
+        {
+            NEWN(ProjectionOperator);
+            MUTATE_OPERATOR();
+            MUTATE(List,projExprs);
+        }
+        break;
         case T_JoinOperator:
-        	{
-        		NEWN(JoinOperator);
-        		MUTATE_OPERATOR();
-        		MUTATE(Node, cond);
-        	}
-        	break;
+        {
+        	NEWN(JoinOperator);
+        	MUTATE_OPERATOR();
+        	MUTATE(Node, cond);
+        }
+        break;
         case T_AggregationOperator:
-        	{
-        		NEWN(AggregationOperator);
-        		MUTATE_OPERATOR();
-        		MUTATE(List, aggrs);
-        		MUTATE(List, groupBy);
-        	}
-        	break;
+        {
+        	NEWN(AggregationOperator);
+        	MUTATE_OPERATOR();
+        	MUTATE(List, aggrs);
+        	MUTATE(List, groupBy);
+        }
+        break;
         case T_ProvenanceComputation:
-        	{
-        	    NEWN(ProvenanceComputation);
-    			MUTATE_OPERATOR();
-    			MUTATE(ProvenanceTransactionInfo, transactionInfo);
-        	}
-        	break;
+        {
+        	NEWN(ProvenanceComputation);
+    		MUTATE_OPERATOR();
+    		MUTATE(ProvenanceTransactionInfo, transactionInfo);
+        }
+        break;
         case T_TableAccessOperator:
-    		{
-//    		    NEWN(TableAccessOperator);
-    			MUTATE_OPERATOR();
-    		}
-        	break;
+    	{
+            //    		    NEWN(TableAccessOperator);
+    		MUTATE_OPERATOR();
+    	}
+        break;
         case T_SampleClauseOperator:
-			{
-				MUTATE_OPERATOR();
-			}
-			break;
+		{
+			MUTATE_OPERATOR();
+		}
+		break;
         case T_SetOperator:
-    		{
-//    		    NEWN(SetOperator);
-    			MUTATE_OPERATOR();
-    		}
-        	break;
+    	{
+            //    		    NEWN(SetOperator);
+    		MUTATE_OPERATOR();
+    	}
+        break;
         case T_DuplicateRemoval:
-        	{
-        		NEWN(DuplicateRemoval);
-        		MUTATE_OPERATOR();
-        		MUTATE(List, attrs);
-        	}
-            break;
+        {
+        	NEWN(DuplicateRemoval);
+        	MUTATE_OPERATOR();
+        	MUTATE(List, attrs);
+        }
+        break;
         case T_NestingOperator:
-            {
-                NEWN(NestingOperator);
-                MUTATE_OPERATOR();
-                MUTATE(Node, cond);
-            }
-            break;
+        {
+            NEWN(NestingOperator);
+            MUTATE_OPERATOR();
+            MUTATE(Node, cond);
+        }
+        break;
         case T_WindowOperator:
-            {
-                NEWN(WindowOperator);
-                MUTATE_OPERATOR();
-                MUTATE(List,partitionBy);
-                MUTATE(List,orderBy);
-                MUTATE(WindowFrame,frameDef);
-                MUTATE(Node,f);
-            }
-            break;
+        {
+            NEWN(WindowOperator);
+            MUTATE_OPERATOR();
+            MUTATE(List,partitionBy);
+            MUTATE(List,orderBy);
+            MUTATE(WindowFrame,frameDef);
+            MUTATE(Node,f);
+        }
+        break;
         case T_OrderOperator:
-            {
-                NEWN(OrderOperator);
-                MUTATE(List,orderExprs);
-            }
-            break;
+        {
+            NEWN(OrderOperator);
+            MUTATE(List,orderExprs);
+        }
+        break;
         case T_LimitOperator:
-            {
-                NEWN(LimitOperator);
-                MUTATE(Node,limitExpr);
-                MUTATE(Node,offsetExpr);
-            }
-            break;
+        {
+            NEWN(LimitOperator);
+            MUTATE(Node,limitExpr);
+            MUTATE(Node,offsetExpr);
+        }
+        break;
 	    case T_ExecPreparedOperator:
 		{
 			NEWN(ExecPreparedOperator);
@@ -895,61 +905,61 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
 		}
 		// DL nodes
         case T_DLAtom:
-            {
-                NEWN(DLAtom);
-                MUTATE_DLNODE();
-                MUTATE(List,args);
-            }
+        {
+            NEWN(DLAtom);
+            MUTATE_DLNODE();
+            MUTATE(List,args);
+        }
         break;
         case T_DLComparison:
-            {
-                NEWN(DLComparison);
-                MUTATE_DLNODE();
-                MUTATE(Operator,opExpr);
-            }
+        {
+            NEWN(DLComparison);
+            MUTATE_DLNODE();
+            MUTATE(Operator,opExpr);
+        }
         break;
         case T_DLRule:
-            {
-                NEWN(DLRule);
-                MUTATE_DLNODE();
-                MUTATE(DLAtom,head);
-                MUTATE(List,body);
-            }
+        {
+            NEWN(DLRule);
+            MUTATE_DLNODE();
+            MUTATE(DLAtom,head);
+            MUTATE(List,body);
+        }
         break;
         case T_DLProgram:
-            {
-                NEWN(DLProgram);
-                MUTATE_DLNODE();
-                MUTATE(List,rules);
-                MUTATE(List,facts);
-            }
+        {
+            NEWN(DLProgram);
+            MUTATE_DLNODE();
+            MUTATE(List,rules);
+            MUTATE(List,facts);
+        }
         break;
         /* provenance sketch */
         case T_psInfo:
-            {
-                NEWN(psInfo);
+        {
+            NEWN(psInfo);
 
-                MUTATE(HashMap,tablePSAttrInfos);
-            }
+            MUTATE(HashMap,tablePSAttrInfos);
+        }
         break;
         case T_psAttrInfo:
-            {
-                NEWN(psAttrInfo);
+        {
+            NEWN(psAttrInfo);
 
-                MUTATE(List,rangeList);
-                MUTATE(BitSet,BitVector);
-                MUTATE(List,psIndexList);
-            }
+            MUTATE(List,rangeList);
+            MUTATE(BitSet,BitVector);
+            MUTATE(List,psIndexList);
+        }
         break;
         case T_psInfoCell:
-            {
-                NEWN(psInfoCell);
+        {
+            NEWN(psInfoCell);
 
-                MUTATE(BitSet,ps);
-            }
+            MUTATE(BitSet,ps);
+        }
         break;
         default:
-            break;
+        break;
     }
 
     return node;

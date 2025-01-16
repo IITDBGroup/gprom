@@ -467,7 +467,7 @@ analyzeSummerizationBasics (DLProgram *p)
     }
 
     // store edb information for negated atoms and why-not questions
-    if(!LIST_EMPTY(negAtoms))
+    if(!MY_LIST_EMPTY(negAtoms))
     {
         FOREACH(char,c,negAtoms)
         {
@@ -483,7 +483,7 @@ analyzeSummerizationBasics (DLProgram *p)
         }
     }
 
-    if(LIST_EMPTY(negAtoms) || qType == PROV_Q_WHYNOT)
+    if(MY_LIST_EMPTY(negAtoms) || qType == PROV_Q_WHYNOT)
     {
         FOREACH_HASH(List,edbs,headEdbPair)
             FOREACH(char,e,edbs)
@@ -1026,7 +1026,7 @@ getEDBFDs(DLProgram *p)
 //    {
 //        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 //
-//        if (!LIST_EMPTY(ps->sumOpts))
+//        if (!MY_LIST_EMPTY(ps->sumOpts))
 //            FOREACH(Node,n,ps->sumOpts)
 //                summOpts = appendToTailOfList(summOpts,n);
 //
@@ -1098,7 +1098,7 @@ getEDBFDs(DLProgram *p)
 //            }
 //
 //            // store edb information for negated atoms and why-not questions
-//            if(!LIST_EMPTY(negAtoms))
+//            if(!MY_LIST_EMPTY(negAtoms))
 //            {
 //                FOREACH(char,c,negAtoms)
 //                {
@@ -1114,7 +1114,7 @@ getEDBFDs(DLProgram *p)
 //                }
 //            }
 //
-//            if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
+//            if(MY_LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
 //            {
 //                FOREACH_HASH(List,edbs,headEdbPair)
 //                    FOREACH(char,e,edbs)

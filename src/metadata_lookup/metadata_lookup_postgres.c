@@ -384,14 +384,14 @@ postgresDatabaseConnectionOpen (void)
 }
 
 static char *
-postgresGetConnectionDescription (void)
+postgresGetConnectionDescription(void)
 {
     return CONCAT_STRINGS("Postgres:", getStringOption("connection.user"), "@",
             getStringOption("connection.host"), ":", getStringOption("connection.db"));
 }
 
 static void
-fillOidToDTMap (HashMap *oidToDT, Set *anyOids)
+fillOidToDTMap(HashMap *oidToDT, Set *anyOids)
 {
     PGresult *res = NULL;
     int numRes = 0;
@@ -605,7 +605,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
         }
 
         // does function take anytype as an input then determine return type
-        if (hasAnyType(argOids))
+        if(hasAnyType(argOids))
         {
             if(isAnyTypeCompaible(argOids, argTypes))
             {
@@ -667,7 +667,7 @@ isAnyTypeCompaible (List *oids, List *argTypes)
 }
 
 static DataType
-inferAnyReturnType (List *oids, List *argTypes, int retOid)
+inferAnyReturnType(List *oids, List *argTypes, int retOid)
 {
     Set *anyOids = GET_CACHE()->anyOids;
 
@@ -687,7 +687,7 @@ inferAnyReturnType (List *oids, List *argTypes, int retOid)
 }
 
 DataType
-postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
+postgresGetOpReturnType(char *oName, List *argTypes, boolean *opExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;
@@ -792,8 +792,9 @@ postgresCatalogTableExists (char * tableName)
     PGresult *res = NULL;
     START_TIMER(METADATA_LOOKUP_TIMER);
 
-    if (hasSetElem(plugin->plugin.cache->tableNames,tableName)){
-   	STOP_TIMER(METADATA_LOOKUP_TIMER);
+    if (hasSetElem(plugin->plugin.cache->tableNames,tableName))
+    {
+   	    STOP_TIMER(METADATA_LOOKUP_TIMER);
         return TRUE;
     }
 

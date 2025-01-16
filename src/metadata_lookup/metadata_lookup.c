@@ -23,12 +23,14 @@
 #include "metadata_lookup/metadata_lookup_postgres.h"
 #include "metadata_lookup/metadata_lookup_external.h"
 #include "metadata_lookup/metadata_lookup_sqlite.h"
+#include "metadata_lookup/metadata_lookup_duckdb.h"
 #include "metadata_lookup/metadata_lookup_monetdb.h"
 #include "metadata_lookup/metadata_lookup_mssql.h"
 
 #define PLUGIN_NAME_ORACLE "oracle"
 #define PLUGIN_NAME_POSTGRES "postgres"
 #define PLUGIN_NAME_SQLITE "sqlite"
+#define PLUGIN_NAME_DUCKDB "duckdb"
 #define PLUGIN_NAME_MONETDB "monetdb"
 #define PLUGIN_NAME_ODBC "odbc"
 #define PLUGIN_NAME_MSSQL "mssql"
@@ -55,6 +57,9 @@ initMetadataLookupPlugins (void)
 #endif
 #if HAVE_SQLITE_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assembleSqliteMetadataLookupPlugin());
+#endif
+#if HAVE_DUCKDB_BACKEND
+    availablePlugins = appendToTailOfList(availablePlugins, assembleDuckDBMetadataLookupPlugin());
 #endif
 #if HAVE_MONETDB_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assembleMonetdbMetadataLookupPlugin());
@@ -131,6 +136,8 @@ stringToPluginType(char *type)
         return METADATA_LOOKUP_PLUGIN_POSTGRES;
     if (strcmp(type, PLUGIN_NAME_SQLITE) == 0)
         return METADATA_LOOKUP_PLUGIN_SQLITE;
+    if (strcmp(type, PLUGIN_NAME_DUCKDB) == 0)
+        return METADATA_LOOKUP_PLUGIN_DUCKDB;
     if (strcmp(type, PLUGIN_NAME_MONETDB) == 0)
         return METADATA_LOOKUP_PLUGIN_MONETDB;
     if (strcmp(type, PLUGIN_NAME_ODBC) == 0)
@@ -154,6 +161,8 @@ pluginTypeToString(MetadataLookupPluginType type)
         return PLUGIN_NAME_POSTGRES;
     case METADATA_LOOKUP_PLUGIN_SQLITE:
         return PLUGIN_NAME_SQLITE;
+    case METADATA_LOOKUP_PLUGIN_DUCKDB:
+        return PLUGIN_NAME_DUCKDB;
     case METADATA_LOOKUP_PLUGIN_MONETDB:
 		return PLUGIN_NAME_MONETDB;
     case METADATA_LOOKUP_PLUGIN_ODBC:

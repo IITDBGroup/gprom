@@ -1,3 +1,4 @@
+AC_LANG([C])
 ################################################################################
 # DEFINTIONS OF HELPER FUNCTIONS
 # Check whether we compile 32 or 64 bit code
@@ -112,11 +113,12 @@ AC_DEFUN([AC_ORACLE_ALL_CHECKS],
   AC_OCIH_LOCATION
   AC_OCI_LIB_LOCATION
   AC_OCILIB_LOCATION
-  AC_CHECK_HEADERS([ocilib.h],
+#TODO some instantclient versions use oci.h instead of ocilib.h
+  AC_CHECK_HEADERS([oci.h],
 # do nothing if header exists
     [],
 # fail if header not found
-    [AC_MSG_ERROR([missing Oracle ocilib.h header])]
+    [AC_MSG_ERROR([missing Oracle oci.h header])]
     )
 # check for the libraries
   AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
@@ -266,6 +268,40 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# Duckdb header location
+AC_DEFUN([AC_DUCKDB_HEADER_LOCATION],
+[AC_ARG_WITH(duckdb-headers, [  --with-duckdb-headers], , )
+AC_MSG_CHECKING([for user provided duckdb header location])
+if test "x$with_duckdb_headers" != x; then
+	if test -f "$with_duckdb_headers/duckdb.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_duckdb_headers"
+    	AC_MSG_RESULT([yes, found at $with_duckdb_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no headers for DuckDB found in location $with_duckdb_headers)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# Duckdb library location
+AC_DEFUN([AC_DUCKDB_LOCATION],
+[AC_ARG_WITH(duckdb-lib, [  --with-duckdb-lib], , )
+AC_MSG_CHECKING([for user provided duckdb location])
+if test "x$with_duckdb_lib" != x; then
+	if test -d "$with_duckdb_lib"; then
+		LDFLAGS="$LDFLAGS -L$with_duckdb_lib"
+    	CPPFLAGS="$CPPFLAGS -I$with_duckdb_lib"
+    	AC_MSG_RESULT([yes, $with_duckdb_lib])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no duckdb library found in location $with_duckb_lib)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+
 # All Postgres Checks
 AC_DEFUN([AC_POSTGRES_ALL_CHECKS],
 [
@@ -340,6 +376,21 @@ AC_DEFUN([AC_SQLITE_ALL_CHECKS],
 [
     AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+	])
+])
+# All DuckDB Checks
+AC_DEFUN([AC_DUCKDB_ALL_CHECKS],
+[
+  AC_DUCKDB_LOCATION
+  AC_DUCKDB_HEADER_LOCATION
+  AC_CHECK_HEADERS([duckdb.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find DuckDB duckdb.h])]
+  )
+  AC_CHECK_LIB([duckdb],[duckdb_open],[],[
+    	AC_MSG_ERROR([missing libduckdb library - if you want to compile without DuckDB backend support use --disable-duckdb])
 	])
 ])
 # cplex library location
@@ -483,6 +534,20 @@ AS_IF([test "x$enable_sqlite" == "xyes"], [
 ],
 [
   AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
+  AC_MSG_RESULT([no])
+])
+])
+# compile with DuckDB support
+AC_DEFUN([AC_ENABLE_DUCKDB],
+[
+AC_MSG_CHECKING([should be compiled with support for DuckDB backends])
+AC_ARG_ENABLE(duckdb, AS_HELP_STRING([--disable-duckdb],[Disable compilation with support for DuckDB backends]))
+
+AS_IF([test "x$enable_duckdb" == "xyes"], [
+  AC_MSG_RESULT([yes])
+],
+[
+  AC_DEFINE([DISABLE_DUCKDB],[],[Disable support for DuckDB backends])
   AC_MSG_RESULT([no])
 ])
 ])
@@ -761,6 +826,7 @@ AC_CHECK_FUNCS([strsep])
 AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
 AC_ENABLE_SQLITE
+AC_ENABLE_DUCKDB
 AC_ENABLE_MONETDB
 AC_ENABLE_ODBC
 AC_ENABLE_MSSQL
@@ -857,6 +923,16 @@ AS_CASE(["$enable_z3"],
 # check for the sqlite3 library
 AS_CASE(["$enable_sqlite"],
 	[yes], [AC_SQLITE_ALL_CHECKS],
+    # Deactivated
+    [no], [],
+    # Default (inactive)
+	[]
+)
+################################################################################
+# DuckDB library (libduckdb)
+# check for the duckdb library
+AS_CASE(["$enable_duckdb"],
+	[yes], [AC_DUCKDB_ALL_CHECKS],
     # Deactivated
     [no], [],
     # Default (inactive)
@@ -973,7 +1049,7 @@ echo "
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no}
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no} Z3:${enable_z3:=no}
-  Backends supported.: Oracle - ${enable_oracle:=no}, Postgres - ${enable_postgres:=no}, SQLite - ${enable_sqlite:=no}, MonetDB - ${enable_monetdb:=no}, ODBC - ${enable_odbc:=no}, MSSQL - ${enable_mssql:=no}
+  Backends supported.: Oracle - ${enable_oracle:=no}, Postgres - ${enable_postgres:=no}, SQLite - ${enable_sqlite:=no}, DuckDB - ${enable_duckdb:=no}, MonetDB - ${enable_monetdb:=no}, ODBC - ${enable_odbc:=no}, MSSQL - ${enable_mssql:=no}
   Language bindings..: Java - ${enable_java:=no}
   Readline support...: ${enable_readline:=yes}
   Documentation......: Tool to build documentation: $DOCTOOL

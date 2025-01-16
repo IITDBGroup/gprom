@@ -260,7 +260,7 @@ translateProgram(DLProgram *p)
 	Node *transMoveRel = NULL;
 	List *domHeadPreds = NIL;
 
-	if (!LIST_EMPTY(p->sumOpts) && p->ans != NULL)
+	if (!MY_LIST_EMPTY(p->sumOpts) && p->ans != NULL)
 	{
 		transMoveRel = MAP_GET_STRING(predToTrans, "move");
 		removeMapStringElem(predToTrans, "move");
@@ -279,7 +279,7 @@ translateProgram(DLProgram *p)
 	translation = connectProgramTranslation(p, predToTrans);
 
 	// generate input for the summarization
-	if (!LIST_EMPTY(p->sumOpts) && p->ans != NULL)
+	if (!MY_LIST_EMPTY(p->sumOpts) && p->ans != NULL)
 	{
 		Node *origInRule = NULL;
 		Node *ruleFire = NULL;
@@ -609,7 +609,7 @@ translateUnSafeRule(DLRule *r)
     DEBUG_LOG("joined goals are: %s", operatorToOverviewString((Node *) joinedGoals));
 
     // create selection from comparison expression in the rule
-    if (!LIST_EMPTY(conditions))
+    if (!MY_LIST_EMPTY(conditions))
     {
         Node *cond = createCondFromComparisons(conditions, joinedGoals, varDTmap);
         sel = createSelectionOp(cond, joinedGoals, NIL, NULL);
@@ -712,7 +712,7 @@ translateSafeRule(DLRule *r)
     joinedGoals = posPart;
 
     // create selection from comparison expression in the rule
-    if (!LIST_EMPTY(conditions))
+    if (!MY_LIST_EMPTY(conditions))
     {
         Node *cond = createCondFromComparisons(conditions, joinedGoals, varDTmap);
         sel = createSelectionOp(cond, joinedGoals, NIL, NULL);

@@ -401,11 +401,11 @@ appendToTailOfListInt(List *list, int value)
 List *
 appendAllToTail(List *l, List *new)
 {
-    if(LIST_EMPTY(l))
+    if(MY_LIST_EMPTY(l))
     {
         return new;
     }
-    if(LIST_EMPTY(new))
+    if(MY_LIST_EMPTY(new))
     {
         return l;
     }

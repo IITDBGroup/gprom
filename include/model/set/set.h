@@ -61,6 +61,7 @@ extern Set *makeStringSetFromConstSet(Set *s);
 
 // turn lists into sets
 extern Set *makeStrSetFromList(List *strList);
+extern List *makeStrListFromSet(Set *strset);
 extern Set *makeNodeSetFromList(List *list);
 extern List *makeNodeListFromSet(Set *s);
 

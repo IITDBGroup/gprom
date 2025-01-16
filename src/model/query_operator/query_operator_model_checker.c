@@ -188,6 +188,13 @@ filterOutInlinedSubqueries(List *attrRefs, Set *inlined)
     return result;
 }
 
+#define LOG_PARENT_AND_CHILD(_p,_c) \
+    do { \
+        ERROR_SINGLE_OP_LOG("parent is", _p); \
+        ERROR_SINGLE_OP_LOG("child is", _c); \
+    } while(0)
+
+
 static boolean
 checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
 {
@@ -202,7 +209,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         if (a->name == NULL)
         {
             ERROR_NODE_BEATIFY_LOG("attribute NULL name:", a);
-            ERROR_OP_LOG("parent is",parent);
+            ERROR_SINGLE_OP_LOG("parent is",parent);
             return FALSE;
         }
 
@@ -210,7 +217,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         {
             ERROR_NODE_BEATIFY_LOG("attribute references input operator that "
                     "does not exist:",a);
-            ERROR_OP_LOG("parent is",parent);
+            ERROR_SINGLE_OP_LOG("parent is",parent);
             return FALSE;
         }
 
@@ -230,7 +237,8 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         {
             ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "
                                    "exist in child:",a);
-            ERROR_OP_LOG("parent is",parent);
+            LOG_PARENT_AND_CHILD(parent,child);
+
             return FALSE;
         }
 
@@ -239,7 +247,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         {
             ERROR_LOG("attribute ref name and child attrdef names are not the "
                     "same: <%s> and <%s>", childA->attrName, a->name);
-            ERROR_OP_LOG("parent is",parent);
+            LOG_PARENT_AND_CHILD(parent,child);
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
         }
@@ -249,7 +257,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
                     "same: <%s> and <%s>",
                     DataTypeToString(childA->dataType),
                     DataTypeToString(a->attrType));
-            ERROR_OP_LOG("parent is",parent);
+            LOG_PARENT_AND_CHILD(parent,child);
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
         }

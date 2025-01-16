@@ -95,6 +95,13 @@ typedef enum QOVisitorState {
 #define AGGNAME_LAG backendifyIdentifier("lag")
 #define AGGNAME_LEAD backendifyIdentifier("lead")
 
+#define FUNCNAME_TO_DATE ((getBackend() == BACKEND_DUCKDB) ? "make_date" : "TO_DATE")
+#define DATE_MIN ((getBackend() == BACKEND_DUCKDB) ? \
+    LIST_MAKE(createConstString("1992"),createConstString("1"), createConstString("1")): \
+    LIST_MAKE(createConstString("1992-01-01"), createConstString("YYYY-MM-DD")))
+#define DATE_MAX ((getBackend() == BACKEND_DUCKDB) ? \
+    LIST_MAKE(createConstString("1992"),createConstString("1"), createConstString("1")): \
+    LIST_MAKE(createConstString("1992-01-01"), createConstString("YYYY-MM-DD")))
 
 static int T_BEtype = -1;
 
@@ -3373,8 +3380,10 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         {
             // use date format 1-JAN-92 (1992)
             //FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));
-            FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("1992-01-01"),createConstString("YYYY-MM-DD")));
-            FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("YYYY-MM-DD")));
+            /* CastExpr *dateBegin = createCastExprOtherDT((Node *) createConstString("1992-01-01"), "DATE", -1, DT_STRING); */
+            /* CastExpr *dateEnd = createCastExprOtherDT((Node *) createConstString("9999-01-01"), "DATE", -1, DT_STRING); */
+            FunctionCall *dateBegin = createFunctionCall(FUNCNAME_TO_DATE, DATE_MIN);
+            FunctionCall *dateEnd = createFunctionCall(FUNCNAME_TO_DATE, DATE_MAX);
             constVals = appendToTailOfList(constVals, dateBegin);
             constVals = appendToTailOfList(constVals, dateEnd);
         }

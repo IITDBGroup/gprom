@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sql_serializer.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -21,6 +21,7 @@
 #include "sql_serializer/sql_serializer_dl.h"
 #include "sql_serializer/sql_serializer_lb.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
+#include "sql_serializer/sql_serializer_duckdb.h"
 #include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
@@ -38,6 +39,7 @@ static SqlserializerPlugin *assembleHivePlugin(void);
 static SqlserializerPlugin *assembleDLPlugin(void);
 static SqlserializerPlugin *assembleLBPlugin(void);
 static SqlserializerPlugin *assembleSQLitePlugin(void);
+static SqlserializerPlugin *assembleDuckDBPlugin(void);
 
 // wrapper interface
 char *
@@ -62,7 +64,7 @@ serializeQuery(QueryOperator *q)
 
 
 char *
-quoteIdentifier (char *ident)
+quoteIdentifier(char *ident)
 {
     ASSERT(plugin);
     return plugin->quoteIdentifier(ident);
@@ -91,6 +93,8 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
             break;
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
+        case SQLSERIALIZER_PLUGIN_DUCKDB:
+            plugin = assembleDuckDBPlugin();
             break;
     }
 }
@@ -170,6 +174,19 @@ assembleSQLitePlugin(void)
     return p;
 }
 
+static SqlserializerPlugin *
+assembleDuckDBPlugin(void)
+{
+    SqlserializerPlugin *p = NEW(SqlserializerPlugin);
+
+    p->type = SQLSERIALIZER_PLUGIN_DUCKDB;
+    p->serializeOperatorModel = serializeOperatorModelDuckDB;
+    p->serializeQuery = serializeQueryDuckDB;
+    p->quoteIdentifier = quoteIdentifierDuckDB;
+
+    return p;
+}
+
 void
 chooseSqlserializerPluginFromString(char *type)
 {
@@ -187,6 +204,8 @@ chooseSqlserializerPluginFromString(char *type)
             chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_LB);
     else if (streq(type,"sqlite"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SQLITE);
+    else if (streq(type,"duckdb"))
+        chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_DUCKDB);
     else
         FATAL_LOG("unkown sqlserializer plugin type: <%s>", type);
 }

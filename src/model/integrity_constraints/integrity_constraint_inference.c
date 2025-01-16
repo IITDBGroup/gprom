@@ -69,7 +69,7 @@ inferFDsForProgram(DLProgram *program)
 		MAP_ADD_STRING_KEY(predToRule, strdup(headPred), predRules);
 
 		// we are done with this predicate. check whether we can now process additional rules
-		if(LIST_EMPTY(predRules))
+		if(MY_LIST_EMPTY(predRules))
 		{
 			List *posRules = (List *) getMapString(bodyPredToRule, headPred);
 			addToSet(doneAtoms, headPred);
