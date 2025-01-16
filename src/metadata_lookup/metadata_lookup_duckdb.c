@@ -371,16 +371,21 @@ List*
 duckdbGetKeyInformation(char *tableName) {
     duckdb_result result;
     StringInfo q;
-    Set *key = STRSET();
+    Set *key;
     List *keys = NIL;
     int rc;
+
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    key =  STRSET();
 
     q = makeStringInfo();
     appendStringInfo(q, QUERY_TABLE_COL_COUNT, tableName);
     rc = duckdb_query(plugin->conn, q->data, &result);
 
     if (rc != DuckDBSuccess) {
-        fprintf(stderr, "Error getting primary key information for table <%s>", tableName);
+        FATAL_LOG("Error getting primary key information for table <%s>", tableName);
+        RELEASE_MEM_CONTEXT();
         return NULL;
     }
 
@@ -392,19 +397,21 @@ duckdbGetKeyInformation(char *tableName) {
         duckdb_free((void *)colname);
     }
 
-    if (duckdb_row_count(&result) == 0) {
-        fprintf(stderr, "No primary key information found for table <%s>", tableName);
-    } else {
+    if (duckdb_row_count(&result) == 0)
+    {
+        RELEASE_MEM_CONTEXT();
+        FATAL_LOG("No primary key information found for table <%s>", tableName);
+    }
+    else
+    {
         DEBUG_LOG("Key for %s are: %s", tableName, beatify(nodeToString(key)));
     }
 
-    if (!EMPTY_SET(key)) {
-        keys = singleton(key);
-    }
+    keys = makeStrListFromSet(key);
 
     duckdb_destroy_result(&result);
 
-    return keys;
+    RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(keys);
 }
 
 DataType

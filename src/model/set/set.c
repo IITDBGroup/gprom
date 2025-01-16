@@ -164,6 +164,19 @@ makeStrSetFromList(List *strList)
     return result;
 }
 
+List *
+makeStrListFromSet(Set *strset)
+{
+    List *result = NIL;
+
+    FOREACH_SET(char,s,strset)
+    {
+        result = appendToTailOfList(result, s);
+    }
+
+    return result;
+}
+
 Set *
 makeNodeSetFromList(List *list)
 {

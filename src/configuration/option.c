@@ -1062,8 +1062,8 @@ BackendInfo backends[]  = {
             "oracle",   // analyzer
             "oracle",   // parser
             "sqlite",   // metadata
-            "sqlite",    // sqlserializer
-            "oracle"   // translator
+            "sqlite",   // sqlserializer
+            "oracle"    // translator
         },
         {
             BACKEND_DUCKDB,
@@ -1071,8 +1071,8 @@ BackendInfo backends[]  = {
             "oracle",   // analyzer
             "oracle",   // parser
             "duckdb",   // metadata
-            "sqlite",    // sqlserializer
-            "oracle"   // translator
+            "postgres", // sqlserializer
+            "oracle"    // translator
         },
         {
             BACKEND_MONETDB,
