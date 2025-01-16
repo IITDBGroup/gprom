@@ -261,12 +261,14 @@ extern DataType typeOfInOpModel(Node *expr, List *inputOperators);
 extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
 extern boolean isAggFunction(Node *expr);
+extern boolean isNumericType(DataType dt);
 
 /* expression node type accessors */
 extern char *getAttributeReferenceName(AttributeReference *a);
 
 /* backend specific */
 extern char *backendifyIdentifier(char *name);
+extern List *backendifyIdentifierList(List *idents);
 
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
@@ -304,7 +306,7 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define LEAST_FUNC_NAME backendifyIdentifier("least")
 #define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
 
-// names for common SQL aggregation functions
+// names for common SQL window and aggregation functions
 #define MIN_FUNC_NAME backendifyIdentifier("min")
 #define MAX_FUNC_NAME backendifyIdentifier("max")
 #define SUM_FUNC_NAME backendifyIdentifier("sum")
@@ -312,6 +314,10 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define COUNT_FUNC_NAME backendifyIdentifier("count")
 #define ROW_NUMBER_FUNC_NAME backendifyIdentifier("row_number")
 #define DENSE_RANK_FUNC_NAME backendifyIdentifier("dense_rank")
+#define LEAD_FUNC_NAME backendifyIdentifier("lead")
+#define LAG_FUNC_NAME backendifyIdentifier("lag")
+#define FIRST_VALUE_FUNC_NAME backendifyIdentifier("first_value")
+#define LAST_VALUE_FUNC_NAME backendifyIdentifier("last_value")
 
 #define COALESCE_FUNC_NAME backendifyIdentifier("COALESCE")
 

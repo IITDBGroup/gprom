@@ -1071,7 +1071,7 @@ BackendInfo backends[]  = {
             "oracle",   // analyzer
             "oracle",   // parser
             "duckdb",   // metadata
-            "postgres", // sqlserializer
+            "duckdb", // sqlserializer
             "oracle"    // translator
         },
         {

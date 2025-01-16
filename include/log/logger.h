@@ -168,6 +168,13 @@ extern LogLevel maxLevel;
             logNodes_(loglevel, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
     } while (0)
 
+#define SINGLE_OP_LOG(loglevel, message, ...) \
+    do { \
+        if (maxLevel >= loglevel) \
+            logNodes_(loglevel, __FILE__, __LINE__, FALSE, singleOperatorToOverview, (message),  ##__VA_ARGS__, NULL); \
+    } while (0)
+
+
 #define DEBUG_OP_LOG(message, ...) OP_LOG(LOG_DEBUG,message, ##__VA_ARGS__)
 #define INFO_OP_LOG(message, ...) OP_LOG(LOG_INFO,message, ##__VA_ARGS__)
 #define ERROR_OP_LOG(message, ...) OP_LOG(LOG_ERROR,message, ##__VA_ARGS__)
@@ -177,6 +184,9 @@ extern LogLevel maxLevel;
         THROW(SEVERITY_RECOVERABLE,(message), ##__VA_ARGS__); \
     } while (0);
 
+#define DEBUG_SINGLE_OP_LOG(message, ...) SINGLE_OP_LOG(LOG_DEBUG,message, ##__VA_ARGS__)
+#define INFO_SINGLE_OP_LOG(message, ...) SINGLE_OP_LOG(LOG_INFO,message, ##__VA_ARGS__)
+#define ERROR_SINGLE_OP_LOG(message, ...) SINGLE_OP_LOG(LOG_ERROR,message, ##__VA_ARGS__)
 
 #define INFO_AND_DEBUG_OP_LOG(_msg, _op)							\
 	do {												\

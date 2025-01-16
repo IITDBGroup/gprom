@@ -605,7 +605,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
         }
 
         // does function take anytype as an input then determine return type
-        if (hasAnyType(argOids))
+        if(hasAnyType(argOids))
         {
             if(isAnyTypeCompaible(argOids, argTypes))
             {
@@ -667,7 +667,7 @@ isAnyTypeCompaible (List *oids, List *argTypes)
 }
 
 static DataType
-inferAnyReturnType (List *oids, List *argTypes, int retOid)
+inferAnyReturnType(List *oids, List *argTypes, int retOid)
 {
     Set *anyOids = GET_CACHE()->anyOids;
 
@@ -687,7 +687,7 @@ inferAnyReturnType (List *oids, List *argTypes, int retOid)
 }
 
 DataType
-postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
+postgresGetOpReturnType(char *oName, List *argTypes, boolean *opExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;

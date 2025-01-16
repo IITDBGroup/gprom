@@ -130,7 +130,7 @@ analyzeOracleModel (Node *stmt)
 }
 
 static void
-adaptIdentifiers (Node *stmt)
+adaptIdentifiers(Node *stmt)
 {
     Set *haveSeen = PSET();
 
@@ -188,15 +188,15 @@ visitAdaptIdents(Node *node, Set *context)
 
                 switch(node->type)
                 {
-                case T_FromTableRef:
-                {
-                    FromTableRef *tr = (FromTableRef *) f;
-                    DEBUG_LOG("updated table name %s to %s", tr->tableId,
-                              backendifyIdentifier(tr->tableId));
-                    tr->tableId = backendifyIdentifier(tr->tableId);
-                }
-                break;
-                default:
+                    case T_FromTableRef:
+                    {
+                        FromTableRef *tr = (FromTableRef *) f;
+                        DEBUG_LOG("updated table name %s to %s", tr->tableId,
+                                  backendifyIdentifier(tr->tableId));
+                        tr->tableId = backendifyIdentifier(tr->tableId);
+                    }
+                    break;
+                    default:
                     break;
                 }
             }
@@ -2324,7 +2324,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 }
 
 static boolean
-checkTemporalAttributesVisitor (Node *node, DataType **context)
+checkTemporalAttributesVisitor(Node *node, DataType **context)
 {
     if (node == NULL)
         return TRUE;

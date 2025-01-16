@@ -18,12 +18,15 @@
 
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer_duckdb.h"
+#include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
+
+#include "configuration/option.h"
 
 #include "utility/string_utils.h"
 
@@ -32,17 +35,17 @@ static SerializeClausesAPI *api = NULL;
 
 /* methods */
 static boolean replaceFunctionsWithEquivalent(Node *node, void *context);
-static boolean replaceBoolWithInt (Node *node, void *context);
+/* static boolean replaceBoolWithInt (Node *node, void *context); */
 static void createAPI (void);
-static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
-        int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
-static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
-static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
-        int* curFromItem, SerializeClausesAPI *api);
-static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+/* static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j, */
+/*         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api); */
+/* static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select, */
+/*         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api); */
+/* static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac, */
+/*         int* curFromItem, SerializeClausesAPI *api); */
+static void duckdbSerializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api);
-static List *serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api);
+/* static List *serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api); */
 
 char *
 serializeOperatorModelDuckDB(Node *q) // TODO
@@ -85,7 +88,7 @@ serializeQueryDuckDB(QueryOperator *q)
     viewDef = makeStringInfo();
 
     // replace boolean with ints
-    replaceBoolWithInt((Node *) q, NULL);
+    //replaceBoolWithInt((Node *) q, NULL);
 
     // initialize basic structures and then call the worker
     api->tempViewMap = NEW_MAP(Constant, Node);
@@ -95,7 +98,7 @@ serializeQueryDuckDB(QueryOperator *q)
     genQuoteAttributeNames((Node *) q);
 
     // initialize FromAttrsContext structure
-  	struct FromAttrsContext *fac = initializeFromAttrsContext();
+  	FromAttrsContext *fac = initializeFromAttrsContext();
 
 	// replace functions not supported by SQLite with equivalent alternatives
 	replaceFunctionsWithEquivalent((Node *) q, NULL);
@@ -131,7 +134,7 @@ serializeQueryDuckDB(QueryOperator *q)
 }
 
 char *
-quoteIdentifierDuckDB (char *ident)
+quoteIdentifierDuckDB(char *ident)
 {
     int i = 0;
     boolean needsQuotes = FALSE;
@@ -141,7 +144,7 @@ quoteIdentifierDuckDB (char *ident)
     if (ident[0] == '"')
         return ident;
 
-    // sqlite completely ignores case no matter whether the identifier is quoted or not
+    // duckdb completely ignores case no matter whether the identifier is quoted or not
     // so upper/lower case does not indicate whether we need to escape
     for(i = 0; i < strlen(ident); i++)
     {
@@ -195,365 +198,365 @@ replaceFunctionsWithEquivalent(Node *node, void *context)
 	return visit(node, replaceFunctionsWithEquivalent, context);
 }
 
-static boolean
-replaceBoolWithInt (Node *node, void *context)
-{
-    if (node == NULL)
-        return TRUE;
+/* static boolean */
+/* replaceBoolWithInt (Node *node, void *context) */
+/* { */
+/*     if (node == NULL) */
+/*         return TRUE; */
 
-    // replace boolean constants with 1/0
-    if (isA(node,Constant))
-    {
-        Constant *c = (Constant *) node;
+/*     // replace boolean constants with 1/0 */
+/*     if (isA(node,Constant)) */
+/*     { */
+/*         Constant *c = (Constant *) node; */
 
-        if (c->constType == DT_BOOL)
-        {
-            boolean val = BOOL_VALUE(c);
-            c->constType = DT_INT;
-            c->value = NEW(int);
-            if (val)
-                INT_VALUE(c) = 1;
-            else
-                INT_VALUE(c) = 0;
+/*         if (c->constType == DT_BOOL) */
+/*         { */
+/*             boolean val = BOOL_VALUE(c); */
+/*             c->constType = DT_INT; */
+/*             c->value = NEW(int); */
+/*             if (val) */
+/*                 INT_VALUE(c) = 1; */
+/*             else */
+/*                 INT_VALUE(c) = 0; */
 
-        }
-        return TRUE;
-    }
+/*         } */
+/*         return TRUE; */
+/*     } */
 
-    return visit(node, replaceBoolWithInt, context);
-}
+/*     return visit(node, replaceBoolWithInt, context); */
+/* } */
 
 
 static void
-createAPI (void)
+createAPI(void)
 {
     if (api == NULL)
     {
         api = createAPIStub();
-        api->serializeProjectionAndAggregation = serializeProjectionAndAggregation;
-        api->serializeSetOperator = serializeSetOperator;
-        api->serializeTableAccess = serializeTableAccess;
-        api->serializeConstRel = serializeConstRel;
-        api->serializeJoinOperator = serializeJoinOperator;
+        api->serializeProjectionAndAggregation = postgresSerializeProjectionAndAggregation;
+        api->serializeSetOperator = postgresSerializeSetOperator;
+        api->serializeTableAccess = duckdbSerializeTableAccess;
+        api->serializeConstRel = postgresSerializeConstRel;
+        api->serializeJoinOperator = postgresSerializeJoinOperator;
     }
 }
 
-static void
-serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
-        int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
-{
-    int rOffset;
-    appendStringInfoString(from, "(");
-    //left child
-    api->serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset,
-            fac, api);
+/* void */
+/* serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j, */
+/*         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api) */
+/* { */
+/*     int rOffset; */
+/*     appendStringInfoString(from, "("); */
+/*     //left child */
+/*     api->serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset, */
+/*             fac, api); */
 
-    //fac->fromAttrsList = removeFromHead(fac->fromAttrsList);
+/*     //fac->fromAttrsList = removeFromHead(fac->fromAttrsList); */
 
-    // join
-    switch (j->joinType)
-    {
-        case JOIN_INNER:
-            appendStringInfoString(from, " JOIN ");
-            break;
-        case JOIN_CROSS:
-            appendStringInfoString(from, " CROSS JOIN ");
-            break;
-        case JOIN_LEFT_OUTER:
-            appendStringInfoString(from, " LEFT OUTER JOIN ");
-            break;
-        case JOIN_RIGHT_OUTER:
-            appendStringInfoString(from, " RIGHT OUTER JOIN ");
-            break;
-        case JOIN_FULL_OUTER:
-            appendStringInfoString(from, " FULL OUTER JOIN ");
-            break;
-    }
-    // right child
-    rOffset = *curFromItem;
-    api->serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset,
-    		fac, api);
-    // join condition
-    if (j->cond)
-        appendStringInfo(from, " ON (%s)",
-                exprToSQLWithNamingScheme(copyObject(j->cond), rOffset,
-                		fac));
-    appendStringInfoString(from, ")");
-}
+/*     // join */
+/*     switch (j->joinType) */
+/*     { */
+/*         case JOIN_INNER: */
+/*             appendStringInfoString(from, " JOIN "); */
+/*             break; */
+/*         case JOIN_CROSS: */
+/*             appendStringInfoString(from, " CROSS JOIN "); */
+/*             break; */
+/*         case JOIN_LEFT_OUTER: */
+/*             appendStringInfoString(from, " LEFT OUTER JOIN "); */
+/*             break; */
+/*         case JOIN_RIGHT_OUTER: */
+/*             appendStringInfoString(from, " RIGHT OUTER JOIN "); */
+/*             break; */
+/*         case JOIN_FULL_OUTER: */
+/*             appendStringInfoString(from, " FULL OUTER JOIN "); */
+/*             break; */
+/*     } */
+/*     // right child */
+/*     rOffset = *curFromItem; */
+/*     api->serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset, */
+/*     		fac, api); */
+/*     // join condition */
+/*     if (j->cond) */
+/*         appendStringInfo(from, " ON (%s)", */
+/*                 exprToSQLWithNamingScheme(copyObject(j->cond), rOffset, */
+/*                 		fac)); */
+/*     appendStringInfoString(from, ")"); */
+/* } */
 
 /*
  * Create the SELECT, GROUP BY, and HAVING clause
  */
-static List *
-serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api)
-{
-    int pos = 0;
-    List *firstProjs = NIL;
-    List *aggs = NIL;
-    List *groupBys = NIL;
-    List *windowFs = NIL;
-//    List *secondProjs = NIL;
-    List *resultAttrs = NIL;
+/* List * */
+/* serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select, */
+/*         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api) */
+/* { */
+/*     int pos = 0; */
+/*     List *firstProjs = NIL; */
+/*     List *aggs = NIL; */
+/*     List *groupBys = NIL; */
+/*     List *windowFs = NIL; */
+/* //    List *secondProjs = NIL; */
+/*     List *resultAttrs = NIL; */
 
-    // either window funtions or regular aggregations but not both
-    ASSERT(!m->windowRoot || !m->aggregation);
+/*     // either window funtions or regular aggregations but not both */
+/*     ASSERT(!m->windowRoot || !m->aggregation); */
 
-    AggregationOperator *agg = (AggregationOperator *) m->aggregation;
-    WindowOperator *winR = (WindowOperator *) m->windowRoot;
-    UpdateAggAndGroupByAttrState *state = NULL;
+/*     AggregationOperator *agg = (AggregationOperator *) m->aggregation; */
+/*     WindowOperator *winR = (WindowOperator *) m->windowRoot; */
+/*     UpdateAggAndGroupByAttrState *state = NULL; */
 
-    appendStringInfoString(select, "\nSELECT ");
-    if (materialize)
-        appendStringInfoString(select, "/*+ materialize */ ");
-    if (m->distinct)
-        appendStringInfoString(select, " DISTINCT "); //TODO deal with distinct on attributes
+/*     appendStringInfoString(select, "\nSELECT "); */
+/*     if (materialize) */
+/*         appendStringInfoString(select, "/\*+ materialize *\/ "); */
+/*     if (m->distinct) */
+/*         appendStringInfoString(select, " DISTINCT "); //TODO deal with distinct on attributes */
 
-    // Projection for aggregation inputs and group-by
-    if (m->secondProj != NULL && (agg != NULL || winR != NULL))
-    {
-        FOREACH(Node,n,m->secondProj->projExprs)
-        {
-            updateAttributeNames(n, fac);
-            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE));
-        }
-        DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
-                stringListToString(firstProjs));
-    }
+/*     // Projection for aggregation inputs and group-by */
+/*     if (m->secondProj != NULL && (agg != NULL || winR != NULL)) */
+/*     { */
+/*         FOREACH(Node,n,m->secondProj->projExprs) */
+/*         { */
+/*             updateAttributeNames(n, fac); */
+/*             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE)); */
+/*         } */
+/*         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s", */
+/*                 stringListToString(firstProjs)); */
+/*     } */
 
 
-    // aggregation if need be
-    if (agg != NULL)
-    {
-        DEBUG_LOG("deal with aggregation function calls");
+/*     // aggregation if need be */
+/*     if (agg != NULL) */
+/*     { */
+/*         DEBUG_LOG("deal with aggregation function calls"); */
 
-        // aggregation
-        FOREACH(Node,expr,agg->aggrs)
-        {
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
-//            if (m->secondProj == NULL)
-//                updateAttributeNames(expr, fromAttrs);
-//            else
-//                updateAttributeNamesSimple(expr, firstProjs);
-            aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL, FALSE)); //TODO
-        }
-        DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
+/*         // aggregation */
+/*         FOREACH(Node,expr,agg->aggrs) */
+/*         { */
+/*             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs); */
+/* //            if (m->secondProj == NULL) */
+/* //                updateAttributeNames(expr, fromAttrs); */
+/* //            else */
+/* //                updateAttributeNamesSimple(expr, firstProjs); */
+/*             aggs = appendToTailOfList(aggs, exprToSQL(expr, NULL, FALSE)); //TODO */
+/*         } */
+/*         DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs)); */
 
-        // group by
-        FOREACH(Node,expr,agg->groupBy)
-        {
-            char *g;
-            if (pos++ == 0)
-                appendStringInfoString (groupBy, "\nGROUP BY ");
-            else
-                appendStringInfoString (groupBy, ", ");
+/*         // group by */
+/*         FOREACH(Node,expr,agg->groupBy) */
+/*         { */
+/*             char *g; */
+/*             if (pos++ == 0) */
+/*                 appendStringInfoString (groupBy, "\nGROUP BY "); */
+/*             else */
+/*                 appendStringInfoString (groupBy, ", "); */
 
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
-//            if (m->secondProj == NULL)
-//                updateAttributeNames(expr, fromAttrs);
-//            else
-//                updateAttributeNamesSimple(expr, firstProjs);
-            g = exprToSQL(expr, NULL, FALSE);
+/*             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs); */
+/* //            if (m->secondProj == NULL) */
+/* //                updateAttributeNames(expr, fromAttrs); */
+/* //            else */
+/* //                updateAttributeNamesSimple(expr, firstProjs); */
+/*             g = exprToSQL(expr, NULL, FALSE); */
 
-            groupBys = appendToTailOfList(groupBys, g);
-            appendStringInfo(groupBy, "%s", strdup(g));
-        }
-        DEBUG_LOG("group by attributes are %s", stringListToString(groupBys));
+/*             groupBys = appendToTailOfList(groupBys, g); */
+/*             appendStringInfo(groupBy, "%s", strdup(g)); */
+/*         } */
+/*         DEBUG_LOG("group by attributes are %s", stringListToString(groupBys)); */
 
-        state = NEW(UpdateAggAndGroupByAttrState);
-        state->aggNames = aggs;
-        state->groupByNames = groupBys;
-    }
-    // window functions
-    if (winR != NULL)
-    {
-        QueryOperator *curOp = (QueryOperator *) winR;
-        List *inAttrs = (m->secondProj) ? firstProjs : getQueryOperatorAttrNames(m->fromRoot);
-        DEBUG_LOG("deal with window function calls");
+/*         state = NEW(UpdateAggAndGroupByAttrState); */
+/*         state->aggNames = aggs; */
+/*         state->groupByNames = groupBys; */
+/*     } */
+/*     // window functions */
+/*     if (winR != NULL) */
+/*     { */
+/*         QueryOperator *curOp = (QueryOperator *) winR; */
+/*         List *inAttrs = (m->secondProj) ? firstProjs : getQueryOperatorAttrNames(m->fromRoot); */
+/*         DEBUG_LOG("deal with window function calls"); */
 
-        windowFs = NIL;
+/*         windowFs = NIL; */
 
-        while(isA(curOp,WindowOperator))
-        {
-            WindowOperator *wOp = (WindowOperator *) curOp;
-            Node *expr = wOp->f;
+/*         while(isA(curOp,WindowOperator)) */
+/*         { */
+/*             WindowOperator *wOp = (WindowOperator *) curOp; */
+/*             Node *expr = wOp->f; */
 
-            DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
+/*             DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE)); */
 
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs);
-//            if (m->secondProj == NULL)
-//                updateAttributeNames(expr, fromAttrs);
-//            else
-//                updateAttributeNamesSimple(expr, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fac, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fac, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs);
+/*             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fac, firstProjs); */
+/* //            if (m->secondProj == NULL) */
+/* //                updateAttributeNames(expr, fromAttrs); */
+/* //            else */
+/* //                updateAttributeNamesSimple(expr, firstProjs); */
+/*             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fac, firstProjs); */
+/*             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fac, firstProjs); */
+/*             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fac, firstProjs); */
 
-            windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
-																  (WindowOperator *) curOp), NULL, FALSE));
+/*             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc( */
+/* 																  (WindowOperator *) curOp), NULL, FALSE)); */
 
-            DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc(
-																   (WindowOperator *) curOp), NULL, FALSE));
+/*             DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc( */
+/* 																   (WindowOperator *) curOp), NULL, FALSE)); */
 
-            curOp = OP_LCHILD(curOp);
-        }
+/*             curOp = OP_LCHILD(curOp); */
+/*         } */
 
-        windowFs = CONCAT_LISTS(deepCopyStringList(inAttrs), windowFs);
+/*         windowFs = CONCAT_LISTS(deepCopyStringList(inAttrs), windowFs); */
 
-        state = NEW(UpdateAggAndGroupByAttrState);
-        state->aggNames = windowFs;
-        state->groupByNames = NIL;
+/*         state = NEW(UpdateAggAndGroupByAttrState); */
+/*         state->aggNames = windowFs; */
+/*         state->groupByNames = NIL; */
 
-        DEBUG_LOG("window function translated, %s", stringListToString(windowFs));
-    }
+/*         DEBUG_LOG("window function translated, %s", stringListToString(windowFs)); */
+/*     } */
 
-    // having
-    if (m->having != NULL)
-    {
-        SelectionOperator *sel = (SelectionOperator *) m->having;
-        DEBUG_LOG("having condition %s", nodeToString(sel->cond));
-        updateAggsAndGroupByAttrs(sel->cond, state);
-        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL, FALSE));
-        DEBUG_LOG("having translation %s", having->data);
-    }
+/*     // having */
+/*     if (m->having != NULL) */
+/*     { */
+/*         SelectionOperator *sel = (SelectionOperator *) m->having; */
+/*         DEBUG_LOG("having condition %s", nodeToString(sel->cond)); */
+/*         updateAggsAndGroupByAttrs(sel->cond, state); */
+/*         appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond, NULL, FALSE)); */
+/*         DEBUG_LOG("having translation %s", having->data); */
+/*     } */
 
-    // second level of projection either if no aggregation or using aggregation
-    if ((m->secondProj != NULL && !agg && !winR ) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
-    {
-        int pos = 0;
-        ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
-        List *attrNames = getAttrNames(p->op.schema);
-        // create result attribute names
-//        List *resultAttrs = NIL;
+/*     // second level of projection either if no aggregation or using aggregation */
+/*     if ((m->secondProj != NULL && !agg && !winR ) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR)) */
+/*     { */
+/*         int pos = 0; */
+/*         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj; */
+/*         List *attrNames = getAttrNames(p->op.schema); */
+/*         // create result attribute names */
+/* //        List *resultAttrs = NIL; */
 
-        DEBUG_LOG("outer projection");
+/*         DEBUG_LOG("outer projection"); */
 
-        FOREACH(Node,a,p->projExprs)
-        {
-            char *attrName = (char *) getNthOfListP(attrNames, pos);
-            if (pos++ != 0)
-                appendStringInfoString(select, ", ");
+/*         FOREACH(Node,a,p->projExprs) */
+/*         { */
+/*             char *attrName = (char *) getNthOfListP(attrNames, pos); */
+/*             if (pos++ != 0) */
+/*                 appendStringInfoString(select, ", "); */
 
-            // is projection over aggregation
-            if (agg)
-                updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid
-            // is projection over window functions
-            else if (winR)
-                updateAggsAndGroupByAttrs(a, state);
-            // is projection in query without aggregation
-            else
-                updateAttributeNames(a, fac);
-            appendStringInfo(select, "%s%s", exprToSQL(a, NULL, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
-        }
+/*             // is projection over aggregation */
+/*             if (agg) */
+/*                 updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid */
+/*             // is projection over window functions */
+/*             else if (winR) */
+/*                 updateAggsAndGroupByAttrs(a, state); */
+/*             // is projection in query without aggregation */
+/*             else */
+/*                 updateAttributeNames(a, fac); */
+/*             appendStringInfo(select, "%s%s", exprToSQL(a, NULL, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : ""); */
+/*         } */
 
-        resultAttrs = attrNames;
-        DEBUG_LOG("second projection expressions %s", select->data);
-    }
-    // else if window operator get the attributes from top-most window operator
-    else if (winR)
-    {
-        int pos = 0;
-        char *name;
-        resultAttrs = getQueryOperatorAttrNames((QueryOperator *) winR);
+/*         resultAttrs = attrNames; */
+/*         DEBUG_LOG("second projection expressions %s", select->data); */
+/*     } */
+/*     // else if window operator get the attributes from top-most window operator */
+/*     else if (winR) */
+/*     { */
+/*         int pos = 0; */
+/*         char *name; */
+/*         resultAttrs = getQueryOperatorAttrNames((QueryOperator *) winR); */
 
-        FOREACH(char,a,windowFs)
-        {
-            name = getNthOfListP(resultAttrs, pos);
-            if (pos++ != 0)
-                appendStringInfoString(select, ", ");
-            appendStringInfo(select, "%s AS %s", a, name);
-        }
+/*         FOREACH(char,a,windowFs) */
+/*         { */
+/*             name = getNthOfListP(resultAttrs, pos); */
+/*             if (pos++ != 0) */
+/*                 appendStringInfoString(select, ", "); */
+/*             appendStringInfo(select, "%s AS %s", a, name); */
+/*         } */
 
-        DEBUG_LOG("window functions results as projection expressions %s", select->data);
-    }
-    // get aggregation result attributes
-    else if (agg)
-    {
-        int pos = 0;
-        char *name;
-        resultAttrs = getQueryOperatorAttrNames((QueryOperator *) agg);
+/*         DEBUG_LOG("window functions results as projection expressions %s", select->data); */
+/*     } */
+/*     // get aggregation result attributes */
+/*     else if (agg) */
+/*     { */
+/*         int pos = 0; */
+/*         char *name; */
+/*         resultAttrs = getQueryOperatorAttrNames((QueryOperator *) agg); */
 
-        FOREACH(char,a,aggs)
-        {
-            name = getNthOfListP(resultAttrs, pos);
-            if (pos++ != 0)
-                appendStringInfoString(select, ", ");
-            appendStringInfo(select, "%s AS %s", a, name);
-        }
-        FOREACH(char,gb,groupBys)
-        {
-            name = getNthOfListP(resultAttrs, pos);
-            if (pos++ != 0)
-                appendStringInfoString(select, ", ");
-            appendStringInfo(select,  "%s AS %s", gb, name);
-        }
+/*         FOREACH(char,a,aggs) */
+/*         { */
+/*             name = getNthOfListP(resultAttrs, pos); */
+/*             if (pos++ != 0) */
+/*                 appendStringInfoString(select, ", "); */
+/*             appendStringInfo(select, "%s AS %s", a, name); */
+/*         } */
+/*         FOREACH(char,gb,groupBys) */
+/*         { */
+/*             name = getNthOfListP(resultAttrs, pos); */
+/*             if (pos++ != 0) */
+/*                 appendStringInfoString(select, ", "); */
+/*             appendStringInfo(select,  "%s AS %s", gb, name); */
+/*         } */
 
-        DEBUG_LOG("aggregation result as projection expressions %s", select->data);
-    }
-    // get attributes from FROM clause root
-    else
-    {
-        List *inAttrs = NIL;
-        int fromItem = 0;
+/*         DEBUG_LOG("aggregation result as projection expressions %s", select->data); */
+/*     } */
+/*     // get attributes from FROM clause root */
+/*     else */
+/*     { */
+/*         List *inAttrs = NIL; */
+/*         int fromItem = 0; */
 
-        // attribute aliases are determined by the fromRoot operator's schema
-        resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
-        // construct list of from clause attribute names with from clause item aliases
-//        FOREACH(List, attrs, fromAttrs)
-//        {
-//            FOREACH(char,name,attrs)
-//                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name));
-//            fromItem++;
-//        }
-        FOREACH(List, attrs, fac->fromAttrs)
-        {
-            FOREACH(char,name,attrs)
-				inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", name)); //FIXME minux outer levels up?
-            fromItem++;
-        }
+/*         // attribute aliases are determined by the fromRoot operator's schema */
+/*         resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO */
+/*         // construct list of from clause attribute names with from clause item aliases */
+/* //        FOREACH(List, attrs, fromAttrs) */
+/* //        { */
+/* //            FOREACH(char,name,attrs) */
+/* //                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name)); */
+/* //            fromItem++; */
+/* //        } */
+/*         FOREACH(List, attrs, fac->fromAttrs) */
+/*         { */
+/*             FOREACH(char,name,attrs) */
+/* 				inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", name)); //FIXME minux outer levels up? */
+/*             fromItem++; */
+/*         } */
 
-        // construct select clause
-        FORBOTH(char,outName,inName,resultAttrs,inAttrs)
-        {
-            if (pos++ != 0)
-                appendStringInfoString(select, ", ");
-            appendStringInfo(select, "%s AS %s", inName, outName);
-        }
+/*         // construct select clause */
+/*         FORBOTH(char,outName,inName,resultAttrs,inAttrs) */
+/*         { */
+/*             if (pos++ != 0) */
+/*                 appendStringInfoString(select, ", "); */
+/*             appendStringInfo(select, "%s AS %s", inName, outName); */
+/*         } */
 
-        DEBUG_LOG("FROM root attributes as projection expressions %s", select->data);
-    }
+/*         DEBUG_LOG("FROM root attributes as projection expressions %s", select->data); */
+/*     } */
 
-    if (state)
-        FREE(state);
+/*     if (state) */
+/*         FREE(state); */
 
-    return resultAttrs;
-}
+/*     return resultAttrs; */
+/* } */
+
+/* static void */
+/* serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac, */
+/*         int* curFromItem, SerializeClausesAPI *api) */
+/* { */
+/*     int pos = 0; */
+/*     List* attrNames = getAttrNames(((QueryOperator*) t)->schema); */
+/*     //\*fromAttrs = appendToTailOfList(*fromAttrs, attrNames); */
+/*     fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames); */
+/*     //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs)); */
+/*     appendStringInfoString(from, "(SELECT "); */
+/*     FOREACH(char,attrName,attrNames) */
+/*     { */
+/*         Node *value; */
+/*         if (pos != 0) */
+/*             appendStringInfoString(from, ", "); */
+/*         value = getNthOfListP(t->values, pos++); */
+/*         appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName); */
+
+/*     } */
+/*     appendStringInfo(from, ") F%u", (*curFromItem)++); */
+/* } */
 
 static void
-serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
-        int* curFromItem, SerializeClausesAPI *api)
-{
-    int pos = 0;
-    List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
-    //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-    fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-    //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-    appendStringInfoString(from, "(SELECT ");
-    FOREACH(char,attrName,attrNames)
-    {
-        Node *value;
-        if (pos != 0)
-            appendStringInfoString(from, ", ");
-        value = getNthOfListP(t->values, pos++);
-        appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName);
-
-    }
-    appendStringInfo(from, ") F%u", (*curFromItem)++);
-}
-
-static void
-serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
-		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api)
+duckdbSerializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+		                   FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api)
 {
     char* asOf = NULL;
 
@@ -579,35 +582,35 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         {
             appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
             appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
-                    attrNameStr->data);
+                             attrNameStr->data);
             appendStringInfo(from,
-                    "\tFROM %s VERSIONS BETWEEN SCN %u AND %u) F0",
-                    t->tableName, LONG_VALUE(commitMinusOne),
-                    LONG_VALUE(commitMinusOne));
+                             "\tFROM %s VERSIONS BETWEEN SCN %u AND %u) F0",
+                             t->tableName, LONG_VALUE(commitMinusOne),
+                             LONG_VALUE(commitMinusOne));
             appendStringInfoString(from, "\n JOIN ");
             appendStringInfo(from,
-                    "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
-                    t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+                             "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                             t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
             appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
-                    STRING_VALUE(xid));
+                             STRING_VALUE(xid));
             appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
-                    (*curFromItem)++);
+                             (*curFromItem)++);
         }
         else
         {
             appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
             appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
-                    attrNameStr->data);
+                             attrNameStr->data);
             appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0", t->tableName,
-                    LONG_VALUE(startScn));
+                             LONG_VALUE(startScn));
             appendStringInfoString(from, "\n JOIN ");
             appendStringInfo(from,
-                    "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
-                    t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+                             "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                             t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
             appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
-                    STRING_VALUE(xid));
+                             STRING_VALUE(xid));
             appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
-                    (*curFromItem)++);
+                             (*curFromItem)++);
         }
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
     }
@@ -639,45 +642,72 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
         DEBUG_LOG("table access append fac->fromAttrsList");
         printFromAttrsContext(fac);
-		appendStringInfo(from, "%s%s F%u_%u",
-				quoteIdentifierDuckDB(t->tableName), asOf ? asOf : "",
-				(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
+
+        //for temporal database coalesce
+        if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
+        {
+            QueryOperator *inp = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(t,PROP_TEMP_TNTAB));
+            StringInfo tabName = makeStringInfo();
+            QueryOperator *inpParent = (QueryOperator *) getHeadOfListP(inp->parents);
+            api->createTempView(inp, tabName,inpParent, fac, api);
+            appendStringInfo(from, "generate_series(1,(SELECT MAX(NUMOPEN)::bigint FROM (%s) F0)) F%u_0(n)", // we only coalesce at the end so assuming 0 nesting should be fine
+                             tabName->data, (*curFromItem)++);
+        }
+        else
+        {
+        	if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+        	{
+    			appendStringInfo(from, "%s%s F%u_%u",
+    					         quoteIdentifier(t->tableName),
+                                 asOf ? asOf : "",
+    					         (*curFromItem)++,
+                                 LIST_LENGTH(fac->fromAttrsList));
+        	}
+        	else
+        	{
+    			appendStringInfo(from, "%s%s F%u_%u",
+    					         t->tableName, asOf ? asOf : "",
+    					         (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
+        	}
+        }
+
+
     }
 }
 
 /*
  * Serialize a set operation UNION/EXCEPT/INTERSECT
  */
-static List *
-serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
-{
-    SetOperator *setOp = (SetOperator *) q;
-    List *resultAttrs;
+/* static List * */
+/* serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api) */
+/* { */
+/*     SetOperator *setOp = (SetOperator *) q; */
+/*     List *resultAttrs; */
 
-	// wrap set operation into a block to ensure that we can preserve evaluation order (SQLite does not support parenthesis around set operations)
-	appendStringInfoString(str, "SELECT * FROM (");
+/* 	// wrap set operation into a block to ensure that we can preserve evaluation order (SQLite does not support parenthesis around set operations) */
+/* 	appendStringInfoString(str, "SELECT * FROM ("); */
 
-    // output left child
-    resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, fac, api);
+/*     // output left child */
+/*     resultAttrs = api->serializeQueryOperator(OP_LCHILD(q), str, q, fac, api); */
 
-    // output set operation
-    switch(setOp->setOpType)
-    {
-        case SETOP_UNION:
-            appendStringInfoString(str, " UNION ALL ");
-            break;
-			//TODO SQLite does not support bag intersect and difference, have to implement workaround query
-        case SETOP_INTERSECTION:
-            appendStringInfoString(str, " INTERSECT ");
-            break;
-        case SETOP_DIFFERENCE:
-            appendStringInfoString(str, " EXCEPT ");
-            break;
-    }
+/*     // output set operation */
+/*     switch(setOp->setOpType) */
+/*     { */
+/*         case SETOP_UNION: */
+/*             appendStringInfoString(str, " UNION ALL "); */
+/*             break; */
+/* 			//TODO SQLite does not support bag intersect and difference, have to implement workaround query */
+/*         case SETOP_INTERSECTION: */
+/*             appendStringInfoString(str, " INTERSECT "); */
+/*             break; */
+/*         case SETOP_DIFFERENCE: */
+/*             appendStringInfoString(str, " EXCEPT "); */
+/*             break; */
+/*     } */
 
-    // output right child
-    api->serializeQueryOperator(OP_RCHILD(q), str, q, fac, api);
-	appendStringInfoString(str, ")");
+/*     // output right child */
+/*     api->serializeQueryOperator(OP_RCHILD(q), str, q, fac, api); */
+/* 	appendStringInfoString(str, ")"); */
 
-    return resultAttrs;
-}
+/*     return resultAttrs; */
+/* } */

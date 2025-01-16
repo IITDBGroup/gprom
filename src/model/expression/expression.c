@@ -872,6 +872,14 @@ isAggFunction(Node *expr)
 	return FALSE;
 }
 
+boolean
+isNumericType(DataType dt)
+{
+    return dt == DT_INT
+           || dt == DT_LONG
+           || dt == DT_FLOAT;
+}
+
 char *
 getAttributeReferenceName(AttributeReference *a)
 {
@@ -925,6 +933,18 @@ backendifyIdentifier(char *name)
     return result;
 }
 
+List *
+backendifyIdentifierList(List *idents)
+{
+    List *result = NIL;
+
+    FOREACH(char,id,idents)
+    {
+        result = appendToTailOfList(result, backendifyIdentifier(id));
+    }
+
+    return result;
+}
 
 List *
 createCasts(Node *lExpr, Node *rExpr)

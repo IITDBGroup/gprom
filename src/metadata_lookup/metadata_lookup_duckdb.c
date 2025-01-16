@@ -13,6 +13,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/set/hashmap.h"
+#include "model/set/set.h"
 #include "model/set/vector.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "utility/string_utils.h"
@@ -26,9 +27,11 @@
 #define QUERY_TABLE_EXISTS "SELECT COUNT(*) FROM information_schema.tables WHERE upper(table_name)='%s' AND table_type = 'BASE TABLE';"
 #define QUERY_VIEW_EXISTS "SELECT COUNT(*) FROM information_schema.tables WHERE upper(table_name)='%s' AND table_type = 'VIEW';"
 #define QUERY_TABLE_COL_COUNT "SELECT upper(column_name), data_type FROM information_schema.columns WHERE upper(table_name) = '%s';"
+#define QUERY_TABLE_PKS "SELECT upper(column_name) FROM information_schema.key_column_usage WHERE upper(table_name) = '%s';"
 #define QUERY_TABLE_ATTR_MIN_MAX "SELECT %s FROM %s"
-#define QUERY_FUNC_IS_AGG "SELECT EXISTS (SELECT * FROM duckdb_functions() WHERE function_type = 'aggregate' AND function_name = '%s') AS found"
-#define QUERY_FUNC_GET_AGG_FUNCS "SELECT DISTINCT function_name FROM duckdb_functions() WHERE function_type = 'aggregate';"
+/* #define QUERY_FUNC_IS_AGG "SELECT EXISTS (SELECT * FROM duckdb_functions() WHERE function_type = 'aggregate' AND upper(function_name) = '%s') AS found" */
+#define QUERY_FUNC_GET_AGG_FUNCS "SELECT DISTINCT upper(function_name) FROM duckdb_functions() WHERE function_type = 'aggregate';"
+#define QUERY_FUNCS "SELECT parameter_types::varchar, return_type FROM duckdb_functions() WHERE lower(function_name) = '%s';"
 
 // Only define real plugin structure and methods if duckdb is present
 #ifdef HAVE_DUCKDB_BACKEND
@@ -45,6 +48,7 @@ typedef struct DuckDBPlugin
 // global vars
 static DuckDBPlugin *plugin = NULL;
 static MemContext *memContext = NULL;
+static char* boolops[] = { "<", "<=", ">", ">=" "!=", "=", "==", "<>", NULL };
 
 // functions
 // static duckdb_result runQuery (char *q);
@@ -52,7 +56,16 @@ static DataType stringToDT (char *dataType);
 static char *duckdbGetConnectionDescription (void);
 static void initCache(CatalogCache *c);
 static duckdb_result duckdbQueryInternal(char *sql);
+static DataType inferAnyReturnType(List *types, List *argTypes, char *retType);
+static boolean isAnyTypeCompatible(List *oids, List *argTypes);
+static boolean hasAnyType(List *types);
+static List *typeListToDTs(List *strs);
+static boolean isBoolOp(char *opname);
 
+typedef struct DuckDBMetaCache
+{
+    Set *boolOps;
+} DuckDBMetaCache;
 
 MetadataLookupPlugin *
 assembleDuckDBMetadataLookupPlugin (void)
@@ -240,7 +253,8 @@ duckdbGetAttributes(char *tableName)
     result = duckdbQueryInternal(q->data);
 
     // Iterate over the result set
-    for (idx_t row = 0; row < duckdb_row_count(&result); row++) {
+    for(idx_t row = 0; row < duckdb_row_count(&result); row++)
+    {
         const char *colName = duckdb_value_varchar(&result, 0, row);
         const char *dt = duckdb_value_varchar(&result, 1, row);
 
@@ -263,7 +277,7 @@ duckdbGetAttributes(char *tableName)
 }
 
 List *
-duckdbGetAttributeNames (char *tableName)
+duckdbGetAttributeNames(char *tableName)
 {
     return getAttrDefNames(duckdbGetAttributes(tableName));
 }
@@ -271,7 +285,7 @@ duckdbGetAttributeNames (char *tableName)
 boolean
 duckdbIsAgg(char *functionName)
 {
-    char *f = strToLower(functionName);
+    char *f = strToUpper(functionName);
 
     if (hasSetElem(plugin->plugin.cache->aggFuncNames, f))
     {
@@ -295,10 +309,148 @@ duckdbIsWindowFunction(char *functionName)
 }
 
 DataType
-duckdbGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
+duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
 {
-    *funcExists = TRUE;
-    return DT_STRING; //TODO
+    duckdb_result result;
+    DataType resType = DT_STRING;
+    *funcExists = FALSE;
+    StringInfo str;
+    int numrows;
+    fName = strToLower(fName);
+
+    // handle non function expressions that are treated as functions by GProM
+    if (strcaseeq(fName, GREATEST_FUNC_NAME)
+        || strcaseeq(fName, LEAST_FUNC_NAME)
+        || strcaseeq(fName, COALESCE_FUNC_NAME)
+        || strcaseeq(fName, LEAD_FUNC_NAME)
+        || strcaseeq(fName, LAG_FUNC_NAME)
+        || strcaseeq(fName, FIRST_VALUE_FUNC_NAME)
+        || strcaseeq(fName, LAST_VALUE_FUNC_NAME))
+    {
+        if(LIST_LENGTH(argTypes)  >= 2)
+        {
+            return lcaType(getNthOfListInt(argTypes, 0), getNthOfListInt(argTypes, 1));
+        }
+        else if (LIST_LENGTH(argTypes) == 1)
+        {
+            return getNthOfListInt(argTypes, 0);
+        }
+        return DT_INT;
+    }
+
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    str = makeStringInfo();
+    appendStringInfo(str, QUERY_FUNCS, fName);
+    result = duckdbQueryInternal(str->data);
+    numrows = duckdb_row_count(&result);
+
+    for(int i = 0; i < numrows; i++)
+    {
+        char *parameters = duckdb_value_varchar(&result, 0, i);
+        char *retType = duckdb_value_varchar(&result, 1, i);
+        List *typesStrs;
+        List *types;
+
+        parameters = strRemPostfix(strRemPrefix(parameters, 1), 1);
+        typesStrs = splitString(parameters, ",");
+        types = typeListToDTs(typesStrs);
+
+        if(equal(argTypes, types))
+        {
+            DEBUG_LOG("return type %s for %s(%s)",
+                      DataTypeToString(resType),
+                      fName,
+                      nodeToString(argTypes));
+            resType = stringToDT(retType);
+            *funcExists = TRUE;
+        }
+
+        // does function take anytype as an input then determine return type
+        if (hasAnyType(typesStrs))
+        {
+            if(isAnyTypeCompatible(types, argTypes))
+            {
+                resType = inferAnyReturnType(typesStrs,
+                                             argTypes,
+                                             retType);
+                *funcExists = TRUE;
+            }
+        }
+    }
+
+    RELEASE_MEM_CONTEXT();
+
+    return resType;
+}
+
+#define IS_ANY_TYPE(s) streq(s,"ANY")
+
+static boolean
+hasAnyType(List *types)
+{
+    FOREACH(char,o, types)
+    {
+        if(IS_ANY_TYPE(o))
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static boolean
+isAnyTypeCompatible(List *types, List *argTypes)
+{
+    int i = 0;
+
+    FOREACH(char,s,types)
+    {
+        DataType dt = getNthOfListInt(argTypes, i);
+
+        if(!IS_ANY_TYPE(s)
+           && stringToDT(s) != dt)
+        {
+            return FALSE;
+        }
+
+        i++;
+    }
+
+    return TRUE;
+}
+
+static DataType
+inferAnyReturnType(List *types, List *argTypes, char *retType)
+{
+    int i = 0;
+
+    if (!IS_ANY_TYPE(retType))
+        return stringToDT(retType);
+
+    FOREACH(char,typ,types)
+    {
+        if(IS_ANY_TYPE(typ))
+        {
+            return getNthOfListInt(argTypes, i);
+        }
+        i++;
+    }
+
+    // keep compiler quiet
+    return DT_STRING;
+}
+
+
+static List *
+typeListToDTs(List *strs)
+{
+    List *result;
+
+    FOREACH(char,s,strs)
+    {
+        result = appendToTailOfListInt(result, stringToDT(s));
+    }
+
+    return result;
 }
 
 DataType
@@ -306,7 +458,7 @@ duckdbGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     *opExists = TRUE;
 
-    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    if(streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
     {
         if (LIST_LENGTH(argTypes) == 2)
         {
@@ -332,18 +484,49 @@ duckdbGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
         }
     }
 
-    if (streq(oName, "||"))
+    // known boolean operators
+    if(isBoolOp(oName))
+    {
+        if (LIST_LENGTH(argTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(argTypes, 0);
+            DataType rType = getNthOfListInt(argTypes, 1);
+
+            if (lType == rType
+                || (isNumericType(lType) && isNumericType(rType)))
+            {
+                return DT_BOOL;
+            }
+        }
+    }
+
+    if(streq(oName, OPNAME_LIKE) || streq(oName, "~~"))
     {
         DataType lType = getNthOfListInt(argTypes, 0);
         DataType rType = getNthOfListInt(argTypes, 1);
 
-        if (lType == rType && lType == DT_STRING)
-            return DT_STRING;
+        if(lType == DT_STRING && rType == DT_STRING)
+        {
+            return DT_BOOL;
+        }
+    }
+
+    if(streq(oName, OPNAME_STRING_CONCAT))
+    {
+        return DT_STRING;
     }
     //TODO more operators
     *opExists = FALSE;
 
     return DT_STRING;
+}
+
+static boolean
+isBoolOp(char *opname)
+{
+    Set *c = ((DuckDBMetaCache *) plugin->plugin.cache->cacheHook)->boolOps;
+
+    return hasSetElem(c, opname);
 }
 
 char *
@@ -368,50 +551,45 @@ duckdbGetCostEstimation(char *query)
 }
 
 List*
-duckdbGetKeyInformation(char *tableName) {
+duckdbGetKeyInformation(char *tableName)
+{
     duckdb_result result;
     StringInfo q;
     Set *key;
     List *keys = NIL;
-    int rc;
+    int numrows;
 
     ACQUIRE_MEM_CONTEXT(memContext);
 
     key =  STRSET();
 
     q = makeStringInfo();
-    appendStringInfo(q, QUERY_TABLE_COL_COUNT, tableName);
-    rc = duckdb_query(plugin->conn, q->data, &result);
+    appendStringInfo(q, QUERY_TABLE_PKS, tableName);
+    result = duckdbQueryInternal(q->data);
+    numrows = duckdb_row_count(&result);
 
-    if (rc != DuckDBSuccess) {
-        FATAL_LOG("Error getting primary key information for table <%s>", tableName);
-        RELEASE_MEM_CONTEXT();
-        return NULL;
-    }
-
-    for (idx_t row = 0; row < duckdb_row_count(&result); row++) {
-        const char *colname = duckdb_value_varchar(&result, row, 0);
+    for(idx_t row = 0; row < numrows; row++)
+    {
+        const char *colname = duckdb_value_varchar(&result, 0, row);
 
         addToSet(key, strToUpper(strdup((char *) colname)));
 
         duckdb_free((void *)colname);
     }
 
-    if (duckdb_row_count(&result) == 0)
+    if(numrows == 0)
     {
-        RELEASE_MEM_CONTEXT();
-        FATAL_LOG("No primary key information found for table <%s>", tableName);
+        DEBUG_LOG("No primary key information found for table <%s>", tableName);
     }
     else
     {
         DEBUG_LOG("Key for %s are: %s", tableName, beatify(nodeToString(key)));
+        keys = singleton(key);
     }
-
-    keys = makeStrListFromSet(key);
 
     duckdb_destroy_result(&result);
 
-    RELEASE_MEM_CONTEXT_AND_RETURN_STRINGLIST_COPY(keys);
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List,keys);
 }
 
 DataType
@@ -564,12 +742,17 @@ duckdbExecuteQuery(char *query)
 
     rc = duckdb_query(plugin->conn, query, &rs);
 
-    if (rc != DuckDBSuccess) {
-        fprintf(stderr, "Failed to execute query <%s>", query);
+    if (rc != DuckDBSuccess)
+    {
+        FATAL_LOG("Failed to run query [%i]\n%s\n\n%s",
+                  rc,
+                  duckdb_result_error(&rs),
+                  query);
         return NULL;
     }
 
     int numFields = duckdb_column_count(&rs);
+    int numrows = duckdb_row_count(&rs);
 
     r->schema = NIL;
     for (int i = 0; i < numFields; i++) {
@@ -579,7 +762,7 @@ duckdbExecuteQuery(char *query)
 
     // Read rows
     r->tuples = makeVector(VECTOR_NODE, T_Vector);
-    for (idx_t row = 0; row < duckdb_row_count(&rs); row++) {
+    for (idx_t row = 0; row < numrows; row++) {
         Vector *tuple = makeVector(VECTOR_STRING, -1);
         for (int j = 0; j < numFields; j++) {
             if (duckdb_value_is_null(&rs, j, row)) {
@@ -639,7 +822,7 @@ duckdbExecuteQueryIgnoreResults(char *query) {
 // }
 
 static DataType
-stringToDT (char *dataType)
+stringToDT(char *dataType)
 {
    DEBUG_LOG("data type %s", dataType);
    char *lowerDT = strToLower(dataType);
@@ -673,6 +856,7 @@ initCache(CatalogCache *c)
 {
     duckdb_result result;
     int numRows;
+    DuckDBMetaCache *duckCache;
 
     NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
 
@@ -709,6 +893,16 @@ initCache(CatalogCache *c)
     ADD_WIN_FUNC("first_value");
     ADD_WIN_FUNC("last_value");
     ADD_WIN_FUNC("nth_value");
+
+    duckCache = NEW(DuckDBMetaCache);
+    duckCache->boolOps = STRSET();
+
+    for(int i = 0; boolops[i] != NULL; i++)
+    {
+        addToSet(duckCache->boolOps, strdup(boolops[i]));
+    }
+
+    plugin->plugin.cache->cacheHook = (void*) duckCache;
 
     RELEASE_MEM_CONTEXT();
 }

@@ -16,6 +16,7 @@
 #include "configuration/option.h"
 #include "log/logger.h"
 
+#include "sql_serializer/sql_serializer.h"
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
@@ -33,15 +34,6 @@ static SerializeClausesAPI *api = NULL;
 /* methods */
 static void createAPI(void);
 static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
-static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
-        int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
-static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
-static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
-        int* curFromItem,  SerializeClausesAPI *api);
-static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
-		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api);
-static List *serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api);
 
 char *
 serializeOperatorModelPostgres(Node *q)
@@ -217,16 +209,16 @@ createAPI (void)
     if (api == NULL)
     {
         api = createAPIStub();
-        api->serializeProjectionAndAggregation = serializeProjectionAndAggregation;
-        api->serializeSetOperator = serializeSetOperator;
-        api->serializeTableAccess = serializeTableAccess;
-        api->serializeConstRel = serializeConstRel;
-        api->serializeJoinOperator = serializeJoinOperator;
+        api->serializeProjectionAndAggregation = postgresSerializeProjectionAndAggregation;
+        api->serializeSetOperator = postgresSerializeSetOperator;
+        api->serializeTableAccess = postgresSerializeTableAccess;
+        api->serializeConstRel = postgresSerializeConstRel;
+        api->serializeJoinOperator = postgresSerializeJoinOperator;
     }
 }
 
-static void
-serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
+void
+postgresSerializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     int rOffset;
@@ -271,8 +263,8 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
 /*
  * Create the SELECT, GROUP BY, and HAVING clause
  */
-static List *
-serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+List *
+postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api)
 {
     int pos = 0;
@@ -512,8 +504,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     return resultAttrs;
 }
 
-static void
-serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
+void
+postgresSerializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem, SerializeClausesAPI *api)
 {
     int pos = 0;
@@ -529,17 +521,13 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
             appendStringInfoString(from, ", ");
         value = getNthOfListP(t->values, pos++);
         appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName);
-
     }
 
     appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
 }
 
-//static void
-//serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
-//        List** fromAttrs, int* attrOffset, SerializeClausesAPI *api)
-static void
-serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+void
+postgresSerializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api)
 {
     char* asOf = NULL;
@@ -629,8 +617,6 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
         fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
         DEBUG_LOG("table access append fac->fromAttrsList");
-        //append fromAttrs into fromAttrsList, e.g., fromAttrs: ((A,B)), fromAttrsList: ( ((A,B)) )
-        //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
         printFromAttrsContext(fac);
 
         //for temporal database coalesce
@@ -653,8 +639,10 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         	if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
         	{
     			appendStringInfo(from, "%s%s F%u_%u",
-    					quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
-    					(*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
+    					         quoteIdentifier(t->tableName),
+                                 asOf ? asOf : "",
+    					         (*curFromItem)++,
+                                 LIST_LENGTH(fac->fromAttrsList));
         	}
         	else
         	{
@@ -671,8 +659,8 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 /*
  * Serialize a set operation UNION/EXCEPT/INTERSECT
  */
-static List *
-serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
+List *
+postgresSerializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
