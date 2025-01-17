@@ -1,5 +1,7 @@
 #include "common.h"
+#ifdef HAVE_DUCKDB_BACKEND
 #include "duckdb.h"
+#endif
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
