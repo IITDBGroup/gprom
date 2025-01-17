@@ -598,25 +598,7 @@ duckdbGetKeyInformation(char *tableName)
 DataType
 duckdbBackendSQLTypeToDT (char *sqlType)
 {
-    if (regExMatch("INT", sqlType))
-    {
-        return DT_INT;
-    }
-    if (regExMatch("NUMERIC", sqlType)
-            || regExMatch("REAL", sqlType)
-            || regExMatch("FLOA", sqlType)
-            || regExMatch("DOUB", sqlType))
-    {
-        return DT_FLOAT;
-    }
-    if (regExMatch("CHAR", sqlType)
-            || regExMatch("CLOB", sqlType)
-            || regExMatch("TEXT", sqlType))
-    {
-        return DT_STRING;
-    }
-
-    return DT_FLOAT;
+    return stringToDT(sqlType);
 }
 
 char *
@@ -827,17 +809,27 @@ duckdbExecuteQueryIgnoreResults(char *query) {
 static DataType
 stringToDT(char *dataType)
 {
-   DEBUG_LOG("data type %s", dataType);
-   char *lowerDT = strToLower(dataType);
+    DEBUG_LOG("data type %s", dataType);
+    char *lowerDT = strToLower(dataType);
 
-   if (isSubstr(lowerDT, "int"))
-       return DT_INT;
-   if (isSubstr(lowerDT, "char") || isSubstr(lowerDT, "clob") || isSubstr(lowerDT, "text"))
-       return DT_STRING;
-   if (isSubstr(lowerDT, "real") || isSubstr(lowerDT, "floa") || isSubstr(lowerDT, "doub"))
+    if(streq(lowerDT, "interval"))
+    {
+        return DT_STRING;
+    }
+    if(isSubstr(lowerDT, "int"))
+    {
+        return DT_INT;
+    }
+    if(isSubstr(lowerDT, "float") || isSubstr(lowerDT, "decimal") || isSubstr(lowerDT, "double"))
+    {
        return DT_FLOAT;
+    }
+    if(isSubstr(lowerDT, "char") || isSubstr(lowerDT, "clob") || isSubstr(lowerDT, "text"))
+    {
+        return DT_STRING;
+    }
 
-   return DT_STRING;
+    return DT_STRING;
 }
 
 static char *

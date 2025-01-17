@@ -2031,7 +2031,7 @@ getFromTreeLeafs (List *from)
             }
             break;
             case T_FromSubquery:
-             case T_FromLateralSubquery:
+            case T_FromLateralSubquery:
             case T_FromTableRef:
                 result = appendToTailOfList(result, f);
                 break;
@@ -2374,26 +2374,35 @@ checkTemporalAttributesVisitor(Node *node, DataType **context)
             tempD = leftDT;
 
             if (leftDT != rightDT)
+            {
                 FATAL_LOG("attributes storing the interval endpoints have to "
                         "have the same DTs (%s:%s != %s:%s):\n\n%s",
                         leftName, DataTypeToString(leftDT),
                         rightName, DataTypeToString(rightDT),
                         beatify(nodeToString(node)));
+            }
 
             // first WITH TIME we have found so far?
             if (*context == NULL)
             {
                 *context = NEW(DataType);
                 **context = tempD;
+                DEBUG_LOG("temporal data type used: %s:%s",
+                          leftName,
+                          DataTypeToString(leftDT));
             }
             // otherwise check that the DTs are the same
             else
             {
                 if (**context != tempD)
-                    FATAL_LOG("All temporal FROM items in sequenced temporal "
-                            "queries have to have the same data type for temporal"
-                            " attributes (%s != %s)",
-                            DataTypeToString(**context), DataTypeToString(tempD));
+                {
+                    FATAL_LOG("attributes storing the interval endpoints have to "
+                        "have the same DTs (%s:%s != %s):\n\n%s",
+                              leftName,
+                              DataTypeToString(leftDT),
+                              DataTypeToString(**context),
+                              beatify(nodeToString(node)));
+                }
             }
             return TRUE;
         }

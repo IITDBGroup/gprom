@@ -467,6 +467,7 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries, boolean tr
     switch(getBackend())
     {
         case BACKEND_POSTGRES:
+        case BACKEND_DUCKDB:
         {
             appendStringInfoString(str, "(");
             exprToSQLString(str, c->expr, nestedSubqueries, trimAttrNames);

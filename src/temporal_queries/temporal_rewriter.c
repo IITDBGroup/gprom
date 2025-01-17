@@ -57,6 +57,7 @@ static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int nu
 static QueryOperator *addTemporalNormalizationLWU (QueryOperator *input, QueryOperator *reference, List *leftAttrs, List *rightAttrs);
 static List *getAttrRefsByNames (QueryOperator *op, List *attrNames);
 static void markTemporalAttrsAsProv (QueryOperator *op);
+static Node *getMinMaxDateExpr(boolean min);
 
 typedef enum QOVisitorState {
     GLOBAL_ABORT=0,
@@ -95,13 +96,13 @@ typedef enum QOVisitorState {
 #define AGGNAME_LAG backendifyIdentifier("lag")
 #define AGGNAME_LEAD backendifyIdentifier("lead")
 
-#define FUNCNAME_TO_DATE ((getBackend() == BACKEND_DUCKDB) ? "make_date" : "TO_DATE")
-#define DATE_MIN ((getBackend() == BACKEND_DUCKDB) ? \
-    LIST_MAKE(createConstString("1992"),createConstString("1"), createConstString("1")): \
-    LIST_MAKE(createConstString("1992-01-01"), createConstString("YYYY-MM-DD")))
-#define DATE_MAX ((getBackend() == BACKEND_DUCKDB) ? \
-    LIST_MAKE(createConstString("9999"),createConstString("1"), createConstString("1")): \
-    LIST_MAKE(createConstString("9999-01-01"), createConstString("YYYY-MM-DD")))
+/* #define FUNCNAME_TO_DATE ((getBackend() == BACKEND_DUCKDB) ? "make_date" : "TO_DATE") */
+/* #define DATE_MIN ((getBackend() == BACKEND_DUCKDB) ? \ */
+/*     LIST_MAKE(createConstString("1992"),createConstString("1"), createConstString("1")): \ */
+/*     LIST_MAKE(createConstString("1992-01-01"), createConstString("YYYY-MM-DD"))) */
+/* #define DATE_MAX ((getBackend() == BACKEND_DUCKDB) ? \ */
+/*     LIST_MAKE(createConstString("9999"),createConstString("1"), createConstString("1")): \ */
+/*     LIST_MAKE(createConstString("9999-01-01"), createConstString("YYYY-MM-DD"))) */
 
 static int T_BEtype = -1;
 
@@ -3382,8 +3383,8 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             //FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));
             /* CastExpr *dateBegin = createCastExprOtherDT((Node *) createConstString("1992-01-01"), "DATE", -1, DT_STRING); */
             /* CastExpr *dateEnd = createCastExprOtherDT((Node *) createConstString("9999-01-01"), "DATE", -1, DT_STRING); */
-            FunctionCall *dateBegin = createFunctionCall(FUNCNAME_TO_DATE, DATE_MIN);
-            FunctionCall *dateEnd = createFunctionCall(FUNCNAME_TO_DATE, DATE_MAX);
+            Node *dateBegin = getMinMaxDateExpr(TRUE);
+            Node *dateEnd = getMinMaxDateExpr(FALSE);
             constVals = appendToTailOfList(constVals, dateBegin);
             constVals = appendToTailOfList(constVals, dateEnd);
         }
@@ -4320,4 +4321,46 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     LOG_RESULT("Rewritten set difference + normalization", addProjOp);
 
     return (QueryOperator *) addProjOp;
+}
+
+static Node *
+getMinMaxDateExpr(boolean min)
+{
+    BackendType backend = getBackend();
+    Node *result;
+    List *dateArgs;
+
+    switch(backend)
+    {
+        case BACKEND_DUCKDB:
+        {
+            if(min)
+            {
+                dateArgs = LIST_MAKE(createConstString("1992"),createConstString("1"), createConstString("1"));
+            }
+            else
+            {
+                dateArgs = LIST_MAKE(createConstString("9999"),createConstString("1"), createConstString("1"));
+            }
+            result = (Node *) createFunctionCall("make_date", dateArgs);
+        }
+        break;
+        default:
+        {
+
+            if(min)
+            {
+                dateArgs = LIST_MAKE(createConstString("1992-01-01"), createConstString("YYYY-MM-DD"));
+            }
+            else
+            {
+                dateArgs = LIST_MAKE(createConstString("9999-01-01"), createConstString("YYYY-MM-DD"));
+            }
+
+            result = (Node *) createFunctionCall("TO_DATE", dateArgs);
+        }
+        break;
+    }
+
+    return result;
 }
