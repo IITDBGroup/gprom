@@ -19,8 +19,6 @@
 #include "model/set/vector.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "utility/string_utils.h"
-#include <stdint.h>
-#include <stdlib.h>
 
 // Mem context
 #define CONTEXT_NAME "DuckDBMemContext"
