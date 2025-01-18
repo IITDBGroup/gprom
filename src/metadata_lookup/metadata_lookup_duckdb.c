@@ -1,5 +1,7 @@
 #include "common.h"
+#ifdef HAVE_DUCKDB_BACKEND
 #include "duckdb.h"
+#endif
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
@@ -17,8 +19,6 @@
 #include "model/set/vector.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "utility/string_utils.h"
-#include <stdint.h>
-#include <stdlib.h>
 
 // Mem context
 #define CONTEXT_NAME "DuckDBMemContext"
