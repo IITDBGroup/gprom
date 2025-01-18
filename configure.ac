@@ -1,7 +1,8 @@
 AC_LANG([C])
 ################################################################################
-# DEFINTIONS OF HELPER FUNCTIONS
-# Check whether we compile 32 or 64 bit code
+# DEFINTIONS OF HELPER FUNCTIONS                                               #
+# Check whether we compile 32 or 64 bit code                                   #
+################################################################################
 AC_DEFUN([AC_MACHINE_ARCH],
 [
 	AC_CHECK_SIZEOF([void*])
@@ -15,6 +16,9 @@ AC_DEFUN([AC_MACHINE_ARCH],
 	AC_SUBST([COMPILER_OSARCH],${MYARCH})
 	AC_DEFINE_UNQUOTED([COMPILER_OSARCH],["${MYARCH}"],[32/64 bit architecture])
 ])
+#################################################################################
+# ORACLE                                                                        #
+#################################################################################
 # OCI location
 AC_DEFUN([AC_OCI_LOCATION],
 [AC_ARG_WITH(oci, [  --with-oci], , )
@@ -88,23 +92,6 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
-# z3 libz3 library location
-AC_DEFUN([AC_LIBZ3_LOCATION],
-[AC_ARG_WITH(libz3, [  --with-libz3], , )
-AC_MSG_CHECKING([for user provided libz3 location])
-if test "x$with_libz3" != x; then
-	if test -d "$with_libz3"; then
-		LDFLAGS="$LDFLAGS -L$with_libz3"
-    	CPPFLAGS="$CPPFLAGS -I$with_libz3/../include"
-    	AC_MSG_RESULT([yes, $with_libz3])
-	else
-    	AC_MSG_RESULT([no])
-    	AC_MSG_WARN(no libz3 library found in location $with_libz3)
-	fi
-else
-	AC_MSG_RESULT([not set])
-fi
-])
 # All Oracle Checks
 AC_DEFUN([AC_ORACLE_ALL_CHECKS],
 [
@@ -131,6 +118,29 @@ AC_DEFUN([AC_ORACLE_ALL_CHECKS],
     AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
   ])
 ])
+#################################################################################
+# Z3                                                                            #
+#################################################################################
+# z3 libz3 library location
+AC_DEFUN([AC_LIBZ3_LOCATION],
+[AC_ARG_WITH(libz3, [  --with-libz3], , )
+AC_MSG_CHECKING([for user provided libz3 location])
+if test "x$with_libz3" != x; then
+	if test -d "$with_libz3"; then
+		LDFLAGS="$LDFLAGS -L$with_libz3"
+    	CPPFLAGS="$CPPFLAGS -I$with_libz3/../include"
+    	AC_MSG_RESULT([yes, $with_libz3])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no libz3 library found in location $with_libz3)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+#################################################################################
+# ODBC BACKEND                                                                  #
+#################################################################################
 # ODBC header location
 AC_DEFUN([AC_ODBC_HEADER_LOCATION],
 [AC_ARG_WITH(odbc-headers, [  --with-odbc-headers], , )
@@ -182,12 +192,21 @@ AC_DEFUN([AC_ODBC_ALL_CHECKS],
 # fail if not found
     [AC_MSG_ERROR([Unable to find ODBC sqlext.h])]
   )
+  AC_CHECK_HEADERS([sqltypes.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find ODBC sqltypes.h])]
+  )
 # check for the libpq library
   AC_CHECK_LIB([odbc],[SQLAllocEnv],[],[
     AC_MSG_ERROR([missing ODBC library - if you want to compile without ODBC backend support use --disable-odbc])
   ])
 ]
 )
+#################################################################################
+# MSSQL                                                                         #
+#################################################################################
 # MSSQL header location
 AC_DEFUN([AC_MSSQL_HEADER_LOCATION],
 [AC_ARG_WITH(mssql-headers, [  --with-mssql-headers], , )
@@ -221,7 +240,7 @@ fi
 # All MSSQL Checks
 AC_DEFUN([AC_MSSQL_ALL_CHECKS],
 [
-# check if user has provided us with a non-standard location for Postgres's libpq library
+# check if user has provided us with a non-standard location for MS ODBC libpq library
   AC_MSSQL_HEADER_LOCATION
 #  AC_CHECK_HEADERS([msodbcsql.h],
 # nothing when found
@@ -235,6 +254,9 @@ AC_DEFUN([AC_MSSQL_ALL_CHECKS],
 #  ])
 ]
 )
+#################################################################################
+# POSTGRES                                                                      #
+#################################################################################
 # Postgres libpq header location
 AC_DEFUN([AC_LIBPQ_HEADER_LOCATION],
 [AC_ARG_WITH(libpq-headers, [  --with-libpq-headers], , )
@@ -268,6 +290,27 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# All Postgres Checks
+AC_DEFUN([AC_POSTGRES_ALL_CHECKS],
+[
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_LIBPQ_LOCATION
+  AC_LIBPQ_HEADER_LOCATION
+  AC_CHECK_HEADERS([libpq-fe.h],
+# nothing when found
+    [],
+# fail if not found
+    [AC_MSG_ERROR([Unable to find PostgreSQL libpq-fe.h])]
+  )
+# check for the libpq library
+  AC_CHECK_LIB([pq],[PQconndefaults],[],[
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
+  ])
+]
+)
+#################################################################################
+# BACKEND DUCKDB                                                                #
+#################################################################################
 # Duckdb header location
 AC_DEFUN([AC_DUCKDB_HEADER_LOCATION],
 [AC_ARG_WITH(duckdb-headers, [  --with-duckdb-headers], , )
@@ -301,25 +344,24 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
-
-# All Postgres Checks
-AC_DEFUN([AC_POSTGRES_ALL_CHECKS],
+# All DuckDB Checks
+AC_DEFUN([AC_DUCKDB_ALL_CHECKS],
 [
-# check if user has provided us with a non-standard location for Postgres's libpq library
-  AC_LIBPQ_LOCATION
-  AC_LIBPQ_HEADER_LOCATION
-  AC_CHECK_HEADERS([libpq-fe.h],
+  AC_DUCKDB_LOCATION
+  AC_DUCKDB_HEADER_LOCATION
+  AC_CHECK_HEADERS([duckdb.h],
 # nothing when found
     [],
 # fail if not found
-    [AC_MSG_ERROR([Unable to find PostgreSQL libpq-fe.h])]
+    [AC_MSG_ERROR([Unable to find DuckDB duckdb.h])]
   )
-# check for the libpq library
-  AC_CHECK_LIB([pq],[PQconndefaults],[],[
-    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
-  ])
-]
-)
+  AC_CHECK_LIB([duckdb],[duckdb_open],[],[
+    	AC_MSG_ERROR([missing libduckdb library - if you want to compile without DuckDB backend support use --disable-duckdb])
+	])
+])
+#################################################################################
+# BACKEND MONETDB                                                               #
+#################################################################################
 # MonetDB Mapi header location
 AC_DEFUN([AC_MAPIH_LOCATION],
 [AC_ARG_WITH(mapi-headers, [  --with-mapi-headers], , )
@@ -371,6 +413,9 @@ AC_DEFUN([AC_MONETDB_ALL_CHECKS],
     AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
   ])
 ])
+#################################################################################
+# BACKEND SQLITE                                                                #
+#################################################################################
 # All SQLite Checks
 AC_DEFUN([AC_SQLITE_ALL_CHECKS],
 [
@@ -378,21 +423,9 @@ AC_DEFUN([AC_SQLITE_ALL_CHECKS],
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 	])
 ])
-# All DuckDB Checks
-AC_DEFUN([AC_DUCKDB_ALL_CHECKS],
-[
-  AC_DUCKDB_LOCATION
-  AC_DUCKDB_HEADER_LOCATION
-  AC_CHECK_HEADERS([duckdb.h],
-# nothing when found
-    [],
-# fail if not found
-    [AC_MSG_ERROR([Unable to find DuckDB duckdb.h])]
-  )
-  AC_CHECK_LIB([duckdb],[duckdb_open],[],[
-    	AC_MSG_ERROR([missing libduckdb library - if you want to compile without DuckDB backend support use --disable-duckdb])
-	])
-])
+#################################################################################
+# CPLEX                                                                         #
+#################################################################################
 # cplex library location
 AC_DEFUN([AC_CPLEX_LOCATION],
 [
@@ -415,6 +448,9 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+#################################################################################
+# BASIC SWITCHES (LOGGING, DEBUGGING, PROFILING, Z3, CPLEX                      #
+#################################################################################
 # Activate/Deactivate logging
 AC_DEFUN([AC_LOGGING_ACTIVE],
 [
@@ -523,6 +559,9 @@ AS_IF([test "x$enable_timing" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
+#################################################################################
+# BACKEND SWITCHES                                                              #
+#################################################################################
 # compile with SQLite support
 AC_DEFUN([AC_ENABLE_SQLITE],
 [
@@ -622,6 +661,9 @@ AS_IF([test "x$enable_oracle" == "xyes"], [
   AC_MSG_RESULT([no])
 ])
 ])
+#################################################################################
+# JAVA AND READLINE SWITCHES                                                    #
+#################################################################################
 # enable/disable Java bindings
 AC_DEFUN([AC_ENABLE_JAVA_BINDING],
 [
@@ -651,6 +693,9 @@ AS_IF([test "x$enable_readline" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
+#################################################################################
+# CUSTOM C FLAGS                                                                #
+#################################################################################
 # set custom compiler flags
 AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
 [
@@ -673,7 +718,8 @@ AC_SUBST([GPROM_CFLAGS_ERROR],[$GPROM_CFLAGS_ERROR])
 AC_MSG_RESULT($GPROM_CFLAGS)
 ])
 ################################################################################
-# Init autoconf
+# INIT AUTOCONF                                                                #
+################################################################################
 AC_INIT([GProM],[1.0.3],[bglavic@iit.edu])
 # CFLAGS from user or set to nothing
 AS_IF([test "x$CFLAGS" != "x"],
@@ -771,7 +817,8 @@ fi
 # INIT LIBTOOL
 LT_INIT([win32-dll])
 ################################################################################
-# DATA TYPES
+# DATA TYPES                                                                   #
+################################################################################
 AC_TYPE_SIZE_T
 AC_TYPE_INT8_T
 AC_TYPE_INT16_T
@@ -782,7 +829,8 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_LONG_LONG_INT
 ################################################################################
-# HEADERS
+# HEADERS                                                                      #
+################################################################################
 AC_CHECK_HEADERS([stddef.h])
 AC_CHECK_HEADERS([libintl.h])
 AC_CHECK_HEADERS([stdarg.h])
@@ -799,14 +847,16 @@ AC_CHECK_HEADERS([pwd.h])
 #AC_CHECK_HEADERS([readline/history.h])
 AC_HEADER_ASSERT
 ################################################################################
-# CHECK FOR ADDITIONAL TYPES IN DISCOVERED HEADERS
+# CHECK FOR ADDITIONAL TYPES IN DISCOVERED HEADERS                             #
+################################################################################
 AC_CHECK_TYPES([ptrdiff_t])
 AC_CHECK_TYPES([sigjmp_buf], [], [], [
 AC_INCLUDES_DEFAULT
 #include <setjmp.h>
 ])
 ################################################################################
-# MEMORY ALLOCATION STUFF
+# MEMORY ALLOCATION STUFF                                                      #
+################################################################################
 AC_CHECK_HEADERS([malloc.h])
 AC_CHECK_FUNCS([malloc])
 AC_CHECK_FUNCS([alloca])
@@ -822,7 +872,8 @@ AC_CHECK_FUNCS([strcmp])
 #AC_CHECK_FUNCS([sigsetjmp])
 AC_CHECK_FUNCS([strsep])
 ################################################################################
-# Check which backends should be supported
+# Check which backends should be supported                                     #
+################################################################################
 AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
 AC_ENABLE_SQLITE
@@ -831,18 +882,22 @@ AC_ENABLE_MONETDB
 AC_ENABLE_ODBC
 AC_ENABLE_MSSQL
 ################################################################################
-# Check which language bindings to build
+# Check which language bindings to build                                       #
+################################################################################
 AC_ENABLE_JAVA_BINDING
 ################################################################################
-# Enable readline in CLI
+# Enable readline in CLI                                                       #
+################################################################################
 AC_ENABLE_READLINE
 ################################################################################
-# check for libm
+# check for libm                                                               #
+################################################################################
 AC_CHECK_LIB([m],[pow],[],[
   AC_MSG_ERROR([missing libm library (searching for pow function)])
 ])
 ################################################################################
-# check for libpthread if target is not windows
+# check for libpthread if target is not windows                                #
+################################################################################
 AS_IF([test "x$OSTYPE" == "xwindows"],
 [
   AC_MSG_WARN([compiling for windows target do not attempt to link against libpthread])
@@ -881,6 +936,23 @@ AS_IF([test "x$enable_readline" == "xno"], [
 ])
 ])
 ################################################################################
+# Z3 library (libz3)
+AS_CASE(["$enable_z3"],
+  [yes], [
+# check if user has provided us with a non-standard location for libz3 library
+  AC_LIBZ3_LOCATION
+  AC_CHECK_HEADERS([z3.h])
+# check for the libz3 library
+  AC_CHECK_LIB([z3],[Z3_get_version],[],[
+    AC_MSG_ERROR([missing libz3 library - if you want to compile without z3 support use --disable-z3])
+  ])
+  ],
+  # Deactivated
+  [no], [],
+  # Default (inactive)
+  []
+)
+################################################################################
 # CPlex
 #AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
 #  AC_MSG_ERROR([missing cplex library])
@@ -896,23 +968,6 @@ AS_CASE(["$enable_oracle"],
 # Postgres C client library (libpq)
 AS_CASE(["$enable_postgres"],
   [yes], [AC_POSTGRES_ALL_CHECKS],
-  # Deactivated
-  [no], [],
-  # Default (inactive)
-  []
-)
-################################################################################
-# Z3 library (libz3)
-AS_CASE(["$enable_z3"],
-  [yes], [
-# check if user has provided us with a non-standard location for libz3 library
-  AC_LIBZ3_LOCATION
-  AC_CHECK_HEADERS([z3.h])
-# check for the libz3 library
-  AC_CHECK_LIB([z3],[Z3_get_version],[],[
-    AC_MSG_ERROR([missing libz3 library - if you want to compile without z3 support use --disable-z3])
-  ])
-  ],
   # Deactivated
   [no], [],
   # Default (inactive)
@@ -1042,7 +1097,7 @@ AC_OUTPUT
 
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   OS.................: $OSTYPE-$OSARCH ($OSDETAILS)
   Prefix.............: $prefix
   Top src dir........: $GPROM_TOP_SRCDIR
@@ -1053,7 +1108,7 @@ echo "
   Language bindings..: Java - ${enable_java:=no}
   Readline support...: ${enable_readline:=yes}
   Documentation......: Tool to build documentation: $DOCTOOL
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   CFLAGS ........: $CFLAGS
   CPPFLAGS ......: $CPPFLAGS
   GPROM_CFLAGS...: $GPROM_CFLAGS

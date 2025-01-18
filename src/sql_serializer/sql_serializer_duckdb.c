@@ -87,12 +87,8 @@ serializeQueryDuckDB(QueryOperator *q)
     str = makeStringInfo();
     viewDef = makeStringInfo();
 
-    // replace boolean with ints
-    //replaceBoolWithInt((Node *) q, NULL);
-
     // initialize basic structures and then call the worker
-    api->tempViewMap = NEW_MAP(Constant, Node);
-    api->viewCounter = 0;
+	cleanAPIState(api);
 
     // gather data on nesting operators
     analyzeNesting(q, api);

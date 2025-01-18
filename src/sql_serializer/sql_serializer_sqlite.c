@@ -88,8 +88,7 @@ serializeQuerySQLite(QueryOperator *q)
     replaceBoolWithInt((Node *) q, NULL);
 
     // initialize basic structures and then call the worker
-    api->tempViewMap = NEW_MAP(Constant, Node);
-    api->viewCounter = 0;
+	cleanAPIState(api);
 
     // simulate non Oracle conformant data types and expressions (boolean)
     genQuoteAttributeNames((Node *) q);
