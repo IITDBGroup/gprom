@@ -1091,14 +1091,14 @@ tempRewrNestedSubquery(NestingOperator *op)
         return tempRewrNestedSubqueryCorrelated(op);
     }
 
-    if(canStayNested) {
-        INFO_LOG("subquery option");
-        return tempRewrNestedSubqueryCorrelated(op);
-    } else {
+    // if(canStayNested) {
+        // INFO_LOG("subquery option");
+        // return tempRewrNestedSubqueryCorrelated(op);
+    // } else {
         INFO_LOG("lateral option");
         // lateral_prov_main.c:lateralRewriteQuery
         return tempRewrNestedSubqueryLateralPostFilterTime(op);
-    }
+    // }
 }
 
 // static Node *
@@ -1272,6 +1272,15 @@ tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op)
 
 	// rewrite children and adapt nesting operator's schema
 	rewriteJoinChildren(&outer, &inner, o);
+
+    List *rightAttrNames = deepCopyStringList(getAttrNames(inner->schema));
+    List *rightTemporalAttrs = deepCopyStringList(sublist(getAttrNames(o->schema), -2, -1));
+
+    List *newRightAttrNames = CONCAT_LISTS(sublist(deepCopyStringList(rightAttrNames), 0, -3), rightTemporalAttrs);
+    QueryOperator *renamingProjection = createProjOnAttrsByName(inner, rightAttrNames, newRightAttrNames);
+    renamingProjection->inputs = LIST_MAKE(inner);
+    switchSubtrees(inner, renamingProjection);
+    addParent(inner, renamingProjection);
 
 	// add selection for interval overlap condition
 	overlapCond = constructNestingIntervalOverlapCondition(o);

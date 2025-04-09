@@ -1716,7 +1716,8 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
         //TODO this seems wrong for lateral subqueries (lateral does not show up here for some reason
-        char *attrName = getNestingResultAttribute(nestedSubqueryCnt++);
+        int ourCount = nestedSubqueryCnt++;
+        char *attrName = getNestingResultAttribute(ourCount);
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
                                             (Node *) createConstInt(LIST_LENGTH(attrNames))));
@@ -1738,6 +1739,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         // create nesting operator
         no = createNestingOp(nsq->nestingType, cond, inputs, NIL, attrNames, dts);
+        SET_STRING_PROP(no, PROP_NESTING_OP_ID, createConstInt(ourCount));
 
         // already store the result attribute here before anything gets manipulated later
         List *nestResultNames = nestingOperatorGetResultAttributes(no);

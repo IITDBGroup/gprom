@@ -429,16 +429,23 @@ checkSchemaConsistency(QueryOperator *op, void *context)
         break;
         case T_NestingOperator:
         {
-            /* NestingOperator *n = (NestingOperator *) op; */
+            NestingOperator *n = (NestingOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
-            int offset = -2 + ((HAS_STRING_PROP(op,PROP_INLINED_NESTED_QUERY)
-                               && LIST_LENGTH(op->schema->attrDefs) == LIST_LENGTH(lChild->schema->attrDefs))
-                               ? 1 : 0);
+            QueryOperator *rChild = OP_RCHILD(op);
+            // int offset = -2 + ((HAS_STRING_PROP(op,PROP_INLINED_NESTED_QUERY)
+            //                    && LIST_LENGTH(op->schema->attrDefs) == LIST_LENGTH(lChild->schema->attrDefs))
+            //                    ? 1 : 0);
+            int offset = -2 + ((n->nestingType == NESTQ_LATERAL) ? 1 : 0);
             List *expected = sublist(copyObject(op->schema->attrDefs),
                                      0,
                                      LIST_LENGTH(op->schema->attrDefs) + offset);
 
-            if (!equal(expected, lChild->schema->attrDefs))
+            List *actual = copyObject(lChild->schema->attrDefs);
+            if(n->nestingType == NESTQ_LATERAL) {
+                actual = CONCAT_LISTS(actual, copyObject(rChild->schema->attrDefs));
+            }
+
+            if (!equal(expected, actual))
             {
                 ERROR_LOG("Attributes of a nesting operator should be the "
                           "attributes of its left child + nesting result function (except if it has been inlined):\n%s",
