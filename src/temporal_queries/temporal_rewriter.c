@@ -391,49 +391,13 @@ tempRewrProjection (ProjectionOperator *o)
 static QueryOperator *
 tempRewrJoin(JoinOperator *op)
 {
-    DEBUG_LOG("REWRITE-PICS - Join");
+    DEBUG_LOG("REWRITE TEMPORAL - Join");
     QueryOperator *o = (QueryOperator *) op;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
-    /* List *rNormAttrs; */
-    /* int numLAttrs, numRAttrs; */
 	Node *cond;
 
 	rewriteJoinChildren(&lChild, &rChild, o);
-
-    /* numLAttrs = LIST_LENGTH(lChild->schema->attrDefs); */
-    /* numRAttrs = LIST_LENGTH(rChild->schema->attrDefs); */
-
-    /* // get attributes from right input */
-    /* rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1); */
-    /* o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1); */
-
-    /* // rewrite children */
-    /* lChild = temporalRewriteOperator(lChild); */
-    /* rChild = temporalRewriteOperator(rChild); */
-
-    /* // adapt schema for join op use */
-    /* addProvenanceAttrsToSchema(o, lChild); */
-    /* o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs); */
-    /* addProvenanceAttrsToSchema(o, rChild); */
-
-    // add extra condition to join to check for interval overlap
-    // left.begin <= right.begin <= right.end OR right.begin <= left.begin <= right.end
-    /* AttributeReference *lBegin, *lEnd, *rBegin, *rEnd; */
-    /* Node *cond; */
-
-    /* lBegin = getTempAttrRef(lChild, TRUE); */
-    /* lEnd = getTempAttrRef(lChild, FALSE); */
-    /* rBegin = getTempAttrRef(rChild, TRUE); */
-    /* rBegin->fromClauseItem = 1; */
-    /* rEnd = getTempAttrRef(rChild, FALSE); */
-    /* rEnd->fromClauseItem = 1; */
-
-	/* // interval overlap join condition */
-    /* cond = AND_EXPRS( */
-    /*             (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(lBegin), copyObject(rEnd))), */
-    /*             (Node *) createOpExpr(OPNAME_LE, LIST_MAKE(copyObject(rBegin), copyObject(lEnd))) */
-    /*         ); */
 
 	cond = constructIntervalOverlapCondition(lChild, rChild);
 
@@ -449,41 +413,8 @@ tempRewrJoin(JoinOperator *op)
     }
     DEBUG_NODE_BEATIFY_LOG("new join condition", op->cond);
 
-
     // construct projection that intersect intervals
 	QueryOperator *proj = constructJoinIntervalIntersection(o);
-    /* List *temporalAttrProjs = NIL; */
-    /* Node *tBegin; */
-    /* Node *tEnd; */
-    /* List *temporalAttrRefs = getProvAttrProjectionExprs((QueryOperator *) op); */
-
-    /* lBegin = getNthOfListP(temporalAttrRefs, 0); */
-    /* lEnd = getNthOfListP(temporalAttrRefs, 1); */
-    /* rBegin = getNthOfListP(temporalAttrRefs, 2); */
-    /* rEnd = getNthOfListP(temporalAttrRefs, 3); */
-
-    /* tBegin = (Node *) createFunctionCall(FUNCNAME_GREATEST, LIST_MAKE(lBegin, rBegin)); */
-    /* tEnd = (Node *) createFunctionCall(FUNCNAME_LEAST, LIST_MAKE(lEnd, rEnd)); */
-    /* temporalAttrProjs = LIST_MAKE(tBegin, tEnd); */
-
-
-    /* // add projection to put attributes into order on top of join op and computes the interval intersection */
-    /* List *projExpr = CONCAT_LISTS( */
-    /*         getNormalAttrProjectionExprs((QueryOperator *) op), */
-    /*         temporalAttrProjs); */
-    /* ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL); */
-
-    /* addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op); */
-    /* // use left inputs provenance attributes in join output as provenance attributes to be able to reuse code from provenance rewriting */
-    /* o->provAttrs = sublist(o->provAttrs, 0, 1); */
-    /* addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op); */
-
-
-    /* // switch join with new projection */
-    /* switchSubtrees((QueryOperator *) op, (QueryOperator *) proj); */
-    /* addChildOperator((QueryOperator *) proj, (QueryOperator *) op); */
-
-    /* setTempAttrProps((QueryOperator *) proj); */
 
     LOG_RESULT("Rewritten join", proj);
     return (QueryOperator *) proj;
@@ -499,21 +430,28 @@ rewriteJoinChildren(QueryOperator **lChild, QueryOperator **rChild, QueryOperato
 	List *rNormAttrs;
 	int numLAttrs, numRAttrs;
 
-    numLAttrs = LIST_LENGTH(l->schema->attrDefs);
-    numRAttrs = LIST_LENGTH(r->schema->attrDefs);
-
-    // get attributes from right input
-    rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
-    o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
-
     // rewrite children
     *lChild = temporalRewriteOperator(l);
     *rChild = temporalRewriteOperator(r);
+
+	l = *lChild;
+	r = *rChild;
+    numLAttrs = LIST_LENGTH(l->schema->attrDefs) - 2;
+    numRAttrs = LIST_LENGTH(r->schema->attrDefs) - 2;
+
+    // get attributes from right input
+    rNormAttrs = sublist(copyObject(r->schema->attrDefs), 0, numRAttrs -1);
+    o->schema->attrDefs = sublist(copyObject(l->schema->attrDefs), 0, numLAttrs - 1);
 
     // adapt schema for join op use
     addProvenanceAttrsToSchema(o, l);
     o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
     addProvenanceAttrsToSchemaWithRename(o, r, JOIN_RIGHT_TEMP_ATTR_SUFFIX);
+
+	DEBUG_LOG("Join or nesting children rewrite. Result schema:\n%s\n\n left:%s\n\n right:%s",
+			  beatify(nodeToString(o->schema)),
+			  singleOperatorToOverview(*lChild),
+			  singleOperatorToOverview(*rChild));
 }
 
 static Node *
