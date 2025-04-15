@@ -1091,14 +1091,13 @@ tempRewrNestedSubquery(NestingOperator *op)
         return tempRewrNestedSubqueryCorrelated(op);
     }
 
-    // if(canStayNested) {
-        // INFO_LOG("subquery option");
-        // return tempRewrNestedSubqueryCorrelated(op);
-    // } else {
+    if(canStayNested && !opt_lateral_rewrite) {
+        INFO_LOG("subquery option");
+        return tempRewrNestedSubqueryCorrelated(op);
+    } else {
         INFO_LOG("lateral option");
-        // lateral_prov_main.c:lateralRewriteQuery
         return tempRewrNestedSubqueryLateralPostFilterTime(op);
-    // }
+    }
 }
 
 // static Node *
