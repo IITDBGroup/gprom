@@ -113,7 +113,7 @@ rewritePI_CSComposable (ProvenanceComputation *op)
     state->origOps = NEW_MAP(Constant,Constant);
 	state->provCounts = NEW_MAP(Constant,Constant);
 	state->rowNumDT = getRowNumDT();
-	
+
     rewRoot = OP_LCHILD(op);
     rewRoot = rewritePI_CSComposableOperator(rewRoot, state);
 	switchSubtreeWithExisting((QueryOperator *) op, rewRoot);
@@ -281,9 +281,10 @@ rewritePI_CSComposableOperator (QueryOperator *op, PICSComposableRewriteState *s
             break;
         case T_OrderOperator:
             rewrittenOp = rewritePI_CSComposableOrderOp((OrderOperator *) op, state);
-            break;		 
+            break;
         default:
-            FATAL_LOG("rewrite for %u not implemented", op->type);
+            FATAL_LOG("rewrite for not implemented for: %s",
+                      singleOperatorToOverview(op));
             rewrittenOp = NULL;
             break;
     }
@@ -325,7 +326,7 @@ rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteS
 	List *newAttrs;
 
 	DEBUG_NODE_BEATIFY_LOG("reuse rewritten subquery: ", rewrOp);
-	
+
 	// create new provenance attribute names
 	FOREACH(KeyValue,k,opGetProvAttrInfo(rewrOp))
 	{
@@ -345,8 +346,8 @@ rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteS
 							deepCopyStringList(composeSpecialAttributes));
 
 	DEBUG_LOG("rename %s to %s", stringListToString(oldAttrs), stringListToString(newAttrs));
-	
-	rewr = createProjOnAttrsByName(rewrOp, oldAttrs, newAttrs);	
+
+	rewr = createProjOnAttrsByName(rewrOp, oldAttrs, newAttrs);
 	addChildOperator(rewr, rewrOp);
 
 	// add result TID and dupl attributes
@@ -923,7 +924,7 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
     rewr->schema->attrDefs = CONCAT_LISTS(rewr->schema->attrDefs, rNormAttrs);
     addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrRightInput);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) rewr);
-	
+
     // add window functions for result TID and prov dup columns
     if (!lChildNoDup || !rChildNoDup)
     {
@@ -998,7 +999,7 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
                 getOneForRowNum()
         );
     }
-	
+
     projExpr = CONCAT_LISTS(
             removeSpecialAttrsFromNormalProjectionExprs(
                     getNormalAttrProjectionExprs((QueryOperator *) projInput)),
@@ -1024,10 +1025,10 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
 
 	// make sure join result attributes are unique
 	makeAttrNamesUnique(rewr);
-	
+
 	// final result is the projection
 	rewr = (QueryOperator *) proj;
-	
+
 	// provenance info is concatenation of child prov infos
 	provInfo = CONCAT_LISTS(
 		(List *) GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS),
@@ -1041,7 +1042,7 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
 static QueryOperator *
 rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSComposableRewriteState *state)
 {
-	REWR_UNARY_SETUP_PIC(Aggregation-Join);	
+	REWR_UNARY_SETUP_PIC(Aggregation-Join);
     JoinOperator *joinProv;
     boolean groupBy = (op->groupBy != NIL);
     ProjectionOperator *proj;
@@ -1073,7 +1074,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSComposab
 
     // copy aggregation
     origAgg = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);;
-	
+
     // rewrite aggregation input copy
 	rewrInput = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
 //    noDupInput =
@@ -1243,7 +1244,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSComposab
 
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);
-	
+
 	LOG_RESULT_AND_RETURN(Aggregation-Join);
 }
 
@@ -1375,7 +1376,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
                        operatorToOverviewString((Node *) curWindow));
     }
 
-	
+
     // create final projection: normal attributes + provenance attribute + result TID and prov dup attr
 	// need to do this unless we have group-by without aggregation
 	List *normalAttrs = getNormalAttrProjectionExprs((QueryOperator *) curWindow);
@@ -1411,7 +1412,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
 		{
 			normalAttrs = NIL;
 		}
-		
+
 		projExprs = CONCAT_LISTS(normalAttrs, groupByExprs, provAttrs,
 								 LIST_MAKE(createFullAttrReference(
 											   strdup(RESULT_TID_ATTR),
@@ -1440,13 +1441,13 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
 	rewr = (QueryOperator *) proj;
 
 	DEBUG_LOG("projection is:\n%s", operatorToOverviewString((Node *) rewr));
-	
+
     SET_STRING_PROP(rewr, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(finalAttrs) - 2));
     SET_STRING_PROP(rewr, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(finalAttrs) - 1));
 
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);
-	
+
     // return projection
 	LOG_RESULT_AND_RETURN(Aggregation-RewriteWithWindow);
 }
@@ -1476,7 +1477,7 @@ static QueryOperator *
 rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 {
 	REWR_BINARY_SETUP_PIC(Set-Operation);
-	List *provInfo;	
+	List *provInfo;
 	QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
 
@@ -1486,7 +1487,7 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 
 	// rewrite children
 	REWR_BINARY_CHILDREN_PIC();
-	
+
     switch(op->setOpType)
     {
     case SETOP_UNION:
@@ -1525,12 +1526,12 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 									 rewrLeftInput,
 									 LIST_MAKE(strdup(RESULT_TID_ATTR),
 											   strdup(PROV_DUPL_COUNT_ATTR))));
-		
+
         DEBUG_LOG("have created projection expression: %s\nattribute names: "
 				  "%s\n provAttrs: %s\n for left UNION input",
 				  nodeToString(projExprs), stringListToString(attNames),
 				  nodeToString(provAttrs));
-		
+
         ProjectionOperator *projLeftChild = createProjectionOp(projExprs,
 															   rewrLeftInput, NIL, attNames);
         ((QueryOperator *) projLeftChild)->provAttrs = provAttrs;
@@ -1545,7 +1546,7 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 
         // create AttrRefs for normal attributes of right input
 		projExprs = removeSpecialAttrsFromNormalProjectionExprs(getNormalAttrProjectionExprs(rewrRightInput));
-		
+
         // create NULL expressions for provenance attrs of left input
 		i = LIST_LENGTH(projExprs);
         FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrLeftInput))
@@ -1571,12 +1572,12 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 									 rewrRightInput,
 									 LIST_MAKE(strdup(RESULT_TID_ATTR),
 											   strdup(PROV_DUPL_COUNT_ATTR))));
-		
+
         DEBUG_LOG("have created projection expressions: %s\nattribute names: "
 				  "%s\n provAttrs: %s\n for right UNION input",
 				  nodeToString(projExprs), stringListToString(attNames),
 				  nodeToString(provAttrs));
-		
+
         ProjectionOperator *projRightChild = createProjectionOp(projExprs,
 																rewrRightInput, NIL, attNames);
         ((QueryOperator *) projRightChild)->provAttrs = provAttrs;
@@ -1600,9 +1601,9 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 		resultTidProj->projExprs = CONCAT_LISTS(resultTidProj->projExprs,
 												LIST_MAKE(makeNode(RowNumExpr),
 														  getOneForRowNum()));
-		addChildOperator((QueryOperator *) resultTidProj, rewr);		    	
+		addChildOperator((QueryOperator *) resultTidProj, rewr);
 
-		rewr = (QueryOperator *) resultTidProj;		
+		rewr = (QueryOperator *) resultTidProj;
     	/* addProvenanceAttrsToSchema((QueryOperator *) rewr, (QueryOperator *) projLeftChild); */
 		addResultTIDAndProvDupAttrs(rewr, TRUE);
     }
@@ -1720,7 +1721,7 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 		(List *) GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS));
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
-		
+
 	LOG_RESULT_AND_RETURN(SetOperation);
 }
 
@@ -1878,20 +1879,20 @@ rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSComposableRewrite
 	List *allAttrRefs;
 	List *orderBy = NIL;
 	List *partitionBy = NIL;
-	
+
 	rewrInput = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
 	normalAttrRefs = removeSpecialAttrsFromNormalProjectionExprs(
 		getNormalAttrProjectionExprs((QueryOperator *) rewrInput));
 	allAttrRefs = removeSpecialAttrsFromNormalProjectionExprs(
-		getAllAttrProjectionExprs((QueryOperator *) rewrInput));	
+		getAllAttrProjectionExprs((QueryOperator *) rewrInput));
 	curChild = rewrInput;
-	
+
 	// create order-by and group-by attribute lists for
 	/* FOREACH(AttributeReference, a, normalAttrRefs) */
     /*     partitionBy = appendToTailOfList(partitionBy, copyObject(a)); */
 	partitionBy = copyObject(normalAttrRefs);
     orderBy = copyObject(partitionBy);
-	
+
 	// remove TID and DUP FROM attrs, TID, DUP, aggrs
 	curOp = (QueryOperator *) createProjectionOp(allAttrRefs, curChild, NIL, NIL);
 	addParent(curChild, curOp);
@@ -1934,7 +1935,7 @@ rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSComposableRewrite
 	COPY_PROV_INFO(rewr, rewrInput);
     SET_STRING_PROP(rewr, PROP_RESULT_TID_ATTR, createConstInt(numAttrs - 2));
     SET_STRING_PROP(rewr, PROP_PROV_DUP_ATTR, createConstInt(numAttrs - 1));
-	   
+
     LOG_RESULT_AND_RETURN(DuplicateRemoval);
 }
 
