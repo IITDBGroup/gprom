@@ -1387,7 +1387,7 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
 
                 FOREACH(FunctionCall, fc, aggOp->aggrs)
                 {
-                    char *upcaseName = strToUpper(fc->functionname);
+                    char *upcaseName = backendifyIdentifier(fc->functionname);
                     if(streq(upcaseName,AGGNAME_MIN) || streq(upcaseName,AGGNAME_MAX))
                     {
                         minmax = TRUE;
