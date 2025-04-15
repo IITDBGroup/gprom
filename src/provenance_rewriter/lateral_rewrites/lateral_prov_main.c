@@ -279,6 +279,7 @@ lateralRewriteQuery(QueryOperator *input)
 			char *nestAttrName = getTailOfListP(getQueryOperatorAttrNames(op));
 			AttributeDef *attrDef = (AttributeDef *) getTailOfListP(rChild->schema->attrDefs);
 			attrDef->attrName = nestAttrName;
+            nestingAttrDataType = attrDef->dataType;
 		}
 
 		// change nesting type to LATERAL
@@ -288,7 +289,7 @@ lateralRewriteQuery(QueryOperator *input)
 		AttributeDef *nestAttrDef = (AttributeDef *) getTailOfListP(op->schema->attrDefs);
 		nestAttrDef->dataType = nestingAttrDataType;
 		int pos = LIST_LENGTH(op->schema->attrDefs) - 1;
-		adatpUpNestingAttrDataType(op, nestingAttrDataType, pos);
+		adatpUpNestingAttrDataType(op, nestingAttrDataType, pos); //TODO should be unnecessary for salar!
 	}
 
 	//adapt selection: one in condition(nesting_eval_1 = True -> nesting_eval_1 = 3)
