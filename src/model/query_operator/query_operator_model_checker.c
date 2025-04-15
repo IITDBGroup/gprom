@@ -254,9 +254,11 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         if (childA->dataType != a->attrType)
         {
             ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
-                    "same: <%s> and <%s>",
-                    DataTypeToString(childA->dataType),
-                    DataTypeToString(a->attrType));
+                      "same: <%s:%s> (child) and <%s:%s> (parent",
+                      childA->attrName,
+                      DataTypeToString(childA->dataType),
+                      a->name,
+                      DataTypeToString(a->attrType));
             LOG_PARENT_AND_CHILD(parent,child);
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
