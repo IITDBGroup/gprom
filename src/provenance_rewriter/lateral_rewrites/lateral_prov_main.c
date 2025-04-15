@@ -8,6 +8,7 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
+#include "model/node/nodetype.h"
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 #include "provenance_rewriter/prov_utility.h"
@@ -25,7 +26,7 @@ static List *lateralRewriteQueryList(List *list);
 static QueryOperator *lateralRewriteQuery(QueryOperator *input);
 //static List *getListNestingOperator (QueryOperator *op);
 static void appendNestingOperator (QueryOperator *op, List **result);
-static int checkAttr (char *name, QueryOperator *op);
+/* static int checkAttr (char *name, QueryOperator *op); */
 static void adatpUpNestingAttrDataType(QueryOperator *op, DataType nestingAttrDataType, int pos);
 static void getNestCondNode(Node *n, List **nestOpLists);
 
@@ -74,6 +75,13 @@ lateralRewriteQuery(QueryOperator *input)
 		DataType nestingAttrDataType = DT_INT;
 		char *nestResultAttr = strdup(((AttributeDef *) getTailOfListP(op->schema->attrDefs))->attrName);
 
+        INFO_LOG("rewrite nesting operator with result attr [%s] into lateral:\n%s\n\tleft child: %s\tright child: %s",
+                 nestResultAttr,
+                 singleOperatorToOverview(op),
+                 singleOperatorToOverview(lChild),
+                 singleOperatorToOverview(rChild)
+                 );
+
 		/* ********************************************************************************
 		 * EXISTS SUBQUERIES
 		 *
@@ -104,8 +112,11 @@ lateralRewriteQuery(QueryOperator *input)
 
 
 
-			char *attrName = getTailOfListP(getAttrNames(op->schema));
-			ProjectionOperator *proj = createProjectionOp(singleton(whenOperator), (QueryOperator *) agg, NIL, singleton(strdup(attrName)));
+/* r			char *nestResultAtt = getTailOfListP(getAttrNames(op->schema));  */
+			ProjectionOperator *proj = createProjectionOp(singleton(whenOperator),
+                                                          (QueryOperator *) agg,
+                                                          NIL,
+                                                          singleton(strdup(nestResultAttr)));
 
 			((QueryOperator *) agg)->parents = singleton(proj);
 			((QueryOperator *) proj)->parents = singleton(op);
@@ -144,7 +155,7 @@ lateralRewriteQuery(QueryOperator *input)
 		 *	  ...
 		 */
 		else if (no->nestingType == NESTQ_ANY || no->nestingType == NESTQ_ALL)
-		{
+        {
 			if(no->nestingType == NESTQ_ANY)
 				aggname = MAX_FUNC_NAME;
 			else if(no->nestingType == NESTQ_ALL)
@@ -160,7 +171,8 @@ lateralRewriteQuery(QueryOperator *input)
 			FOREACH(AttributeReference, a, attrRefs)
 			{
 				DEBUG_LOG("check name: %s", a->name);
-				if(checkAttr(a->name, rChild))
+                //TODO this is unsafe, look for from clause item instead checkAttr(a->name, rChild)
+				if(a->fromClauseItem == 1)
 				{
 					a->fromClauseItem = 0;
 					a->outerLevelsUp = 0;
@@ -276,10 +288,20 @@ lateralRewriteQuery(QueryOperator *input)
 		//TODO need to inject a failure if subquery returns more than one tuple (unless we can statically prove that this cannot happen
 		else if(no->nestingType == NESTQ_SCALAR)
 		{
-			char *nestAttrName = getTailOfListP(getQueryOperatorAttrNames(op));
-			AttributeDef *attrDef = (AttributeDef *) getTailOfListP(rChild->schema->attrDefs);
-			attrDef->attrName = nestAttrName;
+			/* char *nestAttrName = getHeadOfListP(getQueryOperatorAttrNames(rChild)); */
+			AttributeDef *attrDef = (AttributeDef *) getHeadOfListP(rChild->schema->attrDefs);
+			/* attrDef->attrName = nestAttrName; */
             nestingAttrDataType = attrDef->dataType;
+
+			ProjectionOperator *proj = createProjectionOp(singleton(getAttrRefByPos(rChild, 0)),
+                                                          (QueryOperator *) rChild,
+                                                          NIL,
+                                                          singleton(strdup(nestResultAttr)));
+
+            //FIXME not safe if rchild has other parents
+			((QueryOperator *) rChild)->parents = singleton(proj);
+			((QueryOperator *) proj)->parents = singleton(op);
+			op->inputs = LIST_MAKE(lChild, proj);
 		}
 
 		// change nesting type to LATERAL
@@ -290,6 +312,13 @@ lateralRewriteQuery(QueryOperator *input)
 		nestAttrDef->dataType = nestingAttrDataType;
 		int pos = LIST_LENGTH(op->schema->attrDefs) - 1;
 		adatpUpNestingAttrDataType(op, nestingAttrDataType, pos); //TODO should be unnecessary for salar!
+
+        INFO_LOG("rewrite nesting operator with result attr [%s] into lateral:\n%s\n\tleft child: %s\tright child: %s",
+                 nestResultAttr,
+                 singleOperatorToOverview(no),
+                 singleOperatorToOverview(OP_LCHILD(no)),
+                 singleOperatorToOverview(OP_RCHILD(no))
+                 );
 	}
 
 	//adapt selection: one in condition(nesting_eval_1 = True -> nesting_eval_1 = 3)
@@ -423,15 +452,15 @@ appendNestingOperator(QueryOperator *op, List **result)
 }
 
 
-static int
-checkAttr(char *name, QueryOperator *op)
-{
-	List *attrNames = getQueryOperatorAttrNames(op);
-    FOREACH(char, c, attrNames)
-	{
-		if(streq(c,name))
-			return 1;
-	}
+/* static int */
+/* checkAttr(char *name, QueryOperator *op) */
+/* { */
+/* 	List *attrNames = getQueryOperatorAttrNames(op); */
+/*     FOREACH(char, c, attrNames) */
+/* 	{ */
+/* 		if(streq(c,name)) */
+/* 			return 1; */
+/* 	} */
 
-    return 0;
-}
+/*     return 0; */
+/* } */

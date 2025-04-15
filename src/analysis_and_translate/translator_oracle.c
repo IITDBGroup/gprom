@@ -403,6 +403,26 @@ adaptSchemaFromChildren(QueryOperator *o)
         }
         break;
         case T_NestingOperator:
+        {
+            NestingOperator *n = (NestingOperator *) o;
+            QueryOperator *rChild = OP_RCHILD(o);
+            Node *lastOne = getTailOfListP(o->schema->attrDefs);
+
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            // lateral or scalar get all of the attributes from the RHS
+            if(n->nestingType == NESTQ_LATERAL)
+            {
+                o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs,
+                                                   copyObject(rChild->schema->attrDefs));
+            }
+            // all other nesting operators get
+            else
+            {
+                o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
+            }
+            INFO_LOG("disambiguated names of nesting operator:\n %s", singleOperatorToOverview(o));
+        }
+        break;
         case T_WindowOperator:
         {
             Node *lastOne = getTailOfListP(o->schema->attrDefs);
@@ -1220,6 +1240,9 @@ buildJoinTreeFromOperatorList(List *opList)
 				addParent(OP_LCHILD(root), root);
 				addParent(OP_RCHILD(root), root);
 
+                SET_STRING_PROP(root, PROP_NESTING_OP_ID,
+                                createConstString(getLateralNestingId(nestedSubqueryCnt++)));
+
                 resultAttrNames = nestingOperatorGetResultAttributes((NestingOperator *) root);
 
                 INFO_LOG("Translated LATERAL subquery <%s>:\n %s",
@@ -1657,7 +1680,6 @@ translateFromLateralSubquery(FromLateralSubquery *fsq, List **attrsOffsetsList)
 	//TODO use translateNestedSubquery to take care of
     result = translateQueryOracleInternal(fsq->subquery, attrsOffsetsList);
 	SET_BOOL_STRING_PROP(result, PROP_OP_IS_LATERAL);
-    SET_STRING_PROP(result, PROP_NESTING_OP_ID, getLateralNestingId(nestedSubqueryCnt++));
 	DEBUG_LOG("translated lateral subquery.");
 
 	return result;

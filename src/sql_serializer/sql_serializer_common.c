@@ -1909,8 +1909,11 @@ analyzeNestingVisitor(QueryOperator *q, void *context)
         NestingOperator *n = (NestingOperator *) q;
 
         List *leftResultAttrs = getQueryOperatorAttrNames(q);
-        char *resultAttr = getSingleNestingResultAttribute(n);
-        MAP_ADD_STRING_KEY(api->nestingLeftSchemas, resultAttr, leftResultAttrs);
+        if (nestingOperatorGetNumResultAttrs(n) == 1) //TODO ignoring LATERAL here, ok?
+        {
+            char *resultAttr = getSingleNestingResultAttribute(n);
+            MAP_ADD_STRING_KEY(api->nestingLeftSchemas, resultAttr, leftResultAttrs);
+        }
     }
 
     return TRUE;
