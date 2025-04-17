@@ -64,7 +64,7 @@
         } while(0)
 
 boolean
-visit (Node *node, boolean (*checkNode) (), void *state)
+visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
 {
     switch(node->type)
     {
@@ -495,7 +495,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
     } while (0)
 
 Node *
-mutate (Node *node, Node *(*modifyNode) (), void *state)
+mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
 {
     if (node == NULL)
         return NULL;
@@ -919,7 +919,7 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         } while(0)
 
 boolean
-visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, void *state)
+visitWithPointers (Node *node, boolean (*userVisitor) (Node *n, void *state, void *ptr), void **parentLink, void *state)
 {
     switch(node->type)
     {

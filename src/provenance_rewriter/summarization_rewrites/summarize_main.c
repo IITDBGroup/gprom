@@ -1452,7 +1452,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 	}
 
 	int attrCount = 0;
-	int relCount = 0;
+	// int relCount = 0;
 	char *relName = NULL;
 //	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
@@ -1607,7 +1607,7 @@ domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair
 				attrCount++;
 			}
 		}
-		relCount++;
+		// relCount++;
 	}
 
 	DEBUG_NODE_BEATIFY_LOG("dom attrs for summarization:", (Node *) result);

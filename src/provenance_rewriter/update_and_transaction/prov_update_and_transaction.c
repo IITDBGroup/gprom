@@ -1178,7 +1178,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     List *allTables = NIL;
     List *origUpdates;
     HashMap *tabCondMap = NEW_MAP(Constant,List);
-    int pos = 0;
+    // int pos = 0;
     Set *readFromTableNames = STRSET();
     Set *updatedTableNames = STRSET();
     Set *mixedTableNames = NULL;
@@ -1259,7 +1259,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
                 else
                     tableMap->value = (Node *) appendToTailOfList((List *) tableMap->value, cond);
             }
-            pos++;
+            // pos++;
         }
         i++;
     }

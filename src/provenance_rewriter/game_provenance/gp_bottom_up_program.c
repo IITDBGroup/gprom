@@ -2818,7 +2818,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 		FOREACH(DLRule,r,solvedProgram->rules)
 	    {
-		    int numGoals = 0;
+		    // int numGoals = 0;
 		    List *origArgs = NIL;
 	    	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
 	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
@@ -2868,7 +2868,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	                    	createArgs = (DLVar *) createOpExpr(OPNAME_not, LIST_MAKE(createArgs));
 //	                    	createArgs->name = CONCAT_STRINGS("not(",createArgs->name,")");
 
-	                    numGoals++; // For calculation of length of only new args
+	                    /* numGoals++; // For calculation of length of only new args */
 	                    newRuleArg = appendToTailOfList(newRuleArg, copyObject(createArgs));
 	        	    }
 	        	}
@@ -3218,7 +3218,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	    }
 	   	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) negedbRules));
 
-	   	int edbPos = 1;
+	   	// int edbPos = 1;
 
 	    FOREACH_SET(DLAtom,edb,adornedEDBAtoms)
 	    {
@@ -3244,7 +3244,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	        CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
 
 	       	edbRules = appendToTailOfList(edbRules, atRule);
-	       	edbPos++;
+	       	// edbPos++;
 	    }
 	   	DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) edbRules));
 	}
@@ -3720,7 +3720,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	    }
 	   	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) negedbRules));
 
-	   	int edbPos = 1;
+	   	// int edbPos = 1;
 
 	    FOREACH_SET(DLAtom,edb,adornedEDBAtoms)
 	    {
@@ -3799,7 +3799,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	        CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
 
 	       	edbRules = appendToTailOfList(edbRules, atRule);
-	       	edbPos++;
+	       	// edbPos++;
 	    }
 	   	DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) edbRules));
 	}

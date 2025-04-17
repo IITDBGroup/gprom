@@ -1247,6 +1247,7 @@ buildStateDuplicateRemovalOp(QueryOperator *op)
 		gbAttrCnt++;
 	}
 
+	INFO_LOG("gbAttrCnt: %d\n", gbAttrCnt);
 	int	groupCountPos = listPosString(resultRel->schema, backendifyIdentifier("count_per_group"));
 
 	// deal with tuples
