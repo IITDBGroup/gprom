@@ -58,6 +58,7 @@ static TestNameToFunc testFuncs [] = {
 		{ "z3", testZ3 },
 		{ "rbt", testRBT },
 		{ "rbtree", testRBTREE },
+		{ "sketchrange", testSketchRanges },
         { NULL, NULL }
 };
 

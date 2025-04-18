@@ -201,7 +201,7 @@ setCurMemContext(MemContext *mc, const char *file, unsigned line)
         GENERIC_LOG(LOG_DEBUG, file, line, "Set current memory context to '%s'@%p.",
                 curMemContext->contextName, curMemContext);
 
-        if (opt_memmeasure)
+        if (opt_memmeasure && maxLevel >= LOG_DEBUG) // variable maxlevel
             fprintf(stderr,"*********************\nACQUIRE %s\n********************\n%s", curMemContext->contextName, dumpMemContexInfo());
     }
 
@@ -509,7 +509,7 @@ clearAMemContext(MemContext *c, const char *file, unsigned line)
 void
 freeCurMemContext(const char *file, unsigned line)
 {
-    if (opt_memmeasure)
+    if (opt_memmeasure && maxLevel >= LOG_DEBUG)
         fprintf(stderr,"*********************\nFREE %s\n********************\n%s", curMemContext->contextName, dumpMemContexInfo());
 
     if (topContextNode->next) // does not free default context and its node
