@@ -218,26 +218,34 @@ update_ps(ProvenanceComputation *qbModel)
 	int repetition = 1;
 	repetition = getIntOption(OPTION_UPDATE_PS_REPETITION);
 	INFO_LOG("execution repetition %d", repetition);
+
+	char *incrementalReturn = NULL;
 	/* Update provenance sketch */
 	if (NULL == leftChild) { // delta from cached table not from statement
 		START_TIMER(INCREMENTAL_UPDATE_TIMER);
-		update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
+		incrementalReturn = update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
 		STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 	} else {
 		if (isA(leftChild->stmt, List)) {
 			List *updateStmts = (List *) leftChild->stmt;
 			START_TIMER(INCREMENTAL_UPDATE_TIMER);
 			FOREACH(DLMorDDLOperator, stmt, updateStmts) {
-				update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) stmt);
+				incrementalReturn = update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) stmt);
 			}
 			STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 		} else {
 			START_TIMER(INCREMENTAL_UPDATE_TIMER);
-			update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
+			incrementalReturn = update_ps_incremental((QueryOperator *) qbModel, (QueryOperator *) leftChild);
 			STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 		}
 	}
-
+	// printf("inc return: %s\n", incrementalReturn);
+	int orderBySafeNum = getIntOption(OPTION_UPDATE_PS_ORDER_SAFE_NUM);
+	if (orderBySafeNum != 0 && strcmp(incrementalReturn, "TOP_K_LESS_THAN_SAFE") == 0) {
+		// if (strncmp(incrementalReturn, "TOP_K_LESS_THAN_SAFE", 20)) {
+			return "TOP_K_LESS_THAN_SAFE\n";
+		// }
+	}
 
 	// AFTER INCREMENTAL UPDATE STEPS, GET NEW SKETCH;
 

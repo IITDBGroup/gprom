@@ -5135,7 +5135,7 @@ updateDuplicateRemoval(QueryOperator* op)
 	// remove child's datachunk;
 	DEBUG_NODE_BEATIFY_LOG("dup return chunks", resChunkMaps);
 	removeStringProperty(lchild, PROP_DATA_CHUNK);
-	appendStringInfo(strInfo, "%s ", "UpdateDuplicatiRemoval");
+	// appendStringInfo(strInfo, "%s ", "UpdateDuplicatiRemoval");
 }
 
 
@@ -5197,7 +5197,7 @@ updateSet(QueryOperator* op)
 		}
 	}
 
-	appendStringInfo(strInfo, "%s ", "UpdateSet");
+	// appendStringInfo(strInfo, "%s ", "UpdateSet");
 }
 
 
@@ -5789,6 +5789,12 @@ updateLimit(QueryOperator *op)
 
 	/* Get new TOP-K tuples from RBTree; */
 	Vector *insertChunkTuples = RBTGetTopK(rbtree, limitNum);
+
+	int orderBySafeNum = getIntOption(OPTION_UPDATE_PS_ORDER_SAFE_NUM);
+
+	if (orderBySafeNum != 0 && insertChunkTuples->length < limitNum) {
+		appendStringInfo(strInfo, "TOP_K_LESS_THAN_SAFE");
+	}
 	DEBUG_NODE_BEATIFY_LOG("LIMIT INSERT TUPLES:", insertChunkTuples);
 
 	/* Append new TOP-K into resDCIns; */
