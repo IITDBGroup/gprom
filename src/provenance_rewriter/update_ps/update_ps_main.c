@@ -239,13 +239,7 @@ update_ps(ProvenanceComputation *qbModel)
 			STOP_TIMER(INCREMENTAL_UPDATE_TIMER);
 		}
 	}
-	// printf("inc return: %s\n", incrementalReturn);
-	int orderBySafeNum = getIntOption(OPTION_UPDATE_PS_ORDER_SAFE_NUM);
-	if (orderBySafeNum != 0 && strcmp(incrementalReturn, "TOP_K_LESS_THAN_SAFE") == 0) {
-		// if (strncmp(incrementalReturn, "TOP_K_LESS_THAN_SAFE", 20)) {
-			return "TOP_K_LESS_THAN_SAFE\n";
-		// }
-	}
+
 
 	// AFTER INCREMENTAL UPDATE STEPS, GET NEW SKETCH;
 
@@ -356,6 +350,13 @@ update_ps(ProvenanceComputation *qbModel)
 		storeOperatorData((QueryOperator *) qbModel);
 	}
 
+	// printf("inc return: %s\n", incrementalReturn);
+	int orderBySafeNum = getIntOption(OPTION_UPDATE_PS_ORDER_SAFE_NUM);
+	if (orderBySafeNum != 0 && strcmp(incrementalReturn, "TOP_K_LESS_THAN_SAFE") == 0) {
+		// if (strncmp(incrementalReturn, "TOP_K_LESS_THAN_SAFE", 20)) {
+			return "TOP_K_LESS_THAN_SAFE\n";
+		// }
+	}
 	return allPSs->data;
 
 

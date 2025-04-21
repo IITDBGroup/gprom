@@ -163,7 +163,7 @@ storeOrderByValues(OrderOperator *op, RBTRoot *root, char* qName, int opNum)
 
     boolean isExists = postgresCatalogTableExists(tname->data);
     if (isExists) {
-        postgresExecuteStatement(CONCAT_STRINGS("DROP TABLE ", tname->data, ";"));
+        postgresExecuteStatement(CONCAT_STRINGS("DROP TABLE if exists ", tname->data, ";"));
     }
     StringInfo createTbl = makeStringInfo();
     appendStringInfo(createTbl, "create table %s (", tname->data);
