@@ -357,6 +357,9 @@ update_ps(ProvenanceComputation *qbModel)
 			return "TOP_K_LESS_THAN_SAFE\n";
 		// }
 	}
+	if (strcmp(incrementalReturn, "NOT_ENOUGH_THAN_DEFAULT") == 0) {
+		appendStringInfo(allPSs, "\nNOT_ENOUGH_THAN_DEFAULT\n");
+	}
 	return allPSs->data;
 
 

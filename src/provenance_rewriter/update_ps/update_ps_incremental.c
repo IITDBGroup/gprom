@@ -5791,10 +5791,16 @@ updateLimit(QueryOperator *op)
 	Vector *insertChunkTuples = RBTGetTopK(rbtree, limitNum);
 
 	int orderBySafeNum = getIntOption(OPTION_UPDATE_PS_ORDER_SAFE_NUM);
-
+	int orderByDefault = deleteChunkTuples->length;
+	
 	if (orderBySafeNum != 0 && insertChunkTuples->length < limitNum) {
-		appendStringInfo(strInfo, "TOP_K_LESS_THAN_SAFE");
+		if (orderByDefault < limitNum) {
+			appendStringInfo(strInfo, "NOT_ENOUGH_THAN_DEFAULT");
+		} else if (insertChunkTuples->length < limitNum) {
+			appendStringInfo(strInfo, "TOP_K_LESS_THAN_SAFE");
+		}
 	}
+
 	DEBUG_NODE_BEATIFY_LOG("LIMIT INSERT TUPLES:", insertChunkTuples);
 
 	/* Append new TOP-K into resDCIns; */
