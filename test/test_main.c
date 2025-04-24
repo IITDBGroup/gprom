@@ -59,6 +59,7 @@ static TestNameToFunc testFuncs [] = {
 		{ "rbt", testRBT },
 		{ "rbtree", testRBTREE },
 		{ "sketchrange", testSketchRanges },
+		{ "postgres", testPostgres},
         { NULL, NULL }
 };
 

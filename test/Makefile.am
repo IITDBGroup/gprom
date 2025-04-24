@@ -39,7 +39,8 @@ testmain_SOURCES = test_main.c \
 	test_z3.c \
 	test_rbt.c \
 	test_rbtree.c \
-	test_sketch_range.c
+	test_sketch_range.c \
+	test_postgres_mem.c 
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
 

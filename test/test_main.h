@@ -166,4 +166,5 @@ extern rc testZ3(void);
 extern rc testRBT(void);
 extern rc testRBTREE(void);
 extern rc testSketchRanges(void);
+extern rc testPostgres(void);
 #endif
