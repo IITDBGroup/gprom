@@ -2101,6 +2101,11 @@ void postgresExecuteStatement(char* sql) {
 void
 postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcDel, int psAttrPos, Vector *rangeList, char *psName)
 {
+   	StringInfo memName = makeStringInfo();
+	appendStringInfo(memName, "getDeltaFromTable");
+	MemContext *mem = NEW_MEM_CONTEXT(memName->data);
+	ACQUIRE_MEM_CONTEXT(mem);
+
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");
     START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
@@ -2298,6 +2303,9 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
     // STOP_TIMER("module - update provenance sketch - incremental update fetching data - postgres clear and commit");
     STOP_TIMER("Postgres - execute ExecuteQuery");
     STOP_TIMER(METADATA_LOOKUP_TIMER);
+   	FREE_CUR_MEM_CONTEXT();
+	RELEASE_MEM_CONTEXT();
+
 }
 
 void

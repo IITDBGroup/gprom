@@ -59,7 +59,18 @@ static void fetchOrderByValues(OrderOperator *op, RBTRoot *root, char *qName, in
 void
 fetchOperatorData(QueryOperator *op)
 {
+    StringInfo memName = makeStringInfo();
+    appendStringInfo(memName, "fetchingState");
+    
+	MemContext *mem = NEW_MEM_CONTEXT(memName->data);
+	ACQUIRE_MEM_CONTEXT(mem);
+
     fetchOperatorDataInternal(op);
+
+    FREE_CUR_MEM_CONTEXT();
+    RELEASE_MEM_CONTEXT();
+
+    //fetchOperatorDataInternal(op);
 }
 
 static void
