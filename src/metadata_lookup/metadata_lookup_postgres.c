@@ -2165,9 +2165,17 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
     Vector *psVecIns = NULL;
     Vector *psVecDel = NULL;
     if (psAttrPos != -1) {
-        psVecIns = makeVector(VECTOR_INT, T_Vector);
-        psVecDel = makeVector(VECTOR_INT, T_Vector);
+		if (insNum > 0) {
+			psVecIns = makeVectorOfSize(VECTOR_INT, T_Vector, insNum);
+		}
+		if (delNum > 0) {
+			psVecDel = makeVectorOfSize(VECTOR_INT, T_Vector, delNum);
+		}
     }
+
+	/**
+	 * NOTE: Currently the update only support partition for integer values
+	 */
     for (int col = 0; col < numFields; col++) {
         if (col == updTypeCol) {
             continue;
@@ -2179,8 +2187,13 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
         switch (dataType) {
             case DT_INT:
             {
-                colVecIns = makeVector(VECTOR_INT, T_Vector);
-                colVecDel = makeVector(VECTOR_INT, T_Vector);
+				if (insNum > 0) {
+					colVecIns = makeVectorOfSize(VECTOR_INT, T_Vector, insNum);
+				}
+
+				if (delNum > 0) {
+					colVecDel = makeVectorOfSize(VECTOR_INT, T_Vector, delNum);
+				}
 
                 for (int row = 0; row < numRes; row++) {
                     int value = atoi(PQgetvalue(rs, row, col));
@@ -2202,8 +2215,13 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
             break;
             case DT_LONG:
             {
-                colVecIns = makeVector(VECTOR_LONG, T_Vector);
-                colVecDel = makeVector(VECTOR_LONG, T_Vector);
+				if (insNum > 0) {
+					colVecIns = makeVectorOfSize(VECTOR_LONG, T_Vector, insNum);
+					
+				}
+				if (delNum > 0) {
+					colVecDel = makeVectorOfSize(VECTOR_LONG, T_Vector, delNum);
+				}
 				for (int row = 0; row < numRes; row++) {
 					gprom_long_t value = atol(PQgetvalue(rs, row, col));
                     if (updTypeVals[row] == 1) {
@@ -2216,8 +2234,13 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
             break;
             case DT_FLOAT:
             {
-                colVecIns = makeVector(VECTOR_FLOAT, T_Vector);
-                colVecDel = makeVector(VECTOR_FLOAT, T_Vector);
+				if (insNum > 0) {
+					colVecIns = makeVectorOfSize(VECTOR_FLOAT, T_Vector, insNum);
+				}
+
+				if (delNum > 0) {
+					colVecDel = makeVectorOfSize(VECTOR_FLOAT, T_Vector, delNum);
+				}
 				for (int row = 0; row < numRes; row++) {
 					double value = atof(PQgetvalue(rs, row, col));
                     if (updTypeVals[row] == 1) {
@@ -2230,8 +2253,13 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
             break;
             case DT_BOOL:
             {
-                colVecIns = makeVector(VECTOR_INT, T_Vector);
-                colVecDel = makeVector(VECTOR_INT, T_Vector);
+				if (insNum > 0) {
+					colVecIns = makeVectorOfSize(VECTOR_INT, T_Vector, insNum);
+				}
+
+				if (delNum > 0) {
+					colVecDel = makeVectorOfSize(VECTOR_INT, T_Vector, delNum);
+				}
 				for (int row = 0; row < numRes; row++) {
 					char *value = PQgetvalue(rs, row, col);
 					if (streq(value, "TRUE") || streq(value, "t") || streq(value, "true")) {
@@ -2255,8 +2283,12 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
             case DT_STRING:
             case DT_VARCHAR2:
             {
-                colVecIns = makeVector(VECTOR_STRING, T_Vector);
-                colVecDel = makeVector(VECTOR_STRING, T_Vector);
+				if (insNum > 0) {
+					colVecIns = makeVectorOfSize(VECTOR_STRING, T_Vector, insNum);
+				}
+				if (delNum) {
+					colVecDel = makeVectorOfSize(VECTOR_STRING, T_Vector, delNum);
+				}
 				for (int row = 0; row < numRes; row++) {
 					char *value = PQgetvalue(rs, row, col);
                     if (updTypeVals[row] == 1) {
