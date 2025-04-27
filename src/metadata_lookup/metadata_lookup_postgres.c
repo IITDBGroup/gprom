@@ -2121,7 +2121,8 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
 	}
 
     char *updateIdentName = getStringOption(OPTION_UPDATE_PS_DELTA_TABLE_UPDIDENT);
-    Vector *updType = makeVector(VECTOR_INT, T_Vector);
+    /* Vector *updType = makeVector(VECTOR_INT, T_Vector); */
+    Vector *updType = makeVectorOfSize(VECTOR_INT, T_Vector, numRes);
     int insNum = 0;
     int delNum = 0;
     int updTypeCol = numFields - 1;
@@ -2323,9 +2324,18 @@ postgresGetDataChunkFromDeltaTable(char *query, DataChunk *dcIns, DataChunk *dcD
         }
     }
     // STOP_TIMER("module - update provenance sketch - incremental update fetching data - build data chunk");
+	// Assign initialize the vector to size of insNum
+	if (insNum > 0) {
+		dcIns->updateIdentifier = makeVectorOfSize(VECTOR_INT, T_Vector, insNum);
+	}
     for (int i = 0; i < insNum; i++) {
         vecAppendInt(dcIns->updateIdentifier, 1);
     }
+
+	// Assign initialize the vector to size of delNum
+	if (delNum > 0) {
+		dcDel->updateIdentifier = makeVectorOfSize(VECTOR_INT, T_Vector, delNum);
+	}
     for (int i = 0; i < delNum; i++) {
         vecAppendInt(dcDel->updateIdentifier, -1);
     }
