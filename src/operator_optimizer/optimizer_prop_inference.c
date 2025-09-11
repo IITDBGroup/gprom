@@ -32,6 +32,7 @@ static List *removeContainedKeys(List *keys);
 static boolean removePropsVisitor(QueryOperator *op, void *context);
 static boolean removeOnePropVisitor(QueryOperator *op, void *context);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
+static void mergeIntoChildIcols(QueryOperator *child, Set *newIcols);
 static boolean printECProVisitor(QueryOperator *root, void *context);
 static HashMap *computeExprMinMax(Node *expr, HashMap *attrMinMax);
 static Constant *getDataTypeMin (DataType dt);
@@ -2712,13 +2713,13 @@ addAttrOfSelectCondToSet(Set *set, Node *expr)
 		SET_ICOLS(_op,_store_icols);			\
 	}
 #define IS_ICOLS_DONE(_op) HAS_STRING_PROP(_op, PROP_STORE_SET_ICOLS_DONE)
-#define MERGE_INTO_CHILD_ICOLS(_child,_icols)		\
-	while(0)										\
-	{												\
-		Set *_childIcols;							\
-		GET_OR_CREATE_ICOLS(_child,_childIcols);	\
-		unionIntoSet(_childIcols,_icols);			\
-	}
+#define MERGE_INTO_CHILD_ICOLS(_child,_icols) mergeIntoChildIcols(_child,_icols)
+	/* while(0)										\ */
+	/* {												\ */
+	/* 	Set *_childIcols;							\ */
+	/* 	GET_OR_CREATE_ICOLS(_child,_childIcols);	\ */
+    /*     unionIntoSet(_childIcols,_icols);			\ */
+	/* } */
 
 
 void
@@ -2735,6 +2736,15 @@ initializeIColProp(QueryOperator *root)
 	//Set root's parents PROP_STORE_SET_ICOLS_DONE property, used in parents check at last
 	FOREACH(QueryOperator, p, root->parents)
 		SET_BOOL_STRING_PROP(p, PROP_STORE_SET_ICOLS_DONE);
+}
+
+static void
+mergeIntoChildIcols(QueryOperator *child, Set *newIcols)
+{
+    Set *childIcols;
+
+    GET_OR_CREATE_ICOLS(child, childIcols);
+    unionIntoSet(childIcols, newIcols);
 }
 
 /*
@@ -2755,7 +2765,9 @@ computeReqColProp(QueryOperator *root)
 
 	// retrieve or create icols for root
 	GET_OR_CREATE_ICOLS(root, icols);
-	DEBUG_LOG("before inference icols: %s for [%s]", nodeToString(icols), singleOperatorToOverview(root));
+	DEBUG_LOG("before inference icols: %s for [%s]",
+              nodeToString(icols),
+              singleOperatorToOverview(root));
 
 	if(isA(root, SelectionOperator))
 	{

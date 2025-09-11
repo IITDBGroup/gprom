@@ -545,13 +545,22 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *nestedSubqueries, boolean t
             appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr, NULL, trimAttrNames));
         break;
         case T_RowNumExpr:
-            appendStringInfoString(str, "ROWNUM");
+        {
+            if(getBackend() == BACKEND_ORACLE)
+            {
+                appendStringInfoString(str, ATTR_ROWNUM);
+            }
+            else
+            {
+                appendStringInfo(str, "ROW_NUMBER() OVER ()", ATTR_ROWNUM);
+            }
+        }
         break;
         case T_OrderExpr:
             orderExprToSQL(str, (OrderExpr *) expr, nestedSubqueries, trimAttrNames);
         break;
         case T_QuantifiedComparison:
-        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr, nestedSubqueries, trimAttrNames);
+        	quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr, nestedSubqueries, trimAttrNames);
         break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr, nestedSubqueries);
