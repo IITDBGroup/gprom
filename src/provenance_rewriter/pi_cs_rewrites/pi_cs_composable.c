@@ -29,6 +29,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
+#include "utility/string_utils.h"
 
 // result tuple-id attribute and provenance duplicate counter attribute
 #define RESULT_TID_ATTR backendifyIdentifier("_result_tid")
@@ -80,6 +81,7 @@ static QueryOperator *rewritePI_CSComposableTableAccess(TableAccessOperator *op,
 static QueryOperator *rewritePI_CSComposableConstRel(ConstRelOperator *op, PICSComposableRewriteState *state);
 static QueryOperator *rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSComposableRewriteState *state);
 static QueryOperator *rewritePI_CSComposableOrderOp(OrderOperator *op, PICSComposableRewriteState *state);
+static QueryOperator *rewritePI_CSComposableLimitOp(LimitOperator *op, PICSComposableRewriteState *state);
 
 static QueryOperator *rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteState *state);
 
@@ -292,6 +294,9 @@ rewritePI_CSComposableOperator (QueryOperator *op, PICSComposableRewriteState *s
         case T_OrderOperator:
             rewrittenOp = rewritePI_CSComposableOrderOp((OrderOperator *) op, state);
             break;
+        case T_LimitOperator:
+            rewrittenOp = rewritePI_CSComposableLimitOp((LimitOperator *) op, state);
+        break;
         default:
             FATAL_LOG("rewrite for not implemented for: %s",
                       singleOperatorToOverview(op));
@@ -2119,6 +2124,110 @@ rewritePI_CSComposableOrderOp(OrderOperator *op, PICSComposableRewriteState *sta
 
     // add result TID and prov duplicate attributes
     addResultTIDAndProvDupAttrs((QueryOperator *) rewr, TRUE);
+
+	// copy provenance table and attr info
+	COPY_PROV_INFO(rewr,rewrInput);
+
+    LOG_RESULT_AND_RETURN(PICS-Composable,OrderBy);
+}
+
+#define NEW_RESULT_TID_ATTR "_result_tid_new"
+
+static QueryOperator *
+rewritePI_CSComposableLimitOp(LimitOperator *op, PICSComposableRewriteState *state)
+{
+	REWR_UNARY_SETUP_PIC(Limit);
+    rewrInput = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
+    SelectionOperator *s;
+    Node *limit = copyObject(op->limitExpr);
+    Node *offset = copyObject(op->offsetExpr);
+    Node *condition;
+    List *orderBy = NIL;
+    WindowOperator *w;
+    ProjectionOperator *p;
+    /* List *projExprs = NIL; */
+    Node *tidAttr = (Node *) createFullAttrReference(RESULT_TID_ATTR,
+                                                     0,
+                                                     INT_VALUE(GET_STRING_PROP(rewrInput,PROP_RESULT_TID_ATTR)),
+                                                     0,
+                                                     state->rowNumDT);
+
+    // compute new result tids which follow the input order but preserve which tuples have the same TID
+    // dense_rank() OVER (ORDER BY _result_tid) AS _result_tid_new
+    // if there is an order by operator below we need to take its order O into account
+    // dense_rank() OVER (ORDER BY O, _result_tid) AS _result_tid_new
+    if(isA((Node *) rewrInput,OrderOperator))
+    {
+        OrderOperator *o = (OrderOperator *) rewrInput;
+        orderBy = copyObject(o->orderExprs); //TODO expect attribute references
+        orderBy = appendToTailOfList(orderBy, copyObject(tidAttr));
+    }
+    else
+    {
+        orderBy = singleton(copyObject(tidAttr));
+    }
+    Node *tidFunc = (Node *) createFunctionCall(DENSE_RANK_FUNC_NAME, NIL);
+    w = createWindowOp(tidFunc,
+                       NIL,
+                       orderBy,
+                       NULL,
+                       strdup(NEW_RESULT_TID_ATTR),
+                       rewrInput,
+                       NIL);
+
+    w->op.provAttrs = copyObject(rewrInput->provAttrs);
+    addParent(rewrInput, (QueryOperator *) w);
+
+    // add projection to use new _result_tid_new attribute as _result_tid attribute
+    List *projAttrNames = deepCopyStringList(getAttrNames(rewrInput->schema));
+    projAttrNames = sublist(projAttrNames, 0, -3);
+    projAttrNames = appendToTailOfList(projAttrNames, NEW_RESULT_TID_ATTR);
+    projAttrNames = appendToTailOfList(projAttrNames, PROV_DUPL_COUNT_ATTR);
+
+    p = (ProjectionOperator *) createProjOnAttrsByName((QueryOperator *) w, projAttrNames, getAttrNames(rewrInput->schema));
+    p->op.provAttrs = copyObject(rewrInput->provAttrs);
+    addChildOperator((QueryOperator *) p, (QueryOperator *) w);
+
+    // create selection with _result_tid > offset AND _result_tid <= offset + limit
+    if(limit && offset)
+    {
+        condition = AND_EXPRS((Node *) createOpExpr(OPNAME_GT,
+                                           LIST_MAKE(copyObject(tidAttr),
+                                                     offset)),
+                              (Node *) createOpExpr(OPNAME_LE,
+                                           LIST_MAKE(copyObject(tidAttr),
+                                                     (Node *) createOpExpr(OPNAME_ADD,
+                                                                           LIST_MAKE(offset,
+                                                                                     limit)))));
+    }
+    // create selection with _result_tid <= limit
+    else if (limit)
+    {
+        condition = (Node *) createOpExpr(OPNAME_LE,
+                                          LIST_MAKE(copyObject(tidAttr),
+                                                    limit));
+    }
+    // create selection with _result_tid > offset
+    else
+    {
+        condition = (Node *) createOpExpr(OPNAME_GT,
+                                          LIST_MAKE(copyObject(tidAttr),
+                                                    offset));
+    }
+
+    // replace limit with selection
+    s = createSelectionOp(condition, NULL, NIL, getAttrNames(rewrInput->schema));
+    s->op.schema = copyObject(p->op.schema);
+    rewr = (QueryOperator *) s;
+
+    // add result TID and prov duplicate attributes from rewrInput (use it as child temporarily)
+    rewr->inputs = singleton(rewrInput);
+    addResultTIDAndProvDupAttrs((QueryOperator *) rewr, FALSE);
+    rewr->inputs = NIL;
+    rewr->provAttrs = copyObject(rewrInput->provAttrs);
+
+    // actual child is the projection on top of the window operator
+    addChildOperator(rewr, (QueryOperator *) p);
 
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);

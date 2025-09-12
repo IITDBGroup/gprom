@@ -328,6 +328,12 @@ strieq(char *left, char *right)
     return TRUE;
 }
 
+boolean
+strpequals(void *left, void *right)
+{
+    return strpeq((char *) left, (char *) right);
+}
+
 char *
 specializeTemplate(char *template, List *args)
 {
