@@ -65,16 +65,19 @@
 		addChildOperator(rewr, rewrRightInput);					\
 	} while(0)
 
-#define LOG_RESULT(mes,op)						\
+#define LOG_RESULT(_mes,_op)						\
     do {										\
-        INFO_OP_LOG(mes,op);					\
-        DEBUG_NODE_BEATIFY_LOG(mes,op);			\
+        INFO_OP_LOG(_mes,_op);					\
+        DEBUG_NODE_BEATIFY_LOG(_mes,_op);			\
     } while(0)
 
-#define LOG_RESULT_AND_RETURN(optype)						\
+#define LOG_RESULT_METHOD(_rewrite_method,_mes,_op) \
+    LOG_RESULT("REWRITE " #_rewrite_method " - " _mes, _op)
+
+#define LOG_RESULT_AND_RETURN(_rewrite_method,_optype)						\
 	do														\
 	{														\
-		LOG_RESULT(#optype " - rewritten operator:", rewr);	\
+	LOG_RESULT("REWRITE " #_rewrite_method " - " #_optype " - rewritten operator:", rewr);	\
 		return (QueryOperator *) rewr;						\
 	} while(0)
 

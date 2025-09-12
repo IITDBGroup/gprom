@@ -300,7 +300,7 @@ tempRewrSelection (SelectionOperator *o)
     addProvenanceAttrsToSchema((QueryOperator *) o, OP_LCHILD(o));
     setTempAttrProps((QueryOperator *) o);
 
-    LOG_RESULT("Rewritten Selection:", o);
+    LOG_RESULT_METHOD(Temporal,"Rewritten Selection:", o);
     return (QueryOperator *) o;
 }
 
@@ -425,7 +425,7 @@ tempRewrJoin(JoinOperator *op)
 
     /* setTempAttrProps((QueryOperator *) proj); */
 
-    LOG_RESULT("Rewritten join", proj);
+    LOG_RESULT_METHOD(Temporal,"Rewritten join", proj);
     return (QueryOperator *) proj;
 }
 
@@ -583,7 +583,7 @@ tempRewrAggregation (AggregationOperator *o)
 
     setTempAttrProps((QueryOperator *) o);
 
-    LOG_RESULT("Rewritten aggregation", o);
+    LOG_RESULT_METHOD(Temporal,"Rewritten aggregation", o);
     return (QueryOperator *) o;
 }
 
@@ -995,7 +995,7 @@ tempRewrNestedSubquery(NestingOperator *op)
 static QueryOperator *
 tempRewrNestedSubqueryCorrelated(NestingOperator *op)
 {
-    LOG_RESULT("before rewriting:", op);
+    LOG_RESULT_METHOD(Temporal,"before rewriting:", op);
 
     QueryOperator *asq = (QueryOperator *)op;
 
@@ -1109,7 +1109,7 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op)
     addChildOperator(pOp, asq);
     switchSubtrees(asq, pOp);
 
-    LOG_RESULT("after rewriting:", projection);
+    LOG_RESULT_METHOD(Temporal,"after rewriting:", projection);
     return pOp;
 }
 
@@ -1139,7 +1139,7 @@ tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op)
 	// add projection to intersect intervals
 	rewritten = constructJoinIntervalIntersection(rewritten);
 
-	LOG_RESULT("nested subquery", rewritten);
+	LOG_RESULT_METHOD(Temporal,"nested subquery", rewritten);
 	return rewritten;
 }
 
@@ -3280,7 +3280,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     switchSubtrees(top, (QueryOperator *) finalOp);
     top->parents = LIST_MAKE(proj1T2, proj2T2);
 
-    LOG_RESULT("Rewritten aggregation+normalization", finalOp);
+    LOG_RESULT_METHOD(Temporal,"Rewritten aggregation+normalization", finalOp);
 	return (QueryOperator *) finalOp;
 }
 
@@ -3873,7 +3873,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     switchSubtrees(o, (QueryOperator *) addProjOp);
 
 //  addProvenanceAttrsToSchema((QueryOperator *) o, (QueryOperator *) lOp);
-    LOG_RESULT("Rewritten set difference + normalization", addProjOp);
+    LOG_RESULT_METHOD(Temporal,"Rewritten set difference + normalization", addProjOp);
 
     return (QueryOperator *) addProjOp;
 }

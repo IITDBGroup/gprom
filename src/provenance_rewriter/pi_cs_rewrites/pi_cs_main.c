@@ -375,7 +375,7 @@ rewritePI_CSReuseRewrittenOp(QueryOperator *op, PICSRewriteState *state)
 	// add result TID and dupl attributes
 	COPY_PROV_INFO(rewr, rewrOp);
 
-	LOG_RESULT_AND_RETURN(REUSE);
+	LOG_RESULT_AND_RETURN(PICS,REUSE);
 }
 
 
@@ -704,7 +704,7 @@ rewritePI_CSLimit(LimitOperator *op, PICSRewriteState *state)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-	LOG_RESULT_AND_RETURN(Limit);
+	LOG_RESULT_AND_RETURN(PICS,Limit);
 }
 
 
@@ -722,7 +722,7 @@ rewritePI_CSSelection(SelectionOperator *op, PICSRewriteState *state)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-	LOG_RESULT_AND_RETURN(Selection);
+	LOG_RESULT_AND_RETURN(PICS,Selection);
 }
 
 static QueryOperator *
@@ -753,7 +753,7 @@ rewritePI_CSProjection (ProjectionOperator *op, PICSRewriteState *state)
 	// copy prov info
 	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(Projection);
+	LOG_RESULT_AND_RETURN(PICS,Projection);
 }
 
 static QueryOperator *
@@ -808,7 +808,7 @@ rewritePI_CSJoin (JoinOperator *op, PICSRewriteState *state)
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(Join);
+	LOG_RESULT_AND_RETURN(PICS,Join);
 }
 
 
@@ -856,7 +856,7 @@ rewritePI_CSNestingOp (NestingOperator *op, PICSRewriteState *state)
 
 	// set rewritten op
 	rewr = (QueryOperator *) proj;
-	LOG_RESULT_AND_RETURN(NestingOperator);
+	LOG_RESULT_AND_RETURN(PICS,NestingOperator);
 }
 
 
@@ -968,7 +968,7 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);
 
-	LOG_RESULT_AND_RETURN(Aggregation);
+	LOG_RESULT_AND_RETURN(PICS,Aggregation);
 }
 
 
@@ -1348,7 +1348,7 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(SetOperation);
+	LOG_RESULT_AND_RETURN(PICS,SetOperation);
 }
 
 static QueryOperator *
@@ -1415,7 +1415,7 @@ rewritePI_CSTableAccess(TableAccessOperator *op, PICSRewriteState *state)
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(TableAccess);
+	LOG_RESULT_AND_RETURN(PICS,TableAccess);
 }
 
 static QueryOperator *
@@ -1475,7 +1475,7 @@ rewritePI_CSConstRel(ConstRelOperator *op, PICSRewriteState *state)
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(ConstRel);
+	LOG_RESULT_AND_RETURN(PICS,ConstRel);
 }
 
 static QueryOperator *
@@ -1487,7 +1487,7 @@ rewritePI_CSDuplicateRemOp(DuplicateRemoval *op, PICSRewriteState *state)
 
 	rewr = rewritePI_CSOperator(child, state);
 
-	LOG_RESULT_AND_RETURN(DuplicateRemoval);
+	LOG_RESULT_AND_RETURN(PICS,DuplicateRemoval);
 }
 
 static QueryOperator *
@@ -1501,7 +1501,7 @@ rewritePI_CSOrderOp(OrderOperator *op, PICSRewriteState *state)
     // adapt provenance attr list and schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(OrderBy);
+	LOG_RESULT_AND_RETURN(PICS,OrderBy);
 }
 
 void
@@ -1963,7 +1963,7 @@ rewriteUseCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-	LOG_RESULT_AND_RETURN(Window);
+	LOG_RESULT_AND_RETURN(PICS,Window);
 }
 
 static QueryOperator *
@@ -2148,7 +2148,7 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
 	// copy prov info
  	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(Window-CoarseGrained);
+	LOG_RESULT_AND_RETURN(PICS,Window-CoarseGrained);
 }
 
 static QueryOperator *
@@ -2275,7 +2275,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *state
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(TableAccess);
+	LOG_RESULT_AND_RETURN(PICS,TableAccess);
 }
 
 
@@ -2401,7 +2401,7 @@ rewriteCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteState *state
 	// copy prov info
  	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(Aggregation-CoarseGrained);
+	LOG_RESULT_AND_RETURN(PICS,Aggregation-CoarseGrained);
 }
 
 
@@ -2494,7 +2494,7 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *s
 	// copy prov info
  	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(Aggregation-CoarseGrained);
+	LOG_RESULT_AND_RETURN(PICS,Aggregation-CoarseGrained);
 }
 
 
@@ -2720,5 +2720,5 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 	rewr->parents = singleton(sel);
 	rewr = (QueryOperator *) sel;
 
-    LOG_RESULT_AND_RETURN(TableAccess);
+    LOG_RESULT_AND_RETURN(PICS,TableAccess);
 }

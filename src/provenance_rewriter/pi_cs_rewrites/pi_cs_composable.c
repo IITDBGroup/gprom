@@ -369,7 +369,7 @@ rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteS
 
 	COPY_PROV_INFO(rewr, rewrOp);
 
-	LOG_RESULT_AND_RETURN(REUSE);
+	LOG_RESULT_AND_RETURN(PICS-Composable,REUSE);
 }
 
 static QueryOperator *
@@ -606,10 +606,10 @@ composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set
 
 
 static QueryOperator *
-rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSComposableRewriteState *state)
+rewritePI_CSComposableAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSComposableRewriteState *state)
 {
-//    List *tableAttr;
     List *provAttr = NIL;
+    List *provAttrsOnly = NIL;
     List *projExpr = NIL;
     char *newAttrName;
     int relAccessCount;
@@ -879,7 +879,7 @@ rewritePI_CSComposableSelection (SelectionOperator *op, PICSComposableRewriteSta
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);
 
-    LOG_RESULT_AND_RETURN(Selection);
+    LOG_RESULT_AND_RETURN(PICS-Composable,Selection);
 }
 
 static QueryOperator *
@@ -919,7 +919,7 @@ rewritePI_CSComposableProjection (ProjectionOperator *op, PICSComposableRewriteS
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);
 
-    LOG_RESULT_AND_RETURN(Projection);
+    LOG_RESULT_AND_RETURN(PICS-Composable,Projection);
 }
 
 static QueryOperator *
@@ -1067,7 +1067,7 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-    LOG_RESULT_AND_RETURN(Join);
+    LOG_RESULT_AND_RETURN(PICS-Composable,Join);
 }
 
 static QueryOperator *
@@ -1276,7 +1276,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSComposab
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);
 
-	LOG_RESULT_AND_RETURN(Aggregation-Join);
+	LOG_RESULT_AND_RETURN(PICS-Composable,Aggregation-Join);
 }
 
 static void
@@ -1480,7 +1480,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
 	COPY_PROV_INFO(rewr,rewrInput);
 
     // return projection
-	LOG_RESULT_AND_RETURN(Aggregation-RewriteWithWindow);
+	LOG_RESULT_AND_RETURN(PICS-Composable,Aggregation-RewriteWithWindow);
 }
 
 static Node *
@@ -1753,7 +1753,7 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(SetOperation);
+	LOG_RESULT_AND_RETURN(PICS-Composable,SetOperation);
 }
 
 static QueryOperator *
@@ -1836,7 +1836,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSComposableRewrite
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-    LOG_RESULT_AND_RETURN(TableAccess);
+    LOG_RESULT_AND_RETURN(PICS-Composable,TableAccess);
 }
 
 static QueryOperator *
@@ -1897,7 +1897,7 @@ rewritePI_CSComposableConstRel(ConstRelOperator *op, PICSComposableRewriteState 
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(ConstRel);
+	LOG_RESULT_AND_RETURN(PICS-Composable,ConstRel);
 }
 
 static QueryOperator *
@@ -1967,7 +1967,7 @@ rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSComposableRewrite
     SET_STRING_PROP(rewr, PROP_RESULT_TID_ATTR, createConstInt(numAttrs - 2));
     SET_STRING_PROP(rewr, PROP_PROV_DUP_ATTR, createConstInt(numAttrs - 1));
 
-    LOG_RESULT_AND_RETURN(DuplicateRemoval);
+    LOG_RESULT_AND_RETURN(PICS-Composable,DuplicateRemoval);
 }
 
 static void
