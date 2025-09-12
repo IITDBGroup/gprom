@@ -863,7 +863,6 @@ static QueryOperator *
 rewritePI_CSComposableSelection (SelectionOperator *op, PICSComposableRewriteState *state)
 {
 	REWR_UNARY_SETUP_PIC(Selection);
-
 	REWR_UNARY_CHILD_PIC();
 
     // adapt schema
@@ -2112,15 +2111,17 @@ removeSpecialAttrsFromNormalProjectionExprs(List *projExpr)
 static QueryOperator *
 rewritePI_CSComposableOrderOp(OrderOperator *op, PICSComposableRewriteState *state)
 {
-    QueryOperator *child = OP_LCHILD(op);
+	REWR_UNARY_SETUP_PIC(OrderBy);
+	REWR_UNARY_CHILD_PIC();
 
-    // rewrite child
-    rewritePI_CSComposableOperator(child, state);
+    // adapt schema
+    addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-    // adapt provenance attr list and schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, child);
-    addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
+    // add result TID and prov duplicate attributes
+    addResultTIDAndProvDupAttrs((QueryOperator *) rewr, TRUE);
 
-    LOG_RESULT("Order Operator - Rewritten Operator tree", op);
-    return (QueryOperator *) op;
+	// copy provenance table and attr info
+	COPY_PROV_INFO(rewr,rewrInput);
+
+    LOG_RESULT_AND_RETURN(PICS-Composable,OrderBy);
 }
