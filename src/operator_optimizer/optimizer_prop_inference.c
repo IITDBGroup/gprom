@@ -2853,8 +2853,11 @@ computeReqColProp(QueryOperator *root)
 		}
 
 		// distribute our icols to our children
-		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), intersectSets(icols, s1));
-		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), intersectSets(icols, s2));
+        Set *licols = intersectSets(icols, s1);
+        Set *ricols = intersectSets(icols, s2);
+
+		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), licols);
+		MERGE_INTO_CHILD_ICOLS(OP_RCHILD(root), ricols);
 	}
 
 	if(isA(root, AggregationOperator))
