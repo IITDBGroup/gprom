@@ -15,6 +15,7 @@
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/query_operator/query_operator.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "mem_manager/mem_mgr.h"
@@ -207,7 +208,9 @@ createProjOnAttrsByName(QueryOperator *op, List *attrNames, List *newAttrNames)
     QueryOperator *p;
 
     FOREACH(char,c,attrNames)
+    {
         attrPos = appendToTailOfListInt(attrPos, getAttrPos(op,c));
+    }
     DEBUG_LOG("child attr pos: %s", nodeToString(attrPos));
 
     p = createProjOnAttrs(op, attrPos);
@@ -475,7 +478,7 @@ removeParentFromOps (List *operators, QueryOperator *parent)
 }
 
 void
-substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp)
+substOpInParents(List *parents, QueryOperator *orig, QueryOperator *newOp)
 {
     FOREACH(QueryOperator,p,parents)
     {
@@ -483,6 +486,30 @@ substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp)
         {
             if (equal(pChild,orig))
                 pChild_his_cell->data.ptr_value = newOp;
+        }
+    }
+}
+
+void
+substOpInParentList(QueryOperator *op, QueryOperator *orig, QueryOperator *newOp)
+{
+    FOREACH(QueryOperator,parent,op->parents)
+    {
+        if(equal(parent,orig))
+        {
+            parent_his_cell->data.ptr_value = newOp;
+        }
+    }
+}
+
+void
+substOpInInputs(QueryOperator *op, QueryOperator *orig, QueryOperator *newOp)
+{
+    FOREACH(QueryOperator,child,op->inputs)
+    {
+        if(equal(child,orig))
+        {
+            child_his_cell->data.ptr_value = newOp;
         }
     }
 }

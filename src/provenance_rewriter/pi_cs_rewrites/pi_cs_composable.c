@@ -1065,9 +1065,8 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
 	rewr = (QueryOperator *) proj;
 
 	// provenance info is concatenation of child prov infos
-	provInfo = CONCAT_LISTS(
-		(List *) GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS),
-		(List *) GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS));
+	provInfo = CONCAT_LISTS((List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)),
+		                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS)));
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
@@ -1752,8 +1751,8 @@ rewritePI_CSComposableSet (SetOperator *op, PICSComposableRewriteState *state)
 
 	// provenance info is concatenation of child prov infos
 	provInfo = CONCAT_LISTS(
-		(List *) GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS),
-		(List *) GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS));
+		                    (List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)),
+		                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS)));
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
@@ -1839,6 +1838,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSComposableRewrite
 	provInfo = singleton(createNodeKeyValue((Node *) createConstString(tableName),
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+    SET_BOOL_STRING_PROP(rewr, PROP_PROJ_PROV_ATTR_DUP);
 
     LOG_RESULT_AND_RETURN(PICS-Composable,TableAccess);
 }

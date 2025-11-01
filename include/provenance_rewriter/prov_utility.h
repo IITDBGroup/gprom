@@ -112,6 +112,8 @@ extern void switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new);
 extern QueryOperator *copyUnrootedSubtree(QueryOperator *op);
 extern void removeParentFromOps (List *operators, QueryOperator *parent);
 extern void substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp);
+extern void substOpInParentList(QueryOperator *op, QueryOperator *orig, QueryOperator *newOp);
+extern void substOpInInputs(QueryOperator *op, QueryOperator *orig, QueryOperator *newOp);
 
 // graph search
 extern boolean findTableAccessVisitor (Node *node, List **result);

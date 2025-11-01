@@ -188,7 +188,6 @@ extern int getTailOfListInt(List *list);
 extern void *popTailOfListP(List *list);
 extern ListCell *popTailOfList(List *list);
 
-
 extern void *getNthOfListP(List *list, int n);
 extern int getNthOfListInt(List *list, int n);
 extern ListCell *getNthOfList(List *list, int n);
