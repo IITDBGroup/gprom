@@ -19,13 +19,15 @@
 
 #ifdef HAVE_REGEX_H
 
+#define _NUM_MATCHES 2
+
 char *
 getMatchingSubstring(const char *string, const char *pattern)
 {
     char *result;
     regex_t p;
-    const int n_matches = 2;
-    regmatch_t m[n_matches];
+    const int n_matches = _NUM_MATCHES;
+    regmatch_t m[_NUM_MATCHES];
     int matchRes;
     int length;
 
@@ -33,7 +35,7 @@ getMatchingSubstring(const char *string, const char *pattern)
     regcomp(&p, pattern, REG_EXTENDED);
 
     // match
-    matchRes = regexec (&p, string, n_matches, m, 0);
+    matchRes = regexec(&p, string, n_matches, m, 0);
     ASSERT(matchRes == 0);
 
     // return substring
@@ -52,8 +54,8 @@ getFullMatchingSubstring(const char *string, const char *pattern)
 {
     char *result;
     regex_t p;
-    const int n_matches = 2;
-    regmatch_t m[n_matches];
+    const int n_matches = _NUM_MATCHES;
+    regmatch_t m[_NUM_MATCHES];
     int matchRes;
     int length;
 
