@@ -3183,7 +3183,33 @@ computeNotNullPropInternal(QueryOperator *root)
 
                 case T_JoinOperator:
                 {
-                    notnull = unionSets(leftchildNotNull, rightchildNotNull);
+                    JoinOperator *j = (JoinOperator *) root;
+
+                    switch(j->joinType)
+                    {
+                        case JOIN_CROSS:
+                        case JOIN_INNER:
+                        {
+                            notnull = unionSets(leftchildNotNull, rightchildNotNull);
+                        }
+                        break;
+                        // for outer joins, the outer side is always NULLABLE
+                        case JOIN_LEFT_OUTER:
+                        {
+                            notnull = leftchildNotNull;
+                        }
+                        break;
+                        case JOIN_RIGHT_OUTER:
+                        {
+                            notnull = rightchildNotNull;
+                        }
+                        break;
+                        case JOIN_FULL_OUTER:
+                        {
+                            // all attributes could be null
+                        }
+                        break;
+                    }
 
                     NOT_NULL_SET_AND_RETURN();
                 }
