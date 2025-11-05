@@ -525,10 +525,7 @@ inferOpResultDTs (QueryOperator *op)
         case T_ProjectionOperator:
         {
             ProjectionOperator *o = (ProjectionOperator *) op;
-            FOREACH(Node,e,o->projExprs)
-            {
-                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
-            }
+            resultDTs = exprListTypes(o->projExprs);
         }
         break;
         case T_JoinOperator:
@@ -618,10 +615,7 @@ inferOpResultDTs (QueryOperator *op)
         case T_ConstRelOperator:
         {
             ConstRelOperator *c = (ConstRelOperator *) op;
-            FOREACH(Node,v,c->values)
-            {
-                resultDTs = appendToTailOfListInt(resultDTs, typeOf(v));
-            }
+            resultDTs = exprListTypes(c->values);
         }
         break;
         default:
@@ -1101,6 +1095,11 @@ format_prop_value_for_user(char *prop, Node *val)
     {
         return stringListToString((List *) val);
     }
+
+    /* if(streq(prop, PROP_STORE_NOT_NULL)) */
+    /* { */
+    /*     return  */
+    /* } */
 
     return nodeToString(val);
 }

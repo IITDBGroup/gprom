@@ -261,6 +261,7 @@ extern void incrConst(Constant *c);
 /* functions for determining the type of an expression */
 extern DataType typeOf(Node *expr);
 extern DataType typeOfInOpModel(Node *expr, List *inputOperators);
+extern List *exprListTypes(List *exprs);
 extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
 extern boolean isAggFunction(Node *expr);

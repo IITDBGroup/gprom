@@ -874,6 +874,7 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
     QueryOperator *origAgg;
 	QueryOperator *curOp;
     int numGroupAttrs = LIST_LENGTH(op->groupBy);
+    boolean groupAttrsNonNull = TRUE;
 
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
@@ -883,6 +884,18 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
     // rewrite aggregation input copy
 	rewrInput = rewritePI_CSOperator(OP_LCHILD(op), state);
 	curOp = rewrInput;
+
+    // check whether group-by attributes are not null (can use equality)
+    if(op->groupBy != NIL)
+    {
+        ASSERT(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_NOT_NULL));
+        Set *notNullAttr = (Set *) getStringProperty(OP_LCHILD(op), PROP_STORE_NOT_NULL);
+
+        FOREACH(AttributeReference,a,op->groupBy)
+        {
+            groupAttrsNonNull &= hasSetElem(notNullAttr, a->name);
+        }
+    }
 
     // add projection including group by expressions if necessary
     if(op->groupBy != NIL)
@@ -924,13 +937,32 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
 		    char *name = getNthOfListP(groupByNames, pos);
-			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR, a->attrType);
-			AttributeReference *rA = createFullAttrReference(
-			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR, a->attrType);
+            Node *comparison;
+			AttributeReference *lA = createFullAttrReference(name,
+                                                             0,
+                                                             LIST_LENGTH(op->aggrs) + pos,
+                                                             INVALID_ATTR,
+                                                             a->attrType);
+			AttributeReference *rA = createFullAttrReference(CONCAT_STRINGS("_P_SIDE_",name),
+                                                             1,
+                                                             pos,
+                                                             INVALID_ATTR,
+                                                             a->attrType);
+
+            // can use equality if attribute is not null
+            if(groupAttrsNonNull)
+            {
+                comparison = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(lA, rA));
+            }
+            else
+            {
+                comparison = createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+            }
+
 			if(joinCond)
-				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
+				joinCond = AND_EXPRS(comparison, joinCond);
 			else
-				joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+				joinCond = comparison;
 			pos++;
 		}
 	}

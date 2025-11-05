@@ -381,6 +381,26 @@ getKeyInformation (char *tableName)
     return result;
 }
 
+Set *
+getNotNullAttrs(char *tableName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    Set *result = activePlugin->getNotNullAttrs(tableName);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+boolean
+functionIsStrict(char *fname, List *argTypes, boolean *funcExists)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->functionIsStrict(fname, argTypes, funcExists);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
 void
 getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -632,10 +652,9 @@ getAllMinAndMax(TableAccessOperator *table)
 int
 getRowNum(char* tableName)
 {
-	 ASSERT(activePlugin && activePlugin->isInitialized());
-	    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-	    int result = activePlugin->getRowNum(tableName);
-	    RELEASE_MEM_CONTEXT();
-	    return result;
-
+	ASSERT(activePlugin && activePlugin->isInitialized());
+	ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+	int result = activePlugin->getRowNum(tableName);
+	RELEASE_MEM_CONTEXT();
+	return result;
 }
