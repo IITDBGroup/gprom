@@ -3161,10 +3161,28 @@ computeNotNullPropInternal(QueryOperator *root)
 
                     NOT_NULL_SET_AND_RETURN();
                 }
-                //TODO window operator, nesting operator
+                case T_WindowOperator:
+                {
+                    WindowOperator *w = (WindowOperator *) root;
+
+                    // a window operator adds a new attribute and preserves all
+                    // existing attributes. Any attribute that was not null
+                    // before will still be not null.
+                    notnull = copyObject(childNotNull);
+
+                    // sometimes the window function result is not null (agg count)
+                    if(exprNotNull(w->f, childNotNull))
+                    {
+                        AttributeDef *wa = (AttributeDef *) getTailOfListP(w->op.schema->attrDefs);
+                        addToSet(notnull, strdup(wa->attrName));
+                    }
+
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                //TODO nesting operator
                 default:
                 {
-                    INFO_LOG("Null property inference not supported for operator",
+                    INFO_LOG("Null property inference not supported for operator: %s",
                              NodeTagToString(root->type));
                     NOT_NULL_SET_AND_RETURN();
                 }
@@ -3359,7 +3377,8 @@ exprNotNull(Node *expr, Set *attrNotNull)
         //TODO nested subqueries, SQL parameters
         // for nodes not supported yet
         default:
-            INFO_LOG("Not null inference not supported for node type yet: %s", NodeTagToString(expr->type));
+            INFO_LOG("Not null inference not supported for node type yet: %s",
+                     NodeTagToString(expr->type));
             return FALSE;
     }
 }
@@ -3369,6 +3388,7 @@ functionCallNotNull(char *fname, List *args, Set *attrNotNull)
 {
     boolean notNullInputs = TRUE;
     boolean fStrict;
+    boolean exists = FALSE;
 
     // aggregation and window functions have to be treated differently as they
     // may return null applied to an empty set.
@@ -3381,7 +3401,7 @@ functionCallNotNull(char *fname, List *args, Set *attrNotNull)
         return FALSE;
     }
 
-    fStrict = functionIsStrict(fname, exprListTypes(args), NULL);
+    fStrict = functionIsStrict(fname, exprListTypes(args), &exists);
 
     FOREACH(Node,arg,args)
     {
