@@ -169,6 +169,7 @@ boolean opt_operator_model_unique_schema_attribues = FALSE;
 boolean opt_operator_model_parent_child_links = FALSE;
 boolean opt_operator_model_schema_consistency = FALSE;
 boolean opt_operator_model_attr_reference_consistency = FALSE;
+boolean opt_operator_model_copy_consistency = FALSE;
 boolean opt_operator_model_data_structure_consistency = FALSE;
 
 // temporal database options
@@ -962,6 +963,14 @@ OptionInfo opts[] =
                 "expressions are consistent. For instance, they have to "
                 "refer to existing inputs and attributes.",
                 opt_operator_model_attr_reference_consistency,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_COPY_PRESERVES_DATASTRUCTURE,
+                "-Ccopy_preserves_object",
+                "Model Check: create a copy of the object and test whether the"
+                " copy is equal. This is to detect some bugs in the data "
+                "structure that cause copies to fail.",
+                opt_operator_model_copy_consistency,
                 TRUE
         ),
         // dl rewrite options

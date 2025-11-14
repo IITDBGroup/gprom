@@ -1093,7 +1093,7 @@ format_prop_value_for_user(char *prop, Node *val)
 
     if(streq(prop, PROP_ORIGINAL_ATTR_LIST))
     {
-        return stringListToString((List *) val);
+        return stringListToString((List *) constStringListToStringList((List *) val));
     }
 
     /* if(streq(prop, PROP_STORE_NOT_NULL)) */

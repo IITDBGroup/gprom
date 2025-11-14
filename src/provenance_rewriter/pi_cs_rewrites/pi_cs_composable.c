@@ -11,12 +11,10 @@
  */
 
 #include "common.h"
-#include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
 #include "configuration/option.h"
 
 #include "mem_manager/mem_mgr.h"
-#include "metadata_lookup/metadata_lookup_oracle.h"
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
@@ -29,7 +27,6 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
-#include "utility/string_utils.h"
 
 // result tuple-id attribute and provenance duplicate counter attribute
 #define RESULT_TID_ATTR backendifyIdentifier("_result_tid")
@@ -501,6 +498,9 @@ composableAddUserProvenanceAttributes(QueryOperator *op,
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
 
+    // mark as provenance attribute duplication
+    SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
 
@@ -601,6 +601,8 @@ composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set
     SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(tidAttrPos + 1));
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
+
+    SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
@@ -712,6 +714,8 @@ rewritePI_CSComposableAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
 	SET_STRING_PROP(newpo, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
     rewr = (QueryOperator *) newpo;
+    SET_BOOL_STRING_PROP(rewr, PROP_PROJ_PROV_ATTR_DUP);
+
     LOG_RESULT_AND_RETURN(PICS-Composable, AddProvToSubqueryNoRewrite);
 }
 
@@ -792,6 +796,8 @@ rewritePI_CSComposableUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
         SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(curPos));
         SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(curPos + 1));
 
+        SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
+
         if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
             ASSERT(checkModel(proj));
 
@@ -859,6 +865,7 @@ rewritePI_CSComposableUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
         // prov attributes and store TID and DUP attributes as property
         SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(curPos));
         SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(curPos + 1));
+        SET_BOOL_STRING_PROP(projOp, PROP_PROJ_PROV_ATTR_DUP);
 
         return projOp;
     }
@@ -927,7 +934,7 @@ rewritePI_CSComposableProjection (ProjectionOperator *op, PICSComposableRewriteS
 }
 
 static QueryOperator *
-rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
+rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 {
 	REWR_BINARY_SETUP_PIC(Join);
 
@@ -1042,6 +1049,8 @@ rewritePI_CSComposableJoin (JoinOperator *op, PICSComposableRewriteState *state)
             resultTidAndProvCount);
     proj = createProjectionOp(projExpr, projInput, NIL, NIL);
 
+    // build attributes
+    proj->op.schema->attrDefs = NIL;
     addNormalAttrsWithoutSpecialToSchema((QueryOperator *) proj, (QueryOperator *) projInput);
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) projInput);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) proj);
@@ -1900,6 +1909,7 @@ rewritePI_CSComposableConstRel(ConstRelOperator *op, PICSComposableRewriteState 
 	provInfo = singleton(createNodeKeyValue((Node *) createConstString("query"),
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+    SET_BOOL_STRING_PROP(rewr, PROP_PROJ_PROV_ATTR_DUP);
 
 	LOG_RESULT_AND_RETURN(PICS-Composable,ConstRel);
 }

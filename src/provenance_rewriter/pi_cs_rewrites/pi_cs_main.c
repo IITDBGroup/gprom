@@ -14,6 +14,7 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
@@ -468,6 +469,8 @@ addUserProvenanceAttributes (QueryOperator *op,
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
 
+    SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
 
@@ -559,6 +562,8 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
+
+    SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
@@ -888,8 +893,13 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
     // check whether group-by attributes are not null (can use equality)
     if(op->groupBy != NIL)
     {
-        ASSERT(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_NOT_NULL));
-        Set *notNullAttr = (Set *) getStringProperty(OP_LCHILD(op), PROP_STORE_NOT_NULL);
+        QueryOperator *child = OP_LCHILD(op);
+        if(!HAS_STRING_PROP(child, PROP_STORE_NOT_NULL))
+        {
+            computeNotNullProp(child);
+        }
+        ASSERT(HAS_STRING_PROP(child, PROP_STORE_NOT_NULL));
+        Set *notNullAttr = (Set *) getStringProperty(child, PROP_STORE_NOT_NULL);
 
         FOREACH(AttributeReference,a,op->groupBy)
         {

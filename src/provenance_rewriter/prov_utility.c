@@ -573,3 +573,25 @@ getOrSetOpCopy(HashMap *origOps, QueryOperator *op)
 
 	return opCopy;
 }
+
+
+void
+copyPropertiesFromOp(QueryOperator *target, QueryOperator *src, Set *props)
+{
+    if(props)
+    {
+        FOREACH_SET(char,key,props)
+        {
+            if(HAS_STRING_PROP(src, key))
+            {
+                SET_STRING_PROP(target,
+                                strdup(key),
+                                copyObject(GET_STRING_PROP(src, key)));
+            }
+        }
+    }
+    else
+    {
+        target->properties = copyObject(src->properties);
+    }
+}

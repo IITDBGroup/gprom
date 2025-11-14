@@ -371,9 +371,28 @@ AC_DEFUN([AC_MONETDB_ALL_CHECKS],
     AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
   ])
 ])
+# sqlite library location
+AC_DEFUN([AC_SQLITE_LOCATION],
+[AC_ARG_WITH(mapi, [  --with-libsqlite], , )
+AC_MSG_CHECKING([for user provided sqllite library location])
+if test "x$with_libsqlite" != x; then
+	if test -d "$with_libsqlite/lib" && test -d "$with_libsqlite/include"; then
+		LDFLAGS="$LDFLAGS -L$with_libsqlite/lib"
+        CPPFLAGS="$CPPFLAGS -I$with_libsqlite/include"
+    	AC_MSG_RESULT([yes, $with_libsqlite])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_MSG_WARN(no libsqlite library directory found in location $with_sqlite_lib)
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 # All SQLite Checks
 AC_DEFUN([AC_SQLITE_ALL_CHECKS],
 [
+    AC_SQLITE_LOCATION
+
     AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
     	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 	])
@@ -527,7 +546,7 @@ AS_IF([test "x$enable_timing" == "xno"], [
 AC_DEFUN([AC_ENABLE_SQLITE],
 [
 AC_MSG_CHECKING([should be compiled with support for SQLite backends])
-AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--disable-sqlite],[Disable compilation with support for SQLite backends]))
+AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--enable-sqlite],[Enable compilation with support for SQLite backends]))
 
 AS_IF([test "x$enable_sqlite" == "xyes"], [
   AC_MSG_RESULT([yes])
@@ -541,7 +560,7 @@ AS_IF([test "x$enable_sqlite" == "xyes"], [
 AC_DEFUN([AC_ENABLE_DUCKDB],
 [
 AC_MSG_CHECKING([should be compiled with support for DuckDB backends])
-AC_ARG_ENABLE(duckdb, AS_HELP_STRING([--disable-duckdb],[Disable compilation with support for DuckDB backends]))
+AC_ARG_ENABLE(duckdb, AS_HELP_STRING([--enable-duckdb],[Enable compilation with support for DuckDB backends]))
 
 AS_IF([test "x$enable_duckdb" == "xyes"], [
   AC_MSG_RESULT([yes])
@@ -555,7 +574,7 @@ AS_IF([test "x$enable_duckdb" == "xyes"], [
 AC_DEFUN([AC_ENABLE_MONETDB],
 [
 AC_MSG_CHECKING([should be compiled with support for MonetDB backends])
-AC_ARG_ENABLE(monetdb, AS_HELP_STRING([--disable-monetdb],[Disable compilation with support for MonetDB backends]))
+AC_ARG_ENABLE(monetdb, AS_HELP_STRING([--enable-monetdb],[Enable compilation with support for MonetDB backends]))
 
 AS_IF([test "x$enable_monetdb" == "xyes"], [
   AC_MSG_RESULT([yes])
