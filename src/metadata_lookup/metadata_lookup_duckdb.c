@@ -101,9 +101,6 @@ assembleDuckDBMetadataLookupPlugin (void)
     p->dataTypeToSQL = duckdbBackendDatatypeToSQL;
     p->getMinAndMax = duckdbGetMinAndMax;
     p->getNotNullAttrs = duckdbNotNullAttrs;
-{
-    return NULL;
-}
 
     return p;
 }
