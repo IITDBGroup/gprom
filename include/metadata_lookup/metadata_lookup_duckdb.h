@@ -31,12 +31,13 @@ extern List *duckdbGetKeyInformation(char *tableName);
 extern DataType duckdbBackendSQLTypeToDT (char *sqlType);
 extern char * duckdbBackendDatatypeToSQL (DataType dt);
 extern HashMap *duckdbGetMinAndMax(char* tableName, char* colName);
+extern Set *duckdbNotNullAttrs(char *tableName);
 
-extern Relation *duckdbExecuteQuery(char *query); 
-extern void duckdbExecuteQueryIgnoreResults(char *query); 
-extern void duckdbGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, 
-        List **sqlBinds, IsolationLevel *iso, Constant *commitScn); 
-extern Node *duckdbExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel); 
+extern Relation *duckdbExecuteQuery(char *query);
+extern void duckdbExecuteQueryIgnoreResults(char *query);
+extern void duckdbGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
+        List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+extern Node *duckdbExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 
 
 #endif /* INCLUDE_METADATA_LOOKUP_METADATA_LOOKUP_DUCKDB_H_ */

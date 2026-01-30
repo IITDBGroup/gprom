@@ -100,6 +100,11 @@ assembleDuckDBMetadataLookupPlugin (void)
     p->sqlTypeToDT = duckdbBackendSQLTypeToDT;
     p->dataTypeToSQL = duckdbBackendDatatypeToSQL;
     p->getMinAndMax = duckdbGetMinAndMax;
+    p->getNotNullAttrs = duckdbNotNullAttrs;
+{
+    return NULL;
+}
+
     return p;
 }
 
@@ -237,6 +242,14 @@ duckdbCatalogViewExists (char * viewName)
     RELEASE_MEM_CONTEXT();
     return table_count > 0;
 }
+
+Set *
+duckdbNotNullAttrs(char *tableName)
+{
+    //TODO extract from table
+    return STRSET();
+}
+
 
 List *
 duckdbGetAttributes(char *tableName)
@@ -1062,5 +1075,12 @@ duckdbExecuteQuery(char *query)
 {
     return NULL;
 }
+
+Set *
+duckdbNotNullAttrs(char *tableName)
+{
+    return NULL;
+}
+
 
 #endif
