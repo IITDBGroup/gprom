@@ -655,7 +655,7 @@ incrConst(Constant *c)
 }
 
 DataType
-typeOf(Node *expr)
+typeOf (Node *expr)
 {
     switch(expr->type)
     {
@@ -741,19 +741,6 @@ typeOf(Node *expr)
              break;
     }
     return DT_STRING;
-}
-
-List *
-exprListTypes(List *exprs)
-{
-    List *result = NIL;
-
-    FOREACH(Node,e,exprs)
-    {
-        result = appendToTailOfListInt(result, typeOf(e));
-    }
-
-    return result;
 }
 
 boolean
@@ -1393,6 +1380,34 @@ typeOfFunc(FunctionCall *f)
     if (strieq(f->functionname, UNCERTAIN_MAKER_FUNC_NAME))
     {
         return getNthOfListInt(typeOfArgs(f->args), 0);
+    }
+
+    // USET自定义函数类型处理
+    if (strieq(f->functionname, "range_set_smallerthan"))
+    {
+        return DT_STRING;  // range_set_smallerthan返回int4range[]类型，在GProM中映射为DT_STRING
+    }
+
+    if (strieq(f->functionname, "range_set_largerthan"))
+    {
+        return DT_STRING;  // range_set_largerthan返回int4range[]类型，在GProM中映射为DT_STRING
+    }
+
+    if (strieq(f->functionname, "range_set_add"))
+    {
+        return DT_STRING;  // range_set_add返回int4range[]类型，在GProM中映射为DT_STRING
+    }
+    if (strieq(f->functionname, "range_set_subtract"))
+    {
+        return DT_STRING;  // range_set_subtract返回int4range[]类型，在GProM中映射为DT_STRING
+    }
+     if (strieq(f->functionname, "range_set_equal"))
+    {
+        return DT_STRING;  // range_set_equal返回int4range[]类型，在GProM中映射为DT_STRING
+    }
+    if (strieq(f->functionname, "range_set_logic"))
+    {
+        return DT_STRING;  // range_set_logic返回int4range[]类型，在GProM中映射为DT_STRING
     }
 
     argDTs = typeOfArgs(f->args);

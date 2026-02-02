@@ -214,6 +214,7 @@ createAPI (void)
         api->serializeTableAccess = postgresSerializeTableAccess;
         api->serializeConstRel = postgresSerializeConstRel;
         api->serializeJoinOperator = postgresSerializeJoinOperator;
+        api->serializeOrderByOperator = genSerializeOrderByOperator;
     }
 }
 

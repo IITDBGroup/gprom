@@ -26,7 +26,6 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
-#include "model/set/set.h"
 #include "model/set/vector.h"
 #include <stdlib.h>
 
@@ -136,16 +135,6 @@
 #define NAME_GET_HIST "GPRoM_GetHist"
 #define PARAMS_GET_HIST 2
 #define QUERY_GET_HIST "SELECT histogram_bounds FROM pg_stats WHERE tablename = $1::text AND attname = $2::text;"
-
-#define NAME_GET_NOT_NULL "GProM_NotNullAttrs"
-#define PARAMS_GET_NOT_NULL 1
-#define QUERY_GET_NOT_NULL "SELECT attname " \
-                           "FROM pg_attribute a, pg_class t " \
-                           "WHERE t.oid = a.attrelid AND attnotnull AND attnum > 0 AND t.relname = $1::text;"
-
-#define NAME_FUNC_IS_STRICT "GProM_FuncIsStrict"
-#define PARAMS_FUNC_IS_STRICT 1
-#define QUERY_FUNC_IS_STRICT "SELECT EXISTS (SELECT * FROM (SELECT oprname AS fname FROM pg_operator o, pg_proc p WHERE oprcode = p.oid AND proisstrict UNION ALL SELECT proname FROM pg_proc WHERE proisstrict) sub WHERE sub.fname = $1::text);"
 
 
 //#define NAME_ "GPRoM_"
@@ -284,8 +273,6 @@ assemblePostgresMetadataLookupPlugin (void)
     p->dataTypeToSQL = postgresBackendDatatypeToSQL;
 	p->getMinAndMax = postgresGetMinAndMax;
 	p->getAllMinAndMax = postgresGetAllMinAndMax;
-    p->functionIsStrict = postgresFunctionIsStrict;
-    p->getNotNullAttrs = postgresNotNullAttrs;
 
     return p;
 }
@@ -515,8 +502,6 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_OP_DEFS);
     PREP_QUERY(GET_PK);
     PREP_QUERY(GET_HIST);
-    PREP_QUERY(GET_NOT_NULL);
-    PREP_QUERY(FUNC_IS_STRICT);
 
     // catalog pg_proc has changed in 11
     if (plugin->serverMajorVersion >= 11)
@@ -1815,58 +1800,6 @@ postgresGetMinAndMax(char* tableName, char* colName)
 	return result_map;
 }
 
-
-Set *
-postgresNotNullAttrs(char *tableName)
-{
-    Set *result = STRSET();
-    PGresult *res = NULL;
-
-    ACQUIRE_MEM_CONTEXT(memContext);
-    START_TIMER(METADATA_LOOKUP_TIMER);
-    //TODO cache function information
-    res = execPrepared(NAME_GET_NOT_NULL,
-                       LIST_MAKE(createConstString(tableName)));
-
-    for(int i = 0; i < PQntuples(res); i++)
-    {
-        char *a = PQgetvalue(res,i,0);
-        addToSet(result, strdup(a));
-    }
-
-    PQclear(res);
-
-    RELEASE_MEM_CONTEXT();
-    STOP_TIMER(METADATA_LOOKUP_TIMER);
-
-    return result;
-}
-
-boolean
-postgresFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists)
-{
-    PGresult *res = NULL;
-    boolean result = FALSE;
-
-    ACQUIRE_MEM_CONTEXT(memContext);
-    START_TIMER(METADATA_LOOKUP_TIMER);
-    //TODO cache function information
-    res = execPrepared(NAME_FUNC_IS_STRICT,
-                       LIST_MAKE(createConstString(fname)));
-
-    for(int i = 0; i < PQntuples(res); i++)
-    {
-        result = (strcmp(PQgetvalue(res,0,0),"t") == 0);
-    }
-
-    PQclear(res);
-
-    RELEASE_MEM_CONTEXT();
-    STOP_TIMER(METADATA_LOOKUP_TIMER);
-
-    return result;
-}
-
 void
 postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -1963,12 +1896,11 @@ execCommit(void)
     PGconn *c = plugin->conn;
     START_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
     res = PQexec(c, "COMMIT;");
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
-    {
-        STOP_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
-        CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
-                                 PQerrorMessage(c));
-    }
+        if (PQresultStatus(res) != PGRES_COMMAND_OK){
+            STOP_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
+            CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
+                    PQerrorMessage(c));
+        }
     STOP_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
     PQclear(res);
 
@@ -2329,18 +2261,6 @@ void
 postgresExecuteQueryIgnoreResult (char *query)
 {
 
-}
-
-boolean
-postgresFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists)
-{
-    return FALSE;
-}
-
-Set *
-postgresNotNullAttrs(char *tableName)
-{
-    return NULL;
 }
 
 #endif

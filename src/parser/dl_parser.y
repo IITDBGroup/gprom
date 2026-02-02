@@ -635,13 +635,21 @@ castExpression:
 binaryOperatorExpression:
 
     /* Arithmatic Operations */
-        expression '+' expression
+       /* expression '+' expression
             {
                 RULELOG("binaryOperatorExpression:: '+' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
-            }
+            }*/
+
+		 expression '+' expression
+            {
+                RULELOG("binaryOperatorExpression:: '+' ");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr("CUSTOM_ADD", expr);
+            }	
         | expression '-' expression
             {
                 RULELOG("binaryOperatorExpression:: '-' ");

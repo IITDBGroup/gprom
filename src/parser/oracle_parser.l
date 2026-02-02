@@ -231,6 +231,7 @@ postgrescast    "::"
 (?i:INCOMPLETE)		UPCASE_TOK(INCOMPLETE)
 (?i:XTABLE) 		UPCASE_TOK(XTABLE)
 (?i:URANGE)			UPCASE_TOK(URANGE)
+(?i:USET)			UPCASE_TOK(USET)
 (?i:ZUNCERT)		UPCASE_TOK(ZUNCERT)
 (?i:RADB)			UPCASE_TOK(RADB)
 (?i:UADB)			UPCASE_TOK(UADB)
@@ -275,7 +276,7 @@ postgrescast    "::"
 {comparisonOps}		TOK(comparisonOps)
 {strconcat}			TOK(STRINGCONCAT)
 {postgrescast}      TOK(POSTGRESCAST)
-[-+*%/^~&|![\]]		TOKSELF()
+[-+*%/^~&|!\[\]]		TOKSELF()
 
 
 

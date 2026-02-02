@@ -464,12 +464,10 @@ unionIntoSet(Set *left, Set *right)
     else
     {
         for(s = right->elem; s != NULL; s = s->hh.next)
-        {
             if (!hasSetElem(left, s->data))
             {
                 addToSet(left, right->cpy(s->data));
             }
-        }
     }
 }
 

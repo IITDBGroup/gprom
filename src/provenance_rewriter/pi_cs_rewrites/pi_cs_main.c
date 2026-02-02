@@ -14,7 +14,6 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
-#include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
@@ -376,7 +375,7 @@ rewritePI_CSReuseRewrittenOp(QueryOperator *op, PICSRewriteState *state)
 	// add result TID and dupl attributes
 	COPY_PROV_INFO(rewr, rewrOp);
 
-	LOG_RESULT_AND_RETURN(PICS,REUSE);
+	LOG_RESULT_AND_RETURN(REUSE);
 }
 
 
@@ -469,8 +468,6 @@ addUserProvenanceAttributes (QueryOperator *op,
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
 
-    SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
-
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
 
@@ -562,8 +559,6 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
-
-    SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
@@ -709,7 +704,7 @@ rewritePI_CSLimit(LimitOperator *op, PICSRewriteState *state)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-	LOG_RESULT_AND_RETURN(PICS,Limit);
+	LOG_RESULT_AND_RETURN(Limit);
 }
 
 
@@ -727,7 +722,7 @@ rewritePI_CSSelection(SelectionOperator *op, PICSRewriteState *state)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-	LOG_RESULT_AND_RETURN(PICS,Selection);
+	LOG_RESULT_AND_RETURN(Selection);
 }
 
 static QueryOperator *
@@ -758,7 +753,7 @@ rewritePI_CSProjection (ProjectionOperator *op, PICSRewriteState *state)
 	// copy prov info
 	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(PICS,Projection);
+	LOG_RESULT_AND_RETURN(Projection);
 }
 
 static QueryOperator *
@@ -808,12 +803,12 @@ rewritePI_CSJoin (JoinOperator *op, PICSRewriteState *state)
 
 	// provenance info is concatenation of child prov infos
 	provInfo = CONCAT_LISTS(
-		                    (List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)),
-		                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS)));
+		(List *) GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS),
+		(List *) GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS));
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(PICS,Join);
+	LOG_RESULT_AND_RETURN(Join);
 }
 
 
@@ -861,7 +856,7 @@ rewritePI_CSNestingOp (NestingOperator *op, PICSRewriteState *state)
 
 	// set rewritten op
 	rewr = (QueryOperator *) proj;
-	LOG_RESULT_AND_RETURN(PICS,NestingOperator);
+	LOG_RESULT_AND_RETURN(NestingOperator);
 }
 
 
@@ -879,7 +874,6 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
     QueryOperator *origAgg;
 	QueryOperator *curOp;
     int numGroupAttrs = LIST_LENGTH(op->groupBy);
-    boolean groupAttrsNonNull = TRUE;
 
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
@@ -889,23 +883,6 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
     // rewrite aggregation input copy
 	rewrInput = rewritePI_CSOperator(OP_LCHILD(op), state);
 	curOp = rewrInput;
-
-    // check whether group-by attributes are not null (can use equality)
-    if(op->groupBy != NIL)
-    {
-        QueryOperator *child = OP_LCHILD(op);
-        if(!HAS_STRING_PROP(child, PROP_STORE_NOT_NULL))
-        {
-            computeNotNullProp(child);
-        }
-        ASSERT(HAS_STRING_PROP(child, PROP_STORE_NOT_NULL));
-        Set *notNullAttr = (Set *) getStringProperty(child, PROP_STORE_NOT_NULL);
-
-        FOREACH(AttributeReference,a,op->groupBy)
-        {
-            groupAttrsNonNull &= hasSetElem(notNullAttr, a->name);
-        }
-    }
 
     // add projection including group by expressions if necessary
     if(op->groupBy != NIL)
@@ -947,32 +924,13 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
 		    char *name = getNthOfListP(groupByNames, pos);
-            Node *comparison;
-			AttributeReference *lA = createFullAttrReference(name,
-                                                             0,
-                                                             LIST_LENGTH(op->aggrs) + pos,
-                                                             INVALID_ATTR,
-                                                             a->attrType);
-			AttributeReference *rA = createFullAttrReference(CONCAT_STRINGS("_P_SIDE_",name),
-                                                             1,
-                                                             pos,
-                                                             INVALID_ATTR,
-                                                             a->attrType);
-
-            // can use equality if attribute is not null
-            if(groupAttrsNonNull)
-            {
-                comparison = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(lA, rA));
-            }
-            else
-            {
-                comparison = createIsNotDistinctExpr((Node *) lA, (Node *) rA);
-            }
-
+			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR, a->attrType);
+			AttributeReference *rA = createFullAttrReference(
+			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR, a->attrType);
 			if(joinCond)
-				joinCond = AND_EXPRS(comparison, joinCond);
+				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
 			else
-				joinCond = comparison;
+				joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
 			pos++;
 		}
 	}
@@ -1010,7 +968,7 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 	// copy provenance table and attr info
 	COPY_PROV_INFO(rewr,rewrInput);
 
-	LOG_RESULT_AND_RETURN(PICS,Aggregation);
+	LOG_RESULT_AND_RETURN(Aggregation);
 }
 
 
@@ -1384,12 +1342,13 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
     }
 
 	// provenance info is concatenation of child prov infos
-	provInfo = CONCAT_LISTS((List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)),
-		                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS)));
+	provInfo = CONCAT_LISTS(
+		(List *) GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS),
+		(List *) GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS));
 
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(PICS,SetOperation);
+	LOG_RESULT_AND_RETURN(SetOperation);
 }
 
 static QueryOperator *
@@ -1456,7 +1415,7 @@ rewritePI_CSTableAccess(TableAccessOperator *op, PICSRewriteState *state)
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(PICS,TableAccess);
+	LOG_RESULT_AND_RETURN(TableAccess);
 }
 
 static QueryOperator *
@@ -1516,7 +1475,7 @@ rewritePI_CSConstRel(ConstRelOperator *op, PICSRewriteState *state)
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(PICS,ConstRel);
+	LOG_RESULT_AND_RETURN(ConstRel);
 }
 
 static QueryOperator *
@@ -1528,7 +1487,7 @@ rewritePI_CSDuplicateRemOp(DuplicateRemoval *op, PICSRewriteState *state)
 
 	rewr = rewritePI_CSOperator(child, state);
 
-	LOG_RESULT_AND_RETURN(PICS,DuplicateRemoval);
+	LOG_RESULT_AND_RETURN(DuplicateRemoval);
 }
 
 static QueryOperator *
@@ -1542,7 +1501,7 @@ rewritePI_CSOrderOp(OrderOperator *op, PICSRewriteState *state)
     // adapt provenance attr list and schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(PICS,OrderBy);
+	LOG_RESULT_AND_RETURN(OrderBy);
 }
 
 void
@@ -2004,7 +1963,7 @@ rewriteUseCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
 
-	LOG_RESULT_AND_RETURN(PICS,Window);
+	LOG_RESULT_AND_RETURN(Window);
 }
 
 static QueryOperator *
@@ -2189,7 +2148,7 @@ rewriteCoarseGrainedWindow(WindowOperator *op, PICSRewriteState *state)
 	// copy prov info
  	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(PICS,Window-CoarseGrained);
+	LOG_RESULT_AND_RETURN(Window-CoarseGrained);
 }
 
 static QueryOperator *
@@ -2316,7 +2275,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *state
 										    (Node *) provAttrsOnly));
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
-	LOG_RESULT_AND_RETURN(PICS,TableAccess);
+	LOG_RESULT_AND_RETURN(TableAccess);
 }
 
 
@@ -2442,7 +2401,7 @@ rewriteCoarseGrainedAggregation(AggregationOperator *op, PICSRewriteState *state
 	// copy prov info
  	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(PICS,Aggregation-CoarseGrained);
+	LOG_RESULT_AND_RETURN(Aggregation-CoarseGrained);
 }
 
 
@@ -2535,7 +2494,7 @@ rewriteUseCoarseGrainedAggregation (AggregationOperator *op, PICSRewriteState *s
 	// copy prov info
  	COPY_PROV_INFO(rewr, rewrInput);
 
-	LOG_RESULT_AND_RETURN(PICS,Aggregation-CoarseGrained);
+	LOG_RESULT_AND_RETURN(Aggregation-CoarseGrained);
 }
 
 
@@ -2761,5 +2720,5 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op, PICSRewriteState *st
 	rewr->parents = singleton(sel);
 	rewr = (QueryOperator *) sel;
 
-    LOG_RESULT_AND_RETURN(PICS,TableAccess);
+    LOG_RESULT_AND_RETURN(TableAccess);
 }

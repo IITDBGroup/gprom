@@ -2277,8 +2277,25 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
             //INFO_NODE_BEATIFY_LOG("RANGE:", q);
+        }        
+        break;
+
+        
+        case PROV_INPUT_USET_QUERY:
+        {
+            List *provAttrNames = NIL;
+            List *provDts = NIL;
+
+            analyzeQueryBlockStmt(q->query, parentFroms);
+            correctFromTableVisitor(q->query, NULL);
+            getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
+            q->selectClause = concatTwoLists(q->selectClause, provAttrNames);
+            q->dts = concatTwoLists(q->dts,provDts);
         }
         break;
+
+
         case PROV_INPUT_ZONO_UNCERT_QUERY:
         {
             List *provAttrNames = NIL;

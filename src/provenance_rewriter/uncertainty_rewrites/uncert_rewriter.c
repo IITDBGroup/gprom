@@ -17,15 +17,16 @@
 #include "utility/string_utils.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "configuration/option.h"
+#include "parser/parser.h"  // 用于 parseExprFromString
 
 /* type of uncertainty annotations we produce */
 NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
 						UNCERTAIN_TUPLE_LEVEL,
 						UNCERTAIN_ATTR_LEVEL,
 						UNCERTAIN_ATTR_RANGES
-	);
+	); 
 
-#define LOG_RESULT_UNCERT(mes,op) \
+#define LOG_RESULT(mes,op) \
     do { \
         INFO_OP_LOG(mes,op); \
         DEBUG_NODE_BEATIFY_LOG(mes,op); \
@@ -47,6 +48,8 @@ NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
 
 #define UNCERT_MAPPING_PROP "UNCERT_MAPPING"
 
+
+
 /* function declarations */
 static Node *UncertOp(Operator *expr, HashMap *hmp);
 static Node *UncertIf(CaseExpr *expr, HashMap *hmp);
@@ -55,6 +58,523 @@ static Node *createCaseOperator(Node *expr);
 static Node *createReverseCaseOperator(Node *expr);
 static Node *getOutputExprFromInput(Node *expr, int offset);
 Node *getUncertaintyExpr(Node *expr, HashMap *hmp);
+
+
+/* USET相关常量 */
+#define USET_FUNC_NAME "USET"
+#define RANGE_SET_ADD_FUNC_NAME "range_set_add"
+#define RANGE_SET_SUBTRACT_FUNC_NAME "range_set_subtract"
+#define RANGE_SET_SMALLERTHAN_FUNC_NAME "range_set_smallerthan"
+#define RANGE_SET_LARGERTHAN_FUNC_NAME "range_set_largerthan"
+#define RANGE_SET_EQUAL_FUNC_NAME "range_set_equal"
+#define RANGE_SET_MULTIPLY_FUNC_NAME "range_set_multiply"
+
+// USET模式检测和设置函数
+static boolean isUsetMode(QueryOperator *op);
+static void setUsetMode(QueryOperator *op);
+static Node *rewriteUsetExpression(Node *expr, HashMap *hmp);
+
+// USET模式检测函数
+static boolean isUsetMode(QueryOperator *op) {
+    // 检查操作符是否处于USET模式
+    return HAS_STRING_PROP(op, "USET_MODE");
+}
+
+// 设置USET模式
+static void setUsetMode(QueryOperator *op) {
+    setStringProperty(op, "USET_MODE", (Node *)createConstBool(TRUE));
+}
+
+// 重写USET表达式
+static Node *rewriteUsetExpression(Node *expr, HashMap *hmp) {
+    if (!expr) return NULL;
+    
+    switch (expr->type) {
+        case T_Operator: {
+            Operator *op = (Operator *)expr;
+            
+            // 处理加法操作
+            if (strcmp(op->name, "+") == 0) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = (Node *)getNthOfListP(op->args, 1);
+                
+                // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                List *args;
+                if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                    AttributeReference *attr1 = (AttributeReference *)e1;
+                    AttributeReference *attr2 = (AttributeReference *)e2;
+                    
+                    // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                    if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                        args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                        INFO_LOG("USET: Direct array addition for %s + %s", nodeToString(e1), nodeToString(e2));
+                    } else {
+                        // 需要类型转换
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                        );
+                        INFO_LOG("USET: Type conversion needed for %s + %s", nodeToString(e1), nodeToString(e2));
+                    }
+                } else {
+                    // 默认进行类型转换
+                    args = LIST_MAKE(
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                    );
+                    INFO_LOG("USET: Default type conversion for %s + %s", nodeToString(e1), nodeToString(e2));
+                }
+                FunctionCall *fc = createFunctionCall(RANGE_SET_ADD_FUNC_NAME, args);
+                
+                INFO_LOG("USET: Rewrote %s + %s to %s(...)", 
+                    nodeToString(e1), nodeToString(e2), RANGE_SET_ADD_FUNC_NAME);
+                return (Node *)fc;
+            }
+            
+            // 处理减法操作
+            if (strcmp(op->name, "-") == 0) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = (Node *)getNthOfListP(op->args, 1);
+                
+                // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                List *args;
+                if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                    AttributeReference *attr1 = (AttributeReference *)e1;
+                    AttributeReference *attr2 = (AttributeReference *)e2;
+                    
+                    // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                    if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                        args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                        INFO_LOG("USET: Direct array subtraction for %s - %s", nodeToString(e1), nodeToString(e2));
+                    } else {
+                        // 需要类型转换
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                        );
+                        INFO_LOG("USET: Type conversion needed for %s - %s", nodeToString(e1), nodeToString(e2));
+                    }
+                } else {
+                    // 默认进行类型转换
+                    args = LIST_MAKE(
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                    );
+                    INFO_LOG("USET: Default type conversion for %s - %s", nodeToString(e1), nodeToString(e2));
+                }
+                FunctionCall *fc = createFunctionCall(RANGE_SET_SUBTRACT_FUNC_NAME, args);
+                
+                INFO_LOG("USET: Rewrote %s - %s to %s(...)", 
+                    nodeToString(e1), nodeToString(e2), RANGE_SET_SUBTRACT_FUNC_NAME);
+                return (Node *)fc;
+            }
+            
+            // 处理乘法操作
+            if (strcmp(op->name, "*") == 0) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = (Node *)getNthOfListP(op->args, 1);
+                
+                // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                List *args;
+                if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                    AttributeReference *attr1 = (AttributeReference *)e1;
+                    AttributeReference *attr2 = (AttributeReference *)e2;
+                    
+                    // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                    if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                        args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                        INFO_LOG("USET: Direct array multiplication for %s * %s", nodeToString(e1), nodeToString(e2));
+                    } else {
+                        // 需要类型转换
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                        );
+                        INFO_LOG("USET: Type conversion needed for %s * %s", nodeToString(e1), nodeToString(e2));
+                    }
+                } else {
+                    // 默认进行类型转换
+                    args = LIST_MAKE(
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                    );
+                    INFO_LOG("USET: Default type conversion for %s * %s", nodeToString(e1), nodeToString(e2));
+                }
+                FunctionCall *fc = createFunctionCall(RANGE_SET_MULTIPLY_FUNC_NAME, args);
+                
+                INFO_LOG("USET: Rewrote %s * %s to %s(...)", 
+                    nodeToString(e1), nodeToString(e2), RANGE_SET_MULTIPLY_FUNC_NAME);
+                return (Node *)fc;
+            }
+
+            // 处理小于比较操作
+            if (strcmp(op->name, "<") == 0) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = (Node *)getNthOfListP(op->args, 1);
+                
+                // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                List *args;
+                if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                    AttributeReference *attr1 = (AttributeReference *)e1;
+                    AttributeReference *attr2 = (AttributeReference *)e2;
+                    
+                    // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                    if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                        args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                        INFO_LOG("USET: Direct array comparison for %s < %s", nodeToString(e1), nodeToString(e2));
+                    } else {
+                        // 需要类型转换
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                        );
+                        INFO_LOG("USET: Type conversion needed for %s < %s", nodeToString(e1), nodeToString(e2));
+                    }
+                } else {
+                    // 默认进行类型转换
+                    args = LIST_MAKE(
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                    );
+                    INFO_LOG("USET: Default type conversion for %s < %s", nodeToString(e1), nodeToString(e2));
+                }
+                
+                FunctionCall *fc = createFunctionCall(RANGE_SET_SMALLERTHAN_FUNC_NAME, args);
+                
+                INFO_LOG("USET: Rewrote %s < %s to %s(...)", 
+                    nodeToString(e1), nodeToString(e2), RANGE_SET_SMALLERTHAN_FUNC_NAME);
+                return (Node *)fc;
+            }
+            
+            // 处理大于比较操作
+            if (strcmp(op->name, ">") == 0) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = (Node *)getNthOfListP(op->args, 1);
+                
+                // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                List *args;
+                if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                    AttributeReference *attr1 = (AttributeReference *)e1;
+                    AttributeReference *attr2 = (AttributeReference *)e2;
+                    
+                    // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                    if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                        args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                        INFO_LOG("USET: Direct array comparison for %s > %s", nodeToString(e1), nodeToString(e2));
+                    } else {
+                        // 需要类型转换
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                        );
+                        INFO_LOG("USET: Type conversion needed for %s > %s", nodeToString(e1), nodeToString(e2));
+                    }
+                } else {
+                    // 默认进行类型转换
+                    args = LIST_MAKE(
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                    );
+                    INFO_LOG("USET: Default type conversion for %s > %s", nodeToString(e1), nodeToString(e2));
+                }
+                
+                FunctionCall *fc = createFunctionCall(RANGE_SET_LARGERTHAN_FUNC_NAME, args);
+                
+                INFO_LOG("USET: Rewrote %s > %s to %s(...)", 
+                    nodeToString(e1), nodeToString(e2), RANGE_SET_LARGERTHAN_FUNC_NAME);
+                return (Node *)fc;
+            }
+
+			// 处理等于比较操作
+            if (strcmp(op->name, "=") == 0) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = (Node *)getNthOfListP(op->args, 1);
+                
+                // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                List *args;
+                if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                    AttributeReference *attr1 = (AttributeReference *)e1;
+                    AttributeReference *attr2 = (AttributeReference *)e2;
+                    
+                    // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                    if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                        args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                        INFO_LOG("USET: Direct array equality for %s = %s", nodeToString(e1), nodeToString(e2));
+                    } else {
+                        // 需要类型转换
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                        );
+                        INFO_LOG("USET: Type conversion needed for %s = %s", nodeToString(e1), nodeToString(e2));
+                    }
+                } else {
+                    // 默认进行类型转换
+                    args = LIST_MAKE(
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                    );
+                    INFO_LOG("USET: Default type conversion for %s = %s", nodeToString(e1), nodeToString(e2));
+                }
+                
+                FunctionCall *fc = createFunctionCall(RANGE_SET_EQUAL_FUNC_NAME, args);
+                
+                INFO_LOG("USET: Rewrote %s = %s to %s(...)", 
+                    nodeToString(e1), nodeToString(e2), RANGE_SET_EQUAL_FUNC_NAME);
+                return (Node *)fc;
+            }
+
+			// 处理字符串操作符语法：array1 'AND' array2
+            // 检查是否有3个参数，第三个参数是字符串常量，且操作符名称匹配
+            if (LIST_LENGTH(op->args) == 3) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = (Node *)getNthOfListP(op->args, 1);
+                Node *e3 = (Node *)getNthOfListP(op->args, 2);
+                
+                // 检查第三个参数是否是字符串常量
+                if (isA(e3, Constant)) {
+                    Constant *c = (Constant *)e3;
+                    if (c->constType == DT_STRING && c->value && !c->isNull) {
+                        char *operatorStr = (char *)c->value;
+                        // 如果操作符字符串为空，默认使用 'AND'
+                        if (strlen(operatorStr) == 0) {
+                            operatorStr = "AND";
+                        }
+                        // 检查操作符名称是否匹配（支持 AND, OR, NOT）
+                        if (strcmp(operatorStr, "AND") == 0 || strcmp(operatorStr, "OR") == 0 || 
+                            strcmp(operatorStr, "NOT") == 0 || strcmp(op->name, operatorStr) == 0) {
+                            
+                            boolean isNotOp = (strcmp(operatorStr, "NOT") == 0);
+                            
+                            // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                            List *args;
+                            if (isNotOp) {
+                                // NOT 操作符：只有一个操作数
+                                if (isA(e1, AttributeReference)) {
+                                    AttributeReference *attr1 = (AttributeReference *)e1;
+                                    if (attr1->attrType == DT_STRING) {
+                                        args = LIST_MAKE(copyObject(e1));
+                                        INFO_LOG("USET: Direct array logic for NOT %s (string operator)", nodeToString(e1));
+                                    } else {
+                                        args = LIST_MAKE(
+                                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1)))
+                                        );
+                                        INFO_LOG("USET: Type conversion needed for NOT %s (string operator)", nodeToString(e1));
+                                    }
+                                } else {
+                                    args = LIST_MAKE(
+                                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1)))
+                                    );
+                                    INFO_LOG("USET: Default type conversion for NOT %s (string operator)", nodeToString(e1));
+                                }
+                                // NOT 操作符的第二个参数为 NULL
+                                args = appendToTailOfList(args, NULL);
+                            } else {
+                                // AND/OR 操作符：有两个操作数
+                                if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                                    AttributeReference *attr1 = (AttributeReference *)e1;
+                                    AttributeReference *attr2 = (AttributeReference *)e2;
+                                    
+                                    // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                                    if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                                        args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                                        INFO_LOG("USET: Direct array logic for %s '%s' %s (string operator)", 
+                                            nodeToString(e1), operatorStr, nodeToString(e2));
+                                    } else {
+                                        // 需要类型转换
+                                        args = LIST_MAKE(
+                                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                                        );
+                                        INFO_LOG("USET: Type conversion needed for %s '%s' %s (string operator)", 
+                                            nodeToString(e1), operatorStr, nodeToString(e2));
+                                    }
+                                } else {
+                                    // 默认进行类型转换
+                                    args = LIST_MAKE(
+                                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                                        (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                                    );
+                                    INFO_LOG("USET: Default type conversion for %s '%s' %s (string operator)", 
+                                        nodeToString(e1), operatorStr, nodeToString(e2));
+                                }
+                            }
+                            
+                            // 添加操作符参数
+                            Node *operatorNode = (Node *)createConstString(operatorStr);
+                            args = appendToTailOfList(args, operatorNode);
+                            
+                            FunctionCall *fc = createFunctionCall(RANGE_SET_LOGIC_FUNC_NAME, args);
+                            
+                            if (isNotOp) {
+                                INFO_LOG("USET: Rewrote %s '%s' to %s(%s, NULL, '%s')", 
+                                    nodeToString(e1), operatorStr, RANGE_SET_LOGIC_FUNC_NAME, nodeToString(e1), operatorStr);
+                            } else {
+                                INFO_LOG("USET: Rewrote %s '%s' %s to %s(..., '%s')", 
+                                    nodeToString(e1), operatorStr, nodeToString(e2), RANGE_SET_LOGIC_FUNC_NAME, operatorStr);
+                            }
+                            return (Node *)fc;
+                        }
+                    }
+                }
+            }
+            
+			// 处理逻辑操作符
+            if (strcmp(op->name, "AND") == 0 || strcmp(op->name, "OR") == 0 || strcmp(op->name, "NOT") == 0 ||
+                strcmp(op->name, "&") == 0 || strcmp(op->name, "|") == 0 || strcmp(op->name, "!") == 0) {
+                Node *e1 = (Node *)getNthOfListP(op->args, 0);
+                Node *e2 = NULL;
+                
+                // NOT 操作符只有一个操作数，其他逻辑操作符有两个操作数
+                boolean isNotOp = (strcmp(op->name, "!") == 0 || strcmp(op->name, "NOT") == 0);
+                if (!isNotOp) {
+                    e2 = (Node *)getNthOfListP(op->args, 1);
+                }
+                
+                // 检查参数类型，如果是int4range[]类型，直接使用；否则进行类型转换
+                List *args;
+                if (isNotOp) {
+                    // NOT 操作符：只有一个操作数
+                    if (isA(e1, AttributeReference)) {
+                        AttributeReference *attr1 = (AttributeReference *)e1;
+                        if (attr1->attrType == DT_STRING) {
+                            args = LIST_MAKE(copyObject(e1));
+                            INFO_LOG("USET: Direct array logic for NOT %s", nodeToString(e1));
+                        } else {
+                            args = LIST_MAKE(
+                                (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1)))
+                            );
+                            INFO_LOG("USET: Type conversion needed for NOT %s", nodeToString(e1));
+                        }
+                    } else {
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1)))
+                        );
+                        INFO_LOG("USET: Default type conversion for NOT %s", nodeToString(e1));
+                    }
+                    // NOT 操作符的第二个参数为 NULL
+                    args = appendToTailOfList(args, NULL);
+                } else {
+                    // AND/OR 操作符：有两个操作数
+                    if (isA(e1, AttributeReference) && isA(e2, AttributeReference)) {
+                        AttributeReference *attr1 = (AttributeReference *)e1;
+                        AttributeReference *attr2 = (AttributeReference *)e2;
+                        
+                        // 如果属性类型是DT_STRING（对应int4range[]），直接使用
+                        if (attr1->attrType == DT_STRING && attr2->attrType == DT_STRING) {
+                            args = LIST_MAKE(copyObject(e1), copyObject(e2));
+                            INFO_LOG("USET: Direct array logic for %s %s %s", nodeToString(e1), op->name, nodeToString(e2));
+                        } else {
+                            // 需要类型转换
+                            args = LIST_MAKE(
+                                (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                                (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                            );
+                            INFO_LOG("USET: Type conversion needed for %s %s %s", nodeToString(e1), op->name, nodeToString(e2));
+                        }
+                    } else {
+                        // 默认进行类型转换
+                        args = LIST_MAKE(
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e1))),
+                            (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(e2)))
+                        );
+                        INFO_LOG("USET: Default type conversion for %s %s %s", nodeToString(e1), op->name, nodeToString(e2));
+                    }
+                }
+                
+                // 将逻辑操作符映射到range_set_logic函数参数
+                char *operatorStr;
+                if (strcmp(op->name, "&") == 0 || strcmp(op->name, "AND") == 0) {
+                    operatorStr = "AND";
+                } else if (strcmp(op->name, "|") == 0 || strcmp(op->name, "OR") == 0) {
+                    operatorStr = "OR";
+                } else if (strcmp(op->name, "!") == 0 || strcmp(op->name, "NOT") == 0) {
+                    operatorStr = "NOT";
+                } else {
+                    operatorStr = op->name; // 保持原有操作符名称
+                }
+
+                // 添加操作符参数
+                Node *operatorNode = (Node *)createConstString(operatorStr);
+                args = appendToTailOfList(args, operatorNode);
+                
+                FunctionCall *fc = createFunctionCall(RANGE_SET_LOGIC_FUNC_NAME, args);
+                
+                if (isNotOp) {
+                    INFO_LOG("USET: Rewrote NOT %s to %s(%s, NULL, '%s')", 
+                        nodeToString(e1), RANGE_SET_LOGIC_FUNC_NAME, nodeToString(e1), operatorStr);
+                } else {
+                    INFO_LOG("USET: Rewrote %s %s %s to %s(..., '%s')", 
+                        nodeToString(e1), op->name, nodeToString(e2), RANGE_SET_LOGIC_FUNC_NAME, operatorStr);
+                }
+                return (Node *)fc;
+            }
+            
+            // 递归处理其他操作符的参数
+            FOREACH(Node, arg, op->args) {
+                replaceNode(op->args, arg, rewriteUsetExpression(arg, hmp));
+            }
+            return (Node *)op;
+        }
+        case T_FunctionCall: {
+            FunctionCall *fc = (FunctionCall *)expr;
+            
+            // 递归处理函数调用的参数
+            FOREACH(Node, arg, fc->args) {
+                replaceNode(fc->args, arg, rewriteUsetExpression(arg, hmp));
+            }
+            return (Node *)fc;
+        }
+        case T_AttributeReference: {
+            // 对于属性引用，检查是否需要类型转换
+            AttributeReference *attr = (AttributeReference *)expr;
+            
+            // 如果属性类型不是DT_STRING（int4range[]），需要转换
+            if (attr->attrType != DT_STRING) {
+                INFO_LOG("USET: Converting attribute %s from type %d to range_set", 
+                    attr->name, attr->attrType);
+                
+                // 创建类型转换函数调用
+                FunctionCall *fc = createFunctionCall("int_to_range_set", singleton(copyObject(expr)));
+                return (Node *)fc;
+            }
+            
+            return expr;
+        }
+        case T_Constant: {
+            // 对于常量，检查是否需要类型转换
+            Constant *const_val = (Constant *)expr;
+            
+            // 如果是数值类型，需要转换为range_set
+            if (const_val->constType == DT_INT || const_val->constType == DT_FLOAT) {
+                INFO_LOG("USET: Converting constant %s to range_set", nodeToString(expr));
+                
+                // 创建类型转换函数调用
+                FunctionCall *fc = createFunctionCall("int_to_range_set", singleton(copyObject(expr)));
+                return (Node *)fc;
+            }
+            
+            return expr;
+        }
+        default:
+            return expr;
+    }
+}
+
+//Uset query rewriting
+static QueryOperator *rewriteUsetProvComp(QueryOperator *op);
+static QueryOperator *rewriteUsetLimit(QueryOperator *op);
+static QueryOperator *rewrite_UsetTableAccess(QueryOperator *op);
+static QueryOperator *rewrite_UsetProjection(QueryOperator *op);
+static QueryOperator *rewrite_UsetSelection(QueryOperator *op);
+static QueryOperator *rewrite_UsetJoin(QueryOperator *op);
+static QueryOperator *rewrite_UsetAggregation(QueryOperator *op);
+static QueryOperator *rewrite_UsetAggregation2(QueryOperator *op);
+static QueryOperator *rewrite_UsetXTable(QueryOperator *op);
+
+
+
+
 
 //Range expression rewriting
 static Node *RangeUBOp(Operator *expr, HashMap *hmp);
@@ -74,6 +594,7 @@ extern char *getAttrTwoString(char *in);
 static QueryOperator *rewrite_UncertTIP(QueryOperator *op, UncertaintyType typ);
 static QueryOperator *rewrite_UncertIncompleteTable(QueryOperator *op);
 static QueryOperator *rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ);
+static QueryOperator *rewrite_UncertCTable(QueryOperator *op);
 static QueryOperator *rewrite_RangeTIP(QueryOperator *op);
 
 //uncertain query rewriting
@@ -119,7 +640,6 @@ static List *getJoinAttrPair(Node *expr);
 
 static void addRangeAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
 static void addRangeRowToSchema(HashMap *hmp, QueryOperator *target);
-
 static List *putMidListToEnd(List *in, int p1, int p2);
 
 
@@ -137,6 +657,13 @@ rewriteUncert(QueryOperator * op)
 	if(HAS_STRING_PROP(op,PROV_PROP_INCOMPLETE_TABLE))
 	{
 		rewrittenOp = rewrite_UncertIncompleteTable(op);
+		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,"CTABLE_CONF"))
+	{
+		rewrittenOp = rewrite_UncertCTable(op);
+		INFO_OP_LOG("Uncertainty Rewrite CTable:", rewrittenOp);
 		return rewrittenOp;
 	}
 
@@ -337,6 +864,99 @@ rewriteRange(QueryOperator * op)
 	}
 	return rewrittenOp;
 }
+
+
+QueryOperator *
+rewriteUset(QueryOperator * op)
+{
+	// FATAL_LOG("USET_REWRITE");
+	QueryOperator *rewrittenOp;
+	
+	// 设置USET模式属性
+	setUsetMode(op);
+	
+	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
+	{
+		rewrittenOp = rewrite_RangeTIP(op);
+		INFO_OP_LOG("USET Rewrite TIP:", rewrittenOp);
+		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,PROV_PROP_INCOMPLETE_TABLE))
+	{
+		rewrittenOp = rewrite_UncertIncompleteTable(op);
+		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,PROP_XTABLE_GROUPID))
+	{
+		ASSERT(HAS_STRING_PROP(op,PROP_XTABLE_PROB));
+		rewrittenOp = rewrite_UsetXTable(op);
+		INFO_OP_LOG("USET Rewrite XTable:", rewrittenOp);
+		return rewrittenOp;
+	}
+
+	switch(op->type)
+	{
+	    case T_ProvenanceComputation:
+	        rewrittenOp = rewriteUsetProvComp(op);
+	        break;
+	    case T_LimitOperator:
+	    	rewrittenOp = rewriteUsetLimit(op);
+	    	break;
+		case T_TableAccessOperator:
+			rewrittenOp = rewrite_UsetTableAccess(op);
+			if(0){
+				rewrittenOp = combinePosToOne(rewrittenOp);
+			}
+			INFO_OP_LOG("USET Rewrite TableAccess:", rewrittenOp);
+			break;
+		case T_SelectionOperator:
+			rewrittenOp = rewrite_UsetSelection(op);
+			// if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
+			// 	SET_STRING_PROP(rewrittenOp, PROP_STORE_POSSIBLE_TREE, (Node *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE));
+			// }
+			INFO_OP_LOG("USET Rewrite Selection:", rewrittenOp);
+			break;
+		case T_ProjectionOperator:
+			rewrittenOp = rewrite_UsetProjection(op);
+			// if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
+			// 	SET_STRING_PROP(rewrittenOp, PROP_STORE_POSSIBLE_TREE, (Node *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE));
+			// }
+			INFO_OP_LOG("USET Rewrite Projection:", rewrittenOp);
+			break;
+		case T_JoinOperator:
+			rewrittenOp = rewrite_UsetJoin(op);
+			INFO_OP_LOG("USET Rewrite Join:", rewrittenOp);
+			break;
+		case T_AggregationOperator:
+			if(getBoolOption(RANGE_OPTIMIZE_AGG)){
+				rewrittenOp = rewrite_UsetAggregation2(op);
+			}
+			else {
+				rewrittenOp = rewrite_UsetAggregation(op);
+			}
+			INFO_OP_LOG("USET Rewrite Aggregation:", rewrittenOp);
+			break;
+		case T_DuplicateRemoval:
+			rewrittenOp = rewrite_UncertDuplicateRemoval(op, TRUE);
+			INFO_OP_LOG("USET Rewrite DuplicateRemoval:", rewrittenOp);
+			break;
+		case T_SetOperator:
+			rewrittenOp = rewrite_UncertSet(op, TRUE);
+			INFO_OP_LOG("USET Rewrite Set:", rewrittenOp);
+			break;
+		default:
+			FATAL_LOG("USET rewrite for %s not implemented", NodeTagToString(op->type));
+			rewrittenOp = NULL;
+			break;
+	}
+	return rewrittenOp;
+}
+
+
+
+
 
 Node *
 removeUncertOpFromExpr(Node *expr)
@@ -959,7 +1579,7 @@ getMedian(Node *ub, Node *lb)
 			return (Node *) getStringMedian(nonNull, createConstString(strdup(STRING_MEDIAN_VALUE)));
 		}
 		default:
-			return NULL;
+    return NULL;
 		}
 	}
 
@@ -1056,7 +1676,7 @@ rewrite_RangeTIP(QueryOperator *op)
 	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_TIP_ATTR));
 
 //	int pos = getAttrRefByName(op,TIPName)->attrPosition;
-
+	//创建不确定条件
 	Operator *bgcond = createOpExpr(OPNAME_GE, LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.5)));
 	Operator *certcond = createOpExpr(OPNAME_GE, LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(1.0)));
 	Operator *poscond = createOpExpr(OPNAME_GT, LIST_MAKE(getAttrRefByName(op,TIPName), createConstFloat(0.0)));
@@ -1070,11 +1690,13 @@ rewrite_RangeTIP(QueryOperator *op)
 //	INFO_LOG("Range_TIP_proj: %s", nodeToString(((ProjectionOperator *)proj)->projExprs));
 
 	List *attrExpr = getProjExprsForAllAttrs(op);
+	//遍历所有属性，将它们添加到新的投影操作符和不确定性映射中
 	FOREACH(Node, nd, attrExpr){
 		addRangeAttrToSchema(hmp, proj, nd);
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, copyObject(nd));
 	}
+	//将基于TIP值的Case表达式添加到投影中，用于计算不同级别的不确定性
 	addRangeRowToSchema(hmp, proj);
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)certcond));
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator((Node *)bgcond));
@@ -1084,7 +1706,7 @@ rewrite_RangeTIP(QueryOperator *op)
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(((ProjectionOperator *)proj)->projExprs));
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(hmp));
 
-	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [TIP TABLE]", op);
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [TIP TABLE]", op);
 
 	return proj;
 }
@@ -1191,6 +1813,605 @@ rewrite_UncertIncompleteTable(QueryOperator *op)
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query root for INCOMPLETE uncertainty is:", proj);
+
+	return proj;
+}
+
+/**
+ * 辅助函数：为属性创建范围转换表达式
+ * 根据c_conf条件，将数值列转换为范围表达式
+ */
+/**
+ * 使用正则表达式提取比较操作符后的数值
+ * 支持：>, <, >=, <=, !=, ==
+ * 使用 PostgreSQL 的 regexp_match 函数来提取数字
+ * 返回提取的数值字符串，如果未找到则返回空字符串
+ * 
+ * 注意：这个函数在 SQL 生成阶段被调用，生成的是 SQL 表达式，不是执行时的值
+ * 注意：此函数当前未使用，保留作为备选方案
+ */
+static Node __attribute__((unused)) *
+extractValueAfterOperator(Node *condStr, char *operator)
+{
+	// 构建正则表达式模式：匹配操作符后的数字（可能带负号和小数点）
+	// 例如：对于 "X>10"，模式应该是 ">(-?\\d+(?:\\.\\d+)?)"
+	// 转义特殊字符：> < 等需要转义为 \\> \\<
+	char *escapedOp = (char *)MALLOC(strlen(operator) * 2 + 1);
+	int j = 0;
+	for (int i = 0; operator[i]; i++) {
+		// 转义正则表达式特殊字符
+		if (operator[i] == '>' || operator[i] == '<' || operator[i] == '(' || operator[i] == ')' || 
+		    operator[i] == '[' || operator[i] == ']' || operator[i] == '{' || operator[i] == '}' ||
+		    operator[i] == '*' || operator[i] == '+' || operator[i] == '?' || operator[i] == '^' ||
+		    operator[i] == '$' || operator[i] == '|' || operator[i] == '\\' || operator[i] == '.') {
+			escapedOp[j++] = '\\';
+		}
+		escapedOp[j++] = operator[i];
+	}
+	escapedOp[j] = '\0';
+	
+	char *pattern = CONCAT_STRINGS(escapedOp, "(-?\\d+(?:\\.\\d+)?)");
+	// 注意：patternNode 变量当前未使用，保留作为备选方案
+	// Node *patternNode = (Node *)createConstString(pattern);
+	
+	// 使用 regexp_match 提取数字部分
+	// regexp_match 返回 text[]，第一个元素是完整匹配，第二个元素是第一个捕获组
+	// 注意：matchResult 变量当前未使用，保留作为备选方案
+	// Node *matchResult = (Node *)createFunctionCall("regexp_match",
+	// 	LIST_MAKE(copyObject(condStr), patternNode));
+	
+	// 提取数组的第二个元素（第一个捕获组，即数字部分）
+	// 使用 (regexp_match(...))[2] 语法来访问数组元素
+	// 如果匹配失败，matchResult 为 NULL，我们需要处理这种情况
+	// 注意：valueStr 变量当前未使用，保留作为备选方案
+	// Node *valueStr = (Node *)createFunctionCall("COALESCE",
+	// 	LIST_MAKE(
+	// 		(Node *)createFunctionCall("(array)",
+	// 			LIST_MAKE((Node *)createFunctionCall("(array)[2]", LIST_MAKE(matchResult)))),
+	// 		(Node *)createConstString("")
+	// 	));
+	
+	// 简化：使用 substring 方法作为备选方案
+	// 释放 patternNode（如果不再使用）
+	FREE(pattern);
+	// 找到操作符的位置
+	Node *opPos = (Node *)createFunctionCall("strpos",
+		LIST_MAKE(copyObject(condStr), (Node *)createConstString(operator)));
+	Node *hasOp = (Node *)createOpExpr(OPNAME_GT, LIST_MAKE(opPos, createConstInt(0)));
+	
+	// 提取操作符后的内容
+	Node *startAfterOp = (Node *)createOpExpr("+", LIST_MAKE(opPos, createConstInt(strlen(operator))));
+	Node *afterOp = (Node *)createFunctionCall("substring",
+		LIST_MAKE(copyObject(condStr), startAfterOp));
+	
+	// 使用 regexp_replace 提取纯数字部分
+	Node *cleanValue = (Node *)createFunctionCall("regexp_replace",
+		LIST_MAKE(afterOp, (Node *)createConstString("^(-?\\d+(?:\\.\\d+)?).*$"),
+			(Node *)createConstString("\\1")));
+	
+	// 如果找到操作符，返回清理后的值；否则返回空字符串
+	Node *result = (Node *)createCaseExpr(NULL,
+		LIST_MAKE(createCaseWhen(hasOp, cleanValue)),
+		(Node *)createConstString(""));
+	
+	FREE(escapedOp);
+	
+	return result;
+}
+
+/**
+ * 检查条件字符串中是否包含指定的操作符
+ * 支持：>, <, >=, <=, !=, ==
+ * 注意：此函数当前未使用，保留作为备选方案
+ */
+static Node __attribute__((unused)) *
+hasOperator(Node *condStr, char *operator)
+{
+	Node *opPos = (Node *)createFunctionCall("strpos",
+		LIST_MAKE(copyObject(condStr), (Node *)createConstString(operator)));
+	return (Node *)createOpExpr(OPNAME_GT, LIST_MAKE(opPos, createConstInt(0)));
+}
+
+/**
+ * 字符串替换辅助函数
+ */
+static char *
+stringReplace(char *str, const char *old, const char *new)
+{
+	if (!str || !old || !new) return str;
+	
+	StringInfo result = makeStringInfo();
+	char *p = str;
+	size_t oldLen = strlen(old);
+	
+	while (*p) {
+		if (strncmp(p, old, oldLen) == 0) {
+			appendStringInfoString(result, new);
+			p += oldLen;
+		} else {
+			appendStringInfoChar(result, *p);
+			p++;
+		}
+	}
+	
+	char *ret = strdup(result->data);
+	FREE(result);
+	return ret;
+}
+
+/**
+ * 将条件字符串转换为 SQL 表达式格式
+ * "X>10&&X<20" -> "(X > 10) AND (X < 20)"
+ */
+static char *
+convertConditionToSQL(char *condStr)
+{
+	if (!condStr) return NULL;
+	
+	char *sql = strdup(condStr);
+	
+	// 替换操作符
+	char *tmp = stringReplace(sql, "&&", " AND ");
+	FREE(sql);
+	sql = tmp;
+	
+	tmp = stringReplace(sql, "||", " OR ");
+	FREE(sql);
+	sql = tmp;
+	
+	tmp = stringReplace(sql, "!", " NOT ");
+	FREE(sql);
+	sql = tmp;
+	
+	// 简化：直接返回转换后的字符串
+	// 更复杂的实现可以添加括号处理等
+	return sql;
+}
+
+/**
+ * 从比较操作符节点中提取数值
+ * 例如：Operator(">", [var, Const(10)]) -> 返回 "10"
+ */
+static char *
+extractValueFromComparison(Operator *op)
+{
+	if (!op || LIST_LENGTH(op->args) != 2) return NULL;
+	
+	// 第二个参数应该是常量
+	Node *rightArg = getNthOfListP(op->args, 1);
+	if (isA(rightArg, Constant)) {
+		Constant *c = (Constant *)rightArg;
+		if (c->constType == DT_INT && !c->isNull) {
+			return gprom_itoa(*((int *)c->value));
+		} else if (c->constType == DT_LONG && !c->isNull) {
+			return gprom_itoa(*((long *)c->value));
+		} else if (c->constType == DT_FLOAT && !c->isNull) {
+			char *buf = MALLOC(50);
+			sprintf(buf, "%f", *((float *)c->value));
+			return buf;
+		} else if (c->constType == DT_STRING && !c->isNull) {
+			return strdup((char *)c->value);
+		}
+	}
+	return NULL;
+}
+
+/**
+ * 从单个比较操作符生成范围字符串
+ * 例如："> 10" -> "(10,+∞)", "< 20" -> "(-∞,20)"
+ */
+static Node *
+createRangeFromComparison(Operator *op)
+{
+	if (!op || LIST_LENGTH(op->args) != 2) return NULL;
+	
+	char *value = extractValueFromComparison(op);
+	if (!value) return NULL;
+	
+	Node *rangeStr = NULL;
+	
+	if (streq(op->name, ">")) {
+		rangeStr = (Node *)createFunctionCall("concat",
+			LIST_MAKE(
+				(Node *)createConstString("("),
+				(Node *)createConstString(value),
+				(Node *)createConstString(",+∞)")
+			));
+	} else if (streq(op->name, ">=")) {
+		rangeStr = (Node *)createFunctionCall("concat",
+			LIST_MAKE(
+				(Node *)createConstString("["),
+				(Node *)createConstString(value),
+				(Node *)createConstString(",+∞)")
+			));
+	} else if (streq(op->name, "<")) {
+		rangeStr = (Node *)createFunctionCall("concat",
+			LIST_MAKE(
+				(Node *)createConstString("(-∞,"),
+				(Node *)createConstString(value),
+				(Node *)createConstString(")")
+			));
+	} else if (streq(op->name, "<=")) {
+		rangeStr = (Node *)createFunctionCall("concat",
+			LIST_MAKE(
+				(Node *)createConstString("(-∞,"),
+				(Node *)createConstString(value),
+				(Node *)createConstString("]")
+			));
+	}
+	
+	FREE(value);
+	return rangeStr;
+}
+
+/**
+ * 组合两个范围（AND 操作）
+ * 例如：(10,+∞) AND (-∞,20) -> (10,20)
+ */
+static Node *
+combineRanges(Node *leftRange, Node *rightRange)
+{
+	// 简化实现：如果两个范围都是字符串，使用 PostgreSQL 函数组合
+	// 或者返回一个组合的字符串表达式
+	// 这里返回一个函数调用，让 PostgreSQL 处理
+	return (Node *)createFunctionCall("concat",
+		LIST_MAKE(
+			leftRange,
+			(Node *)createConstString(" AND "),
+			rightRange
+		));
+}
+
+/**
+ * 从表达式树中提取范围
+ * 遍历 Operator 节点，提取操作符和数值
+ */
+static Node *
+extractRangeFromExprTree(Node *exprTree)
+{
+	if (!exprTree) return NULL;
+	
+	if (isA(exprTree, Operator)) {
+		Operator *op = (Operator *)exprTree;
+		
+		// 处理 AND 条件
+		if (streq(op->name, "AND") && LIST_LENGTH(op->args) == 2) {
+			Node *left = getNthOfListP(op->args, 0);
+			Node *right = getNthOfListP(op->args, 1);
+			
+			// 递归处理左右子树
+			Node *leftRange = extractRangeFromExprTree(left);
+			Node *rightRange = extractRangeFromExprTree(right);
+			
+			if (leftRange && rightRange) {
+				// 组合范围
+				return combineRanges(leftRange, rightRange);
+			}
+		}
+		
+		// 处理 OR 条件
+		if (streq(op->name, "OR") && LIST_LENGTH(op->args) == 2) {
+			Node *left = getNthOfListP(op->args, 0);
+			Node *right = getNthOfListP(op->args, 1);
+			
+			Node *leftRange = extractRangeFromExprTree(left);
+			Node *rightRange = extractRangeFromExprTree(right);
+			
+			if (leftRange && rightRange) {
+				// OR 条件：返回并集
+				return (Node *)createFunctionCall("concat",
+					LIST_MAKE(
+						leftRange,
+						(Node *)createConstString(" U "),
+						rightRange
+					));
+			}
+		}
+		
+		// 处理比较操作符
+		if (streq(op->name, ">") || streq(op->name, ">=") || 
+		    streq(op->name, "<") || streq(op->name, "<=")) {
+			return createRangeFromComparison(op);
+		}
+	}
+	
+	return NULL;
+}
+
+/**
+ * 使用 GProM 的 parseExprFromString 解析条件表达式
+ * 注意：此函数当前未使用，因为我们需要运行时解析每行的 c_conf 值
+ * 而不是编译时解析固定的 SQL 表达式
+ * 保留作为备选方案，用于未来可能的优化
+ */
+static Node __attribute__((unused)) *
+parseConditionWithGProMParser(Node *condStr, Node *varName)
+{
+	// 注意：condStr 是 Node*，需要转换为字符串
+	// 这里简化处理，假设 condStr 是 AttributeReference 或 Constant
+	char *condStrChar = NULL;
+	boolean needFreeCondStr = FALSE;
+	
+	if (isA(condStr, AttributeReference)) {
+		condStrChar = ((AttributeReference *)condStr)->name;
+	} else if (isA(condStr, Constant)) {
+		Constant *c = (Constant *)condStr;
+		if (c->constType == DT_STRING && !c->isNull) {
+			condStrChar = (char *)c->value;
+		}
+	}
+	
+	if (!condStrChar) {
+		DEBUG_LOG("无法从 condStr 中提取字符串，尝试其他方法");
+		// 尝试使用 nodeToString 转换为字符串
+		char *nodeStr = nodeToString(condStr);
+		if (nodeStr) {
+			condStrChar = nodeStr;
+			needFreeCondStr = TRUE;
+		} else {
+			return NULL;
+		}
+	}
+	
+	// 检查是否为 TRUE
+	if (streq(condStrChar, "TRUE") || streq(condStrChar, "true")) {
+		// 如果是 TRUE，返回原变量名
+		if (needFreeCondStr) {
+			FREE(condStrChar);
+		}
+		return copyObject(varName);
+	}
+	
+	// 转换为 SQL 表达式格式
+	char *sqlExpr = convertConditionToSQL(condStrChar);
+	if (!sqlExpr) {
+		if (needFreeCondStr) {
+			FREE(condStrChar);
+		}
+		return NULL;
+	}
+	
+	INFO_LOG("使用 GProM 解析器解析条件: %s", sqlExpr);
+	
+	// 使用 GProM 解析器解析
+	// parseExprFromString 内部会检查解析器是否初始化
+	Node *exprTree = parseExprFromString(sqlExpr);
+	
+	if (!exprTree) {
+		DEBUG_LOG("GProM 解析器解析失败: %s，将回退到 PostgreSQL 函数", sqlExpr);
+		FREE(sqlExpr);
+		if (needFreeCondStr) {
+			FREE(condStrChar);
+		}
+		return NULL;
+	}
+	
+	INFO_LOG("GProM 解析器成功解析表达式树: %s", nodeToString(exprTree));
+	
+	// 从表达式树中提取范围
+	Node *rangeExpr = extractRangeFromExprTree(exprTree);
+	
+	if (!rangeExpr) {
+		DEBUG_LOG("无法从表达式树中提取范围，将回退到 PostgreSQL 函数");
+		FREE(sqlExpr);
+		if (needFreeCondStr) {
+			FREE(condStrChar);
+		}
+		return NULL;
+	}
+	
+	INFO_LOG("成功从表达式树中提取范围");
+	
+	FREE(sqlExpr);
+	if (needFreeCondStr) {
+		FREE(condStrChar);
+	}
+	
+	return rangeExpr;
+}
+
+/**
+ * 使用 PostgreSQL 函数来解析复杂条件表达式
+ * 创建一个通用的解析函数调用，用于处理复杂的条件表达式
+ * 这个函数会生成对 PostgreSQL 自定义函数的调用
+ */
+static Node *
+parseConditionWithPostgresFunction(Node *condStr, Node *varName)
+{
+	// 调用 PostgreSQL 函数 parse_ctable_condition_z3_sympy(cond_str, var_name)
+	// 使用 Z3 + SymPy 版本进行解析（如果可用），否则回退到其他版本
+	// 这个函数会在数据库中定义，用于解析条件表达式
+	Node *funcCall = (Node *)createFunctionCall("parse_ctable_condition_z3_sympy",
+		LIST_MAKE(copyObject(condStr), copyObject(varName)));
+	return funcCall;
+}
+
+static Node *
+createRangeExprForAttr(Node *origExpr, Node *c_confRef)
+{
+	// 检查c_conf是否为'TRUE'或'true'
+	Node *isTrue = (Node *)createOpExpr(OPNAME_EQ, 
+		LIST_MAKE(copyObject(c_confRef), (Node *)createConstString("TRUE")));
+	Node *isTrueLower = (Node *)createOpExpr(OPNAME_EQ, 
+		LIST_MAKE(copyObject(c_confRef), (Node *)createConstString("true")));
+	Node *isTrueCombined = (Node *)createOpExpr("OR", 
+		LIST_MAKE(isTrue, isTrueLower));
+	
+	// 使用 PostgreSQL 函数在运行时解析条件
+	// 注意：varName 应该是列的值（如 "X", "Y", "Z"），而不是列名（如 "price"）
+	// 在运行时，origExpr 会被求值为列的值，所以直接使用 origExpr 即可
+	// 例如：如果 price = "X"，则 parse_ctable_condition_z3_sympy(c_conf, price) 
+	// 在运行时会调用 parse_ctable_condition_z3_sympy("X>10&&X<20", "X")
+	Node *varNameStr = copyObject(origExpr);  // 在 SQL 中，这会被序列化为列名，运行时会被求值为列的值
+	
+	// 直接使用 PostgreSQL 函数，让数据库在运行时解析每行的条件
+	Node *parsedRange = parseConditionWithPostgresFunction(copyObject(c_confRef), varNameStr);
+	INFO_LOG("使用 PostgreSQL 函数解析条件（运行时解析）");
+	
+	// 简化：使用 PostgreSQL 函数在运行时解析条件
+	// 如果 c_conf 是 'TRUE' 或 'true'，返回原值；否则使用 PostgreSQL 函数解析
+	// PostgreSQL 函数可以处理所有情况（&&、||、>、< 等），不需要分别检查
+	return (Node *)createCaseExpr(NULL,
+		LIST_MAKE(
+			createCaseWhen(isTrueCombined, copyObject(origExpr))  // c_conf='TRUE'或'true'时返回原值
+		),
+		parsedRange  // 默认使用 PostgreSQL 函数解析的结果
+	);
+}
+
+/**
+ * 重写CTable（不确定性表）
+ * 功能：
+ * 1. 检测c_conf列中的条件表达式
+ * 2. 提取未知变量（X, Y, Z等）并更新其范围
+ * 3. 将未知变量替换为范围表达式
+ * 4. 添加lb和ub列表示行不确定性
+ * 
+ * 通用化策略：
+ * - 遍历所有列（跳过id和c_conf列）
+ * - 对于数值列，根据c_conf条件转换为范围表达式
+ * - 对于非数值列，直接保留
+ * - 添加lb和ub两列表示行不确定性
+ * - ub恒为1
+ * - 如果c_conf='TRUE'（所有值已知），则lb=1；否则lb=0
+ */
+static QueryOperator *
+rewrite_UncertCTable(QueryOperator *op)
+{
+	INFO_LOG("rewrite_UncertCTable - 开始重写CTable");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	// 获取c_conf列名
+	char *c_conf = STRING_VALUE(GET_STRING_PROP(op, "CTABLE_CONF"));
+	if (!c_conf) {
+		FATAL_LOG("CTable must have CTABLE_CONF property");
+		return op;
+	}
+
+	INFO_LOG("CTable: 检测到c_conf列 %s", c_conf);
+
+	// 创建不确定性属性映射
+	HashMap *hmp = NEW_MAP(Node, Node);
+
+	// 创建投影操作符，保留所有原始属性
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(
+		getProjExprsForAllAttrs(op), op, NIL, getQueryOperatorAttrNames(op));
+	
+	switchSubtrees(op, proj);
+	op->parents = singleton(proj);
+
+	// 获取所有属性表达式
+	List *attrExprs = getProjExprsForAllAttrs(op);
+	List *projExprs = NIL;
+	List *projNames = NIL;
+	
+	// 获取c_conf列的引用，用于后续条件判断
+	Node *c_confRef = (Node *)getAttrRefByName(proj, c_conf);
+	
+	// 通用化处理：遍历所有列，根据c_conf条件对数值列进行范围转换
+	// 策略：
+	// 1. 跳过id列和c_conf列
+	// 2. 对于数值列，根据c_conf条件转换为范围表达式
+	// 3. 对于非数值列，直接保留
+	
+	// 遍历所有属性，进行通用化处理
+	FOREACH(Node, nd, attrExprs) {
+		AttributeReference *attrRef = (AttributeReference *)nd;
+		char *attrName = attrRef->name;
+		
+		// 跳过id列和c_conf列
+		if (strcmp(attrName, "id") == 0 || strcmp(attrName, c_conf) == 0) {
+			continue;
+		}
+		
+		// 获取原始表达式
+		Node *origExpr = (Node *)getAttrRefByName(proj, attrName);
+		
+		// 通用化策略：只有当列的值作为未知变量出现在c_conf条件中时，才进行范围转换
+		// 判断逻辑：
+		// 1. 检查c_conf是否为"true"或"TRUE"：如果是，所有列都保持原值
+		// 2. 检查c_conf条件中是否包含该列的值（作为未知变量）：如果包含，则进行范围转换
+		// 3. 否则保持原值
+		// 例如：c_conf="X>10&&X<20"，salary="X" → salary列应该转换（因为c_conf中包含"X"）
+		//       c_conf="X>10&&X<20"，name="Alice" → name列不应该转换（因为c_conf中不包含"Alice"）
+		
+		// 检查c_conf是否为"true"或"TRUE"
+		Node *isTrue = (Node *)createOpExpr(OPNAME_EQ, 
+			LIST_MAKE(copyObject(c_confRef), (Node *)createConstString("TRUE")));
+		Node *isTrueLower = (Node *)createOpExpr(OPNAME_EQ, 
+			LIST_MAKE(copyObject(c_confRef), (Node *)createConstString("true")));
+		Node *isTrueCombined = (Node *)createOpExpr("OR", 
+			LIST_MAKE(isTrue, isTrueLower));
+		
+		// 检查c_conf条件中是否包含该列的值（作为未知变量）
+		// 使用strpos检查：如果列的值在c_conf中出现，说明该列包含未知变量
+		// 例如：c_conf = "X>10&&X<20"，salary = "X" → 应该检查 strpos(c_conf, salary) > 0
+		// 注意：这里使用 origExpr（列的值），而不是列名字符串
+		Node *colValueInConf = (Node *)createFunctionCall("strpos", 
+			LIST_MAKE(copyObject(c_confRef), copyObject(origExpr)));
+		Node *hasColValue = (Node *)createOpExpr(OPNAME_GT, 
+			LIST_MAKE(colValueInConf, createConstInt(0)));
+		
+		// 组合条件：c_conf不是"true"或"TRUE"，且c_conf中包含该列的值
+		Node *shouldConvert = (Node *)createOpExpr("AND", 
+			LIST_MAKE(
+				(Node *)createOpExpr("NOT", LIST_MAKE(isTrueCombined)),
+				hasColValue
+			));
+		
+		// 根据条件决定是否转换
+		Node *rangeExpr = createRangeExprForAttr(origExpr, c_confRef);
+		Node *finalExpr = (Node *)createCaseExpr(NULL,
+			LIST_MAKE(createCaseWhen(shouldConvert, rangeExpr)),
+			copyObject(origExpr)  // 默认保持原值
+		);
+		INFO_LOG("CTable: 对列 %s 进行条件范围转换（如果c_conf包含该列的未知变量）", attrName);
+		
+		projExprs = appendToTailOfList(projExprs, finalExpr);
+		projNames = appendToTailOfList(projNames, strdup(attrName));
+	}
+	
+	// 添加行级别的不确定性属性（lb和ub）
+	addRangeRowToSchema(hmp, proj);
+	
+	// ub恒为1（根据图片描述）
+	projExprs = appendToTailOfList(projExprs, createConstInt(1));
+	projNames = appendToTailOfList(projNames, strdup("ub"));  // 使用"ub"作为列名
+	
+	// lb：如果c_conf为'TRUE'或'true'（所有值已知），则lb=1；否则lb=0
+	// 检查c_conf是否等于字符串'TRUE'或'true'
+	Node *c_confRefProj = (Node *)getAttrRefByName(proj, c_conf);
+	Node *isTrueForLB = (Node *)createOpExpr(OPNAME_EQ, 
+		LIST_MAKE(copyObject(c_confRefProj), (Node *)createConstString("TRUE")));
+	Node *isTrueLowerForLB = (Node *)createOpExpr(OPNAME_EQ, 
+		LIST_MAKE(copyObject(c_confRefProj), (Node *)createConstString("true")));
+	Node *isTrueCombinedForLB = (Node *)createOpExpr("OR", 
+		LIST_MAKE(isTrueForLB, isTrueLowerForLB));
+	Node *lbRowExpr = (Node *)createCaseExpr(NULL,
+		LIST_MAKE((Node *)createCaseWhen(isTrueCombinedForLB, (Node *)createConstInt(1))),
+		(Node *)createConstInt(0)  // 如果c_conf不是'TRUE'或'true'，则lb=0
+	);
+	projExprs = appendToTailOfList(projExprs, lbRowExpr);
+	projNames = appendToTailOfList(projNames, strdup("lb"));  // 使用"lb"作为列名
+	
+	// 更新投影操作符的表达式列表
+	((ProjectionOperator *)proj)->projExprs = projExprs;
+	
+	// 更新schema以匹配投影表达式 - 手动添加属性
+	proj->schema->attrDefs = NIL;  // 清空现有属性
+	int idx = 0;
+	FOREACH(char, name, projNames) {
+		Node *expr = (Node *)getNthOfListP(projExprs, idx);
+		DataType dt = typeOf(expr);
+		addAttrToSchema(proj, strdup(name), dt);
+		idx++;
+	}
+	
+	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
+	markUncertAttrsAsProv(proj);
+
+	INFO_LOG("CTable: 重写完成 - 已添加lb和ub列");
+	DEBUG_NODE_BEATIFY_LOG("rewritten query root for CTABLE uncertainty is:", proj);
 
 	return proj;
 }
@@ -1370,7 +2591,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
-	LOG_RESULT_UNCERT(specializeTemplate("$1: Rewritten Operator tree [XTABLE]", singleton(UncertaintyTypeToString(typ))),
+	LOG_RESULT(specializeTemplate("$1: Rewritten Operator tree [XTABLE]", singleton(UncertaintyTypeToString(typ))),
 			   proj);
 
 	return proj;
@@ -1731,10 +2952,23 @@ static Node *RangeUBOp(Operator *expr, HashMap *hmp){
 		if(strcmp(expr->name,"+")==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			//Upper bound of addition is the sum of upper bounds
-			Node *ret = (Node *)createOpExpr("+", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
-			// INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
-			return ret;
+			
+			// 检查是否在USET模式下
+			if (HAS_STRING_PROP(expr, "USET_MODE")) {
+				// 在USET模式下，将 a + b 重写为 range_set_add(a, b)
+				List *args = LIST_MAKE(copyObject(e1), copyObject(e2));
+				Node *ret = (Node *)createFunctionCall(RANGE_SET_ADD_FUNC_NAME, args);
+				INFO_LOG("USET: Rewrote %s + %s to %s(%s, %s)", 
+					nodeToString(e1), nodeToString(e2), 
+					RANGE_SET_ADD_FUNC_NAME, nodeToString(e1), nodeToString(e2));
+				return ret;
+			} else {
+				// 原有的范围不确定性处理逻辑
+				//Upper bound of addition is the sum of upper bounds
+				Node *ret = (Node *)createOpExpr("+", appendToTailOfList(singleton(getUBExpr(e1, hmp)),getUBExpr(e2, hmp)));
+				// INFO_LOG("REWRITE_RANGE_EXPR_PLUS: %s", nodeToString(ret));
+				return ret;
+			}
 		}
 		if(strcmp(expr->name,"-")==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
@@ -1830,9 +3064,22 @@ static Node *RangeLBOp(Operator *expr, HashMap *hmp){
 		if(strcmp(expr->name,"+")==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 			Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-			//Lower bound of addition is the sum of lower bounds
-			Node *ret = (Node *)createOpExpr("+", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
-			return ret;
+			
+			// 检查是否在USET模式下
+			if (HAS_STRING_PROP(expr, "USET_MODE")) {
+				// 在USET模式下，将 a + b 重写为 range_set_add(a, b)
+				List *args = LIST_MAKE(copyObject(e1), copyObject(e2));
+				Node *ret = (Node *)createFunctionCall(RANGE_SET_ADD_FUNC_NAME, args);
+				INFO_LOG("USET: Rewrote %s + %s to %s(%s, %s)", 
+					nodeToString(e1), nodeToString(e2), 
+					RANGE_SET_ADD_FUNC_NAME, nodeToString(e1), nodeToString(e2));
+				return ret;
+			} else {
+				// 原有的范围不确定性处理逻辑
+				//Lower bound of addition is the sum of lower bounds
+				Node *ret = (Node *)createOpExpr("+", appendToTailOfList(singleton(getLBExpr(e1, hmp)),getLBExpr(e2, hmp)));
+				return ret;
+			}
 		}
 		if(strcmp(expr->name,"-")==0) {
 			Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
@@ -2038,7 +3285,7 @@ rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 		return proj;
 	}
 
-	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [SET]", op);
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SET]", op);
 
 	return op;
 }
@@ -2333,7 +3580,6 @@ rewrite_RangeAggregation(QueryOperator *op){
 	List *attrn1 = getQueryOperatorAttrNames(preaggr);
 	List *attrn2_1 = NIL;
 	List *attrn2_2 = NIL;
-
 //	List *expr1 = getProjExprsForAllAttrs(child);
 //	List *expr2 = getProjExprsForAllAttrs(childdup);
 
@@ -3563,7 +4809,7 @@ rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel)
 	addUncertAttrToSchema(hmp, projOp, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 	setStringProperty(projOp, UNCERT_MAPPING_PROP, (Node *)hmp);
 
-	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [DUPLICATE REMOVAL]", op);
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [DUPLICATE REMOVAL]", op);
 
 	return projOp;
 }
@@ -3699,7 +4945,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 		return proj2;
 	}
 
-	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [AGGREGATION]", op);
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [AGGREGATION]", op);
 	return op;
 }
 
@@ -3834,7 +5080,7 @@ rewrite_UncertJoin(QueryOperator *op, boolean attrLevel)
 	addUncertAttrToSchema(hmp2, proj, (Node *) createAttributeReference(UNCERTAIN_ROW_ATTR));
 
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp2);
-	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [JOIN]", op);
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [JOIN]", op);
 
 	return proj;
 
@@ -4016,7 +5262,7 @@ rewrite_RangeJoin(QueryOperator *op){
 		((ProjectionOperator *)proj)->projExprs = projExprNew;
 	}
 
-	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [JOIN]", proj);
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [JOIN]", proj);
 
 	return proj;
 }
@@ -4264,7 +5510,7 @@ rewrite_RangeJoinOptimized(QueryOperator *op){
 	if(HAS_STRING_PROP(lop, PROP_STORE_POSSIBLE_TREE)){
 		lbg = lop;
 		lpos = (QueryOperator *)GET_STRING_PROP(lop, PROP_STORE_POSSIBLE_TREE);
-	} else {
+		} else {
 		lbg = spliceToBG(lop);
 		lpos = spliceToPOS(lopdup,getHeadOfListP(attpair));
 	}
@@ -4542,7 +5788,7 @@ rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
 
     //get child hashmap
     //HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
-	if(attrLevel)
+	if (attrLevel)
 	{
 		List *attrExpr = getProjExprsForAllAttrs(op);
 		FOREACH(Node, nd, attrExpr){
@@ -4570,7 +5816,7 @@ rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
 	}
     setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *) copyObject(hmp));
 
-	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [SELECTION]", op);
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SELECTION]", op);
 
 	return proj;
 }
@@ -4643,7 +5889,7 @@ rewrite_RangeSelection(QueryOperator *op)
     }
 
 	markUncertAttrsAsProv(proj);
-	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
 
 	return proj;
 }
@@ -4689,7 +5935,7 @@ rewrite_UncertProjection(QueryOperator *op, boolean attrLevel)
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn));
     setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
-	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [PROJECTION]", op);
+	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [PROJECTION]", op);
     //INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     return op;
 }
@@ -4711,28 +5957,28 @@ rewrite_RangeProjection(QueryOperator *op)
 		setStringProperty(OP_LCHILD(op), PROP_STORE_MIN_MAX_ATTRS, (Node *)newd);
 	}
 
-    //rewrite child first
-    rewriteRange(OP_LCHILD(op));
-    QueryOperator *pos = NULL;
-    if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
-    	pos = (QueryOperator *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE);
-    }
+	//rewrite child first
+	rewriteRange(OP_LCHILD(op));
+	QueryOperator *pos = NULL;
+	if(HAS_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE)){
+		pos = (QueryOperator *)GET_STRING_PROP(OP_LCHILD(op), PROP_STORE_POSSIBLE_TREE);
+	}
 
     INFO_LOG("REWRITE-RANGE - Projection");
-    INFO_OP_LOG("Operator tree ", op);
+	INFO_OP_LOG("Operator tree ", op);
 
-    HashMap * hmp = NEW_MAP(Node, Node);
-    //get child hashmap
-    HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
-    List *attrExpr = getProjExprsForAllAttrs(op);
-   	INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
+	HashMap * hmp = NEW_MAP(Node, Node);
+	//get child hashmap
+	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+	List *attrExpr = getProjExprsForAllAttrs(op);
+	INFO_LOG("%s", nodeToString(((ProjectionOperator *)op)->projExprs));
    	INFO_LOG("Rangeprojection hashmaps: %s", nodeToString(hmpIn));
-    List *uncertlist = NIL;
-    int ict = 0;
-    FOREACH(Node, nd, attrExpr){
-        addRangeAttrToSchema(hmp, op, nd);
-        Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,ict);
-        INFO_LOG("Proj: %s", nodeToString(projexpr));
+	List *uncertlist = NIL;
+	int ict = 0;
+	FOREACH(Node, nd, attrExpr){
+		addRangeAttrToSchema(hmp, op, nd);
+		Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,ict);
+		INFO_LOG("Proj: %s", nodeToString(projexpr));
         // Node *ubExpr = getUBExprByName(projexpr, hmpIn, OP_LCHILD(op));
         Node *ubExpr = getUBExpr(projexpr, hmpIn);
         INFO_LOG("Ub: %s", nodeToString(ubExpr));
@@ -4763,7 +6009,7 @@ rewrite_RangeProjection(QueryOperator *op)
     }
 
 
-	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
 
     return op;
 }
@@ -4773,6 +6019,24 @@ rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel)
 {
 	INFO_LOG("REWRITE-UNCERT - TableAccess (%s)", attrLevel ? "ATTRIBUTE LEVEL" : "TUPLE LEVEL");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	// 自动检测c_conf列，如果存在则设置为CTABLE
+	if (op->type == T_TableAccessOperator) {
+		// 检查schema中是否有c_conf列
+		if (op->schema && op->schema->attrDefs) {
+			FOREACH(AttributeDef, attr, op->schema->attrDefs) {
+				if (attr->attrName && strcmp(attr->attrName, "c_conf") == 0) {
+					INFO_LOG("CTable: 检测到c_conf列，自动设置为CTABLE");
+					setStringProperty(op, "CTABLE_CONF", (Node *)createConstString("c_conf"));
+					// 如果已设置为CTABLE，直接调用重写函数
+					if (HAS_STRING_PROP(op, "CTABLE_CONF")) {
+						return rewrite_UncertCTable(op);
+					}
+					break;
+				}
+			}
+		}
+	}
 
 	HashMap * hmp = NEW_MAP(Node, Node);
 
@@ -4797,12 +6061,12 @@ rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel)
 		List *nexpr = getProjExprsForAllAttrs(op);
 		//INFO_LOG("nexpr %s", nodeToString(nexpr));
 		((ProjectionOperator *)proj)->projExprs = concatTwoLists(nexpr, pexpr);
-	} else {
+		} else {
 		appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
 	}
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
-	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [TABLE ACCESS]", op);
+	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [TABLE ACCESS]", op);
 
 	return proj;
 }
@@ -4875,3 +6139,681 @@ addRangeRowToSchema(HashMap *hmp, QueryOperator *target)
 	addAttrToSchema(target, ROW_POSSIBLE, DT_INT);
 	ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference(ROW_POSSIBLE), (Node *)getTailOfListP(getProjExprsForAllAttrs(target))));
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Uset query rewriting
+static QueryOperator *
+rewriteUsetProvComp(QueryOperator *op)
+{
+    ASSERT(LIST_LENGTH(op->inputs) == 1);
+    QueryOperator *top = getHeadOfListP(op->inputs);
+    
+    // 详细输出top操作符信息
+    DEBUG_NODE_BEATIFY_LOG("Top operator content (before rewrite):", top);
+    INFO_OP_LOG("Top operator summary:", top);
+    
+    // 输出操作符类型
+    INFO_LOG("Top operator type: %d", top->type);
+    
+    // 输出输入数量
+    INFO_LOG("Top operator inputs count: %d", LIST_LENGTH(top->inputs));
+    
+    // 输出父操作符数量
+    INFO_LOG("Top operator parents count: %d", LIST_LENGTH(top->parents));
+    
+    // 如果是投影操作符，输出投影表达式
+    if (top->type == T_ProjectionOperator) {
+        ProjectionOperator *projOp = (ProjectionOperator *)top;
+        INFO_LOG("Top operator is ProjectionOperator with %d expressions", LIST_LENGTH(projOp->projExprs));
+        
+        // 输出每个投影表达式
+        int exprIndex = 0;
+        FOREACH(Node, expr, projOp->projExprs) {
+            INFO_LOG("Projection expression %d: %s", exprIndex, nodeToString(expr));
+            exprIndex++;
+        }
+    }
+    
+    // 如果是表访问操作符，输出表名
+    if (top->type == T_TableAccessOperator) {
+        TableAccessOperator *taOp = (TableAccessOperator *)top;
+        INFO_LOG("Top operator is TableAccessOperator accessing table: %s", taOp->tableName);
+    }
+    
+    // 输出完整的操作符树结构
+    INFO_LOG("Complete top operator tree structure:");
+    INFO_LOG("%s", nodeToString(top));
+
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+        INFO_LOG("USET: Processing provenance computation in USET mode");
+        // 使用USET重写而不是Range重写
+        top = rewriteUset(top);
+        // 设置USET模式属性
+        setUsetMode(top);
+        
+        INFO_LOG("USET: Provenance computation rewritten successfully");
+    } else {
+        // 非USET模式，使用原有的Range重写逻辑
+        top = rewriteRange(top);
+        
+        //   union if pos are spliced from bg
+        if (HAS_STRING_PROP(top, PROP_STORE_POSSIBLE_TREE)){
+            INFO_LOG("[PROV] MERGING BG AND POS: ");
+            QueryOperator *bgop = top;
+            QueryOperator *posop = (QueryOperator *)GET_STRING_PROP(bgop, PROP_STORE_POSSIBLE_TREE);
+            INFO_OP_LOG("[PROV] bgop: ",bgop);
+            INFO_OP_LOG("[PROV] posop: ",posop);
+            // top = bgop;
+            QueryOperator *unionop = (QueryOperator *)createSetOperator(SETOP_UNION, LIST_MAKE(bgop, posop), NIL, getQueryOperatorAttrNames(bgop));
+            bgop->parents = singleton(unionop);
+            posop->parents = singleton(unionop);
+            setStringProperty(unionop, UNCERT_MAPPING_PROP, copyObject(GET_STRING_PROP(bgop,UNCERT_MAPPING_PROP)));
+            markUncertAttrsAsProv(unionop);
+            // top = (QueryOperator *)createProjectionOp(getProjExprsForAllAttrs(bgop), bgop, NIL, getQueryOperatorAttrNames(bgop));
+            // bgop->parents = singleton(top);
+            // unionop->parents = singleton(top);
+            top = unionop;
+        }
+    }
+
+    // make sure we do not introduce name clashes, but keep the top operator's schema intact
+    Set *done = PSET();
+    disambiguiteAttrNames((Node *) top, done);
+
+    // adapt inputs of parents to remove provenance computation
+    switchSubtrees((QueryOperator *) op, top);
+    DEBUG_NODE_BEATIFY_LOG("rewritten query root for USET is:\n", top);
+
+    return top;
+}
+
+
+static QueryOperator *rewriteUsetLimit(QueryOperator *op){
+    ASSERT(OP_LCHILD(op));
+    
+    INFO_LOG("REWRITE-USET - Limit");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+        INFO_LOG("USET: Processing limit in USET mode");
+        
+        // 重写子操作符
+        rewriteUset(OP_LCHILD(op));
+        
+        // 设置USET模式属性
+        setUsetMode(op);
+        
+        INFO_LOG("USET: Limit rewritten successfully");
+        return op;
+    } else {
+        // 非USET模式，直接返回原操作符
+        return op;
+    }
+}
+
+
+static QueryOperator *
+rewrite_UsetTableAccess(QueryOperator *op)
+{
+    INFO_LOG("REWRITE-USET - TableAccess");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    
+    // 自动检测c_conf列，如果存在则设置为CTABLE
+    if (op->type == T_TableAccessOperator) {
+        // 检查schema中是否有c_conf列
+        if (op->schema && op->schema->attrDefs) {
+            FOREACH(AttributeDef, attr, op->schema->attrDefs) {
+                if (attr->attrName && strcmp(attr->attrName, "c_conf") == 0) {
+                    INFO_LOG("CTable: 检测到c_conf列，自动设置为CTABLE");
+                    setStringProperty(op, "CTABLE_CONF", (Node *)createConstString("c_conf"));
+                    // 如果已设置为CTABLE，直接调用重写函数
+                    if (HAS_STRING_PROP(op, "CTABLE_CONF")) {
+                        return rewrite_UncertCTable(op);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+        INFO_LOG("USET: Processing table access in USET mode");
+        
+        // 创建投影操作符来处理表访问
+        List *attrExprs = getProjExprsForAllAttrs(op);
+        QueryOperator *proj = (QueryOperator *)createProjectionOp(attrExprs, op, NIL, getQueryOperatorAttrNames(op));
+        
+        // 确保父子关系正确设置
+        if (proj->parents) {
+            proj->parents = singleton(op);
+        } else {
+            proj->parents = singleton(op);
+        }
+        
+        // 确保子操作符的父引用正确设置
+        if (op->parents) {
+            op->parents = singleton(proj);
+        } else {
+            op->parents = singleton(proj);
+        }
+        
+        // 设置USET模式属性
+        setUsetMode(proj);
+        
+        INFO_LOG("USET: Table access rewritten successfully");
+        return proj;
+    } else {
+        // 非USET模式，使用原有的重写逻辑
+        return rewrite_RangeTableAccess(op);
+    }
+}
+
+
+
+static QueryOperator *
+rewrite_UsetSelection(QueryOperator *op)
+{
+    ASSERT(OP_LCHILD(op));
+    
+    INFO_LOG("REWRITE-USET - Selection");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+        INFO_LOG("USET: Processing selection in USET mode");
+        
+        // 重写子操作符
+        QueryOperator *rewrittenChild = rewriteUset(OP_LCHILD(op));
+        
+        // 更新子操作符引用
+        if (rewrittenChild != OP_LCHILD(op)) {
+            op->inputs = singleton(rewrittenChild);
+            rewrittenChild->parents = singleton(op);
+        }
+        
+        // 获取子操作符的hashmap
+        HashMap *hmpIn = NULL;
+        if (OP_LCHILD(op) && HAS_STRING_PROP(OP_LCHILD(op), UNCERT_MAPPING_PROP)) {
+            hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+        }
+        
+        // 重写选择条件
+        Node *cond = ((SelectionOperator *)op)->cond;
+        Node *rewrittenCond = rewriteUsetExpression(cond, hmpIn);
+        ((SelectionOperator *)op)->cond = rewrittenCond;
+        
+        // 设置USET模式属性
+        setUsetMode(op);
+        
+        INFO_LOG("USET: Selection rewritten successfully");
+        return op;
+    } else {
+        // 非USET模式，使用原有的重写逻辑
+        return rewrite_RangeSelection(op);
+    }
+}
+
+
+
+
+
+static QueryOperator *
+rewrite_UsetJoin(QueryOperator *op){
+    ASSERT(OP_LCHILD(op) && OP_RCHILD(op));
+    
+    INFO_LOG("REWRITE-USET - Join");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+        INFO_LOG("USET: Processing join in USET mode");
+        
+        // 重写左右子操作符
+        rewriteUset(OP_LCHILD(op));
+        rewriteUset(OP_RCHILD(op));
+        
+        // 获取子操作符的hashmap
+        HashMap *hmpLeft = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+        
+        // 重写连接条件
+        Node *cond = ((JoinOperator *)op)->cond;
+        if (cond) {
+            Node *rewrittenCond = rewriteUsetExpression(cond, hmpLeft);
+            ((JoinOperator *)op)->cond = rewrittenCond;
+        }
+        
+        // 设置USET模式属性
+        setUsetMode(op);
+        
+        INFO_LOG("USET: Join rewritten successfully");
+        return op;
+    } else {
+        // 非USET模式，使用原有的重写逻辑
+        return rewrite_RangeJoin(op);
+    }
+}
+
+
+static QueryOperator *
+rewrite_UsetAggregation(QueryOperator *op){
+    ASSERT(OP_LCHILD(op));
+    
+    INFO_LOG("REWRITE-USET - Aggregation");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+        INFO_LOG("USET: Processing aggregation in USET mode");
+        
+        // 重写子操作符
+        rewriteUset(OP_LCHILD(op));
+        
+        // 获取子操作符的hashmap
+        HashMap *hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+        
+        // 重写聚合表达式
+        List *aggrs = ((AggregationOperator *)op)->aggrs;
+        FOREACH(Node, aggr, aggrs) {
+            replaceNode(aggrs, aggr, rewriteUsetExpression(aggr, hmpIn));
+        }
+        
+        // 设置USET模式属性
+        setUsetMode(op);
+        
+        INFO_LOG("USET: Aggregation rewritten successfully");
+        return op;
+    } else {
+        // 非USET模式，使用原有的重写逻辑
+        return rewrite_RangeAggregation(op);
+    }
+}
+
+
+
+
+
+static QueryOperator *
+rewrite_UsetAggregation2(QueryOperator *op){
+    ASSERT(OP_LCHILD(op));
+    
+    INFO_LOG("REWRITE-USET - Aggregation2 (Optimized)");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+        INFO_LOG("USET: Processing optimized aggregation in USET mode");
+        
+        // 重写子操作符
+        rewriteUset(OP_LCHILD(op));
+        
+        // 获取子操作符的hashmap
+        HashMap *hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+        
+        // 重写聚合表达式
+        List *aggrs = ((AggregationOperator *)op)->aggrs;
+        FOREACH(Node, aggr, aggrs) {
+            replaceNode(aggrs, aggr, rewriteUsetExpression(aggr, hmpIn));
+        }
+        
+        // 设置USET模式属性
+        setUsetMode(op);
+        
+        INFO_LOG("USET: Optimized aggregation rewritten successfully");
+        return op;
+    } else {
+        // 非USET模式，使用原有的重写逻辑
+        return rewrite_RangeAggregation2(op);
+    }
+}
+
+
+
+
+static QueryOperator *
+rewrite_UsetXTable(QueryOperator *op)
+{
+    DEBUG_LOG("rewrite_UsetXTable - USET模式下的XTABLE重写，输出通用集合格式");
+    // 获取XTABLE属性
+    char *groupId = STRING_VALUE(GET_STRING_PROP(op, PROP_XTABLE_GROUPID));
+    char *prob = STRING_VALUE(GET_STRING_PROP(op, PROP_XTABLE_PROB));
+    INFO_LOG("USET XTABLE: 处理组ID %s 和概率 %s", groupId, prob);
+    // 创建不确定性属性映射
+    HashMap *hmp = NEW_MAP(Node, Node);
+    
+    // 获取属性引用
+    AttributeReference *groupIdRef = getAttrRefByName(op, groupId);
+    AttributeReference *probRef = getAttrRefByName(op, prob);
+    INFO_LOG("USET XTABLE: groupIdRef %s probRef %s", groupIdRef, probRef);
+
+    // 创建分组列表
+    List *partByGroupId = singleton(copyObject(groupIdRef));
+    
+    // 第一步：计算概率总和（用于LB计算）
+    FunctionCall *sumProbFC = createFunctionCall(SUM_FUNC_NAME, singleton(copyObject(probRef)));
+    char *sumProbName = "sum_prob";   
+    QueryOperator *sumProbWOp = (QueryOperator *)createWindowOp((Node *)sumProbFC, partByGroupId, NIL, NULL, sumProbName, op, NIL);
+    // 设置原始操作符的父列表，确保父子关系一致
+    op->parents = singleton(sumProbWOp);
+    INFO_LOG(" USET Rewrite XTable: 创建概率总和列 %s", sumProbName);
+	INFO_OP_LOG("USET Rewrite XTable:", sumProbWOp);
+
+    // 第二步：准备操作符链用于代表行选择
+    QueryOperator *prevWOp = sumProbWOp;
+    
+    // 第三步：创建聚合操作，对每个x-id组进行聚合
+    // 3.1 准备聚合表达式
+    List *aggExprs = NIL;
+    List *aggNames = NIL;
+    
+    // 3.2 获取所有属性表达式
+    List *attrExprs = getProjExprsForAllAttrs(op);
+    
+    // 3.3 收集所有非x-id和非概率的属性
+    List *nonGroupAttrs = NIL;
+    FOREACH(Node, nd, attrExprs) {
+        AttributeReference *attrRef = (AttributeReference *)nd;
+        char *attrName = attrRef->name;
+        if (strcmp(attrName, groupId) != 0 && strcmp(attrName, prob) != 0) {
+            nonGroupAttrs = appendToTailOfList(nonGroupAttrs, nd);
+        }
+    }
+	INFO_LOG("找到 %d 个非分组属性", nonGroupAttrs->length);
+    INFO_LOG("非分组属性列表:%d,%d ", nonGroupAttrs->head->data,nonGroupAttrs->tail->data);
+    
+    // 3.4 为每个非分组属性创建聚合表达式
+    // 通用处理：第一个属性作为标识（使用MAX），其他属性作为集合（使用ARRAY_AGG）
+    int attrIndex = 0;
+    FOREACH(Node, nd, nonGroupAttrs) {
+        AttributeReference *attrRef = (AttributeReference *)nd;
+        char *attrName = attrRef->name;
+
+        if (attrIndex == 0) {
+            // 第一个属性作为标识，使用MAX函数获取代表值
+            FunctionCall *maxFC = createFunctionCall(MAX_FUNC_NAME, singleton(copyObject(attrRef)));
+            aggExprs = appendToTailOfList(aggExprs, (Node *)maxFC);
+            aggNames = appendToTailOfList(aggNames, attrName);
+            INFO_LOG("USET XTABLE: 添加标识属性列 %s (使用max)", attrName);
+        } else {
+            // 其他属性作为集合，使用ARRAY_AGG函数将多个值合并为数组
+            FunctionCall *arrayAggFC = createFunctionCall("array_agg", singleton(copyObject(attrRef)));
+            aggExprs = appendToTailOfList(aggExprs, (Node *)arrayAggFC);
+            aggNames = appendToTailOfList(aggNames, attrName);
+            INFO_LOG("USET XTABLE: 添加集合属性列 %s (使用array_agg)", attrName);
+        }
+        attrIndex++;
+    }
+    
+    // 3.5 添加概率总和到聚合表达式中
+    FunctionCall *sumProbAggFC = createFunctionCall(SUM_FUNC_NAME, singleton(copyObject(probRef)));
+    aggExprs = appendToTailOfList(aggExprs, (Node *)sumProbAggFC);
+    aggNames = appendToTailOfList(aggNames, sumProbName);
+    
+    // 3.7 创建聚合操作符
+    QueryOperator *aggOp = (QueryOperator *)createAggregationOp(aggExprs, partByGroupId, prevWOp, NIL, aggNames);
+    prevWOp->parents = singleton(aggOp);
+	INFO_OP_LOG("USET Rewrite XTable:", aggOp);
+
+    
+    // 3.8 暂时跳过排序操作，直接使用聚合操作符
+    QueryOperator *sortOp = aggOp;
+    
+    // 第四步：创建最终投影（添加UB和LB列）
+    List *projExprs = NIL;
+    List *projNames = NIL;
+    
+    // 4.1 添加聚合后的属性（从排序操作符获取，排除x_id列）
+    FOREACH(Node, nd, nonGroupAttrs) {
+        AttributeReference *attrRef = (AttributeReference *)nd;
+        char *attrName = attrRef->name;
+        
+        projExprs = appendToTailOfList(projExprs, getAttrRefByName(sortOp, attrName));
+        projNames = appendToTailOfList(projNames, attrName);
+        INFO_LOG("USET XTABLE: 添加聚合属性列 %s", attrName);
+    }
+     
+    // 4.3 添加UB（恒为1）
+    projExprs = appendToTailOfList(projExprs, createConstInt(1));
+    projNames = appendToTailOfList(projNames, "ub");
+    
+    // 4.4 添加LB（根据概率和决定：概率和为1时LB=1，否则LB=0）
+    Node *probSumEqualsOne = (Node *)createOpExpr(OPNAME_EQ, 
+        LIST_MAKE(createConstFloat(1.0), getAttrRefByName(sortOp, sumProbName)));
+    Node *lbExpr = (Node *)createCaseOperator(probSumEqualsOne);
+    projExprs = appendToTailOfList(projExprs, lbExpr);
+    projNames = appendToTailOfList(projNames, "lb");
+    
+    // 创建投影操作符
+    QueryOperator *proj = (QueryOperator *)createProjectionOp(projExprs, sortOp, NIL, projNames);
+    sortOp->parents = singleton(proj);
+	INFO_OP_LOG("USET Rewrite XTable:", proj);
+    
+    // 第五步：设置操作符关系
+    // 不使用switchSubtrees，直接返回新构建的操作符树
+    // 避免可能的循环引用问题
+    
+    // 设置不确定性映射属性
+    setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
+    
+    // 设置USET模式属性
+    setUsetMode(proj);
+    
+    INFO_LOG("USET XTABLE: 重写完成，输出通用格式：第一个属性作为标识，其他属性作为集合，ub, lb");
+    // 暂时禁用LOG_RESULT以避免内存爆炸问题
+    // LOG_RESULT("USET: 重写的XTABLE操作符树 [通用集合格式]", proj);
+    
+    return proj;
+}
+
+
+
+
+
+
+static QueryOperator *
+rewrite_UsetProjection(QueryOperator *op)
+{
+    ASSERT(OP_LCHILD(op));
+    INFO_LOG("REWRITE-USET - Projection");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    
+    // 检查是否在USET模式下
+    if (isUsetMode(op)) {
+		INFO_LOG("USET: Processing projection in USET mode");
+        // 首先检查当前操作符是否本身就是XTable
+        boolean isCurrentXTable = HAS_STRING_PROP(op, PROP_XTABLE_GROUPID);
+        if (isCurrentXTable) {
+            INFO_LOG("USET: Current operator is XTable, applying XTable rewrite");
+            return rewrite_UsetXTable(op);
+        }
+        // 重写子操作符
+		
+        QueryOperator *rewrittenChild = rewriteUset(OP_LCHILD(op));
+		INFO_OP_LOG("USET Rewrite Projection:", rewrittenChild);
+        // 更新子操作符引用
+        if (rewrittenChild != OP_LCHILD(op)) {
+            INFO_LOG("USET: Child operator was rewritten, updating reference");
+            // 保存原始子操作符
+            QueryOperator *originalChild = OP_LCHILD(op);
+            
+            // 更新父操作符的输入引用
+            op->inputs = replaceNode(op->inputs, originalChild, rewrittenChild);
+            
+            // 更新子操作符的父引用
+            if (rewrittenChild->parents) {
+                rewrittenChild->parents = replaceNode(rewrittenChild->parents, originalChild, op);
+            } else {
+                rewrittenChild->parents = singleton(op);
+            }
+            
+            // 确保原子操作符的父引用被正确移除
+            if (originalChild->parents) {
+                originalChild->parents = REMOVE_FROM_LIST_NODE(originalChild->parents, op);
+            }
+        }
+		// 检查子操作符是否是XTABLE重写的结果
+		boolean isXTABLERewrite = FALSE;
+		if (OP_LCHILD(op) && OP_LCHILD(op)->type == T_ProjectionOperator) {
+			ProjectionOperator *childProj = (ProjectionOperator *)OP_LCHILD(op);
+			List *childProjExprs = childProj->projExprs;
+			
+			// 检查是否包含USET XTable重写的特征列
+			// USET XTable格式：第一列(标识), 第二列(聚合), 第三列(常量1), 第四列(CASE表达式)
+			boolean hasUsetPattern = FALSE;
+			INFO_LOG("USET: Checking child projection expressions for USET XTable rewrite detection");
+			INFO_LOG("USET: Child projection has %d expressions", LIST_LENGTH(childProjExprs));
+			
+			// 检查是否有足够的表达式（至少2个属性 + ub + lb = 4个表达式）
+			if (LIST_LENGTH(childProjExprs) >= 4) {
+				// 获取最后两个表达式（ub和lb）
+				int exprCount = LIST_LENGTH(childProjExprs);
+				Node *ubExpr = (Node *)getNthOfListP(childProjExprs, exprCount - 2); // 倒数第二个表达式(ub列)
+				Node *lbExpr = (Node *)getNthOfListP(childProjExprs, exprCount - 1); // 最后一个表达式(lb列)
+				
+				INFO_LOG("USET: UB expression type: %d (T_Constant=%d)", ubExpr->type, T_Constant);
+				INFO_LOG("USET: LB expression type: %d (T_CaseExpr=%d)", lbExpr->type, T_CaseExpr);
+				
+				// 检查UB列是否为常量1
+				boolean hasConstantUb = (ubExpr->type == T_Constant);
+				
+				// 检查LB列是否为CASE表达式
+				boolean hasCaseLb = (lbExpr->type == T_CaseExpr);
+				
+				INFO_LOG("USET: hasConstantUb=%s, hasCaseLb=%s", 
+					hasConstantUb ? "TRUE" : "FALSE", 
+					hasCaseLb ? "TRUE" : "FALSE");
+				
+				if (hasConstantUb && hasCaseLb) {
+					hasUsetPattern = TRUE;
+					INFO_LOG("USET: Detected USET XTable pattern - hasUsetPattern = TRUE");
+				}
+			} else {
+				INFO_LOG("USET: Child projection doesn't have enough expressions, cannot be XTable");
+			}
+			
+			if (hasUsetPattern) {
+				isXTABLERewrite = TRUE;
+				INFO_LOG("USET: Detected USET XTable rewrite output, preserving XTable format");
+			} else {
+				INFO_LOG("USET: Not detected as USET XTable rewrite output");
+			}
+
+			if (isXTABLERewrite) {
+                // 对于USET XTable重写的结果，直接转发XTable格式
+                INFO_LOG("USET: USET XTable rewrite detected, forwarding XTable format directly");
+                
+                // 直接获取子操作符作为结果，不做任何修改
+                QueryOperator *childOp = OP_LCHILD(op);
+                
+                // 更新父子关系
+                FOREACH(QueryOperator, parent, op->parents) {
+                    parent->inputs = replaceNode(parent->inputs, op, childOp);
+                }
+                childOp->parents = op->parents;
+                
+                INFO_LOG("USET: Successfully forwarded USET XTable result");
+                return childOp;
+            }
+
+			
+		}
+        
+        // 重写投影表达式
+        if (op->type == T_ProjectionOperator) {
+            ProjectionOperator *projOp = (ProjectionOperator *)op;
+            List *projExprs = projOp->projExprs;
+            
+            // 获取子操作符的hashmap（如果存在）
+            HashMap *hmpIn = NULL;
+            if (OP_LCHILD(op) && HAS_STRING_PROP(OP_LCHILD(op), UNCERT_MAPPING_PROP)) {
+                hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), UNCERT_MAPPING_PROP);
+            }
+            
+            // 重写每个投影表达式
+            int exprIdx = 0;
+            FOREACH(Node, expr, projExprs) {
+                Node *rewrittenExpr = rewriteUsetExpression(expr, hmpIn);
+                if (rewrittenExpr != expr) {
+                    replaceNode(projExprs, expr, rewrittenExpr);
+                    INFO_LOG("USET: Rewrote projection expression: %s -> %s", 
+                        nodeToString(expr), nodeToString(rewrittenExpr));
+                }
+                exprIdx++;
+            }
+            
+            // 更新schema类型：使用typeOf()获取表达式的实际类型，确保schema类型与表达式类型一致
+            exprIdx = 0;
+            FOREACH(Node, expr, projExprs) {
+                if (exprIdx < LIST_LENGTH(op->schema->attrDefs)) {
+                    AttributeDef *attrDef = (AttributeDef *)getNthOfListP(op->schema->attrDefs, exprIdx);
+                    if (attrDef) {
+                        // 使用typeOf()获取表达式的实际返回类型
+                        DataType exprType = typeOf(expr);
+                        if (attrDef->dataType != exprType) {
+                            INFO_LOG("USET: Updating schema type from %d to %d for expression at index %d (expr: %s)", 
+                                attrDef->dataType, exprType, exprIdx, nodeToString(expr));
+                            attrDef->dataType = exprType;
+                        }
+                    }
+                }
+                exprIdx++;
+            }
+        }
+        
+        // 设置USET模式属性
+        setUsetMode(op);
+        
+        INFO_LOG("USET: Projection rewritten successfully");
+        return op;
+    } else {
+        // 非USET模式，使用原有的重写逻辑
+        return rewrite_RangeProjection(op);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

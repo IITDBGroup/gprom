@@ -136,11 +136,11 @@ createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
 }
 
 void
-setAttrDefDataTypeBasedOnBelowOp(QueryOperator *parent, QueryOperator *child)
+setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2)
 {
-	FOREACH(AttributeDef,a1,parent->schema->attrDefs)
+	FOREACH(AttributeDef,a1,op1->schema->attrDefs)
 	{
-	      FOREACH(AttributeDef, a2, child->schema->attrDefs)
+	      FOREACH(AttributeDef, a2, op2->schema->attrDefs)
 		  {
 	    	    if(streq(a1->attrName,a2->attrName))
 	    	    {
@@ -525,7 +525,10 @@ inferOpResultDTs (QueryOperator *op)
         case T_ProjectionOperator:
         {
             ProjectionOperator *o = (ProjectionOperator *) op;
-            resultDTs = exprListTypes(o->projExprs);
+            FOREACH(Node,e,o->projExprs)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
+            }
         }
         break;
         case T_JoinOperator:
@@ -615,7 +618,10 @@ inferOpResultDTs (QueryOperator *op)
         case T_ConstRelOperator:
         {
             ConstRelOperator *c = (ConstRelOperator *) op;
-            resultDTs = exprListTypes(c->values);
+            FOREACH(Node,v,c->values)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(v));
+            }
         }
         break;
         default:
@@ -1022,94 +1028,6 @@ appendToListStringProperty(QueryOperator *op, char *key, Node *newTail)
 	return cur;
 }
 
-char *
-format_prop_value_for_user(char *prop, Node *val)
-{
-    // print constants literally
-    if(isA(val, Constant))
-    {
-        return exprToSQL(val, NULL, FALSE);
-    }
-
-    // equivalence classes
-    if(streq(prop, PROP_STORE_SET_EC))
-    {
-        StringInfo s = makeStringInfo();
-        appendStringInfoString(s, "{");
-        FOREACH(KeyValue,kv,(List *) val)
-        {
-            appendStringInfo(s,
-                             "%s%s%s%s",
-                             nodeToString(kv->key),
-                             kv->value ? "=" : "",
-                             kv->value ? exprToSQL(kv->value, NULL, FALSE) : "",
-                             FOREACH_HAS_MORE(kv) ? ", " : "");
-        }
-        appendStringInfoString(s, "}");
-
-        return s->data;
-    }
-
-    // attribute name mapping
-    if(streq(prop, PROP_STORE_LIST_SCHEMA_NAMES))
-    {
-        StringInfo s = makeStringInfo();
-        HashMap *hm = (HashMap *) val;
-        appendStringInfoString(s, "{");
-
-        FOREACH_HASH_ENTRY(kv, hm)
-        {
-            appendStringInfo(s,
-                             "%s => %s%s",
-                             STRING_VALUE(kv->key),
-                             STRING_VALUE(kv->value),
-                             FOREACH_HASH_HAS_MORE(kv) ? ", " : "");
-        }
-
-        appendStringInfoString(s, "}");
-
-        return s->data;
-    }
-
-    // provenance attribute information for pull-up
-    if(streq(prop, PROP_PROVENANCE_TABLE_ATTRS))
-    {
-        StringInfo s = makeStringInfo();
-        appendStringInfoString(s, " ");
-        FOREACH(KeyValue, kv, ((List *) val))
-        {
-            appendStringInfo(s, "%s => (", STRING_VALUE(kv->key));
-            FOREACH(Constant,a,((List *) kv->value))
-            {
-                appendStringInfo(s, "%s%s",
-                                 STRING_VALUE(a),
-                                 FOREACH_HAS_MORE(a) ? ", ": "");
-            }
-            appendStringInfo(s, ")%s", FOREACH_HAS_MORE(kv) ? ", ": "");
-        }
-
-        return s->data;
-    }
-
-    if(streq(prop, PROP_ORIGINAL_ATTR_LIST))
-    {
-        return stringListToString((List *) constStringListToStringList((List *) val));
-    }
-
-    /* if(streq(prop, PROP_STORE_NOT_NULL)) */
-    /* { */
-    /*     return  */
-    /* } */
-
-    return nodeToString(val);
-}
-
-char *
-format_op_prop_value_for_user(QueryOperator *op, char *prop)
-{
-    return format_prop_value_for_user(prop, getStringProperty(op, prop));
-}
-
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
@@ -1120,6 +1038,15 @@ getProp (QueryOperator *op, Node *key)
     }
 
     return getMapEntry((HashMap *) op->properties, key);
+//    if (mapHasKey(op->properties, key))
+//        return mpa
+//    FOREACH(KeyValue,p,(List *) op->properties)
+//    {
+//        if (equal(p->key,key))
+//            return p;
+//    }
+
+//    return NULL;
 }
 
 void
@@ -1197,9 +1124,7 @@ getOpProvenanceAttrNames(QueryOperator *op)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,provDefs)
-    {
-        result = appendToTailOfList(result, strdup(a->attrName));
-    }
+    result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }
@@ -1230,32 +1155,14 @@ getNormalAttrs(QueryOperator *op)
 }
 
 List *
-getNormalAttrProjExprs(ProjectionOperator *op)
+getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1)
 {
     List *result = NIL;
     int pos = 0;
 
-    FOREACH(Node, a, op->projExprs)
+    FOREACH(AttributeReference, a, op->projExprs)
     {
-        if(!searchListInt(op->op.provAttrs, pos))
-        {
-            result = appendToTailOfList(result, a);
-        }
-        pos++;
-    }
-
-    return result;
-}
-
-List *
-getNormalAttrProjExprsFromChild(ProjectionOperator *parent, QueryOperator *child)
-{
-    List *result = NIL;
-    int pos = 0;
-
-    FOREACH(Node, a, parent->projExprs)
-    {
-        if(!searchListInt(child->provAttrs, pos))
+        if(!searchListInt(op1->provAttrs, pos))
             result = appendToTailOfList(result, a);
         pos++;
     }
@@ -1278,17 +1185,11 @@ getNormalAttrNames(QueryOperator *op)
 List *
 getAttrRefNames(ProjectionOperator *op)
 {
-    List *result = NIL;
+   List *result = NIL;
 
-    FOREACH(Node, n, op->projExprs)
-    {
-        if(isA(n,AttributeReference))
-        {
-            AttributeReference *a = (AttributeReference *) n;
-            result = appendToTailOfList(result, strdup(a->name));
-        }
-    }
-    //   FOREACH(AttributeReference, a, op->projExprs)//FIXME will break if not just attribute references
+   FOREACH(AttributeReference, a, op->projExprs)//FIXME will break if not just attribute references
+      result = appendToTailOfList(result, strdup(a->name));
+
    return result;
 }
 
@@ -1391,6 +1292,7 @@ getAttrDefByName(QueryOperator *op, char *attr)
     FOREACH(AttributeDef,a,op->schema->attrDefs)
     {
         if (strcmp(a->attrName, attr) == 0)
+        //INFO_LOG("USET XTABLE: a->attrName %s",a->attrName );
             return a;
     }
 

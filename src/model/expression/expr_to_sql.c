@@ -258,6 +258,16 @@ operatorToSQL(StringInfo str, Operator *node, HashMap *nestedSubqueries, boolean
 
         appendStringInfo(str, "(%s BETWEEN %s AND %s)", expr, lower, upper);
     }
+    else if (streq(node->name,"CUSTOM_ADD"))
+    {
+        // Convert custom add operator to range_set_add function call
+        char *arg1 = exprToSQL(getNthOfListP(node->args,0), nestedSubqueries, trimAttrNames);
+        char *arg2 = exprToSQL(getNthOfListP(node->args,1), nestedSubqueries, trimAttrNames);
+        
+        appendStringInfo(str, "range_set_add(%s, %s)", arg1, arg2);
+    }
+
+
     else if (LIST_LENGTH(node->args) == 1)
     {
         appendStringInfo(str, "(%s ", node->name);
@@ -545,22 +555,13 @@ exprToSQLString(StringInfo str, Node *expr, HashMap *nestedSubqueries, boolean t
             appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr, NULL, trimAttrNames));
         break;
         case T_RowNumExpr:
-        {
-            if(getBackend() == BACKEND_ORACLE)
-            {
-                appendStringInfoString(str, ATTR_ROWNUM);
-            }
-            else
-            {
-                appendStringInfo(str, "ROW_NUMBER() OVER ()", ATTR_ROWNUM);
-            }
-        }
+            appendStringInfoString(str, "ROWNUM");
         break;
         case T_OrderExpr:
             orderExprToSQL(str, (OrderExpr *) expr, nestedSubqueries, trimAttrNames);
         break;
         case T_QuantifiedComparison:
-        	quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr, nestedSubqueries, trimAttrNames);
+        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr, nestedSubqueries, trimAttrNames);
         break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr, nestedSubqueries);

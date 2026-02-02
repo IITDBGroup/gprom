@@ -47,7 +47,9 @@ parseFromString(char *input)
     ASSERT(plugin);
 
     INFO_LOG("parse SQL:\n%s", input);
+    INFO_LOG("parse SQL:\n%s", plugin->parseFromString(input));
     return plugin->parseFromString(input);
+    
 }
 
 Node *

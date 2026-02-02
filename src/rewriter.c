@@ -596,7 +596,7 @@ rewriteParserOutput(Node *parse, boolean applyOptimizations)
 
 //    if(!getBoolOption(OPTION_INPUTDB))
 //    	summarizationPlan(parse);
-
+    // 1. 翻译阶段：将解析树转换为操作符模型
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
@@ -621,7 +621,7 @@ rewriteParserOutput(Node *parse, boolean applyOptimizations)
                 TIME_ASSERT(checkModel((QueryOperator *) oModel));
         }
     )
-
+    // 2. 生成计划
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
         rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
     else

@@ -845,6 +845,7 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
         break;
         case PROV_INPUT_UNCERTAIN_QUERY:
      	case PROV_INPUT_RANGE_QUERY:
+        case PROV_INPUT_USET_QUERY:
 	    case PROV_INPUT_UNCERTAIN_TUPLE_QUERY:
         case PROV_INPUT_ZONO_UNCERT_QUERY://TODO
         {
@@ -1408,6 +1409,14 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_GROUPID)),
 					STRING_VALUE(getStringProvProperty(from, PROV_PROP_XTABLE_PROB)));
 			}
+		}
+
+		/* table selected as CTABLE */
+		if (getStringProvProperty(from, PROV_PROP_CTABLE_CONF))
+		{
+			setStringProperty(op, "CTABLE_CONF",
+							  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_CTABLE_CONF))));
+			hasProv = TRUE;
 		}
     }
 
