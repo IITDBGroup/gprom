@@ -376,17 +376,20 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
             *funcExists = TRUE;
         }
 
-        // does function take anytype as an input then determine return type
-        if (hasAnyType(typesStrs))
+        if(LIST_LENGTH(typesStrs) == LIST_LENGTH(argTypes))
         {
-            if(isAnyTypeCompatible(types, argTypes))
-            {
-                resType = inferAnyReturnType(typesStrs,
-                                             argTypes,
-                                             retType);
-                *funcExists = TRUE;
-            }
-        }
+        // does function take anytype as an input then determine return type
+             if (hasAnyType(typesStrs))
+             {
+                 if(isAnyTypeCompatible(types, argTypes))
+                 {
+                     resType = inferAnyReturnType(typesStrs,
+                                                  argTypes,
+                                                  retType);
+                     *funcExists = TRUE;
+                 }
+             }
+         }
     }
 
     RELEASE_MEM_CONTEXT();
