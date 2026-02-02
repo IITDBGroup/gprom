@@ -359,12 +359,16 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
     {
         char *parameters = duckdb_value_varchar(&result, 0, i);
         char *retType = duckdb_value_varchar(&result, 1, i);
-        List *typesStrs;
-        List *types;
+        List *typesStrs = NIL;
+        List *types = NIL;
 
-        parameters = strRemPostfix(strRemPrefix(parameters, 1), 1);
-        typesStrs = splitString(parameters, ",");
-        types = typeListToDTs(typesStrs);
+        // if there is at least one input arg, then extract args as string list
+        if(!streq(parameters,"[]"))
+        {
+            parameters = strRemPostfix(strRemPrefix(parameters, 1), 1);
+            typesStrs = splitString(parameters, ",");
+            types = typeListToDTs(typesStrs);
+        }
 
         if(equal(argTypes, types))
         {
@@ -381,7 +385,7 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
         // does function take anytype as an input then determine return type
              if (hasAnyType(typesStrs))
              {
-                 if(isAnyTypeCompatible(types, argTypes))
+                 if(isAnyTypeCompatible(typesStrs, argTypes))
                  {
                      resType = inferAnyReturnType(typesStrs,
                                                   argTypes,
@@ -456,7 +460,7 @@ inferAnyReturnType(List *types, List *argTypes, char *retType)
 static List *
 typeListToDTs(List *strs)
 {
-    List *result;
+    List *result = NIL;
 
     FOREACH(char,s,strs)
     {
