@@ -1671,7 +1671,7 @@ castExpression:
 		CAST '(' expression AS identifier ')'
 			{
 				RULELOG("castExpression");
-				CastExpr *c = createCastExpr($3, SQLdataTypeToDataType($5));
+				CastExpr *c = createCastExprOtherDT($3, strToLower($5), -1, SQLdataTypeToDataType($5));
 				$$ = (Node *) c;
 			}
 	;

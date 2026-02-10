@@ -630,7 +630,7 @@ duckdbBackendSQLTypeToDT (char *sqlType)
         return DT_STRING;
     }
 
-    return DT_FLOAT;
+    return DT_STRING;
 }
 
 char *

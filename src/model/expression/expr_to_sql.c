@@ -489,7 +489,14 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries, boolean tr
             appendStringInfoString(str, "CAST (");
             exprToSQLString(str, c->expr, nestedSubqueries, trimAttrNames);
             appendStringInfoString(str, " AS ");
-            dataTypeToSQL(str, c->resultDT);
+            if(c->otherDT)
+            {
+                appendStringInfoString(str, c->otherDT);
+            }
+            else
+            {
+                dataTypeToSQL(str, c->resultDT);
+            }
             appendStringInfoString(str, ")");
         }
     }
