@@ -41,14 +41,12 @@ typedef struct Operator {
 #define OPNAME_CONCAT "CONCAT"
 #define OPNAME_LIKE "LIKE"
 
-#define OPNAME_ADD "+"
+//#define OPNAME_ADD "+"
+#define OPNAME_ADD "CUSTOM_ADD"
 #define OPNAME_MULT "*"
 #define OPNAME_DIV "/"
 #define OPNAME_MINUS "-"
 #define OPNAME_MOD "%"
-
-/* ROWNUM */
-#define ATTR_ROWNUM backendifyIdentifier("ROWNUM")
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -70,13 +68,15 @@ typedef struct Constant {
 #define INVALID_FROM_ITEM -1
 #define INVALID_PARAM -1;
 
+
+//**“列引用”**在查询树/IR 里的抽象节点：描述“我指向哪一列、在谁的作用域里、类型是什么
 typedef struct AttributeReference {
-    NodeTag type;
-    char *name;
-    int fromClauseItem;
-    int attrPosition;
-    int outerLevelsUp;
-    DataType attrType;
+    NodeTag  type;           // 统一Node系统的类型标签（如 T_AttributeReference）
+    char    *name;           // 列名（语法层面的名字，如 "a"、"score"）
+    int      fromClauseItem; // 来自FROM列表的第几个输入（0/1/2…，对应第n个表/子查询）
+    int      attrPosition;   // 在该输入schema中的列位置（0-based）
+    int      outerLevelsUp;  // 向外层查询块“抬”几层（相关子查询用，0=当前层）
+    DataType attrType;       // 该列的数据类型（类型系统里的枚举/描述）
 } AttributeReference;
 
 typedef struct SQLParameter {
@@ -261,7 +261,6 @@ extern void incrConst(Constant *c);
 /* functions for determining the type of an expression */
 extern DataType typeOf(Node *expr);
 extern DataType typeOfInOpModel(Node *expr, List *inputOperators);
-extern List *exprListTypes(List *exprs);
 extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
 extern boolean isAggFunction(Node *expr);

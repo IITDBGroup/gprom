@@ -33,12 +33,19 @@
 #define CREATE_MUTEX static pthread_mutex_t LOCK_NAME = PTHREAD_MUTEX_INITIALIZER;
 #define INIT_MUTEX()
 #define DESTROY_MUTEX()
-#else
+#elif defined(OS_WINDOWS)
 #define LOCK_MUTEX() WaitForSingleObject(LOCK_NAME, INFINITE)
 #define UNLOCK_MUTEX() ReleaseMutex(LOCK_NAME)
 #define CREATE_MUTEX static HANDLE LOCK_NAME = NULL;
 #define INIT_MUTEX() LOCK_NAME = CreateMutex( NULL, FALSE, NULL)
 #define DESTROY_MUTEX()
+#else
+/* No mutex support on this platform */
+#define LOCK_MUTEX() /* No-op */
+#define UNLOCK_MUTEX() /* No-op */
+#define CREATE_MUTEX /* No-op */
+#define INIT_MUTEX() /* No-op */
+#define DESTROY_MUTEX() /* No-op */
 #endif
 
 #undef boolean

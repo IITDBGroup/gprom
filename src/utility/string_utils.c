@@ -140,7 +140,7 @@ regExMatch (const char *reg, const char *str)
 
 #endif
 
-#ifndef HAVE_STRSEP
+#if !HAVE_STRSEP && !defined(strsep)
 
 static char*strsep(char** stringp, const char* delim);
 

@@ -17,29 +17,33 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 
+//一列的定义
 typedef struct AttributeDef
 {
-    NodeTag type;
-    DataType dataType;
-    char *attrName;
+    NodeTag type;  //节点类型标签
+    DataType dataType;  //列数据类型
+    char *attrName;    //列名
 } AttributeDef;
 
+
+//“一张表/一个中间结果长什么样”的元数据结构（模式/Schema）
 typedef struct Schema
 {
-    NodeTag type;
-    char *name;
-    List *attrDefs; // AttributeDef type
+    NodeTag type;    // 节点类型标签，用于在统一的Node系统里识别这是个“Schema”
+    char *name; //名字：表名 / 视图名 / 子查询别名 / 中间结果名
+    List *attrDefs; // 列定义列表：元素类型是 AttributeDef*（列名+数据类型等）
 } Schema;
 
-typedef struct QueryOperator
-{
-    NodeTag type;
-    List *inputs; // children of the operator node, QueryOperator type
-    Schema *schema; // attributes and their data types of result tables, Schema type
-    List *parents; // direct parents of the operator node, QueryOperator type
-    List *provAttrs; // positions of provenance attributes in the operator's schema
-    Node *properties; // generic node to store flexible list or map of properties (KeyValue) for query operators
-} QueryOperator; // common fields that all operators have
+
+//所有算子（operator）**的统一“基类”头——把“一个算子结点”需要的公共信息放在一起，便于重写器/优化器/执行器统一处理。
+typedef struct QueryOperator {
+    NodeTag type;       // 节点类型标签（如 T_ProjectionOp、T_AggregationOp …）
+    List *inputs;       // 子结点列表（children），元素类型都是 QueryOperator*
+    Schema *schema;     // 本算子“输出表”的列与类型（Schema*）
+    List *parents;      // 直接父结点列表（谁在用我），元素也是 QueryOperator*
+    List *provAttrs;    // 溯源/血缘属性在 schema 中的位置索引（通常是 IntList）
+    Node *properties;   // 通用属性字典/列表（KeyValue*）：挂各种自定义元数据
+} QueryOperator;
 
 typedef struct TableAccessOperator
 {
@@ -209,7 +213,7 @@ extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name, boolean ad
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
 extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs);
-extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *child);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1,QueryOperator *op2);
 
 /* union equal element between two set list */
 extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
@@ -278,10 +282,6 @@ extern Node *getStringProperty(QueryOperator *op, char *key);
 extern void removeStringProperty(QueryOperator *op, char *key);
 extern List *appendToListProperty(QueryOperator *op, Node *key, Node *newTail);
 extern List *appendToListStringProperty(QueryOperator *op, char *key, Node *newTail);
-extern char *format_prop_value_for_user(char *prop, Node *val);
-extern char *format_op_prop_value_for_user(QueryOperator *op, char *prop);
-
-
 
 #define SET_KEYVAL_PROPERTY(op,kv) (setProperty(((QueryOperator *) op), kv->key, kv->value))
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
@@ -315,8 +315,7 @@ extern List *getOpProvenanceAttrNames(QueryOperator *op);
 extern int getNumProvAttrs(QueryOperator *op);
 
 extern List *getNormalAttrs(QueryOperator *op);
-extern List *getNormalAttrProjExprs(ProjectionOperator *op);
-extern List *getNormalAttrProjExprsFromChild(ProjectionOperator *parent, QueryOperator *child);
+extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getNormalAttrNames(QueryOperator *op);
 extern List *getAttrRefNames(ProjectionOperator *op);
 extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);

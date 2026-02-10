@@ -41,8 +41,7 @@ extern List *sqliteGetKeyInformation(char *tableName);
 extern DataType sqliteBackendSQLTypeToDT (char *sqlType);
 extern char * sqliteBackendDatatypeToSQL (DataType dt);
 extern HashMap *sqliteGetMinAndMax(char* tableName, char* colName);
-extern Set *sqliteNotNullAttrs(char *tableName);
-extern boolean sqliteFuncIsStrict(char *fname, List *argTypes, boolean *funcExists);
+
 
 extern Relation *sqliteExecuteQuery(char *query);
 extern void sqliteExecuteQueryIgnoreResults(char *query);

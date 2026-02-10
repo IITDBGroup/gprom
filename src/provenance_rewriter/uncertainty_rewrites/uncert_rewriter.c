@@ -2226,8 +2226,32 @@ parseConditionWithPostgresFunction(Node *condStr, Node *varName)
 	return funcCall;
 }
 
+/**
+ * 获取TableAccessOperator的表名
+ */
+static char *
+getTableNameFromOperator(QueryOperator *op)
+{
+	// 递归查找TableAccessOperator
+	if (op->type == T_TableAccessOperator) {
+		return ((TableAccessOperator *)op)->tableName;
+	}
+	
+	// 检查子操作符
+	if (op->inputs && op->inputs->length > 0) {
+		FOREACH(QueryOperator, child, op->inputs) {
+			char *tableName = getTableNameFromOperator(child);
+			if (tableName) {
+				return tableName;
+			}
+		}
+	}
+	
+	return NULL;
+}
+
 static Node *
-createRangeExprForAttr(Node *origExpr, Node *c_confRef)
+createRangeExprForAttr(Node *origExpr, Node *c_confRef, char *tableName)
 {
 	// 检查c_conf是否为'TRUE'或'true'
 	Node *isTrue = (Node *)createOpExpr(OPNAME_EQ, 
@@ -2244,9 +2268,34 @@ createRangeExprForAttr(Node *origExpr, Node *c_confRef)
 	// 在运行时会调用 parse_ctable_condition_z3_sympy("X>10&&X<20", "X")
 	Node *varNameStr = copyObject(origExpr);  // 在 SQL 中，这会被序列化为列名，运行时会被求值为列的值
 	
-	// 直接使用 PostgreSQL 函数，让数据库在运行时解析每行的条件
-	Node *parsedRange = parseConditionWithPostgresFunction(copyObject(c_confRef), varNameStr);
-	INFO_LOG("使用 PostgreSQL 函数解析条件（运行时解析）");
+	// 如果提供了表名，使用跨行约束函数；否则使用单行函数
+	Node *parsedRange = NULL;
+	if (tableName && strlen(tableName) > 0) {
+		// 使用跨行约束函数：parse_ctable_condition_cross_row(table_name, var_name, c_conf)
+		INFO_LOG("使用跨行约束函数解析条件（表名: %s）", tableName);
+		parsedRange = (Node *)createFunctionCall("parse_ctable_condition_cross_row",
+			LIST_MAKE(
+				(Node *)createConstString(tableName),
+				varNameStr,
+				copyObject(c_confRef)
+			));
+	} else {
+		// 使用单行函数：parse_ctable_condition_z3_sympy(c_conf, var_name)
+		INFO_LOG("使用 PostgreSQL 函数解析条件（运行时解析，单行）");
+		parsedRange = parseConditionWithPostgresFunction(copyObject(c_confRef), varNameStr);
+	}
+	
+	// 处理PostgreSQL函数返回'false'的情况（矛盾条件），应转换为NULL
+	// 检查parsedRange是否为'false'字符串常量
+	Node *isFalse = (Node *)createOpExpr(OPNAME_EQ,
+		LIST_MAKE(copyObject(parsedRange), (Node *)createConstString("false")));
+	Node *nullValue = (Node *)createNullConst(DT_STRING);
+	
+	// 如果PostgreSQL函数返回'false'，则返回NULL；否则返回解析结果
+	Node *parsedRangeOrNull = (Node *)createCaseExpr(NULL,
+		LIST_MAKE(createCaseWhen(isFalse, nullValue)),
+		parsedRange
+	);
 	
 	// 简化：使用 PostgreSQL 函数在运行时解析条件
 	// 如果 c_conf 是 'TRUE' 或 'true'，返回原值；否则使用 PostgreSQL 函数解析
@@ -2255,30 +2304,34 @@ createRangeExprForAttr(Node *origExpr, Node *c_confRef)
 		LIST_MAKE(
 			createCaseWhen(isTrueCombined, copyObject(origExpr))  // c_conf='TRUE'或'true'时返回原值
 		),
-		parsedRange  // 默认使用 PostgreSQL 函数解析的结果
+		parsedRangeOrNull  // 默认使用 PostgreSQL 函数解析的结果（可能为NULL）
 	);
 }
 
 /**
  * 重写CTable（不确定性表）
- * 功能：
- * 1. 检测c_conf列中的条件表达式
- * 2. 提取未知变量（X, Y, Z等）并更新其范围
- * 3. 将未知变量替换为范围表达式
- * 4. 添加lb和ub列表示行不确定性
  * 
- * 通用化策略：
- * - 遍历所有列（跳过id和c_conf列）
- * - 对于数值列，根据c_conf条件转换为范围表达式
- * - 对于非数值列，直接保留
- * - 添加lb和ub两列表示行不确定性
- * - ub恒为1
- * - 如果c_conf='TRUE'（所有值已知），则lb=1；否则lb=0
+ * 根据图片要求实现的功能：
+ * 1. 第一步：扫描c_conf列，提取未知变量（X, Y, Z等）并创建unknown表映射
+ *    - 遍历所有行的c_conf列
+ *    - 解析c_conf中的条件表达式（如 X>9000 && X={1000,1001} 或 Y<40000）
+ *    - 提取变量并计算它们的区间
+ *    - 将结果映射到逻辑上的unknown表（变量名 -> conf区间）
+ *    - 未提及的变量默认为 [-∞,+∞]
+ * 
+ * 2. 第二步：根据unknown表重写原表
+ *    - 遍历所有列（跳过id和c_conf列）
+ *    - 如果列的值是变量（如X, Y），根据c_conf条件转换为区间或值集
+ *    - 例如：Alice的Salary是"X"，c_conf是"X>9000 && X={1000,1001}"，则Salary转换为区间
+ *    - 对于Eve，Salary是"20000"，c_conf是"TRUE"，则Salary保持原值
+ *    - 添加lb和ub列表示行不确定性
+ *      - ub恒为1
+ *      - 如果行不包含任何未知值（所有值都是确定的，如Eve），则lb=1；否则lb=0
  */
 static QueryOperator *
 rewrite_UncertCTable(QueryOperator *op)
 {
-	INFO_LOG("rewrite_UncertCTable - 开始重写CTable");
+	INFO_LOG("rewrite_UncertCTable - 开始重写CTable（按照图片要求）");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
 	// 获取c_conf列名
@@ -2308,13 +2361,17 @@ rewrite_UncertCTable(QueryOperator *op)
 	// 获取c_conf列的引用，用于后续条件判断
 	Node *c_confRef = (Node *)getAttrRefByName(proj, c_conf);
 	
-	// 通用化处理：遍历所有列，根据c_conf条件对数值列进行范围转换
+	// 第一步：扫描c_conf列，提取变量并创建区间映射
+	// 这一步在SQL查询层面通过运行时函数实现，不需要预先扫描
+	// 我们将在重写列值时，使用PostgreSQL函数动态解析c_conf条件
+	
+	// 第二步：遍历所有列，根据c_conf条件重写列值
 	// 策略：
 	// 1. 跳过id列和c_conf列
-	// 2. 对于数值列，根据c_conf条件转换为范围表达式
-	// 3. 对于非数值列，直接保留
+	// 2. 对于每个列，检查其值是否是变量（通过检查c_conf中是否包含该值）
+	// 3. 如果是变量，使用PostgreSQL函数解析c_conf条件，转换为区间或值集
+	// 4. 如果不是变量或c_conf='TRUE'，保持原值
 	
-	// 遍历所有属性，进行通用化处理
 	FOREACH(Node, nd, attrExprs) {
 		AttributeReference *attrRef = (AttributeReference *)nd;
 		char *attrName = attrRef->name;
@@ -2324,18 +2381,10 @@ rewrite_UncertCTable(QueryOperator *op)
 			continue;
 		}
 		
-		// 获取原始表达式
+		// 获取原始表达式（列的值）
 		Node *origExpr = (Node *)getAttrRefByName(proj, attrName);
 		
-		// 通用化策略：只有当列的值作为未知变量出现在c_conf条件中时，才进行范围转换
-		// 判断逻辑：
-		// 1. 检查c_conf是否为"true"或"TRUE"：如果是，所有列都保持原值
-		// 2. 检查c_conf条件中是否包含该列的值（作为未知变量）：如果包含，则进行范围转换
-		// 3. 否则保持原值
-		// 例如：c_conf="X>10&&X<20"，salary="X" → salary列应该转换（因为c_conf中包含"X"）
-		//       c_conf="X>10&&X<20"，name="Alice" → name列不应该转换（因为c_conf中不包含"Alice"）
-		
-		// 检查c_conf是否为"true"或"TRUE"
+		// 检查c_conf是否为"TRUE"或"true"（所有值已知）
 		Node *isTrue = (Node *)createOpExpr(OPNAME_EQ, 
 			LIST_MAKE(copyObject(c_confRef), (Node *)createConstString("TRUE")));
 		Node *isTrueLower = (Node *)createOpExpr(OPNAME_EQ, 
@@ -2345,14 +2394,14 @@ rewrite_UncertCTable(QueryOperator *op)
 		
 		// 检查c_conf条件中是否包含该列的值（作为未知变量）
 		// 使用strpos检查：如果列的值在c_conf中出现，说明该列包含未知变量
-		// 例如：c_conf = "X>10&&X<20"，salary = "X" → 应该检查 strpos(c_conf, salary) > 0
+		// 例如：c_conf = "X>9000 && X={1000,1001}"，Salary = "X" → 应该检查 strpos(c_conf, Salary) > 0
 		// 注意：这里使用 origExpr（列的值），而不是列名字符串
 		Node *colValueInConf = (Node *)createFunctionCall("strpos", 
 			LIST_MAKE(copyObject(c_confRef), copyObject(origExpr)));
 		Node *hasColValue = (Node *)createOpExpr(OPNAME_GT, 
 			LIST_MAKE(colValueInConf, createConstInt(0)));
 		
-		// 组合条件：c_conf不是"true"或"TRUE"，且c_conf中包含该列的值
+		// 组合条件：c_conf不是"TRUE"或"true"，且c_conf中包含该列的值（作为变量）
 		Node *shouldConvert = (Node *)createOpExpr("AND", 
 			LIST_MAKE(
 				(Node *)createOpExpr("NOT", LIST_MAKE(isTrueCombined)),
@@ -2360,11 +2409,34 @@ rewrite_UncertCTable(QueryOperator *op)
 			));
 		
 		// 根据条件决定是否转换
-		Node *rangeExpr = createRangeExprForAttr(origExpr, c_confRef);
+		// 如果应该转换，需要收集跨行约束，然后使用PostgreSQL函数解析
+		// 策略：使用相关子查询收集所有行中对同一变量的约束
+		
+		// 创建跨行约束收集表达式
+		// 使用相关子查询：SELECT string_agg(c_conf, '&&') FROM table t2 
+		// WHERE strpos(t2.c_conf, t1.salary) > 0 AND t2.c_conf != 'TRUE'
+		// 其中t1是外层查询的当前行
+		
+		// 由于GProM中创建子查询比较复杂，我们采用一个简化方案：
+		// 创建一个新的PostgreSQL函数调用，该函数接受表名和变量名作为参数
+		// 函数内部使用子查询收集所有相关约束
+		
+		// 获取表名（用于跨行约束收集）
+		char *tableName = NULL;
+		// 从底层TableAccessOperator获取表名
+		QueryOperator *childOp = (QueryOperator *)getNthOfListP(proj->inputs, 0);
+		if (childOp) {
+			tableName = getTableNameFromOperator(childOp);
+		}
+		
+		// 使用跨行约束函数解析条件
+		Node *rangeExpr = createRangeExprForAttr(origExpr, c_confRef, tableName);
+		
 		Node *finalExpr = (Node *)createCaseExpr(NULL,
 			LIST_MAKE(createCaseWhen(shouldConvert, rangeExpr)),
-			copyObject(origExpr)  // 默认保持原值
+			copyObject(origExpr)  // 默认保持原值（c_conf='TRUE'或列值不是变量）
 		);
+		
 		INFO_LOG("CTable: 对列 %s 进行条件范围转换（如果c_conf包含该列的未知变量）", attrName);
 		
 		projExprs = appendToTailOfList(projExprs, finalExpr);
@@ -2376,10 +2448,13 @@ rewrite_UncertCTable(QueryOperator *op)
 	
 	// ub恒为1（根据图片描述）
 	projExprs = appendToTailOfList(projExprs, createConstInt(1));
-	projNames = appendToTailOfList(projNames, strdup("ub"));  // 使用"ub"作为列名
+	projNames = appendToTailOfList(projNames, strdup("ub"));
 	
-	// lb：如果c_conf为'TRUE'或'true'（所有值已知），则lb=1；否则lb=0
-	// 检查c_conf是否等于字符串'TRUE'或'true'
+	// lb：如果行不包含任何未知值（所有值都是确定的），则lb=1；否则lb=0
+	// 判断逻辑：
+	// 1. 如果c_conf为'TRUE'或'true'（所有值已知），则lb=1
+	// 2. 如果PostgreSQL函数返回'false'（矛盾条件，确定不存在），则lb=1
+	// 3. 否则lb=0（包含不确定性）
 	Node *c_confRefProj = (Node *)getAttrRefByName(proj, c_conf);
 	Node *isTrueForLB = (Node *)createOpExpr(OPNAME_EQ, 
 		LIST_MAKE(copyObject(c_confRefProj), (Node *)createConstString("TRUE")));
@@ -2387,12 +2462,44 @@ rewrite_UncertCTable(QueryOperator *op)
 		LIST_MAKE(copyObject(c_confRefProj), (Node *)createConstString("true")));
 	Node *isTrueCombinedForLB = (Node *)createOpExpr("OR", 
 		LIST_MAKE(isTrueForLB, isTrueLowerForLB));
+	
+	// 检查PostgreSQL函数调用结果是否为'false'（矛盾条件）
+	// 我们需要检查第一个重写的列（非id、非c_conf）的PostgreSQL函数调用结果
+	Node *firstColVarName = NULL;
+	FOREACH(Node, nd, attrExprs) {
+		AttributeReference *attrRef = (AttributeReference *)nd;
+		char *attrName = attrRef->name;
+		
+		// 跳过id列和c_conf列
+		if (strcmp(attrName, "id") == 0 || strcmp(attrName, c_conf) == 0) {
+			continue;
+		}
+		
+		// 获取原始列值（变量名，如"X"）
+		firstColVarName = (Node *)getAttrRefByName(op, attrName);
+		break;  // 只检查第一个列
+	}
+	
+	// 如果找到了列，检查PostgreSQL函数调用结果是否为'false'
+	Node *isFalseCondition = NULL;
+	if (firstColVarName) {
+		Node *funcCallForLB = parseConditionWithPostgresFunction(copyObject(c_confRefProj), copyObject(firstColVarName));
+		isFalseCondition = (Node *)createOpExpr(OPNAME_EQ,
+			LIST_MAKE(copyObject(funcCallForLB), (Node *)createConstString("false")));
+	} else {
+		// 如果没有找到列，默认不是false
+		isFalseCondition = (Node *)createConstBool(FALSE);
+	}
+	
+	// lb计算：如果c_conf='TRUE'或解析结果为'false'（矛盾条件），则lb=1；否则lb=0
+	Node *lbCondition = (Node *)createOpExpr("OR",
+		LIST_MAKE(isTrueCombinedForLB, isFalseCondition));
 	Node *lbRowExpr = (Node *)createCaseExpr(NULL,
-		LIST_MAKE((Node *)createCaseWhen(isTrueCombinedForLB, (Node *)createConstInt(1))),
-		(Node *)createConstInt(0)  // 如果c_conf不是'TRUE'或'true'，则lb=0
+		LIST_MAKE((Node *)createCaseWhen(lbCondition, (Node *)createConstInt(1))),
+		(Node *)createConstInt(0)  // 如果c_conf不是'TRUE'且没有矛盾条件（包含不确定性），则lb=0
 	);
 	projExprs = appendToTailOfList(projExprs, lbRowExpr);
-	projNames = appendToTailOfList(projNames, strdup("lb"));  // 使用"lb"作为列名
+	projNames = appendToTailOfList(projNames, strdup("lb"));
 	
 	// 更新投影操作符的表达式列表
 	((ProjectionOperator *)proj)->projExprs = projExprs;
@@ -2410,7 +2517,7 @@ rewrite_UncertCTable(QueryOperator *op)
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 	markUncertAttrsAsProv(proj);
 
-	INFO_LOG("CTable: 重写完成 - 已添加lb和ub列");
+	INFO_LOG("CTable: 重写完成 - 已添加lb和ub列，变量已转换为区间表示");
 	DEBUG_NODE_BEATIFY_LOG("rewritten query root for CTABLE uncertainty is:", proj);
 
 	return proj;

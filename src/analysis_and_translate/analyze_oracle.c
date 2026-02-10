@@ -759,6 +759,20 @@ analyzeFromProvInfo (FromItem *f)
                     f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
                 }
             }
+            // Handling CTABLE: remove c_conf attribute from schema if specified through CTABLE flag
+            if (getStringProvProperty(fp, PROV_PROP_CTABLE_CONF))
+            {
+                char *c_conf_attr = STRING_VALUE(getStringProvProperty(fp, PROV_PROP_CTABLE_CONF));
+                int pos = listPosString(f->attrNames, c_conf_attr);
+                if (pos != -1)
+                {
+                    DEBUG_LOG("CTABLE c_conf attribute %s at position %u", c_conf_attr, pos);
+                    f->attrNames = deepCopyStringList(f->attrNames);
+                    f->dataTypes = copyObject(f->dataTypes);
+                    f->attrNames = removeListElemAtPos(f->attrNames, pos);
+                    f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+                }
+            }
         }
 
         // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed

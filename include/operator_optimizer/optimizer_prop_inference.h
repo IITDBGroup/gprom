@@ -48,9 +48,6 @@ extern void printIcols(QueryOperator *root);
 
 extern Set *addAttrOfSelectCondToSet(Set *set, Node *expr);
 
-/* not null property */
-extern void computeNotNullProp(QueryOperator *op);
-
 /* help print function */
 extern void printECPro(QueryOperator *root);
 extern void printSingleECList(List *l);

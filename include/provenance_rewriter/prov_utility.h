@@ -65,19 +65,16 @@
 		addChildOperator(rewr, rewrRightInput);					\
 	} while(0)
 
-#define LOG_RESULT(_mes,_op)						\
+#define LOG_RESULT(mes,op)						\
     do {										\
-        INFO_OP_LOG(_mes,_op);					\
-        DEBUG_NODE_BEATIFY_LOG(_mes,_op);			\
+        INFO_OP_LOG(mes,op);					\
+        DEBUG_NODE_BEATIFY_LOG(mes,op);			\
     } while(0)
 
-#define LOG_RESULT_METHOD(_rewrite_method,_mes,_op) \
-    LOG_RESULT("REWRITE " #_rewrite_method " - " _mes, _op)
-
-#define LOG_RESULT_AND_RETURN(_rewrite_method,_optype)						\
+#define LOG_RESULT_AND_RETURN(optype)						\
 	do														\
 	{														\
-	LOG_RESULT("REWRITE " #_rewrite_method " - " #_optype " - rewritten operator:", rewr);	\
+		LOG_RESULT(#optype " - rewritten operator:", rewr);	\
 		return (QueryOperator *) rewr;						\
 	} while(0)
 
@@ -112,8 +109,6 @@ extern void switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new);
 extern QueryOperator *copyUnrootedSubtree(QueryOperator *op);
 extern void removeParentFromOps (List *operators, QueryOperator *parent);
 extern void substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp);
-extern void substOpInParentList(QueryOperator *op, QueryOperator *orig, QueryOperator *newOp);
-extern void substOpInInputs(QueryOperator *op, QueryOperator *orig, QueryOperator *newOp);
 
 // graph search
 extern boolean findTableAccessVisitor (Node *node, List **result);

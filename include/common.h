@@ -24,6 +24,9 @@
 
 #if HAVE_FLOAT_H
 #include <float.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(__GNUC__)
+/* Standard C/C++ and GCC systems should have float.h */
+#include <float.h>
 #endif
 
 /* <sys/types.h> */
@@ -51,6 +54,9 @@ typedef (void *) gprom_long_t;
 /* <stddef.h> */
 #if HAVE_STDDEF_H
 #include <stddef.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(_MSC_VER)
+/* Standard C/C++ systems should have stddef.h */
+#include <stddef.h>
 #endif
 
 /* <string.h> */
@@ -63,8 +69,11 @@ typedef (void *) gprom_long_t;
 #include <strings.h>
 #endif
 
-/* <stdargs.h> */
+/* <stdarg.h> */
 #if HAVE_STDARG_H
+#include <stdarg.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(__GNUC__)
+/* Standard C/C++ and GCC systems should have stdarg.h */
 #include <stdarg.h>
 #endif
 
@@ -72,10 +81,17 @@ typedef (void *) gprom_long_t;
 #if HAVE_TIME_H
 #include <time.h>
 #include <sys/time.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(__unix__) || defined(__linux__)
+/* Standard C/C++ and Unix systems should have time.h and sys/time.h */
+#include <time.h>
+#include <sys/time.h>
 #endif
 
 /* <limits.h> */
 #if HAVE_LIMITS_H
+#include <limits.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(__GNUC__)
+/* Standard C/C++ and GCC systems should have limits.h */
 #include <limits.h>
 #endif
 
@@ -92,10 +108,16 @@ typedef (void *) gprom_long_t;
 /* longjmp for exception handling */
 #if HAVE_SETJMP_H
 #include <setjmp.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(__unix__) || defined(__linux__)
+/* Standard C/C++ and Unix systems should have setjmp.h */
+#include <setjmp.h>
 #endif
 
 /* signal handler */
 #if HAVE_SIGNAL_H
+#include <signal.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(__unix__) || defined(__linux__)
+/* Standard C/C++ and Unix systems should have signal.h */
 #include <signal.h>
 #endif
 
@@ -114,6 +136,9 @@ typedef (void *) gprom_long_t;
 
 /* math */
 #if HAVE_MATH_H
+#include <math.h>
+#elif defined(__STDC__) || defined(__cplusplus) || defined(__GNUC__)
+/* Standard C/C++ and GCC systems should have math.h */
 #include <math.h>
 #endif
 
@@ -136,15 +161,25 @@ typedef (void *) gprom_long_t;
 #endif
 
 /* sigsetjmp function is called setjmp on windows */
-#ifndef HAVE_SIGJMP_BUF
+#if HAVE_SIGSETJMP
+/* System has sigsetjmp, use it */
+#elif !defined(sigsetjmp) && !defined(HAVE_SIGJMP_BUF)
+/* Windows or systems without sigsetjmp: use setjmp/longjmp */
+/* Only define if not already defined by system headers */
+#ifndef sigjmp_buf
 #define sigjmp_buf jmp_buf
+#endif
+#ifndef sigsetjmp
 #define sigsetjmp(x,y) setjmp(x)
+#endif
+#ifndef siglongjmp
 #define siglongjmp longjmp
+#endif
 #endif
 
 
 /* streq function */
-#if HAVE_STRCMP
+#if HAVE_STRCMP || defined(HAVE_STRING_H) || defined(__STDC__)
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
 #define strpeq(_l,_r) (((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0)))
 #define strpleq(_l,_r) ((_l != NULL) && (strcmp(_l,_r) == 0))

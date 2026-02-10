@@ -114,7 +114,6 @@ NEW_ENUM_WITH_TO_STRING(
 #define CHECK_OM_SCHEMA_CONSISTENCY "check.schema_consistency"
 #define CHECK_OM_DATA_STRUCTURE_CONSISTENCY "check.data_structure_consistency"
 #define CHECK_OM_ATTR_REF "check.attr_ref_consistency"
-#define CHECK_OM_COPY_PRESERVES_DATASTRUCTURE "check.opt_operator_model_copy_consistency"
 
 /* temporal database options */
 #define TEMPORAL_USE_COALSECE "temporal_use_coalesce"

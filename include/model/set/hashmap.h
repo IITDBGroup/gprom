@@ -51,7 +51,6 @@ extern Node *getMapString (HashMap *map, char *key);
 extern Node *getMapInt (HashMap *map, int key);
 extern Node *getMapLong (HashMap *map, gprom_long_t key);
 #define MAP_GET_STRING(map,key) getMapString(map, key)
-#define MAP_GET_STRING_VAL_FOR_STRING_KEY(map,key) STRING_VALUE(getMapString(map, key))
 #define MAP_GET_INT(map,key) getMapInt(map, key)
 #define MAP_GET_LONG(map,key) getMapLong(map, key)
 #define MAP_GET_POINTER(map,key) getMapLong(map, (gprom_long_t) key)

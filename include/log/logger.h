@@ -49,7 +49,6 @@ extern void log_(LogLevel level, const char *file, unsigned line,
         const char *template, ...);
 extern char *formatMes(const char *template, ...);
 extern void _debugNode(void *p);
-extern void _debugOp(void *op);
 extern void _debugMessage(char *mes);
 extern void registerLogCallback (void (*callback) (const char *,const char *,
         int,int));

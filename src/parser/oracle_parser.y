@@ -67,7 +67,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE USET ZUNCERT
-%token <stringVal> TIP INCOMPLETE VTABLE XTABLE RADB UADB
+%token <stringVal> TIP INCOMPLETE VTABLE XTABLE CTABLE RADB UADB
 
 %token <stringVal> FROM LATERAL
 %token <stringVal> ISOLATION LEVEL
@@ -143,7 +143,7 @@ Node *oracleParseResult = NULL;
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalOffset optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
-%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable optionalFromRADB optionalFromUADB
+%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable optionalFromCTable optionalFromRADB optionalFromUADB
 %type <node> expression expressionWithParens constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem
@@ -2120,6 +2120,16 @@ optionalFromXTable:
 		}
 ;
 
+optionalFromCTable:
+		IS CTABLE '(' identifier ')'
+		{
+			RULELOG("optionalFromCTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_CTABLE_CONF, (Node *) createConstString($4));
+			$$ = (Node *) p;
+		}
+;
+
 
 
 optionalFromProv:
@@ -2129,6 +2139,7 @@ optionalFromProv:
 		| optionalFromUADB {  $$ = $1; }
 		| optionalFromIncompleteTable { $$ = $1; }
 		| optionalFromXTable { $$ = $1; }
+		| optionalFromCTable { $$ = $1; }
 		| BASERELATION
 			{
 				RULELOG("optionalFromProv::BASERELATION");
