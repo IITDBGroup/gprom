@@ -23,6 +23,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 * [Optimization](https://github.com/IITDBGroup/gprom/wiki/research_optimization)
 * [Reenactment](https://github.com/IITDBGroup/gprom/wiki/research_reenactment)
 * [Provenance Graphs for Datalog](https://github.com/IITDBGroup/gprom/wiki/datalog_prov)
+* [CTable Uncertainty Table Rewriting](CTable.md) - Handle uncertain data with variable constraints
 
 # Features
 
@@ -31,6 +32,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 + Produce provenance graphs for Datalog queries that explain why (provenance) or why-not (missing answers) a tuple is in the result of a Datalog query
 + Heuristic and cost-based optimization for queries instrumented for provenance capture
 + Export of database provenance into the WWW PROV standard format
++ **CTable Uncertainty Table Rewriting**: Handle uncertain data by storing variables (X, Y, Z) and constraint conditions, automatically converting them to intervals or value sets with uncertainty bounds
 
 # Usage #
 
@@ -73,7 +75,61 @@ As you can see, `PROVENANCE OF (q)` returns the same answer as query `q`, but ad
 Oracle SQL - SQLite:./examples/test.db$ \q
 ```
 
-Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/IITDBGroup/gprom/wiki/). See the [man page](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system. 
+Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/IITDBGroup/gprom/wiki/). See the [man page](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system.
+
+## CTable Uncertainty Table Rewriting
+
+GProM now supports **CTable** (Confidence Table) functionality for handling uncertain data in database tables. This feature allows you to:
+
+- Store uncertain values using variables (X, Y, Z, etc.)
+- Specify constraint conditions in a `c_conf` column
+- Automatically convert variables to intervals or value sets based on constraints
+- Support cross-row dependencies where constraints from different rows affect each other
+- Add uncertainty bounds (`lb` and `ub` columns) to query results
+
+### Example Usage
+
+```sql
+-- Create a table with uncertain values
+CREATE TABLE employee (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    salary VARCHAR(50),
+    c_conf TEXT
+);
+
+INSERT INTO employee VALUES 
+    (1, 'Alice', 'X', 'X>9000'),
+    (2, 'Bob', 'Y', 'Y<40000'),
+    (3, 'Eve', '20000', 'TRUE');
+
+-- Query with CTable rewriting
+uset(SELECT name, salary, ub, lb FROM employee IS CTABLE(c_conf));
+```
+
+**Result:**
+```
+name  | salary      | ub | lb
+------|-------------|----|----
+Alice | (9000,+∞)   | 1  | 0
+Bob   | (-∞,40000)  | 1  | 0
+Eve   | 20000       | 1  | 1
+```
+
+### Supported Constraint Operators
+
+- Comparison: `>`, `<`, `>=`, `<=`, `!=` (or `<>`)
+- Set syntax: `X={1000,2000,3000}`
+- Logical: `&&` (AND), `||` (OR)
+- Special values: `TRUE` (all values certain), `false` (contradictory constraints)
+
+### Prerequisites
+
+- PostgreSQL 14+ with PL/Python3u extension
+- Z3 Python bindings (`pip3 install z3-solver` or `apt-get install python3-z3`)
+- Load PostgreSQL functions: `parse_ctable_condition_z3_sympy.sql` and `parse_ctable_condition_cross_row.sql`
+
+For detailed documentation and examples, see [CTable.md](CTable.md) in the repository.
 
 # Installation
 
@@ -85,6 +141,31 @@ The [wiki](https://github.com/IITDBGroup/gprom/wiki/installation) has detailed i
 make
 sudo make install
 ```
+
+## CTable Feature Setup
+
+To use the CTable uncertainty table rewriting feature, you need to:
+
+1. **Install PostgreSQL extensions:**
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS plpython3u;
+   ```
+
+2. **Install Z3 Python bindings:**
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install python3-z3
+   # Or using pip
+   pip3 install z3-solver
+   ```
+
+3. **Load PostgreSQL functions:**
+   ```bash
+   cat parse_ctable_condition_z3_sympy.sql | sudo -u postgres psql -d your_database
+   cat parse_ctable_condition_cross_row.sql | sudo -u postgres psql -d your_database
+   ```
+
+See [CTable.md](CTable.md) for detailed setup instructions and usage examples.
 
 # Research and Background
 
