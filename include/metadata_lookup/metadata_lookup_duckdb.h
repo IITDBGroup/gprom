@@ -38,6 +38,6 @@ extern void duckdbExecuteQueryIgnoreResults(char *query);
 extern void duckdbGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *duckdbExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
-
+extern boolean duckdbFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists);
 
 #endif /* INCLUDE_METADATA_LOOKUP_METADATA_LOOKUP_DUCKDB_H_ */

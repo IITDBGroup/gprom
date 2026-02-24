@@ -101,7 +101,7 @@ assembleDuckDBMetadataLookupPlugin (void)
     p->dataTypeToSQL = duckdbBackendDatatypeToSQL;
     p->getMinAndMax = duckdbGetMinAndMax;
     p->getNotNullAttrs = duckdbNotNullAttrs;
-
+    p->functionIsStrict = duckdbFunctionIsStrict;
     return p;
 }
 
@@ -950,6 +950,14 @@ duckdbQueryInternal(char *sql)
     return result;
 }
 
+boolean
+duckdbFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists)
+{
+    // Extract from duckdb
+    // But duckdb does not have the corresponding 'pg_operator'/ 'pg_proc' tables;
+    // just return a FALSE or TRUE.
+    return FALSE;
+}
 #else
 
 
