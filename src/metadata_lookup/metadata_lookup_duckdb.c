@@ -348,6 +348,11 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
         return DT_INT;
     }
 
+    if (strcaseeq(fName, ROW_NUMBER_FUNC_NAME))
+    {
+        return DT_INT;
+    }
+
     ACQUIRE_MEM_CONTEXT(memContext);
 
     str = makeStringInfo();
