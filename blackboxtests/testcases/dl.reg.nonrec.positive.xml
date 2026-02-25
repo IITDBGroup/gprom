@@ -88,8 +88,8 @@ A0|A1|
 </entry>
 
 <entry key="q8.query">
-Q(X) :- R(X,Y), X &lt; 10. 
-Q(X) :- R(X,Y), Y &gt; 10. 
+Q(X) :- R(X,Y), X &lt; 10.
+Q(X) :- R(X,Y), Y &gt; 10.
 ANS : Q.
 </entry>
 <entry key="q8.result">
@@ -97,21 +97,6 @@ A0|
 ----------------------------------------
 1|
 2|
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
 </entry>
 
 

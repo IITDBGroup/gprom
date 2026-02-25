@@ -54,10 +54,6 @@ REENACT (CREATE TABLE mytable (A INT, B INT); INSERT INTO mytable VALUES(1,1); U
  1 | 2 |
 </entry>
 
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
 
 
 </properties>

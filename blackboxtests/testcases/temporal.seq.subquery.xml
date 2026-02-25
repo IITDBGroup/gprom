@@ -5,9 +5,9 @@
 
 <entry key="q1.query">
 SEQUENCED TEMPORAL (
-	SELECT * 
-	FROM 
-		(SELECT A,B, CAST (TO_CHAR(T_BEGIN, 'YYYY') AS INT) AS T_BEGIN, CAST(TO_CHAR(T_END, 'YYYY') AS INT) +1 AS T_END 
+	SELECT *
+	FROM
+		(SELECT A,B, CAST (TO_CHAR(T_BEGIN, 'YYYY') AS INT) AS T_BEGIN, CAST(TO_CHAR(T_END, 'YYYY') AS INT) +1 AS T_END
 		FROM TEMP_DATE) WITH TIME(T_BEGIN, T_END)
 );
 </entry>
@@ -20,13 +20,13 @@ SEQUENCED TEMPORAL (
 </entry>
 
 <entry key="q2.query">
-SELECT * 
-FROM 
+SELECT *
+FROM
 	(SEQUENCED TEMPORAL (
-		SELECT count(*) AS c 
-		FROM 
-			(SELECT count(*) AS BOO, A 
-			FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) 
+		SELECT count(*) AS c
+		FROM
+			(SELECT count(*) AS BOO, A
+			FROM TEMP_TEST WITH TIME(T_BEGIN, T_END)
 			GROUP BY A) a
 		)
 	) sub
@@ -40,13 +40,13 @@ WHERE c = 0;
 </entry>
 
 <entry key="q3.query">
-SELECT * 
-FROM 
+SELECT *
+FROM
 	(SEQUENCED TEMPORAL (
-		SELECT count(*) AS c 
-		FROM 
-			(SELECT count(*) AS BOO, A 
-			FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) 
+		SELECT count(*) AS c
+		FROM
+			(SELECT count(*) AS BOO, A
+			FROM TEMP_TEST WITH TIME(T_BEGIN, T_END)
 			GROUP BY A) a
 		)
 	) sub
@@ -58,22 +58,4 @@ WHERE T_E &lt; 2;
  0 | -2000000000 | 1   |
 </entry>
 
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-
-
 </properties>
-

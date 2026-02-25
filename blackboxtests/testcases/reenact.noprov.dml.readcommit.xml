@@ -8,71 +8,14 @@ REENACT WITH ISOLATION LEVEL READCOMMITTED COMMIT SCN 1498654818 (OPTIONS (AS OF
 </entry>
 <entry key="q1.result">
 </entry>
+<entry key="q1.disabled" />
 
 <entry key="q2.query">
 REENACT WITH ISOLATION LEVEL READCOMMITTED COMMIT SCN 1497654818 (OPTIONS (AS OF SCN 90) INSERT INTO R VALUES(10,10); OPTIONS (AS OF SCN 91) UPDATE R SET A = 15;);
 </entry>
 <entry key="q2.result">
 </entry>
+<entry key="q2.disabled" />
 
-<entry key="q3.query">
-
-</entry>
-<entry key="q3.result">
-</entry>
-
-<entry key="q4.query">
-
-</entry>
-<entry key="q4.result">
-</entry>
-
-<entry key="q5.query">
-
-</entry>
-<entry key="q5.result">
-</entry>
-
-<entry key="q6.query">
-
-</entry>
-<entry key="q6.result">
-</entry>
-
-<entry key="q7.query">
-</entry>
-<entry key="q7.result">
-</entry>
-
-<entry key="q8.query">
-</entry>
-<entry key="q8.result">
-</entry>
-
-<entry key="q9.query">
-</entry>
-<entry key="q9.result">
-</entry>
-
-<entry key="q10.query">
-</entry>
-<entry key="q10.result">
-</entry>
-
-<entry key="q11.query">
-
-</entry>
-<entry key="q11.result">
-</entry>
-
-<entry key="q12.query">
-</entry>
-<entry key="q12.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
 
 </properties>

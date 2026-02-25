@@ -221,10 +221,4 @@ REL_Q2_LOST(c,a)|RULE_1_WON(c,a,c,b)|
 RULE_1_WON(c,a,c,c)|GOAL_1_2_LOST(c,a)|
 </entry>
 
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-
 </properties>

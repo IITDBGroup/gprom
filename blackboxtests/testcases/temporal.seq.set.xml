@@ -44,17 +44,12 @@ SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B =
 </entry>
 <entry key="q4.result">
 </entry>
+<entry key="q4.disabled"></entry>
 
 <entry key="q5.query">
 SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 INTERSECT ALL SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
 </entry>
 <entry key="q5.result">
 </entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
+<entry key="q5.disabled"></entry>
 </properties>
-

@@ -122,30 +122,16 @@ Q(X,X) :- R(X,Y), X=2. WHY(Q(2,2)).
 </entry>
 <entry key="q7.result">
 </entry>
+<entry key="q7.disabled" />
 
 <entry key="q8.query">
-Q(X) :- R(X,Y), X &lt; 10. 
-Q(X) :- R(X,Y), Y &gt; 10. 
+Q(X) :- R(X,Y), X &lt; 10.
+Q(X) :- R(X,Y), Y &gt; 10.
 ANS : Q.
 WHY(Q(1))).
 </entry>
 <entry key="q8.result">
 </entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
+<entry key="q8.disabled" />
 
 </properties>

@@ -7,7 +7,7 @@
 SELECT a AS x, b AS y FROM R WHERE b=2;
 </entry>
 <entry key="q1.result">
-X | Y
+X | Y|
 ----------+-----------------+-----------------
 1|2|
 </entry>
@@ -16,7 +16,7 @@ X | Y
 SELECT a AS x, b AS y FROM R WHERE a &gt; b;
 </entry>
 <entry key="q2.result">
-X | Y | 
+X | Y |
 ----------+-----------------+-----------------
 2|1|
 </entry>
@@ -39,14 +39,14 @@ X | Y | Z |
 SELECT c as x, d as y, a as z FROM S LEFT JOIN R ON R.a = S.d;
 </entry>
 <entry key="q4.result">
-X | Y | Z | 
+X | Y | Z |
 ----------+-----------------+-----------------
 2|2|2|
 2|2|2|
 1|4|(null)|
 3|3|(null)|
 2|3|(null)|
-</entry>  
+</entry>
 
 <entry key="q5.query">
 SELECT c as x, d as y, a as z, b as w FROM S FULL JOIN R ON b = d;
@@ -128,5 +128,5 @@ X|Y|Z|
 <!--
 SELECT a as x, b as y, d as z FROM (R JOIN S ON R.a = S.c) JOIN T ON (S.c = T.WHATEVER);
 
---> 
+-->
 </properties>
