@@ -54,7 +54,7 @@ A|B|
 </entry>
 
 <entry key="q5.query">
-REENACT (INSERT INTO R (SELECT sum(a), 1 FROM R););
+REENACT (INSERT INTO R (SELECT sum(a), 1 AS b FROM R););
 </entry>
 <entry key="q5.result">
 A|B|
@@ -96,7 +96,7 @@ REENACT WITH TABLE S (UPDATE R SET A = 3 WHERE B =1; UPDATE S SET C = 3 WHERE D 
 --------
  3 | 2 |
  2 | 3 |
- 3 | 3 |
+ 3 | 2 |
  1 | 4 |
 </entry>
 
@@ -106,6 +106,7 @@ REENACT WITH TABLE S ONLY UPDATED (UPDATE R SET A = 3 WHERE B =1; UPDATE S SET C
 <entry key="q9.result">
   C | D |
 --------
+ 3 | 2 |
  3 | 2 |
 </entry>
 
