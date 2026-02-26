@@ -575,7 +575,7 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 	// determine for any nested subquery part of this block where it should be serialized to
 	genMarkSubqueriesSerializationLocation(matchInfo, matchInfo->fromRoot, api);
 	attrNames = getAttrNames(q->schema);
-	
+
     // translate each clause
     DEBUG_LOG("serializeFrom");
     FromAttrsContext *cfac = copyFromAttrsContext(fac);
@@ -1198,7 +1198,7 @@ updateAttributeNames(Node *node, FromAttrsContext *fac)
  * Main entry point for serialization.
  */
 List *
-genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
+genSerializeQueryOperator(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // operator with multiple parents
 	if (HAS_STRING_PROP(q, PROP_PREPARED_QUERY_NAME))
@@ -1212,7 +1212,7 @@ genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *pare
 	}
     if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) &&
 		(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)))
-        return api->createTempView (q, str, parent, fac, api);
+        return api->createTempView(q, str, parent, fac, api);
     else if (isA(q, SetOperator))
         return api->serializeSetOperator(q, str, fac, api);
     else
@@ -1223,7 +1223,7 @@ genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *pare
  * Create a temporary view
  */
 List *
-genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
+genCreateTempView(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     StringInfo viewDef = makeStringInfo();
     char *viewName = createViewName(api);
@@ -1238,10 +1238,7 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, From
         view = (HashMap *) MAP_GET_POINTER(tempViewMap, q);
         char *name = strdup(TVIEW_GET_NAME(view));
 
-//        if (isA(parent, SetOperator))
-            appendStringInfo(str, "SELECT * FROM %s", name);
-//        else
-//            appendStringInfoString(str, name);
+        appendStringInfo(str, "SELECT * FROM %s", name);
 
         return deepCopyStringList(TVIEW_GET_ATTRNAMES(view));
     }
@@ -1258,10 +1255,7 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, From
     DEBUG_LOG("created view definition:\n%s for %p", viewDef->data, q);
 
     // add reference to view
-//    if (isA(parent, SetOperator))
-        appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
-//    else
-//        appendStringInfoString(str, strdup(viewName));
+    appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
 
     // add to view table
     view = NEW_MAP(Constant,Node);
