@@ -552,7 +552,7 @@ class GProMTestRunner:
 
     def print_results(self, t: GProMTestSuite, parentset: str):
         if not self.should_run_test(t):
-            return
+            return 0,0
         console = rich.get_console()
         indentlen = len(t.name) * 4
         testindentlen = indentlen + 4
@@ -562,13 +562,18 @@ class GProMTestRunner:
         settings = self.determine_settings(t, parentset)
         redbar = "[white on red]" + 80 * " " + "[/]\n"
 
+        numbase = 0
+        basepassed = 0
+
         for set in settings:
             suitestr = f"[white on black]SUITE: <{t.get_name_str()}> SETTING: <{set}> [/]"
             console.print(f"{blackindent}[b white on black]START [/] {suitestr}")
             for child in t.tests.values():
                 if isinstance(child,GProMTestCase) and child.name in self.results[set]:
+                    numbase += 1
                     if self.results[set][child.name]:
                         mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]"
+                        basepassed += 1
                     else:
                         mes = f"[white on red]FAIL[/] {child.get_name_str()}"
                         if options.diff and child.name in self.diffs[set]:
@@ -581,13 +586,16 @@ class GProMTestRunner:
                                 mes += f"  [white on red]EXCEPTION:[/] {shorterror}"
                     console.print(f"{testblackindent}{mes}")
                 else:
-                    self.print_results(child, set)
+                    newtest, newpassed = self.print_results(child, set)
+                    numbase += newtest
+                    basepassed += newpassed
             runtests = [ x for x in t.tests.values() if self.should_run_test(x) ]
             numtests = len(runtests)
             numsuccess = reduce(lambda x,y: x + y, [ self.results[set][c.name] for c in t.tests.values() if c.name in self.results[set] ], 0)
             #allpass = numsuccess == runtests
-            mes = f"[black on green] OK {numsuccess}/{numtests} PASSED [/]" if self.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED [/]"
+            mes = f"[black on green] OK {numsuccess}/{numtests} CHILDREN PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]" if self.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]"
             console.print(f"{blackindent}{suitestr} {mes}")
+        return (numbase, basepassed)
 
 class GProMRunner():
 
