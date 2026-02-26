@@ -39,7 +39,7 @@ X|
 SELECT sum(a) AS x, b AS y FROM r GROUP BY b;
 </entry>
 <entry key="q4.result">
-X | Y | 
+X | Y |
 ----------------------------------------
 3|1|
 1|2|
@@ -50,7 +50,7 @@ X | Y |
 SELECT a AS x, count(b) AS y FROM r GROUP BY a;
 </entry>
 <entry key="q5.result">
-X | Y | 
+X | Y |
 ----------------------------------------
 1|2|
 2|2|
@@ -60,7 +60,7 @@ X | Y |
 SELECT min(a) AS x, max(a) as y FROM r;
 </entry>
 <entry key="q6.result">
-X | Y | 
+X | Y |
 ----------+-----------------+-----------------
 1|2|
 </entry>
@@ -69,7 +69,7 @@ X | Y |
 SELECT avg(a) AS x, avg(b) AS y FROM r;
 </entry>
 <entry key="q7.result">
-X | Y | 
+X | Y |
 ----------+-----------------+-----------------
 1.5|1.75|
 </entry>
@@ -78,7 +78,7 @@ X | Y |
 SELECT a AS x, count(b) AS y FROM r GROUP BY a;
 </entry>
 <entry key="q8.result">
-X | Y | 
+X | Y |
 ----------+-----------------+-----------------
 1|2|
 2|2|
@@ -106,7 +106,7 @@ X|
 </entry>
 
 <entry key="q11.query">
-SELECT x+2 as x FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 1) GROUP BY x;
+SELECT x+2 as x FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 1) sub GROUP BY x;
 </entry>
 <entry key="q11.result">
 X|
@@ -120,28 +120,28 @@ X|
 SELECT b*3 as x, (b+a*c)-a as y, d-b as z FROM R,S;
 </entry>
 <entry key="q12.result">
-X|Y|Z|
-----------------------------------------
-3|2|1|
-3|2|2|
-3|3|2|
-3|1|3|
-6|3|0|
-6|3|1|
-6|4|1|
-6|2|2|
-3|3|1|
-3|3|2|
-3|5|2|
-3|1|3|
-9|5|-1|
-9|5|0|
-9|7|0|
-9|3|1|
+ X | Y | Z  |
+-------------
+ 3 | 2 | 1  |
+ 6 | 3 | 0  |
+ 3 | 3 | 1  |
+ 3 | 3 | 1  |
+ 9 | 5 | -1 |
+ 3 | 2 | 2  |
+ 6 | 3 | 1  |
+ 3 | 3 | 2  |
+ 9 | 5 | 0  |
+ 6 | 4 | 0  |
+ 3 | 5 | 1  |
+ 9 | 7 | -1 |
+ 3 | 1 | 3  |
+ 3 | 1 | 3  |
+ 6 | 2 | 2  |
+ 9 | 3 | 1  |
 </entry>
 
 <entry key="q13.query">
-SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 2) GROUP BY x;
+SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 2) sub GROUP BY x;
 </entry>
 <entry key="q13.result">
 Z|T|S|
@@ -152,12 +152,12 @@ Z|T|S|
 </entry>
 
 <entry key="q14.query">
-SELECT avg(a) AS x, avg(a+b) AS y, sum(a*b*(d-c)/2) AS z FROM R, S WHERE b &gt; c;
+SELECT avg(a) AS x, avg(a+b) AS y, sum(0.1 + a*b*(d-c)/2) AS z FROM R, S WHERE b &gt; c;
 </entry>
 <entry key="q14.result">
 X|Y|Z|
 ----------------------------------------
-1.75|4.5|15|
+1.75|4.5|15.4|
 </entry>
 
 <entry key="q15.query">

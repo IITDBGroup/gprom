@@ -43,9 +43,10 @@ X | Y | Z |
 ----------+-----------------+-----------------
 2|2|2|
 2|2|2|
-1|4|(null)|
-3|3|(null)|
-2|3|(null)|
+1|4|NULL|
+3|2|2|
+3|2|2|
+2|3|NULL|
 </entry>
 
 <entry key="q5.query">
@@ -54,12 +55,12 @@ SELECT c as x, d as y, a as z, b as w FROM S FULL JOIN R ON b = d;
 <entry key="q5.result">
  X | Y | Z | W |
 ----------+-----------------+-----------------
- 1 | 4 | (null) | (null) |
- 3 | 3 | 2 | 3 |
+ 1 | 4 | NULL | NULL |
+ 3 | 2 | 1 | 2 |
  2 | 3 | 2 | 3 |
  2 | 2 | 1 | 2 |
- (null) | (null) | 2 | 1 |
- (null) | (null) | 1 | 1 |
+ NULL | NULL | 2 | 1 |
+ NULL | NULL | 1 | 1 |
 </entry>
 
 <entry key="q6.query">

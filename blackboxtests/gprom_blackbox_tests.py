@@ -9,8 +9,7 @@ from enum import Enum
 import xml.etree.ElementTree as ET
 import argparse
 from typing import Dict, Union
-
-GPROM_BIN = "../src/command_line/gprom"
+from pathlib import Path
 FAT_STYLE = "bold black on white"
 
 console=None
@@ -27,7 +26,6 @@ def logfat(m, other=""):
         console.print(80 * " ", style=FAT_STYLE, justify="center")
         print(other)
 
-
 class DatabaseBackends(Enum):
     POSTGRES = 1
     SQLITE = 2
@@ -41,7 +39,7 @@ class Table:
     rows: Counter[tuple[str]] = field(default_factory=Counter)
 
     def __post_init__(self):
-        if type(self.rows)  == list:
+        if type(self.rows) == list:
             self.rows = Counter(self.rows)
 
     def add_row(self, row: tuple[str]):
@@ -54,6 +52,17 @@ class Table:
         if self.schema != o.schema:
             return False
         return self.rows == o.rows
+
+    def diff(self, o: "Table"):
+        if self.schema != o.schema:
+            return f"schemas differ: expected {self.schema}, but got {o.schema}"
+        allrows = set(self.rows.keys()).union(o.rows.keys())
+        result = ""
+        for r in allrows:
+            if self.rows[r] != o.rows[r]:
+                result += f"row[{r}] multiplicity differs: expected {self.rows[r]}, but was {o.rows[r]}\n"
+
+        return result
 
     @classmethod
     def from_str(cls, inputstr: str):
@@ -90,23 +99,52 @@ class Table:
         result += "-" * dividerlen + "\n"
 
         for r in self.rows:
-            result += Table.row_to_string(r, attrvallen)
+            rstr = Table.row_to_string(r, attrvallen)
+            for i in range(0,self.rows[r]):
+                result += rstr
 
         result = result[:-1]
 
         return result
 
 @dataclass
-class OrderedTable(Table):
+class OrderedTable():
+    schema: list[str]
     rows: list[tuple[str]] = field(default_factory=list)
 
     def add_row(self, row: tuple[str]):
-        self.rows.append(row)
+        self.rows.update([row])
+
+    def num_rows(self):
+        return sum(self.rows.values())
 
     def __eq__(self,o):
         if self.schema != o.schema:
             return False
         return self.rows == o.rows
+
+    def append(self, row: tuple[str]):
+        self.rows.append(row)
+
+    def diff(self, o: "OrderedTable"):
+        if self.schema != o.schema:
+            return f"schemas differ: expected {self.schema}, but got {o.schema}"
+        numself = self.num_rows()
+        numo = o.num_rows()
+        minrows = min(numself, numo)
+        result = ""
+        for i, r in enumerate(self.rows[:minrows]):
+            if self.rows[i] != o.rows[i]:
+                result += f"row[{i}] differs: expected {self.rows[i]}, but was {o.rows[i]}\n"
+        if numself > numo:
+            for i,r in enumerate(self.rows[minrows:]):
+                result += f"row[{i + minrows}] only in expected output: {self.rows[i + minrows]}"
+        if numo > numself:
+            for i,r in enumerate(o.rows[minrows:]):
+                result += f"row[{i + minrows}] only in actuals output: {o.rows[i + minrows]}"
+
+        return result
+
 
     @classmethod
     def from_str(cls, inputstr: str):
@@ -123,8 +161,26 @@ class OrderedTable(Table):
             row = tuple(vals)
             if len(vals) != numattr:
                 raise ValueError(f"Table has {numattr} attributes, but this row has {len(vals)} values:\n\n{vals}")
-            t.add_row(row)
+            t.append(row)
         return t
+
+    def __str__(self):
+        result = ""
+        attrvallen = [ max([ len(x[i]) for x in self.rows ]) for i in range(0,len(self.schema)) ]
+        attrvallen = [ max(attrvallen[i], len(self.schema[i])) for i in range(0,len(self.schema)) ]
+
+        result += Table.row_to_string(self.schema, attrvallen)
+        dividerlen = sum(attrvallen) + 3 * len(attrvallen)
+
+        result += "-" * dividerlen + "\n"
+
+        for r in self.rows:
+            result += Table.row_to_string(r, attrvallen)
+
+        result = result[:-1]
+
+        return result
+
 
 @dataclass
 class GProMSetting:
@@ -149,14 +205,17 @@ class GProMSetting:
     def __hash__(self):
         return hash(self.setting)
 
+    def items(self):
+        return self.setting.items()
+
     def to_list(self):
         result = []
-        for o in self.settings.entries():
-            v = self.settings[o]
+        for o,v in self.setting.items():
             if v:
                 result += [ o, v ]
             else:
                 result.append(o)
+        return result
 
     @classmethod
     def option_kv_to_str(cls,k:str, v:object):
@@ -266,7 +325,7 @@ class GProMXMLTestLoader:
             result = propdict[rkey]
             issorted = propdict[skey] if skey in propdict else False
             disabled = dkey in propdict
-            log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
+            #log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
             if not disabled:
                 t = OrderedTable.from_str(result) if issorted else Table.from_str(result)
                 testcases[q] = GProMTestCase(testcasename, None, None, query, t, issorted)
@@ -276,7 +335,7 @@ class GProMXMLTestLoader:
 def java_xml_properties_to_dict(file:str):
     xml = ET.parse(file)
     d = { x.get('key'):x.text for x in xml.getroot().findall('entry') }
-    log(f"Read properties file {file} with keys:\n{'\n'.join(d.keys())}")
+    #log(f"Read properties file {file} with keys:\n{'\n'.join(d.keys())}")
     return d
 
 
@@ -289,25 +348,41 @@ class GProMTestRunner:
     testcases: list[str] = None
     results: Dict[str,Dict[str, bool]] = field(default_factory=dict)
     errors: Dict[str,Dict[str, str]] = field(default_factory=dict)
+    queries: Dict[str,Dict[str,str]] = field(default_factory=dict)
+    diffs: Dict[str,Dict[str,str]] = field(default_factory=dict)
 
     FAT_STYLE = "bold black on white"
+
+    def ensure_dicts(self,name):
+        if name not in self.results:
+            self.results[name] = {}
+        if name not in self.errors:
+            self.errors[name] = {}
+        if name not in self.queries:
+            self.queries[name] = {}
+        if name not in self.diffs:
+            self.diffs[name] = {}
 
     def run_test(self, test: GProMTestCase, conf: GProMSettings, name: str): #TODO deal with forbidden settings
         log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
         exp = test.expected
         setting = conf[name]
-        if name not in self.results:
-            self.results[name] = {}
-            self.errors[name] = {}
+        self.ensure_dicts(name)
+        self.queries[name][test.name] = test.query
         try:
             if test.issorted:
-                actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
-            else:
                 actual = GProMRunner.gprom_exec_to_ordered_table(self.gprompath, test.query, setting)
-            self.results[name][test.name] = (exp == actual)
+            else:
+                actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
+            log(f"actual result was {'different' if not (exp == actual) else 'correct'}:\n{actual}")
+            correct = (exp == actual)
+            self.results[name][test.name] = correct
+            if not correct:
+                self.diffs[name][test.name] = exp.diff(actual)
 
-            return exp == actual
+            return correct
         except Exception as e:
+            log(f"got exception: {e}")
             self.results[name][test.name] = False
             if self.failonerror:
                 raise e
@@ -348,7 +423,7 @@ class GProMTestRunner:
             for child in t.tests.values():
                 if self.should_run_test(child):
                     if isinstance(child,GProMTestCase):
-                        log(f"run test case {child.name} in suite {t.name}, setting <{name}>")
+                        log(f"run test case {child.name} in suite {t.name}, setting <{name}> <{conf}>")
                         self.run_test(child, conf, name)
                     else:
                         self.run_suite(child, conf, name)
@@ -369,34 +444,47 @@ class GProMTestRunner:
         blankindent = indentlen * " "
         blackindent = f"[white on black]{blankindent}[/]"
         testblackindent = testindentlen * " "
-        testblackindent = f"[white on black]{blankindent}[/]"
         settings = self.determine_settings(t)
+        redbar = "[white on red]" + 80 * " " + "[/]\n"
 
         for set in settings:
             suitestr = f"[white on black]SUITE: {t.get_name_str()} SETTING: <{set}> [/]"
             console.print(f"{blackindent}[b white on black]START [/] {suitestr}")
             for child in t.tests.values():
-                if isinstance(child,GProMTestCase):
-                    mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]" if self.results[set][child.name] else f"[white on red]FAIL[/]"
-                    console.print(f"{blankindent}{mes}")
+                if isinstance(child,GProMTestCase) and child.name in self.results[set]:
+                    if self.results[set][child.name]:
+                        mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]"
+                    else:
+                        mes = f"[white on red]FAIL[/] {child.get_name_str()}"
+                        if options.diff and child.name in self.diffs[set]:
+                            mes += "  [white on red]QUERY ANSWER DIFFERS:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.diffs[set][child.name]}\n" + redbar
+                        if child.name in self.errors[set]:
+                            if options.errordetails:
+                                mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.errors[set][child.name]}\n" + redbar
+                            else:
+                                shorterror = self.errors[set][child.name][:60].replace("\n", " ")
+                                mes += f"  [white on red]EXCEPTION:[/] {shorterror}"
+                    console.print(f"{testblackindent}{mes}")
                 else:
                     self.print_results(child)
             runtests = [ x for x in t.tests.values() if self.should_run_test(x) ]
             numtests = len(runtests)
-            numsuccess = reduce(lambda x,y: x + y, [ self.results[set][c] for c in t.tests if c in self.results[set] ], 0)
-            allpass = numsuccess == numtests
-            mes = f"[black on green]OK {numsuccess}/{numtests} PASSED[/]" if self.results[set][t.name] else f"[white on red]FAIL {numsuccess}/{numtests} PASSED[/]"
+            numsuccess = reduce(lambda x,y: x + y, [ self.results[set][c.name] for c in t.tests.values() if c.name in self.results[set] ], 0)
+            allpass = numsuccess == runtests
+            mes = f"[black on green] OK {numsuccess}/{numtests} PASSED [/]" if self.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED [/]"
             console.print(f"{blackindent}{suitestr} {mes}")
 
 class GProMRunner():
 
     @classmethod
     def construct_gprom_cmd_as_list(cls, gprom: str, query: str, args: GProMSetting):
-        cmdlist = gprom + args.to_list() + ["-query", query]
+        query = query.replace("\n", " ")
+        cmdlist = [ gprom ] + args.to_list() + ["-query", query]
         return cmdlist
 
     @classmethod
     def gprom_exec_to_string(cls, gprom: str, query: str, args: GProMSetting):
+        log(f"will run {query} with args {args.items()}")
         cmdlist = GProMRunner.construct_gprom_cmd_as_list(gprom, query, args)
         log(f"run gprom with args:\n\t{' '.join(cmdlist)}")
         process = subprocess.run(cmdlist,
@@ -407,12 +495,18 @@ class GProMRunner():
 
     @classmethod
     def gprom_exec_to_table(cls, gprom: str, query: str, args: GProMSetting):
-        res = GProMRunner.gprom_exec_to_string(gprom, query, args)
+        rc, res, stderr = GProMRunner.gprom_exec_to_string(gprom, query, args)
+        log(f"running get us RC: {rc} with STDOUT:\n{res}")
+        if rc:
+            raise Exception(f"failed running [{rc}]:\nSTDOUT:\n{res}\nSTDERR:\n{stderr}")
         return Table.from_str(res)
 
     @classmethod
     def gprom_exec_to_ordered_table(cls, gprom: str, query: str, args: GProMSetting):
-        res = GProMRunner.gprom_exec_to_string(gprom, query, args)
+        rc, res, stderr = GProMRunner.gprom_exec_to_string(gprom, query, args)
+        log(f"running get us RC: {rc} with STDOUT:\n{res}")
+        if rc:
+            raise Exception(f"failed running [{rc}]:\nSTDOUT:\n{res}\nSTDERR:\n{stderr}")
         return OrderedTable.from_str(res)
 
 def gprom_debug_settings():
@@ -437,7 +531,11 @@ def default_gprom_settings_from_options(opions):
     else:
         settings = common.union(GProMSetting({
             "-backend": options.db,
-            "-db": options.db
+            "-db": options.db,
+            "-port": options.port,
+            "-host": options.host,
+            "-passwd": options.password,
+            "-user": options.user
         }))
     return GProMSettings({"": settings})
 
@@ -445,8 +543,12 @@ def parse_args():
     ap = argparse.ArgumentParser(description='Running semantic optimization experiment')
     ap.add_argument('-t', '--tests', type=str, default=None,
                     help=f"run only these tests, this can be a single string or a list separated by comma (default is to run all)")
-    ap.add_argument('--gprom', type=str, default=GPROM_BIN,
+    ap.add_argument('--gprom', type=str, default=get_relative_path("../src/command_line/gprom"),
                     help="use this gprom binary")
+    ap.add_argument('--diff', action='store_true',
+                    help="if provided, then show difference in outputs for failed tests")
+    ap.add_argument('-e', '--errordetails', action='store_true',
+                    help="if provided, then show detailed error messages for tests where gprom errored out")
     ap.add_argument('-s', '--stoponerror', action='store_true',
                     help="if provided, then stop after the first error")
     ap.add_argument("-D", "--debug", action='store_true',
@@ -461,7 +563,7 @@ def parse_args():
                     help="database user")
     ap.add_argument("-p", "--port", type=int, default=5432,
                     help="database port")
-    ap.add_argument("-d", "--db", type=str, default="./examples/test.db",
+    ap.add_argument("-d", "--db", type=str, default=get_relative_path("test-sqlite.db"),
                     help="database name")
     ap.add_argument("-P", "--password", type=str, default="test",
                     help="database password")
@@ -475,6 +577,9 @@ def parse_test_cases_selection():
         options.tests = [ tuple(t.strip().split(".")) for t in s.split(",") ]
         log(f"user selected test cases: {options.tests}")
 
+def get_relative_path(p):
+    return str(Path(__file__).resolve().parent) + "/" + p
+
 def main():
     global options
     global console
@@ -482,7 +587,7 @@ def main():
     options = parse_args()
     parse_test_cases_selection()
     conf = default_gprom_settings_from_options(options)
-    rootsuite = GProMXMLTestLoader.load_xmls_from_dir('./testcases')
+    rootsuite = GProMXMLTestLoader.load_xmls_from_dir(get_relative_path('testcases'))
     runner = GProMTestRunner(root=rootsuite,
                     gprompath=options.gprom,
                     conf=conf,
