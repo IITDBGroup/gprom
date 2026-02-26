@@ -1921,9 +1921,9 @@ fromClauseItem:
         | queryStmtWithParens optionalFromProv
             {
                 RULELOG("fromClauseItem::subQuery");
-                FromItem *f = (FromItem *) createFromSubquery(NULL, NULL, $1);;
+                FromItem *f = (FromItem *) createFromSubquery(NULL, NULL, $1);
                 f->provInfo = (FromProvInfo *) $2;
-                $$ = $1;
+                $$ = (Node *) f;
             }
         | queryStmtWithParens optionalAlias
             {
