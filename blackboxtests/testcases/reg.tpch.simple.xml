@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Simple queries over the TPC-H schema</comment>
+
+<entry key="q1.query">
+SELECT n_name, r_name
+  FROM nation n,
+       region r
+ WHERE n_regionkey = r_regionkey;
+</entry>
+<entry key="q1.result">
+A|B|
+----------------------------------------
+2|1|
+</entry>
+
+</properties>

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Simpler provenance queries over the TPC-H schema</comment>
+
+<entry key="q1.query">
+PROVENANCE OF (
+  SELECT n_name, r_name
+    FROM nation n,
+         region r
+   WHERE n_regionkey = r_regionkey
+  );
+</entry>
+<entry key="q1.result">
+n_name         | r_name      | prov_nation_n__nationkey | prov_nation_n__name | prov_nation_n__regionkey | prov_nation_n__comment                                                                                             | prov_region_r__regionkey | prov_region_r__name | prov_region_r__comment                                                                                              |
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ ALGERIA        | AFRICA      | 0                        | ALGERIA             | 0                        |  haggle. carefully final deposits detect slyly agai                                                                | 0                        | AFRICA              | lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to  |
+ ARGENTINA      | AMERICA     | 1                        | ARGENTINA           | 1                        | al foxes promise slyly according to the regular accounts. bold requests alon                                       | 1                        | AMERICA             | hs use ironic, even requests. s                                                                                     |
+ BRAZIL         | AMERICA     | 2                        | BRAZIL              | 1                        | y alongside of the pending deposits. carefully special packages are about the ironic forges. slyly special         | 1                        | AMERICA             | hs use ironic, even requests. s                                                                                     |
+ CANADA         | AMERICA     | 3                        | CANADA              | 1                        | eas hang ironic, silent packages. slyly regular packages are furiously over the tithes. fluffily bold              | 1                        | AMERICA             | hs use ironic, even requests. s                                                                                     |
+ EGYPT          | MIDDLE EAST | 4                        | EGYPT               | 4                        | y above the carefully unusual theodolites. final dugouts are quickly across the furiously regular d                | 4                        | MIDDLE EAST         | uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl        |
+ ETHIOPIA       | AFRICA      | 5                        | ETHIOPIA            | 0                        | ven packages wake quickly. regu                                                                                    | 0                        | AFRICA              | lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to  |
+ FRANCE         | EUROPE      | 6                        | FRANCE              | 3                        | refully final requests. regular, ironi                                                                             | 3                        | EUROPE              | ly final courts cajole furiously final excuse                                                                       |
+ GERMANY        | EUROPE      | 7                        | GERMANY             | 3                        | l platelets. regular accounts x-ray: unusual, regular acco                                                         | 3                        | EUROPE              | ly final courts cajole furiously final excuse                                                                       |
+ INDIA          | ASIA        | 8                        | INDIA               | 2                        | ss excuses cajole slyly across the packages. deposits print aroun                                                  | 2                        | ASIA                | ges. thinly even pinto beans ca                                                                                     |
+ INDONESIA      | ASIA        | 9                        | INDONESIA           | 2                        |  slyly express asymptotes. regular deposits haggle slyly. carefully ironic hockey players sleep blithely. carefull | 2                        | ASIA                | ges. thinly even pinto beans ca                                                                                     |
+ IRAN           | MIDDLE EAST | 10                       | IRAN                | 4                        | efully alongside of the slyly final dependencies.                                                                  | 4                        | MIDDLE EAST         | uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl        |
+ IRAQ           | MIDDLE EAST | 11                       | IRAQ                | 4                        | nic deposits boost atop the quickly final requests? quickly regula                                                 | 4                        | MIDDLE EAST         | uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl        |
+ JAPAN          | ASIA        | 12                       | JAPAN               | 2                        | ously. final, express gifts cajole a                                                                               | 2                        | ASIA                | ges. thinly even pinto beans ca                                                                                     |
+ JORDAN         | MIDDLE EAST | 13                       | JORDAN              | 4                        | ic deposits are blithely about the carefully regular pa                                                            | 4                        | MIDDLE EAST         | uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl        |
+ KENYA          | AFRICA      | 14                       | KENYA               | 0                        |  pending excuses haggle furiously deposits. pending, express pinto beans wake fluffily past t                      | 0                        | AFRICA              | lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to  |
+ MOROCCO        | AFRICA      | 15                       | MOROCCO             | 0                        | rns. blithely bold courts among the closely regular packages use furiously bold platelets?                         | 0                        | AFRICA              | lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to  |
+ MOZAMBIQUE     | AFRICA      | 16                       | MOZAMBIQUE          | 0                        | s. ironic, unusual asymptotes wake blithely r                                                                      | 0                        | AFRICA              | lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to  |
+ PERU           | AMERICA     | 17                       | PERU                | 1                        | platelets. blithely pending dependencies use fluffily across the even pinto beans. carefully silent accoun         | 1                        | AMERICA             | hs use ironic, even requests. s                                                                                     |
+ CHINA          | ASIA        | 18                       | CHINA               | 2                        | c dependencies. furiously express notornis sleep slyly regular accounts. ideas sleep. depos                        | 2                        | ASIA                | ges. thinly even pinto beans ca                                                                                     |
+ ROMANIA        | EUROPE      | 19                       | ROMANIA             | 3                        | ular asymptotes are about the furious multipliers. express dependencies nag above the ironically ironic account    | 3                        | EUROPE              | ly final courts cajole furiously final excuse                                                                       |
+ SAUDI ARABIA   | MIDDLE EAST | 20                       | SAUDI ARABIA        | 4                        | ts. silent requests haggle. closely express packages sleep across the blithely                                     | 4                        | MIDDLE EAST         | uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl        |
+ VIETNAM        | ASIA        | 21                       | VIETNAM             | 2                        | hely enticingly express accounts. even, final                                                                      | 2                        | ASIA                | ges. thinly even pinto beans ca                                                                                     |
+ RUSSIA         | EUROPE      | 22                       | RUSSIA              | 3                        |  requests against the platelets use never according to the quickly regular pint                                    | 3                        | EUROPE              | ly final courts cajole furiously final excuse                                                                       |
+ UNITED KINGDOM | EUROPE      | 23                       | UNITED KINGDOM      | 3                        | eans boost carefully special requests. accounts are. carefull                                                      | 3                        | EUROPE              | ly final courts cajole furiously final excuse                                                                       |
+ UNITED STATES  | AMERICA     | 24                       | UNITED STATES       | 1                        | y final packages. slow foxes cajole quickly. quickly silent platelets breach ironic accounts. unusual pinto be     | 1                        | AMERICA             | hs use ironic, even requests. s                                                                                     |
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (
+  SELECT sum(n_regionkey)
+    FROM nation
+  );
+</entry>
+<entry key="q2.result">
+sum(n_regionkey) | prov_nation_n__nationkey | prov_nation_n__name | prov_nation_n__regionkey | prov_nation_n__comment                                                                                             |
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 50               | 0                        | ALGERIA             | 0                        |  haggle. carefully final deposits detect slyly agai                                                                |
+ 50               | 1                        | ARGENTINA           | 1                        | al foxes promise slyly according to the regular accounts. bold requests alon                                       |
+ 50               | 2                        | BRAZIL              | 1                        | y alongside of the pending deposits. carefully special packages are about the ironic forges. slyly special         |
+ 50               | 3                        | CANADA              | 1                        | eas hang ironic, silent packages. slyly regular packages are furiously over the tithes. fluffily bold              |
+ 50               | 4                        | EGYPT               | 4                        | y above the carefully unusual theodolites. final dugouts are quickly across the furiously regular d                |
+ 50               | 5                        | ETHIOPIA            | 0                        | ven packages wake quickly. regu                                                                                    |
+ 50               | 6                        | FRANCE              | 3                        | refully final requests. regular, ironi                                                                             |
+ 50               | 7                        | GERMANY             | 3                        | l platelets. regular accounts x-ray: unusual, regular acco                                                         |
+ 50               | 8                        | INDIA               | 2                        | ss excuses cajole slyly across the packages. deposits print aroun                                                  |
+ 50               | 9                        | INDONESIA           | 2                        |  slyly express asymptotes. regular deposits haggle slyly. carefully ironic hockey players sleep blithely. carefull |
+ 50               | 10                       | IRAN                | 4                        | efully alongside of the slyly final dependencies.                                                                  |
+ 50               | 11                       | IRAQ                | 4                        | nic deposits boost atop the quickly final requests? quickly regula                                                 |
+ 50               | 12                       | JAPAN               | 2                        | ously. final, express gifts cajole a                                                                               |
+ 50               | 13                       | JORDAN              | 4                        | ic deposits are blithely about the carefully regular pa                                                            |
+ 50               | 14                       | KENYA               | 0                        |  pending excuses haggle furiously deposits. pending, express pinto beans wake fluffily past t                      |
+ 50               | 15                       | MOROCCO             | 0                        | rns. blithely bold courts among the closely regular packages use furiously bold platelets?                         |
+ 50               | 16                       | MOZAMBIQUE          | 0                        | s. ironic, unusual asymptotes wake blithely r                                                                      |
+ 50               | 17                       | PERU                | 1                        | platelets. blithely pending dependencies use fluffily across the even pinto beans. carefully silent accoun         |
+ 50               | 18                       | CHINA               | 2                        | c dependencies. furiously express notornis sleep slyly regular accounts. ideas sleep. depos                        |
+ 50               | 19                       | ROMANIA             | 3                        | ular asymptotes are about the furious multipliers. express dependencies nag above the ironically ironic account    |
+ 50               | 20                       | SAUDI ARABIA        | 4                        | ts. silent requests haggle. closely express packages sleep across the blithely                                     |
+ 50               | 21                       | VIETNAM             | 2                        | hely enticingly express accounts. even, final                                                                      |
+ 50               | 22                       | RUSSIA              | 3                        |  requests against the platelets use never according to the quickly regular pint                                    |
+ 50               | 23                       | UNITED KINGDOM      | 3                        | eans boost carefully special requests. accounts are. carefull                                                      |
+ 50               | 24                       | UNITED STATES       | 1                        | y final packages. slow foxes cajole quickly. quickly silent platelets breach ironic accounts. unusual pinto be     |
+</entry>
+
+<entry key="q3.query">
+PROVENANCE OF (
+  SELECT count(*) AS x, o_custkey
+    FROM orders
+   GROUP BY o_custkey
+   ORDER BY o_custkey
+   LIMIT 2
+   OFFSET 1);
+</entry>
+<entry key="q3.result">
+ x  | o_custkey | prov_orders_o__orderkey | prov_orders_o__custkey | prov_orders_o__orderstatus | prov_orders_o__totalprice | prov_orders_o__orderdate | prov_orders_o__orderpriority | prov_orders_o__clerk | prov_orders_o__shippriority | prov_orders_o__comment                                                       | _result_tid | _setprov_dup_count |
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 9  | 2         | 5893                    | 2                      | F                          | 44777.63                  | 1992-07-08               | 4-NOT SPECIFIED              | Clerk#000000560      | 0                           | final sentiments. instructions boost above the never speci                   | 2           | 1                  |
+ 9  | 2         | 5507                    | 2                      | O                          | 140363.7                  | 1998-05-28               | 5-LOW                        | Clerk#000000692      | 0                           | the carefully ironic instructions are quickly iro                            | 2           | 2                  |
+ 9  | 2         | 896                     | 2                      | F                          | 169847.63                 | 1993-03-09               | 1-URGENT                     | Clerk#000000187      | 0                           | inal packages eat blithely according to the warhorses. furiously quiet de    | 2           | 3                  |
+ 9  | 2         | 1669                    | 2                      | O                          | 24362.39                  | 1997-06-09               | 3-MEDIUM                     | Clerk#000000663      | 0                           | er ironic requests detect furiously blithely sp                              | 2           | 4                  |
+ 9  | 2         | 1504                    | 2                      | F                          | 89399.4                   | 1992-08-28               | 3-MEDIUM                     | Clerk#000000381      | 0                           | , brave deposits. bold de                                                    | 2           | 5                  |
+ 9  | 2         | 4704                    | 2                      | O                          | 63873.14                  | 1996-08-16               | 4-NOT SPECIFIED              | Clerk#000000256      | 0                           | lithely final requests about the fluffily regular                            | 2           | 6                  |
+ 9  | 2         | 353                     | 2                      | F                          | 179984.42                 | 1993-12-31               | 5-LOW                        | Clerk#000000449      | 0                           |  quiet ideas sleep. even instructions cajole slyly. silently spe             | 2           | 7                  |
+ 9  | 2         | 994                     | 2                      | F                          | 41433.48                  | 1994-04-20               | 5-LOW                        | Clerk#000000497      | 0                           | ole. slyly bold excuses nag caref                                            | 2           | 8                  |
+ 9  | 2         | 1603                    | 2                      | F                          | 29305.47                  | 1993-07-31               | 4-NOT SPECIFIED              | Clerk#000000869      | 0                           | s. slyly silent deposits boo                                                 | 2           | 9                  |
+ 22 | 4         | 358                     | 4                      | F                          | 226806.66                 | 1993-09-20               | 2-HIGH                       | Clerk#000000392      | 0                           | l, silent instructions are slyly. silently even de                           | 3           | 1                  |
+ 22 | 4         | 3623                    | 4                      | O                          | 175017.68                 | 1996-12-26               | 1-URGENT                     | Clerk#000000184      | 0                           | - ironic excuses boost quickly in place                                      | 3           | 2                  |
+ 22 | 4         | 4451                    | 4                      | F                          | 92851.8                   | 1994-10-01               | 1-URGENT                     | Clerk#000000181      | 0                           | . carefully final foxes along the quickly express T                          | 3           | 3                  |
+ 22 | 4         | 71                      | 4                      | O                          | 178821.73                 | 1998-01-24               | 4-NOT SPECIFIED              | Clerk#000000271      | 0                           |  express deposits along the blithely regul                                   | 3           | 4                  |
+ 22 | 4         | 4355                    | 4                      | O                          | 186370.23                 | 1996-11-16               | 1-URGENT                     | Clerk#000000362      | 0                           | ndencies use furiously across the regular                                    | 3           | 5                  |
+ 22 | 4         | 4263                    | 4                      | O                          | 158885.83                 | 1998-03-16               | 1-URGENT                     | Clerk#000000265      | 0                           | sly ruthless deposits. final packages are instructions. fu                   | 3           | 6                  |
+ 22 | 4         | 1024                    | 4                      | O                          | 176084.63                 | 1997-12-23               | 5-LOW                        | Clerk#000000903      | 0                           |  blithely. even, express theodolites cajole slyly across                     | 3           | 7                  |
+ 22 | 4         | 4193                    | 4                      | F                          | 143191.54                 | 1994-01-09               | 2-HIGH                       | Clerk#000000201      | 0                           | ng accounts haggle quickly. packages use fluffily ironic excu                | 3           | 8                  |
+ 22 | 4         | 4165                    | 4                      | O                          | 11405.4                   | 1997-07-25               | 3-MEDIUM                     | Clerk#000000621      | 0                           | special foxes affix never blithely ironic pinto beans; blithely              | 3           | 9                  |
+ 22 | 4         | 2980                    | 4                      | O                          | 187514.11                 | 1996-09-14               | 3-MEDIUM                     | Clerk#000000661      | 0                           | y quick pinto beans wake. slyly re                                           | 3           | 10                 |
+ 22 | 4         | 1031                    | 4                      | F                          | 128024.71                 | 1994-09-01               | 3-MEDIUM                     | Clerk#000000448      | 0                           | s; ironic theodolites along the carefully ex                                 | 3           | 11                 |
+ 22 | 4         | 224                     | 4                      | F                          | 155680.6                  | 1994-06-18               | 4-NOT SPECIFIED              | Clerk#000000642      | 0                           | r the quickly thin courts. carefully                                         | 3           | 12                 |
+ 22 | 4         | 4100                    | 4                      | O                          | 3892.77                   | 1996-03-12               | 3-MEDIUM                     | Clerk#000000429      | 0                           | posits. carefully unusual packages use pending deposits. regular she         | 3           | 13                 |
+ 22 | 4         | 1696                    | 4                      | O                          | 102665.03                 | 1998-01-08               | 4-NOT SPECIFIED              | Clerk#000000041      | 0                           | bravely bold accounts above the quickly bold                                 | 3           | 14                 |
+ 22 | 4         | 4928                    | 4                      | F                          | 59931.42                  | 1993-10-04               | 4-NOT SPECIFIED              | Clerk#000000952      | 0                           | slyly brave instructions after the ironic excuses haggle ruthlessly about    | 3           | 15                 |
+ 22 | 4         | 1635                    | 4                      | O                          | 70232.26                  | 1997-02-13               | 3-MEDIUM                     | Clerk#000000958      | 0                           | s. slyly ironic requests affix slyly                                         | 3           | 16                 |
+ 22 | 4         | 865                     | 4                      | F                          | 70430.54                  | 1993-05-04               | 3-MEDIUM                     | Clerk#000000337      | 0                           | . special packages wake after the carefully final accounts. express pinto be | 3           | 17                 |
+ 22 | 4         | 2374                    | 4                      | F                          | 115219.88                 | 1993-10-29               | 4-NOT SPECIFIED              | Clerk#000000081      | 0                           |  blithely regular packages. blithely unusua                                  | 3           | 18                 |
+ 22 | 4         | 3266                    | 4                      | P                          | 68309.28                  | 1995-03-17               | 5-LOW                        | Clerk#000000545      | 0                           | refully ironic instructions. slyly final pi                                  | 3           | 19                 |
+ 22 | 4         | 387                     | 4                      | O                          | 130647.18                 | 1997-01-26               | 4-NOT SPECIFIED              | Clerk#000000768      | 0                           |  are carefully among the quickly even deposits. furiously silent req         | 3           | 20                 |
+ 22 | 4         | 3329                    | 4                      | O                          | 46107.7                   | 1995-07-03               | 2-HIGH                       | Clerk#000000236      | 0                           | old deposits. special accounts haggle furiousl                               | 3           | 21                 |
+ 22 | 4         | 3427                    | 4                      | O                          | 133451.14                 | 1997-05-29               | 4-NOT SPECIFIED              | Clerk#000000404      | 0                           | y final pinto beans snooze fluffily bold asymptot                            | 3           | 22                 |
+</entry>
+
+<entry key="q4.query">
+PROVENANCE OF (
+    select
+        s_acctbal,
+        s_name,
+        n_name,
+        p_partkey,
+        p_mfgr,
+        s_address,
+        s_phone,
+        s_comment
+    from
+        part,
+        supplier,
+        nation,
+        region,
+        partsupp ps_main
+        join (
+            select
+                min(ps_supplycost) as min_ps_suppcost,
+                ps_partkey
+            from
+                partsupp,
+                supplier,
+                nation,
+                region
+            where
+                s_suppkey = ps_suppkey
+                and s_nationkey = n_nationkey
+                and n_regionkey = r_regionkey
+                and r_name = 'EUROPE'
+            group by ps_partkey
+        ) as subq
+        on ps_main.ps_supplycost = min_ps_suppcost and subq.ps_partkey = ps_main.ps_partkey
+    where
+        p_partkey = ps_main.ps_partkey
+        and s_suppkey = ps_suppkey
+        and p_size = 15
+        and p_type like '%TIN'
+        and s_nationkey = n_nationkey
+        and n_regionkey = r_regionkey
+        and r_name = 'EUROPE'
+    order by
+        s_acctbal desc,
+        n_name,
+        s_name,
+        p_partkey
+);
+</entry>
+<entry key="q4.result">
+ s_acctbal | s_name             | n_name         | p_partkey | p_mfgr         | s_address             | s_phone         | s_comment                                                                                           | prov_part_p__partkey | prov_part_p__name                    | prov_part_p__mfgr | prov_part_p__brand | prov_part_p__type   | prov_part_p__size | prov_part_p__container | prov_part_p__retailprice | prov_part_p__comment | prov_supplier_s__suppkey | prov_supplier_s__name | prov_supplier_s__address | prov_supplier_s__nationkey | prov_supplier_s__phone | prov_supplier_s__acctbal | prov_supplier_s__comment                                                                            | prov_nation_n__nationkey | prov_nation_n__name | prov_nation_n__regionkey | prov_nation_n__comment                                        | prov_region_r__regionkey | prov_region_r__name | prov_region_r__comment                        | prov_partsupp_ps__partkey | prov_partsupp_ps__suppkey | prov_partsupp_ps__availqty | prov_partsupp_ps__supplycost | prov_partsupp_ps__comment                                                                                                                 | prov_partsupp_1_ps__partkey | prov_partsupp_1_ps__suppkey | prov_partsupp_1_ps__availqty | prov_partsupp_1_ps__supplycost | prov_partsupp_1_ps__comment                                                                                                               | prov_supplier_1_s__suppkey | prov_supplier_1_s__name | prov_supplier_1_s__address | prov_supplier_1_s__nationkey | prov_supplier_1_s__phone | prov_supplier_1_s__acctbal | prov_supplier_1_s__comment                                                                          | prov_nation_1_n__nationkey | prov_nation_1_n__name | prov_nation_1_n__regionkey | prov_nation_1_n__comment                                      | prov_region_1_r__regionkey | prov_region_1_r__name | prov_region_1_r__comment                      |
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 6820.35   | Supplier#000000007 | UNITED KINGDOM | 186       | Manufacturer#2 | s,4TicNGB4uO6PaSqNBUq | 33-990-965-2201 | s unwind silently furiously regular courts. final requests are deposits. requests wake quietly blit | 186                  | papaya cream chartreuse spring blush | Manufacturer#2    | Brand#23           | ECONOMY BRUSHED TIN | 15                | JUMBO PKG              | 1086.18                  | ly reg               | 7                        | Supplier#000000007    | s,4TicNGB4uO6PaSqNBUq    | 23                         | 33-990-965-2201        | 6820.35                  | s unwind silently furiously regular courts. final requests are deposits. requests wake quietly blit | 23                       | UNITED KINGDOM      | 3                        | eans boost carefully special requests. accounts are. carefull | 3                        | EUROPE              | ly final courts cajole furiously final excuse | 186                       | 7                         | 1095                       | 252.84                       | . carefully regular pinto beans according to the blithely close asymptotes haggle carefully special requests. packages cajole up the furi | 186                         | 7                           | 1095                         | 252.84                         | . carefully regular pinto beans according to the blithely close asymptotes haggle carefully special requests. packages cajole up the furi | 7                          | Supplier#000000007      | s,4TicNGB4uO6PaSqNBUq      | 23                           | 33-990-965-2201          | 6820.35                    | s unwind silently furiously regular courts. final requests are deposits. requests wake quietly blit | 23                         | UNITED KINGDOM        | 3                          | eans boost carefully special requests. accounts are. carefull | 3                          | EUROPE                | ly final courts cajole furiously final excuse |
+</entry>
+
+<entry key="q5.query">
+PROVENANCE OF (
+ select
+        l_orderkey,
+        sum(l_extendedprice * (1 - l_discount)) as revenue, max(l_shipdate),
+        o_orderdate,
+        o_shippriority
+    from
+        customer,
+        orders,
+        lineitem
+    where
+        c_mktsegment = 'BUILDING'
+        and c_custkey = o_custkey
+        and l_orderkey = o_orderkey
+        and o_orderdate &gt; '1996-08-02'
+        and l_shipdate &lt;= '1996-10-23'
+    group by
+        l_orderkey,
+        o_orderdate,
+        o_shippriority
+    order by
+        revenue desc,
+        o_orderdate;
+);
+</entry>
+<entry key="q5.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+
+</properties>
