@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>General settings for Datalog test cases</comment>
+
+<entry key="extra_settings.dl">
+-frontend:dl
+</entry>
+</properties>
