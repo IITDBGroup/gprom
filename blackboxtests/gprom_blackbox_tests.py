@@ -357,7 +357,7 @@ class GProMXMLTestLoader:
         # already created one before, merge in
         log(f"Register {thetest.name} under {nameparts} for {cur.name}")
         if nameparts in cur.tests:
-            log(f"will merge suites {cur.tests[nameparts]} abd {thetest}")
+            log(f"will merge suites {cur.tests[nameparts]} and {thetest}")
             merge = GProMXMLTestLoader.merge_suites(cur.tests[nameparts], thetest)
             log(f"will merged suites {merge}")
             cur.tests[nameparts] = merge
@@ -595,17 +595,23 @@ class GProMTestRunner:
                     if self.results[set][child.name]:
                         mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]"
                         basepassed += 1
+                        console.print(f"{testblackindent}{mes}")
                     else:
                         mes = f"[white on red]FAIL[/] {child.get_name_str()}"
                         if options.diff and child.name in self.diffs[set]:
                             mes += "  [white on red]QUERY ANSWER DIFFERS:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.actualresults[set][child.name]}\n" + redbar + f"\n{self.diffs[set][child.name]}\n" + redbar
                         if child.name in self.errors[set]:
                             if options.errordetails:
-                                mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.errors[set][child.name]}\n" + redbar
+                                mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + "\n"
+                                console.print(f"{testblackindent}{mes}")
+                                console.print(self.errors[set][child.name], highlight=False)
+                                console.print(redbar)
                             else:
                                 shorterror = self.errors[set][child.name][:60].replace("\n", " ")
                                 mes += f"  [white on red]EXCEPTION:[/] {shorterror}"
-                    console.print(f"{testblackindent}{mes}")
+                                console.print(f"{testblackindent}{mes}")
+                        else:
+                            console.print(f"{testblackindent}{mes}")
                 else:
                     newtest, newpassed = self.print_results(child, set)
                     numbase += newtest
