@@ -535,8 +535,12 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	if(root->inputs != NULL)
     {
         FOREACH(QueryOperator, op, root->inputs)
+        {
             if(!HAS_STRING_PROP(op, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE))
+            {
                 removeUnnecessaryColumnsFromProjections(op);
+            }
+        }
     }
 
     List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
@@ -571,23 +575,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 	else if(isA(root, SelectionOperator))
 	{
-        /*
-         * (1) Remove unnecessary attributeDef in schema based on icols
-         * (2) Reset the pos of attributeRef in cond
-         */
-		//step (1)
-		//Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-		//root = removeUnnecessaryAttrDefInSchema(eicols, root);
-		//Set *unicols = unionSets(eicols, icols);
-		//root = removeUnnecessaryAttrDefInSchema(unicols, root);
         root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
-
-        //step (2)
-//        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
         resetPosInExprs(((SelectionOperator *)root)->cond, cSchema);
-//        resetAttrPosInCond(root, condOp);
-
-
 	}
 
 	else if(isA(root, WindowOperator))
@@ -618,88 +607,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		root->schema->attrDefs = newAttrDefs;
 
 		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root));
-
-/*
-//List *cSchema1 = cSchema;
-//step (2)
-//(1)FunctionalCall
-DEBUG_LOG("window function");
-resetPosInExprs(((WindowOperator *)root)->f,cSchema);
-//        List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
-//        FOREACH(AttributeReference, ar, funList)
-//        {
-//        	resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        }
-*/
-
-
-/*        //(2)PartitionBy
-		  DEBUG_LOG("window PartitionBy");
-//	    List *ccSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
-//	    FOREACH(AttributeDef, ad, ccSchema)
-//	    {
-//	    	printf("ccdef %s \n", ad->attrName);
-//	    }
-FOREACH(AttributeDef, ad, cSchema)
-{
-printf("cdef %s \n", ad->attrName);
-}*/
-
-//		List *parList = NIL;
-//		parList = ((WindowOperator *)root)->partitionBy;
-//		if(LIST_LENGTH(parList) != 0)
-//		{
-//			resetPosInExprs((Node *) parList ,cSchema1);
-//		    FOREACH(AttributeReference, ar, parList)
-//		    {
-//		    	printf(" %s \n", nodeToString(ar));
-//		    }
-//		}
-//        printf("0000000000000 length %d \n", LIST_LENGTH(parList));
-//        FOREACH(AttributeReference, ar, parList)
-//        {
-//        	printf("0000000000000 arg %s \n", nodeToString(ar));
-//        }
-//        FOREACH(AttributeDef, ad, cSchema)
-//        {
-//        	printf("0001111111000 def %s \n", ad->attrName);
-//        }
-//        if(parList != NIL)
-//        {
-//        	FOREACH(AttributeReference, ar, parList)
-//        	{
-//        		resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        	}
-//        }
-
-/*        //(3)OrderBy
-		  DEBUG_LOG("window order By");
-		  List *ordList = NIL;
-		  ordList = ((WindowOperator *)root)->orderBy;
-		  if(LIST_LENGTH(ordList) != 0)
-		  resetPosInExprs((Node *) ordList, cSchema);*/
-
-
-//        if(ordList != NIL)
-//        {
-//        	FOREACH_LC(o,ordList)
-//		    {
-//        		/*
-//        		 * If-else because sometimes ordList store OrderExpr,
-//        		 * sometimes such as q10, it stores AttributeReference  directly
-//        		 */
-//        	      if(isA(LC_P_VAL(o), AttributeReference))
-//        	      {
-//        	    	  AttributeReference *ar = (AttributeReference *)LC_P_VAL(o);
-//        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        	      }
-//        	      else if(isA(LC_P_VAL(o), OrderExpr))
-//        	      {
-//        	    	  AttributeReference *ar = (AttributeReference *)(((OrderExpr *)LC_P_VAL(o))->expr);
-//        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        	      }
-//		    }
-//        }
 	}
 
 	else if(isA(root, AggregationOperator))
@@ -709,42 +616,42 @@ printf("cdef %s \n", ad->attrName);
 		 */
 
 		AggregationOperator *agg = (AggregationOperator *)root;
+        List *newattrdef = NIL;
+        List *newaggfs = NIL;
+        List *aggfdefs = aggOpGetAggAttrDefs(agg);
+        List *groupbyattrdefs = aggOpGetGroupByAttrDefs(agg);
+
+        // remove unnecessary aggregation functions
+        FORBOTH(void,f,d,agg->aggrs,aggfdefs)
+        {
+            char *aggname = ((AttributeDef *) d)->attrName;
+            if(hasSetElem(icols, aggname))
+            {
+                newattrdef = appendToTailOfList(newattrdef, d);
+                newaggfs = appendToTailOfList(newaggfs, f);
+            }
+        }
+
+        // if no group-by and no aggregation function, we have to keep some agg
+        // function
+        if(LIST_LENGTH(agg->groupBy) == 0 && LIST_LENGTH(newaggfs) == 0)
+        {
+            newattrdef = singleton(getHeadOfList(agg->op.schema->attrDefs));
+            newaggfs = singleton(getHeadOfList(agg->aggrs));
+        }
+
+        // update operator
+        newattrdef = CONCAT_LISTS(newattrdef, groupbyattrdefs);
+        agg->aggrs = newaggfs;
+        agg->op.schema->attrDefs = newattrdef;
+
 		resetPosInExprs((Node *) agg->aggrs, cSchema);
 		resetPosInExprs((Node *) agg->groupBy, cSchema);
-
-//		QueryOperator *child = (QueryOperator *)getHeadOfListP(root->inputs);
-		//e.g. sum(A)
-//		FOREACH(FunctionCall, a, agg->aggrs)
-//		{
-//			//TODO: ar should get from list args, not only the head one
-//			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
-//			resetPos(ar,child->schema->attrDefs);
-//		}
-//
-//		//e.g. Group By
-//		FOREACH(AttributeReference, a, agg->groupBy)
-//		{
-//			resetPos(a,child->schema->attrDefs);
-//		}
 	}
 
 	else if(isA(root, JoinOperator))
 	{
-//		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-//		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-//
-//		Set *eicols = unionSets(elicols,ericols);
-//		FOREACH_SET(char, e, eicols)
-//		{
-//			DEBUG_LOG("%s ", e);
-//		}
 		JoinOperator *j = (JoinOperator *) root;
-
-		//List *lChildAttrDefsNames = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
-		//List *rChildAttrDefsNames = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
-
-		//int lLength = LIST_LENGTH(lChildAttrDefsNames);
-//		HashMap *hm = (HashMap *) getStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES);
 
 		List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
 		List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
@@ -779,89 +686,6 @@ printf("cdef %s \n", ad->attrName);
             DEBUG_OP_LOG("join or projection attributes are not unique", root);
         }
 
-//		List *newAttrDefs = NIL;
-//		if(j->cond != NULL)
-//		{
-//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//		    {
-//				if(searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName))
-//					newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//				else
-//				{
-//					char *tempName = strdup(STRING_VALUE(MAP_GET_STRING(hm, ad->attrName)));
-//					if(searchListString(leftSchemaNames, tempName) || searchListString(rightSchemaNames, tempName))
-//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//				}
-//		    }
-//			root->schema->attrDefs = newAttrDefs;
-//		}
-
-//		//Set schema attr def
-//		List *newAttrDefs = NIL;
-//		//List *newAttrDefNames = NIL;
-//		int count = 1;
-//		if(j->cond != NULL)
-//		{
-//			printf("1111111111 join schema lenght %d \n", LIST_LENGTH(root->schema->attrDefs));
-//			printf("=====================\n");
-//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//			{
-//				if(count <= lLength)
-//				{
-//					if(searchListString(leftSchemaNames, ad->attrName))
-//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					else
-//					{
-//						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
-//						printf("map tempName %s to %s", tempName, ad->attrName);
-//						if(searchListString(leftSchemaNames, tempName))
-//							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					}
-//				}
-//				else
-//				{
-//					if(searchListString(rightSchemaNames, ad->attrName))
-//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					else
-//					{
-//						char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
-//						printf("map tempName %s to %s", tempName, ad->attrName);
-//						if(searchListString(rightSchemaNames, tempName))
-//							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					}
-//				}
-//				count ++;
-//			}
-//			root->schema->attrDefs = newAttrDefs;
-//		}
-//		printf("\n=====================\n");
-//		else
-//		{
-//			List *lSchemaAttrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
-//			List *rSchemaAttrDefs = copyObject(OP_RCHILD(root)->schema->attrDefs);
-//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//			{
-//				if((searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName)) && !searchListString(newAttrDefNames, ad->attrName))
-//				{
-//					newAttrDefs = AppendToTailOfList(newAttrDefs, ad);
-//					newAttrDefNames = AppendToTailOfList(newAttrDefNames, ad->attrName);
-//				}
-//			}
-//		}
-
-//		if(j->cond != NULL)
-//		{
-//			List *condAttrNames = NIL;
-//			List *condAttr = getAttrReferences(j->cond);
-//			FOREACH(AttributeReference, a, condAttr)
-//			    condAttrNames = appendToTailOfList(condAttrNames, a->name);
-//			Set *condSet = makeStrSetFromList(condAttrNames);
-//			DEBUG_LOG("condAttr: %d, condSet: %d", LIST_LENGTH(condAttrNames), setSize(condSet));
-//			if(LIST_LENGTH(condAttrNames) == setSize(condSet))
-//				root->schema->attrDefs = newAttrDefs;
-//		}
-//		else
-//		    root->schema->attrDefs = newAttrDefs;
 
 		//Set cond attr ref pos
 		if(j->cond != NULL)
@@ -869,9 +693,6 @@ printf("cdef %s \n", ad->attrName);
 		    //DONE: TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
 			List *attrRefs = getAttrReferences (j->cond);
 			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
-//
-//			List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
-//			List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
 
 			List *leftRefs = NIL;
 			List *rightRefs = NIL;
@@ -891,22 +712,6 @@ printf("cdef %s \n", ad->attrName);
 			DEBUG_LOG("Reset join right");
 			FOREACH(AttributeReference,a,rightRefs)
 				resetPos(a,rcSchema);
-
-//			FOREACH(AttributeReference,a,attrRefs)
-//			{
-//			    if (a->fromClauseItem == 0)
-//			        resetPos(a,cSchema);
-//			    else
-//			        resetPos(a,rcSchema);
-//			}
-
-//
-//			if(streq(condOp->name,OPNAME_EQ))
-//			{
-//				AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
-//				AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
-//
-//			}
 		}
 	}
 
@@ -959,42 +764,52 @@ printf("cdef %s \n", ad->attrName);
 
 	else if(isA(root, ProjectionOperator))
 	{
-		//Used for debug
-		//printWindowAttrRefs(root);
-		//DEBUG_LOG("INFO: PROJECTION OPERATOR");
 		int numicols = setSize(icols);
 		int numAttrs = getNumAttrs(root);
 		ProjectionOperator *proj = (ProjectionOperator *) root;
 		List *newAttrDefs = NIL;
 		List *newAttrRefs = NIL;
+
 		if(numicols < numAttrs)
 		{
-            FORBOTH(Node, ad, ar, root->schema->attrDefs,proj->projExprs)
-		    {
-                AttributeDef *attrDef = (AttributeDef *) ad;
-
-                if(hasSetElem(icols, (char *)attrDef->attrName))
-                {
-					newAttrDefs = appendToTailOfList(newAttrDefs, attrDef);
-					newAttrRefs = appendToTailOfList(newAttrRefs, ar);
-                }
-		    }
-            root->schema->attrDefs = newAttrDefs;
-            proj->projExprs = newAttrRefs;
-
-         	QueryOperator *child = OP_LCHILD(root);
-            resetPosOfAttrRefBaseOnBelowLayerSchema(root,child);
-
-            //if up layer is projection, reset the pos of up layer's reference
-            if(root->parents != NIL)
+            // projection with no required attributes, remove this projection
+            if (numicols == 0)
             {
-            	QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents);
-            	if(isA(p, ProjectionOperator))
-            	{
-            		QueryOperator *r = root;
-            		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r);
-            	}
+                QueryOperator *child = OP_LCHILD(root);
 
+                switchSubtreeWithExisting(root, child);
+
+                return child;
+            }
+            else
+            {
+                FORBOTH(Node, ad, ar, root->schema->attrDefs,proj->projExprs)
+		        {
+                    AttributeDef *attrDef = (AttributeDef *) ad;
+
+                    if(hasSetElem(icols, (char *)attrDef->attrName))
+                    {
+					    newAttrDefs = appendToTailOfList(newAttrDefs, attrDef);
+					    newAttrRefs = appendToTailOfList(newAttrRefs, ar);
+                    }
+		        }
+                root->schema->attrDefs = newAttrDefs;
+                proj->projExprs = newAttrRefs;
+
+         	    QueryOperator *child = OP_LCHILD(root);
+                resetPosOfAttrRefBaseOnBelowLayerSchema(root,child);
+
+                //if up layer is projection, reset the pos of up layer's reference
+                if(root->parents != NIL)
+                {
+            	    QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents);
+            	    if(isA(p, ProjectionOperator))
+            	    {
+            		    QueryOperator *r = root;
+            		    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r);
+            	    }
+
+                }
             }
 		}
 		else
@@ -1002,24 +817,6 @@ printf("cdef %s \n", ad->attrName);
 	     	QueryOperator *child = (QueryOperator *)OP_LCHILD(root);
 	        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)root,(QueryOperator *)child);
 		}
-
-		//////////new add for test
-//		printf("\n 1111111111 ATTR list length %d \n", LIST_LENGTH(root->schema->attrDefs));
-//		FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//		{
-//			printf("%s ", ad->attrName);
-//		}
-//		printf("\n");
-//		FOREACH(AttributeReference, ar, ((ProjectionOperator *)root)->projExprs)
-//		{
-//			printf("%s ", ar->name);
-//		}
-//
-//		printf("\n 2222222222 ICOLS list length %d \n", numicols);
-//		FOREACH_SET(char, c, icols)
-//		{
-//			printf("%s ", c);
-//		}
 	}
 
 	else if(isA(root, JsonTableOperator))

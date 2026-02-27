@@ -2897,14 +2897,23 @@ computeReqColPropInternal(QueryOperator *root)
 		AggregationOperator *agg = (AggregationOperator *) root;
 		Set *set = STRSET();
 
-		//e.g. add aggregation input attributes, e.g., A for sum(A) to icols
-		List *aggList = getAttrReferences((Node *) agg->aggrs);
-		FOREACH(AttributeReference, a, aggList)
-		{
-			addToSet(set,strdup(a->name));
-		}
+		// add aggregation input attributes, e.g., A for sum(A) to icols if aggregation function output is in  cols
+        List *aggAttrNames = aggOpGetAggAttrNames(agg);
 
-		//e.g. add group by B into icols
+        FORBOTH(void, aggf, n, agg->aggrs, aggAttrNames)
+        {
+            char *name = (char *) n;
+            if (hasSetElem(icols, name))
+            {
+		        List *aggList = getAttrReferences((Node *) aggf);
+                FOREACH(AttributeReference, a, aggList)
+		        {
+			        addToSet(set,strdup(a->name));
+		        }
+            }
+        }
+
+		// add group by attributes into icols (that is always required
 		List *groupByList = getAttrReferences((Node *) agg->groupBy);
 		FOREACH(AttributeReference, a, groupByList)
 		{

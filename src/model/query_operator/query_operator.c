@@ -1533,6 +1533,9 @@ aggOpGetGroupByAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
 
+    if (LIST_LENGTH(op->groupBy) == 0)
+        return NIL;
+
     return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
 }
 
@@ -1551,6 +1554,9 @@ List *
 aggOpGetGroupByAttrDefs(AggregationOperator *op)
 {
     List *result = (List *) copyObject(((QueryOperator *) op)->schema->attrDefs);
+
+    if (LIST_LENGTH(op->groupBy) == 0)
+        return NIL;
 
     return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
 }
