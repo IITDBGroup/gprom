@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 import argparse
 from typing import Dict, Union
 from pathlib import Path
+from tqdm import tqdm
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
@@ -307,6 +308,15 @@ class GProMTestSuite(GProMTest):
         result = self.to_str_with_indent(0)
         return result
 
+    def count_testcases(self):
+        cnt = 0
+        for t in self.tests.values():
+            if isinstance(t, GProMTestCase):
+                cnt += 1
+            else:
+                cnt += t.count_testcases()
+        return cnt
+
 class GProMXMLTestLoader:
 
     EXTRA_SETTINGS_KEY = 'extra_settings'
@@ -442,6 +452,9 @@ class GProMTestRunner:
     queries: Dict[str,Dict[str,str]] = field(default_factory=dict)
     diffs: Dict[str,Dict[str,str]] = field(default_factory=dict)
     testsettings: Dict[str,list[str]] = field(default_factory=dict)
+    actualresults: Dict[str,list[str]] = field(default_factory=dict)
+    totalnumtests: int = 0
+    progressbar: tqdm = None
 
     FAT_STYLE = "bold black on white"
 
@@ -454,6 +467,8 @@ class GProMTestRunner:
             self.queries[name] = {}
         if name not in self.diffs:
             self.diffs[name] = {}
+        if name not in self.actualresults:
+            self.actualresults[name] = {}
 
     def run_test(self, test: GProMTestCase, conf: GProMSettings, name: str): #TODO deal with forbidden settings
         log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
@@ -467,11 +482,12 @@ class GProMTestRunner:
             else:
                 actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
             log(f"actual result was {'different' if not (exp == actual) else 'correct'}:\n{actual}")
+            self.actualresults[name][test.name] = str(actual)
             correct = (exp == actual)
             self.results[name][test.name] = correct
             if not correct:
                 self.diffs[name][test.name] = exp.diff(actual)
-
+            self.progressbar.update()
             return correct
         except Exception as e:
             log(f"got exception: {e}")
@@ -480,6 +496,8 @@ class GProMTestRunner:
                 raise e
             else:
                 self.errors[name][test.name] = str(e)
+            self.progressbar.update()
+            return False
 
     def run(self, conf: GProMSettings = None):
         if not conf:
@@ -487,7 +505,10 @@ class GProMTestRunner:
         log(f"Start running tests: {self.testcases}")
         self.results = {}
         self.errors = {}
+        self.totalnumtests = self.root.count_testcases()
+        self.progressbar = tqdm(total=self.totalnumtests, desc="Testcases")
         self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
+        self.progressbar.close()
         self.print_results(self.root, DEFAULT_SETTING_NAME)
 
     def should_run_test(self, t: GProMTest):
@@ -577,7 +598,7 @@ class GProMTestRunner:
                     else:
                         mes = f"[white on red]FAIL[/] {child.get_name_str()}"
                         if options.diff and child.name in self.diffs[set]:
-                            mes += "  [white on red]QUERY ANSWER DIFFERS:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.diffs[set][child.name]}\n" + redbar
+                            mes += "  [white on red]QUERY ANSWER DIFFERS:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.actualresults[set][child.name]}\n" + redbar + f"\n{self.diffs[set][child.name]}\n" + redbar
                         if child.name in self.errors[set]:
                             if options.errordetails:
                                 mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.errors[set][child.name]}\n" + redbar
@@ -664,7 +685,7 @@ def default_gprom_settings_from_options(opions):
             "-passwd": options.password,
             "-user": options.user
         }))
-    if options.debug:
+    if options.gpromdebug:
         settings = settings.union(GProMSetting({
             "-loglevel": "4",
             "-aggressive_model_checking": "TRUE",
@@ -691,6 +712,8 @@ def parse_args():
                     help="if provided, then stop after the first error")
     ap.add_argument("-D", "--debug", action='store_true',
                     help="debug the process by logging more information.")
+    ap.add_argument("--gpromdebug", action='store_true',
+                    help="request gprom to print more logging information.")
     ap.add_argument("-l", "--loglevel", type=int, default=3,
                     help="log level to use when debugging.")
     ap.add_argument("-b", "--backend", type=str, default="sqlite",
