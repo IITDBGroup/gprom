@@ -10,9 +10,33 @@ SELECT n_name, r_name
  WHERE n_regionkey = r_regionkey;
 </entry>
 <entry key="q1.result">
-A|B|
-----------------------------------------
-2|1|
+ n_name         | r_name      |
+-------------------------------
+ ALGERIA        | AFRICA      |
+ ARGENTINA      | AMERICA     |
+ BRAZIL         | AMERICA     |
+ CANADA         | AMERICA     |
+ EGYPT          | MIDDLE EAST |
+ ETHIOPIA       | AFRICA      |
+ FRANCE         | EUROPE      |
+ GERMANY        | EUROPE      |
+ INDIA          | ASIA        |
+ INDONESIA      | ASIA        |
+ IRAN           | MIDDLE EAST |
+ IRAQ           | MIDDLE EAST |
+ JAPAN          | ASIA        |
+ JORDAN         | MIDDLE EAST |
+ KENYA          | AFRICA      |
+ MOROCCO        | AFRICA      |
+ MOZAMBIQUE     | AFRICA      |
+ PERU           | AMERICA     |
+ CHINA          | ASIA        |
+ ROMANIA        | EUROPE      |
+ SAUDI ARABIA   | MIDDLE EAST |
+ VIETNAM        | ASIA        |
+ RUSSIA         | EUROPE      |
+ UNITED KINGDOM | EUROPE      |
+ UNITED STATES  | AMERICA     |
 </entry>
 
 </properties>
