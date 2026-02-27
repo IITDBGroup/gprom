@@ -3014,8 +3014,23 @@ computeReqColPropInternal(QueryOperator *root)
 
 	if(isA(root, SetOperator))
 	{
-		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), icols);
-		MERGE_INTO_CHILD_ICOLS(OP_RCHILD(root), icols); //FIXME attributes of right input may be named differently!
+        Set *rightIcols = STRSET();
+        QueryOperator *lchild = OP_LCHILD(root);
+        QueryOperator *rchild = OP_RCHILD(root);
+        List *lnames = getQueryOperatorAttrNames(lchild);
+        List *rnames = getQueryOperatorAttrNames(rchild);
+
+		MERGE_INTO_CHILD_ICOLS(lchild, icols);
+
+        FORBOTH(char,ln,rn,lnames,rnames)
+        {
+            if(hasSetElem(icols, ln))
+            {
+                addToSet(rightIcols, strdup(rn));
+            }
+        }
+
+		MERGE_INTO_CHILD_ICOLS(rchild, rightIcols); //FIXME attributes of right input may be named differently!
 	}
 
 	// for a nesting operator we need the columns to compute its expression as

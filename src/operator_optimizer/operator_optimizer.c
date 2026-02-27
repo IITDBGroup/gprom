@@ -818,7 +818,21 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)root,(QueryOperator *)child);
 		}
 	}
+    else if(isA(root, SetOperator))
+    {
+        /* SetOperator *s = (SetOperator *) root; */
 
+		List *newAttrDef = NIL;
+		FOREACH(AttributeDef, a, root->schema->attrDefs)
+        {
+			if(hasSetElem(icols, a->attrName))
+            {
+				newAttrDef = appendToTailOfList(newAttrDef, copyObject(a));
+            }
+        }
+
+		root->schema->attrDefs = newAttrDef;
+    }
 	else if(isA(root, JsonTableOperator))
 	{
 		List *newAttrDef = NIL;
