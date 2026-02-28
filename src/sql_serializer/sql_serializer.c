@@ -93,6 +93,7 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
             break;
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
+            break;
         case SQLSERIALIZER_PLUGIN_DUCKDB:
             plugin = assembleDuckDBPlugin();
             break;

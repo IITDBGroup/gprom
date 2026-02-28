@@ -680,6 +680,7 @@ postgresSerializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext 
     List *resultAttrs;
 
 	//TODO be smarter to use UNION / INTERSECT / EXCEPT when these are implemented in rel algebra as duplicate elimination
+    DEBUG_LOG("Serialize set operator - postgres");
 
     // output left child
 	appendStringInfoString(str, "(");

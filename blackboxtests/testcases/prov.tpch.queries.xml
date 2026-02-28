@@ -1,0 +1,649 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Provenance for the original TPC-H queries</comment>
+
+
+<entry key="q1.query">
+PROVENANCE OF (
+    select
+        l_returnflag,
+        l_linestatus,
+        sum(l_quantity) as sum_qty,
+        sum(l_extendedprice) as sum_base_price,
+        sum(l_extendedprice * (1 - l_discount)) as sum_disc_price,
+        sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) as sum_charge,
+        avg(l_quantity) as avg_qty,
+        avg(l_extendedprice) as avg_price,
+        avg(l_discount) as avg_disc,
+        count(*) as count_order
+    from
+        lineitem
+    where
+        l_shipdate &lt;= '1998-09-02'
+    group by
+        l_returnflag,
+        l_linestatus
+    order by
+        l_returnflag,
+        l_linestatus
+);
+</entry>
+<entry key="q1.result">
+A|B|
+----------------------------------------
+2|1|
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (
+    select
+        s_acctbal,
+        s_name,
+        n_name,
+        p_partkey,
+        p_mfgr,
+        s_address,
+        s_phone,
+        s_comment
+    from
+        part,
+        supplier,
+        nation,
+        region,
+        partsupp ps_main
+        join (
+            select
+                min(ps_supplycost) as min_ps_suppcost,
+                ps_partkey
+            from
+                partsupp,
+                supplier,
+                nation,
+                region
+            where
+                s_suppkey = ps_suppkey
+                and s_nationkey = n_nationkey
+                and n_regionkey = r_regionkey
+                and r_name = 'EUROPE'
+            group by ps_partkey
+        ) as subq
+        on ps_main.ps_supplycost = min_ps_suppcost and subq.ps_partkey = ps_main.ps_partkey
+    where
+        p_partkey = ps_main.ps_partkey
+        and s_suppkey = ps_suppkey
+        and p_size = 15
+        and p_type like '%BRASS'
+        and s_nationkey = n_nationkey
+        and n_regionkey = r_regionkey
+        and r_name = 'EUROPE'
+    order by
+        s_acctbal desc,
+        n_name,
+        s_name,
+        p_partkey
+);
+</entry>
+<entry key="q2.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q3.query">
+PROVENANCE OF (
+    SELECT
+        l_orderkey,
+        sum(l_extendedprice * (1 - l_discount)) as revenue,
+        o_orderdate,
+        o_shippriority
+    FROM
+        customer,
+        orders,
+        lineitem
+    WHERE
+        c_mktsegment = 'BUILDING'
+        and c_custkey = o_custkey
+        and l_orderkey = o_orderkey
+        and o_orderdate &lt; '1995-03-15'
+        and l_shipdate &gt; '1995-03-15'
+    GROUP BY
+        l_orderkey,
+        o_orderdate,
+        o_shippriority
+    ORDER BY
+        revenue desc,
+        o_orderdate
+    LIMIT 10
+);
+</entry>
+<entry key="q3.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q4.query">
+PROVENANCE OF (
+    select
+        o_orderpriority,
+        count(*) as order_count
+    from
+        orders
+        join (
+            SELECT 1, l_orderkey
+            FROM lineitem
+                 JOIN orders
+            on o_orderkey = l_orderkey
+            WHERE
+                l_commitdate &lt; l_receiptdate
+                and o_orderdate &gt;= '1993-07-01'
+                and o_orderdate &lt; '1993-10-01'
+            group by l_orderkey
+        ) f
+        ON o_orderkey = l_orderkey
+    where
+        o_orderdate >= '1993-07-01'
+        and o_orderdate &lt; '1993-10-01'
+    group by
+        o_orderpriority
+    order by
+        o_orderpriority
+);
+</entry>
+<entry key="q4.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q5.query">
+PROVENANCE OF (
+    select
+        n_name,
+        sum(l_extendedprice * (1 - l_discount)) as revenue
+    from
+        customer,
+        orders,
+        lineitem,
+        supplier,
+        nation,
+        region
+    where
+        c_custkey = o_custkey
+        and l_orderkey = o_orderkey
+        and l_suppkey = s_suppkey
+        and c_nationkey = s_nationkey
+        and s_nationkey = n_nationkey
+        and n_regionkey = r_regionkey
+        and r_name = 'ASIA'
+        and o_orderdate &gt;= '1994-01-01'
+        and o_orderdate &lt; '1995-01-01'
+    group by
+        n_name
+    order by
+        revenue desc
+);
+</entry>
+<entry key="q5.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q6.query">
+PROVENANCE OF (
+select
+	sum(l_extendedprice * l_discount) as revenue
+from
+	lineitem
+where
+	l_shipdate &gt;= '1994-01-01'
+	and l_shipdate &lt; '1995-01-01'
+	and l_discount &gt;= 0.05
+    and l_discount &lt;= 0.07
+	and l_quantity &lt; 24
+);
+</entry>
+<entry key="q6.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q7.query">
+  PROVENANCE OF (
+    select
+        supp_nation,
+        cust_nation,
+        l_year,
+        sum(volume) as revenue
+    from
+        (
+            select
+                n1.n_name as supp_nation,
+                n2.n_name as cust_nation,
+                date_part('YEAR', l_shipdate::date) as l_year,
+                l_extendedprice * (1 - l_discount) as volume
+            from
+                supplier,
+                lineitem,
+                orders,
+                customer,
+                nation n1,
+                nation n2
+            where
+                s_suppkey = l_suppkey
+                and o_orderkey = l_orderkey
+                and c_custkey = o_custkey
+                and s_nationkey = n1.n_nationkey
+                and c_nationkey = n2.n_nationkey
+                and (
+                    (n1.n_name = 'FRANCE' and n2.n_name = 'GERMANY')
+                    or (n1.n_name = 'GERMANY' and n2.n_name = 'FRANCE')
+                )
+                and l_shipdate &gt;= '1995-01-01'
+                and l_shipdate &lt;= '1996-12-31'
+        ) as shipping
+    group by
+        supp_nation,
+        cust_nation,
+        l_year
+    order by
+        supp_nation,
+        cust_nation,
+        l_year
+);
+
+</entry>
+<entry key="q7.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q8.query">
+PROVENANCE OF (
+    select
+        o_year,
+        sum(case
+            when nation = 'BRAZIL' then volume
+            else 0
+        end) / sum(volume) as mkt_share
+    from
+        (
+            select
+                date_part('YEAR', o_orderdate::date) as o_year,
+                l_extendedprice * (1 - l_discount) as volume,
+                n2.n_name as nation
+            from
+                part,
+                supplier,
+                lineitem,
+                orders,
+                customer,
+                nation  n1,
+                nation  n2,
+                region
+            where
+                p_partkey = l_partkey
+                and s_suppkey = l_suppkey
+                and l_orderkey = o_orderkey
+                and o_custkey = c_custkey
+                and c_nationkey = n1.n_nationkey
+                and n1.n_regionkey = r_regionkey
+                and r_name = 'AMERICA'
+                and s_nationkey = n2.n_nationkey
+                and o_orderdate &gt;= '1995-01-01'
+                and o_orderdate &lt;= '1996-12-31'
+                and p_type = 'ECONOMY ANODIZED STEEL'
+        ) all_nations
+    group by
+        o_year
+);
+</entry>
+<entry key="q8.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q9.query">
+PROVENANCE OF (
+    select
+        nation,
+        o_year,
+        sum(amount) as sum_profit
+    from
+        (
+            select
+                n_name as nation,
+                date_part('YEAR', o_orderdate::date) as o_year,
+                l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity as amount
+            from
+                part ,
+                supplier ,
+                lineitem ,
+                partsupp ,
+                orders ,
+                nation
+            where
+                s_suppkey = l_suppkey
+                and ps_suppkey = l_suppkey
+                and ps_partkey = l_partkey
+                and p_partkey = l_partkey
+                and o_orderkey = l_orderkey
+                and s_nationkey = n_nationkey
+                and p_name like '%green%'
+        ) as profit
+    group by
+        nation,
+        o_year
+    order by
+        nation,
+        o_year desc
+);
+</entry>
+<entry key="q9.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q10.query">
+PROVENANCE OF (
+    select
+        o_year,
+        sum(case
+            when nation = 'BRAZIL' then volume
+            else 0
+        end) / sum(volume) as mkt_share
+    from
+        (
+            select
+                date_part('YEAR', o_orderdate::date) as o_year,
+                l_extendedprice * (1 - l_discount) as volume,
+                n2.n_name as nation
+            from
+                part ,
+                supplier ,
+                lineitem ,
+                orders ,
+                customer ,
+                nation  n1,
+                nation  n2,
+                region
+            where
+                p_partkey = l_partkey
+                and s_suppkey = l_suppkey
+                and l_orderkey = o_orderkey
+                and o_custkey = c_custkey
+                and c_nationkey = n1.n_nationkey
+                and n1.n_regionkey = r_regionkey
+                and r_name = 'AMERICA'
+                and s_nationkey = n2.n_nationkey
+                and o_orderdate &gt;= '1995-01-01'
+                and o_orderdate &lt;= '1996-12-31'
+                and p_type = 'ECONOMY ANODIZED STEEL'
+        ) as all_nations
+    group by
+        o_year
+    order by
+        o_year
+);
+</entry>
+<entry key="q10.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q11.query">
+PROVENANCE OF (
+    SELECT ps_partkey, value FROM (
+    select
+        ps_partkey,
+        sum(ps_supplycost * ps_availqty) as value
+    from
+        partsupp ,
+        supplier ,
+        nation
+    where
+        ps_suppkey = s_suppkey
+        and s_nationkey = n_nationkey
+        and n_name = 'GERMANY'
+    group by
+        ps_partkey
+    ) a JOIN (
+        SELECT
+            sum(ps_supplycost * ps_availqty) * 0.0001000000 as computed_value
+        FROM
+            partsupp ,
+            supplier ,
+            nation
+        WHERE
+            ps_suppkey = s_suppkey
+            and s_nationkey = n_nationkey
+            and n_name = 'GERMANY'
+    ) b
+    on a.value &gt; b.computed_value
+    order by
+        value desc
+);
+</entry>
+<entry key="q11.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q12.query">
+PROVENANCE OF (
+    select
+        l_shipmode,
+        sum(case
+            when o_orderpriority = '1-URGENT'
+                or o_orderpriority = '2-HIGH'
+                then 1
+            else 0
+        end) as high_line_count,
+        sum(case
+            when o_orderpriority &lt;&gt; '1-URGENT'
+                and o_orderpriority &lt;&gt; '2-HIGH'
+                then 1
+            else 0
+        end) as low_line_count
+    from
+        orders ,
+        lineitem
+    where
+        o_orderkey = l_orderkey
+        and l_shipmode in ('MAIL', 'SHIP')
+        and l_commitdate &lt; l_receiptdate
+        and l_shipdate &lt; l_commitdate
+        and l_receiptdate &gt;= '1994-01-01'
+        and l_receiptdate &lt; '1995-01-01'
+    group by
+        l_shipmode
+    order by
+        l_shipmode
+);
+</entry>
+<entry key="q12.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q13.query">
+  PROVENANCE OF (
+    select
+        c_count,
+        count(*) as custdist
+    from
+        (
+            select
+                c_custkey,
+                count(o_orderkey) as c_count
+            from
+                customer  left outer join
+                orders
+            on
+                c_custkey = o_custkey
+                and not (o_comment like '%special%requests%')
+            group by
+                c_custkey
+        ) as c_orders (c_custkey, c_count)
+    group by
+        c_count
+    order by
+        custdist desc,
+        c_count desc
+);
+</entry>
+<entry key="q13.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<entry key="q14.query">
+PROVENANCE OF (
+    select
+        100.00 * sum(case
+            when p_type like 'PROMO%'
+                then l_extendedprice * (1 - l_discount)
+            else 0
+        end) / sum(l_extendedprice * (1 - l_discount)) as promo_revenue
+    from
+        lineitem ,
+        part
+    where
+        l_partkey = p_partkey
+        and l_shipdate &gt;= '1995-09-01'
+        and l_shipdate &lt; '1995-10-01'
+);
+</entry>
+<entry key="q14.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<!-- <entry key="q15.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q15.result">
+A|B|
+2|1|
+ -->
+<!-- </entry> -->
+
+<!-- <entry key="q16.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q16.result">
+A|B|
+2|1|
+ -->
+<!-- </entry> -->
+
+<!-- <entry key="q17.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q17.result">
+A|B|
+2|1|
+ -->
+<!-- </entry> -->
+
+<!-- <entry key="q18.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q18.result">
+A|B|
+2|1|
+ -->
+<!-- </entry> -->
+
+<entry key="q19.query">
+  PROVENANCE OF (
+    select
+        sum(l_extendedprice* (1 - l_discount)) as revenue
+    from
+        lineitem ,
+        part
+    where
+        (
+            p_partkey = l_partkey
+            and p_brand = 'Brand#12'
+            and p_container in ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG')
+            and l_quantity >= 1 and l_quantity &lt;= 1 + 10
+            and p_size >= 1 and p_size &lt;= 5
+            and l_shipmode in ('AIR', 'AIR REG')
+            and l_shipinstruct = 'DELIVER IN PERSON'
+        )
+        or
+        (
+            p_partkey = l_partkey
+            and p_brand = 'Brand#23'
+            and p_container in ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK')
+            and l_quantity >= 10 and l_quantity &lt;= 10 + 10
+            and p_size >= 1 and p_size &lt;= 10
+            and l_shipmode in ('AIR', 'AIR REG')
+            and l_shipinstruct = 'DELIVER IN PERSON'
+        )
+        or
+        (
+            p_partkey = l_partkey
+            and p_brand = 'Brand#34'
+            and p_container in ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG')
+            and l_quantity >= 20 and l_quantity &lt;= 20 + 10
+            and p_size >= 1 and p_size &lt;= 15
+            and l_shipmode in ('AIR', 'AIR REG')
+            and l_shipinstruct = 'DELIVER IN PERSON'
+        )
+);
+</entry>
+<entry key="q19.result">
+A|B|
+----------------------------------------
+2|1|
+
+</entry>
+
+<!-- <entry key="q20.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q20.result">
+A|B|
+2|1|
+ -->
+<!-- </entry> -->
+
+<!-- <entry key="q21.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q21.result">
+A|B|
+2|1|
+ -->
+<!-- </entry> -->
+
+<!-- <entry key="q22.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q22.result">
+A|B|
+2|1|
+ -->
+<!-- </entry> -->
+
+
+</properties>

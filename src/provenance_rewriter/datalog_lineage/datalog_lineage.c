@@ -298,7 +298,6 @@ replaceHeadExpressionsWithVars(DLAtom *head)
 			v = createUniqueVar((Node *) result, typeOf(n));
 		}
 
-
 		result->args = appendToTailOfList(result->args,v);
 	}
 

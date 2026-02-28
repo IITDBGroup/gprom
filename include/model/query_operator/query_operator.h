@@ -278,6 +278,10 @@ extern Node *getStringProperty(QueryOperator *op, char *key);
 extern void removeStringProperty(QueryOperator *op, char *key);
 extern List *appendToListProperty(QueryOperator *op, Node *key, Node *newTail);
 extern List *appendToListStringProperty(QueryOperator *op, char *key, Node *newTail);
+extern char *format_prop_value_for_user(char *prop, Node *val);
+extern char *format_op_prop_value_for_user(QueryOperator *op, char *prop);
+
+
 
 #define SET_KEYVAL_PROPERTY(op,kv) (setProperty(((QueryOperator *) op), kv->key, kv->value))
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
@@ -311,7 +315,8 @@ extern List *getOpProvenanceAttrNames(QueryOperator *op);
 extern int getNumProvAttrs(QueryOperator *op);
 
 extern List *getNormalAttrs(QueryOperator *op);
-extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
+extern List *getNormalAttrProjExprs(ProjectionOperator *op);
+extern List *getNormalAttrProjExprsFromChild(ProjectionOperator *parent, QueryOperator *child);
 extern List *getNormalAttrNames(QueryOperator *op);
 extern List *getAttrRefNames(ProjectionOperator *op);
 extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);

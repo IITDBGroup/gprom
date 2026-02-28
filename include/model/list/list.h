@@ -188,7 +188,6 @@ extern int getTailOfListInt(List *list);
 extern void *popTailOfListP(List *list);
 extern ListCell *popTailOfList(List *list);
 
-
 extern void *getNthOfListP(List *list, int n);
 extern int getNthOfListInt(List *list, int n);
 extern ListCell *getNthOfList(List *list, int n);
@@ -243,9 +242,9 @@ extern List *removeFromListInt(List *l, int el);
 extern List *removeFromTail(List *X);
 extern List *removeFromHead(List *X);
 extern List *removeListElemAtPos (List *list, int pos);
-#define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList (list, ptrEqual, ptr)
-#define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList (list, equal, node)
-
+#define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList(list, ptrEqual, ptr)
+#define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList(list, equal, node)
+#define REMOVE_FROM_LIST_STRING(list,str) genericRemoveFromList(list, strpequals, str)
 /* concatenate lists and get sublists */
 extern List *concatTwoLists (List *listA, List *listB);
 extern List *concatLists (List *a, ...);

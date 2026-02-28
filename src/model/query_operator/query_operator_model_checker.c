@@ -49,10 +49,12 @@ isTree(QueryOperator *op)
 }
 
 #define SHOULD(opt) (getBoolOption(OPTION_AGGRESSIVE_MODEL_CHECKING) || getBoolOption(opt))
-#define FREE_CONTEXT_AND_RETURN_BOOL(b) \
+#define FREE_CONTEXT_AND_RETURN_BOOL(_check, _b) \
 		do { \
-		    FREE_AND_RELEASE_CUR_MEM_CONTEXT(); \
-            return b; \
+            FREE_AND_RELEASE_CUR_MEM_CONTEXT(); \
+            if(!_b) \
+                ERROR_LOG("failed model check " _check); \
+            return _b; \
         } while (0)
 
 boolean
@@ -61,15 +63,17 @@ checkModel(QueryOperator *op)
     NEW_AND_ACQUIRE_MEMCONTEXT("QO_MODEL_CHECKER");
 
     if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !visitQOGraph(op, TRAVERSAL_PRE, checkParentChildLinks, NULL))
-        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+        FREE_CONTEXT_AND_RETURN_BOOL(CHECK_OM_PARENT_CHILD_LINKS,FALSE);
     if (SHOULD(CHECK_OM_ATTR_REF) && !visitQOGraph(op, TRAVERSAL_PRE, checkAttributeRefConsistency, NULL))
-        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+        FREE_CONTEXT_AND_RETURN_BOOL(CHECK_OM_ATTR_REF,FALSE);
     if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkSchemaConsistency, NULL))
-        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+        FREE_CONTEXT_AND_RETURN_BOOL(CHECK_OM_SCHEMA_CONSISTENCY,FALSE);
     if (SHOULD(CHECK_OM_DATA_STRUCTURE_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_POST, checkForDatastructureReuse, NEW_MAP(Constant, Constant)))
-        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+        FREE_CONTEXT_AND_RETURN_BOOL(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,FALSE);
+    if (SHOULD(CHECK_OM_COPY_PRESERVES_DATASTRUCTURE) && !equal(copyObject(op), op))
+        FREE_CONTEXT_AND_RETURN_BOOL(CHECK_OM_COPY_PRESERVES_DATASTRUCTURE,FALSE);
 
-    FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
+    FREE_CONTEXT_AND_RETURN_BOOL("", TRUE);
 }
 
 boolean

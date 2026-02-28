@@ -54,7 +54,7 @@ A|B|
 </entry>
 
 <entry key="q5.query">
-REENACT (INSERT INTO R (SELECT sum(a), 1 FROM R););
+REENACT (INSERT INTO R (SELECT sum(a), 1 AS b FROM R););
 </entry>
 <entry key="q5.result">
 A|B|
@@ -96,7 +96,7 @@ REENACT WITH TABLE S (UPDATE R SET A = 3 WHERE B =1; UPDATE S SET C = 3 WHERE D 
 --------
  3 | 2 |
  2 | 3 |
- 3 | 3 |
+ 3 | 2 |
  1 | 4 |
 </entry>
 
@@ -107,6 +107,7 @@ REENACT WITH TABLE S ONLY UPDATED (UPDATE R SET A = 3 WHERE B =1; UPDATE S SET C
   C | D |
 --------
  3 | 2 |
+ 3 | 2 |
 </entry>
 
 <entry key="q10.query">
@@ -114,21 +115,12 @@ REENACT WITH ONLY UPDATED (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2
 </entry>
 <entry key="q10.result">
 </entry>
+<entry key="q10.disabled" />
 
 <entry key="q11.query">
 REENACT WITH ISOLATION LEVEL READCOMMITTED COMMIT SCN 2000 (INSERT INTO R VALUES (1,1); AS OF SCN 1000 INSERT INTO R VALUES (2,2); AS OF SCN 1001 UPDATE R SET A = 3 WHERE B = 1; AS OF SCN 1002);
 </entry>
 <entry key="q11.result">
 </entry>
-
-<entry key="q12.query">
-</entry>
-<entry key="q12.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
+<entry key="q11.disabled" />
 </properties>

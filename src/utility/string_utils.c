@@ -19,13 +19,15 @@
 
 #ifdef HAVE_REGEX_H
 
+#define N_MATCHES 2
+
 char *
 getMatchingSubstring(const char *string, const char *pattern)
 {
     char *result;
     regex_t p;
     const int n_matches = 2;
-    regmatch_t m[n_matches];
+    regmatch_t m[N_MATCHES];
     int matchRes;
     int length;
 
@@ -52,8 +54,8 @@ getFullMatchingSubstring(const char *string, const char *pattern)
 {
     char *result;
     regex_t p;
-    const int n_matches = 2;
-    regmatch_t m[n_matches];
+    const int n_matches = N_MATCHES;
+    regmatch_t m[N_MATCHES];
     int matchRes;
     int length;
 
@@ -332,6 +334,12 @@ strieq(char *left, char *right)
             return FALSE;
     }
     return TRUE;
+}
+
+boolean
+strpequals(void *left, void *right)
+{
+    return strpeq((char *) left, (char *) right);
 }
 
 char *

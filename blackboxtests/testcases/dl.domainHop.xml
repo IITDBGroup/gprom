@@ -271,20 +271,5 @@ RULE_1_WON(c,b)|GOAL_1_0_LOST(c,b)|
 GOAL_1_0_LOST(c,b)|notREL_HOP_WON(c,b)|
 </entry>
 
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
-
 
 </properties>

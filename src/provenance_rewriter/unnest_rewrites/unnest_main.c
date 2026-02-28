@@ -597,7 +597,7 @@ unnestExistsSpecial(List *l)
 	NestingOperator *nest = (NestingOperator *) getHeadOfListP(l);
 	NestingOperator *childNest = (NestingOperator *) OP_LCHILD(nest);
 	QueryOperator *nestOp = (QueryOperator *) nest;
-	/* QueryOperator *childNestOP = (QueryOperator *) childNestOP; */
+	//QueryOperator *childNestOP = (QueryOperator *) childNestOP;
 
 	List *parentNest = nestOp->parents;
 	QueryOperator *lchild = OP_LCHILD(childNest);

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Select-Project-Join Test cases with custom provenance</comment>
+
+<entry key="q1.query">
+PROVENANCE OF (SELECT * FROM R USE PROVENANCE (b));
+</entry>
+<entry key="q1.result">
+ a | b | prov_r_b |
+-------------------
+ 1 | 1 | 1        |
+ 1 | 2 | 2        |
+ 2 | 1 | 1        |
+ 2 | 3 | 3        |
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (SELECT a FROM R USE PROVENANCE (b));
+</entry>
+<entry key="q2.result">
+ a | prov_r_b |
+---------------
+ 1 | 1        |
+ 1 | 2        |
+ 2 | 1        |
+ 2 | 3        |
+</entry>
+
+<entry key="q3.query">
+PROVENANCE OF (SELECT a AS x, b AS y FROM R USE PROVENANCE (b) WHERE b=2);
+</entry>
+<entry key="q3.result">
+ x | y | prov_r_b |
+-------------------
+ 1 | 2 | 2        |
+</entry>
+
+<entry key="q4.query">
+PROVENANCE OF (SELECT a AS x, b AS y FROM R USE PROVENANCE (b) WHERE a > b);
+</entry>
+<entry key="q4.result">
+ x | y | prov_r_b |
+-------------------
+ 2 | 1 | 1        |
+</entry>
+
+<entry key="q5.query">
+PROVENANCE OF (SELECT a as x, b as y, d as z FROM R USE PROVENANCE (b) INNER JOIN S USE PROVENANCE (d) ON R.a = S.c);
+</entry>
+<entry key="q5.result">
+ x | y | z | prov_r_b | prov_s_d |
+----------------------------------
+ 1 | 1 | 4 | 1        | 4        |
+ 1 | 2 | 4 | 2        | 4        |
+ 2 | 1 | 3 | 1        | 3        |
+ 2 | 1 | 2 | 1        | 2        |
+ 2 | 3 | 3 | 3        | 3        |
+ 2 | 3 | 2 | 3        | 2        |
+</entry>
+
+<entry key="q6.query">
+PROVENANCE OF (SELECT c as x, d as y, a as z FROM S USE PROVENANCE (c) LEFT JOIN R USE PROVENANCE (b) ON R.a = S.d);
+</entry>
+<entry key="q6.result">
+ x | y | z    | prov_s_c | prov_r_b |
+-------------------------------------
+ 2 | 2 | 2    | 2        | 3        |
+ 2 | 2 | 2    | 2        | 1        |
+ 2 | 3 | NULL | 2        | NULL     |
+ 3 | 2 | 2    | 3        | 3        |
+ 3 | 2 | 2    | 3        | 1        |
+ 1 | 4 | NULL | 1        | NULL     |
+</entry>
+
+<entry key="q7.query">
+PROVENANCE OF (SELECT c as x, d as y, a as z, b as w FROM S USE PROVENANCE (c) FULL OUTER JOIN R USE PROVENANCE (b) ON b = d);
+</entry>
+<entry key="q7.result">
+ x    | y    | z    | w    | prov_s_c | prov_r_b |
+--------------------------------------------------
+ 2    | 2    | 1    | 2    | 2        | 2        |
+ 2    | 3    | 2    | 3    | 2        | 3        |
+ 3    | 2    | 1    | 2    | 3        | 2        |
+ 1    | 4    | NULL | NULL | 1        | NULL     |
+ NULL | NULL | 2    | 1    | NULL     | 1        |
+ NULL | NULL | 1    | 1    | NULL     | 1        |
+</entry>
+
+<entry key="q8.query">
+PROVENANCE OF (SELECT a as x, b as y, d as z FROM R USE PROVENANCE (b) , S USE PROVENANCE (d) WHERE R.a = S.c);
+</entry>
+<entry key="q8.result">
+ x | y | z | prov_r_b | prov_s_d |
+----------------------------------
+ 1 | 1 | 4 | 1        | 4        |
+ 1 | 2 | 4 | 2        | 4        |
+ 2 | 1 | 3 | 1        | 3        |
+ 2 | 1 | 2 | 1        | 2        |
+ 2 | 3 | 3 | 3        | 3        |
+ 2 | 3 | 2 | 3        | 2        |
+</entry>
+
+</properties>

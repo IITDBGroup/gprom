@@ -25,7 +25,7 @@ NEW_ENUM_WITH_ONLY_TO_STRING(UncertaintyType,
 						UNCERTAIN_ATTR_RANGES
 	);
 
-#define LOG_RESULT(mes,op) \
+#define LOG_RESULT_UNCERT(mes,op) \
     do { \
         INFO_OP_LOG(mes,op); \
         DEBUG_NODE_BEATIFY_LOG(mes,op); \
@@ -1084,7 +1084,7 @@ rewrite_RangeTIP(QueryOperator *op)
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(((ProjectionOperator *)proj)->projExprs));
 //	INFO_LOG("Range_TIP_HMP: %s", nodeToString(hmp));
 
-	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [TIP TABLE]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [TIP TABLE]", op);
 
 	return proj;
 }
@@ -1370,7 +1370,7 @@ rewrite_UncertXTable(QueryOperator *op, UncertaintyType typ)
 
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 
-	LOG_RESULT(specializeTemplate("$1: Rewritten Operator tree [XTABLE]", singleton(UncertaintyTypeToString(typ))),
+	LOG_RESULT_UNCERT(specializeTemplate("$1: Rewritten Operator tree [XTABLE]", singleton(UncertaintyTypeToString(typ))),
 			   proj);
 
 	return proj;
@@ -2038,7 +2038,7 @@ rewrite_UncertSet(QueryOperator *op, boolean attrLevel)
 		return proj;
 	}
 
-	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SET]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [SET]", op);
 
 	return op;
 }
@@ -3563,7 +3563,7 @@ rewrite_UncertDuplicateRemoval(QueryOperator *op, boolean attrLevel)
 	addUncertAttrToSchema(hmp, projOp, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
 	setStringProperty(projOp, UNCERT_MAPPING_PROP, (Node *)hmp);
 
-	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [DUPLICATE REMOVAL]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [DUPLICATE REMOVAL]", op);
 
 	return projOp;
 }
@@ -3699,7 +3699,7 @@ rewrite_UncertAggregation(QueryOperator *op, boolean attrLevel)
 		return proj2;
 	}
 
-	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [AGGREGATION]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [AGGREGATION]", op);
 	return op;
 }
 
@@ -3834,7 +3834,7 @@ rewrite_UncertJoin(QueryOperator *op, boolean attrLevel)
 	addUncertAttrToSchema(hmp2, proj, (Node *) createAttributeReference(UNCERTAIN_ROW_ATTR));
 
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp2);
-	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [JOIN]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [JOIN]", op);
 
 	return proj;
 
@@ -4016,7 +4016,7 @@ rewrite_RangeJoin(QueryOperator *op){
 		((ProjectionOperator *)proj)->projExprs = projExprNew;
 	}
 
-	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [JOIN]", proj);
+	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [JOIN]", proj);
 
 	return proj;
 }
@@ -4570,7 +4570,7 @@ rewrite_UncertSelection(QueryOperator *op, boolean attrLevel)
 	}
     setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *) copyObject(hmp));
 
-	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [SELECTION]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [SELECTION]", op);
 
 	return proj;
 }
@@ -4643,7 +4643,7 @@ rewrite_RangeSelection(QueryOperator *op)
     }
 
 	markUncertAttrsAsProv(proj);
-	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
+	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [SELECTION]", proj);
 
 	return proj;
 }
@@ -4689,7 +4689,7 @@ rewrite_UncertProjection(QueryOperator *op, boolean attrLevel)
     appendToTailOfList(((ProjectionOperator *)op)->projExprs, getUncertaintyExpr((Node *)createAttributeReference(UNCERTAIN_ROW_ATTR), hmpIn));
     setStringProperty(op, UNCERT_MAPPING_PROP, (Node *)hmp);
 
-	LOG_RESULT("UNCERTAIN: Rewritten Operator tree [PROJECTION]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN: Rewritten Operator tree [PROJECTION]", op);
     //INFO_LOG("ProjList: %s", nodeToString((Node *)(((ProjectionOperator *)op)->projExprs)));
     return op;
 }
@@ -4763,7 +4763,7 @@ rewrite_RangeProjection(QueryOperator *op)
     }
 
 
-	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [PROJECTION]", op);
 
     return op;
 }
@@ -4802,7 +4802,7 @@ rewrite_UncertTableAccess(QueryOperator *op, boolean attrLevel)
 	}
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 	//INFO_LOG("HashMap: %s", nodeToString((Node *)hmp));
-	LOG_RESULT("UNCERTAIN RANGE: Rewritten Operator tree [TABLE ACCESS]", op);
+	LOG_RESULT_UNCERT("UNCERTAIN RANGE: Rewritten Operator tree [TABLE ACCESS]", op);
 
 	return proj;
 }

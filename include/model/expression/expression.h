@@ -47,6 +47,9 @@ typedef struct Operator {
 #define OPNAME_MINUS "-"
 #define OPNAME_MOD "%"
 
+/* ROWNUM */
+#define ATTR_ROWNUM backendifyIdentifier("ROWNUM")
+
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
     DT_LONG,
@@ -259,6 +262,7 @@ extern boolean isConstString(Node *n);
 /* functions for determining the type of an expression */
 extern DataType typeOf(Node *expr);
 extern DataType typeOfInOpModel(Node *expr, List *inputOperators);
+extern List *exprListTypes(List *exprs);
 extern boolean isConstExpr(Node *expr);
 extern boolean isCondition(Node *expr);
 extern boolean isAggFunction(Node *expr);

@@ -1682,7 +1682,7 @@ hasInlinedAttr(FromAttrsContext *fac)
  * Main entry point for serialization.
  */
 List *
-genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
+genSerializeQueryOperator(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     // operator with multiple parents
 	if (HAS_STRING_PROP(q, PROP_PREPARED_QUERY_NAME))
@@ -1728,10 +1728,7 @@ genCreateTempView(QueryOperator *q, StringInfo str, QueryOperator *parent, FromA
         view = (HashMap *) MAP_GET_POINTER(tempViewMap, q);
         char *name = strdup(TVIEW_GET_NAME(view));
 
-//        if (isA(parent, SetOperator))
         appendStringInfo(str, "SELECT * FROM %s", name);
-//        else
-//            appendStringInfoString(str, name);
 
         return deepCopyStringList(TVIEW_GET_ATTRNAMES(view));
     }
@@ -1748,10 +1745,7 @@ genCreateTempView(QueryOperator *q, StringInfo str, QueryOperator *parent, FromA
     DEBUG_LOG("created view definition:\n%s:\n\n %s", singleOperatorToOverview(q), viewDef->data);
 
     // add reference to view
-//    if (isA(parent, SetOperator))
     appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
-//    else
-//        appendStringInfoString(str, strdup(viewName));
 
     // add to view table
     view = NEW_MAP(Constant,Node);

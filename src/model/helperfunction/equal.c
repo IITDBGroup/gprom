@@ -1310,8 +1310,8 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_Vector:
             retval = equalVector(a,b, seenOps, c);
             break;
-	case T_Relation:
-		retval = equalRelation(a,b,seenOps, c);
+	    case T_Relation:
+		    retval = equalRelation(a,b,seenOps, c);
 		break;
 	    case T_BitSet:
 			retval = equalBitset(a, b, seenOps, c);

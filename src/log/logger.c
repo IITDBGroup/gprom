@@ -25,6 +25,7 @@
 #include "log/termcolor.h"
 #include "model/node/nodetype.h"
 #include "configuration/option.h"
+#include "model/query_operator/query_operator.h"
 
 #define INIT_BUF_SIZE 4096
 
@@ -128,9 +129,9 @@ _debugMessage(char *mes)
 }
 
 void
-_debugOperatorOverview(QueryOperator *op)
+_debugOp(void *op)
 {
-    log_(LOG_ERROR, "debugger", 0, "%s", operatorToOverviewString(op));
+    log_(LOG_ERROR, "debugger", 0, "%s", operatorToOverviewString((QueryOperator *) op));
 }
 
 void

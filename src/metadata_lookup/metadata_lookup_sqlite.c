@@ -35,6 +35,8 @@
 // query templates
 #define QUERY_TABLE_COL_COUNT "PRAGMA table_info(%s)"
 #define QUERY_TABLE_ATTR_MIN_MAX "SELECT %s FROM %s"
+#define QUERY_ATTR_NOT_NULL "PRAGMA table_info(%s)"
+#define QUERY_FUNC_INFO "PRAGMA function_info"
 
 // Only define real plugin structure and methods if libsqlite3 is present
 #ifdef HAVE_SQLITE_BACKEND
@@ -56,6 +58,8 @@ static sqlite3_stmt *runQuery (char *q);
 static DataType stringToDT (char *dataType);
 static char *sqliteGetConnectionDescription (void);
 static void initCache(CatalogCache *c);
+static boolean sqliteIsBuildin(char *fname, List *argTypes, boolean *funcExists);
+
 
 #define HANDLE_ERROR_MSG(_rc,_expected,_message, ...) \
     do { \
@@ -103,6 +107,9 @@ assembleSqliteMetadataLookupPlugin (void)
     p->sqlTypeToDT = sqliteBackendSQLTypeToDT;
     p->dataTypeToSQL = sqliteBackendDatatypeToSQL;
     p->getMinAndMax = sqliteGetMinAndMax;
+    p->getNotNullAttrs = sqliteNotNullAttrs;
+    p->functionIsStrict = sqliteFuncIsStrict;
+
     return p;
 }
 
@@ -257,6 +264,37 @@ sqliteIsWindowFunction(char *functionName)
     return FALSE;
 }
 
+static boolean
+sqliteIsBuildin(char *fname, List *argTypes, boolean *funcExists)
+{
+    sqlite3_stmt *rs;
+    StringInfo q;
+    boolean isBuildIn = FALSE;
+    int rc;
+
+    *funcExists = FALSE;
+    q = makeStringInfo();
+    appendStringInfoString(q, QUERY_FUNC_INFO);
+    rs = runQuery(q->data);
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW && !isBuildIn)
+    {
+        const unsigned char *curname = sqlite3_column_text(rs,1);
+        boolean buildin = sqlite3_column_int(rs,2) > 0;
+        int nargs = sqlite3_column_int(rs,5);
+
+        if(streq((char *) curname,fname) && nargs == LIST_LENGTH(argTypes))
+        {
+            *funcExists = TRUE;
+            isBuildIn = buildin;
+        }
+    }
+
+    HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting build in status of function <%s>", fname);
+
+    return isBuildIn;
+}
+
 DataType
 sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
@@ -267,7 +305,6 @@ sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 DataType
 sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
-
     *opExists = TRUE;
 
     if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
@@ -278,7 +315,7 @@ sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
             DataType rType = getNthOfListInt(argTypes, 1);
 
             if (lType == rType)
-            {            
+            {
                 if (lType == DT_INT || lType == DT_FLOAT)
                 {
                     return lType;
@@ -500,6 +537,52 @@ sqliteExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     return NULL;
 }
 
+boolean
+sqliteFuncIsStrict(char *fname, List *argTypes, boolean *funcExists)
+{
+    boolean isbuildin = sqliteIsBuildin(fname, argTypes, funcExists);
+
+    if(sqliteIsWindowFunction(fname))
+    {
+        *funcExists = TRUE;
+        return FALSE;
+    }
+
+    if(isbuildin)
+    {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+Set *
+sqliteNotNullAttrs(char *tableName)
+{
+    sqlite3_stmt *rs;
+    StringInfo q;
+    Set *result = STRSET();
+    int rc;
+
+    q = makeStringInfo();
+    appendStringInfo(q, QUERY_ATTR_NOT_NULL, tableName);
+    rs = runQuery(q->data);
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
+    {
+        const unsigned char *name = sqlite3_column_text(rs,1);
+        const unsigned int notnull = sqlite3_column_int(rs,3);
+
+        if(notnull == 1)
+        {
+            addToSet(result, strToUpper((char *) name));
+        }
+    }
+
+    HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting not null attributes of table <%s>", tableName);
+
+    return result;
+}
 
 
 Relation *
@@ -753,6 +836,18 @@ sqliteGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
 
 Node *
 sqliteExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
+{
+    return NULL;
+}
+
+boolean
+sqliteFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists)
+{
+    return FALSE;
+}
+
+Set *
+sqliteNotNullAttrs(char *tableName)
 {
     return NULL;
 }

@@ -14,6 +14,7 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "configuration/option.h"
 
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
@@ -197,6 +198,12 @@ rewriteProvenanceComputation(ProvenanceComputation *op)
 	{
 		op = (ProvenanceComputation *) unnestRewriteQuery((QueryOperator *)op);
 	}
+
+    // compute properties required for some rewrite methods
+    if(op->provType == PROV_PI_CS)
+    {
+        computeNotNullProp((QueryOperator *) op);
+    }
 
     // apply provenance rewriting if required
     switch(op->provType)

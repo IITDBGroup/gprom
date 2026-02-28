@@ -59,6 +59,8 @@ extern DataType postgresBackendSQLTypeToDT (char *sqlType);
 extern char * postgresBackendDatatypeToSQL (DataType dt);
 extern HashMap *postgresGetMinAndMax(char* tableName, char* colName);
 extern List *postgresGetAllMinAndMax(TableAccessOperator *table);
+extern Set *postgresNotNullAttrs(char *tableName);
+extern boolean postgresFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists);
 
 extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

@@ -552,13 +552,17 @@ static char *
 readALine(char **str)
 {
     char *res;
+    StringInfo promptstr = makeStringInfo();
+
+    appendStringInfo(promptstr, TB_FG_BG(WHITE,BLACK,"%s") " ", prompt);
 
     /* Get a line from the user. */
-    res = readline (prompt);
+    res = readline(promptstr->data);
     TRACE_LOG(res);
     /* If the line has any text in it, save it to the history. */
     addToHistory(res);
     *str = res;
+
     return *str;
 }
 

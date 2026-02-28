@@ -100,6 +100,8 @@ assembleDuckDBMetadataLookupPlugin (void)
     p->sqlTypeToDT = duckdbBackendSQLTypeToDT;
     p->dataTypeToSQL = duckdbBackendDatatypeToSQL;
     p->getMinAndMax = duckdbGetMinAndMax;
+    p->getNotNullAttrs = duckdbNotNullAttrs;
+    p->functionIsStrict = duckdbFunctionIsStrict;
     return p;
 }
 
@@ -238,6 +240,14 @@ duckdbCatalogViewExists (char * viewName)
     return table_count > 0;
 }
 
+Set *
+duckdbNotNullAttrs(char *tableName)
+{
+    //TODO extract from table
+    return STRSET();
+}
+
+
 List *
 duckdbGetAttributes(char *tableName)
 {
@@ -338,6 +348,11 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
         return DT_INT;
     }
 
+    if (strcaseeq(fName, ROW_NUMBER_FUNC_NAME))
+    {
+        return DT_INT;
+    }
+
     ACQUIRE_MEM_CONTEXT(memContext);
 
     str = makeStringInfo();
@@ -352,6 +367,7 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
         List *typesStrs = NIL;
         List *types = NIL;
 
+        // if there is at least one input arg, then extract args as string list
         if(!streq(parameters,"[]"))
         {
             parameters = strRemPostfix(strRemPrefix(parameters, 1), 1);
@@ -369,17 +385,20 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
             *funcExists = TRUE;
         }
 
-        // does function take anytype as an input then determine return type
-        if (hasAnyType(typesStrs))
+        if(LIST_LENGTH(typesStrs) == LIST_LENGTH(argTypes))
         {
-            if(isAnyTypeCompatible(typesStrs, argTypes))
-            {
-                resType = inferAnyReturnType(typesStrs,
-                                             argTypes,
-                                             retType);
-                *funcExists = TRUE;
-            }
-        }
+        // does function take anytype as an input then determine return type
+             if (hasAnyType(typesStrs))
+             {
+                 if(isAnyTypeCompatible(typesStrs, argTypes))
+                 {
+                     resType = inferAnyReturnType(typesStrs,
+                                                  argTypes,
+                                                  retType);
+                     *funcExists = TRUE;
+                 }
+             }
+         }
     }
 
     RELEASE_MEM_CONTEXT();
@@ -446,7 +465,7 @@ inferAnyReturnType(List *types, List *argTypes, char *retType)
 static List *
 typeListToDTs(List *strs)
 {
-    List *result;
+    List *result = NIL;
 
     FOREACH(char,s,strs)
     {
@@ -598,7 +617,25 @@ duckdbGetKeyInformation(char *tableName)
 DataType
 duckdbBackendSQLTypeToDT (char *sqlType)
 {
-    return stringToDT(sqlType);
+    if (regExMatch("INT", sqlType))
+    {
+        return DT_INT;
+    }
+    if (regExMatch("NUMERIC", sqlType)
+            || regExMatch("REAL", sqlType)
+            || regExMatch("FLOA", sqlType)
+            || regExMatch("DOUB", sqlType))
+    {
+        return DT_FLOAT;
+    }
+    if (regExMatch("CHAR", sqlType)
+            || regExMatch("CLOB", sqlType)
+            || regExMatch("TEXT", sqlType))
+    {
+        return DT_STRING;
+    }
+
+    return DT_STRING;
 }
 
 char *
@@ -923,6 +960,14 @@ duckdbQueryInternal(char *sql)
     return result;
 }
 
+boolean
+duckdbFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists)
+{
+    // Extract from duckdb
+    // But duckdb does not have the corresponding 'pg_operator'/ 'pg_proc' tables;
+    // just return a FALSE or TRUE.
+    return FALSE;
+}
 #else
 
 
@@ -1057,5 +1102,12 @@ duckdbExecuteQuery(char *query)
 {
     return NULL;
 }
+
+Set *
+duckdbNotNullAttrs(char *tableName)
+{
+    return NULL;
+}
+
 
 #endif

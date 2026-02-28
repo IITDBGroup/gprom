@@ -666,7 +666,7 @@ isConstString(Node *n)
 }
 
 DataType
-typeOf (Node *expr)
+typeOf(Node *expr)
 {
     switch(expr->type)
     {
@@ -752,6 +752,19 @@ typeOf (Node *expr)
              break;
     }
     return DT_STRING;
+}
+
+List *
+exprListTypes(List *exprs)
+{
+    List *result = NIL;
+
+    FOREACH(Node,e,exprs)
+    {
+        result = appendToTailOfListInt(result, typeOf(e));
+    }
+
+    return result;
 }
 
 boolean

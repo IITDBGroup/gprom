@@ -33,16 +33,16 @@ static SerializeClausesAPI *api = NULL;
 /* methods */
 static boolean replaceFunctionsWithEquivalent(Node *node, void *context);
 static boolean replaceBoolWithInt (Node *node, void *context);
-static void createAPI (void);
-static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
+static void sqliteCreateAPI (void);
+static void sqliteSerializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api);
-static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+static List *sqliteSerializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
-static void serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
+static void sqliteSerializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem, SerializeClausesAPI *api);
-static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+static void sqliteSerializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api);
-static List *serializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api);
+static List *sqliteSerializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api);
 
 char *
 serializeOperatorModelSQLite(Node *q)
@@ -50,7 +50,7 @@ serializeOperatorModelSQLite(Node *q)
     StringInfo str = makeStringInfo();
     char *result = NULL;
 
-    createAPI();
+    sqliteCreateAPI();
     // shorten attribute names to confrom with Oracle limits
     if (IS_OP(q))
     {
@@ -78,7 +78,7 @@ serializeQuerySQLite(QueryOperator *q)
     StringInfo viewDef;
     char *result;
 
-    createAPI();
+    sqliteCreateAPI();
 
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
     str = makeStringInfo();
@@ -101,7 +101,7 @@ serializeQuerySQLite(QueryOperator *q)
 	replaceFunctionsWithEquivalent((Node *) q, NULL);
 
     // call main entry point for translation
-    api->serializeQueryOperator (q, str, NULL, fac, api);
+    api->serializeQueryOperator(q, str, NULL, fac, api);
 
     /*
      *  prepend the temporary view definition to create something like
@@ -225,21 +225,22 @@ replaceBoolWithInt (Node *node, void *context)
 
 
 static void
-createAPI (void)
+sqliteCreateAPI (void)
 {
     if (api == NULL)
     {
+        DEBUG_LOG("Create SQLite serializer API");
         api = createAPIStub();
-        api->serializeProjectionAndAggregation = serializeProjectionAndAggregation;
-        api->serializeSetOperator = serializeSetOperator;
-        api->serializeTableAccess = serializeTableAccess;
-        api->serializeConstRel = serializeConstRel;
-        api->serializeJoinOperator = serializeJoinOperator;
+        api->serializeProjectionAndAggregation = sqliteSerializeProjectionAndAggregation;
+        api->serializeSetOperator = sqliteSerializeSetOperator;
+        api->serializeTableAccess = sqliteSerializeTableAccess;
+        api->serializeConstRel = sqliteSerializeConstRel;
+        api->serializeJoinOperator = sqliteSerializeJoinOperator;
     }
 }
 
 static void
-serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
+sqliteSerializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     int rOffset;
@@ -285,7 +286,7 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
  * Create the SELECT, GROUP BY, and HAVING clause
  */
 static List *
-serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+sqliteSerializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api)
 {
     int pos = 0;
@@ -530,7 +531,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 }
 
 static void
-serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
+sqliteSerializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
         int* curFromItem, SerializeClausesAPI *api)
 {
     int pos = 0;
@@ -552,7 +553,7 @@ serializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
 }
 
 static void
-serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+sqliteSerializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 		FromAttrsContext *fac, int* attrOffset, SerializeClausesAPI *api)
 {
     char* asOf = NULL;
@@ -657,10 +658,12 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
  * Serialize a set operation UNION/EXCEPT/INTERSECT
  */
 static List *
-serializeSetOperator (QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
+sqliteSerializeSetOperator(QueryOperator *q, StringInfo str, FromAttrsContext *fac, SerializeClausesAPI *api)
 {
     SetOperator *setOp = (SetOperator *) q;
     List *resultAttrs;
+
+    DEBUG_LOG("Serialize set operator SQLITE: %s", singleOperatorToOverview(q));
 
 	// wrap set operation into a block to ensure that we can preserve evaluation order (SQLite does not support parenthesis around set operations)
 	appendStringInfoString(str, "SELECT * FROM (");

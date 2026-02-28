@@ -13,9 +13,10 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 
 extern Node *analyzeOracleModel(Node *stmt);
-extern void analyzeQueryBlockStmt(Node *stmt, List *parentFroms);
+extern void analyzeQueryBlockStmt(Node *stmt, List *parentFroms, HashMap *ctes);
 extern boolean hasNestedSubqueries(Node *node);
 extern boolean findNestedSubqueries(Node *node, List **state);
 extern List *splitAttrOnDot(char *dotName);

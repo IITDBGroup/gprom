@@ -150,8 +150,8 @@ testSetParameterValues (void)
         Node *val = (Node *) createConstString("5");
         SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
 
-        analyzeQueryBlockStmt(expParse, NIL);
-        analyzeQueryBlockStmt(inParse, NIL);
+        analyzeQueryBlockStmt(expParse, NIL, NULL);
+        analyzeQueryBlockStmt(inParse, NIL, NULL);
         p->position = 1;
 
         inParse = setParameterValues(inParse, singleton(val));
@@ -191,8 +191,8 @@ testSetParameterValues (void)
         Node *val = (Node *) createConstString("5");
         SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
 
-        analyzeQueryBlockStmt(expParse, NIL);
-        analyzeQueryBlockStmt(inParse, NIL);
+        analyzeQueryBlockStmt(expParse, NIL, NULL);
+        analyzeQueryBlockStmt(inParse, NIL, NULL);
         p->position = 1;
 
         inParse = setParameterValues(inParse, singleton(val));

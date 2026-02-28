@@ -15,7 +15,7 @@
 #include "log/logger.h"
 #include "model/list/list.h"
 
-#define LOG_RESULT(mes,op) \
+#define LOG_RESULT_XML(mes,op) \
     do { \
         INFO_OP_LOG(mes,op); \
         DEBUG_NODE_BEATIFY_LOG(mes,op); \
@@ -157,7 +157,7 @@ static QueryOperator
 	// adapt schema
 	addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 
-	LOG_RESULT("Rewritten Operator tree", op);
+	LOG_RESULT_XML("Rewritten Operator tree", op);
 	return (QueryOperator *) op;
 }
 static QueryOperator
@@ -184,7 +184,7 @@ static QueryOperator
 
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
-    LOG_RESULT("Rewritten Operator tree", op);
+    LOG_RESULT_XML("Rewritten Operator tree", op);
 
 	return (QueryOperator *)op;
 }
@@ -236,7 +236,7 @@ static QueryOperator
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
-    LOG_RESULT("Rewritten Operator tree", op);
+    LOG_RESULT_XML("Rewritten Operator tree", op);
 
     return (QueryOperator *) op;
 }

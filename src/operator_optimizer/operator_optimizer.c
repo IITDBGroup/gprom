@@ -11,11 +11,14 @@
  */
 
 #include "common.h"
+#include "exception/exception.h"
 #include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
 #include "operator_optimizer/operator_optimizer.h"
+#include "model/expression/expression.h"
+#include "model/node/nodetype.h"
 #include "operator_optimizer/operator_merge.h"
 #include "operator_optimizer/expr_attr_factor.h"
 #include "model/query_block/query_block.h"
@@ -25,6 +28,7 @@
 #include "model/query_operator/schema_utility.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
+#include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "rewriter.h"
 #include "operator_optimizer/cost_based_optimizer.h"
@@ -54,8 +58,24 @@
         STOP_TIMER("OptimizeModel - " optName); \
     }
 
+typedef struct PullUpProvProjContext {
+    Set *allprov; // all provenance attribute names from our branch
+    Set *remainingProvAttr; // provenance attributes that have not been handled yet (they need to be removed from current schema)
+    Set *renamedRemainingAttr; // remaining normal attributes (their names in the current schema) whose provenance versions have not been added yet
+    Set *handledAttr; // provenance attribute names that have been handled (they are part of the schema and continue to be propagated)
+    HashMap *remainingAttrToOriginalAttr; // map from current name of an original attribute and the provenance attribute we want to create from it
+    Set *otherBranchProvAttrs; // provenance attributes from other branch that need to be kept
+} PullUpProvProjContext;
+
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
-static QueryOperator *pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames);
+static char *pullupProvProjToString(PullUpProvProjContext *context);
+static Set *getProvenanceAttrsFromOtherBranches(QueryOperator *op, PullUpProvProjContext *context);
+static List *getAndSetOriginalAttrLists(QueryOperator *op);
+static QueryOperator *pullup(QueryOperator *op, PullUpProvProjContext *context); //List *duplicateattrs, List *normalAttrNames);
+static void
+removeRemainingProvenanceAttributes(QueryOperator *op, PullUpProvProjContext *context);
+static void sortProjProvenanceAttrs(ProjectionOperator *p);
+static void keepTrackOfRemainingAttributeRenaming(QueryOperator *p, PullUpProvProjContext *context);
 static void pushDownSelection(QueryOperator *root, List *opList,
                               QueryOperator *r, QueryOperator *child);
 static void renameOpAttrRefs(QueryOperator *op, HashMap *nameMap, QueryOperator *pro);
@@ -515,8 +535,12 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	if(root->inputs != NULL)
     {
         FOREACH(QueryOperator, op, root->inputs)
+        {
             if(!HAS_STRING_PROP(op, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE))
+            {
                 removeUnnecessaryColumnsFromProjections(op);
+            }
+        }
     }
 
     List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
@@ -551,23 +575,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 	else if(isA(root, SelectionOperator))
 	{
-        /*
-         * (1) Remove unnecessary attributeDef in schema based on icols
-         * (2) Reset the pos of attributeRef in cond
-         */
-		//step (1)
-		//Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-		//root = removeUnnecessaryAttrDefInSchema(eicols, root);
-		//Set *unicols = unionSets(eicols, icols);
-		//root = removeUnnecessaryAttrDefInSchema(unicols, root);
         root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
-
-        //step (2)
-//        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
         resetPosInExprs(((SelectionOperator *)root)->cond, cSchema);
-//        resetAttrPosInCond(root, condOp);
-
-
 	}
 
 	else if(isA(root, WindowOperator))
@@ -597,89 +606,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		}
 		root->schema->attrDefs = newAttrDefs;
 
-		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root), NULL);
-
-/*
-//List *cSchema1 = cSchema;
-//step (2)
-//(1)FunctionalCall
-DEBUG_LOG("window function");
-resetPosInExprs(((WindowOperator *)root)->f,cSchema);
-//        List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
-//        FOREACH(AttributeReference, ar, funList)
-//        {
-//        	resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        }
-*/
-
-
-/*        //(2)PartitionBy
-		  DEBUG_LOG("window PartitionBy");
-//	    List *ccSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
-//	    FOREACH(AttributeDef, ad, ccSchema)
-//	    {
-//	    	printf("ccdef %s \n", ad->attrName);
-//	    }
-FOREACH(AttributeDef, ad, cSchema)
-{
-printf("cdef %s \n", ad->attrName);
-}*/
-
-//		List *parList = NIL;
-//		parList = ((WindowOperator *)root)->partitionBy;
-//		if(LIST_LENGTH(parList) != 0)
-//		{
-//			resetPosInExprs((Node *) parList ,cSchema1);
-//		    FOREACH(AttributeReference, ar, parList)
-//		    {
-//		    	printf(" %s \n", nodeToString(ar));
-//		    }
-//		}
-//        printf("0000000000000 length %d \n", LIST_LENGTH(parList));
-//        FOREACH(AttributeReference, ar, parList)
-//        {
-//        	printf("0000000000000 arg %s \n", nodeToString(ar));
-//        }
-//        FOREACH(AttributeDef, ad, cSchema)
-//        {
-//        	printf("0001111111000 def %s \n", ad->attrName);
-//        }
-//        if(parList != NIL)
-//        {
-//        	FOREACH(AttributeReference, ar, parList)
-//        	{
-//        		resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        	}
-//        }
-
-/*        //(3)OrderBy
-		  DEBUG_LOG("window order By");
-		  List *ordList = NIL;
-		  ordList = ((WindowOperator *)root)->orderBy;
-		  if(LIST_LENGTH(ordList) != 0)
-		  resetPosInExprs((Node *) ordList, cSchema);*/
-
-
-//        if(ordList != NIL)
-//        {
-//        	FOREACH_LC(o,ordList)
-//		    {
-//        		/*
-//        		 * If-else because sometimes ordList store OrderExpr,
-//        		 * sometimes such as q10, it stores AttributeReference  directly
-//        		 */
-//        	      if(isA(LC_P_VAL(o), AttributeReference))
-//        	      {
-//        	    	  AttributeReference *ar = (AttributeReference *)LC_P_VAL(o);
-//        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        	      }
-//        	      else if(isA(LC_P_VAL(o), OrderExpr))
-//        	      {
-//        	    	  AttributeReference *ar = (AttributeReference *)(((OrderExpr *)LC_P_VAL(o))->expr);
-//        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-//        	      }
-//		    }
-//        }
+		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root));
 	}
 
 	else if(isA(root, AggregationOperator))
@@ -689,42 +616,42 @@ printf("cdef %s \n", ad->attrName);
 		 */
 
 		AggregationOperator *agg = (AggregationOperator *)root;
+        List *newattrdef = NIL;
+        List *newaggfs = NIL;
+        List *aggfdefs = aggOpGetAggAttrDefs(agg);
+        List *groupbyattrdefs = aggOpGetGroupByAttrDefs(agg);
+
+        // remove unnecessary aggregation functions
+        FORBOTH(void,f,d,agg->aggrs,aggfdefs)
+        {
+            char *aggname = ((AttributeDef *) d)->attrName;
+            if(hasSetElem(icols, aggname))
+            {
+                newattrdef = appendToTailOfList(newattrdef, d);
+                newaggfs = appendToTailOfList(newaggfs, f);
+            }
+        }
+
+        // if no group-by and no aggregation function, we have to keep some agg
+        // function
+        if(LIST_LENGTH(agg->groupBy) == 0 && LIST_LENGTH(newaggfs) == 0)
+        {
+            newattrdef = singleton(getHeadOfList(agg->op.schema->attrDefs));
+            newaggfs = singleton(getHeadOfList(agg->aggrs));
+        }
+
+        // update operator
+        newattrdef = CONCAT_LISTS(newattrdef, groupbyattrdefs);
+        agg->aggrs = newaggfs;
+        agg->op.schema->attrDefs = newattrdef;
+
 		resetPosInExprs((Node *) agg->aggrs, cSchema);
 		resetPosInExprs((Node *) agg->groupBy, cSchema);
-
-//		QueryOperator *child = (QueryOperator *)getHeadOfListP(root->inputs);
-		//e.g. sum(A)
-//		FOREACH(FunctionCall, a, agg->aggrs)
-//		{
-//			//TODO: ar should get from list args, not only the head one
-//			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
-//			resetPos(ar,child->schema->attrDefs);
-//		}
-//
-//		//e.g. Group By
-//		FOREACH(AttributeReference, a, agg->groupBy)
-//		{
-//			resetPos(a,child->schema->attrDefs);
-//		}
 	}
 
 	else if(isA(root, JoinOperator))
 	{
-//		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-//		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-//
-//		Set *eicols = unionSets(elicols,ericols);
-//		FOREACH_SET(char, e, eicols)
-//		{
-//			DEBUG_LOG("%s ", e);
-//		}
 		JoinOperator *j = (JoinOperator *) root;
-
-		//List *lChildAttrDefsNames = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
-		//List *rChildAttrDefsNames = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
-
-		//int lLength = LIST_LENGTH(lChildAttrDefsNames);
-//		HashMap *hm = (HashMap *) getStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES);
 
 		List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
 		List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
@@ -759,89 +686,6 @@ printf("cdef %s \n", ad->attrName);
             DEBUG_OP_LOG("join or projection attributes are not unique", root);
         }
 
-//		List *newAttrDefs = NIL;
-//		if(j->cond != NULL)
-//		{
-//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//		    {
-//				if(searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName))
-//					newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//				else
-//				{
-//					char *tempName = strdup(STRING_VALUE(MAP_GET_STRING(hm, ad->attrName)));
-//					if(searchListString(leftSchemaNames, tempName) || searchListString(rightSchemaNames, tempName))
-//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//				}
-//		    }
-//			root->schema->attrDefs = newAttrDefs;
-//		}
-
-//		//Set schema attr def
-//		List *newAttrDefs = NIL;
-//		//List *newAttrDefNames = NIL;
-//		int count = 1;
-//		if(j->cond != NULL)
-//		{
-//			printf("1111111111 join schema lenght %d \n", LIST_LENGTH(root->schema->attrDefs));
-//			printf("=====================\n");
-//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//			{
-//				if(count <= lLength)
-//				{
-//					if(searchListString(leftSchemaNames, ad->attrName))
-//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					else
-//					{
-//						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
-//						printf("map tempName %s to %s", tempName, ad->attrName);
-//						if(searchListString(leftSchemaNames, tempName))
-//							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					}
-//				}
-//				else
-//				{
-//					if(searchListString(rightSchemaNames, ad->attrName))
-//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					else
-//					{
-//						char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
-//						printf("map tempName %s to %s", tempName, ad->attrName);
-//						if(searchListString(rightSchemaNames, tempName))
-//							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//					}
-//				}
-//				count ++;
-//			}
-//			root->schema->attrDefs = newAttrDefs;
-//		}
-//		printf("\n=====================\n");
-//		else
-//		{
-//			List *lSchemaAttrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
-//			List *rSchemaAttrDefs = copyObject(OP_RCHILD(root)->schema->attrDefs);
-//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//			{
-//				if((searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName)) && !searchListString(newAttrDefNames, ad->attrName))
-//				{
-//					newAttrDefs = AppendToTailOfList(newAttrDefs, ad);
-//					newAttrDefNames = AppendToTailOfList(newAttrDefNames, ad->attrName);
-//				}
-//			}
-//		}
-
-//		if(j->cond != NULL)
-//		{
-//			List *condAttrNames = NIL;
-//			List *condAttr = getAttrReferences(j->cond);
-//			FOREACH(AttributeReference, a, condAttr)
-//			    condAttrNames = appendToTailOfList(condAttrNames, a->name);
-//			Set *condSet = makeStrSetFromList(condAttrNames);
-//			DEBUG_LOG("condAttr: %d, condSet: %d", LIST_LENGTH(condAttrNames), setSize(condSet));
-//			if(LIST_LENGTH(condAttrNames) == setSize(condSet))
-//				root->schema->attrDefs = newAttrDefs;
-//		}
-//		else
-//		    root->schema->attrDefs = newAttrDefs;
 
 		//Set cond attr ref pos
 		if(j->cond != NULL)
@@ -849,9 +693,6 @@ printf("cdef %s \n", ad->attrName);
 		    //DONE: TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
 			List *attrRefs = getAttrReferences (j->cond);
 			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
-//
-//			List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
-//			List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
 
 			List *leftRefs = NIL;
 			List *rightRefs = NIL;
@@ -871,22 +712,6 @@ printf("cdef %s \n", ad->attrName);
 			DEBUG_LOG("Reset join right");
 			FOREACH(AttributeReference,a,rightRefs)
 				resetPos(a,rcSchema);
-
-//			FOREACH(AttributeReference,a,attrRefs)
-//			{
-//			    if (a->fromClauseItem == 0)
-//			        resetPos(a,cSchema);
-//			    else
-//			        resetPos(a,rcSchema);
-//			}
-
-//
-//			if(streq(condOp->name,OPNAME_EQ))
-//			{
-//				AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
-//				AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
-//
-//			}
 		}
 	}
 
@@ -939,42 +764,52 @@ printf("cdef %s \n", ad->attrName);
 
 	else if(isA(root, ProjectionOperator))
 	{
-		//Used for debug
-		//printWindowAttrRefs(root);
-		//DEBUG_LOG("INFO: PROJECTION OPERATOR");
 		int numicols = setSize(icols);
 		int numAttrs = getNumAttrs(root);
 		ProjectionOperator *proj = (ProjectionOperator *) root;
 		List *newAttrDefs = NIL;
 		List *newAttrRefs = NIL;
+
 		if(numicols < numAttrs)
 		{
-            FORBOTH(Node, ad, ar, root->schema->attrDefs,proj->projExprs)
-		    {
-                AttributeDef *attrDef = (AttributeDef *) ad;
-
-                if(hasSetElem(icols, (char *)attrDef->attrName))
-                {
-					newAttrDefs = appendToTailOfList(newAttrDefs, attrDef);
-					newAttrRefs = appendToTailOfList(newAttrRefs, ar);
-                }
-		    }
-            root->schema->attrDefs = newAttrDefs;
-            proj->projExprs = newAttrRefs;
-
-         	QueryOperator *child = OP_LCHILD(root);
-            resetPosOfAttrRefBaseOnBelowLayerSchema(root,child, NULL);
-
-            //if up layer is projection, reset the pos of up layer's reference
-            if(root->parents != NIL)
+            // projection with no required attributes, remove this projection
+            if (numicols == 0)
             {
-            	QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents);
-            	if(isA(p, ProjectionOperator))
-            	{
-            		QueryOperator *r = root;
-            		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r, NULL);
-            	}
+                QueryOperator *child = OP_LCHILD(root);
 
+                switchSubtreeWithExisting(root, child);
+
+                return child;
+            }
+            else
+            {
+                FORBOTH(Node, ad, ar, root->schema->attrDefs,proj->projExprs)
+		        {
+                    AttributeDef *attrDef = (AttributeDef *) ad;
+
+                    if(hasSetElem(icols, (char *)attrDef->attrName))
+                    {
+					    newAttrDefs = appendToTailOfList(newAttrDefs, attrDef);
+					    newAttrRefs = appendToTailOfList(newAttrRefs, ar);
+                    }
+		        }
+                root->schema->attrDefs = newAttrDefs;
+                proj->projExprs = newAttrRefs;
+
+         	    QueryOperator *child = OP_LCHILD(root);
+                resetPosOfAttrRefBaseOnBelowLayerSchema(root,child);
+
+                //if up layer is projection, reset the pos of up layer's reference
+                if(root->parents != NIL)
+                {
+            	    QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents);
+            	    if(isA(p, ProjectionOperator))
+            	    {
+            		    QueryOperator *r = root;
+            		    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r);
+            	    }
+
+                }
             }
 		}
 		else
@@ -982,26 +817,22 @@ printf("cdef %s \n", ad->attrName);
 	     	QueryOperator *child = (QueryOperator *)OP_LCHILD(root);
 	        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)root,(QueryOperator *)child, NULL);
 		}
-
-		//////////new add for test
-//		printf("\n 1111111111 ATTR list length %d \n", LIST_LENGTH(root->schema->attrDefs));
-//		FOREACH(AttributeDef, ad, root->schema->attrDefs)
-//		{
-//			printf("%s ", ad->attrName);
-//		}
-//		printf("\n");
-//		FOREACH(AttributeReference, ar, ((ProjectionOperator *)root)->projExprs)
-//		{
-//			printf("%s ", ar->name);
-//		}
-//
-//		printf("\n 2222222222 ICOLS list length %d \n", numicols);
-//		FOREACH_SET(char, c, icols)
-//		{
-//			printf("%s ", c);
-//		}
 	}
+    else if(isA(root, SetOperator))
+    {
+        /* SetOperator *s = (SetOperator *) root; */
 
+		List *newAttrDef = NIL;
+		FOREACH(AttributeDef, a, root->schema->attrDefs)
+        {
+			if(hasSetElem(icols, a->attrName))
+            {
+				newAttrDef = appendToTailOfList(newAttrDef, copyObject(a));
+            }
+        }
+
+		root->schema->attrDefs = newAttrDef;
+    }
 	else if(isA(root, JsonTableOperator))
 	{
 		List *newAttrDef = NIL;
@@ -1425,11 +1256,9 @@ renameAttrRefs (Node *node, HashMap *nameMap)
     return TRUE;
 }
 
-
 QueryOperator *
 pullingUpProvenanceProjections(QueryOperator *root)
 {
-
     //QueryOperator *newRoot = root;
     FOREACH(QueryOperator, o, root->inputs)
     {
@@ -1439,282 +1268,537 @@ pullingUpProvenanceProjections(QueryOperator *root)
             if(isA(o, ProjectionOperator))
             {
                 ProjectionOperator *op = (ProjectionOperator *)o;
-                if(GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
+
+                // currently we only support pulling up if the operator has one
+                // parent, also if this is the last operator (no parents) then
+                // we are done for pulling up in this branch
+                if(GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP) && LIST_LENGTH(o->parents) == 1)
                 {
+                    PullUpProvProjContext context;
                     //Get the attrReference of the provenance attribute
-                    List *l1 = getProvenanceAttrReferences(op, o);
+                    List *provAttrRefs = getProvenanceAttrReferences(op, o);
+                    List *provAttrNames = getOpProvenanceAttrNames(o);
+                    List *origAttrNames = NIL;
+                    HashMap *normalToProv = NEW_MAP(Constant, Constant);
+                    HashMap *provToNormal = NEW_MAP(Constant, Constant);
+                    HashMap *remainingToOriginal = NEW_MAP(Constant, Constant);
 
-                    //Get the attrDef name of the provenance attribute
-                    List *l2 = getNormalAttrNames(o);
-
-                    //Get the attrReference of non provenance attribute
-                    List *l3 = getNormalAttrReferences(op, o);
-
-                    //Get the attrDef name in the schema of non provenance
-                    //attribute
-                    List *l4 = getNormalAttrNames(o);
-
-                    List *l_prov_attr = NIL;
-
-                    FOREACH(AttributeReference, a, l1)
-                    l_prov_attr = appendToTailOfList(l_prov_attr, a->name);
-
-                    List *l_normal_attr = NIL;
-
-                    FOREACH(AttributeReference, a, l3)
-                    l_normal_attr =  appendToTailOfList(l_normal_attr, a->name);
-
-                    List *normalAttrNames = NIL;
-                    List *duplicateattrs = NIL;
-
-                    FORBOTH_LC(lc1, lc2, l_prov_attr, l2)
+                    // create list of original attributes corresponding to provenance attributes
+                    FOREACH(AttributeReference,ar,provAttrRefs)
                     {
-                        FORBOTH_LC(lc3 ,lc4, l_normal_attr, l4)
-						{
-                            if(streq(lc1->data.ptr_value, lc3->data.ptr_value))
-                            {
-                                duplicateattrs = appendToTailOfList(duplicateattrs,lc2->data.ptr_value);
-                                normalAttrNames = appendToTailOfList(normalAttrNames, lc4->data.ptr_value);
-                                break;
-                            }
-						}
+                        origAttrNames = appendToTailOfList(origAttrNames, strdup(ar->name));
                     }
 
-                    //Delete the duplicateattrs from the provenance projection
-                    FOREACH_LC(d,duplicateattrs)
-                    {
-                        //Delete the duplicate attr_ref from the projExprs
-                        int pos = getAttrPos(o, LC_P_VAL(d));
-                        deleteAttrRefFromProjExprs((ProjectionOperator *)op, pos);
+                    /* context.normalToProvName = normalToProv; */
+                    /* context.provAttrNames = provAttrNames; */
+                    context.allprov = makeStrSetFromList(provAttrNames);
+                    context.renamedRemainingAttr = makeStrSetFromList(origAttrNames);
+                    context.remainingProvAttr = makeStrSetFromList(provAttrNames);
+                    context.handledAttr = STRSET();
+                    context.remainingAttrToOriginalAttr = remainingToOriginal;
+                    context.otherBranchProvAttrs = STRSET();
 
-                        //Delete the duplicate attr_def from the schema
-                        deleteAttrFromSchemaByName((QueryOperator *)op, LC_P_VAL(d), FALSE);
+                    // map attr -> provattr and provattr -> attr
+                    FORBOTH(char,n,p,origAttrNames,provAttrNames)
+                    {
+                        MAP_ADD_STRING_KEY_AND_VAL(provToNormal,p,n);
+                        MAP_ADD_STRING_KEY_AND_VAL(normalToProv,p,n);
+                        MAP_ADD_STRING_KEY_AND_VAL(remainingToOriginal, n, p);
                     }
 
-                    if(LIST_LENGTH(o->parents) == 1)
-                        pullup(o, duplicateattrs, normalAttrNames);
+                    // original attribute list
+                    getAndSetOriginalAttrLists((QueryOperator *) op);
 
+                    // remove all provenance projections and then pull them up as far as possible
+                    op->projExprs = getNormalAttrProjExprsFromChild(op, (QueryOperator *) op);
+                    op->op.schema->attrDefs = getNormalAttrs((QueryOperator *) op);
+                    op->op.provAttrs = NIL;
+
+                    DEBUG_OP_LOG("adjusted provenance projection", o);
+                    DEBUG_LOG("Context:\n%s", pullupProvProjToString(&context));
+
+                    pullup(OP_LCHILD(o), &context);
                 }
             }
             pullingUpProvenanceProjections(o);
         }
     }
 
+    // need to sort provenance attributes to restore original order
+    if(root->parents == NIL && root->provAttrs != NIL)
+    {
+        ProjectionOperator *p;
+
+        // if root is not a projection, then need to add one to reorder
+        if(!isA(root,ProjectionOperator))
+        {
+            p = (ProjectionOperator *) createProjOnAllAttrs(root);
+            p->op.properties = copyObject(root->properties);
+            root = (QueryOperator *) p;
+        }
+        p = (ProjectionOperator *) root;
+        sortProjProvenanceAttrs(p);
+    }
+
     return root;
 }
 
+static char *
+pullupProvProjToString(PullUpProvProjContext *context)
+{
+    StringInfo s = makeStringInfo();
+    StringInfo remainorig = makeStringInfo();
+
+    appendStringInfoString(remainorig, "{");
+    FOREACH_HASH_ENTRY(kv, context->remainingAttrToOriginalAttr)
+    {
+        appendStringInfo(remainorig, "%s -> %s%s",
+                         STRING_VALUE(kv->key),
+                         STRING_VALUE(kv->value),
+                         FOREACH_HASH_HAS_MORE(kv) ? ",": "");
+    }
+    appendStringInfoString(remainorig, "}");
+
+    appendStringInfo(s,
+                     "remainingAttr: %s\nremainingProvAttr: %s\nremainingToOriginal: %s\nhandledProvAttrs: %s\nallprov: %s\nprov attrs from different branch: %s\n",
+                     nodeToString(context->renamedRemainingAttr),
+                     nodeToString(context->remainingProvAttr),
+                     remainorig->data,
+                     nodeToString(context->handledAttr),
+                     nodeToString(context->allprov),
+                     nodeToString(context->otherBranchProvAttrs));
+
+    return s->data;
+}
+
+static Set *
+getProvenanceAttrsFromOtherBranches(QueryOperator *op, PullUpProvProjContext *context)
+{
+    List *provAttrNames = getOpProvenanceAttrNames(op);
+    Set *result = STRSET();
+
+    FOREACH(char,a,provAttrNames)
+    {
+        if(!hasSetElem(context->allprov, a))
+        {
+            addToSet(result, a);
+        }
+    }
+
+    return result;
+}
+
+static List *
+getAndSetOriginalAttrLists(QueryOperator *op)
+{
+    List *result = NIL;
+
+    if(!HAS_STRING_PROP(op, PROP_ORIGINAL_ATTR_LIST))
+    {
+        result = stringListToConstList(getQueryOperatorAttrNames(op));
+        SET_STRING_PROP(op,
+                        PROP_ORIGINAL_ATTR_LIST,
+                        result);
+        SET_STRING_PROP(op,
+                        PROP_ORIGINAL_PROV_SET,
+                        makeStrSetFromList(getOpProvenanceAttrNames(op)));
+    }
+    else
+    {
+        result = constStringListToStringList((List *) GET_STRING_PROP(op,
+                                                                      PROP_ORIGINAL_ATTR_LIST));
+    }
+
+    return result;
+}
 
 /*
  * duplicateattrs stores attrDef name of provenance attribute, normalAttrnames
  * store attrRef name of provenance attribute
  */
 QueryOperator *
-pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
+pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattrs, List *normalAttrNames)
 {
-	boolean fd = FALSE;
 	boolean isLost= FALSE;
+    Set *lostAttrs = STRSET();
+    QueryOperator *p = OP_FIRST_PARENT(op);
+    List *parentAttrNames = NIL;
 
-	// used to store the name of lost attributes, LostList-duplicateattrs,
-	// LostNormalList-normalAttrnames
-	List* LostList = NIL;
-	List* LostNormalList = NIL;
+    ASSERT(checkModel(op));
 
-	List* duplicateattrsCopy = copyList(duplicateattrs);
-	List* normalAttrNamesCopy = copyList(normalAttrNames);
+    INFO_LOG("pullup prov projection:\n   op: %s\n   parent: %s",
+             singleOperatorToOverview(op),
+             singleOperatorToOverview(p));
 
-	QueryOperator *o = (QueryOperator *) getHeadOfListP(op->parents);
+    // keep original list of provenance attributes for ordering
+    getAndSetOriginalAttrLists(p);
 
-	FORBOTH_LC(d, nms, duplicateattrs, normalAttrNames)
-	{
-		// find the lost attribute, if we do not find it, we need to add
-		// projection op; or continue upward check.
-		fd = FALSE;
-		if(isA(o, ProjectionOperator))
-		{
-			FOREACH(Node,n ,((ProjectionOperator *)o)->projExprs)
+    // keep track of provenance attributes coming from a separate branch
+    unionIntoSet(context->otherBranchProvAttrs,
+                 getProvenanceAttrsFromOtherBranches(p, context));
+
+    //TODO iterate over all parents or do not try to push if more than one parent
+
+    // is parent a root operator need to treat all attribute as lost to ensure
+    // we get the provenance attributes in the result schema
+    if(p->parents == NIL)
+    {
+        isLost = TRUE;
+        lostAttrs = copyObject(context->renamedRemainingAttr);
+    }
+    else
+    {
+        // get attribute names of parent
+        if(isA(p, ProjectionOperator))
+        {
+            FOREACH(Node,n, ((ProjectionOperator *) p)->projExprs)
             {
-				if (isA(n,AttributeReference))
-				{
-					AttributeReference *a = (AttributeReference *) n;
+			    if (isA(n,AttributeReference))
+			    {
+				    AttributeReference *a = (AttributeReference *) n;
+                    parentAttrNames = appendToTailOfList(parentAttrNames, a->name);
+			    }
+            }
+        }
+        // nonprojection
+        else //TODO handle join renaming
+        {
+            parentAttrNames = getQueryOperatorAttrNames(p);
+        }
 
-					if (streq(a->name, nms->data.ptr_value))
-					{
-						fd = TRUE;
-						break;
-					}
-				}
-			}
-		}
-		else
-		{
-			FOREACH(AttributeDef,a ,o->schema->attrDefs)
+        // find attributes that are lost
+        FOREACH_SET(char, a, context->renamedRemainingAttr)
+        {
+            if(!searchListString(parentAttrNames, a))
             {
-				if (streq(a->attrName, nms->data.ptr_value))
-				{
-					fd = TRUE;
-					break;
-				}
-			}
-		}
+                addToSet(lostAttrs, a);
+                isLost = TRUE;
+            }
+        }
+    }
+    // handle lost attributes, add projection (or adjust projection), adjust context, and continue to parent
+    if(isLost)
+    {
+        DEBUG_LOG("lost attributes: %s\n\ncontext:\n%s",
+                  nodeToString(lostAttrs),
+                  pullupProvProjToString(context));
+        DEBUG_SINGLE_OP_LOG("operator with lost attributes is", p);
+        Set *handledOrOther = unionSets(context->handledAttr, context->otherBranchProvAttrs);
 
-		//if not find this attrRef(searched by name), means lost, need add
-		if(!fd)
-		{
-			isLost = TRUE;
+        // for projections do not introduce a new projection operator, but add new provenance projections
+        if(isA(p,ProjectionOperator))
+        {
+            ProjectionOperator *po = (ProjectionOperator *) p;
+            List *newproj = getNormalAttrProjExprs(po);
+            List *newAttrDefs = getNormalAttrs(p);
+            List *provAttrs = NIL;
+            int pos = LIST_LENGTH(newproj);
 
-			//add d to the list which stores the name of lost attributes
-			LostList = appendToTailOfList(LostList, strdup(d->data.ptr_value));
-			LostNormalList = appendToTailOfList(LostNormalList, strdup(nms->data.ptr_value));
+            DEBUG_LOG("Adjust projection for lost provenance attributes:\n%s\n\nlost attrs: %s",
+                      singleOperatorToOverview(p),
+                      nodeToString(handledOrOther));
 
-			//get rid of the attribute from the duplicate list and
-			//normalAttrnames
-			duplicateattrsCopy = REMOVE_FROM_LIST_PTR(duplicateattrsCopy, d->data.ptr_value);
-			normalAttrNamesCopy = REMOVE_FROM_LIST_PTR(normalAttrNamesCopy, nms->data.ptr_value);
-		}
-		//if find this attrRef(searched by name), means have this attrRef, not need to add, just remove it
-		else
-		{
-			//If not projection op, just get rid of the attrDef from
-			//schema. If projection op get rid of the attrDef from schema
-			//and attrRef from projExprs
+            // handled provenance attributes should exist in the input
+            FOREACH_SET(char,a,context->handledAttr)
+            {
+                char *provAttr = a;
+                AttributeReference *ar = (AttributeReference *) getAttrRefByName(op, strdup(provAttr));
+                AttributeDef *ad = createAttributeDef(strdup(provAttr), typeOf((Node *) ar));
+                provAttrs = appendToTailOfListInt(provAttrs, pos);
+                newproj = appendToTailOfList(newproj, ar);
+                newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+                pos++;
+            }
 
-			if(isA(o, ProjectionOperator))
-			{
-				if(o->parents != NIL && LIST_LENGTH(o->parents) == 1)
-				{
-					//Get rid of the attrDef from schema and attrRef from projExprs
-					int pos = getAttrPos((QueryOperator *)o, LC_P_VAL(d));
+            // add other provenance attributes which may be renamed input
+            // attributes, so we find them from their positions in the
+            // projections's schema
+            FOREACH_SET(char,a,context->otherBranchProvAttrs)
+            {
+                int ppos = getAttrPos(p, a);
+                AttributeDef *ad;
+                Node *pexpr;
 
-					if(pos != -1)
-					{
-						deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d), FALSE);
-						deleteAttrRefFromProjExprs((ProjectionOperator *)o, pos);
-					}
-				}
-				else
-				{
-					FORBOTH(Node,attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
-		            {
-						if (isA(attrRef, AttributeReference))
-						{
-							if(streq(LC_P_VAL(d),((AttributeDef *)attrDef)->attrName))
-							{
-								((AttributeReference *)(attrRef))->name = LC_P_VAL(nms);
-								break;
-							}
-						}
-					}
-				}
-			}
-			else
-			{
-				//Just get rid of the attrDef from schema
-				deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d), FALSE);
-			}
-		}
+                ASSERT(pos != -1);
+                ad = copyObject(getAttrDefByPos(p, ppos));
+                pexpr = copyObject(getNthOfListP(po->projExprs, ppos));
+                provAttrs = appendToTailOfListInt(provAttrs, pos);
+                newproj = appendToTailOfList(newproj, pexpr);
+                newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+                pos++;
+            }
 
-	}
+            // add projections for lost attributes
+            FOREACH_SET(char,l,lostAttrs)
+            {
+                char *aName = strdup(l);
+                char *provName = MAP_GET_STRING_VAL_FOR_STRING_KEY(context->remainingAttrToOriginalAttr, aName);
+                Node *projExpr = (Node *) getAttrRefByName(op, aName);
+                AttributeDef *ad = createAttributeDef(strdup(provName), typeOf(projExpr));
 
-	if(isLost)
-	{
+                newproj = appendToTailOfList(newproj, projExpr);
+                newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+                provAttrs = appendToTailOfListInt(provAttrs, pos);
+                pos++;
 
-		FOREACH(QueryOperator, opChild, o->inputs)
-		{
-			List *projAttrNames = NIL;
-			List *projExpr = NIL;
+                // adjust context
+                addToSet(context->handledAttr, strdup(provName));
+                removeSetElem(context->remainingProvAttr, provName);
+                removeSetElem(context->renamedRemainingAttr, aName);
+                removeMapStringElem(context->remainingAttrToOriginalAttr, aName);
+            }
 
-			//e.g. projection
-			// A B | PA  -> name   (1.1) copy child's old attr name (1.2) add new prov name from lost list
-			// A B | A   -> ref    (2.1) copy child's old attr ref (2.2) add new normal prov name from normal lost list
+            DEBUG_LOG("Adjust projection:\nprojExprs: %s\nprovAttrs: %s\nschema:%s",
+                      exprToSQL((Node *) newproj, NULL, FALSE),
+                      nodeToString(provAttrs),
+                      nodeToString(newAttrDefs));
 
-			// (1.1)
-			if(isA(opChild, ProjectionOperator))
-				projAttrNames = getAttrRefNames((ProjectionOperator *) opChild);
-			else
-				projAttrNames = getQueryOperatorAttrNames((QueryOperator *) opChild);
+            po->projExprs = newproj;
+            p->provAttrs = provAttrs;
+            p->schema->attrDefs = newAttrDefs;
 
-			// (2.1)
-			int cnt = 0;
-			if(isA(opChild, ProjectionOperator))
-			{
-				projExpr = copyObject(((ProjectionOperator *)opChild)->projExprs);
-				cnt = getNumAttrs(opChild);
-			}
-			else
-			{
-				FOREACH(AttributeDef,attrDef,opChild->schema->attrDefs)
-				{
-					projExpr = appendToTailOfList(projExpr,
-												  createFullAttrReference(
-													  attrDef->attrName, 0,
-													  cnt, 0,
-													  attrDef->dataType));
-					cnt++;
-				}
-			}
+            DEBUG_SINGLE_OP_LOG("After add projection expressions for lost attributes:\n", p);
+            DEBUG_LOG("new context:\n%s", pullupProvProjToString(context));
+        }
+        // otherwise we have to add a projection below to add the lost attribute's provenance version
+        else
+        {
+            // add projection below and process this operator again by calling ourselves on projection operator
+            ProjectionOperator *pr = NULL;
+            List *inattrs = NIL;
+            List *outattrs = NIL;
 
-			// (1.2)
-			FOREACH(char, attrName, LostList)
-				projAttrNames = appendToTailOfList(projAttrNames, attrName);
+            inattrs = getNormalAttrNames(op);
 
-			// (2.2)
-			/* List *childType = getDataTypes(opChild->schema); */
-			/* List *childName = getAttrNames(opChild->schema); */
-			List *childAttrDefs = opChild->schema->attrDefs;
-			FOREACH(char, attrName, LostNormalList)
-			{
-				DataType type = DT_INT;
-				char *name = NULL;
-				FOREACH(AttributeDef, a, childAttrDefs)
-				{
-					name = a->attrName;
-					if(streq(name, attrName))
-					{
-						type = a->dataType;
-						break;
-					}
-				}
-				if(name != NULL)
-				{
-					projExpr = appendToTailOfList(projExpr,
-												  createFullAttrReference(
-													  name, 0,
-													  cnt, 0,
-													  type));
-					cnt++;
-				}
-			}
+            FOREACH_SET(char,c,handledOrOther)
+            {
+                inattrs = appendToTailOfList(inattrs, strdup(c));
+            }
+            outattrs = deepCopyStringList(inattrs);
 
-			List *newProvPosList = NIL;
-			CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
+            FOREACH_SET(char,l,lostAttrs)
+            {
+                char *aName = l;
+                char *provName = MAP_GET_STRING_VAL_FOR_STRING_KEY(context->remainingAttrToOriginalAttr, aName);
 
-			//Add projection
-			ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, projAttrNames);
-			newpo->op.provAttrs = newProvPosList;
+                inattrs = appendToTailOfList(inattrs, aName);
+                outattrs = appendToTailOfList(outattrs, provName);
 
-			// Switch the subtree with this newly created projection operator.
-			switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+                // adjust context
+                addToSet(context->handledAttr, provName);
+                removeSetElem(context->remainingProvAttr, provName);
+                removeSetElem(context->renamedRemainingAttr, aName);
+                removeMapStringElem(context->remainingAttrToOriginalAttr, aName);
+            }
 
-			// Add child to the newly created projections operator,
-			addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+            pr = (ProjectionOperator *) createProjOnAttrsByName(op, inattrs, outattrs);
 
-			//Reset the pos of the schema
-			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newpo,(QueryOperator *)op, NULL);
-			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)newpo, NULL);
+            pr->op.inputs = singleton(op);
+            pr->op.parents = singleton(p);
 
-			if(LIST_LENGTH(o->parents) == 1)
-				pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
-		}
-	}
-	else
-	{
-		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)op, NULL);
+            substOpInParentList(op, p, (QueryOperator *) pr);
+            substOpInInputs(p, op, (QueryOperator *) pr);
 
-		if(LIST_LENGTH(o->parents) == 1)
-			pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
-	}
+            // need to copy original provenance attr list
+            pr->op.properties = copyObject(op->properties);
 
-	return op;
+            DEBUG_LOG("lost attributes at operator, add projection and process it:\nop: %s\nproj: %s\nparent: %s",
+                      singleOperatorToOverview(op),
+                      singleOperatorToOverview(pr),
+                      singleOperatorToOverview(p));
+
+            resetPosOfAttrRefBaseOnBelowLayerSchema(p, (QueryOperator *) pr);
+            return pullup((QueryOperator *) pr, context);
+        }
+
+        // if all attributes handled, then we are done and should return
+        //TODO
+    }
+    // no attributes lost handle renaming, remove remaining provenance attritbutes and adjust prov attr list of operator, and continue to parent
+    else
+    {
+        DEBUG_SINGLE_OP_LOG("no provenance attributes are lost at operator", p);
+
+        // remove provenance attributes that are not handled yet from schema
+        removeRemainingProvenanceAttributes(p, context);
+
+        // keep track of renaming of normal attributes whose provenance version remains unhandled (only for projection and join)
+        keepTrackOfRemainingAttributeRenaming(p, context);
+    }
+
+    // continue to parent
+    resetPosOfAttrRefBaseOnBelowLayerSchema(p, op);
+
+    ASSERT(checkModel(op));
+
+    if(p->parents != NIL)
+    {
+        return pullup(p, context);
+    }
+    else
+    {
+        return p;
+    }
+}
+
+static void
+sortProjProvenanceAttrs(ProjectionOperator *p)
+{
+    QueryOperator *op = (QueryOperator *) p;
+    List *tempproj = NIL;
+    List *tempProvAttrs = NIL;
+    List *tempAttrDefs = NIL;
+    Set *targetProvAttrs;
+    List *targetAttrList;
+    List *currentAttrNames = getQueryOperatorAttrNames(op);
+    int pos = 0;
+
+    DEBUG_OP_LOG("sort provenance attributes in final projection operator", op);
+
+    ASSERT(HAS_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST));
+    targetProvAttrs = (Set *) GET_STRING_PROP(p, PROP_ORIGINAL_PROV_SET);
+    targetAttrList = constStringListToStringList((List *) GET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST));
+
+    // sort projection expression
+    FOREACH(char,attr,targetAttrList)
+    {
+        int curPos = listPosString(currentAttrNames, attr);
+
+        // have this attribute
+        if(curPos != -1)
+        {
+            tempproj = appendToTailOfList(tempproj, getNthOfListP(p->projExprs, curPos));
+            tempAttrDefs = appendToTailOfList(tempAttrDefs, getNthOfListP(op->schema->attrDefs, curPos));
+
+            if(hasSetElem(targetProvAttrs, attr))
+            {
+                tempProvAttrs = appendToTailOfListInt(tempProvAttrs, pos);
+            }
+            pos++;
+        }
+    }
+
+    p->projExprs = tempproj;
+    op->schema->attrDefs = tempAttrDefs;
+    op->provAttrs = tempProvAttrs;
+
+    DEBUG_SINGLE_OP_LOG("this is a root operator, have sorted attributes correctly",
+                        p);
+}
+
+static void
+keepTrackOfRemainingAttributeRenaming(QueryOperator *op, PullUpProvProjContext *context)
+{
+    if(isA(op, ProjectionOperator))
+    {
+        ProjectionOperator *pr = (ProjectionOperator *) op;
+        HashMap *newNames = NEW_MAP(Constant,Constant);
+        Set *remainingAttr = STRSET();
+
+        FORBOTH(Node, pexpr, a, pr->projExprs, op->schema->attrDefs)
+        {
+            AttributeDef *ad = (AttributeDef *) a;
+            if(isA(pexpr,AttributeReference))
+            {
+                AttributeReference *ar = (AttributeReference *) pexpr;
+
+                if(hasSetElem(context->renamedRemainingAttr, ar->name))
+                {
+                    MAP_ADD_STRING_KEY_AND_VAL(newNames,
+                                               ad->attrName,
+                                               MAP_GET_STRING_VAL_FOR_STRING_KEY(context->remainingAttrToOriginalAttr,
+                                                                                 ar->name));
+                    addToSet(remainingAttr, ad->attrName);
+                }
+            }
+        }
+
+        context->renamedRemainingAttr = remainingAttr;
+        context->remainingAttrToOriginalAttr = newNames;
+
+        DEBUG_LOG("projection renamed provenance attributes:\n\n%s",
+                  pullupProvProjToString(context));
+    }
+    if (isA(op, JoinOperator))
+    {
+        HashMap *newNames = NEW_MAP(Constant,Constant);
+        Set *remainingAttr = STRSET();
+        List *inputAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(OP_LCHILD(op)),
+                                            getQueryOperatorAttrNames(OP_RCHILD(op)));
+        List *outputAttrNames = getQueryOperatorAttrNames(op);
+
+        FORBOTH(char,inname,outname,inputAttrNames, outputAttrNames)
+        {
+            if(hasSetElem(context->renamedRemainingAttr, inname))
+            {
+                MAP_ADD_STRING_KEY_AND_VAL(newNames,
+                                           outname,
+                                           MAP_GET_STRING_VAL_FOR_STRING_KEY(context->remainingAttrToOriginalAttr,
+                                                                             inname));
+                addToSet(remainingAttr, outname);
+            }
+        }
+
+        context->renamedRemainingAttr = remainingAttr;
+        context->remainingAttrToOriginalAttr = newNames;
+
+        DEBUG_LOG("join renamed provenance attributes:\n\n%s",
+                  pullupProvProjToString(context));
+    }
+}
+
+static void
+removeRemainingProvenanceAttributes(QueryOperator *op, PullUpProvProjContext *context)
+{
+    // if operator is projection also remove remaining attributes from projection expressions
+    if(isA(op, ProjectionOperator))
+    {
+        ProjectionOperator *p = (ProjectionOperator *) op;
+        List *newprojExprs = NIL;
+
+        FOREACH(Node,n,p->projExprs)
+        {
+            if(isA(n,AttributeReference))
+            {
+                AttributeReference *a = (AttributeReference *) n;
+                if(!hasSetElem(context->remainingProvAttr, a->name)
+                   || hasSetElem(context->otherBranchProvAttrs, a->name))
+                {
+                    newprojExprs = appendToTailOfList(newprojExprs, n);
+                }
+            }
+            else
+            {
+                newprojExprs = appendToTailOfList(newprojExprs, n);
+            }
+        }
+
+        p->projExprs = newprojExprs;
+    }
+    // for join we may get renaming, but we never rename provenance attributes
+
+    List *newschema = NIL;
+    List *newprov = NIL;
+    int pos = 0;
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        if(!hasSetElem(context->remainingProvAttr, a->attrName))
+        {
+            newschema = appendToTailOfList(newschema, a);
+            if(hasSetElem(context->handledAttr, a->attrName)
+               || hasSetElem(context->otherBranchProvAttrs, a->attrName))
+            {
+                newprov = appendToTailOfListInt(newprov, pos);
+            }
+            pos++;
+        }
+    }
+
+    op->schema->attrDefs = newschema;
+    op->provAttrs = newprov;
+
+    DEBUG_SINGLE_OP_LOG("After removing unhandled provenance attributes: ", op);
 }
 
 QueryOperator *
@@ -2257,6 +2341,8 @@ introduceSelection(Operator *o, QueryOperator *root)
 {
 	Node *newOp = (Node *)copyObject(o);
 	SelectionOperator *selectionOp = createSelectionOp(newOp, NULL, NIL, getAttrNames(root->schema));
+
+    selectionOp->op.provAttrs = copyList(root->provAttrs);
 
 	SET_BOOL_STRING_PROP(selectionOp, PROP_OPT_SELECTION_MOVE_AROUND_DONE);
 

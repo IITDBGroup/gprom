@@ -53,7 +53,7 @@ SEQUENCED TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A !=
  A | T_B | T_E |
 ----------------
  1 | 1   | 2   |
- 1 | 1   | 2   | 
+ 1 | 1   | 2   |
  1 | 2   | 13  |
  2 | 1   | 4   |
 </entry>
@@ -71,7 +71,7 @@ SEQUENCED TEMPORAL (SELECT A FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_
 </entry>
 
 <entry key="q6.query">
-SEQUENCED TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
+SEQUENCED TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
 	FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L,
 		 (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 2) R
 	WHERE L.B = R.A
@@ -87,7 +87,7 @@ SEQUENCED TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
 
 
 <entry key="q7.query">
-SEQUENCED TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
+SEQUENCED TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
 	FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L,
 		 (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R
 	WHERE L.B = R.A
@@ -174,13 +174,13 @@ LA | T_B | T_E |
 
 <entry key="q11.query">
 SEQUENCED TEMPORAL (
-	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
-	FROM 
-		(SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L 
-		JOIN 
-		(SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R 
+	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
+	FROM
+		(SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L
+		JOIN
+		(SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R
 		ON (L.B = R.A)
-); 
+);
 </entry>
 <entry key="q11.result">
  LA | LB | RA | RB | T_B | T_E |
@@ -198,11 +198,11 @@ SEQUENCED TEMPORAL (
 
 <entry key="q12.query">
 SEQUENCED TEMPORAL (
-	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
-	FROM 
-		TEMP_TEST WITH TIME(T_BEGIN, T_END) L 
-		JOIN 
-		TEMP_TEST WITH TIME(T_BEGIN, T_END) R 
+	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
+	FROM
+		TEMP_TEST WITH TIME(T_BEGIN, T_END) L
+		JOIN
+		TEMP_TEST WITH TIME(T_BEGIN, T_END) R
 		ON (L.B = R.A)
 );
 </entry>
@@ -214,7 +214,7 @@ SEQUENCED TEMPORAL (
  1  | 1  | 1  | 1  | 2   | 6   |
  1  | 1  | 1  | 1  | 2   | 6   |
  1  | 1  | 1  | 1  | 2   | 6   |
- 1  | 1  | 1  | 1  | 6   | 10  | 
+ 1  | 1  | 1  | 1  | 6   | 10  |
  1  | 1  | 1  | 2  | 1   | 6   |
  1  | 1  | 1  | 2  | 1   | 6   |
  1  | 1  | 1  | 2  | 6   | 10  |
@@ -233,11 +233,11 @@ SEQUENCED TEMPORAL (
 SEQUENCED TEMPORAL (
 	SELECT count(*) AS x
 	FROM (
-		SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
-		FROM 
-			TEMP_TEST WITH TIME(T_BEGIN, T_END) L 
-			JOIN 
-			TEMP_TEST WITH TIME(T_BEGIN, T_END) R 
+		SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
+		FROM
+			TEMP_TEST WITH TIME(T_BEGIN, T_END) L
+			JOIN
+			TEMP_TEST WITH TIME(T_BEGIN, T_END) R
 			ON (L.B = R.A)
 	)
 );
@@ -296,13 +296,13 @@ A | T_B        | T_E        |
 
 <entry key="q17.query">
 SEQUENCED TEMPORAL (
-	SELECT a.A 
-	FROM 
-		TEMP_DATE WITH TIME(T_BEGIN, T_END) a 
+	SELECT a.A
+	FROM
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) a
 		JOIN
-		TEMP_DATE WITH TIME(T_BEGIN, T_END) b ON (a.A=b.A) 
-		JOIN 
-		TEMP_DATE WITH TIME(T_BEGIN, T_END) c ON (b.A=c.A) 
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) b ON (a.A=b.A)
+		JOIN
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) c ON (b.A=c.A)
 	WHERE a.A = 1 AND B.A = 1);
 </entry>
 <entry key="q17.result">
@@ -320,10 +320,6 @@ SEQUENCED TEMPORAL (
  1 | 2017-02-15 00:00:00.0 | 2017-04-07 00:00:00.0 |
 </entry>
 
-<entry key="q.query">
-</entry>
-<entry key="q.result">
-</entry>
 
 
 </properties>

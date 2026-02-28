@@ -18,7 +18,6 @@
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "log/logger.h"
-#include "mem_manager/mem_mgr.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "log/logger.h"
@@ -31,8 +30,11 @@ static List *attrRefListToStringList (List *input);
 static List *removeContainedKeys(List *keys);
 static boolean removePropsVisitor(QueryOperator *op, void *context);
 static boolean removeOnePropVisitor(QueryOperator *op, void *context);
+static void computeReqColPropInternal(QueryOperator *root);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
+static void mergeIntoChildIcols(QueryOperator *child, Set *newIcols);
 static boolean printECProVisitor(QueryOperator *root, void *context);
+static void computeKeyPropInternal(QueryOperator *root);
 static HashMap *computeExprMinMax(Node *expr, HashMap *attrMinMax);
 static Constant *getDataTypeMin (DataType dt);
 static Constant *getDataTypeMax (DataType dt);
@@ -41,6 +43,11 @@ static Set *relatedConditionAttributesForMinMax(Node *expr, Set *attrs);
 static void getConMapInternal(Node *expr, HashMap *leftResult, HashMap *rightResult, boolean inConjunctiveContext);
 static void mergeIntervalOr(HashMap *result, HashMap *left, HashMap* right);
 static HashMap *getOrCreateAttrMinMax(HashMap *minmaxes, char *a);
+static boolean exprNotNull(Node *expr, Set *attrNotNull);
+static boolean functionCallNotNull(char *fname, List *args, Set *attrNotNull);
+static Set *computeNotNullPropInternal(QueryOperator *root);
+static Set *renameAttrsInSet(List *inAttrs, List *outAttrs, Set *notNull);
+static Set *exprListNotNull(List *exprs, List *attrNames, Set *inNotNull);
 
 //TODO use NULL to represent unknown minimal value for now
 #define MAX_BOUND(dt) createNullConst(dt)
@@ -66,11 +73,23 @@ static HashMap *getOrCreateAttrMinMax(HashMap *minmaxes, char *a);
 	    MAP_ADD_STRING_KEY(_result, strdup(MAX_KEY), getDataTypeMax(typeOf((Node *) _e))); \
     } while(0)
 
+#define LOG_PROPERTY_INFERENCE(_prop, _rootop) \
+    INFO_LOG("\n************************************************************\n" \
+            "    PORPERTY INFERENCE FOR: %s\n" \
+            "************************************************************\n" \
+            "%s\n" \
+            "************************************************************", \
+            _prop, \
+            operatorToOverviewString((Node *) _rootop));
+
+
 void
 computeMinMaxPropForSubset(QueryOperator *root, Set *attrs)
 {
 	// use icol inference to determine what attributes we need min max for
 	setStringProperty((QueryOperator *) root, PROP_STORE_MIN_MAX_ATTRS, (Node *) attrs);
+
+    LOG_PROPERTY_INFERENCE("AttributeMinMax", root);
 
 	// calculate min and max
 	computeMinMaxProp(root);
@@ -1259,12 +1278,19 @@ computeChildOperatorProp(QueryOperator *root)
 }
 
 void
-computeKeyProp (QueryOperator *root)
+computeKeyProp(QueryOperator *root)
+{
+    LOG_PROPERTY_INFERENCE("Keys", root);
+
+    return computeKeyPropInternal(root);
+}
+
+static void
+computeKeyPropInternal(QueryOperator *root)
 {
     List *keyList = NIL;
     List *lKeyList = NIL;
     List *rKeyList = NIL;
-
 
     if (root == NULL)
     {
@@ -1272,11 +1298,13 @@ computeKeyProp (QueryOperator *root)
     }
     // compute key properties of children first
     if(root->inputs != NULL)
+    {
         FOREACH(QueryOperator, op, root->inputs)
         {
             if (!HAS_STRING_PROP(op,PROP_STORE_LIST_KEY_DONE))
                 computeKeyProp(op);
         }
+    }
     DEBUG_LOG("BEGIN COMPUTE KEYS %s operator %s keys", NodeTagToString(root->type), root->schema->name);
     SET_BOOL_STRING_PROP(root, PROP_STORE_LIST_KEY_DONE);
 
@@ -1540,12 +1568,9 @@ void
 computeECProp (QueryOperator *root)
 {
     START_TIMER("PropertyInference - EC");
-    INFO_LOG("\n************************************************************\n"
-            "    PORPERTY INFERENCE STEP: ECs\n"
-            "************************************************************\n"
-            "%s\n"
-            "************************************************************",
-            operatorToOverviewString((Node *) root));
+
+    LOG_PROPERTY_INFERENCE("Equivalence classes (EC)", root);
+
     DEBUG_LOG("*********EC**********\n\tStart bottom-up traversal");
     START_TIMER("PropertyInference - EC - bottom-up");
 	computeECPropBottomUp(root);
@@ -2712,13 +2737,13 @@ addAttrOfSelectCondToSet(Set *set, Node *expr)
 		SET_ICOLS(_op,_store_icols);			\
 	}
 #define IS_ICOLS_DONE(_op) HAS_STRING_PROP(_op, PROP_STORE_SET_ICOLS_DONE)
-#define MERGE_INTO_CHILD_ICOLS(_child,_icols)		\
-	while(0)										\
-	{												\
-		Set *_childIcols;							\
-		GET_OR_CREATE_ICOLS(_child,_childIcols);	\
-		unionIntoSet(_childIcols,_icols);			\
-	}
+#define MERGE_INTO_CHILD_ICOLS(_child,_icols) mergeIntoChildIcols(_child,_icols)
+	/* while(0)										\ */
+	/* {												\ */
+	/* 	Set *_childIcols;							\ */
+	/* 	GET_OR_CREATE_ICOLS(_child,_childIcols);	\ */
+    /*     unionIntoSet(_childIcols,_icols);			\ */
+	/* } */
 
 
 void
@@ -2737,15 +2762,32 @@ initializeIColProp(QueryOperator *root)
 		SET_BOOL_STRING_PROP(p, PROP_STORE_SET_ICOLS_DONE);
 }
 
+static void
+mergeIntoChildIcols(QueryOperator *child, Set *newIcols)
+{
+    Set *childIcols;
+
+    GET_OR_CREATE_ICOLS(child, childIcols);
+    unionIntoSet(childIcols, newIcols);
+}
+
 /*
  * Compute which set of output columns produced by the operator are need upstream.
  * Will be used to remove unneeded attributes early on. In particular useful for
  * removing the ROWNUM and other window operators introduced by PI-CS composable
  * rewrites.
  */
-
 void
 computeReqColProp(QueryOperator *root)
+{
+    LOG_PROPERTY_INFERENCE("required columns", root);
+
+    return computeReqColPropInternal(root);
+}
+
+
+void
+computeReqColPropInternal(QueryOperator *root)
 {
 	/*
 	 * Get root's icols set which can be used in following each operator
@@ -2755,7 +2797,9 @@ computeReqColProp(QueryOperator *root)
 
 	// retrieve or create icols for root
 	GET_OR_CREATE_ICOLS(root, icols);
-	DEBUG_LOG("before inference icols: %s for [%s]", nodeToString(icols), singleOperatorToOverview(root));
+	DEBUG_LOG("before inference icols: %s for [%s]",
+              nodeToString(icols),
+              singleOperatorToOverview(root));
 
 	if(isA(root, SelectionOperator))
 	{
@@ -2841,8 +2885,11 @@ computeReqColProp(QueryOperator *root)
 		}
 
 		// distribute our icols to our children
-		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), intersectSets(icols, s1));
-		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), intersectSets(icols, s2));
+        Set *licols = intersectSets(icols, s1);
+        Set *ricols = intersectSets(icols, s2);
+
+		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), licols);
+		MERGE_INTO_CHILD_ICOLS(OP_RCHILD(root), ricols);
 	}
 
 	if(isA(root, AggregationOperator))
@@ -2850,14 +2897,23 @@ computeReqColProp(QueryOperator *root)
 		AggregationOperator *agg = (AggregationOperator *) root;
 		Set *set = STRSET();
 
-		//e.g. add aggregation input attributes, e.g., A for sum(A) to icols
-		List *aggList = getAttrReferences((Node *) agg->aggrs);
-		FOREACH(AttributeReference, a, aggList)
-		{
-			addToSet(set,strdup(a->name));
-		}
+		// add aggregation input attributes, e.g., A for sum(A) to icols if aggregation function output is in  cols
+        List *aggAttrNames = aggOpGetAggAttrNames(agg);
 
-		//e.g. add group by B into icols
+        FORBOTH(void, aggf, n, agg->aggrs, aggAttrNames)
+        {
+            char *name = (char *) n;
+            if (hasSetElem(icols, name))
+            {
+		        List *aggList = getAttrReferences((Node *) aggf);
+                FOREACH(AttributeReference, a, aggList)
+		        {
+			        addToSet(set,strdup(a->name));
+		        }
+            }
+        }
+
+		// add group by attributes into icols (that is always required
 		List *groupByList = getAttrReferences((Node *) agg->groupBy);
 		FOREACH(AttributeReference, a, groupByList)
 		{
@@ -2958,8 +3014,23 @@ computeReqColProp(QueryOperator *root)
 
 	if(isA(root, SetOperator))
 	{
-		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), icols);
-		MERGE_INTO_CHILD_ICOLS(OP_RCHILD(root), icols); //FIXME attributes of right input may be named differently!
+        Set *rightIcols = STRSET();
+        QueryOperator *lchild = OP_LCHILD(root);
+        QueryOperator *rchild = OP_RCHILD(root);
+        List *lnames = getQueryOperatorAttrNames(lchild);
+        List *rnames = getQueryOperatorAttrNames(rchild);
+
+		MERGE_INTO_CHILD_ICOLS(lchild, icols);
+
+        FORBOTH(char,ln,rn,lnames,rnames)
+        {
+            if(hasSetElem(icols, ln))
+            {
+                addToSet(rightIcols, strdup(rn));
+            }
+        }
+
+		MERGE_INTO_CHILD_ICOLS(rchild, rightIcols); //FIXME attributes of right input may be named differently!
 	}
 
 	// for a nesting operator we need the columns to compute its expression as
@@ -2997,7 +3068,7 @@ computeReqColProp(QueryOperator *root)
         SET_BOOL_STRING_PROP(root, PROP_STORE_SET_ICOLS_DONE);
         FOREACH(QueryOperator, o, root->inputs)
         {
-            computeReqColProp(o);
+            computeReqColPropInternal(o);
         }
     }
 }
@@ -3035,6 +3106,335 @@ printIcolsVisitor (QueryOperator *op, void *context)
     DEBUG_LOG("op(%s) - icols:%s\n ",op->schema->name, nodeToString(icols));
     return TRUE;
 }
+
+void
+computeNotNullProp(QueryOperator *root)
+{
+    LOG_PROPERTY_INFERENCE("Not null attributes", root);
+
+    computeNotNullPropInternal(root);
+}
+
+#define NOT_NULL_SET_AND_RETURN() \
+        do { \
+            SET_STRING_PROP(root, PROP_STORE_NOT_NULL, notnull); \
+             return notnull; \
+        } while(0)
+
+static Set *
+computeNotNullPropInternal(QueryOperator *root)
+{
+    Set *notnull = STRSET();
+    switch(LIST_LENGTH(root->inputs))
+    {
+        // 0-ary operator
+        case 0:
+        {
+            switch(root->type)
+            {
+                case T_TableAccessOperator:
+                {
+                    TableAccessOperator *t = (TableAccessOperator *) root;
+                    notnull =  getNotNullAttrs(t->tableName);
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                break;
+                default:
+                    INFO_LOG("Null property inference not supported for operator %s",
+                             NodeTagToString(root->type));
+                    NOT_NULL_SET_AND_RETURN();
+                break;
+            }
+        }
+        break;
+        // unary operator
+        case 1:
+        {
+            Set *childNotNull = computeNotNullPropInternal(OP_LCHILD(root));
+
+            switch(root->type)
+            {
+                case T_SelectionOperator:
+                {
+                    notnull =  copyObject(childNotNull);
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                case T_ProjectionOperator:
+                {
+                    ProjectionOperator *p = (ProjectionOperator *) root;
+                    List *exprs = p->projExprs;
+
+                    notnull = exprListNotNull(exprs,
+                                              getQueryOperatorAttrNames(root),
+                                              childNotNull);
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                case T_AggregationOperator:
+                {
+                    AggregationOperator *a = (AggregationOperator *) root;
+                    List *expr = CONCAT_LISTS(copyList(a->aggrs), copyList(a->groupBy));
+                    List *names = getQueryOperatorAttrNames(root);
+
+                    FORBOTH(void, e, n, expr, names)
+                    {
+                        if(exprNotNull(e, childNotNull))
+                        {
+                            addToSet(notnull, strdup(n));
+                        }
+                    }
+
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                case T_WindowOperator:
+                {
+                    WindowOperator *w = (WindowOperator *) root;
+
+                    // a window operator adds a new attribute and preserves all
+                    // existing attributes. Any attribute that was not null
+                    // before will still be not null.
+                    notnull = copyObject(childNotNull);
+
+                    // sometimes the window function result is not null (agg count)
+                    if(exprNotNull(w->f, childNotNull))
+                    {
+                        AttributeDef *wa = (AttributeDef *) getTailOfListP(w->op.schema->attrDefs);
+                        addToSet(notnull, strdup(wa->attrName));
+                    }
+
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                //TODO nesting operator
+                default:
+                {
+                    INFO_LOG("Null property inference not supported for operator: %s",
+                             NodeTagToString(root->type));
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                break;
+            }
+        }
+        break;
+        // binary operator
+        case 2:
+        {
+            Set *leftchildNotNull = computeNotNullPropInternal(OP_LCHILD(root));
+            Set *rightchildNotNull = computeNotNullPropInternal(OP_RCHILD(root));
+
+            switch(root->type)
+            {
+
+                case T_JoinOperator:
+                {
+                    JoinOperator *j = (JoinOperator *) root;
+
+                    switch(j->joinType)
+                    {
+                        case JOIN_CROSS:
+                        case JOIN_INNER:
+                        {
+                            notnull = unionSets(leftchildNotNull, rightchildNotNull);
+                        }
+                        break;
+                        // for outer joins, the outer side is always NULLABLE
+                        case JOIN_LEFT_OUTER:
+                        {
+                            notnull = leftchildNotNull;
+                        }
+                        break;
+                        case JOIN_RIGHT_OUTER:
+                        {
+                            notnull = rightchildNotNull;
+                        }
+                        break;
+                        case JOIN_FULL_OUTER:
+                        {
+                            // all attributes could be null
+                        }
+                        break;
+                    }
+
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                case T_SetOperator:
+                {
+                    SetOperator *s = (SetOperator *) root;
+                    Set *rightRenamedNotNullAttrs =
+                        renameAttrsInSet(getQueryOperatorAttrNames(OP_RCHILD(root)),
+                                         getQueryOperatorAttrNames(OP_LCHILD(root)),
+                                         rightchildNotNull);
+
+                    // union attribute is not null if it is not null in both inputs
+                    if(s->setOpType == SETOP_UNION)
+                    {
+                        notnull = intersectSets(leftchildNotNull, rightRenamedNotNullAttrs);
+                    }
+                    else if(s->setOpType == SETOP_INTERSECTION)
+                    {
+                        notnull = copyObject(leftchildNotNull);
+                    }
+                    // intersection
+                    else
+                    {
+                        notnull = unionSets(leftchildNotNull, rightRenamedNotNullAttrs);
+                    }
+
+                    NOT_NULL_SET_AND_RETURN();
+                }
+                default:
+                {
+                    INFO_LOG("Null property inference not supported for operator %s",
+                             NodeTagToString(root->type));
+                    NOT_NULL_SET_AND_RETURN();
+                }
+            }
+        }
+        break;
+        default:
+        {
+            THROW(SEVERITY_RECOVERABLE,
+                  "Encountered an operator with more than 2 children. Currently GProM does not have any such operators:\n\n%s",
+                  beatify(nodeToString(root)));
+        }
+    }
+
+    return notnull;
+}
+
+static Set *
+renameAttrsInSet(List *inAttrs, List *outAttrs, Set *notNull)
+{
+    HashMap *nameMap = NEW_MAP(Constant, Constant);
+    Set *result = STRSET();
+
+    FORBOTH(char,inA, outA, inAttrs, outAttrs)
+    {
+        MAP_ADD_STRING_KEY_AND_VAL(nameMap, inA, outA);
+    }
+
+    FOREACH_SET(char, inA, notNull)
+    {
+        addToSet(result, MAP_GET_STRING_VAL_FOR_STRING_KEY(nameMap, inA));
+    }
+
+    return result;
+}
+
+static Set *
+exprListNotNull(List *exprs, List *attrNames, Set *inNotNull)
+{
+    Set *result = STRSET();
+
+    FORBOTH(void, e, a, exprs, attrNames)
+    {
+        if(exprNotNull((Node *) e, inNotNull))
+        {
+            addToSet(result, strdup(a));
+        }
+    }
+
+    return result;
+}
+
+static boolean
+exprNotNull(Node *expr, Set *attrNotNull)
+{
+    switch(expr->type)
+    {
+        case T_AttributeReference:
+        {
+            AttributeReference *a = (AttributeReference *) expr;
+            return hasSetElem(attrNotNull, a->name);
+        }
+        case T_Constant:
+        {
+            Constant *c = (Constant *) expr;
+            return !(c->isNull);
+        }
+        case T_FunctionCall:
+        {
+            FunctionCall *f = (FunctionCall *) expr;
+
+            return functionCallNotNull(f->functionname, f->args, attrNotNull);
+        }
+        case T_Operator:
+        {
+            Operator *o = (Operator *) expr;
+
+            return functionCallNotNull(o->name, o->args, attrNotNull);
+        }
+        case T_WindowFunction:
+        {
+            WindowFunction *w = (WindowFunction *) expr;
+
+            return functionCallNotNull(w->f->functionname, w->f->args, attrNotNull);
+        }
+        case T_IsNullExpr:
+        case T_RowNumExpr:
+        {
+            return TRUE;
+        }
+        case T_CastExpr:
+        {
+            CastExpr *c = (CastExpr *) expr;
+            return exprNotNull(c->expr, attrNotNull);
+        }
+        case T_CaseExpr:
+        {
+            CaseExpr *c = (CaseExpr *) expr;
+
+            // case expression with ELSE can only return null if any of the THEN or the ELSE may evaluate to NULL
+            if(c->elseRes)
+            {
+                boolean notnullable = TRUE;
+
+                FOREACH(CaseWhen,w,c->whenClauses)
+                {
+                    notnullable &= exprNotNull(w->then, attrNotNull);
+                }
+                notnullable &= exprNotNull(c->elseRes, attrNotNull);
+
+                return notnullable;
+            }
+            // case expressions without ELSE can evaluate to NULL additionally when non of the THEN conditions applies which is hard in general. For now we just assume that it may return null
+            return FALSE;
+        }
+        //TODO nested subqueries, SQL parameters
+        // for nodes not supported yet
+        default:
+            INFO_LOG("Not null inference not supported for node type yet: %s",
+                     NodeTagToString(expr->type));
+            return FALSE;
+    }
+}
+
+static boolean
+functionCallNotNull(char *fname, List *args, Set *attrNotNull)
+{
+    boolean notNullInputs = TRUE;
+    boolean fStrict;
+    boolean exists = FALSE;
+
+    // aggregation and window functions have to be treated differently as they
+    // may return null applied to an empty set.
+    if(isAgg(fname) || isWindowFunction(fname))
+    {
+        if(streq(fname, COUNT_FUNC_NAME))
+        {
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+    fStrict = functionIsStrict(fname, exprListTypes(args), &exists);
+
+    FOREACH(Node,arg,args)
+    {
+        notNullInputs &= exprNotNull(arg, attrNotNull);
+    }
+
+    return fStrict && notNullInputs;
+}
+
 
 static List *
 attrRefListToStringList (List *input)

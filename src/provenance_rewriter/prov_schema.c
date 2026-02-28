@@ -215,10 +215,9 @@ opGetProvAttrInfo(QueryOperator *op)
 void
 copyProvInfo(QueryOperator *to, QueryOperator *from)
 {
-	SET_STRING_PROP(
-		to,
-		PROP_PROVENANCE_TABLE_ATTRS,
-		GET_STRING_PROP(from, PROP_PROVENANCE_TABLE_ATTRS));
+	SET_STRING_PROP(to,
+		            PROP_PROVENANCE_TABLE_ATTRS,
+		            copyObject(GET_STRING_PROP(from, PROP_PROVENANCE_TABLE_ATTRS)));
 }
 
 void

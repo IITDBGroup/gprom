@@ -11,7 +11,6 @@
  *-----------------------------------------------------------------------------
  */
 #include "common.h"
-#include "instrumentation/timing_instrumentation.h"
 
 #include "analysis_and_translate/analyze_oracle.h"
 #include "analysis_and_translate/parameter.h"
@@ -22,6 +21,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_block/query_block_to_sql.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
@@ -34,23 +34,23 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
-static void analyzeStmtList (List *l, List *parentFroms);
-static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
-static void analyzeSetQuery (SetQuery *q, List *parentFroms);
-static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
-static void analyzeProvenanceOptions (ProvenanceStmt *prov);
-static boolean reenactOptionHasTimes (List *opts);
-static void analyzeWithStmt (WithStmt *w);
+static void analyzeStmtList(List *l, List *parentFroms);
+static void analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes);
+static void analyzeSetQuery(SetQuery *q, List *parentFroms, HashMap *ctes);
+static void analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms, HashMap *ctes);
+static void analyzeProvenanceOptions(ProvenanceStmt *prov);
+static boolean reenactOptionHasTimes(List *opts);
+static void analyzeWithStmt(WithStmt *w);
 //static List *getAnalyzedViews(WithStmt *w);
-static void analyzeCreateTable (CreateTable *c);
-static void analyzeAlterTable (AlterTable *a);
-static void analyzeExecQuery (ExecQuery *e);
-static void analyzePreparedQuery (PreparedQuery *p);
+static void analyzeCreateTable(CreateTable *c);
+static void analyzeAlterTable(AlterTable *a);
+static void analyzeExecQuery(ExecQuery *e);
+static void analyzePreparedQuery(PreparedQuery *p);
 
-static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
+static void analyzeJoin(FromJoinExpr *j, List *parentFroms, HashMap *ctes);
 static void analyzeWhere(QueryBlock *qb, List *parentFroms);
 static void analyzeGroupByAgg(QueryBlock *qb, List *parentFroms);
-static void analyzeLimitAndOffset (QueryBlock *qb);
+static void analyzeLimitAndOffset(QueryBlock *qb);
 static void analyzeOrderBy(QueryBlock *qb);
 
 // search for non-group and non-aggregate expressions
@@ -86,8 +86,8 @@ static void analyzeFromTableRef(FromTableRef *f);
 static void analyzeInsert(Insert *f);
 static void analyzeDelete(Delete *f);
 static void analyzeUpdate(Update *f);
-static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
-static void analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFroms);
+static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms, HashMap *ctes);
+static void analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFroms, HashMap *ctes);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 static boolean correctFromTableVisitor (Node *node, void *context);
@@ -95,7 +95,7 @@ static boolean checkTemporalAttributesVisitor (Node *node, DataType **context);
 
 // analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
-static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
+static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms, HashMap *ctes);
 
 // analyze FromJsonTable Item
 static void analyzeFromJsonTable(FromJsonTable *f, List **state);
@@ -124,7 +124,7 @@ analyzeOracleModel (Node *stmt)
 {
     adaptIdentifiers(stmt);
     DEBUG_NODE_BEATIFY_LOG("After backendifying identifiers: ", stmt);
-    analyzeQueryBlockStmt(stmt, NULL);
+    analyzeQueryBlockStmt(stmt, NULL, NULL);
 
     return stmt;
 }
@@ -339,24 +339,24 @@ visitAdaptIdents(Node *node, Set *context)
 
 
 void
-analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
+analyzeQueryBlockStmt(Node *stmt, List *parentFroms, HashMap *ctes)
 {
     switch(stmt->type)
     {
         case T_QueryBlock:
-            analyzeQueryBlock((QueryBlock *) stmt, parentFroms);
+            analyzeQueryBlock((QueryBlock *) stmt, parentFroms, ctes);
             DEBUG_LOG("analyzed QB");
             break;
         case T_SetQuery:
-            analyzeSetQuery((SetQuery *) stmt, parentFroms);
+            analyzeSetQuery((SetQuery *) stmt, parentFroms, ctes);
             DEBUG_LOG("analyzed Set Query");
             break;
         case T_ProvenanceStmt:
-            analyzeProvenanceStmt((ProvenanceStmt *) stmt, parentFroms);
+            analyzeProvenanceStmt((ProvenanceStmt *) stmt, parentFroms, ctes);
             DEBUG_LOG("analyzed Provenance Stmt");
             break;
         case T_List:
-            analyzeStmtList ((List *) stmt, parentFroms);
+            analyzeStmtList((List *) stmt, parentFroms);
             DEBUG_LOG("analyzed List");
             break;
         case T_Insert:
@@ -405,10 +405,12 @@ enumerateParameters (Node *stmt)
 }
 
 static void
-analyzeStmtList (List *l, List *parentFroms)
+analyzeStmtList(List *l, List *parentFroms)
 {
     FOREACH(Node,n,l)
-        analyzeQueryBlockStmt(n, parentFroms);
+	{
+		analyzeQueryBlockStmt(n, parentFroms, NULL);
+	}
 }
 
 static void
@@ -443,7 +445,7 @@ adaptAttributeRefs(List* attrRefs, List* parentFroms)
 }
 
 static void
-analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
+analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
 {
     List *attrRefs = NIL;
 
@@ -463,11 +465,12 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
 
-                if (f->attrNames != NIL)
+                if (ctes && MAP_HAS_STRING_KEY(ctes,tr->tableId))
+				{
                     tableExists = TRUE; //TODO is that ok? this is proposed to be the case when this is a CTE
-
+				}
                 //check if it is a table or a view
-                if (!tableExists && viewExists)
+                else if (!tableExists && viewExists)
                 {
                     char * view = getViewDefinition(((FromTableRef *)f)->tableId);
                     char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
@@ -484,8 +487,11 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
                     DUMMY_LC(f)->data.ptr_value = f1;
                 }
-                if (!tableExists && !viewExists)
+                // neight table nor view nor CTE, throw exception
+                else if (!tableExists && !viewExists)
+				{
                     THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
+				}
             }
             break;
             default:
@@ -505,17 +511,33 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         switch(f->type)
         {
             case T_FromTableRef:
-                analyzeFromTableRef((FromTableRef *) f);
-                break;
+            {
+                FromTableRef *ft = (FromTableRef *) f;
+                if (ctes && MAP_HAS_STRING_KEY(ctes,ft->tableId))
+                {
+                    Node *view = MAP_GET_STRING(ctes, ft->tableId);
+                    ft->from.attrNames = getQBAttrNames(view);
+                    ft->from.dataTypes = getQBAttrDTs(view);
+                    if(f->name == NULL)
+                    {
+                        f->name = ft->tableId;
+                    }
+                }
+                else
+                {
+                    analyzeFromTableRef((FromTableRef *) f);
+                }
+            }
+            break;
             case T_FromSubquery:
-                analyzeFromSubquery((FromSubquery *) f, parentFroms);
-                break;
+                analyzeFromSubquery((FromSubquery *) f, parentFroms, ctes);
+            break;
             case T_FromLateralSubquery:
-                analyzeFromLateralSubquery((FromLateralSubquery *) f, newParentFroms);
-                break;
+                analyzeFromLateralSubquery((FromLateralSubquery *) f, newParentFroms, ctes);
+            break;
             case T_FromJoinExpr:
-                analyzeJoin((FromJoinExpr *) f, parentFroms);
-                break;
+                analyzeJoin((FromJoinExpr *) f, parentFroms, ctes);
+            break;
             case T_FromJsonTable:
                 analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
             break;
@@ -571,7 +593,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     DEBUG_LOG("Analyzed functions");
 
     // find nested subqueries and analyze them
-    analyzeNestedSubqueries(qb, parentFroms);
+    analyzeNestedSubqueries(qb, parentFroms, ctes);
     DEBUG_LOG("Analyzed nested subqueries");
 
     // analyze where clause if exists
@@ -593,7 +615,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 }
 
 static void
-analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
+analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms, HashMap *ctes)
 {
     List *nestedSubqueries = NIL;
 
@@ -611,7 +633,9 @@ analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
 
     // analyze each subquery
     FOREACH(NestedSubquery,q,nestedSubqueries)
-        analyzeQueryBlockStmt(q->query, parentFroms);
+	{
+		analyzeQueryBlockStmt(q->query, parentFroms, ctes);
+	}
 }
 
 static void
@@ -1268,7 +1292,7 @@ findFunctionCall(Node *node, List **state)
 }
 
 static void
-analyzeJoin (FromJoinExpr *j, List *parentFroms)
+analyzeJoin(FromJoinExpr *j, List *parentFroms, HashMap *ctes)
 {
     FromItem *left = j->left;
     FromItem *right = j->right;
@@ -1285,12 +1309,12 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
         }
         break;
         case T_FromJoinExpr:
-            analyzeJoin((FromJoinExpr *)left, parentFroms);
+            analyzeJoin((FromJoinExpr *)left, parentFroms, ctes);
             break;
         case T_FromSubquery:
         {
             FromSubquery *sq = (FromSubquery *) left;
-            analyzeFromSubquery(sq, parentFroms);
+            analyzeFromSubquery(sq, parentFroms, ctes);
         }
         break;
         default:
@@ -1308,12 +1332,12 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
         }
         break;
         case T_FromJoinExpr:
-            analyzeJoin((FromJoinExpr *) right, parentFroms);
+            analyzeJoin((FromJoinExpr *) right, parentFroms, ctes);
             break;
         case T_FromSubquery:
         {
             FromSubquery *sq = (FromSubquery *) right;
-            analyzeFromSubquery(sq, parentFroms);
+            analyzeFromSubquery(sq, parentFroms, ctes);
         }
         break;
         default:
@@ -1323,7 +1347,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     if (j->joinCond == JOIN_COND_NATURAL)
     {
         List *expectedAttrs = analyzeNaturalJoinRef((FromTableRef *)j->left,
-                (FromTableRef *)j->right);
+                                                    (FromTableRef *)j->right);
         if (j->from.attrNames == NULL)
             j->from.attrNames = expectedAttrs;
         ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
@@ -1679,7 +1703,7 @@ analyzeInsert(Insert * f)
     else
     {
         QueryBlock *q = (QueryBlock *) f->query;
-        analyzeQueryBlockStmt(f->query, NIL);
+        analyzeQueryBlockStmt(f->query, NIL, NULL);
         //TODO check query data types
         //TODO even more important add query block for missing attributes if necessary
         if (LIST_LENGTH(f->attrList) != attrNames->length)
@@ -1776,7 +1800,9 @@ analyzeDelete(Delete * f)
 
     // analyze each nested subqueries
     FOREACH(NestedSubquery,nq,subqueries)
-        analyzeQueryBlockStmt(nq->query, fakeFrom);
+	{
+		analyzeQueryBlockStmt(nq->query, fakeFrom, NULL);
+	}
 
 }
 
@@ -1832,15 +1858,17 @@ analyzeUpdate(Update* f)
 
     // analyze each nested subqueries
     FOREACH(NestedSubquery,nq,subqueries)
-        analyzeQueryBlockStmt(nq->query, fakeFrom);
+	{
+        analyzeQueryBlockStmt(nq->query, fakeFrom, NULL);
+	}
 }
 
 static void
-analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
+analyzeFromSubquery(FromSubquery *sq, List *parentFroms, HashMap *ctes)
 {
     List *expectedAttrs;
 
-    analyzeQueryBlockStmt(sq->subquery, parentFroms);
+    analyzeQueryBlockStmt(sq->subquery, parentFroms, ctes);
     expectedAttrs = getQBAttrNames(sq->subquery);
 
     // if no attr aliases given
@@ -1852,11 +1880,11 @@ analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 }
 
 static void
-analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFroms)
+analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFroms, HashMap *ctes)
 {
     List *expectedAttrs;
 
-    analyzeQueryBlockStmt(lq->subquery, parentFroms);
+    analyzeQueryBlockStmt(lq->subquery, parentFroms, ctes);
     expectedAttrs = getQBAttrNames(lq->subquery);
 
     // if no attr aliases given
@@ -2135,10 +2163,10 @@ splitTableName(char *tableName)
 
 
 static void
-analyzeSetQuery (SetQuery *q, List *parentFroms)
+analyzeSetQuery(SetQuery *q, List *parentFroms, HashMap *ctes)
 {
-    analyzeQueryBlockStmt(q->lChild, parentFroms);
-    analyzeQueryBlockStmt(q->rChild, parentFroms);
+    analyzeQueryBlockStmt(q->lChild, parentFroms, ctes);
+    analyzeQueryBlockStmt(q->rChild, parentFroms, ctes);
 
     // get attributes from left child
     switch(q->lChild->type)
@@ -2171,7 +2199,7 @@ analyzeSetQuery (SetQuery *q, List *parentFroms)
  */
 
 static void
-analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
+analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms, HashMap *ctes)
 {
     switch (q->inputType)
     {
@@ -2190,7 +2218,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             {
                 Node *stmt = sInfo->key;
                 //TODO maintain and extend a schema info
-                analyzeQueryBlockStmt(stmt, NIL);
+                analyzeQueryBlockStmt(stmt, NIL, ctes);
                 hasTimes |= reenactOptionHasTimes((List *) sInfo->value);
 //                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
             }
@@ -2227,7 +2255,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             List *provAttrNames = NIL;
             List *provDts = NIL;
 
-            analyzeQueryBlockStmt(q->query, parentFroms);
+            analyzeQueryBlockStmt(q->query, parentFroms, ctes);
             switch(q->provType)
             {
                 case PROV_COARSE_GRAINED:
@@ -2265,7 +2293,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             List *provAttrNames = NIL;
             List *provDts = NIL;
 
-            analyzeQueryBlockStmt(q->query, parentFroms);
+            analyzeQueryBlockStmt(q->query, parentFroms, ctes);
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
@@ -2282,7 +2310,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             List *provAttrNames = NIL;
             List *provDts = NIL;
 
-            analyzeQueryBlockStmt(q->query, parentFroms);
+            analyzeQueryBlockStmt(q->query, parentFroms, ctes);
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
@@ -2302,7 +2330,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             List *provDts = NIL;
 
             // analyze input query
-            analyzeQueryBlockStmt(q->query, parentFroms);
+            analyzeQueryBlockStmt(q->query, parentFroms, ctes);
             correctFromTableVisitor(q->query, NULL);
             getQBProvenanceAttrList(q,&provAttrNames,&provDts);
 
@@ -2312,7 +2340,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         case PROV_INPUT_TEMPORAL_QUERY:
         {
             DataType *tempDT = NULL;
-            analyzeQueryBlockStmt(q->query, parentFroms);
+            analyzeQueryBlockStmt(q->query, parentFroms, ctes);
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
@@ -2515,9 +2543,10 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
 }
 
 static void
-analyzeWithStmt (WithStmt *w)
+analyzeWithStmt(WithStmt *w)
 {
     Set *viewNames = STRSET();
+	HashMap *viewmap = NEW_MAP(Constant, Node);
     //List *analyzedViews = NIL;
 
     // check that no two views have the same name and backendify view names
@@ -2527,17 +2556,24 @@ analyzeWithStmt (WithStmt *w)
         n->value = backendifyIdentifier(STRING_VALUE(v->key));
         char *vName = strdup(STRING_VALUE(v->key));
         if (hasSetElem(viewNames, vName))
+		{
             FATAL_LOG("view <%s> defined more than once in with stmt:\n\n%s",
-                    vName, nodeToString(w));
+                      vName, nodeToString(w));
+		}
         else
+		{
+			analyzeQueryBlockStmt(v->value, NIL, viewmap);
+            DEBUG_LOG("analyzed CTE[%s]:\n%s", STRING_VALUE(v->key), beatify(nodeToString(v->value)));
+			MAP_ADD_STRING_KEY(viewmap, STRING_VALUE(v->key), v->value);
             addToSet(viewNames, vName);
+		}
     }
 
     //analyzedViews = getAnalyzedViews(w);
     DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
-    analyzeQueryBlockStmt(w->query, NIL);
+    analyzeQueryBlockStmt(w->query, NIL, viewmap);
 
-    DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
+    DEBUG_NODE_BEATIFY_LOG("query for CTE is:", w->query);
 }
 
 /*
@@ -2574,7 +2610,7 @@ analyzeCreateTable (CreateTable *c)
 
     // if is CREATE TABLE x AS SELECT ..., then analyze query
     if (c->query)
-        analyzeQueryBlockStmt(c->query, NIL);
+        analyzeQueryBlockStmt(c->query, NIL, NULL);
 
     // create schema info
     List *schema = NIL;
@@ -2678,7 +2714,7 @@ analyzePreparedQuery(PreparedQuery *p)
 {
     List *dts;
 
-    analyzeQueryBlockStmt(p->q, NIL);
+    analyzeQueryBlockStmt(p->q, NIL, NULL);
     p->sqlText = parseBackQueryBlock(p->q);
     dts = getQBAttrDTs(p->q);
 

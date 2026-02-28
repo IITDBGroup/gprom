@@ -94,6 +94,9 @@ typedef struct MetadataLookupPlugin
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
     List * (*getKeyInformation) (char *tableName);
+    Set * (*getNotNullAttrs) (char *tableName);
+    boolean (*functionIsStrict) (char *fname, List *argTypes, boolean *funcExists);
+
     /* audit log access */
     void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
             List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
@@ -172,7 +175,9 @@ extern DataType backendSQLTypeToDT (char *sqlType);
 extern char *backendDatatypeToSQL (DataType dt);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
-extern List *getKeyInformation (char *tableName);
+extern List *getKeyInformation(char *tableName);
+extern Set *getNotNullAttrs(char *tableName);
+extern boolean functionIsStrict(char *fname, List *argTypes, boolean *funcExists);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
