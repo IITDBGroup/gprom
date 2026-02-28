@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Top-k provenance Test cases</comment>
+
+<!-- Currently only supported with pi_cs_composable -->
+<entry key="extra_settings.composable">
+-prov_use_composable
+</entry>
+
+<entry key="q1.query">
+PROVENANCE OF (SELECT a,b FROM R ORDER BY a,b LIMIT 1);
+</entry>
+<entry key="q1.result">
+ a | b | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
+-----------------------------------------------------------------
+ 1 | 1 | 1        | 1        | 1           | 1                  |
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (SELECT sum(b) AS x, a FROM r GROUP BY a ORDER BY x DESC, a LIMIT 1);
+</entry>
+<entry key="q2.result">
+ x | a | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
+-----------------------------------------------------------------
+ 4 | 2 | 2        | 1        | 1           | 1                  |
+ 4 | 2 | 2        | 3        | 1           | 2                  |
+</entry>
+
+
+</properties>
