@@ -606,7 +606,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		}
 		root->schema->attrDefs = newAttrDefs;
 
-		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root));
+		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root), NULL);
 	}
 
 	else if(isA(root, AggregationOperator))
@@ -797,7 +797,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                 proj->projExprs = newAttrRefs;
 
          	    QueryOperator *child = OP_LCHILD(root);
-                resetPosOfAttrRefBaseOnBelowLayerSchema(root,child);
+                resetPosOfAttrRefBaseOnBelowLayerSchema(root,child, NULL);
 
                 //if up layer is projection, reset the pos of up layer's reference
                 if(root->parents != NIL)
@@ -806,7 +806,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
             	    if(isA(p, ProjectionOperator))
             	    {
             		    QueryOperator *r = root;
-            		    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r);
+            		    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r, NULL);
             	    }
 
                 }
@@ -1607,7 +1607,7 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
                       singleOperatorToOverview(pr),
                       singleOperatorToOverview(p));
 
-            resetPosOfAttrRefBaseOnBelowLayerSchema(p, (QueryOperator *) pr);
+            resetPosOfAttrRefBaseOnBelowLayerSchema(p, (QueryOperator *) pr, NULL);
             return pullup((QueryOperator *) pr, context);
         }
 
@@ -1627,7 +1627,7 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
     }
 
     // continue to parent
-    resetPosOfAttrRefBaseOnBelowLayerSchema(p, op);
+    resetPosOfAttrRefBaseOnBelowLayerSchema(p, op, NULL);
 
     ASSERT(checkModel(op));
 
