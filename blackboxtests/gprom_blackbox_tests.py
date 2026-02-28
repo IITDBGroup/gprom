@@ -693,7 +693,7 @@ def default_gprom_settings_from_options(opions):
         }))
     if options.gpromdebug:
         settings = settings.union(GProMSetting({
-            "-loglevel": "4",
+            "-loglevel": str(options.loglevel),
             "-aggressive_model_checking": "TRUE",
             "-Loperator_verbose": "TRUE",
             "-Loperator_verbose_props": "2",
