@@ -518,6 +518,10 @@ analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
                     Node *view = MAP_GET_STRING(ctes, ft->tableId);
                     ft->from.attrNames = getQBAttrNames(view);
                     ft->from.dataTypes = getQBAttrDTs(view);
+                    if(f->name == NULL)
+                    {
+                        f->name = ft->tableId;
+                    }
                 }
                 else
                 {
