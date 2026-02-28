@@ -1133,8 +1133,10 @@ replaceWithViewRefsMutator(Node *node, List *views)
             char *vName = STRING_VALUE(v->key);
 
             if (strcmp(name, vName) == 0)
+            {
                 switchSubtreeWithExisting((QueryOperator *) t,
-                        (QueryOperator *) v->value);
+                                          (QueryOperator *) v->value);
+            }
         }
 
         return TRUE;
