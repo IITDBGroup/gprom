@@ -1071,6 +1071,26 @@ format_prop_value_for_user(char *prop, Node *val)
         return s->data;
     }
 
+	// user provenance attributes
+	if(streq(prop, PROP_USER_PROV_ATTRS))
+	{
+		StringInfo s = makeStringInfo();
+
+		appendStringInfoString(s,"(");
+
+		FOREACH(Constant,c,(List *) val)
+		{
+			appendStringInfo(s,
+							 "%s%s",
+							 STRING_VALUE(c),
+							 FOREACH_HAS_MORE(c) ? ", " : "");
+		}
+
+		appendStringInfoString(s,")");
+
+		return s->data;
+	}
+
     // provenance attribute information for pull-up
     if(streq(prop, PROP_PROVENANCE_TABLE_ATTRS))
     {
