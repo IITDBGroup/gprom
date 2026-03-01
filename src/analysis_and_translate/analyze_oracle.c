@@ -464,13 +464,10 @@ analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
                 backendifyTableRef(tr);
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
+                boolean isCTE = ctes && MAP_HAS_STRING_KEY(ctes,tr->tableId);
 
-                if (ctes && MAP_HAS_STRING_KEY(ctes,tr->tableId))
-				{
-                    tableExists = TRUE; //TODO is that ok? this is proposed to be the case when this is a CTE
-				}
                 //check if it is a table or a view
-                else if (!tableExists && viewExists)
+                if (!isCTE && !tableExists && viewExists)
                 {
                     char * view = getViewDefinition(((FromTableRef *)f)->tableId);
                     char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
@@ -488,7 +485,7 @@ analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
                     DUMMY_LC(f)->data.ptr_value = f1;
                 }
                 // neight table nor view nor CTE, throw exception
-                else if (!tableExists && !viewExists)
+                else if (!isCTE && !tableExists && !viewExists)
 				{
                     THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
 				}
