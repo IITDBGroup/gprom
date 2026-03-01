@@ -11,6 +11,7 @@ import argparse
 from typing import Dict, Union
 from pathlib import Path
 from tqdm import tqdm
+import traceback
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
@@ -95,8 +96,8 @@ class Table:
 
     def __str__(self):
         result = ""
-        attrvallen = [ max([ len(x[i]) for x in self.rows ]) for i in range(0,len(self.schema)) ]
-        attrvallen = [ max(attrvallen[i], len(self.schema[i])) for i in range(0,len(self.schema)) ]
+        attrvallen = [ max([ len(x[i]) for x in self.rows ] + [0]) for i in range(0,len(self.schema)) ]
+        attrvallen = [ max(attrvallen[i], len(self.schema[i]) ) for i in range(0,len(self.schema)) ]
 
         result += Table.row_to_string(self.schema, attrvallen, True)
         dividerlen = sum(attrvallen) + 3 * len(attrvallen)
@@ -171,7 +172,7 @@ class OrderedTable():
 
     def __str__(self):
         result = ""
-        attrvallen = [ max([ len(x[i]) for x in self.rows ]) for i in range(0,len(self.schema)) ]
+        attrvallen = [ max([ len(x[i]) for x in self.rows ] + [0]) for i in range(0,len(self.schema)) ]
         attrvallen = [ max(attrvallen[i], len(self.schema[i])) for i in range(0,len(self.schema)) ]
 
         result += Table.row_to_string(self.schema, attrvallen)
@@ -278,14 +279,44 @@ class GProMTest:
     extra_settings: GProMSettings
     disallowed_settings: GProMSettings
 
+    def should_run_test(self, allowedtests):
+        if not allowedtests:
+            return True
+        for allowed in allowedtests:
+            if len(self.name) >= len(allowed) and self.name[:len(allowed)] == allowed:
+                return True
+        for allowed in allowedtests:
+            if len(allowed) > len(self.name) and allowed[:len(self.name)] == self.name:
+                return True
+        return False
+
+    def should_run_setting(self, setting: str, allowedset, strict=False):
+        if not allowedset:
+            return True
+        for allowed in allowedset:
+            if setting == allowed or setting.startswith(allowed):
+                return True
+            if not strict and allowed.startswith(setting):
+                return True
+        return False
+
     def get_name_str(self):
         return '.'.join(self.name)
+
+    def count_testcases(self, allowed, settings, parentset):
+        return 0
 
 @dataclass
 class GProMTestCase(GProMTest):
     query: str
     expected: Union[Table,OrderedTable]
     issorted: bool
+
+    def count_testcases(self, allowed, settings, parentset):
+        if self.should_run_test(allowed) and self.should_run_setting(parentset,  settings, True):
+            return 1
+        else:
+            return 0
 
 @dataclass
 class GProMTestSuite(GProMTest):
@@ -304,18 +335,20 @@ class GProMTestSuite(GProMTest):
         result += "\n"
         return result
 
+    def count_testcases(self, allowed, settings, parentset):
+        if not self.should_run_test(allowed):
+            return 0
+        cnt = 0
+        newsets = [ parentset + "." + x for x in self.extra_settings ] if self.extra_settings else [ parentset ]
+        newsets = [ n for n in newsets if self.should_run_setting(n, settings) ]
+        for set in newsets:
+            for t in self.tests.values():
+                cnt += t.count_testcases(allowed, settings, set)
+        return cnt
+
     def __str__(self):
         result = self.to_str_with_indent(0)
         return result
-
-    def count_testcases(self):
-        cnt = 0
-        for t in self.tests.values():
-            if isinstance(t, GProMTestCase):
-                cnt += 1
-            else:
-                cnt += t.count_testcases()
-        return cnt
 
 class GProMXMLTestLoader:
 
@@ -485,12 +518,21 @@ class GProMTestRunner:
             self.actualresults[name][test.name] = str(actual)
             correct = (exp == actual)
             self.results[name][test.name] = correct
+
             if not correct:
                 self.diffs[name][test.name] = exp.diff(actual)
+                # write query results to a file?
+                if options.log_query_results:
+                    with open(options.log_query_results,'a') as f:
+                        f.write(80 * "-" + f"\n{test.name}\n" + 80 * "-" + "\n")
+                        f.write(self.actualresults[name][test.name])
+                        f.write("\n")
             self.progressbar.update()
             return correct
         except Exception as e:
             log(f"got exception: {e}")
+            if options.debug:
+                traceback.print_exc()
             self.results[name][test.name] = False
             if self.failonerror:
                 raise e
@@ -505,22 +547,14 @@ class GProMTestRunner:
         log(f"Start running tests: {self.testcases}")
         self.results = {}
         self.errors = {}
-        self.totalnumtests = self.root.count_testcases()
+        self.totalnumtests = self.root.count_testcases(self.testcases, self.testsettings, DEFAULT_SETTING_NAME)
         self.progressbar = tqdm(total=self.totalnumtests, desc="Testcases")
         self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
         self.progressbar.close()
         self.print_results(self.root, DEFAULT_SETTING_NAME)
 
     def should_run_test(self, t: GProMTest):
-        if not self.testcases:
-            return True
-        for allowed in self.testcases:
-            if len(t.name) >= len(allowed) and t.name[:len(allowed)] == allowed:
-                return True
-        for allowed in self.testcases:
-            if len(allowed) > len(t.name) and allowed[:len(t.name)] == t.name:
-                return True
-        return False
+        return t.should_run_test(self.testcases)
 
     def should_run_setting(self, setting: str, strict=False):
         if not self.settings:
@@ -604,7 +638,7 @@ class GProMTestRunner:
                             if options.errordetails:
                                 mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + "\n"
                                 console.print(f"{testblackindent}{mes}")
-                                console.print(self.errors[set][child.name], highlight=False)
+                                print(self.errors[set][child.name])
                                 console.print(redbar)
                             else:
                                 shorterror = self.errors[set][child.name][:60].replace("\n", " ")
@@ -734,6 +768,9 @@ def parse_args():
                     help="database name")
     ap.add_argument("-P", "--password", type=str, default="test",
                     help="database password")
+    ap.add_argument("--log_query_results", type=str, default=None,
+                    help="if true, then write actual query results to this file.")
+
 
     args = ap.parse_args()
     return args

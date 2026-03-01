@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Regular CTE Test cases</comment>
+
+<entry key="q1.query">
+WITH rr AS (SELECT a FROM r) SELECT * FROM rr;
+</entry>
+<entry key="q1.result">
+ a |
+----
+ 1 |
+ 1 |
+ 2 |
+ 2 |
+</entry>
+
+<entry key="q2.query">
+  WITH x AS (SELECT a, a AS e FROM r),
+       y AS (SELECT ra.e, rb.e AS f FROM x ra, x rb WHERE ra.e = rb.e)
+  SELECT y.f, x.a
+  FROM y, x
+  WHERE x.a = y.e;
+</entry>
+<entry key="q2.result">
+ f | a |
+--------
+ 1 | 1 |
+ 1 | 1 |
+ 1 | 1 |
+ 1 | 1 |
+ 1 | 1 |
+ 1 | 1 |
+ 1 | 1 |
+ 1 | 1 |
+ 2 | 2 |
+ 2 | 2 |
+ 2 | 2 |
+ 2 | 2 |
+ 2 | 2 |
+ 2 | 2 |
+ 2 | 2 |
+ 2 | 2 |
+</entry>
+
+<entry key="q3.query">
+WITH x AS (SELECT sum(b) AS mb, a FROM r GROUP BY a),
+     maxx AS (SELECT max(mb) AS maxmb FROM x)
+SELECT *
+FROM x,
+     maxx
+WHERE x.mb = maxx.maxmb;
+</entry>
+<entry key="q3.result">
+ mb | a | maxmb |
+-----------------
+ 4  | 2 | 4     |
+</entry>
+
+</properties>
