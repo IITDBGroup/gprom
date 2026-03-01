@@ -343,7 +343,9 @@ extern List *aggOpGetAggAttrNames(AggregationOperator *op);
 extern List *aggOpGetGroupByAttrDefs(AggregationOperator *op);
 extern List *aggOpGetAggAttrDefs(AggregationOperator *op);
 
-extern WindowFunction *winOpGetFunc (WindowOperator *op);
+extern WindowFunction *winOpGetFunc(WindowOperator *op);
+
+extern HashMap *joinGetChildAttrToResultAttr(JoinOperator *op, boolean left);
 
 extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
 extern List *getProjExprsForAllAttrs(QueryOperator *op);

@@ -1548,6 +1548,33 @@ opReferencesAttr(QueryOperator *op, char *a)
 	return FALSE;
 }
 
+HashMap *
+joinGetChildAttrToResultAttr(JoinOperator *op, boolean left)
+{
+	HashMap *caToA = NEW_MAP(Constant,Constant);
+    int numleftattr = getNumAttrs(OP_LCHILD(op));
+    List *inNames = NIL;
+    List *outNames = getQueryOperatorAttrNames((QueryOperator *) op);
+
+    if(left)
+    {
+        outNames = sublist(outNames, 0, numleftattr);
+        inNames = getQueryOperatorAttrNames(OP_LCHILD(op));
+    }
+    else
+    {
+        outNames = sublist(outNames, numleftattr, -1);
+        inNames = getQueryOperatorAttrNames(OP_RCHILD(op));
+    }
+
+    FORBOTH(char,in,out,inNames,outNames)
+    {
+        MAP_ADD_STRING_KEY_AND_VAL(caToA, out, in);
+    }
+
+	return caToA;
+}
+
 List *
 aggOpGetGroupByAttrNames(AggregationOperator *op)
 {
@@ -1580,6 +1607,7 @@ aggOpGetGroupByAttrDefs(AggregationOperator *op)
 
     return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
 }
+
 
 List *
 aggOpGetAggAttrDefs(AggregationOperator *op)
