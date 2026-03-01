@@ -15,6 +15,7 @@
 #include "uthash.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 
 typedef struct HashElem {
     void *data;
@@ -59,6 +60,8 @@ extern Node *getMapLong (HashMap *map, gprom_long_t key);
 extern KeyValue *getMapEntry (HashMap *map, Node *key);
 #define MAP_GET_STRING_ENTRY(map,key) getMapEntry(map, (Node *) createConstString(key))
 extern List *getKeys(HashMap *map);
+extern Set *getKeySet(HashMap *map);
+extern Set *getStringKeySet(HashMap *map);
 extern List *getEntries(HashMap *map);
 
 // add elements to map
@@ -93,6 +96,8 @@ extern int mapSize (HashMap *map);
 // set operations
 extern void unionMap(HashMap *res, HashMap *new);
 extern void diffMap(HashMap *res, HashMap *new);
+extern HashMap *invertKeyValues(HashMap *map);
+
 
 // iterate over map values or entries
 #define DUMMY_INT_FOR_COND_HASH(_name_) _name_##_stupid_int_

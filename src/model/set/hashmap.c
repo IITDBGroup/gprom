@@ -18,6 +18,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "model/set/set.h"
 
 #include "model/set/hashmap.h"
 
@@ -165,6 +166,35 @@ getKeys(HashMap *map)
 
     return result;
 }
+
+Set *
+getKeySet(HashMap *map)
+{
+    Set *result = NODESET();
+
+    FOREACH_HASH_KEY(Node,n,map)
+    {
+        addToSet(result, copyObject(n));
+    }
+
+    return result;
+}
+
+Set *
+getStringKeySet(HashMap *map)
+{
+    Set *result = STRSET();
+
+    ASSERT(map->keyType == T_Constant);
+
+    FOREACH_HASH_KEY(Constant,n,map)
+    {
+        addToSet(result, strdup(STRING_VALUE(n)));
+    }
+
+    return result;
+}
+
 
 List *
 getEntries(HashMap *map)
@@ -348,4 +378,23 @@ diffMap(HashMap *res, HashMap *new)
 			removeMapElem(res, kv->key);
 		}
 	}
+}
+
+HashMap *
+invertKeyValues(HashMap *map)
+{
+    HashMap *result = newHashMap(map->keyType,
+                                 map->valueType,
+                                 map->eq,
+                                 map->cpy
+                                 );
+
+    FOREACH_HASH_ENTRY(kv, map)
+    {
+        KeyValue *newkv = createNodeKeyValue(copyObject(kv->value),
+                                             copyObject(kv->key));
+        ADD_TO_MAP(result, newkv);
+    }
+
+    return result;
 }
