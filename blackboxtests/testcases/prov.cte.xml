@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Provenance CTE Test cases</comment>
+
+<entry key="q1.query">
+PROVENANCE OF (WITH rr AS (SELECT a FROM r) SELECT * FROM rr);
+</entry>
+<entry key="q1.result">
+ a | prov_r_a | prov_r_b |
+--------------------------
+ 1 | 1        | 1        |
+ 1 | 1        | 2        |
+ 2 | 2        | 1        |
+ 2 | 2        | 3        |
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (
+  WITH x AS (SELECT a, a AS e FROM r),
+       y AS (SELECT ra.e, rb.e AS f FROM x ra, x rb WHERE ra.e = rb.e)
+  SELECT y.f, x.a
+  FROM y, x
+  WHERE x.a = y.e
+);
+</entry>
+<entry key="q2.result">
+ f | a | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b | prov_r_2_a | prov_r_2_b |
+----------------------------------------------------------------------------------
+ 1 | 1 | 1        | 1        | 1          | 1          | 1          | 1          |
+ 1 | 1 | 1        | 1        | 1          | 2          | 1          | 1          |
+ 1 | 1 | 1        | 2        | 1          | 1          | 1          | 1          |
+ 1 | 1 | 1        | 2        | 1          | 2          | 1          | 1          |
+ 1 | 1 | 1        | 1        | 1          | 1          | 1          | 2          |
+ 1 | 1 | 1        | 1        | 1          | 2          | 1          | 2          |
+ 1 | 1 | 1        | 2        | 1          | 1          | 1          | 2          |
+ 1 | 1 | 1        | 2        | 1          | 2          | 1          | 2          |
+ 2 | 2 | 2        | 1        | 2          | 1          | 2          | 1          |
+ 2 | 2 | 2        | 1        | 2          | 3          | 2          | 1          |
+ 2 | 2 | 2        | 3        | 2          | 1          | 2          | 1          |
+ 2 | 2 | 2        | 3        | 2          | 3          | 2          | 1          |
+ 2 | 2 | 2        | 1        | 2          | 1          | 2          | 3          |
+ 2 | 2 | 2        | 1        | 2          | 3          | 2          | 3          |
+ 2 | 2 | 2        | 3        | 2          | 1          | 2          | 3          |
+ 2 | 2 | 2        | 3        | 2          | 3          | 2          | 3          |
+</entry>
+
+<entry key="q3.query">
+PROVENANCE OF (
+WITH x AS (SELECT sum(b) AS mb, a FROM r GROUP BY a),
+     maxx AS (SELECT max(mb) AS maxmb FROM x)
+SELECT *
+FROM x,
+     maxx
+     WHERE x.mb = maxx.maxmb
+);
+</entry>
+<entry key="q3.result">
+ mb | a | maxmb | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b |
+-----------------------------------------------------------------
+ 4  | 2 | 4     | 2        | 1        | 1          | 1          |
+ 4  | 2 | 4     | 2        | 1        | 1          | 2          |
+ 4  | 2 | 4     | 2        | 1        | 2          | 1          |
+ 4  | 2 | 4     | 2        | 1        | 2          | 3          |
+ 4  | 2 | 4     | 2        | 3        | 1          | 1          |
+ 4  | 2 | 4     | 2        | 3        | 1          | 2          |
+ 4  | 2 | 4     | 2        | 3        | 2          | 1          |
+ 4  | 2 | 4     | 2        | 3        | 2          | 3          |
+</entry>
+
+</properties>
