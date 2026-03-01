@@ -94,6 +94,7 @@ extern boolean isOpRewritten(HashMap *opToRewrittenOp, QueryOperator *op);
 extern QueryOperator *getRewrittenOp(HashMap *opToRewrittenOp, QueryOperator *op);
 extern QueryOperator *setRewrittenOp(HashMap *opToRewrittenOp, QueryOperator *op, QueryOperator *rewrittenOp);
 extern QueryOperator *getOrSetOpCopy(HashMap *origOps, QueryOperator *op);
+extern QueryOperator *getOrSetDeepOpCopy(HashMap *origOps, QueryOperator *op);
 
 // create projection expressions
 extern List *getProvAttrProjectionExprs(QueryOperator *op);

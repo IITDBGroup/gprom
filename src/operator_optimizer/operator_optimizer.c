@@ -203,7 +203,9 @@ optimizeOneGraph (QueryOperator *root)
     		//char *a = (char *)getHeadOfListP(icols);
     		Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
     		FOREACH(char, a, icols)
-    		addToSet (seticols, a);
+			{
+    			addToSet (seticols, a);
+			}
     	}
 //    	/*    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
 //            removeRedundantDuplicateOperatorBySet,
@@ -1320,6 +1322,10 @@ pullingUpProvenanceProjections(QueryOperator *root)
                     pullup(OP_LCHILD(o), &context);
                 }
             }
+			else
+			{
+				getAndSetOriginalAttrLists((QueryOperator *) root);
+			}
             pullingUpProvenanceProjections(o);
         }
     }

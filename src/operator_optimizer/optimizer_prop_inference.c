@@ -14,6 +14,7 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
@@ -34,6 +35,10 @@ static void computeReqColPropInternal(QueryOperator *root);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
 static void mergeIntoChildIcols(QueryOperator *child, Set *newIcols);
 static boolean printECProVisitor(QueryOperator *root, void *context);
+static List *renameECattributes(List *ec, HashMap *rename);
+static List *mergeIntoEC(List *ec, List *toMerge);
+static List *mergeIntoOperatorEC(QueryOperator *op, List *toMerge);
+static List *filterEC(List *ec, Set *subset);
 static void computeKeyPropInternal(QueryOperator *root);
 static HashMap *computeExprMinMax(Node *expr, HashMap *attrMinMax);
 static Constant *getDataTypeMin (DataType dt);
@@ -73,26 +78,34 @@ static Set *exprListNotNull(List *exprs, List *attrNames, Set *inNotNull);
 	    MAP_ADD_STRING_KEY(_result, strdup(MAX_KEY), getDataTypeMax(typeOf((Node *) _e))); \
     } while(0)
 
+#define LOG_PROPERTY_INFERENCE_START(_prop) \
+    INFO_LOG("\n************************************************************\n" \
+            "    START INFERRING PROPERTY FOR: %s\n" \
+            "************************************************************\n", \
+            _prop)
+
 #define LOG_PROPERTY_INFERENCE(_prop, _rootop) \
     INFO_LOG("\n************************************************************\n" \
-            "    PORPERTY INFERENCE FOR: %s\n" \
+            "    PROPERTY INFERENCE FOR: %s\n" \
             "************************************************************\n" \
             "%s\n" \
             "************************************************************", \
             _prop, \
-            operatorToOverviewString((Node *) _rootop));
+            operatorToOverviewString((Node *) _rootop))
 
 
 void
 computeMinMaxPropForSubset(QueryOperator *root, Set *attrs)
 {
+	LOG_PROPERTY_INFERENCE_START("AttributeMinMax");
+
 	// use icol inference to determine what attributes we need min max for
 	setStringProperty((QueryOperator *) root, PROP_STORE_MIN_MAX_ATTRS, (Node *) attrs);
 
-    LOG_PROPERTY_INFERENCE("AttributeMinMax", root);
-
 	// calculate min and max
 	computeMinMaxProp(root);
+
+    LOG_PROPERTY_INFERENCE("AttributeMinMax", root);
 }
 
 /**
@@ -1280,9 +1293,9 @@ computeChildOperatorProp(QueryOperator *root)
 void
 computeKeyProp(QueryOperator *root)
 {
+	LOG_PROPERTY_INFERENCE_START("Keys");
+	computeKeyPropInternal(root);
     LOG_PROPERTY_INFERENCE("Keys", root);
-
-    return computeKeyPropInternal(root);
 }
 
 static void
@@ -1302,7 +1315,7 @@ computeKeyPropInternal(QueryOperator *root)
         FOREACH(QueryOperator, op, root->inputs)
         {
             if (!HAS_STRING_PROP(op,PROP_STORE_LIST_KEY_DONE))
-                computeKeyProp(op);
+                computeKeyPropInternal(op);
         }
     }
     DEBUG_LOG("BEGIN COMPUTE KEYS %s operator %s keys", NodeTagToString(root->type), root->schema->name);
@@ -1569,7 +1582,7 @@ computeECProp (QueryOperator *root)
 {
     START_TIMER("PropertyInference - EC");
 
-    LOG_PROPERTY_INFERENCE("Equivalence classes (EC)", root);
+	LOG_PROPERTY_INFERENCE_START("Equivalence classes (EC)");
 
     DEBUG_LOG("*********EC**********\n\tStart bottom-up traversal");
     START_TIMER("PropertyInference - EC - bottom-up");
@@ -1583,6 +1596,8 @@ computeECProp (QueryOperator *root)
 	STOP_TIMER("PropertyInference - EC - top-down");
 	printECPro(root);
 	STOP_TIMER("PropertyInference - EC");
+
+    LOG_PROPERTY_INFERENCE("Equivalence classes (EC)", root);
 }
 
 void
@@ -1613,12 +1628,12 @@ printECPro(QueryOperator *root)
 }
 
 static boolean
-printECProVisitor (QueryOperator *root, void *context)
+printECProVisitor(QueryOperator *root, void *context)
 {
     StringInfo str = makeStringInfo ();
 
     appendStringInfoString(str, NodeTagToString(root->type));
-    appendStringInfo(str, " (%p)", root);
+    appendStringInfo(str, "%s", singleOperatorToOverview(root));
 
     Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
     List *list = (List *)nRoot;
@@ -1646,7 +1661,7 @@ printECProVisitor (QueryOperator *root, void *context)
 //generate a List of Sets by bottom up(here uses ptr set)
 //for each set, (e.g. {{a,d,5},{c}})a is the pointer point to char a,b, 5 is the pointer point to a constant structure
 void
-computeECPropBottomUp (QueryOperator *root)
+computeECPropBottomUp(QueryOperator *root)
 {
     SET_BOOL_STRING_PROP(root, PROP_STORE_SET_EC_DONE_BU);
 
@@ -1732,11 +1747,16 @@ computeECPropBottomUp (QueryOperator *root)
 
 		else if(isA(root, JoinOperator))
 		{
+			JoinOperator *j = (JoinOperator *) root;
 			List *EC = NIL;
 			List *lChildEC = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
 			List *rChildEC = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_SET_EC);
+			HashMap *outToInAttr = invertKeyValues(joinGetChildAttrToResultAttr(j, FALSE));
 
-			if (((JoinOperator*)root)->joinType == JOIN_INNER)
+			rChildEC = renameECattributes(rChildEC,
+										  outToInAttr);
+
+			if (j->joinType == JOIN_INNER)
 			{
 				//1, Get cond set
 				List *condEC = NIL;
@@ -2065,6 +2085,73 @@ computeECPropBottomUp (QueryOperator *root)
 	}
 }
 
+static List *
+mergeIntoEC(List *ec, List *toMerge)
+{
+	List *result = CONCAT_LISTS(ec,toMerge);
+	result = CombineDuplicateElemSetInECList(result);
+
+	return result;
+}
+
+
+static List *
+mergeIntoOperatorEC(QueryOperator *op, List *toMerge)
+{
+	List *ec = (List *) getStringProperty(op, PROP_STORE_SET_EC);
+	List *result = mergeIntoEC(ec,toMerge);
+	setStringProperty(op, PROP_STORE_SET_EC, (Node *)result);
+
+	return result;
+}
+
+
+
+static List *
+filterEC(List *ec, Set *subset)
+{
+	List *result = NIL;
+
+    FOREACH(KeyValue, kv, ec)
+	{
+        Set *s = (Set *) kv->key;
+		Set *tempSet;
+        Constant *c = (Constant *) kv->value;
+        tempSet = intersectSets(copyObject(s), subset);
+
+        if(setSize(tempSet) > 1 || c != NULL) {
+        	KeyValue *newKV = createNodeKeyValue((Node*) tempSet, copyObject(c));
+        	result = appendToTailOfList(result, newKV);
+        }
+	}
+
+	return result;
+}
+
+static List *
+renameECattributes(List *ec, HashMap *rename)
+{
+	List *result = NIL;
+
+	FOREACH(KeyValue,kv,ec)
+	{
+		Set *cur = (Set *) kv->key;
+		Set *newset = STRSET();
+		FOREACH_SET(char, a, cur)
+		{
+			if(MAP_HAS_STRING_KEY(rename, a))
+			{
+				addToSet(newset, strdup(MAP_GET_STRING_VAL_FOR_STRING_KEY(rename, a)));
+			}
+		}
+		result = appendToTailOfList(result,
+									createNodeKeyValue((Node *) newset,
+													   copyObject(kv->value)));
+	}
+
+	return result;
+}
+
 void
 computeECPropTopDown (QueryOperator *root)
 {
@@ -2129,53 +2216,29 @@ computeECPropTopDown (QueryOperator *root)
 	//contains join inner and join cross
 	else if(isA(root, JoinOperator))
 	{
+		JoinOperator *j = (JoinOperator *) root;
+
 		//Join operator EC
 		List *rootECSetList = (List *) getStringProperty(root, PROP_STORE_SET_EC);
+		HashMap *outToLeft = joinGetChildAttrToResultAttr(j, TRUE);
+		HashMap *outToRight = joinGetChildAttrToResultAttr(j, FALSE);
+		Set *leftnames = getStringKeySet(outToLeft);
+		Set *rightnames = getStringKeySet(outToRight);
 
-		//SCH(Left Child)
-		Set *lSchemaSet = STRSET();
-		FOREACH(AttributeDef,a, ((QueryOperator *)(OP_LCHILD(root)))->schema->attrDefs)
-		        addToSet(lSchemaSet,a->attrName);
-
-		//SCH(Right Child)
-		Set *rSchemaSet = STRSET();
-		FOREACH(AttributeDef,a, ((QueryOperator *)(OP_RCHILD(root)))->schema->attrDefs)
-		        addToSet(rSchemaSet,a->attrName);
+		DEBUG_LOG("join output attributes\nleftnames: %s\nrightnames: %s",
+				  nodeToString(leftnames),
+				  nodeToString(rightnames));
 
 		//get EC(left)
 		QueryOperator *lChildOp = OP_LCHILD(root);
-		Set *tempSet;
-		List *lSetList = (List *) getStringProperty(lChildOp, PROP_STORE_SET_EC);
-        FOREACH(KeyValue, kv, rootECSetList)
-		{
-            Set *s = (Set *) kv->key;
-            Constant *c = (Constant *) kv->value;
-        	tempSet =   setDifference(copyObject(s), rSchemaSet);
-
-        	if(setSize(tempSet) > 1 || c != NULL) {
-        	    KeyValue *newKV = createNodeKeyValue((Node*) tempSet, copyObject(c));
-        		lSetList = appendToTailOfList(lSetList, newKV);
-        	}
-		}
-        lSetList = CombineDuplicateElemSetInECList(lSetList);
-		setStringProperty(lChildOp, PROP_STORE_SET_EC, (Node *)lSetList);
+		List *toLeftECs = filterEC(rootECSetList, leftnames);
+		mergeIntoOperatorEC(lChildOp,toLeftECs);
 
         //get EC(right)
         QueryOperator *rChildOp = OP_RCHILD(root);
-        List *rSetList = (List *) getStringProperty(rChildOp, PROP_STORE_SET_EC);
-        FOREACH(KeyValue, kv, rootECSetList)
-        {
-            Set *s = (Set *) kv->key;
-            Constant *c = (Constant *) kv->value;
-            tempSet = setDifference(copyObject(s), lSchemaSet);
-
-            if(setSize(tempSet) > 1 || c != NULL) {
-                KeyValue *newKV = createNodeKeyValue((Node*) tempSet, copyObject(c));
-                rSetList = appendToTailOfList(rSetList, newKV);
-            }
-        }
-        rSetList = CombineDuplicateElemSetInECList(rSetList);
-        setStringProperty(rChildOp, PROP_STORE_SET_EC, (Node *)rSetList);
+		List *toRightECs = filterEC(rootECSetList, rightnames);
+		toRightECs = renameECattributes(toRightECs, outToRight);
+		mergeIntoOperatorEC(rChildOp,toRightECs);
 	}
 
 	else if(isA(root, AggregationOperator))
@@ -2780,9 +2843,9 @@ mergeIntoChildIcols(QueryOperator *child, Set *newIcols)
 void
 computeReqColProp(QueryOperator *root)
 {
-    LOG_PROPERTY_INFERENCE("required columns", root);
-
-    return computeReqColPropInternal(root);
+    LOG_PROPERTY_INFERENCE_START("required columns");
+    computeReqColPropInternal(root);
+	LOG_PROPERTY_INFERENCE("required columns", root);
 }
 
 
@@ -3110,9 +3173,9 @@ printIcolsVisitor (QueryOperator *op, void *context)
 void
 computeNotNullProp(QueryOperator *root)
 {
-    LOG_PROPERTY_INFERENCE("Not null attributes", root);
-
+	LOG_PROPERTY_INFERENCE_START("Not null attributes");
     computeNotNullPropInternal(root);
+    LOG_PROPERTY_INFERENCE("Not null attributes", root);
 }
 
 #define NOT_NULL_SET_AND_RETURN() \

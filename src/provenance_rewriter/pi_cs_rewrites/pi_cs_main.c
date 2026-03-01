@@ -187,7 +187,9 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
             STRING_VALUE(getStringProperty(op, PROP_PROV_ADD_REL_NAME)) : NULL;
 
     if (rewriteAddProv)
+	{
         addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
+	}
 
     DEBUG_LOG("REWRITE OPERATIONS: [%s]"
               "\n\tshow intermediates: %s"
@@ -572,7 +574,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
 }
 
 static QueryOperator *
-rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
+rewritePI_CSAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
 {
 //    List *tableAttr;
     List *provAttr = NIL;
@@ -581,13 +583,16 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
     int relAccessCount;
     int numProvAttrs = LIST_LENGTH(userProvAttrs);
     int numNormalAttrs = LIST_LENGTH(op->schema->attrDefs);
+	QueryOperator *inCopy;
     int cnt = 0;
     char *tableName; // = "INTERMEDIATE";
 
+	inCopy = getOrSetDeepOpCopy(state->origOps, op);
+
     if (isA(op,TableAccessOperator))
-        tableName = ((TableAccessOperator *) op)->tableName;
+        tableName = ((TableAccessOperator *) inCopy)->tableName;
     else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+        tableName = STRING_VALUE(getStringProperty(inCopy, PROP_PROV_REL_NAME));
 
     relAccessCount = increaseRefCount(state->provCounts, tableName);
 
@@ -630,10 +635,10 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
     newpo->op.provAttrs = newProvPosList;
 
     // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+    /* switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) newpo); */
 
     // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) inCopy);
 
     DEBUG_LOG("rewrite add provenance attrs:\n%s", operatorToOverviewString((Node *) newpo));
 
@@ -644,7 +649,7 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
 }
 
 static QueryOperator *
-rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
+rewritePI_CSUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
 {
     int relAccessCount;
     int curPos;
@@ -884,7 +889,7 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
     // copy aggregation
-    origAgg = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);;
+    origAgg = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);
 
     // rewrite aggregation input copy
 	rewrInput = rewritePI_CSOperator(OP_LCHILD(op), state);
