@@ -1851,7 +1851,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 
     if(l3 != NIL)
     {
-    		Node *opNode3 = changeListOpToAnOpNode(l3);
+    		Node *opNode3 = andExprList(l3);
     		((SelectionOperator *)r)->cond = (Node *)opNode3;
     }
     else
@@ -1861,7 +1861,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 
     if(l1 != NIL)
     {
-    	Node *opNode1 = changeListOpToAnOpNode(l1);
+    	Node *opNode1 = andExprList(l1);
     	SelectionOperator *newSo1 = createSelectionOp(opNode1, NULL, NIL,
     			getAttrNames(o1->schema));
 
@@ -1880,7 +1880,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 
     if(l2 != NIL)
     {
-    	Node *opNode2 = changeListOpToAnOpNode(l2);
+    	Node *opNode2 = andExprList(l2);
     	SelectionOperator *newSo2 = createSelectionOp(opNode2, NULL, NIL,
     			getAttrNames(o2->schema));
 
@@ -1995,7 +1995,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 		{
 			boolean flag = FALSE;
 			if(!streq(op->name, OPNAME_EQ))
+			{
 				newCondList = appendToTailOfList(newCondList, copyObject(op));
+			}
 			if(streq(op->name, OPNAME_EQ))
 			{
 				boolean f1 = FALSE;
@@ -2015,7 +2017,7 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 
 			if(newCondList != NIL)
 			{
-				Node *newCond = changeListOpToAnOpNode(copyObject(newCondList));
+				Node *newCond = andExprList(copyObject(newCondList));
 				((JoinOperator *)root)->cond = newCond;
 			}
 		}
@@ -2031,7 +2033,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 		{
 			boolean flag = FALSE;
 			if(!streq(op->name, OPNAME_EQ))
+			{
 				newCondList = appendToTailOfList(newCondList, copyObject(op));
+			}
 			if(streq(op->name, OPNAME_EQ))
 			{
 				flag = compareTwoOperators(op, o);
@@ -2042,7 +2046,7 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 
 		if(newCondList != NIL)
 		{
-			Node *newCond = changeListOpToAnOpNode(copyObject(newCondList));
+			Node *newCond = andExprList(copyObject(newCondList));
 			((SelectionOperator *)root)->cond = newCond;
 		}
 		else
@@ -2065,7 +2069,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 			changeNameRemoveUnnecessaryCond(p->projExprs, p->op.schema->attrDefs, o1);
 
 			FOREACH(QueryOperator, p1, root->parents)
-			       removeUnnecessaryCond(p1, o1);
+			{
+			    removeUnnecessaryCond(p1, o1);
+			}
 		}
 		else if(isA(root, AggregationOperator))
 		{
@@ -2075,12 +2081,16 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 			changeNameRemoveUnnecessaryCond(l, agg->op.schema->attrDefs, o1);
 
 			FOREACH(QueryOperator, p1, root->parents)
-			         removeUnnecessaryCond(p1, o1);
+			{
+			    removeUnnecessaryCond(p1, o1);
+			}
 		}
 		else
 		{
 			FOREACH(QueryOperator, p1, root->parents)
-	        		 removeUnnecessaryCond(p1, o);
+			{
+	        	removeUnnecessaryCond(p1, o);
+			}
 		}
 	}
 }
@@ -2092,8 +2102,12 @@ introduceSelectionInMoveAround(QueryOperator *root)
 	if(root->inputs != NULL)
 	{
 		FOREACH(QueryOperator, op, root->inputs)
+		{
 		    if (!HAS_STRING_PROP(op, PROP_OPT_SELECTION_MOVE_AROUND_DONE))
+			{
 		        introduceSelectionInMoveAround(op);
+			}
+		}
 	}
 
 	List *ECcond = getMoveAroundOpList(root);
@@ -2101,7 +2115,9 @@ introduceSelectionInMoveAround(QueryOperator *root)
 	FOREACH(Operator, o, ECcond)
 	{
 		if(root->parents != NIL)
+		{
 			removeUnnecessaryCond((QueryOperator *)getHeadOfListP(root->parents), o);
+		}
 
 		//Check if this cond op already have in its subtree
 		checkFlag = FALSE;
@@ -2122,7 +2138,7 @@ introduceSelectionInMoveAround(QueryOperator *root)
 					getSelectionCondOperatorList(((SelectionOperator *)parent)->cond,&pCond);
 
 					pCond = appendToTailOfList(pCond, copyObject(o));
-					Node *opCond = changeListOpToAnOpNode(copyObject(pCond));
+					Node *opCond = andExprList(copyObject(pCond));
 					((SelectionOperator *)parent)->cond = (Node *) opCond;
 
 					resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)parent,(QueryOperator *)root);
@@ -2130,40 +2146,12 @@ introduceSelectionInMoveAround(QueryOperator *root)
 				else
 				{
 					introduceSelection(o, root);
-//					Node *newOp = (Node *)copyObject(o);
-//					SelectionOperator *selectionOp = createSelectionOp(newOp, NULL, NIL, getAttrNames(root->schema));
-//
-//					// Switch the subtree with this newly created projection
-//					switchSubtrees((QueryOperator *) root, (QueryOperator *) selectionOp);
-//
-//					// Add child to the newly created projections operator,
-//					addChildOperator((QueryOperator *) selectionOp, (QueryOperator *) root);
-//
-//					//set the data type
-//					setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)selectionOp, (QueryOperator *)root);
-//
-//					//reset the attr_ref position
-//					resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)selectionOp,(QueryOperator *)root);
 				}
 			}
 			else
 			{
 				introduceSelection(o, root);
-//
-//				Node *newOp = (Node *)copyObject(o);
-//				SelectionOperator *selectionOp = createSelectionOp(newOp, NULL, NIL, getAttrNames(root->schema));
-//
-//				// Switch the subtree with this newly created projection
-//				switchSubtrees((QueryOperator *) root, (QueryOperator *) selectionOp);
-//
-//				// Add child to the newly created projections operator,
-//				addChildOperator((QueryOperator *) selectionOp, (QueryOperator *) root);
-//
-//				//set the data type
-//				setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)selectionOp, (QueryOperator *)root);
-//
-//				//reset the attr_ref position
-//				resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)selectionOp,(QueryOperator *)root);
+
 			}
 		}
 	}
@@ -2276,15 +2264,18 @@ getMoveAroundOpList(QueryOperator *op)
 	List *opList = NIL;
 	List *l1 = (List *) getStringProperty(op, PROP_STORE_SET_EC);;
 
+	// map attribute name to def
 	HashMap *nameToAttrDef = NEW_MAP(Constant,Node);
 	FOREACH(AttributeDef, a, op->schema->attrDefs)
 		MAP_ADD_STRING_KEY(nameToAttrDef, strdup(a->attrName), (Node *)copyObject(a));
 
+	// process each EC
 	FOREACH(KeyValue, kv, l1)
 	{
 	    Set *s = (Set *) kv->key;
 	    Constant *c = (Constant *) kv->value;
 
+		// equality with a constant
 	    if(c != NULL)
 	    {
 	    	AttributeReference *aRef = NULL;
@@ -2299,8 +2290,10 @@ getMoveAroundOpList(QueryOperator *op)
 	            opList = appendToTailOfList(opList, copyObject(o));
 		    }
 	    }
+		// equalities between attributes
 	    else
 	    {
+			// at least two attributes, to add equality
             if(setSize(s) > 1)
             {
             	//deal with case A = PROV_A
@@ -2331,13 +2324,26 @@ getMoveAroundOpList(QueryOperator *op)
     	    		}
     	            Operator *o = createOpExpr(OPNAME_EQ, LIST_MAKE(aRef1, aRef2));
 
-    	            //deal with case A = PROV_A
-    	            if((!searchListString(provs, aRef1->name) && !searchListString(provs, aRef2->name) && !streq(aRef1->name, aRef2->name)) || (searchListString(provs, aRef1->name) && searchListString(provs, aRef2->name) && !streq(aRef1->name, aRef2->name)))
+					// FIXME why was that needed? would be a problem for
+    	            //provenance filtering
+					//deal with case A = PROV_A
+    	            if((!searchListString(provs, aRef1->name)
+						&& !searchListString(provs, aRef2->name)
+						&& !streq(aRef1->name, aRef2->name))
+					   ||
+					   (searchListString(provs, aRef1->name)
+						&& searchListString(provs, aRef2->name)
+						&& !streq(aRef1->name, aRef2->name)))
+					{
     	            	opList = appendToTailOfList(opList, copyObject(o));
+					}
             	}
             }
 	    }
 	}
+
+	DEBUG_LOG("conditions for selection move around: %s",
+			  exprToSQL((Node *) opList, NULL, FALSE));
 
 	return opList;
 }
