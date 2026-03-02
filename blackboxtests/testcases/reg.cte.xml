@@ -57,4 +57,22 @@ WHERE x.mb = maxx.maxmb;
  4  | 2 | 4     |
 </entry>
 
+<entry key="q4.query">
+  WITH x AS (SELECT b,a AS e FROM r)
+  SELECT y.b
+  FROM x y, x
+  WHERE x.e = y.b;
+</entry>
+<entry key="q4.result">
+ b |
+----
+ 1 |
+ 1 |
+ 2 |
+ 2 |
+ 1 |
+ 1 |
+</entry>
+
+
 </properties>
