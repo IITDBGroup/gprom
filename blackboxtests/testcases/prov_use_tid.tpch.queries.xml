@@ -18,7 +18,7 @@ PROVENANCE OF (
         avg(l_discount) as avg_disc,
         count(*) as count_order
     from
-        lineitem
+        lineitem USE PROVENANCE (l_orderkey, l_linenumber)
     where
         l_shipdate &lt;= '1992-02-02'
     group by
@@ -60,20 +60,20 @@ PROVENANCE OF (
         s_phone,
         s_comment
     from
-        part,
-        supplier,
-        nation,
-        region,
-        partsupp ps_main
+        part USE PROVENANCE (p_partkey),
+        supplier USE PROVENANCE (s_suppkey),
+        nation USE PROVENANCE (n_nationkey),
+        region USE PROVENANCE (r_regionkey),
+        partsupp USE PROVENANCE(ps_partkey, ps_suppkey) ps_main
         join (
             select
                 min(ps_supplycost) as min_ps_suppcost,
                 ps_partkey
             from
-                partsupp,
-                supplier,
-                nation,
-                region
+                partsupp USE PROVENANCE (ps_partkey, ps_suppkey),
+                supplier USE PROVENANCE (s_suppkey),
+                nation USE PROVENANCE (n_nationkey),
+                region USE PROVENANCE (r_regionkey)
             where
                 s_suppkey = ps_suppkey
                 and s_nationkey = n_nationkey
@@ -111,9 +111,9 @@ PROVENANCE OF (
         o_orderdate,
         o_shippriority
     FROM
-        customer,
-        orders,
-        lineitem
+        customer USE PROVENANCE (c_custkey),
+        orders USE PROVENANCE (o_orderkey),
+        lineitem USE PROVENANCE (l_orderkey, l_linenumber)
     WHERE
         c_mktsegment = 'BUILDING'
         and c_custkey = o_custkey
@@ -154,8 +154,8 @@ PROVENANCE OF (
         orders
         join (
             SELECT 1, l_orderkey
-            FROM lineitem
-                 JOIN orders
+            FROM lineitem USE PROVENANCE (l_orderkey, l_linenumber)
+                 JOIN orders USE PROVENANCE (o_orderkey)
             on o_orderkey = l_orderkey
             WHERE
                 l_commitdate &lt; l_receiptdate
@@ -297,12 +297,12 @@ PROVENANCE OF (
         n_name,
         sum(l_extendedprice * (1 - l_discount)) as revenue
     from
-        customer,
-        orders,
-        lineitem,
-        supplier,
-        nation,
-        region
+        customer USE PROVENANCE (c_custkey),
+        orders USE PROVENANCE (o_orderkey),
+        lineitem USE PROVENANCE (l_linenumber, l_orderkey),
+        supplier USE PROVENANCE (s_suppkey),
+        nation USE PROVENANCE (n_nationkey),
+        region USE PROVENANCE (r_regionkey)
     where
         c_custkey = o_custkey
         and l_orderkey = o_orderkey
@@ -357,7 +357,7 @@ PROVENANCE OF (
 select
 	sum(l_extendedprice * l_discount) as revenue
 from
-	lineitem
+	lineitem USE PROVENANCE (l_orderkey, l_linenumber)
 where
 	l_shipdate &gt;= '1994-01-01'
 	and l_shipdate &lt; '1995-01-01'
@@ -502,12 +502,12 @@ PROVENANCE OF (
         date_part('YEAR', l_shipdate::date) as l_year,
         l_extendedprice * (1 - l_discount) as volume
         from
-          supplier,
-          lineitem,
-          orders,
-          customer,
-          nation n1,
-          nation n2
+             supplier USE PROVENANCE (s_suppkey),
+             lineitem USE PROVENANCE (l_orderkey, l_linenumber),
+             orders USE PROVENANCE (o_orderkey),
+             customer USE PROVENANCE (c_custkey),
+             nation USE PROVENANCE (n_nationkey) n1,
+             nation USE PROVENANCE (n_nationkey) n2
        where
                 s_suppkey = l_suppkey
          and o_orderkey = l_orderkey
@@ -552,14 +552,14 @@ PROVENANCE OF (
                 l_extendedprice * (1 - l_discount) as volume,
                 n2.n_name as nation
             from
-                part,
-                supplier,
-                lineitem,
-                orders,
-                customer,
-                nation  n1,
-                nation  n2,
-                region
+                part USE PROVENANCE (p_partkey),
+                supplier USE PROVENANCE (s_suppkey),
+                lineitem USE PROVENANCE (l_orderkey, l_linenumber),
+                orders USE PROVENANCE (o_orderkey),
+                customer USE PROVENANCE (c_custkey),
+                nation USE PROVENANCE (n_nationkey) n1,
+                nation USE PROVENANCE (n_nationkey) n2,
+                region USE PROVENANCE (r_regionkey)
             where
                 p_partkey = l_partkey
                 and s_suppkey = l_suppkey
@@ -600,12 +600,12 @@ PROVENANCE OF (
                 date_part('YEAR', o_orderdate::date) as o_year,
                 l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity as amount
             from
-                part ,
-                supplier ,
-                lineitem ,
-                partsupp ,
-                orders ,
-                nation
+                part USE PROVENANCE (p_partkey),
+                supplier USE PROVENANCE (s_suppkey),
+                lineitem USE PROVENANCE (l_orderkey, l_linenumber),
+                partsupp USE PROVENANCE (ps_partkey, ps_suppkey),
+                orders USE PROVENANCE (o_orderkey),
+                nation USE PROVENANCE (n_nationkey)
             where
                 s_suppkey = l_suppkey
                 and ps_suppkey = l_suppkey
@@ -1060,9 +1060,9 @@ PROVENANCE OF (
         ps_partkey,
         sum(ps_supplycost * ps_availqty) as value
     from
-        partsupp ,
-        supplier ,
-        nation
+        partsupp USE PROVENANCE (ps_partkey, ps_suppkey),
+        supplier USE PROVENANCE (s_suppkey),
+        nation USE PROVENANCE (n_nationkey)
     where
         ps_suppkey = s_suppkey
         and s_nationkey = n_nationkey
@@ -1073,9 +1073,9 @@ PROVENANCE OF (
         SELECT
             sum(ps_supplycost * ps_availqty) * 0.04 as computed_value
         FROM
-            partsupp ,
-            supplier ,
-            nation
+            partsupp USE PROVENANCE (ps_partkey, ps_suppkey),
+            supplier USE PROVENANCE (s_suppkey),
+            nation USE PROVENANCE (n_nationkey)
         WHERE
             ps_suppkey = s_suppkey
             and s_nationkey = n_nationkey

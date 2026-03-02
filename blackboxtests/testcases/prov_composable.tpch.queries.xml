@@ -1073,9 +1073,9 @@ PROVENANCE OF (
         SELECT
             sum(ps_supplycost * ps_availqty) * 0.04 as computed_value
         FROM
-            partsupp ,
-            supplier ,
-            nation
+            partsupp USE PROVENANCE (ps_partkey, ps_suppkey),
+            supplier USE PROVENANCE (s_suppkey),
+            nation USE PROVENANCE (n_nationkey)
         WHERE
             ps_suppkey = s_suppkey
             and s_nationkey = n_nationkey
