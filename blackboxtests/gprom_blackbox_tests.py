@@ -30,6 +30,12 @@ def logfat(m, other=""):
         console.print(80 * " ", style=FAT_STYLE, justify="center")
         print(other)
 
+def forcelogfat(m):
+    console.print(80 * " ", style=FAT_STYLE, justify="center")
+    console.print(m, style=FAT_STYLE, justify="center")
+    console.print(80 * " ", style=FAT_STYLE, justify="center")
+
+
 class DatabaseBackends(Enum):
     POSTGRES = 1
     SQLITE = 2
@@ -432,38 +438,45 @@ class GProMXMLTestLoader:
     @classmethod
     def load_xml_test_cases(cls,dir: str, f: str) -> GProMTestSuite:
         log(f"PROCESS TESTCASE FILE: {dir}/{f}")
-        testcases = {}
-        propdict = java_xml_properties_to_dict(dir + "/" + f)
-        queries = sorted(list(set([ q.split('.')[0] for q in propdict if q[0] == 'q' ])),key = lambda x: int(x[1:]))
-        # TODO read gprom settings
-        suitenameparts = GProMXMLTestLoader.name_parts_from_file_name(f)
+        curquery = ""
+        try:
+            testcases = {}
+            propdict = java_xml_properties_to_dict(dir + "/" + f)
+            queries = sorted(list(set([ q.split('.')[0] for q in propdict if q[0] == 'q' ])),key = lambda x: int(x[1:]))
+            # TODO read gprom settings
+            suitenameparts = GProMXMLTestLoader.name_parts_from_file_name(f)
 
-        extrasettings = GProMXMLTestLoader.get_settings(
-            propdict,
-            GProMXMLTestLoader.EXTRA_SETTINGS_KEY
-        )
+            extrasettings = GProMXMLTestLoader.get_settings(
+                propdict,
+                GProMXMLTestLoader.EXTRA_SETTINGS_KEY
+            )
 
-        disallow = GProMXMLTestLoader.get_settings(
-            propdict,
-            GProMXMLTestLoader.DISALLOWED_SETTINGS_KEY
-        )
+            disallow = GProMXMLTestLoader.get_settings(
+                propdict,
+                GProMXMLTestLoader.DISALLOWED_SETTINGS_KEY
+            )
 
-        for q in queries:
-            qkey = q + '.query'
-            rkey = q + '.result'
-            skey = q + '.issorted'
-            dkey = q + '.disabled'
-            testcasename = tuple(list(suitenameparts) + [q])
-            query = propdict[qkey]
-            result = propdict[rkey]
-            issorted = propdict[skey] if skey in propdict else False
-            disabled = dkey in propdict
-            #log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
-            if not disabled:
-                t = OrderedTable.from_str(result) if issorted else Table.from_str(result)
-                testcases[q] = GProMTestCase(testcasename, None, None, query, t, issorted)
+            for q in queries:
+                curquery = q
+                qkey = q + '.query'
+                rkey = q + '.result'
+                skey = q + '.issorted'
+                dkey = q + '.disabled'
+                testcasename = tuple(list(suitenameparts) + [q])
+                query = propdict[qkey]
+                result = propdict[rkey]
+                issorted = propdict[skey] if skey in propdict else False
+                disabled = dkey in propdict
+                #log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
+                if not disabled:
+                    t = OrderedTable.from_str(result) if issorted else Table.from_str(result)
+                    testcases[q] = GProMTestCase(testcasename, None, None, query, t, issorted)
 
-        return GProMTestSuite(suitenameparts, extrasettings, disallow, testcases)
+            return GProMTestSuite(suitenameparts, extrasettings, disallow, testcases)
+        except Exception as e:
+            forcelogfat(f"Error loading tests from file <{dir}/{f}> processing <{curquery}>")
+            traceback.print_exc()
+            raise e
 
 def java_xml_properties_to_dict(file:str):
     xml = ET.parse(file)
