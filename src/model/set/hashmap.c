@@ -47,6 +47,15 @@ newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), v
     return map;
 }
 
+HashMap *
+newHashMapOfSameType(HashMap *template)
+{
+    return newHashMap(template->keyType,
+                      template->valueType,
+                      template->eq,
+                      template->cpy);
+}
+
 static inline HashElem *
 getHashElem(HashMap *map, Node *key)
 {
@@ -207,6 +216,19 @@ getEntries(HashMap *map)
     return result;
 }
 
+List *
+getValues(HashMap *map)
+{
+    List *result = NIL;
+
+    FOREACH_HASH_ENTRY(k, map)
+    {
+        result = appendToTailOfList(result, k->value);
+    }
+
+    return result;
+}
+
 boolean
 addToMap(HashMap *map, Node *key, Node *value)
 {
@@ -357,7 +379,7 @@ mapSize (HashMap *map)
 }
 
 void
-unionMap(HashMap *res, HashMap *new)
+unionIntoMap(HashMap *res, HashMap *new)
 {
 	FOREACH_HASH_ENTRY(kv,new)
 	{
@@ -366,6 +388,24 @@ unionMap(HashMap *res, HashMap *new)
 			addToMap(res, copyObject(kv->key), copyObject(kv->value));
 		}
 	}
+}
+
+HashMap *
+unionMaps(HashMap *left, HashMap *right)
+{
+    HashMap *result = newHashMapOfSameType(left);
+
+    FOREACH_HASH_ENTRY(kv, left)
+    {
+        ADD_TO_MAP(result, copyObject(kv));
+    }
+
+    FOREACH_HASH_ENTRY(kv, right)
+    {
+        ADD_TO_MAP(result, copyObject(kv));
+    }
+
+    return result;
 }
 
 void

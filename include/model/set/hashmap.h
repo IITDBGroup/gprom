@@ -36,6 +36,7 @@ typedef struct HashMap {
 // create new empty hashmap1
 #define NEW_MAP(keyType,valueType) newHashMap(T_ ## keyType, T_ ## valueType, NULL, NULL)
 extern HashMap *newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), void *(*cpy) (void *));
+extern HashMap *newHashMapOfSameType(HashMap *template);
 
 // accessing map elements
 extern boolean hasMapKey (HashMap *map, Node *key);
@@ -63,6 +64,7 @@ extern List *getKeys(HashMap *map);
 extern Set *getKeySet(HashMap *map);
 extern Set *getStringKeySet(HashMap *map);
 extern List *getEntries(HashMap *map);
+extern List *getValues(HashMap *map);
 
 // add elements to map
 extern boolean addToMap(HashMap *map, Node *key, Node *value);
@@ -94,7 +96,8 @@ extern void removeMapStringElem (HashMap *map, char *key);
 extern int mapSize (HashMap *map);
 
 // set operations
-extern void unionMap(HashMap *res, HashMap *new);
+extern void unionIntoMap(HashMap *res, HashMap *new);
+extern HashMap *unionMaps(HashMap *left, HashMap *right);
 extern void diffMap(HashMap *res, HashMap *new);
 extern HashMap *invertKeyValues(HashMap *map);
 
