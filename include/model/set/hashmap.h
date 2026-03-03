@@ -55,6 +55,7 @@ extern Node *getMapLong (HashMap *map, gprom_long_t key);
 #define MAP_GET_STRING(map,key) getMapString(map, key)
 #define MAP_GET_STRING_VAL_FOR_STRING_KEY(map,key) STRING_VALUE(getMapString(map, key))
 #define MAP_GET_INT(map,key) getMapInt(map, key)
+#define MAP_GET_INT_VAL_FOR_INT_KEY(map,key) INT_VALUE(getMapInt(map, key))
 #define MAP_GET_LONG(map,key) getMapLong(map, key)
 #define MAP_GET_POINTER(map,key) getMapLong(map, (gprom_long_t) key)
 
@@ -76,6 +77,7 @@ extern boolean addToMap(HashMap *map, Node *key, Node *value);
 #define MAP_ADD_STRING_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstString(key), (Node *) value)
 #define MAP_ADD_STRING_KEY_AND_VAL(map, key, value) addToMap((HashMap *) map, (Node *) createConstString(key), (Node *) createConstString(value))
 #define MAP_ADD_INT_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstInt(key), (Node *) value)
+#define MAP_ADD_INT_KEY_AND_VAL(map, key, value) addToMap((HashMap *) map, (Node *) createConstInt(key), (Node *) createConstInt(key))
 #define MAP_ADD_LONG_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong(key), (Node *) value)
 #define MAP_ADD_POINTER_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong((gprom_long_t) key), (Node *) value)
 #define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (gprom_long_t) p, val)
