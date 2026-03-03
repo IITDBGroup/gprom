@@ -2188,7 +2188,6 @@ computeECPropTopDown(QueryOperator *root)
 
 		        setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
 	        }
-
 	        else if(isA(root, JsonTableOperator))
 	        {
 		        Set *setNames = STRSET();
@@ -2218,7 +2217,6 @@ computeECPropTopDown(QueryOperator *root)
 
 		        setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, (Node *)EC);
 	        }
-
 	        else if(isA(root, ProjectionOperator))
 	        {
 		        List *rList = (List *) getStringProperty(root, PROP_STORE_SET_EC);
@@ -2283,7 +2281,8 @@ computeECPropTopDown(QueryOperator *root)
 
 		        setStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)EC);
 	        }
-	        else if(isA(root, OrderOperator))
+	        else if(isA(root, OrderOperator)
+                    || isA(root, LimitOperator))
 	        {
 		        List *rootEC = (List *) getStringProperty(root, PROP_STORE_SET_EC);
 		        List *EC = copyObject(rootEC);
