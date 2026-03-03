@@ -3,21 +3,21 @@
 <properties>
   <comment>General settings for Datalog test cases</comment>
 
-  <entry key="extra_settings.noopt-comp-aggjoin">
+  <entry key="extra_settings.noopt-aggjoin">
     -prov_use_composable
   </entry>
 
-  <entry key="extra_settings.heuopt-comp-aggjoin">
+  <entry key="extra_settings.heuopt-aggjoin">
     -heuristic_opt,
     -prov_use_composable
   </entry>
 
-  <entry key="extra_settings.noopt-comp-aggwin">
+  <entry key="extra_settings.noopt-aggwin">
     -prov_use_composable,
     -prov_instrument_agg_window
   </entry>
 
-  <entry key="extra_settings.heuopt-comp-aggwin">
+  <entry key="extra_settings.heuopt-aggwin">
     -heuristic_opt,
     -prov_use_composable,
     -prov_instrument_agg_window
