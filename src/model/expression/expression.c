@@ -427,7 +427,7 @@ createIsNotDistinctExpr (Node *lArg, Node *rArg)
 }
 
 Constant *
-createConstInt (int value)
+createConstInt(int value)
 {
     Constant *result = makeNode(Constant);
     int *v = NEW(int);
@@ -441,7 +441,7 @@ createConstInt (int value)
 }
 
 Constant *
-createConstLong (gprom_long_t value)
+createConstLong(gprom_long_t value)
 {
     Constant *result = makeNode(Constant);
     gprom_long_t *v = NEW(gprom_long_t);
@@ -455,7 +455,7 @@ createConstLong (gprom_long_t value)
 }
 
 Constant *
-createConstString (char *value)
+createConstString(char *value)
 {
     Constant *result = makeNode(Constant);
 
@@ -467,7 +467,7 @@ createConstString (char *value)
 }
 
 Constant *
-createConstFloat (double value)
+createConstFloat(double value)
 {
     Constant *result = makeNode(Constant);
     double *v = NEW(double);
@@ -481,7 +481,7 @@ createConstFloat (double value)
 }
 
 Constant *
-createConstBoolFromString (char *v)
+createConstBoolFromString(char *v)
 {
     if (streq(v,"TRUE") || streq(v,"t") || streq(v,"true"))
         return createConstBool(TRUE);
