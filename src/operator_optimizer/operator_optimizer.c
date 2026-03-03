@@ -72,9 +72,13 @@ static char *pullupProvProjToString(PullUpProvProjContext *context);
 static Set *getProvenanceAttrsFromOtherBranches(QueryOperator *op, PullUpProvProjContext *context);
 static List *getAndSetOriginalAttrLists(QueryOperator *op);
 static QueryOperator *pullup(QueryOperator *op, PullUpProvProjContext *context); //List *duplicateattrs, List *normalAttrNames);
-static void
-removeRemainingProvenanceAttributes(QueryOperator *op, PullUpProvProjContext *context);
+static void removeRemainingProvenanceAttributes(QueryOperator *op,
+												PullUpProvProjContext *context);
 static void sortProjProvenanceAttrs(ProjectionOperator *p);
+static void sortProjExprsWithReference(List **newAttrDefs,
+									   List **newproj,
+									   List **provAttrs,
+									   List *origAttrDefs);
 static void keepTrackOfRemainingAttributeRenaming(QueryOperator *p, PullUpProvProjContext *context);
 static void pushDownSelection(QueryOperator *root, List *opList,
                               QueryOperator *r, QueryOperator *child);
@@ -1439,15 +1443,17 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
     // keep original list of provenance attributes for ordering
     getAndSetOriginalAttrLists(p);
 
+    // keep track of renaming of normal attributes whose provenance version remains unhandled (only for projection and join)
+    keepTrackOfRemainingAttributeRenaming(op, context);
+
     // keep track of provenance attributes coming from a separate branch
     unionIntoSet(context->otherBranchProvAttrs,
                  getProvenanceAttrsFromOtherBranches(p, context));
 
-    //TODO iterate over all parents or do not try to push if more than one parent
-
     // is parent a root operator need to treat all attribute as lost to ensure
     // we get the provenance attributes in the result schema
-    if(p->parents == NIL)
+	// TODO iterate over all parents (we can only pullup if attribute available in all parents
+    if(p->parents == NIL || LIST_LENGTH(p->parents) > 1)
     {
         isLost = TRUE;
         lostAttrs = copyObject(context->renamedRemainingAttr);
@@ -1498,6 +1504,7 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
             List *newproj = getNormalAttrProjExprs(po);
             List *newAttrDefs = getNormalAttrs(p);
             List *provAttrs = NIL;
+			List *origAttrNames = (List *) getStringProperty(p, PROP_ORIGINAL_ATTR_LIST);
             int pos = LIST_LENGTH(newproj);
 
             DEBUG_LOG("Adjust projection for lost provenance attributes:\n%s\n\nlost attrs: %s",
@@ -1559,6 +1566,8 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
                       nodeToString(provAttrs),
                       nodeToString(newAttrDefs));
 
+			sortProjExprsWithReference(&newAttrDefs, &newproj, &provAttrs, origAttrNames);
+
             po->projExprs = newproj;
             p->provAttrs = provAttrs;
             p->schema->attrDefs = newAttrDefs;
@@ -1608,6 +1617,12 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
             // need to copy original provenance attr list
             pr->op.properties = copyObject(op->properties);
 
+			sortProjExprsWithReference(&pr->op.schema->attrDefs,
+									   &pr->projExprs,
+									   &pr->op.provAttrs,
+									   (List *) getStringProperty((QueryOperator *) op,
+																  PROP_ORIGINAL_ATTR_LIST));
+
             DEBUG_LOG("lost attributes at operator, add projection and process it:\nop: %s\nproj: %s\nparent: %s",
                       singleOperatorToOverview(op),
                       singleOperatorToOverview(pr),
@@ -1627,9 +1642,6 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
 
         // remove provenance attributes that are not handled yet from schema
         removeRemainingProvenanceAttributes(p, context);
-
-        // keep track of renaming of normal attributes whose provenance version remains unhandled (only for projection and join)
-        keepTrackOfRemainingAttributeRenaming(p, context);
     }
 
     // continue to parent
@@ -1645,6 +1657,37 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
     {
         return p;
     }
+}
+
+static void
+sortProjExprsWithReference(List **newAttrDefs, List **newproj, List **provAttrs, List *origAttrNames)
+{
+	List *resultAttrDefs = NIL;
+	List *newnames = getAttrDefNames(*newAttrDefs);
+	List *realAttrNames = constStringListToStringList(origAttrNames);
+	List *resultproj = NIL;
+	List *resultprova = NIL;
+	int newpos = 0;
+
+	FOREACH(char,a,realAttrNames)
+	{
+		int pos = listPosString(newnames, a);
+
+		if(pos != SEARCH_NOT_FOUND)
+		{
+			resultAttrDefs = appendToTailOfList(resultAttrDefs, getNthOfListP(*newAttrDefs, pos));
+			resultproj = appendToTailOfList(resultproj, getNthOfListP(*newproj, pos));
+			if(searchListInt(*provAttrs, pos))
+			{
+				resultprova = appendToTailOfListInt(resultprova,newpos);
+			}
+			newpos++;
+		}
+	}
+
+	*newAttrDefs = resultAttrDefs;
+	*newproj = resultproj;
+	*provAttrs = resultprova;
 }
 
 static void
