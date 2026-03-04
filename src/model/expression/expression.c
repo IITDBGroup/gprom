@@ -1230,7 +1230,7 @@ lcaType(DataType l, DataType r)
 DataType
 SQLdataTypeToDataType (char *dt)
 {
-    return backendSQLTypeToDT (dt);
+    return backendSQLTypeToDT(dt);
 }
 
 DataType
