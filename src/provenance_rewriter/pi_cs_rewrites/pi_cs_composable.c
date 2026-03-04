@@ -1375,6 +1375,9 @@ rewritePI_CSComposableAggregationWithWindow(AggregationOperator *op, PICSComposa
         addParent(curChild, (QueryOperator *) un);
         un->op.provAttrs = copyList(curChild->provAttrs);
 
+        // add result tid and dup attributes
+        addResultTIDAndProvDupAttrs((QueryOperator *) un, FALSE);
+
         curChild = (QueryOperator *) un;
     }
 
@@ -2093,7 +2096,7 @@ addResultTIDAndProvDupAttrs(QueryOperator *op, boolean addToSchema)
     int numAttrs = getNumAttrs(op);
     QueryOperator *child = OP_LCHILD(op);
 
-    if (addToSchema)
+    if(addToSchema)
     {
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
                                                   createAttributeDef(strdup(RESULT_TID_ATTR),
