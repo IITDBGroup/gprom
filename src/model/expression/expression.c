@@ -1256,7 +1256,9 @@ typeOfInOpModel (Node *expr, List *inputOperators)
             return typeOf(w->then);
         }
         case T_RowNumExpr:
-            return DT_INT;
+        {
+            return typeOf(expr);
+        }
         case T_CastExpr:
             return ((CastExpr *) expr)->resultDT;
         default:
