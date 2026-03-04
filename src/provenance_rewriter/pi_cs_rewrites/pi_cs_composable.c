@@ -15,14 +15,17 @@
 #include "configuration/option.h"
 
 #include "mem_manager/mem_mgr.h"
+#include "metadata_lookup/metadata_lookup_oracle.h"
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
+#include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "operator_optimizer/cost_based_optimizer.h"
@@ -93,7 +96,7 @@ static List *getAttrNamesWithoutSpecial(QueryOperator *op);
 static List *getAllAttrWithoutSpecial(QueryOperator *op);
 static List *getNormalAttrWithoutSpecial(QueryOperator *op);
 static List *removeSpecialAttrsFromNormalProjectionExprs(List *projExpr);
-static void aggCreateParitionAndOrderBy(AggregationOperator* op,
+static void aggCreatePartitionAndOrderBy(AggregationOperator* op,
         List** partitionBy, List** orderBy);
 
 static Node *replaceAttrWithCaseForProvDupRemoval (FunctionCall *f, Node *provDupAttrRef);
@@ -1292,22 +1295,25 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSComposab
 }
 
 static void
-aggCreateParitionAndOrderBy(AggregationOperator* op, List** partitionBy,
+aggCreatePartitionAndOrderBy(AggregationOperator* op, List** partitionBy,
         List** orderBy)
 {
     FOREACH(AttributeReference, a, op->groupBy)
-        *partitionBy = appendToTailOfList(*partitionBy, copyObject(a));
+	{
+		*partitionBy = appendToTailOfList(*partitionBy, copyObject(a));
+	}
     *orderBy = copyObject(*partitionBy);
 }
 
+#define DUMMY_CNT_ATTR_NAME backendifyIdentifier("__DUMMY_CNT")
+
 static QueryOperator *
-rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSComposableRewriteState *state)
+rewritePI_CSComposableAggregationWithWindow(AggregationOperator *op, PICSComposableRewriteState *state)
 {
 	REWR_UNARY_SETUP_PIC(Aggregation-RewriteWithWindow);
     boolean groupBy = LIST_LENGTH(op->groupBy) > 0;
 	boolean hasAgg = LIST_LENGTH(op->aggrs) > 0;
     WindowOperator *curWindow = NULL;
-    //QueryOperator *firstChild;
     QueryOperator *curChild;
     ProjectionOperator *proj;
     Node *provDupAttrRef;
@@ -1319,47 +1325,95 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
     List *groupByExprs = copyObject(op->groupBy);
     List *aggNames = aggOpGetAggAttrNames(op);
     int pos;
+    int cntAttrPos = SEARCH_NOT_FOUND;
+    char *cntAttrName = NULL;
+    boolean usedDummyCnt = FALSE;
 
     // rewrite child
 	rewrInput = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
-//    curChild = rewritePI_CSComposableOperator(OP_LCHILD(op), state);
 	curChild = rewrInput;
-    //firstChild = curChild;
-    //removeParentFromOps(singleton(firstChild), (QueryOperator *) op);
     noDupInput = isTupleAtATimeSubtree(curChild);
 
     // create partition clause and order by clauses
     if (groupBy)
-        aggCreateParitionAndOrderBy(op, &partitionBy, &orderBy);
+    {
+        aggCreatePartitionAndOrderBy(op, &partitionBy, &orderBy);
+    }
+    // no group by, need to union with a dummy tuple to preserve result for
+    // aggregations over an empty input, also need count aggregate to
+    // determine whether this dummy tuple should be in the result
+    else
+    {
+        List *attrnames = getQueryOperatorAttrNames(rewrInput);
+        List *dts = getDataTypes(rewrInput->schema);
+        List *vals = NIL;
+        ConstRelOperator *dummy;
+        SetOperator *un;
+        int resultTidPos = getAttrPos(rewrInput, RESULT_TID_ATTR);
+        int pos = 0;
+
+        // create (NULL, ..., NULL, -1, 1) using -1 as result TID to identify the dummy provenance row in output
+        FOREACH_INT(dt, dts)
+        {
+            if(pos == resultTidPos)
+            {
+                vals = appendToTailOfList(vals, createConstLong(-1));
+            }
+            else
+            {
+                vals = appendToTailOfList(vals, createNullConst(dt));
+            }
+            pos++;
+        }
+
+        dummy = createConstRelOp(vals, NIL, attrnames, dts);
+        dummy->op.provAttrs = copyList(curChild->provAttrs);
+
+        // union dummy with input
+        un = createSetOperator(SETOP_UNION, LIST_MAKE(curChild, dummy), NIL, deepCopyStringList(attrnames));
+        addParent((QueryOperator *) dummy, (QueryOperator *) un);
+        addParent(curChild, (QueryOperator *) un);
+        un->op.provAttrs = copyList(curChild->provAttrs);
+
+        curChild = (QueryOperator *) un;
+    }
 
     // get input prov dup attribute
     if (!noDupInput)
     {
         provDupAttrRef = (Node *) createFullAttrReference(PROV_DUPL_COUNT_ATTR,
-                0,
-                INT_VALUE(GET_STRING_PROP(curChild, PROP_PROV_DUP_ATTR)),
-                INVALID_ATTR,
-                state->rowNumDT);
+                                                          0,
+                                                          INT_VALUE(GET_STRING_PROP(curChild, PROP_PROV_DUP_ATTR)),
+                                                          INVALID_ATTR,
+                                                          state->rowNumDT);
     }
     else
+    {
         provDupAttrRef = NULL;
+    }
 
     // create window op for each aggregation
     pos = 0;
     FOREACH(Node,agg,op->aggrs)
     {
-        Node *aggForWindow = replaceAttrWithCaseForProvDupRemoval(
-                copyObject(agg), provDupAttrRef);
+        Node *aggForWindow = replaceAttrWithCaseForProvDupRemoval(copyObject(agg),
+                                                                  provDupAttrRef);
         char *attrName = getNthOfListP(aggNames, pos);
 
+        if(!groupBy && streq(((FunctionCall *) agg)->functionname, COUNT_FUNC_NAME))
+        {
+            cntAttrPos = pos;
+            cntAttrName = getNthOfListP(aggNames, pos);
+        }
+
         curWindow = createWindowOp(aggForWindow,
-                partitionBy,
-                NIL,
-                NULL,
-                attrName,
-                curChild,
-                NIL
-                );
+                                   partitionBy,
+                                   NIL,
+                                   NULL,
+                                   attrName,
+                                   curChild,
+                                   NIL
+                                   );
         curWindow->op.provAttrs = copyObject(curChild->provAttrs);
         addParent(curChild, (QueryOperator *) curWindow);
 
@@ -1369,8 +1423,31 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
         DEBUG_OP_LOG("into window op", curWindow);
     }
 
+    // if no group-by and we do not have a count aggregate, then we need to add one
+    if(!groupBy && cntAttrPos == SEARCH_NOT_FOUND)
+    {
+        cntAttrPos = pos;
+        cntAttrName = strdup(DUMMY_CNT_ATTR_NAME);
+        usedDummyCnt = TRUE;
+
+        curWindow = createWindowOp((Node *) createFunctionCall(strdup(COUNT_FUNC_NAME),
+                                                               singleton(createConstInt(1))),
+                                   partitionBy,
+                                   NIL,
+                                   NULL,
+                                   strdup(DUMMY_CNT_ATTR_NAME),
+                                   curChild,
+                                   NIL
+                                   );
+        curWindow->op.provAttrs = copyObject(curChild->provAttrs);
+        addParent(curChild, (QueryOperator *) curWindow);
+
+        curChild = (QueryOperator *) curWindow;
+        pos++;
+    }
+
     // add result TID attr and prov dup attr, if group by then use window function, otherwise use projection
-    if (groupBy)
+    if(groupBy)
     {
         // agg projection to get rid of input TID and DUP attrs
         QueryOperator *gProj;
@@ -1389,13 +1466,13 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
         Node *tidFunc = (Node *) createFunctionCall(DENSE_RANK_FUNC_NAME, NIL);
 
         curWindow = createWindowOp(tidFunc,
-                NIL,
-                orderBy,
-                NULL,
-                strdup(RESULT_TID_ATTR),
-                curChild,
-                NIL
-        );
+                                   NIL,
+                                   orderBy,
+                                   NULL,
+                                   strdup(RESULT_TID_ATTR),
+                                   curChild,
+                                   NIL
+                                   );
         curWindow->op.provAttrs = copyObject(curChild->provAttrs);
         addParent(curChild, (QueryOperator *) curWindow);
         curChild = (QueryOperator *) curWindow;
@@ -1404,19 +1481,19 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
         Node *provDupFunc = (Node *) createFunctionCall(ROW_NUMBER_FUNC_NAME, NIL);
 
         curWindow = createWindowOp(provDupFunc,
-                copyObject(partitionBy),
-                copyObject(orderBy),
-                NULL,
-                strdup(PROV_DUPL_COUNT_ATTR),
-                curChild,
-                NIL
-        );
+                                   copyObject(partitionBy),
+                                   copyObject(orderBy),
+                                   NULL,
+                                   strdup(PROV_DUPL_COUNT_ATTR),
+                                   curChild,
+                                   NIL
+                                   );
         curWindow->op.provAttrs = copyObject(curChild->provAttrs);
         addParent(curChild, (QueryOperator *) curWindow);
         curChild = (QueryOperator *) curWindow;
 
         DEBUG_LOG("Added result TID and prov duplicate window ops:\n%s",
-                       operatorToOverviewString((Node *) curWindow));
+                  operatorToOverviewString((Node *) curWindow));
     }
 
 
@@ -1428,12 +1505,38 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
 	List *groupByAttrNames = groupBy ? aggOpGetGroupByAttrNames(op) : NIL;
 	List *provAttrNames = getOpProvenanceAttrNames((QueryOperator *) curWindow);
 
+    // if not group-by add selection to filter out dummy provenance row unless
+    // it is the only one
+    if(!groupBy)
+    {
+        SelectionOperator *s;
+        Node *cond;
+        AttributeReference *cntA, *tidA;
+
+        cntA = getAttrRefByName(curChild, cntAttrName);
+        tidA = getAttrRefByName(curChild, RESULT_TID_ATTR);
+
+        // count = 1 (to keep dummy provenance if input is empty) OR tid != -1 (to keep real provenance)
+        cond = OR_EXPRS((Node *) createOpExpr(OPNAME_EQ,
+                                              LIST_MAKE((Node *) cntA, createConstLong(1))),
+                        (Node *) createOpExpr(OPNAME_NEQ,
+                                              LIST_MAKE((Node *) tidA, createConstLong(-1))));
+        s = createSelectionOp(cond, curChild, NIL, NIL);
+
+        s->op.provAttrs = copyList(curChild->provAttrs);
+        addParent(curChild, (QueryOperator *) s);
+
+        curChild = (QueryOperator *) s;
+    }
+
 	// no group by, add result TID and prov dup attributes to projection
-	if (!groupBy)
+	if(!groupBy)
 	{
+        int offset = usedDummyCnt ? 1 : 0;
+
 		normalAttrs = sublist(normalAttrs,
-							  LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs),
-							  LIST_LENGTH(normalAttrs) - 1);
+							  LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs) - offset,
+							  LIST_LENGTH(normalAttrs) - 1 - offset);
 		projExprs = CONCAT_LISTS(normalAttrs, provAttrs,
 								 LIST_MAKE(getOneForRowNum(),
 										   makeNode(RowNumExpr)));
@@ -1458,17 +1561,17 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
 
 		projExprs = CONCAT_LISTS(normalAttrs, groupByExprs, provAttrs,
 								 LIST_MAKE(createFullAttrReference(
-											   strdup(RESULT_TID_ATTR),
-											   0,
-											   getNumAttrs((QueryOperator *) curWindow) - 2,
-											   INVALID_ATTR,
-											   state->rowNumDT),
+											                       strdup(RESULT_TID_ATTR),
+											                       0,
+											                       getNumAttrs((QueryOperator *) curChild) - 2,
+											                       INVALID_ATTR,
+											                       state->rowNumDT),
 										   createFullAttrReference(
-											   strdup(PROV_DUPL_COUNT_ATTR),
-											   0,
-											   getNumAttrs((QueryOperator *) curWindow) - 1,
-											   INVALID_ATTR,
-											   state->rowNumDT)));
+											                       strdup(PROV_DUPL_COUNT_ATTR),
+											                       0,
+											                       getNumAttrs((QueryOperator *) curChild) - 1,
+											                       INVALID_ATTR,
+											                       state->rowNumDT)));
 
 		finalAttrs = CONCAT_LISTS(aggAttrNames,
 								  groupByAttrNames,
@@ -1480,7 +1583,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op, PICSCompos
 	CREATE_INT_SEQ(proj->op.provAttrs,
 				   LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy),
 				   getNumAttrs((QueryOperator *) proj) - 3, 1);
-	addParent((QueryOperator *) curWindow, (QueryOperator *) proj);
+	addParent((QueryOperator *) curChild, (QueryOperator *) proj);
 	rewr = (QueryOperator *) proj;
 
 	DEBUG_LOG("projection is:\n%s", operatorToOverviewString((Node *) rewr));
@@ -1985,7 +2088,7 @@ rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op, PICSComposableRewrite
 }
 
 static void
-addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema)
+addResultTIDAndProvDupAttrs(QueryOperator *op, boolean addToSchema)
 {
     int numAttrs = getNumAttrs(op);
     QueryOperator *child = OP_LCHILD(op);
@@ -1993,9 +2096,11 @@ addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema)
     if (addToSchema)
     {
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
-                createAttributeDef(strdup(RESULT_TID_ATTR), getRowNumDT()));
+                                                  createAttributeDef(strdup(RESULT_TID_ATTR),
+                                                                     getRowNumDT()));
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
-                    createAttributeDef(strdup(PROV_DUPL_COUNT_ATTR), getRowNumDT()));
+                                                  createAttributeDef(strdup(PROV_DUPL_COUNT_ATTR),
+                                                                     getRowNumDT()));
 
         // set properties to mark result TID and prov duplicate attrs
         SET_STRING_PROP(op, PROP_RESULT_TID_ATTR, createConstInt(numAttrs));
