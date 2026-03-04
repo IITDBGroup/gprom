@@ -12,6 +12,7 @@ from typing import Dict, Union
 from pathlib import Path
 from tqdm import tqdm
 import traceback
+from pg8000.native import Connection
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
@@ -34,6 +35,8 @@ def forcelogfat(m):
     console.print(80 * " ", style=FAT_STYLE, justify="center")
     console.print(m, style=FAT_STYLE, justify="center")
     console.print(80 * " ", style=FAT_STYLE, justify="center")
+
+
 
 
 class DatabaseBackends(Enum):
@@ -206,10 +209,10 @@ class GProMSetting:
         self.settings = self.setting.union(other.setting)
 
     def __getitem__(self,key):
-        return self.settings[key]
+        return self.setting[key]
 
     def __setitem__(self, key, value):
-        self.settings[key] = value
+        self.setting[key] = value
 
     def __eq__(self,o):
         return self.setting == o.setting
@@ -679,6 +682,26 @@ class GProMRunner():
         cmdlist = [ gprom ] + args.to_list() + ["-query", query]
         return cmdlist
 
+    POSTGRES_KILL_BACKEND_QUERY_TEMPLATE = """
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pid <> pg_backend_pid();
+    """
+
+    @classmethod
+    def cleanup_database_connection(cls, gprom: str, conf: GProMSetting):
+        if options.backend == 'postgres':
+            conninfo = {
+                "host": conf["-host"],
+                "database": conf["-db"],
+                "port": conf["-port"],
+                "password": conf["-passwd"],
+                "user": conf["-user"],
+            }
+            con = Connection(**conninfo)
+            con.run(GProMRunner.POSTGRES_KILL_BACKEND_QUERY_TEMPLATE)
+            con.close()
+
     @classmethod
     def gprom_exec_to_string(cls, gprom: str, query: str, args: GProMSetting):
         log(f"will run {query} with args {args.items()}")
@@ -691,7 +714,9 @@ class GProMRunner():
                                      stderr=subprocess.PIPE,
                                      universal_newlines=True)
         except subprocess.TimeoutExpired:
+            GProMRunner.cleanup_database_connection(gprom, args)
             return (-1, "", f"TIMED OUT AFTER {options.timeout} SECONDS")
+
         return (process.returncode, process.stdout.strip(), process.stderr.strip())
 
     @classmethod
