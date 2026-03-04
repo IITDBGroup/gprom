@@ -703,16 +703,82 @@ rewritePI_CSUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewrite
 static QueryOperator *
 rewritePI_CSLimit(LimitOperator *op, PICSRewriteState *state)
 {
+	JoinOperator *result;
+	QueryOperator *origLimit;
+	QueryOperator *curOp;
+	Node *joinCond;
+	List *comparisons = NIL;
+	List *normalAttrReferences = getProjExprsForAllAttrs((QueryOperator *) op);
+	List *joinattrList;
+	List *normalnames = getQueryOperatorAttrNames((QueryOperator *) op);
+	List *provnames;
+
 	REWR_UNARY_SETUP_PI(Limit);
 
     //add semiring options
     addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
 
-	// rewrite child first
-	REWR_UNARY_CHILD_PI();
+    // copy limit operator
+    origLimit = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);
 
-    // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
+    // rewrite limit operator input copy
+	rewrInput = rewritePI_CSOperator(OP_LCHILD(op), state);
+	curOp = rewrInput;
+	provnames = getOpProvenanceAttrNames(curOp);
+
+	// join condition on all attributes to match limit operator output with
+	// rewritten input
+	FOREACH(AttributeReference,a,normalAttrReferences)
+	{
+		AttributeReference *la, *ra;
+
+		la = copyObject(a);
+		la->fromClauseItem = 0;
+		ra = copyObject(a);
+		ra->fromClauseItem = 1;
+
+		comparisons = appendToTailOfList(comparisons,
+										 createOpExpr(strdup(OPNAME_EQ),
+													  LIST_MAKE(la,ra)));
+
+	}
+	joinCond = andExprList(comparisons);
+
+    // for limit operator with schema x,y and provenance attribute names
+    // prov_r_a, rename the common attributes from the RHS (provenance
+    // computation) like this: x,y,__x,__y,prov_r_a
+    List *renamedNormalNames = NIL;
+    FOREACH(char,a,normalnames)
+    {
+        renamedNormalNames = appendToTailOfList(renamedNormalNames, CONCAT_STRINGS("__", strdup(a)));
+    }
+
+    joinattrList = CONCAT_LISTS(deepCopyStringList(normalnames),
+                                renamedNormalNames,
+                                deepCopyStringList(provnames));
+
+	// create join between limit operator and the query computing the provenance
+	// for its direct child operator
+	result = createJoinOp(JOIN_INNER,
+						  joinCond,
+						  LIST_MAKE(origLimit, curOp),
+						  NIL,
+						  joinattrList);
+    addParent(origLimit, (QueryOperator *) result);
+    addParent(rewrInput, (QueryOperator *) result);
+    curOp = (QueryOperator *) result;
+
+    // add projection to get right of duplicated normal atttributes
+    curOp = createProjOnAttrsByName(curOp,
+                                    deepCopyStringList(getQueryOperatorAttrNames(rewrInput)),
+                                    NULL);
+    curOp->provAttrs = copyList(rewrInput->provAttrs);
+    addChildOperator(curOp, (QueryOperator *) result);
+
+	rewr = (QueryOperator *) curOp;
+
+    // adapt provenance attributes
+    //addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrInput);
 
 	LOG_RESULT_AND_RETURN(PICS,Limit);
 }
