@@ -1605,7 +1605,7 @@ postgresBackendDatatypeToSQL (DataType dt)
             return "int8";
             break;
         case DT_FLOAT:
-            return "float8";
+            return "NUMERIC";
             break;
         case DT_STRING:
         case DT_VARCHAR2:
@@ -2063,19 +2063,20 @@ postgresTypenameToDT (char *typName)
 {
     // string data types
     if (streq(typName,"char")
-           || streq(typName,"name")
-           || streq(typName,"text")
-           || streq(typName,"tsquery")
-           || streq(typName,"varchar")
-           || streq(typName,"xml")
-            )
+        || streq(typName,"name")
+        || streq(typName,"text")
+        || streq(typName,"tsquery")
+        || streq(typName,"varchar")
+        || streq(typName,"xml")
+        )
 	{
         return DT_STRING;
 	}
 
     // integer data types
-    if (streq(typName,"int2")
-            || streq(typName,"int4"))
+    if (streq(typName,"int")
+		|| streq(typName,"int2")
+        || streq(typName,"int4"))
 	{
         return DT_INT;
 	}
@@ -2087,10 +2088,11 @@ postgresTypenameToDT (char *typName)
 	}
 
     // numeric data types
-    if (streq(typName, "float4")
-            || streq(typName, "float8")
-            || streq(typName, "numeric")
-            )
+    if (streq(typName, "float")
+		|| streq(typName, "float4")
+        || streq(typName, "float8")
+        || streq(typName, "numeric")
+        )
 	{
         return DT_FLOAT;
 	}
