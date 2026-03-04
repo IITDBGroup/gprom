@@ -89,20 +89,20 @@ A|B|C|D|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|PROV_S_1_C|PROV_S_1_D|PROV_R_1_A|PRO
 PROVENANCE OF (SELECT a FROM (SELECT * FROM R UNION SELECT * FROM S) x INTERSECT SELECT c FROM S);
 </entry>
 <entry key="q7.result">
-A|C|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|PROV_S_1_C|PROV_S_1_D|
-----------------------------------------
-1|1|1|1|NULL|NULL|1|4|
-1|1|1|2|NULL|NULL|1|4|
-2|2|2|1|NULL|NULL|2|3|
-2|2|2|1|NULL|NULL|2|2|
-2|2|2|3|NULL|NULL|2|3|
-2|2|2|3|NULL|NULL|2|2|
-2|2|NULL|NULL|2|2|2|3|
-2|2|NULL|NULL|2|2|2|2|
-2|2|NULL|NULL|2|3|2|3|
-2|2|NULL|NULL|2|3|2|2|
-3|3|NULL|NULL|3|3|3|3|
-1|1|NULL|NULL|1|4|1|4|
+ a | c | prov_r_a | prov_r_b | prov_s_c | prov_s_d | prov_s_1_c | prov_s_1_d |
+------------------------------------------------------------------------------
+ 1 | 1 | 1        | 1        | NULL     | NULL     | 1          | 4          |
+ 1 | 1 | 1        | 2        | NULL     | NULL     | 1          | 4          |
+ 2 | 2 | 2        | 1        | NULL     | NULL     | 2          | 3          |
+ 2 | 2 | 2        | 1        | NULL     | NULL     | 2          | 2          |
+ 2 | 2 | 2        | 3        | NULL     | NULL     | 2          | 3          |
+ 2 | 2 | 2        | 3        | NULL     | NULL     | 2          | 2          |
+ 2 | 2 | NULL     | NULL     | 2        | 2        | 2          | 3          |
+ 2 | 2 | NULL     | NULL     | 2        | 2        | 2          | 2          |
+ 2 | 2 | NULL     | NULL     | 2        | 3        | 2          | 3          |
+ 2 | 2 | NULL     | NULL     | 2        | 3        | 2          | 2          |
+ 3 | 3 | NULL     | NULL     | 3        | 2        | 3          | 2          |
+ 1 | 1 | NULL     | NULL     | 1        | 4        | 1          | 4          |
 </entry>
 
 </properties>

@@ -3,10 +3,6 @@
 <properties>
 <comment>Top-k provenance Test cases</comment>
 
-<!-- Currently only supported with pi_cs_composable -->
-<entry key="extra_settings.composable">
--prov_use_composable
-</entry>
 
 <entry key="q1.query">
 PROVENANCE OF (SELECT a,b FROM R ORDER BY a,b LIMIT 1);
