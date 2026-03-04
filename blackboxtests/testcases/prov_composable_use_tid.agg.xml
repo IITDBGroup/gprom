@@ -34,8 +34,8 @@ PROVENANCE OF (SELECT count(*) AS x FROM (SELECT sum(a) AS x, b AS y  FROM r USE
  x | prov_r_b | _result_tid | _setprov_dup_count |
 --------------------------------------------------
  3 | 1        | 1           | 1                  |
- 3 | 1        | 1           | 2                  |
- 3 | 2        | 1           | 3                  |
+ 3 | 2        | 1           | 2                  |
+ 3 | 1        | 1           | 3                  |
  3 | 3        | 1           | 4                  |
 </entry>
 
@@ -203,5 +203,17 @@ PROVENANCE OF (SELECT round(avg(a),2) AS x, round(avg(a+b),1) AS y, round(sum(0.
  1.75 | 4.5 | 15.4 | 3        | 3        | 1           | 3                  |
  1.75 | 4.5 | 15.4 | 3        | 4        | 1           | 4                  |
 </entry>
+
+<entry key="q19.query">
+PROVENANCE OF (SELECT sum(a) FROM R USE PROVENANCE (b) WHERE b &lt;&gt; b);
+</entry>
+<entry key="q19.result">
+ sum(a) | prov_r_b | _result_tid | _setprov_dup_count |
+-------------------------------------------------------
+ NULL   | NULL     | 1           | 1                  |
+</entry>
+
+
+
 
 </properties>

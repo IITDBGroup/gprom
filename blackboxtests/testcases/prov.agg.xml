@@ -204,4 +204,14 @@ X|Y|Z|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|
 1.75|4.5|15.4|1|2|1|4|
 </entry>
 
+<entry key="q19.query">
+PROVENANCE OF (SELECT sum(a) FROM R WHERE b &lt;&gt; b);
+</entry>
+<entry key="q19.result">
+ sum(a) | prov_r_a | prov_r_b |
+-------------------------------
+ NULL   | NULL     | NULL     |
+</entry>
+
+
 </properties>

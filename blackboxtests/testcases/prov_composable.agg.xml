@@ -193,7 +193,7 @@ PROVENANCE OF (SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as 
 </entry>
 
 <entry key="q18.query">
-PROVENANCE OF (SELECT round(avg(a),2) AS x, round(avg(a+b),1) AS y, round(sum(0.1 + a*b*(d-c)/2),1) AS z FROM R, S WHERE b&gt;c);
+PROVENANCE OF (SELECT round(avg(a),2) AS x, round(avg(a+b),1) AS y, round(sum(0.1 + a*b*(d-c)/2)::NUMERIC,1) AS z FROM R, S WHERE b&gt;c);
 </entry>
 <entry key="q18.result">
  x    | y   | z    | prov_r_a | prov_r_b | prov_s_c | prov_s_d | _result_tid | _setprov_dup_count |
@@ -203,5 +203,15 @@ PROVENANCE OF (SELECT round(avg(a),2) AS x, round(avg(a+b),1) AS y, round(sum(0.
  1.75 | 4.5 | 15.4 | 2        | 3        | 2        | 3        | 1           | 3                  |
  1.75 | 4.5 | 15.4 | 2        | 3        | 1        | 4        | 1           | 4                  |
 </entry>
+
+<entry key="q19.query">
+PROVENANCE OF (SELECT sum(a) FROM R WHERE b &lt;&gt; b);
+</entry>
+<entry key="q19.result">
+ sum(a) | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
+------------------------------------------------------------------
+ NULL   | NULL     | NULL     | 1           | 1                  |
+</entry>
+
 
 </properties>
