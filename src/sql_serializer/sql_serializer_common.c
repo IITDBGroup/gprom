@@ -43,6 +43,12 @@ typedef struct UpdateWindowOpAttrsContext {
     HashMap *winfAttrs;
 } UpdateWindowOpAttrsContext;
 
+typedef struct UpdateWindowOpAttrsSimpleContext {
+    List *attrNames;
+    HashMap *winfAttrs;
+} UpdateWindowOpAttrsSimpleContext;
+
+
 static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
@@ -53,7 +59,7 @@ static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *f
 static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
 static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr);
 static boolean updateWindowAttrsInternal(Node *node, UpdateWindowOpAttrsContext *context);
-
+static boolean updateWindowAttributeNamesSimpleInternal(Node *node, UpdateWindowOpAttrsSimpleContext *context);
 
 /*
  * create API struct
@@ -1238,7 +1244,6 @@ updateAttributeReference(AttributeReference *a, FromAttrsContext *fac)
                   "attribute <%s> not found in FromClauseAttr:\n%s",
                   a->name,
                   a);
-
         }
 		newName = getNthOfListP(outer, attrPos);
 
@@ -1447,4 +1452,44 @@ updateAttributeNamesSimple(Node *node, List *attrNames)
     }
 
     return visit(node, updateAttributeNamesSimple, attrNames);
+}
+
+
+boolean
+updateWindowAttributeNamesSimple(Node *node, List *attrNames, HashMap *winfAttrs)
+{
+    boolean result;
+    UpdateWindowOpAttrsSimpleContext *context = NEW(UpdateWindowOpAttrsSimpleContext);
+    context->winfAttrs = winfAttrs;
+    context->attrNames = attrNames;
+
+    result = updateWindowAttributeNamesSimpleInternal(node, context);
+    FREE(context);
+
+    return result;
+}
+
+static boolean
+updateWindowAttributeNamesSimpleInternal(Node *node, UpdateWindowOpAttrsSimpleContext *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+
+        if(MAP_HAS_STRING_KEY(context->winfAttrs,a->name))
+        {
+            a->name = strdup(MAP_GET_STRING_VAL_FOR_STRING_KEY(context->winfAttrs, a->name));
+        }
+        else
+        {
+            ASSERT(a->attrPosition >= 0 && LIST_LENGTH(context->attrNames) > a->attrPosition);
+            char *newName = getNthOfListP(context->attrNames, a->attrPosition);
+            a->name = strdup(newName);
+        }
+    }
+
+    return visit(node, updateWindowAttributeNamesSimpleInternal, context);
 }

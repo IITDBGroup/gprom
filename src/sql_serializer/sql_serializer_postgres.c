@@ -405,7 +405,10 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     }
 
     // second level of projection either if no aggregation or using aggregation
-    if ((m->secondProj != NULL && !agg && !winR ) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
+    // / window and the window / agg results gets further processed
+    if ((m->secondProj != NULL && !agg && !winR )
+        || (m->firstProj != NULL && agg)
+        || (m->firstProj != NULL && winR))
     {
         int pos = 0;
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
@@ -429,7 +432,8 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
             // is projection over window functions
             else if (winR)
             {
-                updateWindowAttributeNames(a, fac, winResultAttrNameToWinf);
+                UPDATE_WIN_ATTR_NAME((m->secondProj == NULL), a, fac, firstProjs,winResultAttrNameToWinf);
+                //updateWindowAttributeNames(a, fac, winResultAttrNameToWinf);
             }
             // is projection in query without aggregation
             else
@@ -464,7 +468,8 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         FOREACH(AttributeReference,a,attrRefs)
         {
             char *origname = strdup(a->name);
-            updateWindowAttributeNames((Node *) a, fac, winResultAttrNameToWinf);
+            UPDATE_WIN_ATTR_NAME((m->secondProj == NULL), a, fac, firstProjs, winResultAttrNameToWinf);
+            /* updateWindowAttributeNames((Node *) a, fac, winResultAttrNameToWinf); */
             appendStringInfo(select, "%s AS %s", strdup(a->name), origname);
             if(FOREACH_HAS_MORE(a))
             {

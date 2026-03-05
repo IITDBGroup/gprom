@@ -171,6 +171,7 @@ extern boolean updateAttributeNames(Node *node, FromAttrsContext *fac);
 extern void updateAttributeReference(AttributeReference *a, FromAttrsContext *fac);
 extern boolean updateWindowAttributeNames(Node *node, FromAttrsContext *fac, HashMap *winfAttrs);
 extern boolean updateAttributeNamesSimple(Node *node, List *attrNames);
+extern boolean updateWindowAttributeNamesSimple(Node *node, List *attrNames, HashMap *winfAttrs);
 
 //for nesting
 extern FromAttrsContext *copyFromAttrsContext(FromAttrsContext *fac);
@@ -185,6 +186,20 @@ extern FromAttrsContext *initializeFromAttrsContext ();
         else \
             updateAttributeNamesSimple(_localExpr, trueAttrs); \
     } while(0)
+
+#define UPDATE_WIN_ATTR_NAME(cond,expr,falseAttrs,trueAttrs,winfResultToF) \
+    do { \
+        Node *_localExpr = (Node *) (expr); \
+        if (cond) \
+        { \
+            updateWindowAttributeNames(_localExpr, falseAttrs,winfResultToF);	\
+        } \
+            else \
+        { \
+            updateWindowAttributeNamesSimple(_localExpr, trueAttrs,winfResultToF); \
+        } \
+    } while(0)
+
 
 
 /* macros */
