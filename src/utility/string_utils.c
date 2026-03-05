@@ -257,6 +257,12 @@ strRemPrefix(char *str, int postFixSize)
    return result;
 }
 
+char *
+strAddPrefix(char *str, char *prefix)
+{
+    return CONCAT_STRINGS(prefix, str);
+}
+
 boolean
 isPrefix(char *str, char *prefix)
 {
