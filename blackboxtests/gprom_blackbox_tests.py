@@ -51,6 +51,9 @@ class Table:
     schema: list[str]
     rows: Counter[tuple[str]] = field(default_factory=Counter)
 
+    RESULT_TID_ATTR="_result_tid"
+    DUP_ATTR="_setprov_dup_count"
+
     def __post_init__(self):
         if isinstance(self.rows,list):
             self.rows = Counter(self.rows)
@@ -119,6 +122,73 @@ class Table:
                 result += rstr
 
         result = result[:-1]
+
+        return result
+
+    def get_attr_pos(self,a):
+        return self.schema.index(a)
+
+    def get_composable_attrs_pos(self):
+        return (self.get_attr_pos(Table.RESULT_TID_ATTR), self.get_attr_pos(Table.DUP_ATTR))
+
+    @classmethod
+    def is_prov_attr(cls, a):
+        return a.startswith("prov_")
+
+    @classmethod
+    def is_normal_attr(cls, a):
+        return a not in [ Table.DUP_ATTR, Table.RESULT_TID_ATTR ] and not Table.is_prov_attr(a)
+
+    def row_project_normal(self,row):
+        return tuple([ row[i] for i in [ i for (i,x) in enumerate(self.schema) if Table.is_normal_attr(x) ] ])
+
+    def row_project_provenance(self,row):
+        return tuple([ row[i] for i in [ i for (i,x) in enumerate(self.schema) if Table.is_prov_attr(x) ] ])
+
+    def row_get_attr(self,row,a):
+        pos = self.schema.index(a)
+        return row[pos]
+
+    def row_set_attr(self,row,a,val):
+        pos = self.schema.index(a)
+        row[pos] = val
+
+    def normalize_prov_composable(self):
+        """
+        replace _result_tid attribute with a hash based on the (non-provenance attributes), and set provenance duplicate counter attribute based on sorting on a hash of the provenance attributes
+        """
+        group_by_result = {}
+        normalizedcnter = Counter()
+
+        # if this input does not have the compositional provenance attributes,
+        # then do not attempt to normalize
+        if not Table.RESULT_TID_ATTR in self.schema or not Table.DUP_ATTR in self.schema:
+            return self
+
+        for row in self.rows.elements():
+            key = self.row_project_normal(row)
+            if key not in group_by_result:
+                group_by_result[key] = []
+            group_by_result[key].append(row)
+        log(f"grouped result: {group_by_result}")
+
+        for grp in group_by_result:
+            resulttid = hash(tuple(grp))
+            rows = group_by_result[grp]
+            log(f"unsorted rows {rows} for group {grp}")
+            rows = sorted(rows,key=lambda x: self.row_project_provenance(x))
+            log(f"sorted rows {rows} for group {grp}")
+            for i,r in enumerate(rows):
+                r = list(r)
+                log(f"original row {r}")
+                self.row_set_attr(r, Table.RESULT_TID_ATTR, str(resulttid))
+                self.row_set_attr(r, Table.DUP_ATTR, str(i))
+                r = tuple(r)
+                log(f"updated row {r}")
+                normalizedcnter.update([r])
+
+        result = Table(self.schema, normalizedcnter)
+        log(f"Updated table:\n{result}")
 
         return result
 
@@ -219,6 +289,9 @@ class GProMSetting:
 
     def __hash__(self):
         return hash(self.setting)
+
+    def __contains__(self, key):
+        return key in self.setting
 
     def items(self):
         return self.setting.items()
@@ -523,6 +596,7 @@ class GProMTestRunner:
         log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
         exp = test.expected
         setting = conf[name]
+        is_prov_composable = '-prov_use_composable' in setting
         self.ensure_dicts(name)
         self.queries[name][test.name] = test.query
         try:
@@ -532,6 +606,9 @@ class GProMTestRunner:
                 actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
             log(f"actual result was {'different' if not (exp == actual) else 'correct'}:\n{actual}")
             self.actualresults[name][test.name] = str(actual)
+            if is_prov_composable:
+                actual = actual.normalize_prov_composable()
+                exp = exp.normalize_prov_composable()
             correct = (exp == actual)
             self.results[name][test.name] = correct
 
