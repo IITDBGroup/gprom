@@ -213,5 +213,46 @@ PROVENANCE OF (SELECT sum(a) FROM R WHERE b &lt;&gt; b);
  NULL   | NULL     | NULL     |
 </entry>
 
+<entry key="q20.query">
+PROVENANCE OF (SELECT * FROM r, (SELECT min(a) AS x FROM r) m WHERE r.a = m.x);
+</entry>
+<entry key="q20.result">
+ a | b | x | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b |
+------------------------------------------------------------
+ 1 | 1 | 1 | 1        | 1        | 1          | 1          |
+ 1 | 1 | 1 | 1        | 1        | 1          | 2          |
+ 1 | 1 | 1 | 1        | 1        | 2          | 1          |
+ 1 | 1 | 1 | 1        | 1        | 2          | 3          |
+ 1 | 2 | 1 | 1        | 2        | 1          | 1          |
+ 1 | 2 | 1 | 1        | 2        | 1          | 2          |
+ 1 | 2 | 1 | 1        | 2        | 2          | 1          |
+ 1 | 2 | 1 | 1        | 2        | 2          | 3          |
+</entry>
+
+<entry key="q21.query">
+PROVENANCE OF (SELECT * FROM (SELECT max(a) AS y FROM r) n, (SELECT min(a) AS x FROM r) m WHERE n.y != m.x);
+</entry>
+<entry key="q21.result">
+ y | x | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b |
+--------------------------------------------------------
+ 2 | 1 | 1        | 1        | 1          | 1          |
+ 2 | 1 | 1        | 1        | 1          | 2          |
+ 2 | 1 | 1        | 1        | 2          | 1          |
+ 2 | 1 | 1        | 1        | 2          | 3          |
+ 2 | 1 | 1        | 2        | 1          | 1          |
+ 2 | 1 | 1        | 2        | 1          | 2          |
+ 2 | 1 | 1        | 2        | 2          | 1          |
+ 2 | 1 | 1        | 2        | 2          | 3          |
+ 2 | 1 | 2        | 1        | 1          | 1          |
+ 2 | 1 | 2        | 1        | 1          | 2          |
+ 2 | 1 | 2        | 1        | 2          | 1          |
+ 2 | 1 | 2        | 1        | 2          | 3          |
+ 2 | 1 | 2        | 3        | 1          | 1          |
+ 2 | 1 | 2        | 3        | 1          | 2          |
+ 2 | 1 | 2        | 3        | 2          | 1          |
+ 2 | 1 | 2        | 3        | 2          | 3          |
+</entry>
+
+
 
 </properties>

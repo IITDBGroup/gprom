@@ -204,4 +204,63 @@ PROVENANCE OF (SELECT round(avg(a),2) AS x, round(avg(a+b),1) AS y, round(sum(0.
  1.75 | 4.5 | 15.4 | 3        | 4        |
 </entry>
 
+<entry key="q19.query">
+PROVENANCE OF (SELECT sum(a) FROM R USE PROVENANCE (b) WHERE b &lt;&gt; b);
+</entry>
+<entry key="q19.result">
+ sum(a) | prov_r_b |
+--------------------
+ NULL   | NULL     |
+</entry>
+
+<entry key="q20.query">
+  PROVENANCE OF (
+  SELECT *
+  FROM r USE PROVENANCE (a),
+       (SELECT min(a) AS x FROM r USE PROVENANCE (a)) m
+  WHERE r.a = m.x);
+</entry>
+<entry key="q20.result">
+ a | b | x | prov_r_a | prov_r_1_a |
+------------------------------------
+ 1 | 1 | 1 | 1        | 1          |
+ 1 | 1 | 1 | 1        | 1          |
+ 1 | 1 | 1 | 1        | 2          |
+ 1 | 1 | 1 | 1        | 2          |
+ 1 | 2 | 1 | 1        | 1          |
+ 1 | 2 | 1 | 1        | 1          |
+ 1 | 2 | 1 | 1        | 2          |
+ 1 | 2 | 1 | 1        | 2          |
+</entry>
+
+<entry key="q21.query">
+PROVENANCE OF (
+  SELECT *
+  FROM (SELECT max(a) AS y FROM r USE PROVENANCE (b)) n,
+       (SELECT min(a) AS x FROM r USE PROVENANCE (b)) m
+  WHERE n.y != m.x);
+</entry>
+<entry key="q21.result">
+ y | x | prov_r_b | prov_r_1_b |
+--------------------------------
+ 2 | 1 | 1        | 1          |
+ 2 | 1 | 1        | 2          |
+ 2 | 1 | 1        | 1          |
+ 2 | 1 | 1        | 3          |
+ 2 | 1 | 2        | 1          |
+ 2 | 1 | 2        | 2          |
+ 2 | 1 | 2        | 1          |
+ 2 | 1 | 2        | 3          |
+ 2 | 1 | 1        | 1          |
+ 2 | 1 | 1        | 2          |
+ 2 | 1 | 1        | 1          |
+ 2 | 1 | 1        | 3          |
+ 2 | 1 | 3        | 1          |
+ 2 | 1 | 3        | 2          |
+ 2 | 1 | 3        | 1          |
+ 2 | 1 | 3        | 3          |
+</entry>
+
+
+
 </properties>
