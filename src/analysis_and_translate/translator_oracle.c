@@ -270,14 +270,14 @@ translateGeneral (Node *node, List **attrsOffsetsList)
     }
 
     Set *done = PSET();
-    disambiguiteAttrNames(result, done);
+    disambiguateAttrNames(result, done);
 
     return result;
 }
 
 
 boolean
-disambiguiteAttrNames(Node *node, Set *done)
+disambiguateAttrNames(Node *node, Set *done)
 {
     QueryOperator *op;
     boolean changed = FALSE;
@@ -289,7 +289,7 @@ disambiguiteAttrNames(Node *node, Set *done)
     {
         FOREACH(QueryOperator,q,(List *) node)
         {
-            changed |= disambiguiteAttrNames((Node *) q, done);
+            changed |= disambiguateAttrNames((Node *) q, done);
         }
         return changed;
     }
@@ -298,7 +298,7 @@ disambiguiteAttrNames(Node *node, Set *done)
 
     FOREACH(Node,child,op->inputs)
     {
-        changed |= disambiguiteAttrNames(child, done);
+        changed |= disambiguateAttrNames(child, done);
     }
 
     // if children have changed we need to fix operator's attributes
@@ -339,13 +339,28 @@ disambiguiteAttrNames(Node *node, Set *done)
 
             child = (QueryOperator *) getNthOfListP(op->inputs, input);
             childA = getAttrDefByPos(child, attrPos);
-            if (!strpeq(a->name,childA->attrName) && a->outerLevelsUp == 0) //TODO any corelated referejces to this attribute have to be fixed too!
+            if (!strpeq(a->name,childA->attrName) && a->outerLevelsUp == 0) // FIXME any correlated references to this attribute have to be fixed too!
             {
                 a->name = strdup(childA->attrName);
             }
         }
-        // adapt schema based on changed attributes
-        adaptSchemaFromChildren(op);
+
+        // adapt schema based on changed attributes, but only if renames
+        // attributes are not unique. If they are already unique we can stop
+        // here. Also if this is the final projection or the input of a
+        // provenance computation we would like to keep attribute names.
+        // We can then allow repeated attribute names as SQL does?
+        boolean hasNonProvenanceOpParents = FALSE;
+        FOREACH(QueryOperator,p,op->parents)
+        {
+            hasNonProvenanceOpParents |= !isA(p,ProvenanceComputation);
+        }
+        if(op->parents != NIL
+           || hasNonProvenanceOpParents
+           || !checkUniqueAttrNames(op))
+        {
+            adaptSchemaFromChildren(op);
+        }
     }
 
     //TODO What other ops to consider

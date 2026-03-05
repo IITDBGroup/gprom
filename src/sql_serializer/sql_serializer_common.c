@@ -36,10 +36,12 @@
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer.h"
 
-
-//#define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
 #define TEMP_VIEW_NAME_PATTERN "temp_view_%u"
 
+typedef struct UpdateWindowOpAttrsContext {
+    FromAttrsContext *fac;
+    HashMap *winfAttrs;
+} UpdateWindowOpAttrsContext;
 
 static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);
@@ -50,7 +52,7 @@ static HashMap *getNestAttrMap(QueryOperator *op, FromAttrsContext *fac, Seriali
 static void setNestAttrMap(QueryOperator *op, HashMap **map, FromAttrsContext *fac, SerializeClausesAPI *api);
 static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean *inNonMatchSel, QueryBlockMatch *m, boolean outOfFrom);
 static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr);
-
+static boolean updateWindowAttrsInternal(Node *node, UpdateWindowOpAttrsContext *context);
 
 
 /*
@@ -1120,7 +1122,7 @@ genSerializePreparedStatement(QueryOperator *q, StringInfo prep, SerializeClause
 }
 
 void
-genSerializeExecPreparedOperator (ExecPreparedOperator *q, StringInfo exec)
+genSerializeExecPreparedOperator(ExecPreparedOperator *q, StringInfo exec)
 {
 	appendStringInfo(exec, "EXEC %s", q->name);
 	if(q->params)
@@ -1135,8 +1137,8 @@ genSerializeExecPreparedOperator (ExecPreparedOperator *q, StringInfo exec)
 }
 
 void
-genSerializeOrderByOperator (OrderOperator *q, StringInfo order, FromAttrsContext *fac,
-							 SerializeClausesAPI *api) //TODO check since copied from Oracle
+genSerializeOrderByOperator(OrderOperator *q, StringInfo order, FromAttrsContext *fac,
+							SerializeClausesAPI *api) //TODO check since copied from Oracle
 {
 	appendStringInfoString(order, "\nORDER BY ");
     //updateAttributeNames((Node *) q->orderExprs, (List *) fromAttrs);
@@ -1157,41 +1159,94 @@ updateAttributeNames(Node *node, FromAttrsContext *fac)
     if (isA(node, AttributeReference))
     {
         AttributeReference *a = (AttributeReference *) node;
-        DEBUG_LOG("a: %s",a->name);
-        char *newName;
-        List *outer = NIL;
-        int fromItem = -1;
-        int attrPos = 0;
-
-		if(!fac->nestAttrMap || !MAP_HAS_STRING_KEY(fac->nestAttrMap, a->name))
-		{
-			List *attrsList = NIL;
-			if(a->outerLevelsUp > 0) // outer query correlated attributes
-				attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp - 1);
-			else // attribute from current query block
-				attrsList = (List *) fac->fromAttrs;
-
-			FOREACH(List, attrs, attrsList)
-			{
-				attrPos += LIST_LENGTH(attrs);
-				fromItem++;
-				if (attrPos > a->attrPosition)
-				{
-					outer = attrs;
-					break;
-				}
-			}
-			attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
-			newName = getNthOfListP(outer, attrPos);
-
-			if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
-				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", newName);
-			else
-				a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-(a->outerLevelsUp)) , ".", newName);
-		}
+        updateAttributeReference(a, fac);
     }
 
     return visit(node, updateAttributeNames, fac);
+}
+
+
+
+boolean
+updateWindowAttributeNames(Node *node, FromAttrsContext *fac, HashMap *winfAttrs)
+{
+    boolean result;
+    UpdateWindowOpAttrsContext *context = NEW(UpdateWindowOpAttrsContext);
+    context->winfAttrs = winfAttrs;
+    context->fac = fac;
+
+    result = updateWindowAttrsInternal(node, context);
+    FREE(context);
+
+    return result;
+}
+
+static boolean
+updateWindowAttrsInternal(Node *node, UpdateWindowOpAttrsContext *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        if(MAP_HAS_STRING_KEY(context->winfAttrs,a->name))
+        {
+            a->name = strdup(MAP_GET_STRING_VAL_FOR_STRING_KEY(context->winfAttrs, a->name));
+        }
+        else
+        {
+            updateAttributeReference(a, context->fac);
+        }
+    }
+
+    return visit(node, updateWindowAttrsInternal, context);
+}
+
+void
+updateAttributeReference(AttributeReference *a, FromAttrsContext *fac)
+{
+    DEBUG_LOG("a: %s",a->name);
+    char *newName;
+    List *outer = NIL;
+    int fromItem = -1;
+    int attrPos = 0;
+
+	if(!fac->nestAttrMap || !MAP_HAS_STRING_KEY(fac->nestAttrMap, a->name))
+	{
+		List *attrsList = NIL;
+		if(a->outerLevelsUp > 0) // outer query correlated attributes
+			attrsList = (List *) getNthOfListP(fac->fromAttrsList, a->outerLevelsUp - 1);
+		else // attribute from current query block
+			attrsList = (List *) fac->fromAttrs;
+
+		FOREACH(List, attrs, attrsList)
+		{
+			attrPos += LIST_LENGTH(attrs);
+			fromItem++;
+			if (attrPos > a->attrPosition)
+			{
+				outer = attrs;
+				break;
+			}
+		}
+		attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
+        if(attrPos < 0 || attrPos >= LIST_LENGTH(outer))
+        {
+            printFromAttrsContext(fac);
+            THROW(SEVERITY_RECOVERABLE,
+                  "attribute <%s> not found in FromClauseAttr:\n%s",
+                  a->name,
+                  a);
+
+        }
+		newName = getNthOfListP(outer, attrPos);
+
+		if(a->outerLevelsUp == -1)  //deal with nesting_eval_1 attribute which with outerLevelsUp = -1
+			a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)), ".", newName);
+		else
+			a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), "_", gprom_itoa(LIST_LENGTH(fac->fromAttrsList)-(a->outerLevelsUp)) , ".", newName);
+	}
 }
 
 /*
@@ -1268,7 +1323,7 @@ genCreateTempView(QueryOperator *q, StringInfo str, QueryOperator *parent, FromA
 }
 
 static char *
-createViewName (SerializeClausesAPI *api)
+createViewName(SerializeClausesAPI *api)
 {
     StringInfo str = makeStringInfo();
 
@@ -1278,7 +1333,7 @@ createViewName (SerializeClausesAPI *api)
 }
 
 char *
-exprToSQLWithNamingScheme (Node *expr, int rOffset,FromAttrsContext *fac)
+exprToSQLWithNamingScheme(Node *expr, int rOffset,FromAttrsContext *fac)
 {
     JoinAttrRenameState *state = NEW(JoinAttrRenameState);
 
@@ -1291,7 +1346,7 @@ exprToSQLWithNamingScheme (Node *expr, int rOffset,FromAttrsContext *fac)
 }
 
 static boolean
-renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
+renameAttrsVisitor(Node *node, JoinAttrRenameState *state)
 {
     if (node == NULL)
         return TRUE;

@@ -1393,7 +1393,7 @@ rewriteUncertProvComp(QueryOperator *op, boolean attrLevel)
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
-    disambiguiteAttrNames((Node *) top, done);
+    disambiguateAttrNames((Node *) top, done);
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, top);
@@ -1431,7 +1431,7 @@ rewriteRangeProvComp(QueryOperator *op)
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
-    disambiguiteAttrNames((Node *) top, done);
+    disambiguateAttrNames((Node *) top, done);
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, top);

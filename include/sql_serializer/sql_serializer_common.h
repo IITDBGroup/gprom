@@ -168,6 +168,8 @@ extern List *genCreateTempView (QueryOperator *q, StringInfo str,
 extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac);
 extern boolean updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state);
 extern boolean updateAttributeNames(Node *node, FromAttrsContext *fac);
+extern void updateAttributeReference(AttributeReference *a, FromAttrsContext *fac);
+extern boolean updateWindowAttributeNames(Node *node, FromAttrsContext *fac, HashMap *winfAttrs);
 extern boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 
 //for nesting

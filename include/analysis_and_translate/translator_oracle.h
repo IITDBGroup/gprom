@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * translator_oracle.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -17,6 +17,6 @@
 
 extern Node *translateParseOracle(Node *q);
 extern QueryOperator *translateQueryOracle(Node *node);
-extern boolean disambiguiteAttrNames(Node *node, Set *done);
+extern boolean disambiguateAttrNames(Node *node, Set *done);
 
 #endif /* INCLUDE_ANALYSIS_AND_TRANSLATE_TRANSLATOR_ORACLE_H_ */
