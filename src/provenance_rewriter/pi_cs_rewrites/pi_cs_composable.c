@@ -26,6 +26,7 @@
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
+#include "utility/string_utils.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "operator_optimizer/cost_based_optimizer.h"
@@ -936,6 +937,11 @@ rewritePI_CSComposableProjection (ProjectionOperator *op, PICSComposableRewriteS
     LOG_RESULT_AND_RETURN(PICS-Composable,Projection);
 }
 
+#define LEFT_RESULT_TID_ATTR CONCAT_STRINGS("left_", RESULT_TID_ATTR)
+#define LEFT_PROV_DUP_ATTR CONCAT_STRINGS("left_", PROV_DUPL_COUNT_ATTR)
+#define RIGHT_RESULT_TID_ATTR CONCAT_STRINGS("right_",RESULT_TID_ATTR)
+#define RIGHT_PROV_DUP_ATTR CONCAT_STRINGS("right_", PROV_DUPL_COUNT_ATTR)
+
 static QueryOperator *
 rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 {
@@ -951,6 +957,7 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
     List *rNormAttrs;
     int numLAttrs, numRAttrs;
 	List *provInfo;
+    List *joinresAttrNames = NIL;
 
     numLAttrs = getNumAttrs(lChild);
     numRAttrs = getNumAttrs(rChild);
@@ -970,6 +977,36 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
     addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrRightInput);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) rewr);
 
+    // as at least the result tid and dup attributes will be replicated rename them
+    FOREACH(char,a,getQueryOperatorAttrNames(rewrLeftInput))
+    {
+        char *newname = strdup(a);
+        if(streq(a,RESULT_TID_ATTR) || streq(a,PROV_DUPL_COUNT_ATTR))
+        {
+            newname = strAddPrefix(a, "left_");
+        }
+        joinresAttrNames = appendToTailOfList(joinresAttrNames, newname);
+    }
+    FOREACH(char,a,getQueryOperatorAttrNames(rewrRightInput))
+    {
+        char *newname = strdup(a);
+        if(streq(a,RESULT_TID_ATTR) || streq(a,PROV_DUPL_COUNT_ATTR))
+        {
+            newname = strAddPrefix(a, "right_");
+        }
+        joinresAttrNames = appendToTailOfList(joinresAttrNames, newname);
+    }
+
+    FORBOTH(void,a,name,rewr->schema->attrDefs,joinresAttrNames)
+    {
+        char *aname = (char *) name;
+        AttributeDef *ad = (AttributeDef *) a;
+
+        ad->attrName = strdup(aname);
+    }
+	// make sure join result attributes are unique and rename
+	makeAttrNamesUnique(rewr);
+
     // add window functions for result TID and prov dup columns
     if (!lChildNoDup || !rChildNoDup)
     {
@@ -979,16 +1016,17 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 
         if (lChildNoDup)
         {
-            AttributeReference *childResultTidAttr = (AttributeReference *)
-                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrLeftInput));
+            AttributeReference *childResultTidAttr = getAttrRefByName(rewr, LEFT_RESULT_TID_ATTR);
+                    /* (AttributeReference *)  getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrLeftInput)); */
             orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
             partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
         }
         if (rChildNoDup)
         {
-            AttributeReference *childResultTidAttr = (AttributeReference *)
-                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrRightInput));
-            childResultTidAttr->attrPosition += getNumAttrs(lChild);
+            AttributeReference *childResultTidAttr = getAttrRefByName(rewr, RIGHT_RESULT_TID_ATTR);
+            // (AttributeReference *)
+            /* getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrRightInput)); */
+            /* childResultTidAttr->attrPosition += getNumAttrs(lChild); */
             orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
             partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
         }
@@ -1036,7 +1074,9 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 
     // get special attributes from window op or create projection expression for them
     if (!noDupInput)
+    {
         resultTidAndProvCount = getResultTidAndProvDupAttrsProjExprs((QueryOperator *) wOp);
+    }
     else
     {
         resultTidAndProvCount = LIST_MAKE(
@@ -1069,9 +1109,6 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
         addParent((QueryOperator *) wOp, (QueryOperator *) proj);
         addParent((QueryOperator *) rewr, (QueryOperator *) prev);
     }
-
-	// make sure join result attributes are unique
-	makeAttrNamesUnique(rewr);
 
 	// final result is the projection
 	rewr = (QueryOperator *) proj;
@@ -2169,9 +2206,15 @@ getAllAttrWithoutSpecial(QueryOperator *op)
 
     FOREACH(AttributeDef,a,norm)
     {
-        if (strcmp(a->attrName, RESULT_TID_ATTR) != 0
-                && strcmp(a->attrName, PROV_DUPL_COUNT_ATTR) != 0)
+        if (!streq(a->attrName, RESULT_TID_ATTR)
+            && !streq(a->attrName, PROV_DUPL_COUNT_ATTR)
+            && !streq(a->attrName, LEFT_RESULT_TID_ATTR)
+            && !streq(a->attrName, LEFT_PROV_DUP_ATTR)
+            && !streq(a->attrName, RIGHT_RESULT_TID_ATTR)
+            && !streq(a->attrName, RIGHT_PROV_DUP_ATTR))
+        {
             result = appendToTailOfList(result, a);
+        }
     }
 
     return result;
@@ -2185,9 +2228,15 @@ getNormalAttrWithoutSpecial(QueryOperator *op)
 
     FOREACH(AttributeDef,a,norm)
     {
-        if (strcmp(a->attrName, RESULT_TID_ATTR) != 0
-                && strcmp(a->attrName, PROV_DUPL_COUNT_ATTR) != 0)
+        if (!streq(a->attrName, RESULT_TID_ATTR)
+            && !streq(a->attrName, PROV_DUPL_COUNT_ATTR)
+            && !streq(a->attrName, LEFT_RESULT_TID_ATTR)
+            && !streq(a->attrName, LEFT_PROV_DUP_ATTR)
+            && !streq(a->attrName, RIGHT_RESULT_TID_ATTR)
+            && !streq(a->attrName, RIGHT_PROV_DUP_ATTR))
+        {
             result = appendToTailOfList(result, a);
+        }
     }
 
     return result;
@@ -2222,9 +2271,15 @@ removeSpecialAttrsFromNormalProjectionExprs(List *projExpr)
 
     FOREACH(AttributeReference,a,projExpr)
     {
-        if (strcmp(a->name, RESULT_TID_ATTR) != 0
-            && strcmp(a->name, PROV_DUPL_COUNT_ATTR) != 0)
+        if (!streq(a->name, RESULT_TID_ATTR)
+            && !streq(a->name, PROV_DUPL_COUNT_ATTR)
+            && !streq(a->name, LEFT_RESULT_TID_ATTR)
+            && !streq(a->name, LEFT_PROV_DUP_ATTR)
+            && !streq(a->name, RIGHT_RESULT_TID_ATTR)
+            && !streq(a->name, RIGHT_PROV_DUP_ATTR))
+        {
             result = appendToTailOfList(result, a);
+        }
     }
 
     return result;
