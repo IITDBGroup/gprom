@@ -22,5 +22,26 @@ PROVENANCE OF (SELECT sum(b) AS x, a FROM r GROUP BY a ORDER BY x DESC, a LIMIT 
  4 | 2 | 2        | 3        |
 </entry>
 
+<entry key="q3.query">
+PROVENANCE OF (
+  SELECT sum(b * (1 - d)) AS x,
+         a
+    FROM r, s
+   WHERE r.b = s.d
+   GROUP BY a,c
+   ORDER BY x DESC, a
+   LIMIT 2
+);
+</entry>
+<entry key="q3.result">
+ x  | a | prov_r_a | prov_r_b | prov_s_c | prov_s_d |
+-----------------------------------------------------
+ -2 | 1 | 1        | 2        | 2        | 2        |
+ -2 | 1 | 1        | 2        | 2        | 2        |
+ -2 | 1 | 1        | 2        | 3        | 2        |
+ -2 | 1 | 1        | 2        | 3        | 2        |
+</entry>
+
+
 
 </properties>
