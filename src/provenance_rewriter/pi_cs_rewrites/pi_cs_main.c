@@ -12,10 +12,8 @@
 
 #include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
-#include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
-#include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
@@ -33,8 +31,6 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
-#include "metadata_lookup/metadata_lookup.h"
-#include "temporal_queries/temporal_rewriter.h"
 
 typedef struct PICSRewriteState {
     HashMap *opToRewrittenOp; // mapping op address to address of rewritten operator
