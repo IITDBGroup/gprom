@@ -1998,6 +1998,7 @@ updateWindowAttrsInternal(Node *node, UpdateWindowOpAttrsContext *context)
     return visit(node, updateWindowAttrsInternal, context);
 }
 
+// FIXME this is not adjusted yet to the more sophisticated nested subquery handling in the temporal nesting branch
 void
 updateAttributeReference(AttributeReference *a, FromAttrsContext *fac)
 {
@@ -2007,7 +2008,7 @@ updateAttributeReference(AttributeReference *a, FromAttrsContext *fac)
     int fromItem = -1;
     int attrPos = 0;
 
-	if(!fac->nestAttrMap || !MAP_HAS_STRING_KEY(fac->nestAttrMap, a->name))
+	if(!fac->api->nestAttrMap || !MAP_HAS_STRING_KEY(fac->api->nestAttrMap, a->name))
 	{
 		List *attrsList = NIL;
 		if(a->outerLevelsUp > 0) // outer query correlated attributes
