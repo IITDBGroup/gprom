@@ -566,6 +566,7 @@ class GProMTestRunner:
     root: GProMTestSuite
     gprompath: str
     conf: GProMSettings
+    debugconf: GProMSetting
     failonerror: bool = False
     testcases: list[str] = None
     settings: list[str] = None
@@ -626,11 +627,21 @@ class GProMTestRunner:
             log(f"got exception: {e}")
             if options.debug:
                 traceback.print_exc()
+            # if asked for details rerun gprom in debug settings
             self.results[name][test.name] = False
+            if options.errordetails:
+                try:
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, self.debugconf)
+                    self.actualresults[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
+                    self.errors[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
+                except Exception as e2:
+                    self.errors[name][test.name] = str(e2)
             if self.failonerror:
+                self.progressbar.update()
                 raise e
             else:
-                self.errors[name][test.name] = str(e)
+                if test.name not in self.errors[name]:
+                    self.errors[name][test.name] = str(e)
             self.progressbar.update()
             return False
 
@@ -840,14 +851,13 @@ def default_gprom_settings_from_options(opions):
             "-passwd": options.password,
             "-user": options.user
         }))
-    if options.gpromdebug:
-        settings = settings.union(GProMSetting({
+    debugsettings = settings.union(GProMSetting({
             "-loglevel": str(options.loglevel),
             "-aggressive_model_checking": "TRUE",
             "-Loperator_verbose": "TRUE",
             "-Loperator_verbose_props": "2",
-        }))
-    return GProMSettings({DEFAULT_SETTING_NAME: settings})
+    }))
+    return (GProMSettings({DEFAULT_SETTING_NAME: settings}),debugsettings)
 
 def parse_args():
     ap = argparse.ArgumentParser(description='Running semantic optimization experiment')
@@ -867,8 +877,8 @@ def parse_args():
                     help="if provided, then stop after the first error")
     ap.add_argument("-D", "--debug", action='store_true',
                     help="debug the process by logging more information.")
-    ap.add_argument("--gpromdebug", action='store_true',
-                    help="request gprom to print more logging information.")
+    # ap.add_argument("--gpromdebug", action='store_true',
+    #                 help="request gprom to print more logging information.")
     ap.add_argument("-l", "--loglevel", type=int, default=3,
                     help="log level to use when debugging.")
     ap.add_argument("-b", "--backend", type=str, default="sqlite",
@@ -912,11 +922,12 @@ def main():
     options = parse_args()
     parse_test_cases_selection()
     parse_settings_selection()
-    conf = default_gprom_settings_from_options(options)
+    conf,debugconf = default_gprom_settings_from_options(options)
     rootsuite = GProMXMLTestLoader.load_xmls_from_dir(get_relative_path('testcases'))
     runner = GProMTestRunner(root=rootsuite,
                     gprompath=options.gprom,
                     conf=conf,
+                    debugconf=debugconf,
                     failonerror=options.stoponerror,
                     testcases=options.tests,
                     settings=options.settings)
