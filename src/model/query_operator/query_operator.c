@@ -1083,6 +1083,26 @@ format_prop_value_for_user(char *prop, Node *val)
         return s->data;
     }
 
+	// user provenance attributes
+	if(streq(prop, PROP_USER_PROV_ATTRS))
+	{
+		StringInfo s = makeStringInfo();
+
+		appendStringInfoString(s,"(");
+
+		FOREACH(Constant,c,(List *) val)
+		{
+			appendStringInfo(s,
+							 "%s%s",
+							 STRING_VALUE(c),
+							 FOREACH_HAS_MORE(c) ? ", " : "");
+		}
+
+		appendStringInfoString(s,")");
+
+		return s->data;
+	}
+
     // provenance attribute information for pull-up
     if(streq(prop, PROP_PROVENANCE_TABLE_ATTRS))
     {
@@ -1569,6 +1589,33 @@ opReferencesAttr(QueryOperator *op, char *a)
 	return FALSE;
 }
 
+HashMap *
+joinGetChildAttrToResultAttr(JoinOperator *op, boolean left)
+{
+	HashMap *caToA = NEW_MAP(Constant,Constant);
+    int numleftattr = getNumAttrs(OP_LCHILD(op));
+    List *inNames = NIL;
+    List *outNames = getQueryOperatorAttrNames((QueryOperator *) op);
+
+    if(left)
+    {
+        outNames = sublist(outNames, 0, numleftattr);
+        inNames = getQueryOperatorAttrNames(OP_LCHILD(op));
+    }
+    else
+    {
+        outNames = sublist(outNames, numleftattr, -1);
+        inNames = getQueryOperatorAttrNames(OP_RCHILD(op));
+    }
+
+    FORBOTH(char,in,out,inNames,outNames)
+    {
+        MAP_ADD_STRING_KEY_AND_VAL(caToA, out, in);
+    }
+
+	return caToA;
+}
+
 List *
 aggOpGetGroupByAttrNames(AggregationOperator *op)
 {
@@ -1601,6 +1648,7 @@ aggOpGetGroupByAttrDefs(AggregationOperator *op)
 
     return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
 }
+
 
 List *
 aggOpGetAggAttrDefs(AggregationOperator *op)

@@ -227,6 +227,7 @@ extern boolean searchListNode(List *list, Node *value);
 extern boolean searchListString(List *list, char *value);
 extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), void *value);
 
+#define SEARCH_NOT_FOUND -1
 extern int listPosString (List *list, char *value);
 extern int genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
 extern int listPosInt (List *list, int val);

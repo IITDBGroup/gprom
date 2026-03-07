@@ -16,12 +16,12 @@
 
   <entry key="extra_settings.noopt-aggwin">
     -prov_use_composable,
-    -prov_instrument_agg_window:TRUE
+    -prov_instrument_agg_window
   </entry>
 
   <entry key="extra_settings.heuopt-aggwin">
     -heuristic_opt,
     -prov_use_composable,
-    -prov_instrument_agg_window:TRUE
+    -prov_instrument_agg_window
   </entry>
 </properties>

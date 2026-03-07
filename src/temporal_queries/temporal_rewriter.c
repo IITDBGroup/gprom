@@ -131,7 +131,7 @@ rewriteImplicitTemporal(QueryOperator *q)
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
     topSchema = copyObject(q->schema->attrDefs);
-    disambiguiteAttrNames((Node *) top, done);
+    disambiguateAttrNames((Node *) top, done);
     if (!isA(top,ProjectionOperator))
     {
         QueryOperator *proj = createProjOnAllAttrs(top);

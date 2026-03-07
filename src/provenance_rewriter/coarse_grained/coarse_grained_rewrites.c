@@ -744,7 +744,7 @@ bottomUpPropagateLevelAggregationInternal(QueryOperator *op, psInfo *psPara, Agg
 	FOREACH(QueryOperator, o, op->inputs)
 	{
 		HashMap *childMap = bottomUpPropagateLevelAggregationInternal(o, psPara, ctx);
-		unionMap(provAttrInfo, copyObject(childMap));
+		unionIntoMap(provAttrInfo, copyObject(childMap));
 	}
 
 	// if this is an aggregation we have to adapt increment number of aggregation levels

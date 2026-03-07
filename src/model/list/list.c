@@ -816,7 +816,7 @@ searchListInt(List *list, int value)
 boolean
 searchListString(List *list, char *value)
 {
-    return listPosString(list, value) != -1;
+    return listPosString(list, value) != SEARCH_NOT_FOUND;
 }
 
 boolean
@@ -836,7 +836,7 @@ searchListNode(List *list, Node *value)
 boolean
 genericSearchList(List *list, boolean (*eq) (void *, void *), void *value)
 {
-    return genericListPos(list, eq, value) != -1;
+    return genericListPos(list, eq, value) != SEARCH_NOT_FOUND;
 }
 
 
@@ -853,7 +853,7 @@ genericListPos (List *list, boolean (*eq) (void *, void *), void *value)
         pos++;
     }
 
-    return -1;
+    return SEARCH_NOT_FOUND;
 }
 
 int
@@ -869,7 +869,7 @@ listPosInt(List *list, int val)
 	   pos++;
    }
 
-    return -1;
+    return SEARCH_NOT_FOUND;
 }
 
 int

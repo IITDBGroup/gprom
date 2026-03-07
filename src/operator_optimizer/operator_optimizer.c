@@ -72,9 +72,13 @@ static char *pullupProvProjToString(PullUpProvProjContext *context);
 static Set *getProvenanceAttrsFromOtherBranches(QueryOperator *op, PullUpProvProjContext *context);
 static List *getAndSetOriginalAttrLists(QueryOperator *op);
 static QueryOperator *pullup(QueryOperator *op, PullUpProvProjContext *context); //List *duplicateattrs, List *normalAttrNames);
-static void
-removeRemainingProvenanceAttributes(QueryOperator *op, PullUpProvProjContext *context);
+static void removeRemainingProvenanceAttributes(QueryOperator *op,
+												PullUpProvProjContext *context);
 static void sortProjProvenanceAttrs(ProjectionOperator *p);
+static void sortProjExprsWithReference(List **newAttrDefs,
+									   List **newproj,
+									   List **provAttrs,
+									   List *origAttrDefs);
 static void keepTrackOfRemainingAttributeRenaming(QueryOperator *p, PullUpProvProjContext *context);
 static void pushDownSelection(QueryOperator *root, List *opList,
                               QueryOperator *r, QueryOperator *child);
@@ -203,7 +207,9 @@ optimizeOneGraph (QueryOperator *root)
     		//char *a = (char *)getHeadOfListP(icols);
     		Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
     		FOREACH(char, a, icols)
-    		addToSet (seticols, a);
+			{
+    			addToSet (seticols, a);
+			}
     	}
 //    	/*    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
 //            removeRedundantDuplicateOperatorBySet,
@@ -1320,6 +1326,10 @@ pullingUpProvenanceProjections(QueryOperator *root)
                     pullup(OP_LCHILD(o), &context);
                 }
             }
+			else
+			{
+				getAndSetOriginalAttrLists((QueryOperator *) root);
+			}
             pullingUpProvenanceProjections(o);
         }
     }
@@ -1433,15 +1443,17 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
     // keep original list of provenance attributes for ordering
     getAndSetOriginalAttrLists(p);
 
+    // keep track of renaming of normal attributes whose provenance version remains unhandled (only for projection and join)
+    keepTrackOfRemainingAttributeRenaming(op, context);
+
     // keep track of provenance attributes coming from a separate branch
     unionIntoSet(context->otherBranchProvAttrs,
                  getProvenanceAttrsFromOtherBranches(p, context));
 
-    //TODO iterate over all parents or do not try to push if more than one parent
-
     // is parent a root operator need to treat all attribute as lost to ensure
     // we get the provenance attributes in the result schema
-    if(p->parents == NIL)
+	// TODO iterate over all parents (we can only pullup if attribute available in all parents
+    if(p->parents == NIL || LIST_LENGTH(p->parents) > 1)
     {
         isLost = TRUE;
         lostAttrs = copyObject(context->renamedRemainingAttr);
@@ -1492,6 +1504,7 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
             List *newproj = getNormalAttrProjExprs(po);
             List *newAttrDefs = getNormalAttrs(p);
             List *provAttrs = NIL;
+			List *origAttrNames = (List *) getStringProperty(p, PROP_ORIGINAL_ATTR_LIST);
             int pos = LIST_LENGTH(newproj);
 
             DEBUG_LOG("Adjust projection for lost provenance attributes:\n%s\n\nlost attrs: %s",
@@ -1553,6 +1566,8 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
                       nodeToString(provAttrs),
                       nodeToString(newAttrDefs));
 
+			sortProjExprsWithReference(&newAttrDefs, &newproj, &provAttrs, origAttrNames);
+
             po->projExprs = newproj;
             p->provAttrs = provAttrs;
             p->schema->attrDefs = newAttrDefs;
@@ -1602,6 +1617,12 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
             // need to copy original provenance attr list
             pr->op.properties = copyObject(op->properties);
 
+			sortProjExprsWithReference(&pr->op.schema->attrDefs,
+									   &pr->projExprs,
+									   &pr->op.provAttrs,
+									   (List *) getStringProperty((QueryOperator *) op,
+																  PROP_ORIGINAL_ATTR_LIST));
+
             DEBUG_LOG("lost attributes at operator, add projection and process it:\nop: %s\nproj: %s\nparent: %s",
                       singleOperatorToOverview(op),
                       singleOperatorToOverview(pr),
@@ -1621,9 +1642,6 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
 
         // remove provenance attributes that are not handled yet from schema
         removeRemainingProvenanceAttributes(p, context);
-
-        // keep track of renaming of normal attributes whose provenance version remains unhandled (only for projection and join)
-        keepTrackOfRemainingAttributeRenaming(p, context);
     }
 
     // continue to parent
@@ -1639,6 +1657,37 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
     {
         return p;
     }
+}
+
+static void
+sortProjExprsWithReference(List **newAttrDefs, List **newproj, List **provAttrs, List *origAttrNames)
+{
+	List *resultAttrDefs = NIL;
+	List *newnames = getAttrDefNames(*newAttrDefs);
+	List *realAttrNames = constStringListToStringList(origAttrNames);
+	List *resultproj = NIL;
+	List *resultprova = NIL;
+	int newpos = 0;
+
+	FOREACH(char,a,realAttrNames)
+	{
+		int pos = listPosString(newnames, a);
+
+		if(pos != SEARCH_NOT_FOUND)
+		{
+			resultAttrDefs = appendToTailOfList(resultAttrDefs, getNthOfListP(*newAttrDefs, pos));
+			resultproj = appendToTailOfList(resultproj, getNthOfListP(*newproj, pos));
+			if(searchListInt(*provAttrs, pos))
+			{
+				resultprova = appendToTailOfListInt(resultprova,newpos);
+			}
+			newpos++;
+		}
+	}
+
+	*newAttrDefs = resultAttrDefs;
+	*newproj = resultproj;
+	*provAttrs = resultprova;
 }
 
 static void
@@ -1845,7 +1894,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 
     if(l3 != NIL)
     {
-    		Node *opNode3 = changeListOpToAnOpNode(l3);
+    		Node *opNode3 = andExprList(l3);
     		((SelectionOperator *)r)->cond = (Node *)opNode3;
     }
     else
@@ -1855,7 +1904,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 
     if(l1 != NIL)
     {
-    	Node *opNode1 = changeListOpToAnOpNode(l1);
+    	Node *opNode1 = andExprList(l1);
     	SelectionOperator *newSo1 = createSelectionOp(opNode1, NULL, NIL,
     			getAttrNames(o1->schema));
 
@@ -1874,7 +1923,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 
     if(l2 != NIL)
     {
-    	Node *opNode2 = changeListOpToAnOpNode(l2);
+    	Node *opNode2 = andExprList(l2);
     	SelectionOperator *newSo2 = createSelectionOp(opNode2, NULL, NIL,
     			getAttrNames(o2->schema));
 
@@ -1989,7 +2038,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 		{
 			boolean flag = FALSE;
 			if(!streq(op->name, OPNAME_EQ))
+			{
 				newCondList = appendToTailOfList(newCondList, copyObject(op));
+			}
 			if(streq(op->name, OPNAME_EQ))
 			{
 				boolean f1 = FALSE;
@@ -2009,7 +2060,7 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 
 			if(newCondList != NIL)
 			{
-				Node *newCond = changeListOpToAnOpNode(copyObject(newCondList));
+				Node *newCond = andExprList(copyObject(newCondList));
 				((JoinOperator *)root)->cond = newCond;
 			}
 		}
@@ -2025,7 +2076,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 		{
 			boolean flag = FALSE;
 			if(!streq(op->name, OPNAME_EQ))
+			{
 				newCondList = appendToTailOfList(newCondList, copyObject(op));
+			}
 			if(streq(op->name, OPNAME_EQ))
 			{
 				flag = compareTwoOperators(op, o);
@@ -2036,7 +2089,7 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 
 		if(newCondList != NIL)
 		{
-			Node *newCond = changeListOpToAnOpNode(copyObject(newCondList));
+			Node *newCond = andExprList(copyObject(newCondList));
 			((SelectionOperator *)root)->cond = newCond;
 		}
 		else
@@ -2059,7 +2112,9 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 			changeNameRemoveUnnecessaryCond(p->projExprs, p->op.schema->attrDefs, o1);
 
 			FOREACH(QueryOperator, p1, root->parents)
-			       removeUnnecessaryCond(p1, o1);
+			{
+			    removeUnnecessaryCond(p1, o1);
+			}
 		}
 		else if(isA(root, AggregationOperator))
 		{
@@ -2069,12 +2124,16 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 			changeNameRemoveUnnecessaryCond(l, agg->op.schema->attrDefs, o1);
 
 			FOREACH(QueryOperator, p1, root->parents)
-			         removeUnnecessaryCond(p1, o1);
+			{
+			    removeUnnecessaryCond(p1, o1);
+			}
 		}
 		else
 		{
 			FOREACH(QueryOperator, p1, root->parents)
-	        		 removeUnnecessaryCond(p1, o);
+			{
+	        	removeUnnecessaryCond(p1, o);
+			}
 		}
 	}
 }
@@ -2086,8 +2145,12 @@ introduceSelectionInMoveAround(QueryOperator *root)
 	if(root->inputs != NULL)
 	{
 		FOREACH(QueryOperator, op, root->inputs)
+		{
 		    if (!HAS_STRING_PROP(op, PROP_OPT_SELECTION_MOVE_AROUND_DONE))
+			{
 		        introduceSelectionInMoveAround(op);
+			}
+		}
 	}
 
 	List *ECcond = getMoveAroundOpList(root);
@@ -2095,7 +2158,9 @@ introduceSelectionInMoveAround(QueryOperator *root)
 	FOREACH(Operator, o, ECcond)
 	{
 		if(root->parents != NIL)
+		{
 			removeUnnecessaryCond((QueryOperator *)getHeadOfListP(root->parents), o);
+		}
 
 		//Check if this cond op already have in its subtree
 		checkFlag = FALSE;
@@ -2116,7 +2181,7 @@ introduceSelectionInMoveAround(QueryOperator *root)
 					getSelectionCondOperatorList(((SelectionOperator *)parent)->cond,&pCond);
 
 					pCond = appendToTailOfList(pCond, copyObject(o));
-					Node *opCond = changeListOpToAnOpNode(copyObject(pCond));
+					Node *opCond = andExprList(copyObject(pCond));
 					((SelectionOperator *)parent)->cond = (Node *) opCond;
 
 					resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)parent,(QueryOperator *)root, NULL);
@@ -2124,40 +2189,12 @@ introduceSelectionInMoveAround(QueryOperator *root)
 				else
 				{
 					introduceSelection(o, root);
-//					Node *newOp = (Node *)copyObject(o);
-//					SelectionOperator *selectionOp = createSelectionOp(newOp, NULL, NIL, getAttrNames(root->schema));
-//
-//					// Switch the subtree with this newly created projection
-//					switchSubtrees((QueryOperator *) root, (QueryOperator *) selectionOp);
-//
-//					// Add child to the newly created projections operator,
-//					addChildOperator((QueryOperator *) selectionOp, (QueryOperator *) root);
-//
-//					//set the data type
-//					setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)selectionOp, (QueryOperator *)root);
-//
-//					//reset the attr_ref position
-//					resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)selectionOp,(QueryOperator *)root, NULL);
 				}
 			}
 			else
 			{
 				introduceSelection(o, root);
-//
-//				Node *newOp = (Node *)copyObject(o);
-//				SelectionOperator *selectionOp = createSelectionOp(newOp, NULL, NIL, getAttrNames(root->schema));
-//
-//				// Switch the subtree with this newly created projection
-//				switchSubtrees((QueryOperator *) root, (QueryOperator *) selectionOp);
-//
-//				// Add child to the newly created projections operator,
-//				addChildOperator((QueryOperator *) selectionOp, (QueryOperator *) root);
-//
-//				//set the data type
-//				setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)selectionOp, (QueryOperator *)root);
-//
-//				//reset the attr_ref position
-//				resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)selectionOp,(QueryOperator *)root, NULL);
+
 			}
 		}
 	}
@@ -2270,15 +2307,18 @@ getMoveAroundOpList(QueryOperator *op)
 	List *opList = NIL;
 	List *l1 = (List *) getStringProperty(op, PROP_STORE_SET_EC);;
 
+	// map attribute name to def
 	HashMap *nameToAttrDef = NEW_MAP(Constant,Node);
 	FOREACH(AttributeDef, a, op->schema->attrDefs)
 		MAP_ADD_STRING_KEY(nameToAttrDef, strdup(a->attrName), (Node *)copyObject(a));
 
+	// process each EC
 	FOREACH(KeyValue, kv, l1)
 	{
 	    Set *s = (Set *) kv->key;
 	    Constant *c = (Constant *) kv->value;
 
+		// equality with a constant
 	    if(c != NULL)
 	    {
 	    	AttributeReference *aRef = NULL;
@@ -2293,8 +2333,10 @@ getMoveAroundOpList(QueryOperator *op)
 	            opList = appendToTailOfList(opList, copyObject(o));
 		    }
 	    }
+		// equalities between attributes
 	    else
 	    {
+			// at least two attributes, to add equality
             if(setSize(s) > 1)
             {
             	//deal with case A = PROV_A
@@ -2325,13 +2367,26 @@ getMoveAroundOpList(QueryOperator *op)
     	    		}
     	            Operator *o = createOpExpr(OPNAME_EQ, LIST_MAKE(aRef1, aRef2));
 
-    	            //deal with case A = PROV_A
-    	            if((!searchListString(provs, aRef1->name) && !searchListString(provs, aRef2->name) && !streq(aRef1->name, aRef2->name)) || (searchListString(provs, aRef1->name) && searchListString(provs, aRef2->name) && !streq(aRef1->name, aRef2->name)))
+					// FIXME why was that needed? would be a problem for
+    	            //provenance filtering
+					//deal with case A = PROV_A
+    	            if((!searchListString(provs, aRef1->name)
+						&& !searchListString(provs, aRef2->name)
+						&& !streq(aRef1->name, aRef2->name))
+					   ||
+					   (searchListString(provs, aRef1->name)
+						&& searchListString(provs, aRef2->name)
+						&& !streq(aRef1->name, aRef2->name)))
+					{
     	            	opList = appendToTailOfList(opList, copyObject(o));
+					}
             	}
             }
 	    }
 	}
+
+	DEBUG_LOG("conditions for selection move around: %s",
+			  exprToSQL((Node *) opList, NULL, FALSE));
 
 	return opList;
 }

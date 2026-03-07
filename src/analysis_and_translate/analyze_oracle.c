@@ -34,13 +34,19 @@
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 
+typedef struct TemporalAttributesVisitorContext {
+	DataType dt;
+	HashMap *ctes;
+	boolean foundOne;
+} TemporalAttributesVisitorContext;
+
 static void analyzeStmtList(List *l, List *parentFroms);
 static void analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes);
 static void analyzeSetQuery(SetQuery *q, List *parentFroms, HashMap *ctes);
 static void analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms, HashMap *ctes);
 static void analyzeProvenanceOptions(ProvenanceStmt *prov);
 static boolean reenactOptionHasTimes(List *opts);
-static void analyzeWithStmt(WithStmt *w);
+static HashMap *analyzeWithStmt(WithStmt *w);
 //static List *getAnalyzedViews(WithStmt *w);
 static void analyzeCreateTable(CreateTable *c);
 static void analyzeAlterTable(AlterTable *a);
@@ -91,7 +97,7 @@ static void analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFrom
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 static boolean correctFromTableVisitor (Node *node, void *context);
-static boolean checkTemporalAttributesVisitor (Node *node, DataType **context);
+static boolean checkTemporalAttributesVisitor (Node *node, TemporalAttributesVisitorContext *context);
 
 // analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
@@ -120,7 +126,7 @@ static List *schemaInfoGetAttributeDataTypes (char *tableName);
 static HashMap *schemaInfo = NULL;
 
 Node *
-analyzeOracleModel (Node *stmt)
+analyzeOracleModel(Node *stmt)
 {
     adaptIdentifiers(stmt);
     DEBUG_NODE_BEATIFY_LOG("After backendifying identifiers: ", stmt);
@@ -338,9 +344,11 @@ visitAdaptIdents(Node *node, Set *context)
 }
 
 
-void
+HashMap *
 analyzeQueryBlockStmt(Node *stmt, List *parentFroms, HashMap *ctes)
 {
+    HashMap *childCtes = NULL;
+
     switch(stmt->type)
     {
         case T_QueryBlock:
@@ -369,7 +377,7 @@ analyzeQueryBlockStmt(Node *stmt, List *parentFroms, HashMap *ctes)
             analyzeUpdate((Update *) stmt);
             break;
         case T_WithStmt:
-            analyzeWithStmt((WithStmt *) stmt);
+            childCtes = analyzeWithStmt((WithStmt *) stmt);
             DEBUG_LOG("analyzed With Stmt");
             break;
         case T_CreateTable:
@@ -389,9 +397,12 @@ analyzeQueryBlockStmt(Node *stmt, List *parentFroms, HashMap *ctes)
     }
 
     if(isQBUpdate(stmt) || isQBQuery(stmt))
+    {
         enumerateParameters(stmt);
+    }
 
     DEBUG_NODE_BEATIFY_LOG("RESULT OF ANALYSIS IS:", stmt);
+    return childCtes;
 }
 
 static void
@@ -464,13 +475,10 @@ analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
                 backendifyTableRef(tr);
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
+                boolean isCTE = ctes && MAP_HAS_STRING_KEY(ctes,tr->tableId);
 
-                if (ctes && MAP_HAS_STRING_KEY(ctes,tr->tableId))
-				{
-                    tableExists = TRUE; //TODO is that ok? this is proposed to be the case when this is a CTE
-				}
                 //check if it is a table or a view
-                else if (!tableExists && viewExists)
+                if (!isCTE && !tableExists && viewExists)
                 {
                     char * view = getViewDefinition(((FromTableRef *)f)->tableId);
                     char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
@@ -488,7 +496,7 @@ analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
                     DUMMY_LC(f)->data.ptr_value = f1;
                 }
                 // neight table nor view nor CTE, throw exception
-                else if (!tableExists && !viewExists)
+                else if (!isCTE && !tableExists && !viewExists)
 				{
                     THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
 				}
@@ -639,22 +647,12 @@ analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms, HashMap *ctes)
 }
 
 static void
-analyzeFromProvInfo (FromItem *f)
+analyzeFromProvInfo(FromItem *f)
 {
     // analyze FromProvInfo if exists
     if (f->provInfo)
     {
         FromProvInfo *fp = f->provInfo;
-
-        /* if (fp->userProvAttrs) */
-        /* { */
-        /*     /\* handle case of attribute names and quoted identifiers here *\/ */
-        /*     FOREACH(char,name,fp->userProvAttrs) */
-        /*     { */
-        /*         ListCell *lc = FOREACH_GET_LC(name); */
-        /*         lc->data.ptr_value = backendifyIdentifier(name); */
-        /*     } */
-        /* } */
 
         /* if the user provides a list of attributes (that store provenance
          * or should be duplicated as provenance attributes) then we need
@@ -1574,7 +1572,9 @@ analyzeFromTableRef(FromTableRef *f)
         }
     }
     if(f->from.name == NULL)
+	{
         f->from.name = f->tableId;
+	}
 }
 
 static void
@@ -2339,24 +2339,33 @@ analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms, HashMap *ctes)
         };
         case PROV_INPUT_TEMPORAL_QUERY:
         {
-            DataType *tempDT = NULL;
-            analyzeQueryBlockStmt(q->query, parentFroms, ctes);
+			TemporalAttributesVisitorContext *context = NEW(TemporalAttributesVisitorContext);
+            DataType tempDT;
+            HashMap *childCtes;
+
+            childCtes = analyzeQueryBlockStmt(q->query, parentFroms, ctes);
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
             correctFromTableVisitor(q->query, NULL);
 
-            checkTemporalAttributesVisitor((Node *) q, &tempDT);
-            //TODO check that table access has temporal attributes
+            // if the input to provenance statement is a CTE then use that. If there is an output
+			context->ctes = childCtes ? childCtes: ctes;
+			context->foundOne = FALSE;
 
-            if (tempDT == NULL)
+            checkTemporalAttributesVisitor((Node *) q, context);
+
+			tempDT = context->dt;
+            // TODO check that table access has temporal attributes
+
+            if (!context->foundOne)
             {
                 FATAL_LOG("sequenced temporal construct requires input to specify "
                         "time attributes for FROM clause items using WITH TIME(...)");
             }
 
             q->selectClause = concatTwoLists(q->selectClause,LIST_MAKE(strdup(TBEGIN_NAME), strdup(TEND_NAME)));
-            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(*tempDT), singletonInt(*tempDT)));
+            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(tempDT), singletonInt(tempDT)));
         }
         break;
         case PROV_INPUT_UPDATE_SEQUENCE:
@@ -2369,7 +2378,7 @@ analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms, HashMap *ctes)
 }
 
 static boolean
-checkTemporalAttributesVisitor(Node *node, DataType **context)
+checkTemporalAttributesVisitor(Node *node, TemporalAttributesVisitorContext *context)
 {
     if (node == NULL)
         return TRUE;
@@ -2387,6 +2396,7 @@ checkTemporalAttributesVisitor(Node *node, DataType **context)
             DataType rightDT;
             char *leftName;
             char *rightName;
+			int leftPos, rightPos;
 
             if (LIST_LENGTH(p->userProvAttrs) != 2)
             {
@@ -2397,8 +2407,20 @@ checkTemporalAttributesVisitor(Node *node, DataType **context)
 
             leftName = (char *) getNthOfListP(p->userProvAttrs, 0);
             rightName = (char *) getNthOfListP(p->userProvAttrs, 1);
-            leftDT = getNthOfListInt(f->dataTypes, listPosString(f->attrNames, leftName));
-            rightDT = getNthOfListInt(f->dataTypes, listPosString(f->attrNames, rightName));
+			leftPos = listPosString(f->attrNames, leftName);
+			rightPos = listPosString(f->attrNames, rightName);
+
+			if(leftPos == SEARCH_NOT_FOUND || rightPos == SEARCH_NOT_FOUND)
+			{
+				THROW(SEVERITY_RECOVERABLE,
+					  "Did not find both temporal attributes: <%s,%s> in:\n\n<%s>",
+					  leftName,
+					  rightName,
+					  beatify(nodeToString(f)));
+			}
+
+            leftDT = getNthOfListInt(f->dataTypes, leftPos);
+            rightDT = getNthOfListInt(f->dataTypes, rightPos);
             tempD = leftDT;
 
             if (leftDT != rightDT)
@@ -2411,36 +2433,35 @@ checkTemporalAttributesVisitor(Node *node, DataType **context)
             }
 
             // first WITH TIME we have found so far?
-            if (*context == NULL)
+            if (!context->foundOne)
             {
-                *context = NEW(DataType);
-                **context = tempD;
-                DEBUG_LOG("temporal data type used: %s:%s",
-                          leftName,
-                          DataTypeToString(leftDT));
+				context->dt = tempD;
+				context->foundOne = TRUE;
             }
             // otherwise check that the DTs are the same
             else
             {
-                if (**context != tempD)
-                {
-                    FATAL_LOG("attributes storing the interval endpoints have to "
-                        "have the same DTs (%s:%s != %s):\n\n%s",
-                              leftName,
-                              DataTypeToString(leftDT),
-                              DataTypeToString(**context),
-                              beatify(nodeToString(node)));
-                }
+                if (context->dt != tempD)
+                    FATAL_LOG("All temporal FROM items in sequenced temporal "
+                            "queries have to have the same data type for temporal"
+                            " attributes (%s != %s)",
+                            DataTypeToString(context->dt), DataTypeToString(tempD));
             }
             return TRUE;
         }
-        // table references that are not part of a subquery which specifies temporal atttribute should specify temporal attributes
+        // table references that are not part of a subquery which specifies
+        // temporal attribute or are dummy entries representing a CTE should
+        // specify temporal attributes
         else if (node->type == T_FromTableRef)
         {
-            FATAL_LOG("Table references in a sequenced temporal query you have "
-                    "to specify temporal attributes with WITH TIME () unless this "
-                    "table reference is part of a subquery for which temporal "
-                    "attributes are specified:\n\n%s", beatify(nodeToString(node)));
+            FromTableRef *f = (FromTableRef *) node;
+            if(!MAP_HAS_STRING_KEY(context->ctes, f->tableId))
+            {
+                FATAL_LOG("Table references in a sequenced temporal query you have "
+                          "to specify temporal attributes with WITH TIME () unless this "
+                          "table reference is part of a subquery for which temporal "
+                          "attributes are specified:\n\n%s", beatify(nodeToString(node)));
+            }
         }
     }
 
@@ -2448,7 +2469,7 @@ checkTemporalAttributesVisitor(Node *node, DataType **context)
 }
 
 
-//FIXME this messes table references up that are refer to WITH CTEs, need to account for that
+// FIXME this messes table references up that are refer to WITH CTEs, need to account for that
 static boolean
 correctFromTableVisitor(Node *node, void *context)
 {
@@ -2478,6 +2499,8 @@ correctFromTableVisitor(Node *node, void *context)
     {
         switch (node->type)
         {
+			// reset attributes for table to get back HAS PROVENANCE
+			// attributes removed during earlier analysis phase
             case T_FromTableRef:
             {
                 FromItem *f = (FromItem *) node;
@@ -2542,12 +2565,11 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
     }
 }
 
-static void
+static HashMap *
 analyzeWithStmt(WithStmt *w)
 {
     Set *viewNames = STRSET();
 	HashMap *viewmap = NEW_MAP(Constant, Node);
-    //List *analyzedViews = NIL;
 
     // check that no two views have the same name and backendify view names
     FOREACH(KeyValue,v,w->withViews)
@@ -2569,11 +2591,11 @@ analyzeWithStmt(WithStmt *w)
 		}
     }
 
-    //analyzedViews = getAnalyzedViews(w);
     DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
     analyzeQueryBlockStmt(w->query, NIL, viewmap);
 
     DEBUG_NODE_BEATIFY_LOG("query for CTE is:", w->query);
+    return viewmap;
 }
 
 /*
@@ -2765,29 +2787,55 @@ setViewFromTableRefAttrs(Node *node, List *views)
     if (node == NULL)
         return TRUE;
 
-    if (isA(node, FromTableRef))
+    if(isFromItem(node))
     {
-        FromTableRef *f = (FromTableRef *) node;
-        char *name;
-
-        // backendify idents if necessary
-        backendifyTableRef(f);
-        name = f->tableId;
-
-        FOREACH(KeyValue,v,views)
+        switch (node->type)
         {
-            char *vName = STRING_VALUE(v->key);
+            case T_FromTableRef:
+			{
+				FromTableRef *f = (FromTableRef *) node;
+				char *name;
+				boolean isView = FALSE;
+				// backendify idents if necessary
+				backendifyTableRef(f);
+				name = f->tableId;
 
-            // found view, set attr names
-            if (strcmp(name, vName) == 0)
+				FOREACH(KeyValue,v,views)
+				{
+					char *vName = STRING_VALUE(v->key);
+
+					// found view, set attr names
+					if (strcmp(name, vName) == 0)
+					{
+						((FromItem *) f)->attrNames = getQBAttrNames(v->value);
+						((FromItem *) f)->dataTypes = getQBAttrDTs  (v->value);
+						isView = TRUE;
+					}
+				}
+
+				// reset attributes for table to get back HAS PROVENANCE
+				// attributes removed during earlier analysis phase
+				if(!isView)
+				{
+					FromItem *fi = (FromItem *) node;
+					fi->attrNames = NIL;
+					fi->dataTypes = NIL;
+					analyzeFromTableRef((FromTableRef *) node);
+				}
+
+				return TRUE;
+			}
+			case T_FromSubquery:
             {
-                ((FromItem *) f)->attrNames = getQBAttrNames(v->value);
-                ((FromItem *) f)->dataTypes = getQBAttrDTs  (v->value);
+                FromSubquery *sq = (FromSubquery *) node;
+                sq->from.attrNames = getQBAttrNames(sq->subquery);
+                sq->from.dataTypes = getQBAttrDTs(sq->subquery);
             }
-        }
-
-        return TRUE;
-    }
+            break;
+            default:
+            break;
+		}
+	}
 
     return visit(node, setViewFromTableRefAttrs, views);
 }

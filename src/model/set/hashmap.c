@@ -18,6 +18,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "model/set/set.h"
 
 #include "model/set/hashmap.h"
 
@@ -44,6 +45,15 @@ newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), v
     map->typelen = -1;
 
     return map;
+}
+
+HashMap *
+newHashMapOfSameType(HashMap *template)
+{
+    return newHashMap(template->keyType,
+                      template->valueType,
+                      template->eq,
+                      template->cpy);
 }
 
 static inline HashElem *
@@ -166,6 +176,35 @@ getKeys(HashMap *map)
     return result;
 }
 
+Set *
+getKeySet(HashMap *map)
+{
+    Set *result = NODESET();
+
+    FOREACH_HASH_KEY(Node,n,map)
+    {
+        addToSet(result, copyObject(n));
+    }
+
+    return result;
+}
+
+Set *
+getStringKeySet(HashMap *map)
+{
+    Set *result = STRSET();
+
+    ASSERT(map->keyType == T_Constant);
+
+    FOREACH_HASH_KEY(Constant,n,map)
+    {
+        addToSet(result, strdup(STRING_VALUE(n)));
+    }
+
+    return result;
+}
+
+
 List *
 getEntries(HashMap *map)
 {
@@ -173,6 +212,19 @@ getEntries(HashMap *map)
 
     FOREACH_HASH_ENTRY(k,map)
         result = appendToTailOfList(result, k);
+
+    return result;
+}
+
+List *
+getValues(HashMap *map)
+{
+    List *result = NIL;
+
+    FOREACH_HASH_ENTRY(k, map)
+    {
+        result = appendToTailOfList(result, k->value);
+    }
 
     return result;
 }
@@ -327,7 +379,7 @@ mapSize (HashMap *map)
 }
 
 void
-unionMap(HashMap *res, HashMap *new)
+unionIntoMap(HashMap *res, HashMap *new)
 {
 	FOREACH_HASH_ENTRY(kv,new)
 	{
@@ -336,6 +388,24 @@ unionMap(HashMap *res, HashMap *new)
 			addToMap(res, copyObject(kv->key), copyObject(kv->value));
 		}
 	}
+}
+
+HashMap *
+unionMaps(HashMap *left, HashMap *right)
+{
+    HashMap *result = newHashMapOfSameType(left);
+
+    FOREACH_HASH_ENTRY(kv, left)
+    {
+        ADD_TO_MAP(result, copyObject(kv));
+    }
+
+    FOREACH_HASH_ENTRY(kv, right)
+    {
+        ADD_TO_MAP(result, copyObject(kv));
+    }
+
+    return result;
 }
 
 void
@@ -348,4 +418,23 @@ diffMap(HashMap *res, HashMap *new)
 			removeMapElem(res, kv->key);
 		}
 	}
+}
+
+HashMap *
+invertKeyValues(HashMap *map)
+{
+    HashMap *result = newHashMap(map->keyType,
+                                 map->valueType,
+                                 map->eq,
+                                 map->cpy
+                                 );
+
+    FOREACH_HASH_ENTRY(kv, map)
+    {
+        KeyValue *newkv = createNodeKeyValue(copyObject(kv->value),
+                                             copyObject(kv->key));
+        ADD_TO_MAP(result, newkv);
+    }
+
+    return result;
 }

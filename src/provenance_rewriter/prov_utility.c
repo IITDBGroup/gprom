@@ -574,6 +574,26 @@ getOrSetOpCopy(HashMap *origOps, QueryOperator *op)
 	return opCopy;
 }
 
+//TODO do share subops if possible
+QueryOperator *
+getOrSetDeepOpCopy(HashMap *origOps, QueryOperator *op)
+{
+    QueryOperator *opCopy;
+
+	if(MAP_HAS_LONG_KEY(origOps, (gprom_long_t) op))
+	{
+		opCopy = (QueryOperator *) MAP_GET_LONG(origOps, (gprom_long_t) op);
+	}
+	else
+    {
+		opCopy = copyObject(op);
+        opCopy->parents = NIL;
+		MAP_ADD_LONG_KEY(origOps, (gprom_long_t) op, (gprom_long_t) opCopy);
+	}
+
+    return opCopy;
+}
+
 
 void
 copyPropertiesFromOp(QueryOperator *target, QueryOperator *src, Set *props)

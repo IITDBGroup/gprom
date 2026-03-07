@@ -1184,7 +1184,7 @@ copyConstant(Constant *from, OperatorMap **opMap)
 	          break;
 	      case DT_LONG:
 	          new->value = NEW(long);
-	          *((long *) new->value) = *((long *) from->value);
+	          *((gprom_long_t *) new->value) = *((gprom_long_t *) from->value);
 	          break;
 	      case DT_VARCHAR2:
 	    	  new->value = strdup(from->value);

@@ -3,14 +3,8 @@
 <properties>
 <comment>Associate Domain for Datalog Test cases 2</comment>
 
-<entry key="options">
-plugin.parser=dl,
-plugin.analyzer=dl,
-plugin.translator=dl
-</entry>
-
 <entry key="q1.query">
-Q(X) :- R(X,Y). D(X) :- R(X,Y). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
+Q(X) :- R(X,Y). D(X) :- R(X,Y). WHYNOT(Q(6)). ANS : Q. USERDOMAIN OF R.B IS D.
 </entry>
 <entry key="q1.result">
 A0|A1|
@@ -27,7 +21,7 @@ REL_Q_LOST(6)|RULE_0_WON(6,1)|
 </entry>
 
 <entry key="q2.query">
-Q(X) :- R(X,Y). D(X) :- R(Y,X). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
+Q(X) :- R(X,Y). D(X) :- R(Y,X). WHYNOT(Q(6)). ANS : Q. USERDOMAIN OF R.B IS D.
 </entry>
 <entry key="q2.result">
 A0|A1|

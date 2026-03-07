@@ -16,6 +16,7 @@
 #include "configuration/option.h"
 #include "log/logger.h"
 
+#include "model/expression/expression.h"
 #include "sql_serializer/sql_serializer.h"
 #include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer_postgres.h"
@@ -25,7 +26,7 @@
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
-
+#include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
 
 /* vars */
@@ -268,7 +269,7 @@ postgresSerializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOper
 }
 
 /*
- * Create the SELECT, GROUP BY, and HAVING clause
+ * Create the SELECT, GROUP BY, and HAVING clause as well as window functions
  */
 List *
 postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
@@ -290,6 +291,7 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     AggregationOperator *agg = (AggregationOperator *) m->aggregation;
     WindowOperator *winR = (WindowOperator *) m->windowRoot;
     UpdateAggAndGroupByAttrState *state = NULL;
+    HashMap *winResultAttrNameToWinf = NEW_MAP(Constant,Constant);
 
     appendStringInfoString(select, "\nSELECT ");
     if (materialize)
@@ -310,9 +312,8 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, nestAttrMap, FALSE));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
-                stringListToString(firstProjs));
+                  stringListToString(firstProjs));
     }
-
 
     // aggregation if need be
     if (agg != NULL)
@@ -361,6 +362,8 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         {
             WindowOperator *wOp = (WindowOperator *) curOp;
             Node *expr = wOp->f;
+            char *winfAsStr;
+            char *winfResultAttr = strdup(((AttributeDef *) getTailOfListP(curOp->schema->attrDefs))->attrName);
 
             DEBUG_LOG("BEFORE: window function = %s",
 					  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
@@ -373,24 +376,31 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
             if(HAS_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK))
             {
             	int numFrags = INT_VALUE(GET_STRING_PROP(curOp, PROP_SETBITS_CAST_NUM_WINDOW_MARK));
-                windowFs = appendToHeadOfList(windowFs,
-    										  exprToSQL((Node *) createCastExprOtherDT((Node *) winOpGetFunc((WindowOperator *) curOp),"bit", numFrags, DT_STRING), NULL, FALSE));
+                winfAsStr = exprToSQL((Node *) createCastExprOtherDT((Node *) winOpGetFunc((WindowOperator *) curOp),
+                                                                     "bit",
+                                                                     numFrags,
+                                                                     DT_STRING),
+                                      NULL,
+                                      FALSE);
             }
             else
-            	windowFs = appendToHeadOfList(windowFs,
-										  exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
+            {
+            	winfAsStr = exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE);
+            }
 
+            MAP_ADD_STRING_KEY_AND_VAL(winResultAttrNameToWinf, strdup(winfResultAttr), strdup(winfAsStr));
+            windowFs = appendToHeadOfList(windowFs,strdup(winfAsStr));
 
-            DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc((WindowOperator *) curOp), NULL, FALSE));
+            DEBUG_LOG("AFTER: window function = %s -> %s", winfAsStr, winfResultAttr);
 
             curOp = OP_LCHILD(curOp);
         }
 
-        windowFs = CONCAT_LISTS(deepCopyStringList(inAttrs), windowFs);
+        /* windowFs = CONCAT_LISTS(deepCopyStringList(inAttrs), windowFs);         */
 
         state = NEW(UpdateAggAndGroupByAttrState);
         state->aggNames = windowFs;
-        state->groupByNames = NIL;
+        state->groupByNames = deepCopyStringList(inAttrs);
 
         DEBUG_LOG("window function translated, %s", stringListToString(windowFs));
     }
@@ -406,7 +416,10 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     }
 
     // second level of projection either if no aggregation or using aggregation
-    if ((m->secondProj != NULL && !agg && !winR ) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
+    // / window and the window / agg results gets further processed
+    if ((m->secondProj != NULL && !agg && !winR )
+        || (m->firstProj != NULL && agg)
+        || (m->firstProj != NULL && winR))
     {
         int pos = 0;
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
@@ -420,19 +433,36 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         FOREACH(Node,a,p->projExprs)
         {
             char *attrName = (char *) getNthOfListP(attrNames, pos);
-            if (pos++ != 0)
-                appendStringInfoString(select, ", ");
+
+            DEBUG_LOG("second projection: <%s> -> <%s>",
+                      exprToSQL(a,NULL, FALSE),
+                      attrName);
 
             // is projection over aggregation
             if (agg)
+            {
                 updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid
+            }
             // is projection over window functions
             else if (winR)
-                updateAggsAndGroupByAttrs(a, state);
+            {
+                UPDATE_WIN_ATTR_NAME((m->secondProj == NULL), a, fac, firstProjs,winResultAttrNameToWinf);
+                //updateWindowAttributeNames(a, fac, winResultAttrNameToWinf);
+            }
             // is projection in query without aggregation
             else
+            {
                 updateAttributeNames(a, fac);
-            appendStringInfo(select, "%s%s", exprToSQL(a, nestAttrMap, FALSE), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+            }
+            appendStringInfo(select, "%s%s",
+                             exprToSQL(a, nestAttrMap, FALSE),
+                             attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
+
+            if(FOREACH_HAS_MORE(a))
+            {
+                appendStringInfoString(select, ", ");
+            }
+            pos++;
         }
 
         resultAttrs = attrNames;
@@ -441,17 +471,32 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     // else if window operator get the attributes from top-most window operator
     else if (winR)
     {
-        int pos = 0;
-        char *name;
-        resultAttrs = getQueryOperatorAttrNames((QueryOperator *) winR);
+        /* int pos = 0; */
+        /* char *name; */
+        /* resultAttrs = getQueryOperatorAttrNames((QueryOperator *) winR); */
+        List *attrRefs = getAllAttrProjectionExprs((QueryOperator *) winR);
 
-        FOREACH(char,a,windowFs)
+        // attributes that are window function results get replaced with the
+        // actual window function call, other attributes are converted into from
+        // clause references
+        FOREACH(AttributeReference,a,attrRefs)
         {
-            name = getNthOfListP(resultAttrs, pos);
-            if (pos++ != 0)
+            char *origname = strdup(a->name);
+            UPDATE_WIN_ATTR_NAME((m->secondProj == NULL), a, fac, firstProjs, winResultAttrNameToWinf);
+            /* updateWindowAttributeNames((Node *) a, fac, winResultAttrNameToWinf); */
+            appendStringInfo(select, "%s AS %s", strdup(a->name), origname);
+            if(FOREACH_HAS_MORE(a))
+            {
                 appendStringInfoString(select, ", ");
-            appendStringInfo(select, "%s AS %s", a, name);
+            }
         }
+        /* FOREACH(char,a,windowFs) */
+        /* { */
+        /*     name = getNthOfListP(resultAttrs, pos); */
+        /*     if (pos++ != 0) */
+        /*         appendStringInfoString(select, ", "); */
+        /*     appendStringInfo(select, "%s AS %s", a, name); */
+        /* } */
 
         DEBUG_LOG("window functions results as projection expressions %s", select->data);
     }
@@ -520,7 +565,7 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 
 void
 postgresSerializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext *fac,
-        int* curFromItem, SerializeClausesAPI *api)
+                          int* curFromItem, SerializeClausesAPI *api)
 {
     int pos = 0;
     List* attrNames = getAttrNames(((QueryOperator*) t)->schema);

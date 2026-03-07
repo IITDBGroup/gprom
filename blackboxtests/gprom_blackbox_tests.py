@@ -11,6 +11,8 @@ import argparse
 from typing import Dict, Union
 from pathlib import Path
 from tqdm import tqdm
+import traceback
+from pg8000.native import Connection
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
@@ -29,6 +31,14 @@ def logfat(m, other=""):
         console.print(80 * " ", style=FAT_STYLE, justify="center")
         print(other)
 
+def forcelogfat(m):
+    console.print(80 * " ", style=FAT_STYLE, justify="center")
+    console.print(m, style=FAT_STYLE, justify="center")
+    console.print(80 * " ", style=FAT_STYLE, justify="center")
+
+
+
+
 class DatabaseBackends(Enum):
     POSTGRES = 1
     SQLITE = 2
@@ -40,6 +50,9 @@ class DatabaseBackends(Enum):
 class Table:
     schema: list[str]
     rows: Counter[tuple[str]] = field(default_factory=Counter)
+
+    RESULT_TID_ATTR="_result_tid"
+    DUP_ATTR="_setprov_dup_count"
 
     def __post_init__(self):
         if isinstance(self.rows,list):
@@ -95,8 +108,8 @@ class Table:
 
     def __str__(self):
         result = ""
-        attrvallen = [ max([ len(x[i]) for x in self.rows ]) for i in range(0,len(self.schema)) ]
-        attrvallen = [ max(attrvallen[i], len(self.schema[i])) for i in range(0,len(self.schema)) ]
+        attrvallen = [ max([ len(x[i]) for x in self.rows ] + [0]) for i in range(0,len(self.schema)) ]
+        attrvallen = [ max(attrvallen[i], len(self.schema[i]) ) for i in range(0,len(self.schema)) ]
 
         result += Table.row_to_string(self.schema, attrvallen, True)
         dividerlen = sum(attrvallen) + 3 * len(attrvallen)
@@ -109,6 +122,73 @@ class Table:
                 result += rstr
 
         result = result[:-1]
+
+        return result
+
+    def get_attr_pos(self,a):
+        return self.schema.index(a)
+
+    def get_composable_attrs_pos(self):
+        return (self.get_attr_pos(Table.RESULT_TID_ATTR), self.get_attr_pos(Table.DUP_ATTR))
+
+    @classmethod
+    def is_prov_attr(cls, a):
+        return a.startswith("prov_")
+
+    @classmethod
+    def is_normal_attr(cls, a):
+        return a not in [ Table.DUP_ATTR, Table.RESULT_TID_ATTR ] and not Table.is_prov_attr(a)
+
+    def row_project_normal(self,row):
+        return tuple([ row[i] for i in [ i for (i,x) in enumerate(self.schema) if Table.is_normal_attr(x) ] ])
+
+    def row_project_provenance(self,row):
+        return tuple([ row[i] for i in [ i for (i,x) in enumerate(self.schema) if Table.is_prov_attr(x) ] ])
+
+    def row_get_attr(self,row,a):
+        pos = self.schema.index(a)
+        return row[pos]
+
+    def row_set_attr(self,row,a,val):
+        pos = self.schema.index(a)
+        row[pos] = val
+
+    def normalize_prov_composable(self):
+        """
+        replace _result_tid attribute with a hash based on the (non-provenance attributes), and set provenance duplicate counter attribute based on sorting on a hash of the provenance attributes
+        """
+        group_by_result = {}
+        normalizedcnter = Counter()
+
+        # if this input does not have the compositional provenance attributes,
+        # then do not attempt to normalize
+        if not Table.RESULT_TID_ATTR in self.schema or not Table.DUP_ATTR in self.schema:
+            return self
+
+        for row in self.rows.elements():
+            key = self.row_project_normal(row)
+            if key not in group_by_result:
+                group_by_result[key] = []
+            group_by_result[key].append(row)
+        log(f"grouped result: {group_by_result}")
+
+        for grp in group_by_result:
+            resulttid = hash(tuple(grp))
+            rows = group_by_result[grp]
+            log(f"unsorted rows {rows} for group {grp}")
+            rows = sorted(rows,key=lambda x: self.row_project_provenance(x))
+            log(f"sorted rows {rows} for group {grp}")
+            for i,r in enumerate(rows):
+                r = list(r)
+                log(f"original row {r}")
+                self.row_set_attr(r, Table.RESULT_TID_ATTR, str(resulttid))
+                self.row_set_attr(r, Table.DUP_ATTR, str(i))
+                r = tuple(r)
+                log(f"updated row {r}")
+                normalizedcnter.update([r])
+
+        result = Table(self.schema, normalizedcnter)
+        log(f"Updated table:\n{result}")
 
         return result
 
@@ -171,7 +251,7 @@ class OrderedTable():
 
     def __str__(self):
         result = ""
-        attrvallen = [ max([ len(x[i]) for x in self.rows ]) for i in range(0,len(self.schema)) ]
+        attrvallen = [ max([ len(x[i]) for x in self.rows ] + [0]) for i in range(0,len(self.schema)) ]
         attrvallen = [ max(attrvallen[i], len(self.schema[i])) for i in range(0,len(self.schema)) ]
 
         result += Table.row_to_string(self.schema, attrvallen)
@@ -199,16 +279,19 @@ class GProMSetting:
         self.settings = self.setting.union(other.setting)
 
     def __getitem__(self,key):
-        return self.settings[key]
+        return self.setting[key]
 
     def __setitem__(self, key, value):
-        self.settings[key] = value
+        self.setting[key] = value
 
     def __eq__(self,o):
         return self.setting == o.setting
 
     def __hash__(self):
         return hash(self.setting)
+
+    def __contains__(self, key):
+        return key in self.setting
 
     def items(self):
         return self.setting.items()
@@ -278,14 +361,44 @@ class GProMTest:
     extra_settings: GProMSettings
     disallowed_settings: GProMSettings
 
+    def should_run_test(self, allowedtests):
+        if not allowedtests:
+            return True
+        for allowed in allowedtests:
+            if len(self.name) >= len(allowed) and self.name[:len(allowed)] == allowed:
+                return True
+        for allowed in allowedtests:
+            if len(allowed) > len(self.name) and allowed[:len(self.name)] == self.name:
+                return True
+        return False
+
+    def should_run_setting(self, setting: str, allowedset, strict=False):
+        if not allowedset:
+            return True
+        for allowed in allowedset:
+            if setting == allowed or setting.startswith(allowed):
+                return True
+            if not strict and allowed.startswith(setting):
+                return True
+        return False
+
     def get_name_str(self):
         return '.'.join(self.name)
+
+    def count_testcases(self, allowed, settings, parentset):
+        return 0
 
 @dataclass
 class GProMTestCase(GProMTest):
     query: str
     expected: Union[Table,OrderedTable]
     issorted: bool
+
+    def count_testcases(self, allowed, settings, parentset):
+        if self.should_run_test(allowed) and self.should_run_setting(parentset,  settings, True):
+            return 1
+        else:
+            return 0
 
 @dataclass
 class GProMTestSuite(GProMTest):
@@ -304,18 +417,20 @@ class GProMTestSuite(GProMTest):
         result += "\n"
         return result
 
+    def count_testcases(self, allowed, settings, parentset):
+        if not self.should_run_test(allowed):
+            return 0
+        cnt = 0
+        newsets = [ parentset + "." + x for x in self.extra_settings ] if self.extra_settings else [ parentset ]
+        newsets = [ n for n in newsets if self.should_run_setting(n, settings) ]
+        for set in newsets:
+            for t in self.tests.values():
+                cnt += t.count_testcases(allowed, settings, set)
+        return cnt
+
     def __str__(self):
         result = self.to_str_with_indent(0)
         return result
-
-    def count_testcases(self):
-        cnt = 0
-        for t in self.tests.values():
-            if isinstance(t, GProMTestCase):
-                cnt += 1
-            else:
-                cnt += t.count_testcases()
-        return cnt
 
 class GProMXMLTestLoader:
 
@@ -399,38 +514,45 @@ class GProMXMLTestLoader:
     @classmethod
     def load_xml_test_cases(cls,dir: str, f: str) -> GProMTestSuite:
         log(f"PROCESS TESTCASE FILE: {dir}/{f}")
-        testcases = {}
-        propdict = java_xml_properties_to_dict(dir + "/" + f)
-        queries = sorted(list(set([ q.split('.')[0] for q in propdict if q[0] == 'q' ])),key = lambda x: int(x[1:]))
-        # TODO read gprom settings
-        suitenameparts = GProMXMLTestLoader.name_parts_from_file_name(f)
+        curquery = ""
+        try:
+            testcases = {}
+            propdict = java_xml_properties_to_dict(dir + "/" + f)
+            queries = sorted(list(set([ q.split('.')[0] for q in propdict if q[0] == 'q' ])),key = lambda x: int(x[1:]))
+            # TODO read gprom settings
+            suitenameparts = GProMXMLTestLoader.name_parts_from_file_name(f)
 
-        extrasettings = GProMXMLTestLoader.get_settings(
-            propdict,
-            GProMXMLTestLoader.EXTRA_SETTINGS_KEY
-        )
+            extrasettings = GProMXMLTestLoader.get_settings(
+                propdict,
+                GProMXMLTestLoader.EXTRA_SETTINGS_KEY
+            )
 
-        disallow = GProMXMLTestLoader.get_settings(
-            propdict,
-            GProMXMLTestLoader.DISALLOWED_SETTINGS_KEY
-        )
+            disallow = GProMXMLTestLoader.get_settings(
+                propdict,
+                GProMXMLTestLoader.DISALLOWED_SETTINGS_KEY
+            )
 
-        for q in queries:
-            qkey = q + '.query'
-            rkey = q + '.result'
-            skey = q + '.issorted'
-            dkey = q + '.disabled'
-            testcasename = tuple(list(suitenameparts) + [q])
-            query = propdict[qkey]
-            result = propdict[rkey]
-            issorted = propdict[skey] if skey in propdict else False
-            disabled = dkey in propdict
-            #log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
-            if not disabled:
-                t = OrderedTable.from_str(result) if issorted else Table.from_str(result)
-                testcases[q] = GProMTestCase(testcasename, None, None, query, t, issorted)
+            for q in queries:
+                curquery = q
+                qkey = q + '.query'
+                rkey = q + '.result'
+                skey = q + '.issorted'
+                dkey = q + '.disabled'
+                testcasename = tuple(list(suitenameparts) + [q])
+                query = propdict[qkey]
+                result = propdict[rkey]
+                issorted = propdict[skey] if skey in propdict else False
+                disabled = dkey in propdict
+                #log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
+                if not disabled:
+                    t = OrderedTable.from_str(result) if issorted else Table.from_str(result)
+                    testcases[q] = GProMTestCase(testcasename, None, None, query, t, issorted)
 
-        return GProMTestSuite(suitenameparts, extrasettings, disallow, testcases)
+            return GProMTestSuite(suitenameparts, extrasettings, disallow, testcases)
+        except Exception as e:
+            forcelogfat(f"Error loading tests from file <{dir}/{f}> processing <{curquery}>")
+            traceback.print_exc()
+            raise e
 
 def java_xml_properties_to_dict(file:str):
     xml = ET.parse(file)
@@ -474,6 +596,7 @@ class GProMTestRunner:
         log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
         exp = test.expected
         setting = conf[name]
+        is_prov_composable = '-prov_use_composable' in setting
         self.ensure_dicts(name)
         self.queries[name][test.name] = test.query
         try:
@@ -483,14 +606,26 @@ class GProMTestRunner:
                 actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
             log(f"actual result was {'different' if not (exp == actual) else 'correct'}:\n{actual}")
             self.actualresults[name][test.name] = str(actual)
+            if is_prov_composable:
+                actual = actual.normalize_prov_composable()
+                exp = exp.normalize_prov_composable()
             correct = (exp == actual)
             self.results[name][test.name] = correct
+
             if not correct:
                 self.diffs[name][test.name] = exp.diff(actual)
+                # write query results to a file?
+                if options.log_query_results:
+                    with open(options.log_query_results,'a') as f:
+                        f.write(80 * "-" + f"\n{test.name}\n" + 80 * "-" + "\n")
+                        f.write(self.actualresults[name][test.name])
+                        f.write("\n")
             self.progressbar.update()
             return correct
         except Exception as e:
             log(f"got exception: {e}")
+            if options.debug:
+                traceback.print_exc()
             self.results[name][test.name] = False
             if self.failonerror:
                 raise e
@@ -505,22 +640,14 @@ class GProMTestRunner:
         log(f"Start running tests: {self.testcases}")
         self.results = {}
         self.errors = {}
-        self.totalnumtests = self.root.count_testcases()
+        self.totalnumtests = self.root.count_testcases(self.testcases, self.testsettings, DEFAULT_SETTING_NAME)
         self.progressbar = tqdm(total=self.totalnumtests, desc="Testcases")
         self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
         self.progressbar.close()
         self.print_results(self.root, DEFAULT_SETTING_NAME)
 
     def should_run_test(self, t: GProMTest):
-        if not self.testcases:
-            return True
-        for allowed in self.testcases:
-            if len(t.name) >= len(allowed) and t.name[:len(allowed)] == allowed:
-                return True
-        for allowed in self.testcases:
-            if len(allowed) > len(t.name) and allowed[:len(t.name)] == t.name:
-                return True
-        return False
+        return t.should_run_test(self.testcases)
 
     def should_run_setting(self, setting: str, strict=False):
         if not self.settings:
@@ -604,7 +731,7 @@ class GProMTestRunner:
                             if options.errordetails:
                                 mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + "\n"
                                 console.print(f"{testblackindent}{mes}")
-                                console.print(self.errors[set][child.name], highlight=False)
+                                print(self.errors[set][child.name])
                                 console.print(redbar)
                             else:
                                 shorterror = self.errors[set][child.name][:60].replace("\n", " ")
@@ -632,6 +759,26 @@ class GProMRunner():
         cmdlist = [ gprom ] + args.to_list() + ["-query", query]
         return cmdlist
 
+    POSTGRES_KILL_BACKEND_QUERY_TEMPLATE = """
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pid <> pg_backend_pid();
+    """
+
+    @classmethod
+    def cleanup_database_connection(cls, gprom: str, conf: GProMSetting):
+        if options.backend == 'postgres':
+            conninfo = {
+                "host": conf["-host"],
+                "database": conf["-db"],
+                "port": conf["-port"],
+                "password": conf["-passwd"],
+                "user": conf["-user"],
+            }
+            con = Connection(**conninfo)
+            con.run(GProMRunner.POSTGRES_KILL_BACKEND_QUERY_TEMPLATE)
+            con.close()
+
     @classmethod
     def gprom_exec_to_string(cls, gprom: str, query: str, args: GProMSetting):
         log(f"will run {query} with args {args.items()}")
@@ -644,7 +791,9 @@ class GProMRunner():
                                      stderr=subprocess.PIPE,
                                      universal_newlines=True)
         except subprocess.TimeoutExpired:
+            GProMRunner.cleanup_database_connection(gprom, args)
             return (-1, "", f"TIMED OUT AFTER {options.timeout} SECONDS")
+
         return (process.returncode, process.stdout.strip(), process.stderr.strip())
 
     @classmethod
@@ -734,6 +883,9 @@ def parse_args():
                     help="database name")
     ap.add_argument("-P", "--password", type=str, default="test",
                     help="database password")
+    ap.add_argument("--log_query_results", type=str, default=None,
+                    help="if true, then write actual query results to this file.")
+
 
     args = ap.parse_args()
     return args

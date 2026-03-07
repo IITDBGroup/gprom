@@ -187,7 +187,9 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
             STRING_VALUE(getStringProperty(op, PROP_PROV_ADD_REL_NAME)) : NULL;
 
     if (rewriteAddProv)
+	{
         addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
+	}
 
     DEBUG_LOG("REWRITE OPERATIONS: [%s]"
               "\n\tshow intermediates: %s"
@@ -572,7 +574,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
 }
 
 static QueryOperator *
-rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
+rewritePI_CSAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
 {
 //    List *tableAttr;
     List *provAttr = NIL;
@@ -581,13 +583,16 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
     int relAccessCount;
     int numProvAttrs = LIST_LENGTH(userProvAttrs);
     int numNormalAttrs = LIST_LENGTH(op->schema->attrDefs);
+	QueryOperator *inCopy;
     int cnt = 0;
     char *tableName; // = "INTERMEDIATE";
 
+	inCopy = getOrSetDeepOpCopy(state->origOps, op);
+
     if (isA(op,TableAccessOperator))
-        tableName = ((TableAccessOperator *) op)->tableName;
+        tableName = ((TableAccessOperator *) inCopy)->tableName;
     else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+        tableName = STRING_VALUE(getStringProperty(inCopy, PROP_PROV_REL_NAME));
 
     relAccessCount = increaseRefCount(state->provCounts, tableName);
 
@@ -630,10 +635,10 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
     newpo->op.provAttrs = newProvPosList;
 
     // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+    /* switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) newpo); */
 
     // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) inCopy);
 
     DEBUG_LOG("rewrite add provenance attrs:\n%s", operatorToOverviewString((Node *) newpo));
 
@@ -644,7 +649,7 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
 }
 
 static QueryOperator *
-rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
+rewritePI_CSUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, PICSRewriteState *state)
 {
     int relAccessCount;
     int curPos;
@@ -698,16 +703,82 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs, PICSRewrit
 static QueryOperator *
 rewritePI_CSLimit(LimitOperator *op, PICSRewriteState *state)
 {
+	JoinOperator *result;
+	QueryOperator *origLimit;
+	QueryOperator *curOp;
+	Node *joinCond;
+	List *comparisons = NIL;
+	List *normalAttrReferences = getProjExprsForAllAttrs((QueryOperator *) op);
+	List *joinattrList;
+	List *normalnames = getQueryOperatorAttrNames((QueryOperator *) op);
+	List *provnames;
+
 	REWR_UNARY_SETUP_PI(Limit);
 
     //add semiring options
     addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
 
-	// rewrite child first
-	REWR_UNARY_CHILD_PI();
+    // copy limit operator
+    origLimit = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);
 
-    // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
+    // rewrite limit operator input copy
+	rewrInput = rewritePI_CSOperator(OP_LCHILD(op), state);
+	curOp = rewrInput;
+	provnames = getOpProvenanceAttrNames(curOp);
+
+	// join condition on all attributes to match limit operator output with
+	// rewritten input
+	FOREACH(AttributeReference,a,normalAttrReferences)
+	{
+		AttributeReference *la, *ra;
+
+		la = copyObject(a);
+		la->fromClauseItem = 0;
+		ra = copyObject(a);
+		ra->fromClauseItem = 1;
+
+		comparisons = appendToTailOfList(comparisons,
+										 createOpExpr(strdup(OPNAME_EQ),
+													  LIST_MAKE(la,ra)));
+
+	}
+	joinCond = andExprList(comparisons);
+
+    // for limit operator with schema x,y and provenance attribute names
+    // prov_r_a, rename the common attributes from the RHS (provenance
+    // computation) like this: x,y,__x,__y,prov_r_a
+    List *renamedNormalNames = NIL;
+    FOREACH(char,a,normalnames)
+    {
+        renamedNormalNames = appendToTailOfList(renamedNormalNames, CONCAT_STRINGS("__", strdup(a)));
+    }
+
+    joinattrList = CONCAT_LISTS(deepCopyStringList(normalnames),
+                                renamedNormalNames,
+                                deepCopyStringList(provnames));
+
+	// create join between limit operator and the query computing the provenance
+	// for its direct child operator
+	result = createJoinOp(JOIN_INNER,
+						  joinCond,
+						  LIST_MAKE(origLimit, curOp),
+						  NIL,
+						  joinattrList);
+    addParent(origLimit, (QueryOperator *) result);
+    addParent(rewrInput, (QueryOperator *) result);
+    curOp = (QueryOperator *) result;
+
+    // add projection to get right of duplicated normal atttributes
+    curOp = createProjOnAttrsByName(curOp,
+                                    deepCopyStringList(getQueryOperatorAttrNames(rewrInput)),
+                                    NULL);
+    curOp->provAttrs = copyList(rewrInput->provAttrs);
+    addChildOperator(curOp, (QueryOperator *) result);
+
+	rewr = (QueryOperator *) curOp;
+
+    // adapt provenance attributes
+    //addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrInput);
 
 	LOG_RESULT_AND_RETURN(PICS,Limit);
 }
@@ -884,7 +955,7 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
     // copy aggregation
-    origAgg = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);;
+    origAgg = (QueryOperator *) getOrSetOpCopy(state->origOps, (QueryOperator *) op);
 
     // rewrite aggregation input copy
 	rewrInput = rewritePI_CSOperator(OP_LCHILD(op), state);
@@ -1179,207 +1250,210 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
 
 	// rewrite children
 	REWR_BINARY_CHILDREN_PI();
+    removeParent(rewrLeftInput, rewr);
+    removeParent(rewrRightInput, rewr);
 
     switch(op->setOpType)
     {
-    case SETOP_UNION:
-    {
-        List *projExprs = NIL;
-        List *attNames;
-        List *provAttrs = NIL;
-        int lProvs;
-        int i;
-
-        // left provenance attributes
-        lProvs = LIST_LENGTH(rewrLeftInput->provAttrs);
-
-        // create projection over left rewritten input
-        attNames = concatTwoLists(getQueryOperatorAttrNames(rewrLeftInput),
-								  getOpProvenanceAttrNames(rewrRightInput));
-
-        // createAttrRefs for attributes of left input
-        i = 0;
-        provAttrs = copyObject(rewrLeftInput->provAttrs);
-		projExprs = getAllAttrProjectionExprs(rewrLeftInput);
-
-        // create NULL expressions for provenance attrs of right input
-		i = LIST_LENGTH(projExprs);
-		FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrRightInput))
+        case SETOP_UNION:
         {
-            Constant *expr;
+            List *projExprs = NIL;
+            List *attNames;
+            List *provAttrs = NIL;
+            int lProvs;
+            int i;
 
-            expr = createNullConst(a->dataType);
-            projExprs = appendToTailOfList(projExprs, expr);
-            provAttrs = appendToTailOfListInt(provAttrs, i++);
+            // left provenance attributes
+            lProvs = LIST_LENGTH(rewrLeftInput->provAttrs);
+
+            // create projection over left rewritten input
+            attNames = concatTwoLists(getQueryOperatorAttrNames(rewrLeftInput),
+								      getOpProvenanceAttrNames(rewrRightInput));
+
+            // createAttrRefs for attributes of left input
+            i = 0;
+            provAttrs = copyObject(rewrLeftInput->provAttrs);
+		    projExprs = getAllAttrProjectionExprs(rewrLeftInput);
+
+            // create NULL expressions for provenance attrs of right input
+		    i = LIST_LENGTH(projExprs);
+		    FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrRightInput))
+            {
+                Constant *expr;
+
+                expr = createNullConst(a->dataType);
+                projExprs = appendToTailOfList(projExprs, expr);
+                provAttrs = appendToTailOfListInt(provAttrs, i++);
+            }
+            DEBUG_LOG("have created projection expression: %s\nattribute names: "
+                      "%s\n provAttrs: %s\n for left UNION input",
+                      nodeToString(projExprs), stringListToString(attNames),
+                      nodeToString(provAttrs));
+
+            ProjectionOperator *projLeftChild = createProjectionOp(projExprs,
+                                                                   rewrLeftInput, NIL, attNames);
+            ((QueryOperator *) projLeftChild)->provAttrs = provAttrs;
+
+            // create projection over right rewritten input
+            provAttrs = NIL;
+            projExprs = NIL;
+            attNames = CONCAT_LISTS(getNormalAttrNames(rewrRightInput),
+                                    getOpProvenanceAttrNames(rewrLeftInput),
+                                    getOpProvenanceAttrNames(rewrRightInput));
+
+            // create AttrRefs for normal attributes of right input
+            i = 0;
+            FOREACH(AttributeDef,a,getNormalAttrs(rewrRightInput))
+            {
+                AttributeReference *att;
+                att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR, a->dataType);
+                projExprs = appendToTailOfList(projExprs, att);
+            }
+
+            // create NULL expressions for provenance attrs of left input
+            FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrLeftInput))
+            {
+                Constant *expr;
+
+                expr = createNullConst(a->dataType);
+                projExprs = appendToTailOfList(projExprs, expr);
+                provAttrs = appendToTailOfListInt(provAttrs, i++);
+            }
+
+            // create AttrRefs for provenance attrs of right input
+            FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrRightInput))
+            {
+                AttributeReference *att;
+                att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, INVALID_ATTR, a->dataType);
+                projExprs = appendToTailOfList(projExprs, att);
+                provAttrs = appendToTailOfListInt(provAttrs, i++);
+            }
+
+            DEBUG_LOG("have created projection expressions: %s\nattribute names: "
+                      "%s\n provAttrs: %s\n for right UNION input",
+                      nodeToString(projExprs), stringListToString(attNames),
+                      nodeToString(provAttrs));
+            ProjectionOperator *projRightChild = createProjectionOp(projExprs,
+                                                                    rewrRightInput, NIL, attNames);
+            ((QueryOperator *) projRightChild)->provAttrs = provAttrs;
+
+    	    // make projections of rewritten inputs the direct children of the union operation
+            /* switchSubtrees(rewrLeftInput, (QueryOperator *) projLeftChild); */
+            /* switchSubtrees(rewrRightInput, (QueryOperator *) projRightChild); */
+            rewrLeftInput->parents = singleton(projLeftChild);
+            rewrRightInput->parents = singleton(projRightChild);
+		    rewr->inputs = NIL;
+		    addChildOperator(rewr, (QueryOperator *) projLeftChild);
+		    addChildOperator(rewr, (QueryOperator *) projRightChild);
+
+    	    // adapt schema of union itself, we can get full provenance attributes from left input
+    	    addProvenanceAttrsToSchema((QueryOperator *) rewr, (QueryOperator *) projLeftChild);
         }
-        DEBUG_LOG("have created projection expression: %s\nattribute names: "
-                "%s\n provAttrs: %s\n for left UNION input",
-                nodeToString(projExprs), stringListToString(attNames),
-                nodeToString(provAttrs));
-
-        ProjectionOperator *projLeftChild = createProjectionOp(projExprs,
-                rewrLeftInput, NIL, attNames);
-        ((QueryOperator *) projLeftChild)->provAttrs = provAttrs;
-
-        // create projection over right rewritten input
-        provAttrs = NIL;
-        projExprs = NIL;
-        attNames = CONCAT_LISTS(getNormalAttrNames(rewrRightInput),
-                getOpProvenanceAttrNames(rewrLeftInput),
-                getOpProvenanceAttrNames(rewrRightInput));
-
-        // create AttrRefs for normal attributes of right input
-        i = 0;
-        FOREACH(AttributeDef,a,getNormalAttrs(rewrRightInput))
+	    break;
+        case SETOP_INTERSECTION:
         {
-            AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i++, 0, a->dataType);
-            projExprs = appendToTailOfList(projExprs, att);
-        }
+            //create join condition
+            Node *joinCond;
+            List *comparisons = NIL;
+            int schemaSize = LIST_LENGTH(lChild->schema->attrDefs);
 
-        // create NULL expressions for provenance attrs of left input
-        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrLeftInput))
+            for(int i = 0 ; i < schemaSize; i++)
+            {
+                AttributeDef *lDef, *rDef;
+                lDef = getAttrDefByPos(lChild, i);
+                rDef = getAttrDefByPos(rChild, i);
+                comparisons = appendToTailOfList(comparisons, createOpExpr(OPNAME_EQ,
+                                                                           LIST_MAKE(createFullAttrReference (strdup(lDef->attrName),0,i,INVALID_ATTR, lDef->dataType),
+                                                                                     createFullAttrReference (strdup(rDef->attrName),1,i,INVALID_ATTR, rDef->dataType))
+                                                                           ));
+            }
+            joinCond = andExprList(comparisons);
+            DEBUG_LOG("join cond: %s", beatify(nodeToString(joinCond)));
+
+            //restrcuture the tree
+    	    JoinOperator *joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(rewrLeftInput,rewrRightInput), NIL, NIL);
+    	    addParent(rewrLeftInput,(QueryOperator *)  joinOp);
+    	    addParent(rewrRightInput, (QueryOperator *) joinOp);
+
+            // adapt schema for join op
+            clearAttrsFromSchema((QueryOperator *) joinOp);
+            addNormalAttrsToSchema((QueryOperator *) joinOp, rewrLeftInput);
+            addProvenanceAttrsToSchema((QueryOperator *) joinOp, rewrLeftInput);
+            addNormalAttrsToSchema((QueryOperator *) joinOp, rewrRightInput);
+            addProvenanceAttrsToSchema((QueryOperator *) joinOp, rewrRightInput);
+
+    	    // add projection
+            List *projExpr = CONCAT_LISTS(
+                                          getNormalAttrProjectionExprs((QueryOperator *) joinOp),
+                                          getProvAttrProjectionExprs((QueryOperator *) joinOp));
+            ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
+            proj->op.schema->attrDefs = NIL;
+
+            addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) joinOp);
+            addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) joinOp);
+            addChildOperator((QueryOperator *) proj, (QueryOperator *) joinOp);
+
+            rewr =  (QueryOperator *) proj;
+        }
+	    break;
+        case SETOP_DIFFERENCE:
         {
-            Constant *expr;
+    	    JoinOperator *joinOp;
+    	    ProjectionOperator *projOp;
+		    QueryOperator *diffCopy = getOrSetOpCopy(state->origOps, (QueryOperator *) op);
 
-            expr = createNullConst(a->dataType);
-            projExprs = appendToTailOfList(projExprs, expr);
-            provAttrs = appendToTailOfListInt(provAttrs, i++);
+		    // remove copy of set operator from rewritten left inputs parents list
+		    rewrLeftInput->parents = NIL;
+
+    	    // join provenance with rewritten right input
+    	    // create join condition
+            Node *joinCond;
+            List *joinAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) diffCopy),
+                                           getQueryOperatorAttrNames(rewrLeftInput));
+            makeNamesUnique(joinAttrs, NULL);
+    	    joinCond = NULL;
+
+            FORBOTH(AttributeReference, aL , aR, getNormalAttrProjectionExprs(rewrLeftInput),
+                    getNormalAttrProjectionExprs(rewrLeftInput))
+            {
+                aL->fromClauseItem = 0;
+                aR->fromClauseItem = 1;
+                if(joinCond)
+                    joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR), joinCond);
+                else
+                    joinCond = (Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR);
+            }
+
+            joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(diffCopy, rewrLeftInput),
+                                  NIL, joinAttrs);
+            joinOp->op.provAttrs = copyObject(rewrLeftInput->provAttrs);
+            SHIFT_INT_LIST(joinOp->op.provAttrs, getNumAttrs((QueryOperator *) diffCopy));
+
+    	    // adapt schema using projection
+            List *rightProvAttrs = getProvenanceAttrDefs(rewrRightInput);
+            //        List *rightProvNames = getOpProvenanceAttrNames(rewrRightInput);
+
+            List *projExpr = CONCAT_LISTS(getNormalAttrProjectionExprs((QueryOperator *) diffCopy),
+                                          getProvAttrProjectionExprs((QueryOperator *) joinOp));
+            FOREACH(AttributeDef,a,rightProvAttrs)
+                projExpr = appendToTailOfList(projExpr, createNullConst(a->dataType));
+
+            List *projAttrs = getQueryOperatorAttrNames((QueryOperator *) diffCopy);
+
+            projOp = createProjectionOp(projExpr, (QueryOperator *) joinOp, NIL, projAttrs);
+            /* projOp->op.provAttrs = copyObject(rewrLeftInput->provAttrs); */
+    	    addProvenanceAttrsToSchema((QueryOperator *) projOp, OP_LCHILD(projOp));
+    	    addProvenanceAttrsToSchema((QueryOperator *) projOp, rewrRightInput);
+    	    addParent((QueryOperator *) joinOp, (QueryOperator *) projOp);
+
+    	    // switch original set diff with projection
+    	    addParent((QueryOperator *) diffCopy, (QueryOperator *) joinOp);
+    	    addParent((QueryOperator *) rewrLeftInput, (QueryOperator *) joinOp);
+
+            rewr = (QueryOperator *) projOp;
         }
-
-        // create AttrRefs for provenance attrs of right input
-        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rewrRightInput))
-        {
-            AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, 0, a->dataType);
-            projExprs = appendToTailOfList(projExprs, att);
-            provAttrs = appendToTailOfListInt(provAttrs, i++);
-        }
-
-        DEBUG_LOG("have created projection expressions: %s\nattribute names: "
-                "%s\n provAttrs: %s\n for right UNION input",
-                nodeToString(projExprs), stringListToString(attNames),
-                nodeToString(provAttrs));
-        ProjectionOperator *projRightChild = createProjectionOp(projExprs,
-                rewrRightInput, NIL, attNames);
-        ((QueryOperator *) projRightChild)->provAttrs = provAttrs;
-
-    	// make projections of rewritten inputs the direct children of the union operation
-        /* switchSubtrees(rewrLeftInput, (QueryOperator *) projLeftChild); */
-        /* switchSubtrees(rewrRightInput, (QueryOperator *) projRightChild); */
-        rewrLeftInput->parents = singleton(projLeftChild);
-        rewrRightInput->parents = singleton(projRightChild);
-		rewr->inputs = NIL;
-		addChildOperator(rewr, (QueryOperator *) projLeftChild);
-		addChildOperator(rewr, (QueryOperator *) projRightChild);
-
-    	// adapt schema of union itself, we can get full provenance attributes from left input
-    	addProvenanceAttrsToSchema((QueryOperator *) rewr, (QueryOperator *) projLeftChild);
-    }
-	break;
-    case SETOP_INTERSECTION:
-    {
-        //create join condition
-        Node *joinCond;
-        List *comparisons = NIL;
-        int schemaSize = LIST_LENGTH(lChild->schema->attrDefs);
-
-        for(int i = 0 ; i < schemaSize; i++)
-        {
-            AttributeDef *lDef, *rDef;
-            lDef = getAttrDefByPos(lChild, i);
-            rDef = getAttrDefByPos(rChild, i);
-            comparisons = appendToTailOfList(comparisons, createOpExpr(OPNAME_EQ,
-                    LIST_MAKE(createFullAttrReference (strdup(lDef->attrName),0,i,0, lDef->dataType),
-                            createFullAttrReference (strdup(rDef->attrName),1,i,0, rDef->dataType))
-                    ));
-        }
-        joinCond = andExprList(comparisons);
-        DEBUG_LOG("join cond: %s", beatify(nodeToString(joinCond)));
-
-        //restrcuture the tree
-    	JoinOperator *joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(rewrLeftInput,rewrRightInput), NIL, NIL);
-    	addParent(rewrLeftInput,(QueryOperator *)  joinOp);
-    	addParent(rewrRightInput, (QueryOperator *) joinOp);
-
-        // adapt schema for join op
-        clearAttrsFromSchema((QueryOperator *) joinOp);
-        addNormalAttrsToSchema((QueryOperator *) joinOp, rewrLeftInput);
-        addProvenanceAttrsToSchema((QueryOperator *) joinOp, rewrLeftInput);
-        addNormalAttrsToSchema((QueryOperator *) joinOp, rewrRightInput);
-        addProvenanceAttrsToSchema((QueryOperator *) joinOp, rewrRightInput);
-
-    	// add projection
-        List *projExpr = CONCAT_LISTS(
-                getNormalAttrProjectionExprs((QueryOperator *) joinOp),
-                getProvAttrProjectionExprs((QueryOperator *) joinOp));
-        ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
-
-        addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) joinOp);
-        addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) joinOp);
-        addChildOperator((QueryOperator *) proj, (QueryOperator *) joinOp);
-
-        rewr =  (QueryOperator *) joinOp;
-    }
-	break;
-    case SETOP_DIFFERENCE:
-    {
-    	JoinOperator *joinOp;
-    	ProjectionOperator *projOp;
-		QueryOperator *diffCopy = getOrSetOpCopy(state->origOps, (QueryOperator *) op);
-
-		// remove copy of set operator from rewritten left inputs parents list
-		rewrLeftInput->parents = NIL;
-
-    	// join provenance with rewritten right input
-    	// create join condition
-        Node *joinCond;
-        List *joinAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) diffCopy),
-                getQueryOperatorAttrNames(rewrLeftInput));
-        makeNamesUnique(joinAttrs, NULL);
-    	joinCond = NULL;
-
-        FORBOTH(AttributeReference, aL , aR, getNormalAttrProjectionExprs(rewrLeftInput),
-                getNormalAttrProjectionExprs(rewrLeftInput))
-        {
-            aL->fromClauseItem = 0;
-            aR->fromClauseItem = 1;
-            if(joinCond)
-                joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR), joinCond);
-            else
-                joinCond = (Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR);
-        }
-
-        joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(diffCopy, rewrLeftInput),
-                NIL, joinAttrs);
-        joinOp->op.provAttrs = copyObject(rewrLeftInput->provAttrs);
-        SHIFT_INT_LIST(joinOp->op.provAttrs, getNumAttrs((QueryOperator *) diffCopy));
-
-    	// adapt schema using projection
-        List *rightProvAttrs = getProvenanceAttrDefs(rewrRightInput);
-//        List *rightProvNames = getOpProvenanceAttrNames(rewrRightInput);
-
-        List *projExpr = CONCAT_LISTS(getNormalAttrProjectionExprs((QueryOperator *) diffCopy),
-                getProvAttrProjectionExprs((QueryOperator *) joinOp));
-        FOREACH(AttributeDef,a,rightProvAttrs)
-            projExpr = appendToTailOfList(projExpr, createNullConst(a->dataType));
-
-        List *projAttrs = getQueryOperatorAttrNames((QueryOperator *) diffCopy);
-
-        projOp = createProjectionOp(projExpr, (QueryOperator *) joinOp, NIL, projAttrs);
-        /* projOp->op.provAttrs = copyObject(rewrLeftInput->provAttrs); */
-    	addProvenanceAttrsToSchema((QueryOperator *) projOp, OP_LCHILD(projOp));
-    	addProvenanceAttrsToSchema((QueryOperator *) projOp, rewrRightInput);
-    	addParent((QueryOperator *) joinOp, (QueryOperator *) projOp);
-
-    	// switch original set diff with projection
-    	addParent((QueryOperator *) diffCopy, (QueryOperator *) joinOp);
-    	addParent((QueryOperator *) rewrLeftInput, (QueryOperator *) joinOp);
-
-        rewr = (QueryOperator *) projOp;
-    }
-	break;
-    default:
+	    break;
+        default:
     	break;
     }
 

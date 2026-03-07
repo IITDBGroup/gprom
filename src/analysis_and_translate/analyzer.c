@@ -2,10 +2,10 @@
  *
  * analyzer.c
  *			 : Main entry point for analyzer component. Calls selected analyzer plugin
- *		
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -29,7 +29,7 @@ static AnalyzerPlugin *assembleDLPlugin(void);
 
 // wrapper interface
 Node *
-analyzeParseModel (Node *parseModel)
+analyzeParseModel(Node *parseModel)
 {
     ASSERT(plugin);
     return plugin->analyzeParserModel(parseModel);

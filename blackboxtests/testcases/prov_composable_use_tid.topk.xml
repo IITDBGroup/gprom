@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Top-k provenance Test cases</comment>
+
+<entry key="q1.query">
+PROVENANCE OF (SELECT a,b FROM R USE PROVENANCE (b) ORDER BY a,b LIMIT 1);
+</entry>
+<entry key="q1.result">
+ a | b |  prov_r_b | _result_tid | _setprov_dup_count |
+-------------------------------------------------------
+ 1 | 1 |  1        | 1           | 1                  |
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (SELECT sum(b) AS x, a FROM r USE PROVENANCE (b) GROUP BY a ORDER BY x DESC, a LIMIT 1);
+</entry>
+<entry key="q2.result">
+ x | a |  prov_r_b | _result_tid | _setprov_dup_count |
+-------------------------------------------------------
+ 4 | 2 |  1        | 1           | 1                  |
+ 4 | 2 |  3        | 1           | 2                  |
+</entry>
+
+<entry key="q3.query">
+PROVENANCE OF (
+  SELECT sum(b * (1 - d)) AS x,
+         a
+    FROM r USE PROVENANCE (b),
+         s USE PROVENANCE (d)
+   WHERE r.b = s.d
+   GROUP BY a,c
+   ORDER BY x DESC, a
+   LIMIT 2
+);
+</entry>
+<entry key="q3.result">
+ x  | a | prov_r_b | prov_s_d | _result_tid | _setprov_dup_count |
+------------------------------------------------------------------
+ -2 | 1 | 2        | 2        | 1           | 1                  |
+ -2 | 1 | 2        | 2        | 2           | 1                  |
+</entry>
+
+
+</properties>

@@ -537,7 +537,7 @@ checkReuseVisitor (Node *node, void *context)
 
 
 boolean
-checkUniqueAttrNames (QueryOperator *op)
+checkUniqueAttrNames(QueryOperator *op)
 {
     Set *names = STRSET();
 

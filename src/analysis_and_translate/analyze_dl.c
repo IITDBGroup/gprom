@@ -757,6 +757,11 @@ backendifyProgram(DLProgram *p)
 			Constant *c = (Constant *) n;
             c->value = backendifyIdentifier(STRING_VALUE(c));
         }
+        else if (isA(n,KeyValue) && isA(((KeyValue *) n)->value, DLAtom))
+        {
+            DLAtom *f = (DLAtom *) ((KeyValue *) n)->value;
+			f->rel = backendifyIdentifier(f->rel);
+        }
         else if(isA(n,DLAtom))
         {
             DLAtom *f = (DLAtom *) n;

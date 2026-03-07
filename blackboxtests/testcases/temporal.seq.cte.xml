@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Temporal Sequenced Rewrites Test Cases for SPJ queries</comment>
+
+<entry key="q1.query">
+SEQUENCED TEMPORAL (
+  WITH q AS (SELECT a FROM TEMP_TEST WITH TIME(T_BEGIN, T_END))
+  SELECT * FROM q
+  WHERE a != 2
+);
+</entry>
+<entry key="q1.result">
+ a | t_b | t_e |
+----------------
+ 1 | 1   | 6   |
+ 1 | 1   | 6   |
+ 1 | 1   | 6   |
+ 1 | 6   | 10  |
+ 1 | 6   | 10  |
+ 1 | 10  | 13  |
+</entry>
+
+<entry key="q2.query">
+SEQUENCED TEMPORAL (
+  WITH q AS (SELECT a, b FROM TEMP_TEST WITH TIME(T_BEGIN, T_END))
+  SELECT r1.a, r2.a
+  FROM q r1, q r2
+  WHERE r1.a = r2.b
+);
+</entry>
+<entry key="q2.result">
+ A | T_B | T_E |
+----------------
+ 1 | 1   | 6   |
+ 1 | 1   | 6   |
+ 1 | 1   | 6   |
+ 1 | 6   | 10  |
+ 1 | 6   | 10  |
+ 1 | 10  | 13  |
+ 2 | 1   | 4   |
+</entry>
+
+<entry key="q3.query">
+SEQUENCED TEMPORAL (
+  WITH maxa AS (SELECT max(a) AS maxa  FROM TEMP_TEST WITH TIME(T_BEGIN, T_END))
+  SELECT r.a, r.b
+  FROM maxa, r
+  WHERE maxa.maxa = r.a
+  );
+</entry>
+<entry key="q3.result">
+ X | C | T_B | T_E |
+--------------------
+ 3 | 2 | 1   | 2   |
+ 3 | 2 | 2   | 6   |
+ 3 | 2 | 2   | 6   |
+ 3 | 2 | 6   | 10  |
+ 4 | 2 | 1   | 4   |
+ 3 | 4 | 1   | 2   |
+ 3 | 4 | 1   | 2   |
+ 3 | 4 | 2   | 13  |
+</entry>
+
+
+
+</properties>

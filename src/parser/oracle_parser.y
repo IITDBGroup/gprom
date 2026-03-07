@@ -1604,8 +1604,8 @@ unaryOperatorExpression:
 		 | expression POSTGRESCAST identifier
 		 {
 			 RULELOG("postgres castExpression");
-			 /* CastExpr *c = createCastExpr($1, SQLdataTypeToDataType($3)); */
-			 CastExpr *c = createCastExprOtherDT($1, strToLower($3), -1, SQLdataTypeToDataType($3));
+			 char *typname = backendifyIdentifier($3);
+			 CastExpr *c = createCastExprOtherDT($1, typname, -1, SQLdataTypeToDataType(typname));
 			 $$ = (Node *) c;
 		 }
     ;
@@ -1671,7 +1671,8 @@ castExpression:
 		CAST '(' expression AS identifier ')'
 			{
 				RULELOG("castExpression");
-				CastExpr *c = createCastExprOtherDT($3, strToLower($5), -1, SQLdataTypeToDataType($5));
+				char *typname = backendifyIdentifier($5);
+				CastExpr *c = createCastExprOtherDT($3, strToLower(typname), -1, SQLdataTypeToDataType(typname));
 				$$ = (Node *) c;
 			}
 	;

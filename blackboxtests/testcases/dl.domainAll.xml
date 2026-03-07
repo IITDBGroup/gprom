@@ -3,12 +3,6 @@
 <properties>
 <comment>Associate Domain for Datalog Test cases</comment>
 
-<entry key="options">
-plugin.parser=dl,
-plugin.analyzer=dl,
-plugin.translator=dl
-</entry>
-
 <entry key="q1.query">
 Q(X) :- HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c')). USERDOMAIN OF HOP.B IS D.
 </entry>

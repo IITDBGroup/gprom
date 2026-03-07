@@ -3,12 +3,6 @@
 <properties>
 <comment>Why GP questions for Positive Nonrecursive Datalog Test cases</comment>
 
-<entry key="options">
-plugin.parser=dl,
-plugin.analyzer=dl,
-plugin.translator=dl
-</entry>
-
 <entry key="q1.query">
 Q(X) :- R(X,Y). WHY(Q(1)).
 </entry>

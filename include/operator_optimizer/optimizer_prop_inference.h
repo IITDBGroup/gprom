@@ -52,6 +52,7 @@ extern Set *addAttrOfSelectCondToSet(Set *set, Node *expr);
 extern void computeNotNullProp(QueryOperator *op);
 
 /* help print function */
+extern char *ecToString(List *ec);
 extern void printECPro(QueryOperator *root);
 extern void printSingleECList(List *l);
 

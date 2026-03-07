@@ -427,7 +427,7 @@ createIsNotDistinctExpr (Node *lArg, Node *rArg)
 }
 
 Constant *
-createConstInt (int value)
+createConstInt(int value)
 {
     Constant *result = makeNode(Constant);
     int *v = NEW(int);
@@ -441,7 +441,7 @@ createConstInt (int value)
 }
 
 Constant *
-createConstLong (gprom_long_t value)
+createConstLong(gprom_long_t value)
 {
     Constant *result = makeNode(Constant);
     gprom_long_t *v = NEW(gprom_long_t);
@@ -455,7 +455,7 @@ createConstLong (gprom_long_t value)
 }
 
 Constant *
-createConstString (char *value)
+createConstString(char *value)
 {
     Constant *result = makeNode(Constant);
 
@@ -467,7 +467,7 @@ createConstString (char *value)
 }
 
 Constant *
-createConstFloat (double value)
+createConstFloat(double value)
 {
     Constant *result = makeNode(Constant);
     double *v = NEW(double);
@@ -481,7 +481,7 @@ createConstFloat (double value)
 }
 
 Constant *
-createConstBoolFromString (char *v)
+createConstBoolFromString(char *v)
 {
     if (streq(v,"TRUE") || streq(v,"t") || streq(v,"true"))
         return createConstBool(TRUE);
@@ -1273,7 +1273,9 @@ typeOfInOpModel (Node *expr, List *inputOperators)
             return typeOf(w->then);
         }
         case T_RowNumExpr:
-            return DT_INT;
+        {
+            return typeOf(expr);
+        }
         case T_CastExpr:
             return ((CastExpr *) expr)->resultDT;
         default:
@@ -1565,7 +1567,7 @@ findDLVarsIgnoreProps (Node *node, List **state)
     return visit(node, findDLVars, state);
 }
 
-//TODO this is unsafe, callers are passing op as an operator even though it may not be one.
+// FIXME this is unsafe, callers are passing op as an operator even though it may not be one.
 void
 getSelectionCondOperatorList(Node *expr, List **opList)
 {
@@ -1590,44 +1592,46 @@ getSelectionCondOperatorList(Node *expr, List **opList)
 	}
 }
 
-Node *
-changeListOpToAnOpNode(List *l1)
-{
-    List *helpList;
-    Node *opNode1;
+/* Node * */
+/* changeListOpToAnOpNode(List *l1) */
+/* { */
+/*     List *helpList; */
+/*     Node *resultExprRoot; */
 
-    if (LIST_LENGTH(l1) == 2)
-        opNode1 = (Node *) createOpExpr(OPNAME_AND, (List *) l1);
-    else if(LIST_LENGTH(l1) > 2)
-    {
-        int i;
-        helpList = NIL;
-        Operator *helpO1 = getHeadOfListP(l1);
-        l1 = REMOVE_FROM_LIST_PTR(l1, helpO1);
-        Operator *helpO2 = getHeadOfListP(l1);
-        l1 = REMOVE_FROM_LIST_PTR(l1, helpO2);
-        helpList = appendToTailOfList(helpList, helpO1);
-        helpList = appendToTailOfList(helpList, helpO2);
+/*     if (LIST_LENGTH(l1) == 2) */
+/*     { */
+/*         resultExprRoot = (Node *) createOpExpr(OPNAME_AND, (List *) l1); */
+/*     } */
+/*     else if(LIST_LENGTH(l1) > 2) */
+/*     { */
+/*         int i; */
+/*         helpList = NIL; */
+/*         Operator *helpO1 = getHeadOfListP(l1); */
+/*         l1 = REMOVE_FROM_LIST_PTR(l1, helpO1); */
+/*         Operator *helpO2 = getHeadOfListP(l1); */
+/*         l1 = REMOVE_FROM_LIST_PTR(l1, helpO2); */
+/*         helpList = appendToTailOfList(helpList, helpO1); */
+/*         helpList = appendToTailOfList(helpList, helpO2); */
 
-	Operator *helpO = createOpExpr(OPNAME_AND, (List *) helpList);
-        int length_l1 = LIST_LENGTH(l1);
+/* 		Operator *helpO = createOpExpr(OPNAME_AND, (List *) helpList); */
+/*         int length_l1 = LIST_LENGTH(l1); */
 
-        for(i=0; i<length_l1; i++)
-        {
-            helpList = NIL;
-            helpList = appendToTailOfList(helpList, helpO);
-            helpO = getHeadOfListP(l1);
-            l1 = REMOVE_FROM_LIST_PTR(l1, helpO);
-            helpList = appendToTailOfList(helpList, helpO);
-            helpO =  createOpExpr(OPNAME_AND, (List *) helpList);
-        }
-        opNode1 = (Node *)helpO;
-    }
-    else
-        opNode1 = (Node *) getHeadOfListP(l1);
+/*         for(i=0; i<length_l1; i++) */
+/*         { */
+/*             helpList = NIL; */
+/*             helpList = appendToTailOfList(helpList, helpO); */
+/*             helpO = getHeadOfListP(l1); */
+/*             l1 = REMOVE_FROM_LIST_PTR(l1, helpO); */
+/*             helpList = appendToTailOfList(helpList, helpO); */
+/*             helpO =  createOpExpr(OPNAME_AND, (List *) helpList); */
+/*         } */
+/*         resultExprRoot = (Node *)helpO; */
+/*     } */
+/*     else */
+/*         resultExprRoot = (Node *) getHeadOfListP(l1); */
 
-    return opNode1;
-}
+/*     return resultExprRoot; */
+/* } */
 
 List *
 findAllNodes(Node *node, NodeTag type)

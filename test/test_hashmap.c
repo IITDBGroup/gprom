@@ -20,6 +20,7 @@
 static rc testIntKeyHashMap(void);
 static rc testHashMapToStringSortOrder(void);
 static rc testHashListValue(void);
+static rc testStringKeysAndValues(void);
 
 rc
 testHashMap()
@@ -28,6 +29,7 @@ testHashMap()
     RUN_TEST(testHashMapToStringSortOrder(),
             "test determinisim of toString for hashmap");
 	RUN_TEST(testHashListValue(), "test list appending in hashmaps");
+    RUN_TEST(testStringKeysAndValues(), "test string key and value in hashmaps");
 
     return PASS;
 }
@@ -111,4 +113,40 @@ testHashListValue(void)
 	ASSERT_EQUALS_NODE(LIST_MAKE(_S("A")), getMapString(a, "B"), "b -> (a)");
 
 	return PASS;
+}
+
+static rc
+testStringKeysAndValues(void)
+{
+	HashMap *m = NEW_MAP(Constant, Constant);
+
+    MAP_ADD_STRING_KEY_AND_VAL(m, strdup("a"), strdup("1"));
+    MAP_ADD_STRING_KEY_AND_VAL(m, strdup("b"), strdup("2"));
+    MAP_ADD_STRING_KEY_AND_VAL(m, strdup("c"), strdup("3"));
+
+    ASSERT_TRUE(MAP_HAS_STRING_KEY(m, "a"), "have a");
+    ASSERT_TRUE(MAP_HAS_STRING_KEY(m, "b"), "have b");
+    ASSERT_TRUE(MAP_HAS_STRING_KEY(m, "c"), "have c");
+    ASSERT_FALSE(MAP_HAS_STRING_KEY(m, "d"), "not have d");
+    ASSERT_FALSE(MAP_HAS_STRING_KEY(m, "e"), "not have e");
+
+    ASSERT_EQUALS_STRING("1", MAP_GET_STRING_VAL_FOR_STRING_KEY(m, "a"), "a -> 1");
+    ASSERT_EQUALS_STRING("2", MAP_GET_STRING_VAL_FOR_STRING_KEY(m, "b"), "b -> 2");
+    ASSERT_EQUALS_STRING("3", MAP_GET_STRING_VAL_FOR_STRING_KEY(m, "c"), "c -> 3");
+
+    ASSERT_FALSE(MAP_HAS_STRING_KEY(m, "d"), "not have d");
+    ASSERT_FALSE(MAP_HAS_STRING_KEY(m, "e"), "not have e");
+
+    MAP_ADD_STRING_KEY_AND_VAL(m, strdup("c"), strdup("4"));
+    ASSERT_EQUALS_STRING("4", MAP_GET_STRING_VAL_FOR_STRING_KEY(m, "c"), "c -> 4");
+
+    ASSERT_TRUE(MAP_HAS_STRING_KEY(m, "a"), "have a");
+    ASSERT_TRUE(MAP_HAS_STRING_KEY(m, "b"), "have b");
+    ASSERT_TRUE(MAP_HAS_STRING_KEY(m, "c"), "have c");
+
+    ASSERT_FALSE(MAP_HAS_STRING_KEY(m, "d"), "not have d");
+    ASSERT_FALSE(MAP_HAS_STRING_KEY(m, "e"), "not have e");
+
+
+    return PASS;
 }
