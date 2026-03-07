@@ -7,7 +7,7 @@
 SEQUENCED TEMPORAL (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1);
 </entry>
 <entry key="q1.result">
-  A | B | T_B | T_E |
+ A | B | T_B | T_E |
 --------------------
  1 | 1 | 1   | 2   |
  1 | 1 | 2   | 6   |

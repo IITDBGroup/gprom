@@ -4,11 +4,11 @@
 <comment>General settings for sequenced temporal test cases</comment>
 
 <entry key="extra_settings.noopt">
--temporal_use_coalesce:FALSE
+-temporal_use_coalesce:TRUE
 </entry>
 
 <entry key="extra_settings.heuopt">
--temporal_use_coalesce:FALSE,
+-temporal_use_coalesce:TRUE,
 -heuristic_opt
 </entry>
 
