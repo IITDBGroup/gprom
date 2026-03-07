@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>General settings for Datalog test cases</comment>
+<comment>General settings for SQL queries without provenance test cases</comment>
 
 <entry key="extra_settings.noopt">
 </entry>
