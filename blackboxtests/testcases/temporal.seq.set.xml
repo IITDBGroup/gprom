@@ -7,15 +7,16 @@
 SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 UNION ALL SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
 </entry>
 <entry key="q1.result">
- A | T_B | T_E |
+ a | t_b | t_e |
 ----------------
- 1 | 1   | 6   |
- 1 | 6   | 10  |
- 1 | 10  | 13  |
- 2 | 1   | 4   |
- 1 | 1   | 6   |
- 1 | 6   | 10  |
- 1 | 1   | 6   |
+ 1 | 1   | 5   |
+ 1 | 2   | 6   |
+ 1 | 5   | 10  |
+ 2 | 1   | 2   |
+ 2 | 2   | 3   |
+ 2 | 3   | 4   |
+ 1 | 1   | 13  |
+ 1 | 1   | 2   |
 </entry>
 
 
@@ -30,13 +31,19 @@ A | T_B | T_E |
 </entry>
 
 <entry key="q3.query">
-SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 UNION SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
+  SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 UNION SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
 </entry>
 <entry key="q3.result">
- A | T_B | T_E |
+ a | t_b | t_e |
 ----------------
- 1 | 1   | 13  |
- 2 | 1   | 4   |
+ 1 | 1   | 2   |
+ 1 | 2   | 5   |
+ 1 | 5   | 6   |
+ 1 | 6   | 10  |
+ 1 | 10  | 13  |
+ 2 | 1   | 2   |
+ 2 | 2   | 3   |
+ 2 | 3   | 4   |
 </entry>
 
 <entry key="q4.query">
