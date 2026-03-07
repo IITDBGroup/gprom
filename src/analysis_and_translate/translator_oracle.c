@@ -195,7 +195,7 @@ translateQueryOracleInternal (Node *node, List **attrsOffsetsList)
 
 
 static Node *
-translateGeneral (Node *node, List **attrsOffsetsList)
+translateGeneral(Node *node, List **attrsOffsetsList)
 {
     Node *result;
     QueryOperator *r;

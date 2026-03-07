@@ -1924,6 +1924,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSComposableRewrite
 	List *provInfo;
     int relAccessCount = increaseRefCount(state->provCounts, op->tableName);
     int cnt = 0;
+    Node *rownumExpr;
 
     DEBUG_LOG("REWRITE-PICS-Composable - Table Access <%s> <%u>", op->tableName, relAccessCount);
 
@@ -1952,10 +1953,21 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSComposableRewrite
         cnt++;
     }
 
+    // generate expression to create row numbers using the most efficient method
+    // available in backend. In worst case we have to fall back to ROW_NUMBER()
+    // OVER() but this can block the query optimizer from merging selections
+    // into joins and lead to cross products
+    /* if(getBackend() == BACKEND_POSTGRES) */
+    /* { */
+    /*     create */
+    /* } */
+    // TODO opportunistically avoid row_number() OVER () if possible
+    rownumExpr = (Node *) makeNode(RowNumExpr);
+
     // result tuple ID attribute
     newAttrName = strdup(RESULT_TID_ATTR);
     provAttr = appendToTailOfList(provAttr, newAttrName);
-    projExpr = appendToTailOfList(projExpr, makeNode(RowNumExpr));
+    projExpr = appendToTailOfList(projExpr, rownumExpr);
 
     // provenance duplicate attribute
     newAttrName = strdup(PROV_DUPL_COUNT_ATTR);
