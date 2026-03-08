@@ -1642,8 +1642,8 @@ updateAttributeNamesInternal(Node *node, FromAttrsContext *fac)
 
                 if(!streq(a->name,updatedName) && !streq(a->name, newName))
                 {
-                    ERROR_LOG_FAC("Messed up attributes:\n\n%s", fac);
-                    ERROR_LOG("WARNING: different attribute name used <%s> new name <%s> <%s>",
+                    INFO_LOG_FAC("Messed up attributes:\n\n%s", fac);
+                    INFO_LOG("WARNING: different attribute name used <%s> new name <%s> <%s>",
                               a->name,
                               newName,
                               updatedName
