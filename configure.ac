@@ -340,7 +340,7 @@ fi
 ])
 # MonetDB Mapi library location
 AC_DEFUN([AC_MAPI_LOCATION],
-[AC_ARG_WITH(mapi, [  --with-mapi-lib], , )
+[AC_ARG_WITH(mapi-lib, [  --with-mapi-lib], , )
 AC_MSG_CHECKING([for user provided MonetDB mapi library location])
 if test "x$with_mapi_lib" != x; then
 	if test -d "$with_mapi_lib"; then
@@ -373,16 +373,16 @@ AC_DEFUN([AC_MONETDB_ALL_CHECKS],
 ])
 # sqlite library location
 AC_DEFUN([AC_SQLITE_LOCATION],
-[AC_ARG_WITH(mapi, [  --with-libsqlite], , )
+[AC_ARG_WITH(sqlite, [  --with-sqlite], , )
 AC_MSG_CHECKING([for user provided sqllite library location])
-if test "x$with_libsqlite" != x; then
-	if test -d "$with_libsqlite/lib" && test -d "$with_libsqlite/include"; then
-		LDFLAGS="$LDFLAGS -L$with_libsqlite/lib"
-        CPPFLAGS="$CPPFLAGS -I$with_libsqlite/include"
-    	AC_MSG_RESULT([yes, $with_libsqlite])
+if test "x$with_sqlite" != x; then
+	if test -d "$with_sqlite/lib" && test -d "$with_sqlite/include"; then
+		LDFLAGS="$LDFLAGS -L$with_sqlite/lib"
+        CPPFLAGS="$CPPFLAGS -I$with_sqlite/include"
+    	AC_MSG_RESULT([yes, $with_sqlite])
 	else
     	AC_MSG_RESULT([no])
-    	AC_MSG_WARN(no libsqlite library directory found in location $with_sqlite_lib)
+    	AC_MSG_WARN(no libsqlite library directory found in location $with_sqlite)
 	fi
 else
 	AC_MSG_RESULT([not set])
