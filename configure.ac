@@ -61,7 +61,7 @@ AC_DEFUN([AC_OCIH_LOCATION],
 AC_MSG_CHECKING([for user provided OCI header location])
 if test "x$with_oci_headers" != x; then
 	if test -f "$with_oci_headers/oci.h"; then
-    	CPPFLAGS="$CPPFLAGS -I$with_oci_headers/include"
+    	CPPFLAGS="$CPPFLAGS -I$with_oci_headers"
     	AC_MSG_RESULT([yes, found at $with_oci_headers])
 	else
     	AC_MSG_RESULT([no])
