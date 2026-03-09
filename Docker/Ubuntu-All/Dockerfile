@@ -2,7 +2,7 @@
 # Derived from gprom travis build image which supports all backends
 ########################################
 FROM iitdbgroup/gprom_travis
-MAINTAINER Boris Glavic <bglavic@iit.edu>
+LABEL org.opencontainers.image.authors="Boris Glavic <bglavic@uic.edu>"
 ########################################
 # Clone GProM github repository
 ########################################

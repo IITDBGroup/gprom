@@ -1,8 +1,9 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-FROM oraclelinux:8
-MAINTAINER Boris Glavic <bglavic@iit.edu>
+FROM oraclelinux:10
+
+LABEL org.opencontainers.image.authors="Boris Glavic <bglavic@uic.edu>"
 
 ########################################
 # Create working directories
@@ -12,7 +13,7 @@ WORKDIR /gprom
 ########################################
 # Instantclient
 ########################################
-RUN  dnf -y install oracle-instantclient-release-el8 && \
+RUN  dnf -y install oracle-instantclient-release-el10 && \
      dnf -y install oracle-instantclient-basic oracle-instantclient-devel oracle-instantclient-sqlplus
 
 ########################################
