@@ -36,8 +36,8 @@ def forcelogfat(m):
     console.print(m, style=FAT_STYLE, justify="center")
     console.print(80 * " ", style=FAT_STYLE, justify="center")
 
-
-
+def wrap_line(m):
+    return "\n" + "=" * 80 + "\n" + m + "\n"  + "=" * 80
 
 class DatabaseBackends(Enum):
     POSTGRES = 1
@@ -82,23 +82,26 @@ class Table:
 
     @classmethod
     def from_str(cls, inputstr: str):
-        lines = inputstr.split('\n')
-        lines = [ x for x in lines if x.strip() != "" ]
-        if len(lines) < 2:
-            log(f"a table's string representation has to have at least two lines:\n\n{inputstr}")
-            raise ValueError("a table's string representation has to have at least two lines")
-        schema = [ x.strip().lower() for x in lines[0].split('|')[:-1] ]
-        numattr = len(schema)
-        lines = lines[2:]
-        t = Table(schema)
-        for line in lines:
-            vals = [ x.strip() for x in line.split("|")[:-1] ]
-            row = tuple(vals)
-            if len(vals) != numattr:
-                log(f"Table has {numattr} attributes, but this row has {len(vals)} values:\n\n{vals}\n\n{inputstr}")
-                raise ValueError(f"Table has {numattr} attributes, but this row has {len(vals)} values:\n\n{vals}")
-            t.add_row(row)
-        return t
+        try:
+            lines = inputstr.split('\n')
+            lines = [ x for x in lines if x.strip() != "" ]
+            if len(lines) < 2:
+                log(f"a table's string representation has to have at least two lines:\n\n{inputstr}")
+                raise ValueError("a table's string representation has to have at least two lines")
+            schema = [ x.strip().lower() for x in lines[0].split('|')[:-1] ]
+            numattr = len(schema)
+            lines = lines[2:]
+            t = Table(schema)
+            for line in lines:
+                vals = [ x.strip() for x in line.split("|")[:-1] ]
+                row = tuple(vals)
+                if len(vals) != numattr:
+                    log(f"Table has {numattr} attributes, but this row has {len(vals)} values:\n\n{vals}\n\n{inputstr}")
+                    raise ValueError(f"Table has {numattr} attributes, but this row has {len(vals)} values:\n\n{vals}")
+                t.add_row(row)
+            return t
+        except Exception as e:
+            raise TableParseException(str)
 
     @classmethod
     def row_to_string(cls, r, attrvallen=None, newline=False):
@@ -233,21 +236,25 @@ class OrderedTable():
 
     @classmethod
     def from_str(cls, inputstr: str):
-        lines = inputstr.split('\n')
-        lines = [ x for x in lines if x.strip() != "" ]
-        if len(lines) < 2:
-            raise ValueError("a table's string representation has to have at least two lines")
-        schema = [ x.strip() for x in lines[0].split('|')[:-1] ]
-        numattr = len(schema)
-        lines = lines[2:]
-        t = OrderedTable(schema)
-        for line in lines:
-            vals = [ x.strip() for x in line.split("|")[:-1] ]
-            row = tuple(vals)
-            if len(vals) != numattr:
-                raise ValueError(f"Table has {numattr} attributes, but this row has {len(vals)} values:\n\n{vals}")
-            t.append(row)
-        return t
+        try:
+            lines = inputstr.split('\n')
+            lines = [ x for x in lines if x.strip() != "" ]
+            if len(lines) < 2:
+                raise ValueError("a table's string representation has to have at least two lines")
+            schema = [ x.strip() for x in lines[0].split('|')[:-1] ]
+            numattr = len(schema)
+            lines = lines[2:]
+            t = OrderedTable(schema)
+            for line in lines:
+                vals = [ x.strip() for x in line.split("|")[:-1] ]
+                row = tuple(vals)
+                if len(vals) != numattr:
+                    raise ValueError(f"Table has {numattr} attributes, but this row has {len(vals)} values:\n\n{vals}")
+                t.append(row)
+            return t
+        except Exception as e:
+            raise TableParseException(str)
+
 
     def __str__(self):
         result = ""
@@ -622,11 +629,34 @@ class GProMTestRunner:
                         f.write("\n")
             self.progressbar.update()
             return correct
+        except GProMRunException as e:
+            self.results[name][test.name] = False
+            if options.errordetails:
+                self.errors[name][test.name] = "ORIGNAL RUN:\n" + str(e)
+            else:
+                self.errors[name][test.name] = e.shortversion()
+            if options.debug:
+                traceback.print_exc()
+            if options.errordetails:
+                try:
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, self.debugconf)
+                    if rc == -1:
+                        self.errors[name][test.name] += "TIMED OUT"
+                    else:
+                        self.errors[name][test.name] += wrap_line("DEBUGRUN") + f"\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
+                except Exception as e2:
+                    self.errors[name][test.name] += "\n\nADDITIONAL EXCEPTION DURING DEBUG RUN\n\n" + str(e2)
+            return False
+        except TimeoutError as e:
+            self.results[name][test.name] = False
+            self.errors[name][test.name] = "TIMED OUT"
+            return False
         except Exception as e:
+            self.results[name][test.name] = False
             log(f"got exception: {e}")
             if options.debug:
                 traceback.print_exc()
-            self.results[name][test.name] = False
+            # if asked for details rerun gprom in debug settings
             if self.failonerror:
                 raise e
             else:
@@ -751,6 +781,38 @@ class GProMTestRunner:
             console.print(f"{blackindent}{suitestr} {mes}")
         return (numbase, basepassed)
 
+class GProMRunException(Exception):
+
+    def __init__(self, rc, stdout, stderr, cmd):
+        super().__init__(stdout + stderr)
+        self.rc = rc
+        self.stdout = stdout
+        self.stderr = stderr
+        self.cmd = cmd
+
+    def wrap_in_lines(self, s):
+        return "\n" + "=" * 80 + "\n" + s + "\n"  + "=" * 80
+
+    def shortversion(self):
+        return f"RC: [{self.rc}] {self.stdout}"
+
+    def __str__(self):
+        title = self.wrap_in_lines(f"\nGProM Run Exception [return code <{self.rc}>]\n")
+        cmd = self.wrap_in_lines(self.cmd)
+        stdout = self.wrap_in_lines("STDOUT")
+        stderr = self.wrap_in_lines("STDERR")
+        return title + cmd + stdout + "\n" + self.stdout + stderr + "\n" + self.stderr
+
+class TableParseException(Exception):
+
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        return "\n" + "=" * 80 + "\nTable Parse Exception\n" + "=" * 80 + "\n\n" + self.message + "\n" + "=" * 80
+
+
 class GProMRunner():
 
     @classmethod
@@ -801,8 +863,10 @@ WHERE pid <> pg_backend_pid();
         rc, res, stderr = GProMRunner.gprom_exec_to_string(gprom, query, args)
         log(f"running get us RC: {rc} with STDOUT:\n{res}")
         if rc:
-            raise Exception(f"failed running [{rc}]:\nSTDOUT:\n{res}\nSTDERR:\n{stderr}")
+            argstr = ' '.join(GProMRunner.construct_gprom_cmd_as_list(gprom, query, args))
+            raise GProMRunException(rc,res,stderr,argstr)
         return Table.from_str(res)
+
 
     @classmethod
     def gprom_exec_to_ordered_table(cls, gprom: str, query: str, args: GProMSetting):
