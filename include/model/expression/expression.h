@@ -311,6 +311,8 @@ extern List *findAllNodes(Node *node, NodeTag type);
 // names for common SQL functions
 #define LEAST_FUNC_NAME backendifyIdentifier("least")
 #define GREATEST_FUNC_NAME backendifyIdentifier("greatest")
+#define TO_DATE_FUNC_NAME backendifyIdentifier("to_date")
+#define DUCKDB_MAKE_DATE_FUNC_NAME backendifyIdentifier("make_date")
 
 // names for common SQL window and aggregation functions
 #define MIN_FUNC_NAME backendifyIdentifier("min")
