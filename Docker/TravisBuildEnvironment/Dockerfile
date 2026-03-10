@@ -1,9 +1,18 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-FROM oraclelinux:10
+FROM oraclelinux:9
 
+########################################
+# Image Metadata
+########################################
 LABEL org.opencontainers.image.authors="Boris Glavic <bglavic@uic.edu>"
+
+########################################
+# Arguments
+########################################
+ARG TARGETARCH
+ARG DUCKDB_VERSION=1.5.0
 
 ########################################
 # Create working directories
@@ -13,62 +22,89 @@ WORKDIR /gprom
 ########################################
 # Instantclient
 ########################################
-RUN  dnf -y install oracle-instantclient-release-el10 && \
+RUN  dnf -y install oracle-instantclient-release-23ai-el9 && \
      dnf -y install oracle-instantclient-basic oracle-instantclient-devel oracle-instantclient-sqlplus
+
+# Uncomment if the tools package is added
+ENV PATH=$PATH:/usr/lib/oracle/23/client64/bin
+
+RUN dnf -y groupinstall "Development Tools"
 
 ########################################
 # Install packages needed for building
 ########################################
 RUN dnf -y install \
 	ant \
-	autoconf \
-	automake \
-    autotools-dev \
     bison \
-    build-essential:native \
     bzip2 \
 	curl \
-	dh-make \
-    fakeroot \
     flex \
 	git \
     graphviz \
-    libbz2-dev \
-    libcurl4-openssl-dev \
-    liblzma-dev \
-	libpq-dev \
-    libreadline6 \
-	libreadline6-dev \
-	libsqlite3-dev \
+    libcurl-devel \
+    openssl-libs \
+    xz-devel \
+	libpq-devel \
+    readline \
+	readline-devel \
+	sqlite-devel \
+    sqlite-libs \
     libtool \
-    libzip-dev \
+    libzip \
+    libzip-tools \
 	make \
     man-db \
     openssl \
     pkg-config \
-	pandoc \
 	postgresql \
-	rman \
 	sshpass \
-    sqlite3 \
+    sqlite \
     sudo \
 	unzip \
     vim \
-    zlib1g-dev \
+    zlib \
+    zlib-devel \
     wget \
     && rm -rf /var/cache/dnf
+
+# dh-make libbz2-dev libcurl4-openssl-dev liblzma-dev libpq-dev rman zlib1g-dev
+#     libcurl4-openssl-dev \
+# 	pandoc \     libbz2-dev \ 	rman \
+########################################
+# Install duckdb
+########################################
+RUN wget https://github.com/duckdb/duckdb/releases/download/v${DUCKDB_VERSION}/libduckdb-linux-${TARGETARCH}.zip \
+    && unzip libduckdb-linux-${TARGETARCH}.zip -d libduckdb \
+    && mkdir -p /usr/local/include \
+    && mkdir -p /usr/local/lib \
+    && mv libduckdb/duckdb.* /usr/local/include/ \
+    && mv libduckdb/libduckdb.so /usr/local/lib/ \
+    && rm -rf *.zip
+RUN wget https://install.duckdb.org/v1.4.4/duckdb_cli-linux-${TARGETARCH}.zip \
+    && unzip duckdb_cli-linux-${TARGETARCH}.zip \
+    && mv duckdb /usr/local/bin \
+    && rm -rf *.zip
+
 ########################################
 # Install MonetDB
 ########################################
-RUN mkdir -p /monetdb \
+ARG MONETDB_RELEASE=Dec2025-SP1
+ARG MONETDB_VERSION=11.55.3
+RUN dnf install openssl-devel libxml2-devel pcre-devel wget
+# RUN dnf install https://dev.monetdb.org/downloads/epel/MonetDB-release-epel.noarch.rpm \
+#     && update-crypto-policies --set DEFAULT:SHA1 \
+#     && rpm --import https://dev.monetdb.org/downloads/MonetDB-GPG-KEY
+RUN groupadd monetdb && \
+    usermod -a -G monetdb root
+RUN  mkdir -p /monetdb \
     && cd /monetdb \
-    && wget https://www.monetdb.org/downloads/sources/Apr2019-SP1/MonetDB-11.33.11.tar.bz2 --no-check-certificate \
-    && bzip2 -d MonetDB-11.33.11.tar.bz2 \
-    && tar xf MonetDB-11.33.11.tar \
-    && cd MonetDB-11.33.11 \
+    && wget https://www.monetdb.org/downloads/sources/${MONETDB_RELEASE}/MonetDB-${MONETDB_VERSION}.tar.bz2 --no-check-certificate \
+    && bzip2 -d MonetDB-${MONETDB_VERSION}.tar.bz2 \
+    && tar xf MonetDB-${MONETDB_VERSION}.tar \
+    && cd MonetDB-${MONETDB_VERSION} \
     && ./configure --prefix=/monetdb/install --enable-assert --enable-debug --with-libxml2=no \
-    && make -j 64 && make install \
-    && rm -fr /monetdb/MonetDB-11.33.11.tar /monetdb/MonetDB-11.33.11
+    && make -j && make install \
+    && rm -fr /monetdb/MonetDB-${MONETDB_VERSION}.tar /monetdb/MonetDB-${MONETDB_VERSION}
 ########################################
 # Setup MonetDB
 ########################################
