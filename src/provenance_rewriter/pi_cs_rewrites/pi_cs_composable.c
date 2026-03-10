@@ -88,6 +88,7 @@ static QueryOperator *rewritePI_CSComposableLimitOp(LimitOperator *op, PICSCompo
 
 static QueryOperator *rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteState *state);
 
+static List *combineInputResultTidAndDupAttrsExprs(QueryOperator *op);
 static QueryOperator *combineInputResultTidAndDupAttrs(QueryOperator *op);
 static DataType getRowNumDT();
 static Constant *getOneForRowNum();
@@ -1010,62 +1011,11 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 	// make sure join result attributes are unique and rename
 	makeAttrNamesUnique(rewr);
 
-    // add window functions for result TID and prov dup columns
+    // add window functions for result TID and prov dup columns if at least one
+    // of the input may contain provenance duplicated rows
     if (!lChildNoDup || !rChildNoDup)
     {
         rewr = combineInputResultTidAndDupAttrs(rewr);
-        /* List *orderBy = NIL; */
-        /* List *partitionBy = NIL; */
-        /* wOp = NULL; */
-
-        /* if (lChildNoDup) */
-        /* { */
-        /*     AttributeReference *childResultTidAttr = getAttrRefByName(rewr, LEFT_RESULT_TID_ATTR); */
-        /*             /\* (AttributeReference *)  getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrLeftInput)); *\/ */
-        /*     orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr)); */
-        /*     partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr)); */
-        /* } */
-        /* if (rChildNoDup) */
-        /* { */
-        /*     AttributeReference *childResultTidAttr = getAttrRefByName(rewr, RIGHT_RESULT_TID_ATTR); */
-        /*     // (AttributeReference *) */
-        /*     /\* getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrRightInput)); *\/ */
-        /*     /\* childResultTidAttr->attrPosition += getNumAttrs(lChild); *\/ */
-        /*     orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr)); */
-        /*     partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr)); */
-        /* } */
-
-        /* // add window functions for result TID attr */
-        /* Node *tidFunc = (Node *) createFunctionCall(DENSE_RANK_FUNC_NAME, NIL); */
-
-        /* wOp = createWindowOp(tidFunc, */
-        /*         NIL, */
-        /*         orderBy, */
-        /*         NULL, */
-        /*         strdup(RESULT_TID_ATTR), */
-        /*         (QueryOperator *) rewr, */
-        /*         NIL */
-        /* ); */
-        /* wOp->op.provAttrs = copyObject(rewr->provAttrs); */
-
-        /* // add window function for prov dup attr */
-        /* prev = (QueryOperator *) wOp; */
-        /* Node *provDupFunc = (Node *) createFunctionCall(ROW_NUMBER_FUNC_NAME, NIL); */
-
-        /* wOp = createWindowOp(provDupFunc, */
-        /*         partitionBy, */
-        /*         orderBy, */
-        /*         NULL, */
-        /*         strdup(PROV_DUPL_COUNT_ATTR), */
-        /*         prev, */
-        /*         NIL */
-        /* ); */
-        /* wOp->op.provAttrs = copyObject(prev->provAttrs); */
-        /* addParent(prev, (QueryOperator *) wOp); */
-        /* SET_STRING_PROP(wOp, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 2)); */
-        /* SET_STRING_PROP(wOp, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 1)); */
-
-        /* LOG_RESULT("Added result TID and prov duplicate window ops:", wOp); */
     }
 
     // add projection to put attributes into order on top of join op
@@ -1083,10 +1033,7 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
     }
     else
     {
-        resultTidAndProvCount = LIST_MAKE(
-                makeNode(RowNumExpr),
-                getOneForRowNum()
-        );
+        resultTidAndProvCount = combineInputResultTidAndDupAttrsExprs(rewr);
     }
 
     projExpr = CONCAT_LISTS(
@@ -1126,6 +1073,35 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
     LOG_RESULT_AND_RETURN(PICS-Composable,Join);
 }
 
+static List *
+combineInputResultTidAndDupAttrsExprs(QueryOperator *op)
+{
+    BackendType backend = getBackend();
+
+    if (backend == BACKEND_POSTGRES || backend == BACKEND_DUCKDB)
+    {
+        AttributeReference *leftChildResultTidAttr = getAttrRefByName(op, LEFT_RESULT_TID_ATTR);
+        AttributeReference *rightChildResultTidAttr = getAttrRefByName(op, RIGHT_RESULT_TID_ATTR);
+        AttributeReference *leftChildProvDupAttr = getAttrRefByName(op, LEFT_PROV_DUP_ATTR);
+        AttributeReference *rightChildProvDupAttr = getAttrRefByName(op, RIGHT_PROV_DUP_ATTR);
+        char *fName = backend == BACKEND_POSTGRES ? POSTGRES_MERGE_ROWID_FUNC : DUCKDB_MERGE_ROWID_FUNC;
+        Node *tidExpr, *provDupExpr;
+
+        tidExpr = (Node *) createFunctionCall(strdup(fName),
+                                     LIST_MAKE(leftChildResultTidAttr, rightChildResultTidAttr));
+        provDupExpr = (Node *) createFunctionCall(strdup(GREATEST_FUNC_NAME),
+                                                  LIST_MAKE(leftChildProvDupAttr, rightChildProvDupAttr));
+        return LIST_MAKE(tidExpr, provDupExpr);
+    }
+    else
+    {
+        return LIST_MAKE(
+                makeNode(RowNumExpr),
+                getOneForRowNum()
+        );
+    }
+}
+
 static QueryOperator *
 combineInputResultTidAndDupAttrs(QueryOperator *op)
 {
@@ -1145,18 +1121,12 @@ combineInputResultTidAndDupAttrs(QueryOperator *op)
     // in duckdb we can use hash(resultTidLeft, resultTidRight)
     if(backend == BACKEND_POSTGRES || backend == BACKEND_DUCKDB)
     {
-        AttributeReference *leftChildResultTidAttr = getAttrRefByName(op, LEFT_RESULT_TID_ATTR);
-        AttributeReference *rightChildResultTidAttr = getAttrRefByName(op, RIGHT_RESULT_TID_ATTR);
-        AttributeReference *leftChildProvDupAttr = getAttrRefByName(op, LEFT_PROV_DUP_ATTR);
-        AttributeReference *rightChildProvDupAttr = getAttrRefByName(op, RIGHT_PROV_DUP_ATTR);
-        char *fName = backend == BACKEND_POSTGRES ? POSTGRES_MERGE_ROWID_FUNC : DUCKDB_MERGE_ROWID_FUNC;
-        ProjectionOperator *p;
+        List *exprs = combineInputResultTidAndDupAttrsExprs(op);
         Node *tidExpr, *provDupExpr;
+        ProjectionOperator *p;
 
-        tidExpr = (Node *) createFunctionCall(strdup(fName),
-                                     LIST_MAKE(leftChildResultTidAttr, rightChildResultTidAttr));
-        provDupExpr = (Node *) createFunctionCall(strdup(GREATEST_FUNC_NAME),
-                                     LIST_MAKE(leftChildProvDupAttr, rightChildProvDupAttr));
+        tidExpr = (Node *) getNthOfListP(exprs, 0);
+        provDupExpr = (Node *) getNthOfListP(exprs, 1);
 
         p = (ProjectionOperator *) createProjOnAllAttrs(op);
 
