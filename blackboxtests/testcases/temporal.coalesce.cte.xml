@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Temporal Sequenced Rewrites Test Cases for SPJ queries</comment>
+
+<entry key="q1.query">
+SEQUENCED TEMPORAL (
+  WITH q AS (SELECT a FROM TEMP_TEST WITH TIME(T_BEGIN, T_END))
+  SELECT * FROM q
+  WHERE a != 2
+);
+</entry>
+<entry key="q1.result">
+ a | t_b | t_e |
+----------------
+ 1 | 1   | 6   |
+ 1 | 1   | 6   |
+ 1 | 1   | 6   |
+ 1 | 6   | 10  |
+ 1 | 6   | 10  |
+ 1 | 10  | 13  |
+</entry>
+
+<entry key="q2.query">
+SEQUENCED TEMPORAL (
+  WITH q AS (SELECT a, b FROM TEMP_TEST WITH TIME(T_BEGIN, T_END))
+  SELECT r1.a AS x, r2.a
+  FROM q r1, q r2
+  WHERE r1.a = r2.b
+);
+</entry>
+<entry key="q2.result">
+ x | a  | t_b | t_e |
+---------------------
+ 1 | 1  | 1   | 2   |
+ 1 | 1  | 1   | 2   |
+ 1 | 1  | 1   | 2   |
+ 1 | 1  | 2   | 6   |
+ 1 | 1  | 2   | 6   |
+ 1 | 1  | 2   | 6   |
+ 1 | 1  | 2   | 6   |
+ 1 | 1  | 2   | 6   |
+ 1 | 1  | 2   | 6   |
+ 1 | 1  | 6   | 10  |
+ 1 | 1  | 6   | 10  |
+ 1 | 2  | 1   | 4   |
+ 1 | 2  | 1   | 4   |
+ 1 | 2  | 1   | 4   |
+ 2 | 1  | 1   | 2   |
+ 2 | 1  | 1   | 2   |
+ 2 | 1  | 2   | 4   |
+</entry>
+
+<entry key="q3.query">
+SEQUENCED TEMPORAL (
+  WITH maxa AS (SELECT max(a) AS maxa  FROM temp_test WITH TIME(T_BEGIN, T_END))
+  SELECT r.a, r.b
+  FROM maxa, temp_test WITH TIME(T_BEGIN, T_END) r
+  WHERE maxa.maxa = r.a
+  );
+</entry>
+<entry key="q3.result">
+ a | b | t_b | t_e |
+--------------------
+ 1 | 1 | 4   | 6   |
+ 1 | 1 | 4   | 6   |
+ 1 | 1 | 6   | 10  |
+ 1 | 2 | 4   | 13  |
+ 2 | 1 | 1   | 4   |
+</entry>
+
+<entry key="q4.query">
+SEQUENCED TEMPORAL (
+  WITH outr AS ( SELECT *
+                   FROM t_tc WITH TIME (t_b, t_e) r),
+    d AS ( SELECT DISTINCT a,b
+             FROM outr r )
+  SELECT *
+    FROM outr o, (SELECT AVG(s.c) AS x, d.a, d.b
+                    FROM t_tc WITH TIME (t_b, t_e) s, d
+                   WHERE s.a = d.a AND s.b &lt;&gt; d.b
+                   GROUP BY d.a, d.b ) sub
+   WHERE o.c &lt; x AND o.a = sub.a AND o.b = sub.b
+);
+</entry>
+<entry key="q4.result">
+ a | b | c | x                  | a1 | b1 | t_b | t_e |
+-------------------------------------------------------
+ 1 | 2 | 3 | 4.0000000000000000 | 1  | 2  | 6   | 10  |
+ 1 | 2 | 3 | 7.0000000000000000 | 1  | 2  | 5   | 6   |
+ 1 | 2 | 3 | 6.5000000000000000 | 1  | 2  | 2   | 5   |
+ 1 | 2 | 1 | 3.0000000000000000 | 1  | 2  | 1   | 2   |
+</entry>
+
+
+</properties>
