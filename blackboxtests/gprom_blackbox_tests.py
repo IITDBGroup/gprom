@@ -283,7 +283,7 @@ class GProMSetting:
         return GProMSetting(mergedict)
 
     def merge_into(self, other: "GProMSetting") -> "GProMSetting":
-        self.settings = self.setting.union(other.setting)
+        self.setting = self.union(other)
 
     def __getitem__(self,key):
         return self.setting[key]
@@ -640,7 +640,8 @@ class GProMTestRunner:
                 traceback.print_exc()
             if options.errordetails:
                 try:
-                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, self.debugconf)
+                    mergedconf = setting.union(self.debugconf)
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
                     if rc == -1:
                         self.errors[name][test.name] += "TIMED OUT"
                     else:
@@ -661,7 +662,8 @@ class GProMTestRunner:
             self.results[name][test.name] = False
             if options.errordetails:
                 try:
-                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, self.debugconf)
+                    mergedconf = setting.union(self.debugconf)
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
                     self.actualresults[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
                     self.errors[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
                 except Exception as e2:
