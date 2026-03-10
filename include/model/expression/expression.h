@@ -59,6 +59,8 @@ NEW_ENUM_WITH_TO_STRING(DataType,
     DT_VARCHAR2
 );
 
+#define IS_INTEGER_DT(_dt) ((_dt == DT_INT) || (_dt == DT_LONG))
+
 typedef struct Constant {
     NodeTag type;
     DataType constType;
@@ -328,5 +330,6 @@ extern List *findAllNodes(Node *node, NodeTag type);
 // names of special attributes
 #define POSTGRES_CTID_ATTR "ctid"
 #define DUCKDB_ROWID_ATTR "rowid"
+#define POSTGRES_TID_TO_INT8_FUNC "_tid2int8"
 
 #endif /* EXPRESSION_H */

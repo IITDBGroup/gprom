@@ -39,7 +39,7 @@
 #define CONTEXT_NAME "PostgresMemContext"
 
 #define EXPLAIN_FUNC_NAME "_get_explain_json"
-#define CREATE_EXPLAIN_FUNC "create or replace function " EXPLAIN_FUNC_NAME "(in qry text, out r jsonb) returns setof jsonb as $$" \
+#define CREATE_EXPLAIN_FUNC ("create or replace function " EXPLAIN_FUNC_NAME "(in qry text, out r jsonb) returns setof jsonb as $$" \
 		"declare " \
             "explcmd text; " \
         "begin " \
@@ -48,7 +48,13 @@
                 "return next; " \
             "end loop; " \
             "return; " \
-        "end; $$ language plpgsql;"
+    "end; $$ language plpgsql;")
+#define TID2INT8_FUNC_NAME POSTGRES_TID_TO_INT8_FUNC
+#define CREATE_TID2INT8_FUNC ("CREATE OR REPLACE FUNCTION " TID2INT8_FUNC_NAME " (t tid) RETURNS int8 AS " \
+                      "$$ " \
+                      "SELECT CASE WHEN t IS NULL THEN NULL ELSE (((t::text::point)[0]::bigint << 32) | (t::text::point)[1]::bigint) END AS i " \
+    "$$ LANGUAGE SQL IMMUTABLE STRICT;")
+
 
 // we have to use syntax that works a reasonable range of postgres versions
 #define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
@@ -56,9 +62,9 @@
 //#define QUERY_GET_SERVER_VERSION "SELECT version[1] AS major, version[2] AS minor FROM "
 //        "(SELECT (regexp_match(version(), '(\\d+).(\\d+)'))::text[] AS version) getv;"
 
-#define NAME_EXPLAIN_FUNC_EXISTS "GProM_CheckExplainFunctionExists"
-#define PARAMS_EXPLAIN_FUNC_EXISTS 0
-#define QUERY_EXPLAIN_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = '" EXPLAIN_FUNC_NAME "');"
+#define NAME_FUNC_EXISTS "GProM_CheckFunctionExists"
+#define PARAMS_FUNC_EXISTS 1
+#define QUERY_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = $1::text);"
 
 #define NAME_QUERY_GET_COST "GProM_GetQueryCost"
 #define PARAMS_QUERY_GET_COST 1
@@ -169,6 +175,7 @@ static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
 static void determineServerVersion(void);
 static void prepareLookupQueries(void);
+static void createFunctionIfItDoesNotExists(char *fname, char *createScript);
 static boolean hasAnyType (List *oids);
 static boolean isAnyTypeCompaible (List *oids, List *argTypes);
 static DataType inferAnyReturnType (List *oids, List *argTypes, int retOid);
@@ -477,14 +484,12 @@ determineServerVersion(void)
 }
 
 static void
-prepareLookupQueries(void)
+createFunctionIfItDoesNotExists(char *fname, char *createScript)
 {
     PGresult *res;
     boolean funcExists = FALSE;
-    // create explain function for costing queries if necessary
-    PREP_QUERY(EXPLAIN_FUNC_EXISTS);
 
-    res = execPrepared(NAME_EXPLAIN_FUNC_EXISTS, NIL);
+    res = execPrepared(NAME_FUNC_EXISTS, singleton(createConstString(fname)));
     for(int i = 0; i < PQntuples(res); i++)
     {
         char *ex = PQgetvalue(res,i,0);
@@ -497,8 +502,38 @@ prepareLookupQueries(void)
     if (!funcExists && plugin->serverMajorVersion >= 9)
     {
 		START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
-        execStmt(CREATE_EXPLAIN_FUNC);
+        execStmt(createScript);
     }
+}
+
+#define CREATE_FUNC_IF_NOT_EXISTS(name) createFunctionIfItDoesNotExists(name ## _NAME, CREATE_ ## name)
+
+static void
+prepareLookupQueries(void)
+{
+    /* PGresult *res; */
+    /* boolean funcExists = FALSE; */
+    // create explain function for costing queries if necessary
+    PREP_QUERY(FUNC_EXISTS);
+
+    CREATE_FUNC_IF_NOT_EXISTS(EXPLAIN_FUNC);
+    CREATE_FUNC_IF_NOT_EXISTS(TID2INT8_FUNC);
+
+    /* res = execPrepared(EXPLAIN_FUNC, NIL); */
+    /* for(int i = 0; i < PQntuples(res); i++) */
+    /* { */
+    /*     char *ex = PQgetvalue(res,i,0); */
+    /*     if (streq(ex, "True")) */
+    /*         funcExists = TRUE; */
+    /* } */
+    /* PQclear(res); */
+
+    /* // create explain function */
+    /* if (!funcExists && plugin->serverMajorVersion >= 9) */
+    /* { */
+	/* 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER); */
+    /*     execStmt(CREATE_EXPLAIN_FUNC); */
+    /* } */
 
     // prepare other queries used for metadata lookup
 	// postgres 8 or older does not support JSON explain output we use to extract query cost
