@@ -1957,12 +1957,30 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSComposableRewrite
     // available in backend. In worst case we have to fall back to ROW_NUMBER()
     // OVER() but this can block the query optimizer from merging selections
     // into joins and lead to cross products
-    /* if(getBackend() == BACKEND_POSTGRES) */
-    /* { */
-    /*     create */
-    /* } */
     // TODO opportunistically avoid row_number() OVER () if possible
-    rownumExpr = (Node *) makeNode(RowNumExpr);
+    if(getBackend() == BACKEND_POSTGRES)
+    {
+        rownumExpr = (Node *) createFullAttrReference(strdup(POSTGRES_CTID_ATTR),
+													  0,
+													  LIST_LENGTH(t->op.schema->attrDefs),
+													  0,
+													  getRowNumDT());
+
+    }
+    else if (getBackend() == BACKEND_DUCKDB)
+    {
+		rownumExpr = (Node *) createFullAttrReference(strdup(DUCKDB_ROWID_ATTR),
+													  0,
+													  LIST_LENGTH(t->op.schema->attrDefs),
+													  0,
+													  getRowNumDT());
+    }
+    else
+    {
+
+        rownumExpr = (Node *) makeNode(RowNumExpr);
+    }
+
 
     // result tuple ID attribute
     newAttrName = strdup(RESULT_TID_ATTR);

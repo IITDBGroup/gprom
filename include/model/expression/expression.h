@@ -325,4 +325,8 @@ extern List *findAllNodes(Node *node, NodeTag type);
 
 #define COALESCE_FUNC_NAME backendifyIdentifier("COALESCE")
 
+// names of special attributes
+#define POSTGRES_CTID_ATTR "ctid"
+#define DUCKDB_ROWID_ATTR "rowid"
+
 #endif /* EXPRESSION_H */
