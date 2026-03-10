@@ -20,7 +20,7 @@ USER 0
 ########################################
 # Create working directories
 ########################################
-WORKDIR /home/ubuntu
+WORKDIR /home/headless
 ########################################
 # Install monetdb
 ########################################
@@ -98,11 +98,11 @@ RUN usermod -a -G monetdb root
 # Add oracle OCI library files
 ########################################
 RUN mkdir -p /opt/oracle
-COPY ./instantclient* /home/ubuntu/instantclient/
+COPY ./instantclient* /home/headless/instantclient/
 
-RUN unzip /home/ubuntu/instantclient/instantclient-basic-linux.x64-${ORACLE_INSTANTCLIENT_VERSION}.zip -d /opt/oracle \
-  && unzip /home/ubuntu/instantclient/instantclient-sdk-linux.x64-${ORACLE_INSTANTCLIENT_VERSION}.zip -d /opt/oracle  \
-  && unzip /home/ubuntu/instantclient/instantclient-sqlplus-linux.x64-${ORACLE_INSTANTCLIENT_VERSION}.zip -d /opt/oracle  \
+RUN unzip /home/headless/instantclient/instantclient-basic-linux.x64-${ORACLE_INSTANTCLIENT_VERSION}.zip -d /opt/oracle \
+  && unzip /home/headless/instantclient/instantclient-sdk-linux.x64-${ORACLE_INSTANTCLIENT_VERSION}.zip -d /opt/oracle  \
+  && unzip /home/headless/instantclient/instantclient-sqlplus-linux.x64-${ORACLE_INSTANTCLIENT_VERSION}.zip -d /opt/oracle  \
   && mv /opt/oracle/instantclient_12_1 /opt/oracle/instantclient \
   && ln -s /opt/oracle/instantclient/libclntsh.so.12.1 /opt/oracle/instantclient/libclntsh.so \
   && ln -s /opt/oracle/instantclient/libocci.so.12.1 /opt/oracle/instantclient/libocci.so
@@ -134,11 +134,20 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libmapi-11.55.3.so /usr/lib/x86_64-linux-gnu
 RUN ln -s /usr/lib/x86_64-linux-gnu/libstream.so.13 /usr/lib/x86_64-linux-gnu/libstream.so
 RUN ln -s /usr/lib/x86_64-linux-gnu/libaio.so.1t64.so.0.2 /usr/lib/x86_64-linux-gnu/libaio.so.1
 ########################################
+# install SQLServer odbc driver
+########################################
+USER 0
+RUN curl -sSL -O https://packages.microsoft.com/config/ubuntu/$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)/packages-microsoft-prod.deb
+RUN dpkg -i packages-microsoft-prod.deb \
+    && rm packages-microsoft-prod.deb
+RUN apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
+    && ACCEPT_EULA=Y apt-get install -y mssql-tools18
+RUN echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
+########################################
 # Clone GProM github repository
 ########################################
 RUN mkdir -p /home/headless/gprom
-RUN chown -R headless /home/headless
-USER headless
 RUN git clone https://github.com/IITDBGroup/gprom.git /home/headless/gprom
 ########################################
 # Build GProM
@@ -151,13 +160,17 @@ RUN cd /home/headless/gprom \
        --enable-postgres --with-libpq-headers=/usr/include/postgresql \
        --enable-duckdb \
        --with-mapi-lib=/usr/lib/x86_64-linux-gnu --with-mapi-headers=/usr/include/monetdb \
-       --enable-sqlite --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient/ \
+       --enable-sqlite \
+       --enable-oracle --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient/ \
+       --enable-mssql --with-mssql-headers=/usr/local/Cellar/msodbcsql17/17.10.6.1/include \
     && make -j \
     && make install
 ########################################
 # Build GProM
 ########################################
 RUN echo 'export PATH="$PATH:/home/headless/gprominstall/bin"' >> ~/.bashrc
+RUN chown -R headless /home/headless
+USER headless
 ########################################
 # Expose VNC port
 ########################################
@@ -168,6 +181,7 @@ RUN echo 'export PATH="$PATH:/home/headless/gprominstall/bin"' >> ~/.bashrc
 RUN mkdir -p /home/headless/gprom/build/javalib/ /home/headless/gprom/build/javatestlib/ \
     && cp /opt/oracle/instantclient/ojdbc7.jar /home/headless/gprom/build/javalib/ojdbc7.jar \
     && cp /opt/oracle/instantclient/ojdbc7.jar /home/headless/gprom/build/javatestlib/ojdbc7.jar
+
 ########################################
 # Per default start the gui (entrypoint from accetto/ubuntu-vnc-xfce-g3) which requires root
 ########################################
