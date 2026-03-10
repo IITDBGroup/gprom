@@ -1126,8 +1126,6 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
     LOG_RESULT_AND_RETURN(PICS-Composable,Join);
 }
 
-
-
 static QueryOperator *
 combineInputResultTidAndDupAttrs(QueryOperator *op)
 {
@@ -1140,19 +1138,22 @@ combineInputResultTidAndDupAttrs(QueryOperator *op)
     List *orderBy = NIL;
     List *partitionBy = NIL;
     WindowOperator *wOp = NULL;
+    BackendType backend = getBackend();
 
     // in postgres we can use a projection on hash(resultTidLeft,
-    // resultTidResult), least(greatest(provDupLeft,provDupRight))
-    if(getBackend() == BACKEND_POSTGRES)
+    // resultTidRight), least(greatest(provDupLeft,provDupRight))
+    // in duckdb we can use hash(resultTidLeft, resultTidRight)
+    if(backend == BACKEND_POSTGRES || backend == BACKEND_DUCKDB)
     {
         AttributeReference *leftChildResultTidAttr = getAttrRefByName(op, LEFT_RESULT_TID_ATTR);
         AttributeReference *rightChildResultTidAttr = getAttrRefByName(op, RIGHT_RESULT_TID_ATTR);
         AttributeReference *leftChildProvDupAttr = getAttrRefByName(op, LEFT_PROV_DUP_ATTR);
         AttributeReference *rightChildProvDupAttr = getAttrRefByName(op, RIGHT_PROV_DUP_ATTR);
+        char *fName = backend == BACKEND_POSTGRES ? POSTGRES_MERGE_ROWID_FUNC : DUCKDB_MERGE_ROWID_FUNC;
         ProjectionOperator *p;
         Node *tidExpr, *provDupExpr;
 
-        tidExpr = (Node *) createFunctionCall(strdup(POSTGRES_MERGE_ROWID_FUNC),
+        tidExpr = (Node *) createFunctionCall(strdup(fName),
                                      LIST_MAKE(leftChildResultTidAttr, rightChildResultTidAttr));
         provDupExpr = (Node *) createFunctionCall(strdup(GREATEST_FUNC_NAME),
                                      LIST_MAKE(leftChildProvDupAttr, rightChildProvDupAttr));

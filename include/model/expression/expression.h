@@ -336,5 +336,6 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define DUCKDB_ROWID_ATTR "rowid"
 #define POSTGRES_TID_TO_INT8_FUNC "_tid2int8"
 #define POSTGRES_MERGE_ROWID_FUNC "_mergerowid"
+#define DUCKDB_MERGE_ROWID_FUNC "hash"
 
 #endif /* EXPRESSION_H */

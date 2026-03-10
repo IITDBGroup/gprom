@@ -915,17 +915,28 @@ initCache(CatalogCache *c)
     /* ADD_BOTH_FUNC("sum"); */
     /* ADD_BOTH_FUNC("total"); */
 
-    ADD_WIN_FUNC("row_number");
-    ADD_WIN_FUNC("rank");
-    ADD_WIN_FUNC("dense_rank");
-    ADD_WIN_FUNC("percent_rank");
+    // regular aggregation functions are also available as window functions
+    ADD_WIN_FUNC("avg");
+    ADD_WIN_FUNC("count");
+    ADD_WIN_FUNC("max");
+    ADD_WIN_FUNC("min");
+    ADD_WIN_FUNC("sum");
+    /* ADD_BOTH_FUNC("total"); */
+
+    // window functions
     ADD_WIN_FUNC("cum_dist");
-    ADD_WIN_FUNC("ntile");
-    ADD_WIN_FUNC("lag");
-    ADD_WIN_FUNC("lead");
+    ADD_WIN_FUNC("cume_dist");
+    ADD_WIN_FUNC("dense_rank");
+    ADD_WIN_FUNC("fill");
     ADD_WIN_FUNC("first_value");
+    ADD_WIN_FUNC("lag");
     ADD_WIN_FUNC("last_value");
+    ADD_WIN_FUNC("lead");
     ADD_WIN_FUNC("nth_value");
+    ADD_WIN_FUNC("ntile");
+    ADD_WIN_FUNC("percent_rank");
+    ADD_WIN_FUNC("rank");
+    ADD_WIN_FUNC("row_number");
 
     duckCache = NEW(DuckDBMetaCache);
     duckCache->boolOps = STRSET();
