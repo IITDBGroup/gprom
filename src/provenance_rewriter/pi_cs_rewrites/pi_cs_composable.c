@@ -88,6 +88,7 @@ static QueryOperator *rewritePI_CSComposableLimitOp(LimitOperator *op, PICSCompo
 
 static QueryOperator *rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteState *state);
 
+static QueryOperator *combineInputResultTidAndDupAttrs(QueryOperator *op);
 static DataType getRowNumDT();
 static Constant *getOneForRowNum();
 static void addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema);
@@ -949,10 +950,10 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 {
 	REWR_BINARY_SETUP_PIC(Join);
 
-    WindowOperator *wOp = NULL;
+    /* WindowOperator *wOp = NULL; */
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
-    QueryOperator *prev = NULL;
+    /* QueryOperator *prev = NULL; */
     boolean noDupInput = isTupleAtATimeSubtree((QueryOperator *) op);
     boolean lChildNoDup = isTupleAtATimeSubtree(lChild);
     boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
@@ -1012,72 +1013,73 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
     // add window functions for result TID and prov dup columns
     if (!lChildNoDup || !rChildNoDup)
     {
-        List *orderBy = NIL;
-        List *partitionBy = NIL;
-        wOp = NULL;
+        rewr = combineInputResultTidAndDupAttrs(rewr);
+        /* List *orderBy = NIL; */
+        /* List *partitionBy = NIL; */
+        /* wOp = NULL; */
 
-        if (lChildNoDup)
-        {
-            AttributeReference *childResultTidAttr = getAttrRefByName(rewr, LEFT_RESULT_TID_ATTR);
-                    /* (AttributeReference *)  getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrLeftInput)); */
-            orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
-            partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
-        }
-        if (rChildNoDup)
-        {
-            AttributeReference *childResultTidAttr = getAttrRefByName(rewr, RIGHT_RESULT_TID_ATTR);
-            // (AttributeReference *)
-            /* getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrRightInput)); */
-            /* childResultTidAttr->attrPosition += getNumAttrs(lChild); */
-            orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
-            partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
-        }
+        /* if (lChildNoDup) */
+        /* { */
+        /*     AttributeReference *childResultTidAttr = getAttrRefByName(rewr, LEFT_RESULT_TID_ATTR); */
+        /*             /\* (AttributeReference *)  getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrLeftInput)); *\/ */
+        /*     orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr)); */
+        /*     partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr)); */
+        /* } */
+        /* if (rChildNoDup) */
+        /* { */
+        /*     AttributeReference *childResultTidAttr = getAttrRefByName(rewr, RIGHT_RESULT_TID_ATTR); */
+        /*     // (AttributeReference *) */
+        /*     /\* getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rewrRightInput)); *\/ */
+        /*     /\* childResultTidAttr->attrPosition += getNumAttrs(lChild); *\/ */
+        /*     orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr)); */
+        /*     partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr)); */
+        /* } */
 
-        // add window functions for result TID attr
-        Node *tidFunc = (Node *) createFunctionCall(DENSE_RANK_FUNC_NAME, NIL);
+        /* // add window functions for result TID attr */
+        /* Node *tidFunc = (Node *) createFunctionCall(DENSE_RANK_FUNC_NAME, NIL); */
 
-        wOp = createWindowOp(tidFunc,
-                NIL,
-                orderBy,
-                NULL,
-                strdup(RESULT_TID_ATTR),
-                (QueryOperator *) rewr,
-                NIL
-        );
-        wOp->op.provAttrs = copyObject(rewr->provAttrs);
+        /* wOp = createWindowOp(tidFunc, */
+        /*         NIL, */
+        /*         orderBy, */
+        /*         NULL, */
+        /*         strdup(RESULT_TID_ATTR), */
+        /*         (QueryOperator *) rewr, */
+        /*         NIL */
+        /* ); */
+        /* wOp->op.provAttrs = copyObject(rewr->provAttrs); */
 
-        // add window function for prov dup attr
-        prev = (QueryOperator *) wOp;
-        Node *provDupFunc = (Node *) createFunctionCall(ROW_NUMBER_FUNC_NAME, NIL);
+        /* // add window function for prov dup attr */
+        /* prev = (QueryOperator *) wOp; */
+        /* Node *provDupFunc = (Node *) createFunctionCall(ROW_NUMBER_FUNC_NAME, NIL); */
 
-        wOp = createWindowOp(provDupFunc,
-                partitionBy,
-                orderBy,
-                NULL,
-                strdup(PROV_DUPL_COUNT_ATTR),
-                prev,
-                NIL
-        );
-        wOp->op.provAttrs = copyObject(prev->provAttrs);
-        addParent(prev, (QueryOperator *) wOp);
-        SET_STRING_PROP(wOp, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 2));
-        SET_STRING_PROP(wOp, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 1));
+        /* wOp = createWindowOp(provDupFunc, */
+        /*         partitionBy, */
+        /*         orderBy, */
+        /*         NULL, */
+        /*         strdup(PROV_DUPL_COUNT_ATTR), */
+        /*         prev, */
+        /*         NIL */
+        /* ); */
+        /* wOp->op.provAttrs = copyObject(prev->provAttrs); */
+        /* addParent(prev, (QueryOperator *) wOp); */
+        /* SET_STRING_PROP(wOp, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 2)); */
+        /* SET_STRING_PROP(wOp, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 1)); */
 
-        LOG_RESULT("Added result TID and prov duplicate window ops:", wOp);
+        /* LOG_RESULT("Added result TID and prov duplicate window ops:", wOp); */
     }
 
     // add projection to put attributes into order on top of join op
     List *resultTidAndProvCount = NIL;
     List *projExpr;
     ProjectionOperator *proj;
-    QueryOperator *projInput = (noDupInput) ?
-            (QueryOperator *) rewr :
-            (QueryOperator *) wOp;
+    QueryOperator *projInput = rewr; /* (noDupInput) ? */
+            /* (QueryOperator *) rewr : */
+            /* (QueryOperator *) wOp; */
 
     // get special attributes from window op or create projection expression for them
     if (!noDupInput)
     {
-        resultTidAndProvCount = getResultTidAndProvDupAttrsProjExprs((QueryOperator *) wOp);
+        resultTidAndProvCount = getResultTidAndProvDupAttrsProjExprs((QueryOperator *) rewr);
     }
     else
     {
@@ -1104,13 +1106,13 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 
     // switch projection with join in tree
     //TODO check, but should not be necessary anymore, switchSubtrees((QueryOperator *) rewr, (QueryOperator *) proj);
-    if (noDupInput)
-        addParent((QueryOperator *) rewr, (QueryOperator *) proj);
-    else
-    {
-        addParent((QueryOperator *) wOp, (QueryOperator *) proj);
-        addParent((QueryOperator *) rewr, (QueryOperator *) prev);
-    }
+     /* if (noDupInput) */
+    addParent((QueryOperator *) rewr, (QueryOperator *) proj);
+    /* else */
+    /* { */
+    /*     addParent((QueryOperator *) wOp, (QueryOperator *) proj); */
+    /*     addParent((QueryOperator *) rewr, (QueryOperator *) prev); */
+    /* } */
 
 	// final result is the projection
 	rewr = (QueryOperator *) proj;
@@ -1122,6 +1124,105 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
 	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 
     LOG_RESULT_AND_RETURN(PICS-Composable,Join);
+}
+
+
+
+static QueryOperator *
+combineInputResultTidAndDupAttrs(QueryOperator *op)
+{
+    QueryOperator *lChild = OP_LCHILD(op);
+    QueryOperator *rChild = OP_RCHILD(op);
+    boolean lChildNoDup = isTupleAtATimeSubtree(lChild);
+    boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
+    QueryOperator *result = NULL;
+    QueryOperator *prev;
+    List *orderBy = NIL;
+    List *partitionBy = NIL;
+    WindowOperator *wOp = NULL;
+
+    // in postgres we can use a projection on hash(resultTidLeft,
+    // resultTidResult), least(greatest(provDupLeft,provDupRight))
+    if(getBackend() == BACKEND_POSTGRES)
+    {
+        AttributeReference *leftChildResultTidAttr = getAttrRefByName(op, LEFT_RESULT_TID_ATTR);
+        AttributeReference *rightChildResultTidAttr = getAttrRefByName(op, RIGHT_RESULT_TID_ATTR);
+        AttributeReference *leftChildProvDupAttr = getAttrRefByName(op, LEFT_PROV_DUP_ATTR);
+        AttributeReference *rightChildProvDupAttr = getAttrRefByName(op, RIGHT_PROV_DUP_ATTR);
+        ProjectionOperator *p;
+        Node *tidExpr, *provDupExpr;
+
+        tidExpr = (Node *) createFunctionCall(strdup(POSTGRES_MERGE_ROWID_FUNC),
+                                     LIST_MAKE(leftChildResultTidAttr, rightChildResultTidAttr));
+        provDupExpr = (Node *) createFunctionCall(strdup(GREATEST_FUNC_NAME),
+                                     LIST_MAKE(leftChildProvDupAttr, rightChildProvDupAttr));
+
+        p = (ProjectionOperator *) createProjOnAllAttrs(op);
+
+        p->projExprs = appendToTailOfList(p->projExprs, tidExpr);
+        p->projExprs = appendToTailOfList(p->projExprs, provDupExpr);
+        addResultTIDAndProvDupAttrs((QueryOperator *) p, TRUE);
+
+        addChildOperator((QueryOperator *) p, op);
+
+        result = (QueryOperator *) p;
+    }
+    else
+    {
+        if (lChildNoDup)
+        {
+            AttributeReference *childResultTidAttr = getAttrRefByName(op, LEFT_RESULT_TID_ATTR);
+            orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
+            partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
+        }
+        if (rChildNoDup)
+        {
+            AttributeReference *childResultTidAttr = getAttrRefByName(op, RIGHT_RESULT_TID_ATTR);
+            orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
+            partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
+        }
+
+        // add window functions for result TID attr
+        Node *tidFunc = (Node *) createFunctionCall(DENSE_RANK_FUNC_NAME, NIL);
+
+        wOp = createWindowOp(tidFunc,
+                NIL,
+                orderBy,
+                NULL,
+                strdup(RESULT_TID_ATTR),
+                (QueryOperator *) op,
+                NIL
+        );
+        wOp->op.provAttrs = copyObject(op->provAttrs);
+
+        // add window function for prov dup attr
+        prev = (QueryOperator *) wOp;
+        Node *provDupFunc = (Node *) createFunctionCall(ROW_NUMBER_FUNC_NAME, NIL);
+
+        wOp = createWindowOp(provDupFunc,
+                partitionBy,
+                orderBy,
+                NULL,
+                strdup(PROV_DUPL_COUNT_ATTR),
+                prev,
+                NIL
+        );
+        wOp->op.provAttrs = copyObject(prev->provAttrs);
+        addParent(prev, (QueryOperator *) wOp);
+        result = (QueryOperator *) wOp;
+    }
+
+    // store special attributes as attributes
+    SET_STRING_PROP(result,
+                    PROP_RESULT_TID_ATTR,
+                    createConstInt(LIST_LENGTH(result->schema->attrDefs) - 2));
+    SET_STRING_PROP(result,
+                    PROP_PROV_DUP_ATTR,
+                    createConstInt(LIST_LENGTH(result->schema->attrDefs) - 1));
+
+    LOG_RESULT("Merged result TID and prov duplicate attributes from left and right join input:", result);
+
+    return result;
 }
 
 static QueryOperator *

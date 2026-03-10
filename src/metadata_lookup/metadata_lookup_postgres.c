@@ -54,7 +54,11 @@
                       "$$ " \
                       "SELECT CASE WHEN t IS NULL THEN NULL ELSE (((t::text::point)[0]::bigint << 32) | (t::text::point)[1]::bigint) END AS i " \
     "$$ LANGUAGE SQL IMMUTABLE STRICT;")
-
+#define MERGE_ROWID_FUNC_NAME POSTGRES_MERGE_ROWID_FUNC
+#define CREATE_MERGE_ROWID_FUNC ("CREATE OR REPLACE FUNCTION " POSTGRES_MERGE_ROWID_FUNC " (l int8, r int8) RETURNS int8 AS " \
+                                 "$$ " \
+                                 "SELECT hash_record_extended((l,r),1); " \
+                                 "$$ LANGUAGE SQL IMMUTABLE STRICT;")
 
 // we have to use syntax that works a reasonable range of postgres versions
 #define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
@@ -516,24 +520,12 @@ prepareLookupQueries(void)
     // create explain function for costing queries if necessary
     PREP_QUERY(FUNC_EXISTS);
 
-    CREATE_FUNC_IF_NOT_EXISTS(EXPLAIN_FUNC);
+    if (plugin->serverMajorVersion >= 9)
+	{
+        CREATE_FUNC_IF_NOT_EXISTS(EXPLAIN_FUNC);
+    }
     CREATE_FUNC_IF_NOT_EXISTS(TID2INT8_FUNC);
-
-    /* res = execPrepared(EXPLAIN_FUNC, NIL); */
-    /* for(int i = 0; i < PQntuples(res); i++) */
-    /* { */
-    /*     char *ex = PQgetvalue(res,i,0); */
-    /*     if (streq(ex, "True")) */
-    /*         funcExists = TRUE; */
-    /* } */
-    /* PQclear(res); */
-
-    /* // create explain function */
-    /* if (!funcExists && plugin->serverMajorVersion >= 9) */
-    /* { */
-	/* 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER); */
-    /*     execStmt(CREATE_EXPLAIN_FUNC); */
-    /* } */
+    CREATE_FUNC_IF_NOT_EXISTS(MERGE_ROWID_FUNC);
 
     // prepare other queries used for metadata lookup
 	// postgres 8 or older does not support JSON explain output we use to extract query cost
