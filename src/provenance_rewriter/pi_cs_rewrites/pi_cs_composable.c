@@ -25,6 +25,8 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
+#include "model/set/set.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 #include "utility/string_utils.h"
 #include "provenance_rewriter/prov_schema.h"
@@ -1948,8 +1950,13 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSComposableRewrite
     {
         newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
-		provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(strdup(attr->attrName)));
-		projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+		provAttrsOnly = appendToTailOfList(provAttrsOnly,
+										   createConstString(strdup(attr->attrName)));
+		projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName,
+																		0,
+																		cnt,
+																		0,
+																		attr->dataType));
         cnt++;
     }
 
@@ -1958,26 +1965,80 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op, PICSComposableRewrite
     // OVER() but this can block the query optimizer from merging selections
     // into joins and lead to cross products
     // TODO opportunistically avoid row_number() OVER () if possible
+
+	// determine whether we have a key with a single attribute of the right data type
+    if(!HAS_STRING_PROP(t, PROP_STORE_LIST_KEY_DONE))
+    {
+        computeKeyProp((QueryOperator *) t);
+    }
+    List *keys = (List *) GET_STRING_PROP(t, PROP_STORE_LIST_KEY);
+    Node *singleKeyAttr = NULL;
+	DataType rownumDT = getRowNumDT();
+
+    FOREACH(Set,key, keys)
+    {
+        if(setSize(key) == 1)
+        {
+            FOREACH_SET(char,a,key)
+            {
+                AttributeReference *ar = getAttrRefByName((QueryOperator *) t, a);
+				if(ar->attrType == rownumDT)
+				{
+					singleKeyAttr = (Node *) ar;
+				}
+				else
+				{
+					if(IS_INTEGER_DT(rownumDT) && IS_INTEGER_DT(ar->attrType))
+					{
+						singleKeyAttr = (Node *) createCastExpr(singleKeyAttr, rownumDT);
+					}
+				}
+            }
+        }
+    }
+
+    // postgres use
     if(getBackend() == BACKEND_POSTGRES)
     {
-        rownumExpr = (Node *) createFullAttrReference(strdup(POSTGRES_CTID_ATTR),
-													  0,
-													  LIST_LENGTH(t->op.schema->attrDefs),
-													  0,
-													  getRowNumDT());
+		/* DataType rownumDT = getRowNumDT(); */
+        rownumExpr = (Node *) createFunctionCall(POSTGRES_TID_TO_INT8_FUNC,
+                                                 singleton(createFullAttrReference(strdup(POSTGRES_CTID_ATTR),
+													                               0,
+													                               LIST_LENGTH(t->op.schema->attrDefs),
+													                               0,
+													                               DT_STRING)));
+        // add ctid attribute to table schema, but only if does not exist already
+        if(!searchListString(getQueryOperatorAttrNames((QueryOperator *) t),POSTGRES_CTID_ATTR))
+        {
+		    t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+													    createAttributeDef(strdup(POSTGRES_CTID_ATTR),
+                                                                           DT_STRING));
+        }
 
     }
+    // duckdb use rowid pseudocolumn
     else if (getBackend() == BACKEND_DUCKDB)
     {
+		DataType rownumDT = getRowNumDT();
 		rownumExpr = (Node *) createFullAttrReference(strdup(DUCKDB_ROWID_ATTR),
 													  0,
 													  LIST_LENGTH(t->op.schema->attrDefs),
 													  0,
 													  getRowNumDT());
+        // add ctid attribute to table schema, but only if does not exist already
+        if(!searchListString(getQueryOperatorAttrNames((QueryOperator *) t),DUCKDB_ROWID_ATTR))
+        {
+		    t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+													    createAttributeDef(strdup(DUCKDB_ROWID_ATTR),
+                                                                           rownumDT));
+        }
+    }
+    else if (singleKeyAttr)
+    {
+		rownumExpr = (Node *) singleKeyAttr;
     }
     else
     {
-
         rownumExpr = (Node *) makeNode(RowNumExpr);
     }
 
