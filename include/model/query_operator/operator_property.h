@@ -14,6 +14,8 @@
 /* define keys for properties used to annotate operators */
 /* general operator properties */
 #define PROP_MATERIALIZE "MATERIALIZE"                      // hint to materialize output of this operator
+#define PROP_DO_NOT_MATERIALIZE "DO_NOT_MATERIALIZE"        // marks operators that should never be materialized as a CTE
+#define PROP_NO_MODEL_CHECKING_ROOT "NO_CHECKING_ROOT"      // model checking will ignore this operator and everything below
 
 // exec and prepared queries
 #define PROP_PREPARED_QUERY_NAME "PREPARED_QUERY"
@@ -108,6 +110,10 @@
 #define PROP_NESTING_TO_SERIALIZE "NESTED_SERIALIZE_SUBQUERIES" // nested subqueries to serialize into thie operator
 #define PROP_NESTING_LOCATIONS "NESTED_SUBQUERY_LOCATIONS" //
 #define PROP_NESTING_CORRELATED_ATTRS "NESTEDE_SUBQUERY_CORRELATED_ATTRS" // store set of correlated attributes
+#define PROP_INLINED_NESTED_QUERY "INLINED_NESTED_QUERY_REMOVE" // mark nesting operators that correspond to nested subqueries that will be serialized into WHERE
+#define PROP_NESTED_RESULT_ATTR "NEST_RESULT_ATTR"              // mark nesting result attribute
+#define PROP_NESTED_INLINED_NESTED_QUERY "NEST_INLINED_ATTR_REFERENCES"                     // inlined nesting operator result attributes references
+#define PROP_NESTING_OP_ID "NEST_ID"                        // unique name for each nested subquery
 
 /* Operator type specific properties */
 /* table access properties */
@@ -156,9 +162,12 @@
 #define PROP_TEMP_DO_COALESCE "TEMPORAL_DO_COALESCE"
 #define PROP_TEMP_DO_SET_COALESCE "TEMPORAL_DO_SET_COALESCE"
 #define PROP_TEMP_NORMALIZE_INPUTS "TEMPORAL_NORM_INPUTS"
+#define PROP_TEMP_NORMALIZE_NEURAL_AGG_ELEM "TEMPORAL_NORM_AGG_NEURAL_ELEMENT"
 #define PROP_TEMP_TNTAB "PROP_TEMP_TNTAB"
 #define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
+#define PROP_TEMP_NORMALIZE "normalize"
+#define PROP_TEMP_NESTEDQ_ID "TEMP_ID"
 
 /* for data skipping  */
 #define PROP_COARSE_GRAINED_TABLEACCESS_MARK "COARSE_GRAINED_TABLEACCESS_MARK"

@@ -34,7 +34,7 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
-static boolean replaceFunctionsWithEquivalent(Node *node, void *context);
+/* static boolean replaceFunctionsWithEquivalent(Node *node, void *context); */
 /* static boolean replaceBoolWithInt (Node *node, void *context); */
 static void createAPI (void);
 /* static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j, */
@@ -87,21 +87,25 @@ serializeQueryDuckDB(QueryOperator *q)
     str = makeStringInfo();
     viewDef = makeStringInfo();
 
-    // replace boolean with ints
-    //replaceBoolWithInt((Node *) q, NULL);
-
     // initialize basic structures and then call the worker
-    api->tempViewMap = NEW_MAP(Constant, Node);
-    api->viewCounter = 0;
+	cleanAPIState(api);
 
-    // simulate non Oracle conformant data types and expressions (boolean)
-    genQuoteAttributeNames((Node *) q);
+    // gather data on nesting operators
+    analyzeNesting(q, api);
+
+    // quote idents for duckdb
+    if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+    {
+		genQuoteAttributeNames((Node *) q);
+    }
+    DEBUG_OP_LOG("after attr quoting", q);
 
     // initialize FromAttrsContext structure
   	FromAttrsContext *fac = initializeFromAttrsContext();
+    fac->api = api;
 
 	// replace functions not supported by SQLite with equivalent alternatives
-	replaceFunctionsWithEquivalent((Node *) q, NULL);
+	// replaceFunctionsWithEquivalent((Node *) q, NULL);
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, fac, api);
@@ -180,23 +184,23 @@ quoteIdentifierDuckDB(char *ident)
     return ident;
 }
 
-static boolean
-replaceFunctionsWithEquivalent(Node *node, void *context)
-{
-	if (node == NULL)
-		return TRUE;
+/* static boolean */
+/* replaceFunctionsWithEquivalent(Node *node, void *context) */
+/* { */
+/* 	if (node == NULL) */
+/* 		return TRUE; */
 
-	if (isA(node, FunctionCall))
-	{
-		FunctionCall *f = (FunctionCall *) node;
-		if (streq(f->functionname, LEAST_FUNC_NAME))
-			f->functionname = strdup(MIN_FUNC_NAME);
-		if (streq(f->functionname, GREATEST_FUNC_NAME))
-			f->functionname = strdup(GREATEST_FUNC_NAME);
-	}
+/* 	if (isA(node, FunctionCall)) */
+/* 	{ */
+/* 		FunctionCall *f = (FunctionCall *) node; */
+/* 		if (streq(f->functionname, LEAST_FUNC_NAME)) */
+/* 			f->functionname = strdup(MIN_FUNC_NAME); */
+/* 		if (streq(f->functionname, GREATEST_FUNC_NAME)) */
+/* 			f->functionname = strdup(GREATEST_FUNC_NAME); */
+/* 	} */
 
-	return visit(node, replaceFunctionsWithEquivalent, context);
-}
+/* 	return visit(node, replaceFunctionsWithEquivalent, context); */
+/* } */
 
 /* static boolean */
 /* replaceBoolWithInt (Node *node, void *context) */

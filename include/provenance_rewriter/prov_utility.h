@@ -77,7 +77,7 @@
 #define LOG_RESULT_AND_RETURN(_rewrite_method,_optype)						\
 	do														\
 	{														\
-	LOG_RESULT("REWRITE " #_rewrite_method " - " #_optype " - rewritten operator:", rewr);	\
+        LOG_RESULT("REWRITE " #_rewrite_method " - " #_optype " - rewritten operator:", rewr);	\
 		return (QueryOperator *) rewr;						\
 	} while(0)
 

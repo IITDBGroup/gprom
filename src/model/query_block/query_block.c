@@ -80,6 +80,12 @@ getQBAttrDTs (Node *qb)
     return DTs;
 }
 
+int
+getQBNumAttrs (Node *qb)
+{
+    return LIST_LENGTH(getQBAttrNames(qb));
+}
+
 
 List *
 getQBAttrNames (Node *qb)

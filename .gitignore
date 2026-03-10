@@ -66,3 +66,4 @@ GTAGS
 .ccls-cache
 /src/.project
 .cache
+/.direnv/

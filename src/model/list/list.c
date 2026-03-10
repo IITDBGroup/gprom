@@ -635,6 +635,19 @@ constStringListToStringList(List *list)
     return result;
 }
 
+char *
+constStringListToString(List *list)
+{
+    StringInfo str = makeStringInfo();
+
+    FOREACH(Constant,s,list)
+    {
+        appendStringInfo(str, "%s%s", STRING_VALUE(s), FOREACH_HAS_MORE(s) ? ", ": "");
+    }
+
+    return str->data;
+}
+
 List *
 concatTwoLists(List *lista, List*listb)
 {

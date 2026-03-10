@@ -139,7 +139,7 @@ serializeOperatorModelOracle(Node *q)
 }
 
 static void
-createAPI (void)
+createAPI(void)
 {
     if (api == NULL)
     {
@@ -282,8 +282,7 @@ serializeQueryOracle(QueryOperator *q)
     viewDef = makeStringInfo();
 
     // initialize basic structures and then call the worker
-    viewMap = NULL;
-    viewNameCounter = 0;
+	cleanAPIState(api);
 
     // simulate non Oracle conformant data types and expressions (boolean)
     makeDTOracleConformant(q);

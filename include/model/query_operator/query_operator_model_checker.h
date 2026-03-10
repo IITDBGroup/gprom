@@ -16,6 +16,7 @@
 extern boolean isTree(QueryOperator *op);
 
 extern boolean checkModel(QueryOperator *op);
+extern boolean checkSingleOperator(QueryOperator *op);
 extern boolean checkUniqueAttrNames(QueryOperator *op);
 extern void makeAttrNamesUnique(QueryOperator *op);
 

@@ -636,7 +636,7 @@ translateUnSafeRule(DLRule *r)
 //        int pos = getAttrPos(joinedGoals, hV);
 //        DataType dt = getAttrDefByPos(joinedGoals, pos)->dataType;
 //
-//        a = createFullAttrReference(hV,0,pos,INVALID_ATTR, dt);
+//        a = createFullAttrReference(hV,0,pos,0, dt);
 //        projExprs = appendToTailOfList(projExprs, a);
 //    }
 
@@ -1022,7 +1022,7 @@ replaceDLVarMutator(Node *node, HashMap *vToA)
 		int pos = INT_VALUE(getNthOfListP(l,1));
 		DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
 
-		a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
+		a = createFullAttrReference(name,0,pos,0, dt);
 
 		return (Node *) a;
 	}
@@ -1051,7 +1051,7 @@ replaceDLVarMutator(Node *node, HashMap *vToA)
     /*         int pos = INT_VALUE(getNthOfListP(l,1)); */
     /*         DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2)); */
 
-    /*         a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt); */
+    /*         a = createFullAttrReference(name,0,pos,0, dt); */
     /*         return (Node *) a; */
     /*     } */
     /* } */
@@ -1129,9 +1129,9 @@ createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigA
                     char *lName = strdup(lA);
                     char *rName = strdup(rA);
 
-                    lAr = createFullAttrReference(lName, 0, lPos, INVALID_ATTR,
+                    lAr = createFullAttrReference(lName, 0, lPos, 0,
                             getAttrDefByPos(l,lPos)->dataType);
-                    rAr = createFullAttrReference(rName, 1, rPos, INVALID_ATTR,
+                    rAr = createFullAttrReference(rName, 1, rPos, 0,
                             getAttrDefByPos(r,rPos)->dataType);
                     op = createOpExpr(OPNAME_EQ, LIST_MAKE(lAr,rAr));
 
@@ -1156,9 +1156,9 @@ createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigA
 //        char *lName;
 //        char *rName;
 //
-//        lA = createFullAttrReference(lName, 0, lPos, INVALID_ATTR,
+//        lA = createFullAttrReference(lName, 0, lPos, 0,
 //                getAttrDefByPos(l,lPos)->dataType);
-//        rA = createFullAttrReference(rName, 1, rPos, INVALID_ATTR,
+//        rA = createFullAttrReference(rName, 1, rPos, 0,
 //                getAttrDefByPos(r,rPos)->dataType);
 //        op = createOpExpr(OPNAME_EQ, LIST_MAKE(lA,rA));
 //
@@ -2238,7 +2238,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 
                 varNames = appendToTailOfList(varNames, strdup(name));
                 projArgs = appendToTailOfList(projArgs,
-                        createFullAttrReference(strdup(name), 0, origPos, INVALID_ATTR, v->dt));
+                        createFullAttrReference(strdup(name), 0, origPos, 0, v->dt));
                 //TODO search for real attribute position of attribute named after this variable in schema of pos
 
                 // create unique variable name if same name exists

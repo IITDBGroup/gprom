@@ -28,6 +28,7 @@ typedef struct CorrelatedAttrsState {
 	Set *result;
 	boolean corrInsideSubquery;
 	boolean childrenCanBeKeptCorrelated;
+    boolean seenNormalization;
 } CorrelatedAttrsState;
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
@@ -38,7 +39,8 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
         Set *haveSeen);
 static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
-
+static boolean canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state);
+static boolean isAttrCorrelatedFilter(void *a, void *context);
 
 QueryOperator *
 findNestingOperator (QueryOperator *op, int levelsUp)
@@ -72,6 +74,12 @@ char *
 getNestingResultAttribute(int number)
 {
 	return backendifyIdentifier(CONCAT_STRINGS("nesting_eval_", gprom_itoa(number)));
+}
+
+char *
+getLateralNestingId(int number)
+{
+    return CONCAT_STRINGS("nesting_lateral_", gprom_itoa(number));
 }
 
 boolean
@@ -230,7 +238,7 @@ deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 }
 
 void
-reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
+reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, Set *nestResultAttr)
 {
 	int cnt;
 	DEBUG_LOG("resetAttrRefs %s\nbased references: %s",
@@ -243,7 +251,7 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
         FOREACH(AttributeDef, a2, op2->schema->attrDefs)
         {
 
-            if(strpeq(a1->name, a2->attrName))
+            if(strpeq(a1->name, a2->attrName) && !(nestResultAttr && hasSetElem(nestResultAttr, a1->name)))
             {
                 a1->attrPosition = cnt;
                 DEBUG_LOG("set attr %s position to %d", a1->name, cnt);
@@ -255,9 +263,13 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
 }
 
 void
-resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *child)
+resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *child, Set *nestResultAttr)
 {
 	List *attrRefs = NIL;
+
+    DEBUG_LOG("adjust attribute positions based on child schema PARENT:\n%s\nCHILD:\n%s",
+              singleOperatorToOverview(parent),
+              singleOperatorToOverview(child));
 
 	// collect attribute references in parent and adapt them based on child
 	if (isA(child,JoinOperator) || isA(child,ProjectionOperator))
@@ -315,7 +327,7 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *ch
 	{
 		attrRefs = getAttrReferences((Node *) ((OrderOperator *) parent)->orderExprs);
 	}
-    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, attrRefs);
+    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, attrRefs, nestResultAttr);
 }
 
 /*List *
@@ -803,8 +815,9 @@ createSetOperator(SetOpType setOpType, List *inputs, List *parents,
     set->setOpType = setOpType;
     set->op.inputs = inputs;
     lChild = OP_LCHILD(set);
-    set->op.schema = createSchemaFromLists("SET", attrNames,
-            lChild ? getDataTypes(lChild->schema) : NIL);
+    set->op.schema = createSchemaFromLists("SET",
+                                           attrNames ? attrNames: getQueryOperatorAttrNames(lChild),
+                                           lChild ? getDataTypes(lChild->schema) : NIL);
     set->op.parents = parents;
     set->op.provAttrs = NULL;
 
@@ -1438,10 +1451,11 @@ getAttrRefByPos (QueryOperator *op, int pos)
 
     ASSERT(d != NULL);
 
-    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
-                pos,
-                INVALID_ATTR,
-                d->dataType);
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName),
+                                                      0,
+                                                      pos,
+                                                      0,
+                                                      d->dataType);
 
     return res;
 }
@@ -1451,7 +1465,10 @@ getAttrRefByName(QueryOperator *op, char *attr)
 {
     AttributeDef *d = getAttrDefByName(op, attr);
 
-    ASSERT(d != NULL);
+    ASSERT_WITH_MESSAGE(d != NULL,
+                        "did for not attr %s in op <%s>",
+                        attr,
+                        singleOperatorToOverview(op));
 
     AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
             getAttrPos(op, attr),
@@ -1460,6 +1477,25 @@ getAttrRefByName(QueryOperator *op, char *attr)
 
     return res;
 }
+
+
+
+List *
+getCorrelatedAttrRefsInOperator(QueryOperator *op)
+{
+    List *refs = getAttrRefsInOperator(op);
+
+    refs = genericSublist(refs, isAttrCorrelatedFilter, NULL);
+
+    return refs;
+}
+
+static boolean
+isAttrCorrelatedFilter(void *a, void *context)
+{
+    return isAttrCorrelated((AttributeReference *) a);
+}
+
 
 List *
 getAttrRefsInOperator(QueryOperator *op)
@@ -1533,9 +1569,15 @@ getAttrRefsInOperator(QueryOperator *op)
 }
 
 boolean
+nestingOpUsesAttrInCond(NestingOperator *op, char *a)
+{
+    return doesExprReferenceAttribute(op->cond, a);
+}
+
+boolean
 opReferencesAttr(QueryOperator *op, char *a)
 {
-	List *refs =getAttrRefsInOperator(op);
+	List *refs = getAttrRefsInOperator(op);
 
 	FOREACH(AttributeReference,ar,refs)
 	{
@@ -1683,11 +1725,66 @@ getNestingResultAttributeNames(NestingOperator *op)
 	return attrs;
 }
 
+
+int
+nestingOperatorGetNumResultAttrs(NestingOperator *op)
+{
+    return LIST_LENGTH(nestingOperatorGetResultAttributes(op));
+}
+
+List *
+nestingOperatorGetResultAttributes(NestingOperator *n)
+{
+    NestingExprType nestType = n->nestingType;
+    List *nestResultAttrs = NIL;
+
+    if(!HAS_STRING_PROP(n, PROP_NESTED_RESULT_ATTR))
+    {
+        if(nestType == NESTQ_EXISTS
+           || nestType == NESTQ_ANY
+           || nestType == NESTQ_ALL
+           || nestType == NESTQ_UNIQUE
+           || nestType == NESTQ_SCALAR)
+        {
+            char *nestName = getTailOfListP(getAttrNames(n->op.schema));
+            nestResultAttrs = singleton(createConstString(nestName));
+        }
+        else
+        {
+            nestResultAttrs = stringListToConstList(getAttrNames(OP_RCHILD(n)->schema));
+        }
+
+        SET_STRING_PROP(n, PROP_NESTED_RESULT_ATTR, nestResultAttrs);
+        DEBUG_LOG("result attributes <%s> for nesting operator:\n\n%s",
+                  constStringListToString(nestResultAttrs),
+                  singleOperatorToOverview(n));
+    }
+
+    nestResultAttrs = (List *) GET_STRING_PROP(n, PROP_NESTED_RESULT_ATTR);
+
+    return constStringListToStringList(nestResultAttrs);
+}
+
+char *
+getNestingOperatorId(NestingOperator *op)
+{
+    if(IS_LATERAL(op))
+    {
+        ASSERT(HAS_STRING_PROP(op, PROP_NESTING_OP_ID));
+        return GET_STRING_PROP_STRING_VAL(op, PROP_NESTING_OP_ID);
+    }
+
+    return getSingleNestingResultAttribute(op);
+}
+
 char *
 getSingleNestingResultAttribute(NestingOperator *op)
 {
-	ASSERT(getNumAttrs(OP_LCHILD(op)) + 1 == getNumAttrs((QueryOperator *) op));
-	return getTailOfListP(getQueryOperatorAttrNames((QueryOperator *) op));
+    List *attrs = nestingOperatorGetResultAttributes(op);
+
+    ASSERT(LIST_LENGTH(attrs) == 1);
+
+    return getHeadOfListP(attrs);
 }
 
 
@@ -1721,6 +1818,18 @@ getCorrelatedAttributes(Node *op, boolean corrInSubquery) // boolean traverseInt
 	findCorrelatedAttrsVisitor((Node *)op, &state);
 
 	return result;
+}
+
+boolean
+noCorrelationBelowNormalization(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
+{
+	Set *result = STRSET();
+
+	CorrelatedAttrsState state = { 1, result, corrInSubquery, TRUE };
+
+	canStayCorrelatedVisitor((Node *)op, &state);
+
+	return state.childrenCanBeKeptCorrelated;
 }
 
 
@@ -1769,11 +1878,91 @@ findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
 		CorrelatedAttrsState newState = *state;
 		newState.curDepth++;
 
-		visit(no->cond, findCorrelatedAttrsVisitor, state);
-		return visit((Node *) OP_LCHILD(no), findCorrelatedAttrsVisitor, &newState);
+        if (no->cond)
+        {
+		    visit(no->cond, findCorrelatedAttrsVisitor, state);
+        }
+        visit((Node *) OP_LCHILD(no), findCorrelatedAttrsVisitor, state);
+		return visit((Node *) OP_RCHILD(no), findCorrelatedAttrsVisitor, &newState);
 	}
 
 	return visit(n, findCorrelatedAttrsVisitor, state);
+}
+
+
+static boolean
+canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
+{
+	if (n == NULL)
+		return TRUE;
+
+	//TODO
+	// rules: N can be kept if (i) all of N's childresn can be kept,
+    // if (ii) all  of N's correlated attributes are one level up only,
+    // and (iii) we can push normalization below N's correlated attributes
+    //
+	//   N [CAN KEEP SUBQUERY] depends on CAN KEEP SUBQUERY
+	//      SELECTION[R.A = R.C] -- R is outer
+	//         JOIN
+	//             N' [CAN KEEP SUBQUERY] correlated attribute
+	//                SELECTION[S.B[1] = T.C[0]] -- T is inner most
+	//                     T
+	//                X
+	//             S
+	//      R
+	/* List *attrRefs = queryOperatorGetAttrRefs(op); // --> current operator */
+	/* FOREACH(AttributeReference,a,attrRefs) */
+	/* { */
+	/* 	if(a->outerLevelsUp != 0) */
+	/* 	{ */
+	/* 		addToSet(state->result, a); */
+	/* 		//TODO append to state */
+	/* 	} */
+	/* } */
+
+	/* visitQOGraph(op, TRAVERSAL_PRE, findCorrelatedAttrsVisitor , state); */
+
+	if(isA(n, NestingOperator))
+	{
+		NestingOperator *no = (NestingOperator *) n;
+		CorrelatedAttrsState newState = *state;
+		newState.curDepth++;
+        newState.seenNormalization = FALSE; // Reset as we descend into children nesting operators
+
+        if(no->cond) {
+            visit(no->cond, canStayCorrelatedVisitor, state);
+        }
+        visit((Node *) OP_LCHILD(no), canStayCorrelatedVisitor, state);
+		visit((Node *) OP_RCHILD(no), canStayCorrelatedVisitor, &newState);
+        state->childrenCanBeKeptCorrelated &= newState.childrenCanBeKeptCorrelated;
+        return TRUE;
+	}
+    else if(IS_OP(n)) {
+        QueryOperator *q = (QueryOperator *) n;
+
+        if(isA(q->properties, HashMap) && MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE)) {
+            state->seenNormalization = TRUE;
+            FOREACH(QueryOperator, a, q->inputs) {
+                visit((Node *)a, canStayCorrelatedVisitor, state);
+            }
+            state->seenNormalization = FALSE;
+            return TRUE;
+        }
+    }
+	else if(isA(n, AttributeReference))
+	{
+		AttributeReference *a = (AttributeReference *) n;
+
+		if(a->outerLevelsUp > 0)
+		{
+			addToSet(state->result, strdup(a->name));
+            // We assume that at the time of calling the normalization has already been pushed down as far as it can go (assuming this part of the state is relevant)
+            state->childrenCanBeKeptCorrelated = (!state->seenNormalization && a->outerLevelsUp <= 1) && state->childrenCanBeKeptCorrelated;
+		}
+	}
+
+
+	return visit(n, canStayCorrelatedVisitor, state);
 }
 
 

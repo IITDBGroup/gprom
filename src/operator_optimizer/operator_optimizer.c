@@ -250,14 +250,14 @@ optimizeOneGraph (QueryOperator *root)
 }
 
 QueryOperator *
-materializeProjectionSequences (QueryOperator *root)
+materializeProjectionSequences(QueryOperator *root)
 {
     visitQOGraph(root, TRAVERSAL_PRE, internalMaterializeProjectionSequences, NULL);
     return root;
 }
 
 static boolean
-internalMaterializeProjectionSequences (QueryOperator *root, void *context)
+internalMaterializeProjectionSequences(QueryOperator *root, void *context)
 {
     QueryOperator *lChild = OP_LCHILD(root);
 
@@ -268,7 +268,7 @@ internalMaterializeProjectionSequences (QueryOperator *root, void *context)
 }
 
 QueryOperator *
-mergeAdjacentOperators (QueryOperator *root)
+mergeAdjacentOperators(QueryOperator *root)
 {
     QueryOperator *newRoot;
 
@@ -280,7 +280,7 @@ mergeAdjacentOperators (QueryOperator *root)
 
 
 static QueryOperator *
-mergeAdjacentOperatorInternal (QueryOperator *root)
+mergeAdjacentOperatorInternal(QueryOperator *root)
 {
     QueryOperator *child = OP_LCHILD(root);
 
@@ -348,7 +348,7 @@ upCheckResetPos(QueryOperator *op)
 {
 	FOREACH(QueryOperator, parent, op->parents)
 	{
-		resetPosOfAttrRefBaseOnBelowLayerSchema(parent, op);
+		resetPosOfAttrRefBaseOnBelowLayerSchema(parent, op, NULL);
 		upCheckResetPos(parent);
 	}
 }
@@ -400,7 +400,7 @@ removeUnnecessaryWindowOperatorInternal(QueryOperator *root)
 					    	 newAttrRefs = appendToTailOfList(newAttrRefs, ar);
 			        }
 					pj->projExprs = newAttrRefs;
-					resetPosOfAttrRefBaseOnBelowLayerSchema(op, root);
+					resetPosOfAttrRefBaseOnBelowLayerSchema(op, root, NULL);
 		        }
 			}
 
@@ -612,7 +612,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		}
 		root->schema->attrDefs = newAttrDefs;
 
-		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root));
+		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root), NULL);
 	}
 
 	else if(isA(root, AggregationOperator))
@@ -760,8 +760,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 			addChildOperator((QueryOperator *) newpo, (QueryOperator *) root);
 
 			//Reset the pos of the schema
-			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newpo,(QueryOperator *)root);
-			//resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)parentOp,(QueryOperator *)newpo);
+			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newpo,(QueryOperator *)root, NULL);
+			//resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)parentOp,(QueryOperator *)newpo, NULL);
 
 			//set new operator's icols property
  		 	setStringProperty((QueryOperator *) newpo, PROP_STORE_SET_ICOLS, (Node *)icols);
@@ -803,7 +803,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                 proj->projExprs = newAttrRefs;
 
          	    QueryOperator *child = OP_LCHILD(root);
-                resetPosOfAttrRefBaseOnBelowLayerSchema(root,child);
+                resetPosOfAttrRefBaseOnBelowLayerSchema(root,child, NULL);
 
                 //if up layer is projection, reset the pos of up layer's reference
                 if(root->parents != NIL)
@@ -812,7 +812,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
             	    if(isA(p, ProjectionOperator))
             	    {
             		    QueryOperator *r = root;
-            		    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r);
+            		    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r, NULL);
             	    }
 
                 }
@@ -821,7 +821,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		else
 		{
 	     	QueryOperator *child = (QueryOperator *)OP_LCHILD(root);
-	        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)root,(QueryOperator *)child);
+	        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)root,(QueryOperator *)child, NULL);
 		}
 	}
     else if(isA(root, SetOperator))
@@ -1628,7 +1628,7 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
                       singleOperatorToOverview(pr),
                       singleOperatorToOverview(p));
 
-            resetPosOfAttrRefBaseOnBelowLayerSchema(p, (QueryOperator *) pr);
+            resetPosOfAttrRefBaseOnBelowLayerSchema(p, (QueryOperator *) pr, NULL);
             return pullup((QueryOperator *) pr, context);
         }
 
@@ -1645,7 +1645,7 @@ pullup(QueryOperator *op, PullUpProvProjContext *context) // List *duplicateattr
     }
 
     // continue to parent
-    resetPosOfAttrRefBaseOnBelowLayerSchema(p, op);
+    resetPosOfAttrRefBaseOnBelowLayerSchema(p, op, NULL);
 
     ASSERT(checkModel(op));
 
@@ -1918,7 +1918,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
     	setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)newSo1, (QueryOperator *)o1);
 
     	//reset the attr_ref position
-    	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newSo1,(QueryOperator *)o1);
+    	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newSo1,(QueryOperator *)o1, NULL);
     }
 
     if(l2 != NIL)
@@ -1937,7 +1937,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
     	setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)newSo2, (QueryOperator *)o2);
 
     	//reset the attr_ref position
-    	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newSo2,(QueryOperator *)o2);
+    	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newSo2,(QueryOperator *)o2, NULL);
     }
 }
 
@@ -2184,7 +2184,7 @@ introduceSelectionInMoveAround(QueryOperator *root)
 					Node *opCond = andExprList(copyObject(pCond));
 					((SelectionOperator *)parent)->cond = (Node *) opCond;
 
-					resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)parent,(QueryOperator *)root);
+					resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)parent,(QueryOperator *)root, NULL);
 				}
 				else
 				{
@@ -2411,7 +2411,7 @@ introduceSelection(Operator *o, QueryOperator *root)
 	setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)selectionOp, (QueryOperator *)root);
 
 	//reset the attr_ref position
-	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)selectionOp,(QueryOperator *)root);
+	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)selectionOp,(QueryOperator *)root, NULL);
 }
 
 
@@ -2619,9 +2619,9 @@ addCountAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp, List
 	List *newJOpDefs = concatTwoLists(copyList(newAggDefs), copyList(rChild->schema->attrDefs));
 	jOp->op.schema->attrDefs = newJOpDefs;
 
-	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) newAgg);
-    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newAgg, (QueryOperator *) newProj);
-    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newProj, (QueryOperator *) lChild);
+	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) newAgg, NULL);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newAgg, (QueryOperator *) newProj, NULL);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newProj, (QueryOperator *) lChild, NULL);
 
 
     //proj
@@ -2659,7 +2659,7 @@ addCountAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp, List
     	}
     }
 
-    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) topProj, (QueryOperator *) jOp);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) topProj, (QueryOperator *) jOp, NULL);
 }
 
 void
@@ -2694,8 +2694,8 @@ addAdditionalAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp)
     newAgg->op.schema->attrDefs = newAggSchemaDefs;
 
     //reset position
-	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newAgg, lChild);
-    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) newAgg);
+	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newAgg, lChild, NULL);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) newAgg, NULL);
 
 }
 
@@ -2757,8 +2757,8 @@ switchAggregationWithJoinToLeftChild(AggregationOperator *aggOp, JoinOperator *j
     }
 
     //adapt attribute position
-	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) aggOp, lChild);
-    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) aggOp);
-    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) pAgg, (QueryOperator *) jOp);
+	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) aggOp, lChild, NULL);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) aggOp, NULL);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) pAgg, (QueryOperator *) jOp, NULL);
 
 }

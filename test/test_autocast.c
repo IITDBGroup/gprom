@@ -43,7 +43,7 @@ static rc
 testLcaType(void)
 {
 	DataType types[] = { DT_INT, DT_FLOAT, DT_BOOL, DT_LONG, DT_STRING };
-	
+
 	for(int i = 0; i < 5; i++)
 	{
 		ASSERT_EQUALS_INT(lcaType(types[i], types[i]), types[i], "reflexivity");
@@ -54,10 +54,10 @@ testLcaType(void)
 	{
 		ASSERT_EQUALS_INT(lcaType(types[i], DT_STRING), DT_STRING, "string is top type");
 	}
-	
+
 	ASSERT_EQUALS_INT(lcaType(DT_FLOAT, DT_INT), DT_FLOAT, "int,float -> float");
 	ASSERT_EQUALS_INT(lcaType(DT_INT, DT_FLOAT), DT_FLOAT, "float,int -> float");
-	
+
 	return PASS;
 }
 
@@ -80,8 +80,8 @@ testCastExprs(void)
     projExpr = ((ProjectionOperator *) p)->projExprs;
     lc = projExpr->head;
     LC_P_VAL(lc) = createOpExpr(strdup("+"),
-            LIST_MAKE(createFullAttrReference(strdup("A"), 0, 0, INVALID_ATTR, DT_INT),
-                    createFullAttrReference(strdup("B"), 0, 1, INVALID_ATTR, DT_FLOAT)
+            LIST_MAKE(createFullAttrReference(strdup("A"), 0, 0, 0, DT_INT),
+                    createFullAttrReference(strdup("B"), 0, 1, 0, DT_FLOAT)
             ));
 
     s = (QueryOperator *) createSelectionOp((Node *) createConstBool(TRUE), p, NIL, LIST_MAKE(strdup("A"), strdup("B")));
@@ -96,8 +96,8 @@ testCastExprs(void)
     projExpr = ((ProjectionOperator *) eP)->projExprs;
     lc = projExpr->head;
     LC_P_VAL(lc) = createOpExpr(strdup("+"),
-            LIST_MAKE(createCastExpr((Node *) createFullAttrReference(strdup("A"), 0, 0, INVALID_ATTR, DT_INT), DT_FLOAT),
-                    createFullAttrReference(strdup("B"), 0, 1, INVALID_ATTR, DT_FLOAT)
+            LIST_MAKE(createCastExpr((Node *) createFullAttrReference(strdup("A"), 0, 0, 0, DT_INT), DT_FLOAT),
+                    createFullAttrReference(strdup("B"), 0, 1, 0, DT_FLOAT)
             ));
     AttributeDef *a1 = (AttributeDef *) LC_P_VAL(eP->schema->attrDefs->head);
     a1->dataType = DT_FLOAT;
@@ -140,13 +140,13 @@ testCastSetOp (void)
     // expected result
     p1 = createProjOnAllAttrs((QueryOperator *) t1);
     lc = ((ProjectionOperator *) p1)->projExprs->head;
-    LC_P_VAL(lc) = createCastExpr((Node *) createFullAttrReference(strdup("A"), 0, 0, INVALID_ATTR, DT_INT), DT_STRING);
+    LC_P_VAL(lc) = createCastExpr((Node *) createFullAttrReference(strdup("A"), 0, 0, 0, DT_INT), DT_STRING);
 	((AttributeDef *) p1->schema->attrDefs->head->data.ptr_value)->dataType = DT_STRING;
     addChildOperator(p1,copyObject(t1));
 
     p2 = createProjOnAllAttrs((QueryOperator *) t2);
     lc = ((ProjectionOperator *) p2)->projExprs->head->next;
-    LC_P_VAL(lc) = createCastExpr((Node *) createFullAttrReference(strdup("D"), 0, 1, INVALID_ATTR, DT_INT), DT_FLOAT);
+    LC_P_VAL(lc) = createCastExpr((Node *) createFullAttrReference(strdup("D"), 0, 1, 0, DT_INT), DT_FLOAT);
 	((AttributeDef *) p2->schema->attrDefs->head->next->data.ptr_value)->dataType = DT_FLOAT;
     addChildOperator(p2,copyObject(t2));
 

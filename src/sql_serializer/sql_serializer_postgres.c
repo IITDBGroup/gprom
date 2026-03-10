@@ -46,10 +46,10 @@ serializeOperatorModelPostgres(Node *q)
     createAPI();
 
     // quote idents for postgres
-
     if(!getBoolOption(OPTION_PS_POST_TO_ORACLE))
+    {
 		genQuoteAttributeNames(q);
-
+    }
     DEBUG_OP_LOG("after attr quoting", q);
 
     // add casts to null constants to make postgres aware of their types
@@ -62,13 +62,17 @@ serializeOperatorModelPostgres(Node *q)
         appendStringInfoChar(str,';');
     }
     else if (isA(q, List))
+    {
         FOREACH(QueryOperator,o,(List *) q)
         {
             appendStringInfoString(str, serializeQueryPostgres(o));
             appendStringInfoString(str,";\n\n");
         }
+    }
     else
+    {
         FATAL_LOG("cannot serialize non-operator to SQL: %s", nodeToString(q));
+    }
 
     result = str->data;
     FREE(str);
@@ -118,11 +122,14 @@ serializeQueryPostgres(QueryOperator *q)
     viewDef = makeStringInfo();
 
     // initialize basic structures and then call the worker
-    api->tempViewMap = NEW_MAP(Constant, Node);
-    api->viewCounter = 0;
+	cleanAPIState(api);
+
+    // gather data on nesting operators
+    analyzeNesting(q, api);
 
     // initialize FromAttrsContext structure
   	FromAttrsContext *fac = initializeFromAttrsContext();
+    fac->api = api;
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, fac, api);
@@ -131,7 +138,7 @@ serializeQueryPostgres(QueryOperator *q)
      *  prepend the temporary view definition to create something like
      *      WITH a AS (q1), b AS (q2) ... SELECT ...
      */
-    if (mapSize(api->tempViewMap) > 0)
+    if(mapSize(api->tempViewMap) > 0)
     {
         appendStringInfoString(viewDef, "WITH ");
 
@@ -205,7 +212,7 @@ quoteIdentifierPostgres (char *ident)
 }
 
 static void
-createAPI (void)
+createAPI(void)
 {
     if (api == NULL)
     {
@@ -295,10 +302,14 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     // Projection for aggregation inputs and group-by
     if (m->secondProj != NULL && (agg != NULL || winR != NULL))
     {
+	    HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) m->secondProj, fac, api, FALSE);
+
+        removeInlinedNestingFromAttrsContext(fac);
+
         FOREACH(Node,n,m->secondProj->projExprs)
         {
             updateAttributeNames(n, fac);
-            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, NULL, FALSE));
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n, nestAttrMap, FALSE));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                   stringListToString(firstProjs));
@@ -412,6 +423,9 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     {
         int pos = 0;
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
+        HashMap *nestAttrMap = getNestAttrMap((QueryOperator *) p, fac, api, FALSE);
+        removeInlinedNestingFromAttrsContext(fac);
+
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
         DEBUG_LOG("outer projection");
@@ -441,7 +455,7 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
                 updateAttributeNames(a, fac);
             }
             appendStringInfo(select, "%s%s",
-                             exprToSQL(a, NULL, FALSE),
+                             exprToSQL(a, nestAttrMap, FALSE),
                              attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
 
             if(FOREACH_HAS_MORE(a))
