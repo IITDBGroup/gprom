@@ -1,18 +1,21 @@
 #!/usr/bin/env python
-from dataclasses import dataclass, field
-import subprocess
-import os
-import rich
-from collections import Counter
-from functools import reduce
-from enum import Enum
-import xml.etree.ElementTree as ET
 import argparse
-from typing import Dict, Union
-from pathlib import Path
-from tqdm import tqdm
+import os
+import subprocess
 import traceback
+import xml.etree.ElementTree as ET
+from collections import Counter
+from dataclasses import dataclass, field
+from enum import Enum
+from functools import reduce
+from pathlib import Path
+from typing import Dict, Union
+from deepdiff import DeepDiff
+from deepdiff.helper import COLORED_VIEW
+import rich
 from pg8000.native import Connection
+from tqdm import tqdm
+import difflib
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
@@ -46,6 +49,25 @@ class DatabaseBackends(Enum):
     MSSQL = 4
     ORACLE = 5
 
+def color_diff_strings(s1, s2):
+    """Highlights character-level differences using ANSI codes."""
+    # GREEN = '\x1b[38;5;16;48;5;2m'
+    # RED = '\x1b[38;5;16;48;5;1m'
+    # END = '\x1b[0m'
+    GREEN = '[bold black on green]'
+    RED = '[bold white on red]'
+    END = '[/]'
+
+    output = []
+    for op, a0, a1, b0, b1 in difflib.SequenceMatcher(None, s1, s2).get_opcodes():
+        if op == "equal": output.append(s1[a0:a1])
+        elif op == "insert": output.append(GREEN + s2[b0:b1] + END)
+        elif op == "delete": output.append(RED + s1[a0:a1] + END)
+        elif op == "replace":
+            output.append(RED + s1[a0:a1] + END)
+            output.append(GREEN + s2[b0:b1] + END)
+    return "".join(output)
+
 @dataclass
 class Table:
     schema: list[str]
@@ -69,16 +91,27 @@ class Table:
             return False
         return self.rows == o.rows
 
-    def diff(self, o: "Table"):
-        if self.schema != o.schema:
-            return f"schemas differ: expected\n\n{self.schema}\n, but got:\n{o.schema}"
-        allrows = set(self.rows.keys()).union(o.rows.keys())
-        result = ""
-        for r in allrows:
-            if self.rows[r] != o.rows[r]:
-                result += f"row[{Table.row_to_string(r)}]\t multiplicity differs: expected {self.rows[r]}, but was {o.rows[r]}\n"
+    # def diff(self, o: "Table"):
+    #     if self.schema != o.schema:
+    #         return f"schemas differ: expected\n\n{self.schema}\n, but got:\n{o.schema}"
+    #     allrows = set(self.rows.keys()).union(o.rows.keys())
+    #     result = ""
+    #     for r in allrows:
+    #         if self.rows[r] != o.rows[r]:
+    #             result += f"row[{Table.row_to_string(r)}]\t multiplicity differs: expected {self.rows[r]}, but was {o.rows[r]}\n"
 
-        return result
+    #     return result
+
+    # def diff(self, o: "Table"):
+    #     if self.schema != o.schema:
+    #         return f"schemas differ: expected\n\n{self.schema}\n, but got:\n{o.schema}"
+    #     diff = DeepDiff(self.rows, o.rows, verbose_level=2, view=COLORED_VIEW,  ignore_order=True)
+    #     return diff.pretty()
+
+    def diff(self, o: "Table"):
+        selfstr = str(self)
+        ostr = str(o)
+        return color_diff_strings(selfstr, ostr)
 
     @classmethod
     def from_str(cls, inputstr: str):
