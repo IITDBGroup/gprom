@@ -90,12 +90,12 @@ extern int mapIncrPointer(HashMap *map, void *key);
 #define MAP_INCR_STRING_KEY(map, key) mapIncrString((HashMap *) map, key);
 
 // remove elements from map
-extern void removeAndFreeMapElem (HashMap *map, Node *key);
+extern void removeAndFreeMapElem(HashMap *map, Node *key);
 extern void removeMapElem(HashMap *map, Node *key);
-extern void removeMapStringElem (HashMap *map, char *key);
+extern void removeMapStringElem(HashMap *map, char *key);
 
 // map size
-extern int mapSize (HashMap *map);
+extern int mapSize(HashMap *map);
 
 // set operations
 extern void unionIntoMap(HashMap *res, HashMap *new);

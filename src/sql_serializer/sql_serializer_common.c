@@ -158,7 +158,7 @@ static boolean
 quoteAttributeNamesVisitQO(QueryOperator *op, void *context)
 {
     quoteAttributeNames((Node *) op, op);
-    INFO_SINGLE_OP_LOG("Visited operator to quote idents ...", op);
+    DEBUG_SINGLE_OP_LOG("Visited operator to quote idents ...", op);
     return TRUE;
 }
 
