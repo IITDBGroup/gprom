@@ -173,8 +173,15 @@ visitAdaptIdents(Node *node, Set *context)
            || isFromItem(node)
            || isA(node,SelectItem)
            || isA(node,FromProvInfo)
+           || isA(node,AttributeDef)
            || isA(node,AttributeReference)
-           || isA(node,ProvenanceStmt))
+           || isA(node,ProvenanceStmt)
+           || isA(node,Update)
+           || isA(node,Insert)
+           || isA(node,Delete)
+           || isA(node,CreateTable)
+           || isA(node,AlterTable)
+           )
         {
             if(isA(node,FunctionCall))
             {
@@ -215,6 +222,50 @@ visitAdaptIdents(Node *node, Set *context)
                 {
                     kv->key = (Node *) createConstString(backendifyIdentifier(STRING_VALUE(kv->key)));
                 }
+            }
+
+            if(isA(node,Update))
+            {
+                Update *u = (Update *) node;
+                u->updateTableName = backendifyIdentifier(u->updateTableName);
+                /* FOREACH(Node,x,u->) */
+                /* { */
+
+                /* } */
+            }
+
+            if(isA(node,Insert))
+            {
+                Insert *i = (Insert *) node;
+                i->insertTableName = backendifyIdentifier(i->insertTableName);
+            }
+
+            if(isA(node,Delete))
+            {
+                Delete *d = (Delete *) node;
+                d->deleteTableName = backendifyIdentifier(d->deleteTableName);
+            }
+
+            if(isA(node,CreateTable))
+            {
+                CreateTable *c = (CreateTable *) node;
+                c->tableName = backendifyIdentifier(c->tableName);
+                /* FOREACH(Node,el,c->tableElems) */
+                /* { */
+                /*     if(isA(el,AttributeDef)) */
+                /*     { */
+                /*         AttributeDef *a */
+                /*         schema = appendToTailOfList(schema, copyObject(el)); */
+                /*     } */
+                /*     else */
+                /*         c->constraints = appendToTailOfList(c->constraints, el);//TODO check them */
+                /* } */
+            }
+
+            if(isA(node,AlterTable))
+            {
+                AlterTable *a = (AlterTable *) node;
+                a->tableName = backendifyIdentifier(a->tableName);
             }
 
             if (isA(node,FromProvInfo))
@@ -308,32 +359,46 @@ visitAdaptIdents(Node *node, Set *context)
                 {
                     // backendify sketch table name and attribute name
                     if(isA(kv->key,Constant)
-                       && ((Constant *) kv->key)->constType == DT_STRING
-                       && streq(STRING_VALUE(kv->key),PROP_PC_COARSE_GRAINED))
+                       && ((Constant *) kv->key)->constType == DT_STRING)
                     {
-                        List *typeSketch = (List *) kv->value;
-                        Constant *type = (Constant *) getHeadOfListP(typeSketch);
-                        List *sketches = (List *) getNthOfListP(typeSketch, 1);
-
-                        //TODO check for other sketch types too
-                        if(((Constant *) type)->constType == DT_STRING
-                           && streq(STRING_VALUE(type),COARSE_GRAINED_RANGEB))
+                        char *prop = STRING_VALUE(kv->key);
+                        if(streq(prop,PROP_PC_COARSE_GRAINED))
                         {
-                            FOREACH(KeyValue,ps,sketches)
-                            {
-                                Constant *tableName = (Constant *) ps->key;
-                                List *attrSketchDefs = (List *) ps->value;
-                                tableName->value = backendifyIdentifier(STRING_VALUE(tableName));
+                            List *typeSketch = (List *) kv->value;
+                            Constant *type = (Constant *) getHeadOfListP(typeSketch);
+                            List *sketches = (List *) getNthOfListP(typeSketch, 1);
 
-                                FOREACH(List,attrDef,attrSketchDefs)
+                            //TODO check for other sketch types too
+                            if(((Constant *) type)->constType == DT_STRING
+                               && streq(STRING_VALUE(type),COARSE_GRAINED_RANGEB))
+                            {
+                                FOREACH(KeyValue,ps,sketches)
                                 {
-                                    Constant *attrName = (Constant *) getHeadOfListP(attrDef);
-                                    attrName->value = backendifyIdentifier(STRING_VALUE(attrName));
+                                    Constant *tableName = (Constant *) ps->key;
+                                    List *attrSketchDefs = (List *) ps->value;
+                                    tableName->value = backendifyIdentifier(STRING_VALUE(tableName));
+
+                                    FOREACH(List,attrDef,attrSketchDefs)
+                                    {
+                                        Constant *attrName = (Constant *) getHeadOfListP(attrDef);
+                                        attrName->value = backendifyIdentifier(STRING_VALUE(attrName));
+                                    }
                                 }
                             }
                         }
+                        if(streq(prop,PROP_PC_TABLE))
+                        {
+                            Constant *c = (Constant *) kv->value;
+                            c->value = backendifyIdentifier(STRING_VALUE(c));
+                        }
                     }
                 }
+            }
+
+            if(isA(node,AttributeDef))
+            {
+                AttributeDef *a = (AttributeDef *) node;
+                a->attrName = backendifyIdentifier(a->attrName);
             }
 
             addToSet(context, node);
@@ -2632,7 +2697,7 @@ getAnalyzedViews(WithStmt *w)
 }*/
 
 static void
-analyzeCreateTable (CreateTable *c)
+analyzeCreateTable(CreateTable *c)
 {
     /*TODO support context */
     boolean tableExists;
@@ -2641,16 +2706,22 @@ analyzeCreateTable (CreateTable *c)
             || catalogViewExists(c->tableName)
             || schemaInfoHasTable(c->tableName);
     if (tableExists)
+    {
         FATAL_LOG("trying to create table that already exists: %s", c->tableName);
+    }
 
     // if is CREATE TABLE x AS SELECT ..., then analyze query
     if (c->query)
+    {
         analyzeQueryBlockStmt(c->query, NIL, NULL);
+    }
 
     // create schema info
     List *schema = NIL;
     if (c->query)
+    {
         schema = getQBAttrDefs(c->query);
+    }
     else
     {
         FOREACH(Node,el,c->tableElems)
