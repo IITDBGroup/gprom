@@ -269,6 +269,10 @@ extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOper
     ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
 extern QueryOperator *getFirstRoot(QueryOperator *op);
+extern boolean isChild(QueryOperator *child, boolean left);
+
+#define IS_LEFT_CHILD(_op) isChild((QueryOperator *) _op, TRUE)
+#define IS_RIGHT_CHILD(_op) isChild((QueryOperator *) _op, FALSE)
 
 /* deal with properties */
 extern void setProperty(QueryOperator *op, Node *key, Node *value);

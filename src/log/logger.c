@@ -135,6 +135,12 @@ _debugOp(void *op)
 }
 
 void
+_debugSingleOp(void *op)
+{
+   log_(LOG_ERROR, "debugger", 0, "%s", singleOperatorToOverview((QueryOperator *) op));
+}
+
+void
 log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 {
     ASSERT(buffer != NULL);

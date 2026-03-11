@@ -143,26 +143,33 @@ genQuoteAttributeNames(Node *q)
     if (isA(q,List))
     {
         FOREACH(QueryOperator,el, (List *) q)
+        {
             visitQOGraph((QueryOperator *) el, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+        }
     }
     else
+    {
+
         visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+    }
 }
 
 static boolean
 quoteAttributeNamesVisitQO(QueryOperator *op, void *context)
 {
-    return quoteAttributeNames((Node *) op, op);
+    quoteAttributeNames((Node *) op, op);
+    INFO_SINGLE_OP_LOG("Visited operator to quote idents ...", op);
+    return TRUE;
 }
 
 static boolean
 quoteAttributeNames(Node *node, void *context)
 {
-     if (node == NULL)
+    if (node == NULL)
         return TRUE;
 
     // do not traverse into query operator nodes to avoid repeated traversal of paths in the graph
-    if (node != context && IS_OP(node))
+    if (node != context && IS_OP(node)) // TODO second part should be redundant
         return TRUE;
 
     // for nesting operators adjust result attribute names
@@ -753,6 +760,27 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
 
         //FIXME fix from context and remove delete nesting result attributes
         removeInlinedNestingFromAttrsContext(fac);
+    }
+
+    // handle special case of a single const relation operator in the query
+    // block, avoid adding unnecessary additional SELECT FROM surounding it.
+    // This is important for union as some systems (Postgres) are very sensitive
+    // to union input data type mismatches and GProM's type system is too
+    // similistic (e.g., DATE)
+    if(isA(matchInfo->fromRoot,ConstRelOperator)
+       && matchInfo->distinct == NULL
+       && matchInfo->firstProj == NULL
+       && matchInfo->having == NULL
+       && matchInfo->aggregation == NULL
+       && matchInfo->secondProj== NULL
+       && matchInfo->where == NULL
+       && matchInfo->windowRoot == NULL
+       && matchInfo->orderBy == NULL
+       && matchInfo->limitOffset == NULL)
+    {
+        api->serializeConstRel(str,(ConstRelOperator *) matchInfo->fromRoot,fac,0,api);
+        FREE(matchInfo);
+        return attrNames;
     }
 
     // translate each clause

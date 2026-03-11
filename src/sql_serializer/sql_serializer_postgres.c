@@ -35,6 +35,7 @@ static SerializeClausesAPI *api = NULL;
 /* methods */
 static void createAPI(void);
 static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
+static boolean needsQuote(char *ident);
 
 char *
 serializeOperatorModelPostgres(Node *q)
@@ -161,10 +162,62 @@ serializeQueryPostgres(QueryOperator *q)
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
+static boolean
+needsQuote(char *ident)
+{
+    int i = 0;
+    boolean needsQuotes = FALSE;
+    boolean containsQuotes = FALSE;
 
+    // already contains from item
+    if(ident[0] == 'F')
+    {
+        List *parts = splitString(strdup(ident), ".");
+        StringInfo res = makeStringInfo();
+        parts = sublist(parts, 1, -1);
+
+        FOREACH(char,s,parts)
+        {
+            appendStringInfoString(res,s);
+        }
+        ident = res->data;
+    }
+
+    // already quoted
+    if (ident[0] == '"')
+        return FALSE;
+
+	// certain characters need to be quoted
+	// also upper case needs to be quoted to preserve the case
+    for(i = 0; i < strlen(ident); i++)
+    {
+        switch(ident[i])
+        {
+            case '$':
+            case '#':
+            case '_':
+                break;
+            case ' ':
+            case '(':
+            case ')':
+                needsQuotes = TRUE;
+                break;
+            case '"':
+                needsQuotes = TRUE;
+                containsQuotes = TRUE;
+                break;
+            default:
+                if (!islower(ident[i]))
+                    needsQuotes = TRUE;
+                break;
+        }
+    }
+
+    return needsQuotes || containsQuotes;
+}
 
 char *
-quoteIdentifierPostgres (char *ident)
+quoteIdentifierPostgres(char *ident)
 {
     int i = 0;
     boolean needsQuotes = FALSE;
@@ -194,19 +247,22 @@ quoteIdentifierPostgres (char *ident)
                 containsQuotes = TRUE;
                 break;
             default:
-                if (!isupper(ident[i]))
+                if (!islower(ident[i]))
                     needsQuotes = TRUE;
                 break;
         }
-        if (needsQuotes)
-            break;
     }
 
-    if (containsQuotes)
-        ident = replaceSubstr(ident, "\"", "\"\"");
+    if(containsQuotes || needsQuotes)
+    {
+        ident = strdup(ident);
+        if (containsQuotes)
+            ident = replaceSubstr(ident, "\"", "\"\"");
 
-    if (needsQuotes)
-        ident = CONCAT_STRINGS("\"",ident,"\"");
+        if (needsQuotes)
+            ident = CONCAT_STRINGS("\"",ident,"\"");
+
+    }
 
     return ident;
 }
@@ -355,6 +411,16 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         QueryOperator *curOp = (QueryOperator *) winR;
         List *inAttrs = (m->secondProj) ? firstProjs : getQueryOperatorAttrNames(m->fromRoot);
         DEBUG_LOG("deal with window function calls");
+
+        FOREACH(char,a,inAttrs)
+        {
+            if(needsQuote(a))
+            {
+                ERROR_LOG("Found attribute that needs quoting %s from\n\n%s",
+                          a,
+                          operatorToOverviewString(m->fromRoot));
+            }
+        }
 
         windowFs = NIL;
 
@@ -569,20 +635,44 @@ postgresSerializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext
 {
     int pos = 0;
     List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
-    //*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    boolean isRightChildOfSetOp = IS_RIGHT_CHILD(t)
+                                  && isA(OP_FIRST_PARENT(t),SetOperator);
+    boolean noParen = getBackend() == BACKEND_SQLITE && isRightChildOfSetOp;
     fac->fromAttrs = appendToTailOfList(fac->fromAttrs, attrNames);
-    //fac->fromAttrsList = appendToHeadOfList(fac->fromAttrsList, copyList(fac->fromAttrs));
-    appendStringInfoString(from, "(SELECT ");
+
+    // if this is the right child of a set operator, then we do not want to do
+    // casting as it may fail because of GProM's limited type system, e.g.,
+    // GProM would consider DATE to be DT_STRING and union of a DATE and a TEXT
+    // column fails in postgres.
+    if(!noParen)
+    {
+        appendStringInfoString(from, "(");
+    }
+    appendStringInfoString(from, "SELECT ");
     FOREACH(char,attrName,attrNames)
     {
         Node *value;
         if (pos != 0)
             appendStringInfoString(from, ", ");
         value = getNthOfListP(t->values, pos++);
+        if(isRightChildOfSetOp && isA(value,CastExpr))
+        {
+            CastExpr *c = (CastExpr*) value;
+            value = c->expr;
+        }
         appendStringInfo(from, "%s AS %s", exprToSQL(value, NULL, FALSE), attrName);
+        DEBUG_NODE_LOG("const rel value is", value);
     }
 
-    appendStringInfo(from, ") F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
+    if(!noParen)
+    {
+        appendStringInfoString(from, ")");
+    }
+
+    if(!isRightChildOfSetOp)
+    {
+        appendStringInfo(from, " F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
+    }
 }
 
 void

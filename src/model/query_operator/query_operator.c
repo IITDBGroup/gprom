@@ -966,6 +966,27 @@ getFirstRoot(QueryOperator *op)
 	return op;
 }
 
+boolean
+isChild(QueryOperator *child, boolean left)
+{
+    if(child->parents == NIL)
+        return FALSE;
+
+    QueryOperator *parent = (QueryOperator *) getHeadOfListP(child->parents);
+
+    if(left && LIST_LENGTH(parent->inputs) >= 1)
+    {
+        return OP_RCHILD(parent) == child;
+    }
+    if(!left && LIST_LENGTH(parent->inputs) >= 2)
+    {
+        return OP_RCHILD(parent) == child;
+    }
+
+    return FALSE;
+}
+
+
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {
@@ -2006,7 +2027,7 @@ treeify(QueryOperator *op)
 }
 
 boolean
-visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+visitQOGraph(QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context)
 {
     boolean result = FALSE;
@@ -2018,7 +2039,7 @@ visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
 }
 
 static boolean
-internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+internalVisitQOGraph(QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context, Set *haveSeen)
 {
     if (tOrder == TRAVERSAL_PRE && !visitF(q, context))
@@ -2047,7 +2068,7 @@ internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
 
 
 unsigned int
-numOpsInGraph (QueryOperator *root)
+numOpsInGraph(QueryOperator *root)
 {
     List *ctx = LIST_MAKE(createConstInt(0), PSET());
 

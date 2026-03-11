@@ -2211,25 +2211,35 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
 		}
 		appendStringInfoString(str, ")");
 
-        if(opt_log_operator_verbose_props > 0) {
+        if(opt_log_operator_verbose_props > 0)
+        {
             HashMap *props = (HashMap *)(op->properties);
-		    appendStringInfoString(str, " [ ");
+            boolean showValues = opt_log_operator_verbose_props == 2;
+
             if(props) {
-                FOREACH_HASH_KEY(Node,c,props)
+                appendStringInfoString(str, "[");
+                FOREACH_HASH_KEY(Node,n,props)
                 {
-                    if(isConstString(c))
+                    if(isA(n,Constant))
                     {
-                        char *prop = STRING_VALUE(c);
-                        appendStringInfo(str, "%s%s%s; ",
-                                         prop,
-                                         opt_log_operator_verbose_props == 2 ? ": " : "",
-                                         opt_log_operator_verbose_props == 2 ? nodeToString(MAP_GET_STRING(props, prop)) : ""
-                                         ); //also add separator if applicable                    }
+                        Constant *c = (Constant *) n;
+                        if(c->constType == DT_STRING)
+                        {
+                            char *prop = STRING_VALUE(c);
+                            appendStringInfo(str, TCOL(MAGENTA,"%s") "%s%s%s",
+                                             prop,
+                                             showValues ? ": " : "",
+                                             showValues ? format_op_prop_value_for_user(op, prop) : "",
+                                             showValues ? "\n" : "; "
+                                             ); //also add separator if applicable
+                        }
                     }
                 }
+                appendStringInfoString(str, "]");
             }
-		    appendStringInfoString(str, "]");
         }
+
+
 
 		// output address and parent addresses
 		appendStringInfo(addrStr, " [%p]", op);

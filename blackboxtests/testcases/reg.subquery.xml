@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Regular nested subquery Test cases</comment>
+
+<entry key="extra_settings.keepnested">
+</entry>
+
+<entry key="extra_settings.lateral">
+-lateral_rewrite:TRUE
+</entry>
+
+
+<entry key="q1.query">
+  SELECT a FROM r
+  WHERE EXISTS (SELECT * FROM s);
+</entry>
+<entry key="q1.result">
+ a |
+----
+ 1 |
+ 1 |
+ 2 |
+ 2 |
+</entry>
+
+<entry key="q2.query">
+  SELECT a FROM r
+  WHERE EXISTS (SELECT * FROM s WHERE r.a = s.c);
+</entry>
+<entry key="q2.result">
+ a |
+----
+ 1 |
+ 1 |
+ 2 |
+ 2 |
+</entry>
+
+<entry key="q3.query">
+  SELECT a FROM r
+  WHERE EXISTS (SELECT * FROM s WHERE r.a = s.c)
+        AND NOT EXISTS (SELECT * FROM s WHERE r.a+100 = s.d);
+</entry>
+<entry key="q3.result">
+ a |
+----
+ 1 |
+ 1 |
+ 2 |
+ 2 |
+</entry>
+
+
+<entry key="q4.query">
+  SELECT a FROM r x
+  WHERE x.a = (SELECT max(a) FROM r y);
+</entry>
+<entry key="q4.result">
+ a |
+----
+ 2 |
+ 2 |
+</entry>
+
+
+<entry key="q5.query">
+SELECT a FROM r x
+ WHERE EXISTS (SELECT * FROM r y
+                WHERE x.a = y.a
+                  AND EXISTS (SELECT *
+                                FROM r z
+                               WHERE z.a = x.a AND z.a = y.a));
+</entry>
+<entry key="q5.result">
+ a |
+----
+ 1 |
+ 1 |
+ 2 |
+ 2 |
+</entry>
+
+</properties>

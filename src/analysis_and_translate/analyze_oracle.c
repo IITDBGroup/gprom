@@ -2369,7 +2369,20 @@ analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms, HashMap *ctes)
         }
         break;
         case PROV_INPUT_UPDATE_SEQUENCE:
-            break;
+        {
+            THROW(SEVERITY_RECOVERABLE,
+                  "Currently not supported to execute updates and compute their provenance, use REENACT for this usecase for  now.");
+/*             FOREACH(KeyValue,sInfo,stmts) */
+/*             { */
+/*                 Node *stmt = sInfo->key; */
+/*                 //TODO maintain and extend a schema info */
+/*                 analyzeQueryBlockStmt(stmt, NIL, ctes); */
+/*                 hasTimes |= reenactOptionHasTimes((List *) sInfo->value); */
+/* //                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo)); */
+/*             } */
+        }
+
+        break;
         default:
             break;
     }

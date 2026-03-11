@@ -70,7 +70,7 @@
         VISIT_NODE(((FromItem *) n)->provInfo)
 
 boolean
-visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
+visit(Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
 {
     switch(node->type)
     {
@@ -394,6 +394,11 @@ visit (Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
         	VISIT_OPERATOR_FIELDS();
         }
         break;
+        case T_ConstRelOperator:
+        {
+            PREP_VISIT(ConstRelOperator);
+            VISIT_OPERATOR_FIELDS();
+        }
         case T_SampleClauseOperator:
         {
         	PREP_VISIT(SampleClauseOperator);
