@@ -2215,9 +2215,10 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         {
             HashMap *props = (HashMap *)(op->properties);
             boolean showValues = opt_log_operator_verbose_props == 2;
-
-            if(props) {
-                appendStringInfoString(str, "[");
+            boolean oneline = mapSize(props) == 1;
+            if(props)
+            {
+                appendStringInfo(str, "[%s", oneline ? "": "\n");
                 FOREACH_HASH_KEY(Node,n,props)
                 {
                     if(isA(n,Constant))
@@ -2230,7 +2231,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
                                              prop,
                                              showValues ? ": " : "",
                                              showValues ? format_op_prop_value_for_user(op, prop) : "",
-                                             showValues ? "\n" : "; "
+                                             (showValues && !oneline) ? "\n" : "; "
                                              ); //also add separator if applicable
                         }
                     }
