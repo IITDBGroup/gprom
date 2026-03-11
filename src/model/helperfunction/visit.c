@@ -299,12 +299,14 @@ visit(Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
         {
         	PREP_VISIT(Insert);
         	VISIT(query);
+            VISIT(schema);
         }
         break;
         case T_Delete:
         {
         	PREP_VISIT(Delete);
         	VISIT(cond);
+            VISIT(schema);
         }
         break;
         case T_Update:
@@ -312,6 +314,22 @@ visit(Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
         	PREP_VISIT(Update);
         	VISIT(selectClause);
         	VISIT(cond);
+            VISIT(schema);
+        }
+        break;
+        case T_CreateTable:
+        {
+            PREP_VISIT(CreateTable);
+            VISIT(tableElems);
+            VISIT(constraints);
+            VISIT(query);
+        }
+        break;
+        case T_AlterTable:
+        {
+            PREP_VISIT(AlterTable);
+            VISIT(schema);
+            VISIT(beforeSchema);
         }
         break;
 	    case T_PreparedQuery:
@@ -1320,7 +1338,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (Node *n, void *state, voi
                 VISIT_OPERATOR_FIELDS_P();
                 VISIT_P(values);
             }
-            break;
+        break;
 	    case T_LimitOperator:
             {
                 PREP_VISIT_P(LimitOperator);
