@@ -1059,12 +1059,6 @@ appendToListStringProperty(QueryOperator *op, char *key, Node *newTail)
 char *
 format_prop_value_for_user(char *prop, Node *val)
 {
-    // print constants literally
-    if(isA(val, Constant))
-    {
-        return exprToSQL(val, NULL, FALSE);
-    }
-
     // equivalence classes
     if(streq(prop, PROP_STORE_SET_EC))
     {
@@ -1150,11 +1144,53 @@ format_prop_value_for_user(char *prop, Node *val)
         return stringListToString((List *) constStringListToStringList((List *) val));
     }
 
+    if(streq(prop, PROP_PROV_ORIG_UPDATE_TYPE))
+    {
+        return ReenactUpdateTypeToString((ReenactUpdateType) INT_VALUE(val));
+    }
+
+    if(streq(prop, PROP_PC_UPDATE_COND))
+    {
+        StringInfo str = makeStringInfo();
+
+        FOREACH(Node,c,(List *) val)
+        {
+            appendStringInfo(str,
+                             "%s%s",
+                             exprToSQL(c, NULL, FALSE),
+                             FOREACH_HAS_MORE(c) ? ", " : "");
+        }
+
+        return str->data;
+    }
+
+    if(streq(prop, PROP_REENACT_NO_TRACK_LIST))
+    {
+        StringInfo str = makeStringInfo();
+
+        FOREACH(Node,c,(List *) val)
+        {
+            appendStringInfo(str,
+                             "%s%s",
+                             exprToSQL(c, NULL, FALSE),
+                             FOREACH_HAS_MORE(c) ? ", " : "");
+        }
+
+        return str->data;
+    }
+
+    // print constants literally
+    if(isA(val, Constant))
+    {
+        return exprToSQL(val, NULL, FALSE);
+    }
+
     /* if(streq(prop, PROP_STORE_NOT_NULL)) */
     /* { */
     /*     return  */
     /* } */
 
+    // otherwise use standard node to string
     return nodeToString(val);
 }
 
