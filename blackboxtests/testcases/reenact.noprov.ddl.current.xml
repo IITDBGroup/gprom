@@ -4,7 +4,7 @@
 <comment>Reenacting DDL operations only test cases</comment>
 
 <entry key="q1.query">
-REENACT (CREATE TABLE mytable (A INT, B INT); INSERT INTO mytable VALUES(1,1););
+REENACT (CREATE TABLE mytable (A NUMERIC, B NUMERIC); INSERT INTO mytable VALUES(1,1););
 </entry>
 <entry key="q1.result">
 A|B|
@@ -13,7 +13,7 @@ A|B|
 </entry>
 
 <entry key="q2.query">
-REENACT (CREATE TABLE mytable (A INT, B INT); INSERT INTO mytable VALUES(6,6); INSERT INTO r SELECT * FROM mytable;);
+REENACT (CREATE TABLE mytable (A NUMERIC, B NUMERIC); INSERT INTO mytable VALUES(6,6); INSERT INTO r SELECT * FROM mytable;);
 </entry>
 <entry key="q2.result">
 A|B|
@@ -26,7 +26,7 @@ A|B|
 </entry>
 
 <entry key="q3.query">
-REENACT (CREATE TABLE mytable (A INT, B INT); INSERT INTO mytable VALUES(1,1); ALTER TABLE mytable ADD COLUMN C INT; INSERT INTO mytable VALUES (2,2,2););
+REENACT (CREATE TABLE mytable (A NUMERIC, B NUMERIC); INSERT INTO mytable VALUES(1,1); ALTER TABLE mytable ADD COLUMN C NUMERIC; INSERT INTO mytable VALUES (2,2,2););
 </entry>
 <entry key="q3.result">
 A|B|C|
@@ -36,7 +36,7 @@ A|B|C|
 </entry>
 
 <entry key="q4.query">
-REENACT (CREATE TABLE mytable (A INT, B INT); INSERT INTO mytable VALUES(1,1); INSERT INTO mytable VALUES(2,2); UPDATE mytable SET b = b + 1;);
+REENACT (CREATE TABLE mytable (A NUMERIC, B NUMERIC); INSERT INTO mytable VALUES(1,1); INSERT INTO mytable VALUES(2,2); UPDATE mytable SET b = b + 1;);
 </entry>
 <entry key="q4.result">
 A|B|
@@ -46,7 +46,7 @@ A|B|
 </entry>
 
 <entry key="q5.query">
-REENACT (CREATE TABLE mytable (A INT, B INT); INSERT INTO mytable VALUES(1,1); UPDATE mytable SET b = b + 1; ALTER TABLE mytable ADD COLUMN C INT; ALTER TABLE mytable REMOVE COLUMN C;);
+REENACT (CREATE TABLE mytable (A NUMERIC, B NUMERIC); INSERT INTO mytable VALUES(1,1); UPDATE mytable SET b = b + 1; ALTER TABLE mytable ADD COLUMN C NUMERIC; ALTER TABLE mytable REMOVE COLUMN C;);
 </entry>
 <entry key="q5.result">
  A | B |

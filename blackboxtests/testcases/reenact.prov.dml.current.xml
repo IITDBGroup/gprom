@@ -95,10 +95,10 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (UPDATE R SET A = A + 2 WHERE B = 
 <entry key="q8.result">
  A | B | PROV_R_A | PROV_R_B | PROV_U1_up | PROV_U2_up |
 --------------------------------------------------------
- 1 | 1 | 1        | 1        | 0          | 0          |
- 3 | 2 | 1        | 2        | 1          | 0          |
- 2 | 1 | 2        | 1        | 0          | 0          |
- 4 | 3 | 2        | 3        | 0          | 1          |
+ 1 | 1 | 1        | 1        | f          | f          |
+ 3 | 2 | 1        | 2        | t          | f          |
+ 2 | 1 | 2        | 1        | f          | f          |
+ 4 | 3 | 2        | 3        | f          | t          |
 </entry>
 
 <entry key="q9.query">
@@ -107,8 +107,8 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (UPDATE R SET A = A +
 <entry key="q9.result">
  A | B | PROV_R_A | PROV_R_B | PROV_U1_up | PROV_U2_up |
 --------------------------------------------------------
- 3 | 2 | 1        | 2        | 1          | 0          |
- 4 | 3 | 2        | 3        | 0          | 1          |
+ 3 | 2 | 1        | 2        | t          | f          |
+ 4 | 3 | 2        | 3        | f          | t          |
 </entry>
 
 <entry key="q10.query">
@@ -117,8 +117,8 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS SHOW INTERMEDIATE ONLY UPDATED (UP
 <entry key="q10.result">
  A | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up | PROV_U2__R_A | PROV_U2__R_B | PROV_U2_up |
 --------------------------------------------------------------------------------------------------------------------
- 3 | 2 | 1        | 2        | 3            | 2            | 1          | 3            | 2            | 0          |
- 4 | 3 | 2        | 3        | 2            | 3            | 0          | 4            | 3            | 1          |
+ 3 | 2 | 1        | 2        | 3            | 2            | t          | 3            | 2            | f          |
+ 4 | 3 | 2        | 3        | 2            | 3            | f          | 4            | 3            | t          |
 </entry>
 
 <entry key="q11.query">
@@ -142,13 +142,13 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R (SELECT * FROM R WH
 <entry key="q12.result">
  A | B | PROV_R_A | PROV_R_B | PROV_R_1_A | PROV_R_1_B | PROV_U1_ins | PROV_R_2_A | PROV_R_2_B | PROV_R_3_A | PROV_R_3_B | PROV_U1_1_ins | PROV_U2_ins |
 --------------------------------------------------------------------------------------------------------------------------------------------------------
- 1 | 1 | 1        | 1        | NULL       | NULL       | 0           | NULL       | NULL       | NULL       | NULL       | NULL          | 0           |
- 1 | 2 | 1        | 2        | NULL       | NULL       | 0           | NULL       | NULL       | NULL       | NULL       | NULL          | 0           |
- 2 | 1 | 2        | 1        | NULL       | NULL       | 0           | NULL       | NULL       | NULL       | NULL       | NULL          | 0           |
- 2 | 3 | 2        | 3        | NULL       | NULL       | 0           | NULL       | NULL       | NULL       | NULL       | NULL          | 0           |
- 1 | 2 | NULL     | NULL     | 1          | 2          | 1           | NULL       | NULL       | NULL       | NULL       | NULL          | 0           |
- 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | 0             | 1           |
- 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | 1             | 1           |
+ 1 | 1 | 1        | 1        | NULL       | NULL       | f           | NULL       | NULL       | NULL       | NULL       | NULL          | f           |
+ 1 | 2 | 1        | 2        | NULL       | NULL       | f           | NULL       | NULL       | NULL       | NULL       | NULL          | f           |
+ 2 | 1 | 2        | 1        | NULL       | NULL       | f           | NULL       | NULL       | NULL       | NULL       | NULL          | f           |
+ 2 | 3 | 2        | 3        | NULL       | NULL       | f           | NULL       | NULL       | NULL       | NULL       | NULL          | f           |
+ 1 | 2 | NULL     | NULL     | 1          | 2          | t           | NULL       | NULL       | NULL       | NULL       | NULL          | f           |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | f             | t           |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | t             | t           |
 </entry>
 
 <entry key="q13.query">
@@ -157,11 +157,11 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R (SELECT * FROM R WH
 <entry key="q13.result">
  A | B | PROV_R_A | PROV_R_B | PROV_R_1_A | PROV_R_1_B | PROV_U1_ins |
 ----------------------------------------------------------------------
- 1 | 1 | 1        | 1        | NULL       | NULL       | 0           |
- 1 | 2 | 1        | 2        | NULL       | NULL       | 0           |
- 2 | 1 | 2        | 1        | NULL       | NULL       | 0           |
- 2 | 3 | 2        | 3        | NULL       | NULL       | 0           |
- 1 | 2 | NULL     | NULL     | 1          | 2          | 1           |
+ 1 | 1 | 1        | 1        | NULL       | NULL       | f           |
+ 1 | 2 | 1        | 2        | NULL       | NULL       | f           |
+ 2 | 1 | 2        | 1        | NULL       | NULL       | f           |
+ 2 | 3 | 2        | 3        | NULL       | NULL       | f           |
+ 1 | 2 | NULL     | NULL     | 1          | 2          | t           |
 </entry>
 
 <entry key="q14.query">
@@ -197,11 +197,11 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); UPDAT
 <entry key="q15.result">
  A   | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U1_ins | PROV_U2_up |
 -----------------------------------------------------------------------------------------
- 1   | 1 | 1        | 1        | NULL         | NULL         | 0           | 0          |
- 100 | 2 | 1        | 2        | NULL         | NULL         | 0           | 1          |
- 2   | 1 | 2        | 1        | NULL         | NULL         | 0           | 0          |
- 2   | 3 | 2        | 3        | NULL         | NULL         | 0           | 0          |
- 1   | 1 | NULL     | NULL     | 1            | 1            | 1           | 0          |
+ 1   | 1 | 1        | 1        | NULL         | NULL         | f           | f          |
+ 100 | 2 | 1        | 2        | NULL         | NULL         | f           | t          |
+ 2   | 1 | 2        | 1        | NULL         | NULL         | f           | f          |
+ 2   | 3 | 2        | 3        | NULL         | NULL         | f           | f          |
+ 1   | 1 | NULL     | NULL     | 1            | 1            | t           | f          |
 </entry>
 
 
@@ -211,10 +211,10 @@ REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( U
 <entry key="q16.result">
  A  | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 --------------------------------------------------------------------------
- 39 | 1 | 1        | 1        | 39           | 1            | 1          |
- 39 | 2 | 1        | 2        | 39           | 2            | 1          |
- 39 | 1 | 2        | 1        | 39           | 1            | 1          |
- 39 | 3 | 2        | 3        | 39           | 3            | 1          |
+ 39 | 1 | 1        | 1        | 39           | 1            | t          |
+ 39 | 2 | 1        | 2        | 39           | 2            | t          |
+ 39 | 1 | 2        | 1        | 39           | 1            | t          |
+ 39 | 3 | 2        | 3        | 39           | 3            | t          |
 </entry>
 
 <entry key="q17.query">
@@ -223,21 +223,21 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES
 <entry key="q17.result">
  A   | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U1_ins | PROV_U2_up |
 -----------------------------------------------------------------------------------------
- 100 | 2 | 1        | 2        | NULL         | NULL         | 0           | 1          |
- 1   | 1 | NULL     | NULL     | 1            | 1            | 1           | 0          |
+ 100 | 2 | 1        | 2        | NULL         | NULL         | f           | t          |
+ 1   | 1 | NULL     | NULL     | 1            | 1            | t           | f          |
 </entry>
 
 <entry key="q18.query">
 REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( UPDATE R SET A = 39; INSERT INTO R VALUES (50,50); );
 </entry>
 <entry key="q18.result">
- A  | B  | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up | PROV_query_A | PROV_query_B | PROV_U2__R_A | PROV_U2__R_B | PROV_U2_ins |
+ a  | b  | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up | prov_query_a | prov_query_b | prov_u2__r_a | prov_u2__r_b | prov_u2_ins |
 -----------------------------------------------------------------------------------------------------------------------------------------------------
- 39 | 1  | 1        | 1        | 39           | 1            | 1          | NULL         | NULL         | 39           | 1            | 0           |
- 39 | 2  | 1        | 2        | 39           | 2            | 1          | NULL         | NULL         | 39           | 2            | 0           |
- 39 | 1  | 2        | 1        | 39           | 1            | 1          | NULL         | NULL         | 39           | 1            | 0           |
- 39 | 3  | 2        | 3        | 39           | 3            | 1          | NULL         | NULL         | 39           | 3            | 0           |
- 50 | 50 | NULL     | NULL     | NULL         | NULL         | NULL       | 50           | 50           | 50           | 50           | 1           |
+ 39 | 1  | 1        | 1        | 39           | 1            | t          | NULL         | NULL         | 39           | 1            | f           |
+ 39 | 2  | 1        | 2        | 39           | 2            | t          | NULL         | NULL         | 39           | 2            | f           |
+ 39 | 1  | 2        | 1        | 39           | 1            | t          | NULL         | NULL         | 39           | 1            | f           |
+ 39 | 3  | 2        | 3        | 39           | 3            | t          | NULL         | NULL         | 39           | 3            | f           |
+ 50 | 50 | NULL     | NULL     | NULL         | NULL         | NULL       | 50           | 50           | 50           | 50           | t           |
 </entry>
 
 
@@ -245,10 +245,10 @@ REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( U
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2); );
 </entry>
 <entry key="q19.result">
- A | B | PROV_query_A | PROV_query_B | PROV_U1_ins | PROV_query_1_A | PROV_query_1_B | PROV_U2_ins |
+ a | b | prov_query_a | prov_query_b | prov_u1_ins | prov_query_1_a | prov_query_1_b | prov_u2_ins |
 ----------------------------------------------------------------------------------------------------
- 1 | 1 | 1            | 1            | 1           | NULL           | NULL           | 0           |
- 1 | 2 | NULL         | NULL         | NULL        | 1              | 2              | 1           |
+ 1 | 1 | 1            | 1            | t           | NULL           | NULL           | f           |
+ 1 | 2 | NULL         | NULL         | NULL        | 1              | 2              | t           |
 </entry>
 
 
@@ -256,34 +256,34 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2); );
 </entry>
 <entry key="q20.result">
- A | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U1_ins | PROV_query_1_A | PROV_query_1_B | PROV_U2_ins |
+ a | b | prov_r_a | prov_r_b | prov_query_a | prov_query_b | prov_u1_ins | prov_query_1_a | prov_query_1_b | prov_u2_ins |
 --------------------------------------------------------------------------------------------------------------------------
- 1 | 1 | 1        | 1        | NULL         | NULL         | 0           | NULL           | NULL           | 0           |
- 1 | 2 | 1        | 2        | NULL         | NULL         | 0           | NULL           | NULL           | 0           |
- 2 | 1 | 2        | 1        | NULL         | NULL         | 0           | NULL           | NULL           | 0           |
- 2 | 3 | 2        | 3        | NULL         | NULL         | 0           | NULL           | NULL           | 0           |
- 1 | 1 | NULL     | NULL     | 1            | 1            | 1           | NULL           | NULL           | 0           |
- 1 | 2 | NULL     | NULL     | NULL         | NULL         | NULL        | 1              | 2              | 1           |
+ 1 | 1 | 1        | 1        | NULL         | NULL         | f           | NULL           | NULL           | f           |
+ 1 | 2 | 1        | 2        | NULL         | NULL         | f           | NULL           | NULL           | f           |
+ 2 | 1 | 2        | 1        | NULL         | NULL         | f           | NULL           | NULL           | f           |
+ 2 | 3 | 2        | 3        | NULL         | NULL         | f           | NULL           | NULL           | f           |
+ 1 | 1 | NULL     | NULL     | 1            | 1            | t           | NULL           | NULL           | f           |
+ 1 | 2 | NULL     | NULL     | NULL         | NULL         | NULL        | 1              | 2              | t           |
 </entry>
 
 <entry key="q21.query">
 REENACT WITH PROVENANCE ONLY UPDATED (INSERT INTO R (SELECT * FROM R WHERE B = 2); );
 </entry>
 <entry key="q21.result">
- A | B | PROV_R_A | PROV_R_B | PROV_U1_ins |
+ a | b | prov_r_a | prov_r_b | prov_u1_ins |
 --------------------------------------------
- 1 | 2 | 1        | 2        | 1           |
+ 1 | 2 | 1        | 2        | t           |
 </entry>
 
 <entry key="q22.query">
 REENACT WITH PROVENANCE ONLY UPDATED (INSERT INTO R (SELECT * FROM R WHERE B = 2); INSERT INTO R (SELECT * FROM R WHERE B = 2); );
 </entry>
 <entry key="q22.result">
- A | B | PROV_R_A | PROV_R_B | PROV_R_1_A | PROV_R_1_B | PROV_U1_ins | PROV_R_2_A | PROV_R_2_B | PROV_R_3_A | PROV_R_3_B | PROV_U1_1_ins | PROV_U2_ins |
+ a | b | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b | prov_u1_ins | prov_r_2_a | prov_r_2_b | prov_r_3_a | prov_r_3_b | prov_u1_1_ins | prov_u2_ins |
 --------------------------------------------------------------------------------------------------------------------------------------------------------
- 1 | 2 | NULL     | NULL     | 1          | 2          | 1           | NULL       | NULL       | NULL       | NULL       | NULL          | 0           |
- 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | 0             | 1           |
- 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | 1             | 1           |
+ 1 | 2 | NULL     | NULL     | 1          | 2          | t           | NULL       | NULL       | NULL       | NULL       | NULL          | f           |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | f             | t           |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | t             | t           |
 </entry>
 
 
@@ -314,8 +314,8 @@ REENACT WITH PROVENANCE TABLE R ONLY UPDATED STATEMENT ANNOTATIONS SHOW INTERMED
 <entry key="q25.result">
   A | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 -------------------------------------------------------------------------
- 3 | 1 | 1        | 1        | 3            | 1            | 1          |
- 3 | 1 | 2        | 1        | 3            | 1            | 1          |
+ 3 | 1 | 1        | 1        | 3            | 1            | t          |
+ 3 | 1 | 2        | 1        | 3            | 1            | t          |
 </entry>
 
 
@@ -339,8 +339,8 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS SHOW INTERMEDIATE ONLY UPDATED (OP
 <entry key="q27.result">
  A | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 -------------------------------------------------------------------------
- 3 | 2 | 3        | 2        | 3            | 2            | 0          |
- 4 | 3 | 2        | 3        | 4            | 3            | 1          |
+ 3 | 2 | 3        | 2        | 3            | 2            | f          |
+ 4 | 3 | 2        | 3        | 4            | 3            | t          |
 </entry>
 
 <entry key="q28.query">
@@ -361,8 +361,8 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS SHOW INTERMEDIATE ONLY UPDATED (OP
 <entry key="q29.result">
  A | B   | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 ---------------------------------------------------------------------------
- 3 | 2   | 3        | 2        | 3            | 2            | 0          |
- 4 | 100 | 4        | 3        | 4            | 100          | 1          |
+ 3 | 2   | 3        | 2        | 3            | 2            | f          |
+ 4 | 100 | 4        | 3        | 4            | 100          | t          |
 </entry>
 
 </properties>
