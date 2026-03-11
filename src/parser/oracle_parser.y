@@ -290,7 +290,7 @@ tableElement:
 		identifier identifier
 		{
 			RULELOG("tableElement::columnDef");
-			$$ = (Node *) createAttributeDef($1, SQLdataTypeToDataType($2));
+			$$ = (Node *) createAttributeDef($1, SQLdataTypeToDataType(backendifyIdentifier($2)));
 		}
 		/* TODO add constraints and make column def more general */
 	;
@@ -309,7 +309,7 @@ alterTableCommand:
 		ADD COLUMN identifier identifier
 		{
 			RULELOG("alterTableCommand::addColumn");
-			$$ = (Node *) createAlterTableAddColumn(NULL,$3,$4);
+			$$ = (Node *) createAlterTableAddColumn(NULL,$3,backendifyIdentifier($4));
 		}
 		| REMOVE COLUMN identifier
 		{
