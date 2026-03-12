@@ -2925,6 +2925,8 @@ computeReqColPropInternal(QueryOperator *root)
 		ricols = renameAttrsInSetUsingMap(ricols, outToRight);
 
 		HashMap *nameMap = unionMaps(outToLeft, outToRight);
+        setStringProperty(root, PROP_STORE_JOIN_OUT_TO_LEFT, (Node *) outToLeft);
+        setStringProperty(root, PROP_STORE_JOIN_OUT_TO_RIGHT, (Node *) outToRight);
 		setStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES, (Node *) nameMap);
 
 		// conditions reference input attributes need attribute references to
@@ -3092,6 +3094,12 @@ computeReqColPropInternal(QueryOperator *root)
 
 		MERGE_INTO_CHILD_ICOLS(rchild, rightIcols); //FIXME attributes of right input may be named differently!
 	}
+
+    // for a limit operator just merge into children
+    if (isA(root,LimitOperator))
+    {
+		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), icols);
+    }
 
 	// for a nesting operator we need the columns to compute its expression as
 	// well as the columns from the left input that are correlated in the right

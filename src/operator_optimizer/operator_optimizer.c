@@ -39,21 +39,23 @@
 
 // macros for running and timing an optimization rule and logging the resulting AGM graph.
 #define OPTIMIZER_LOG_PREFIX "\n**********************************************" \
-		    "**************\n\tOPTIMIZATION STEP: "
+		    "**************\n\tOPTIMIZATION "
 #define OPTIMIZER_LOG_POSTFIX "\n*********************************************" \
 		    "***************\n\n"
-#define LOG_OPT(message,rewrittenAGM) \
-    INFO_LOG(OPTIMIZER_LOG_PREFIX message OPTIMIZER_LOG_POSTFIX "%s" \
+#define LOG_OPT(_prefx,_message) \
+    INFO_LOG(OPTIMIZER_LOG_PREFIX _prefx _message OPTIMIZER_LOG_POSTFIX)
+#define LOG_OPT_OP(_prefx,_message,_rewrittenAGM) \
+    INFO_LOG(OPTIMIZER_LOG_PREFIX _prefx _message OPTIMIZER_LOG_POSTFIX "%s" \
             OPTIMIZER_LOG_POSTFIX, \
-            operatorToOverviewString((Node *) rewrittenAGM))
+            operatorToOverviewString((Node *) _rewrittenAGM))
 #define APPLY_AND_TIME_OPT(optName,optMethod,configOption) \
     if(getBoolOption(configOption)) \
     { \
-    	INFO_LOG("START: %s", optName); \
+    	LOG_OPT("START: ", optName); \
         START_TIMER("OptimizeModel - " optName); \
         rewrittenTree = optMethod((QueryOperator *) rewrittenTree); \
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree)); \
-        LOG_OPT(optName, rewrittenTree); \
+        LOG_OPT_OP("RESULT: ", optName, rewrittenTree); \
         DOT_TO_CONSOLE_WITH_MESSAGE(optName,rewrittenTree); \
         STOP_TIMER("OptimizeModel - " optName); \
     }
@@ -536,6 +538,7 @@ QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
     SET_BOOL_STRING_PROP(root, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE);
+    getAndSetOriginalAttrLists(root);
 
 	// remove unncessary attributes from children first
 	if(root->inputs != NULL)
@@ -550,6 +553,14 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
     }
 
     List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
+    /* List *leftChildOrigAttrNames = (root->inputs != NIL) ? */
+    /*                                (List *) GET_STRING_PROP(OP_LCHILD(root), */
+    /*                                                         PROP_ORIGINAL_ATTR_LIST): */
+    /*                                NIL; */
+    /* List *rightChildOrigAttrNames = IS_BINARY_OP(root) ? */
+    /*                                 (List *) GET_STRING_PROP(OP_RCHILD(root), */
+    /*                                                          PROP_ORIGINAL_ATTR_LIST): */
+    /*                                 NIL; */
 	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
     List *provAttrNames = getOpProvenanceAttrNames(root);
 
@@ -658,46 +669,66 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	else if(isA(root, JoinOperator))
 	{
 		JoinOperator *j = (JoinOperator *) root;
+		/* HashMap *hm = (HashMap *) getStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES); */
+        HashMap *outToLeft =  (HashMap *) getStringProperty(root, PROP_STORE_JOIN_OUT_TO_LEFT);
+        HashMap *outToRight =  (HashMap *) getStringProperty(root, PROP_STORE_JOIN_OUT_TO_RIGHT);
 
 		List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
 		List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
 
 		//Set schema attr def
 		List *newAttrDefs = NIL;
-		if(j->cond != NULL)
+		if(LIST_LENGTH(root->schema->attrDefs) != (LIST_LENGTH(OP_LCHILD(root)->schema) + LIST_LENGTH(OP_RCHILD(root)->schema)))
 		{
-			if(LIST_LENGTH(root->schema->attrDefs) != (LIST_LENGTH(OP_LCHILD(root)->schema) + LIST_LENGTH(OP_RCHILD(root)->schema)))
-			{
-				FOREACH(AttributeDef, ad, root->schema->attrDefs)
-		    	{
-					HashMap *hm = (HashMap *) getStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES);
-					char *name = STRING_VALUE(MAP_GET_STRING(hm, ad->attrName));
-					DEBUG_LOG("TEST REMOVE UNNECESSARY COLUMNS MAP %s TO %s .", ad->attrName, name);
+			FOREACH(AttributeDef, ad, root->schema->attrDefs)
+		    {
+                char *inname;
 
-					if(searchListString(leftSchemaNames, name) || searchListString(rightSchemaNames, name))
+                // is from left
+                if(MAP_HAS_STRING_KEY(outToLeft, ad->attrName))
+                {
+					inname = MAP_GET_STRING_VAL_FOR_STRING_KEY(outToLeft, ad->attrName);
+                    if(searchListString(leftSchemaNames, inname))
+                    {
 						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-				}
+                        DEBUG_LOG("TEST REMOVE UNNECESSARY COLUMNS KEEP LEFT %s TO %s", ad->attrName, inname);
+                    }
+                    else
+					    DEBUG_LOG("TEST REMOVE UNNECESSARY COLUMNS REMOVE LEFT %s TO %s", ad->attrName, inname);
+                }
+                // is from left
+                if(MAP_HAS_STRING_KEY(outToRight, ad->attrName))
+                {
+					inname = MAP_GET_STRING_VAL_FOR_STRING_KEY(outToRight, ad->attrName);
+                    if(searchListString(rightSchemaNames, inname))
+                    {
+						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+                        DEBUG_LOG("TEST REMOVE UNNECESSARY COLUMNS KEEP RIGHT %s TO %s", ad->attrName, inname);
+                    }
+                    else
+					    DEBUG_LOG("TEST REMOVE UNNECESSARY COLUMNS REMOVE RIGHT %s TO %s", ad->attrName, inname);
+                }
 			}
 		}
-		else
-		{
-			newAttrDefs = concatTwoLists(copyObject(OP_LCHILD(root)->schema->attrDefs), copyObject(OP_RCHILD(root)->schema->attrDefs));
-		}
-		root->schema->attrDefs = newAttrDefs;
+	    /* else */
+	    /* { */
+	    /* 	newAttrDefs = concatTwoLists(copyObject(OP_LCHILD(root)->schema->attrDefs), copyObject(OP_RCHILD(root)->schema->attrDefs)); */
+	    /* } */
+	    root->schema->attrDefs = newAttrDefs;
 
 		// we may have un-uniquified attribute names, so uniqify them again if necessary
-		if(!checkUniqueAttrNames(root))
-        {
-            makeAttrNamesUnique(root);
-            DEBUG_OP_LOG("join or projection attributes are not unique", root);
-        }
+		/* if(!checkUniqueAttrNames(root)) */
+        /* { */
+        /*     makeAttrNamesUnique(root); */
+        /*     DEBUG_OP_LOG("join or projection attributes are not unique", root); */
+        /* } */
+        // do not rename again, this is hard to repair (downstream operators may use old name) and unnecessary
 
-
-		//Set cond attr ref pos
+		// Set cond attr ref pos
 		if(j->cond != NULL)
 		{
 		    //DONE: TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
-			List *attrRefs = getAttrReferences (j->cond);
+			List *attrRefs = getAttrReferences(j->cond);
 			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
 
 			List *leftRefs = NIL;
@@ -713,11 +744,15 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 			DEBUG_LOG("Reset join left");
 			FOREACH(AttributeReference,a,leftRefs)
-				resetPos(a,cSchema);
+            {
+			    resetPos(a,cSchema);
+            }
 
 			DEBUG_LOG("Reset join right");
 			FOREACH(AttributeReference,a,rightRefs)
-				resetPos(a,rcSchema);
+            {
+			    resetPos(a,rcSchema);
+            }
 		}
 	}
 
