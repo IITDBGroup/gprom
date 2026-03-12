@@ -2614,7 +2614,7 @@ reenactOptionHasTimes (List *opts)
 }
 
 static void
-analyzeProvenanceOptions (ProvenanceStmt *prov)
+analyzeProvenanceOptions(ProvenanceStmt *prov)
 {
     /* loop through options */
     FOREACH(KeyValue,kv,prov->options)

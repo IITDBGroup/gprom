@@ -66,7 +66,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE ZUNCERT
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER RESULTTIDS MULT UNCERTAIN URANGE ZUNCERT
 %token <stringVal> TIP INCOMPLETE VTABLE XTABLE RADB UADB
 
 %token <stringVal> FROM LATERAL
@@ -763,14 +763,14 @@ provOption:
 		{
 			RULELOG("provOption::COARSE");
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED),
-            									(Node *) $3);
+											 (Node *) $3);
 		}
 		| BIND '(' strConstList ')' WITH '(' intConstList ')' FOR '(' intConstList ')'
 		{
 			RULELOG("provOption::COARSE BIND");
 			List *l = LIST_MAKE($3,$7,$11);
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED_BIND),
-            									(Node *) l);
+											 (Node *) l);
 		}
 		/*
 		| USE COARSE GRAINED coarseGrainedSpec
@@ -784,56 +784,62 @@ provOption:
 		{
 			RULELOG("provOption::ONLY::UPDATED");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ONLY_UPDATED),
-					(Node *) createConstBool(TRUE));
+											 (Node *) createConstBool(TRUE));
 		}
 		| SHOW INTERMEDIATE
 		{
 			RULELOG("provOption::SHOW::INTERMEDIATE");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SHOW_INTERMEDIATE),
-					(Node *) createConstBool(TRUE));
+											 (Node *) createConstBool(TRUE));
 		}
 		| TUPLE VERSIONS
 		{
 			RULELOG("provOption::TUPLE::VERSIONS");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_TUPLE_VERSIONS),
-					(Node *) createConstBool(TRUE));
+											 (Node *) createConstBool(TRUE));
 		}
 		| STATEMENT ANNOTATIONS
 		{
 			RULELOG("provOption::STATEMENT::ANNOTATIONS");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
-					(Node *) createConstBool(TRUE));
+											 (Node *) createConstBool(TRUE));
 		}
 		| NO STATEMENT ANNOTATIONS
 		{
 			RULELOG("provOption::NO::STATEMENT::ANNOTATIONS");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
-					(Node *) createConstBool(FALSE));
+											 (Node *) createConstBool(FALSE));
 		}
 		| PROVENANCE
 		{
 			RULELOG("provOption::PROVENANCE");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_GEN_PROVENANCE),
-					(Node *) createConstBool(TRUE));
+											 (Node *) createConstBool(TRUE));
 		}
 		| ISOLATION LEVEL identifier
 		{
 			RULELOG("provOption::ISOLATION::LEVEL");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ISOLATION_LEVEL),
-					(Node *) createConstString(strdup($3)));
+											 (Node *) createConstString(strdup($3)));
 		}
 		| COMMIT_TRANS SCN intConst
 		{
 			RULELOG("provOption::COMMIT::SCN");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COMMIT_SCN),
-					(Node *) createConstLong($3));
+											 (Node *) createConstLong($3));
 		}
 		| SEMIRING COMBINER semiringCombinerSpec
 		{
 			RULELOG("provOption::SEMIRING::COMBINER::semiringCombinerSpec");
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER),
-            									(Node *) $3);
+											 (Node *) $3);
 		}
+		| RESULTTIDS
+		{
+            RULELOG("provOption::RESULT::TIDS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SHOW_RESULT_TIDS),
+											 (Node *) createConstBool(TRUE));
+	    }
 	;
 
 coarseGrainedSpec:

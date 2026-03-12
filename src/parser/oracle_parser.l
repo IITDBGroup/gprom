@@ -250,6 +250,7 @@ postgrescast    "::"
 (?i:LATERAL)        UPCASE_TOK(LATERAL)
 (?i:EXECUTE)        UPCASE_TOK(EXECUTE)
 (?i:PREPARE)        UPCASE_TOK(PREPARE)
+(?i:RESULTTIDS)     UPCASE_TOK(RESULTTIDS)
 
 	/* booleans */
 {bool}			TOK(boolConst)

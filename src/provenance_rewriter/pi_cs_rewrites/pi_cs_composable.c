@@ -34,9 +34,6 @@
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 
-// result tuple-id attribute and provenance duplicate counter attribute
-#define RESULT_TID_ATTR backendifyIdentifier("_result_tid")
-#define PROV_DUPL_COUNT_ATTR backendifyIdentifier("_setprov_dup_count")
 
 #define REWR_NULLARY_SETUP_PIC(optype)			\
 	REWR_NULLARY_SETUP(PICS-Composable,optype)
@@ -90,7 +87,6 @@ static QueryOperator *rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, 
 
 static List *combineInputResultTidAndDupAttrsExprs(QueryOperator *op);
 static QueryOperator *combineInputResultTidAndDupAttrs(QueryOperator *op);
-static DataType getRowNumDT();
 static Constant *getOneForRowNum();
 static void addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema);
 static void addChildResultTIDAndProvDupAttrsToSchema (QueryOperator *op);
@@ -123,6 +119,18 @@ rewritePI_CSComposable (ProvenanceComputation *op)
 
     rewRoot = OP_LCHILD(op);
     rewRoot = rewritePI_CSComposableOperator(rewRoot, state);
+
+    // remove result TID attributes unless the user wanted to see them
+    if(!HAS_STRING_PROP(op, PROP_PC_SHOW_RESULT_TIDS))
+    {
+        List *attrNames = getQueryOperatorAttrNames((QueryOperator *) op);
+        QueryOperator *p = createProjOnAttrsByName(rewRoot, attrNames, attrNames);
+        p->parents = rewRoot->parents;
+        rewRoot->parents = singleton(p);
+        addChildOperator(p, rewRoot);
+        rewRoot = p;
+    }
+
 	switchSubtreeWithExisting((QueryOperator *) op, rewRoot);
 
     return (QueryOperator *) rewRoot;
@@ -165,7 +173,7 @@ isTupleAtATimeSubtree(QueryOperator *op)
     return TRUE;
 }
 
-static DataType
+DataType
 getRowNumDT()
 {
 	return typeOf((Node *) makeNode(RowNumExpr));

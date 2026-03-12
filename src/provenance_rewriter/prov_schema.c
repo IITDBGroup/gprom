@@ -25,6 +25,7 @@
 #include "model/query_operator/operator_property.h"
 #include "model/query_block/query_block.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
@@ -221,8 +222,21 @@ copyProvInfo(QueryOperator *to, QueryOperator *from)
 }
 
 void
-getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
+getQBProvenanceAttrList(ProvenanceStmt *stmt, List **attrNames, List **dts)
 {
+    boolean showResultTids = FALSE;
+    FOREACH(KeyValue,kv,stmt->options)
+    {
+        if(isA(kv->key,Constant))
+        {
+            Constant *c = (Constant *) kv->key;
+            if(c->constType == DT_STRING && streq(STRING_VALUE(c), PROP_PC_SHOW_RESULT_TIDS))
+            {
+                showResultTids = TRUE;
+            }
+        }
+    }
+
     if(stmt->provType == PROV_PI_CS && stmt->inputType == PROV_INPUT_QUERY)
     {
         ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
@@ -240,7 +254,6 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
          * fixed in findTablerefVisitor
          */
 
-
         if (LIST_LENGTH(pSchema->dts) == 0)
         {
             THROW(SEVERITY_RECOVERABLE, "%s", "cannot apply semiring combiner to query that has no provenance attributes.");
@@ -256,12 +269,20 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         *attrNames = pSchema->provAttrs;
         *dts = pSchema->dts;
 
+        if(showResultTids)
+        {
+            *attrNames = appendToTailOfList(*attrNames, strdup(RESULT_TID_ATTR));
+            *dts = appendToTailOfListInt(*dts, getRowNumDT());
+            *attrNames = appendToTailOfList(*attrNames, strdup(PROV_DUPL_COUNT_ATTR));
+            *dts = appendToTailOfListInt(*dts, getRowNumDT());
+        }
+
         return;
     }
     if (stmt->provType == PROV_COARSE_GRAINED
-    			|| stmt->provType == USE_PROV_COARSE_GRAINED
-			|| stmt->provType == CAP_USE_PROV_COARSE_GRAINED
-			|| stmt->provType == USE_PROV_COARSE_GRAINED_BIND)
+    	|| stmt->provType == USE_PROV_COARSE_GRAINED
+		|| stmt->provType == CAP_USE_PROV_COARSE_GRAINED
+		|| stmt->provType == USE_PROV_COARSE_GRAINED_BIND)
     {
         //TODO create list of prov attributes PROV_R, PROV_S, .... and their DTs
         ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
