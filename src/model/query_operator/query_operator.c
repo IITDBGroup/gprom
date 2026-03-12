@@ -41,6 +41,7 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
 static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
 static boolean canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state);
 static boolean isAttrCorrelatedFilter(void *a, void *context);
+static char *stringKeyAndValHashMapToString(HashMap *hm);
 
 QueryOperator *
 findNestingOperator (QueryOperator *op, int levelsUp)
@@ -1056,6 +1057,27 @@ appendToListStringProperty(QueryOperator *op, char *key, Node *newTail)
 	return cur;
 }
 
+static char *
+stringKeyAndValHashMapToString(HashMap *hm)
+{
+    StringInfo s = makeStringInfo();
+
+    appendStringInfoString(s, "{");
+
+    FOREACH_HASH_ENTRY(kv, hm)
+    {
+        appendStringInfo(s,
+                         "%s => %s%s",
+                         STRING_VALUE(kv->key),
+                         STRING_VALUE(kv->value),
+                         FOREACH_HASH_HAS_MORE(kv) ? ", " : "");
+    }
+
+    appendStringInfoString(s, "}");
+
+    return s->data;
+}
+
 char *
 format_prop_value_for_user(char *prop, Node *val)
 {
@@ -1079,24 +1101,27 @@ format_prop_value_for_user(char *prop, Node *val)
     }
 
     // attribute name mapping
-    if(streq(prop, PROP_STORE_LIST_SCHEMA_NAMES))
+    if(streq(prop, PROP_STORE_LIST_SCHEMA_NAMES)
+       || streq(prop, PROP_STORE_JOIN_OUT_TO_LEFT)
+       || streq(prop, PROP_STORE_JOIN_OUT_TO_RIGHT)
+       )
     {
-        StringInfo s = makeStringInfo();
-        HashMap *hm = (HashMap *) val;
-        appendStringInfoString(s, "{");
+        /* StringInfo s = makeStringInfo(); */
+        /* HashMap *hm = (HashMap *) val; */
+        /* appendStringInfoString(s, "{"); */
 
-        FOREACH_HASH_ENTRY(kv, hm)
-        {
-            appendStringInfo(s,
-                             "%s => %s%s",
-                             STRING_VALUE(kv->key),
-                             STRING_VALUE(kv->value),
-                             FOREACH_HASH_HAS_MORE(kv) ? ", " : "");
-        }
+        /* FOREACH_HASH_ENTRY(kv, hm) */
+        /* { */
+        /*     appendStringInfo(s, */
+        /*                      "%s => %s%s", */
+        /*                      STRING_VALUE(kv->key), */
+        /*                      STRING_VALUE(kv->value), */
+        /*                      FOREACH_HASH_HAS_MORE(kv) ? ", " : ""); */
+        /* } */
 
-        appendStringInfoString(s, "}");
+        /* appendStringInfoString(s, "}"); */
 
-        return s->data;
+        return stringKeyAndValHashMapToString((HashMap *) val);
     }
 
 	// user provenance attributes
@@ -1175,6 +1200,23 @@ format_prop_value_for_user(char *prop, Node *val)
                              exprToSQL(c, NULL, FALSE),
                              FOREACH_HAS_MORE(c) ? ", " : "");
         }
+
+        return str->data;
+    }
+
+    if(streq(prop, PROP_NESTED_RESULT_ATTR))
+    {
+        StringInfo str = makeStringInfo();
+
+        appendStringInfoString(str, "(");
+        FOREACH(Node,c,(List *) val)
+        {
+            appendStringInfo(str,
+                             "%s%s",
+                             STRING_VALUE(c),
+                             FOREACH_HAS_MORE(c) ? ", " : "");
+        }
+        appendStringInfoString(str, ")");
 
         return str->data;
     }
