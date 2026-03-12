@@ -413,7 +413,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
 }
 
 Relation *
-executeQuery (char *sql)
+executeQuery(char *sql)
 {
     //ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
@@ -423,7 +423,7 @@ executeQuery (char *sql)
 }
 
 void
-executeQueryIgnoreResult (char *sql)
+executeQueryIgnoreResult(char *sql)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);

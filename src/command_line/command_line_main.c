@@ -204,6 +204,7 @@ process(char *sql, FILE *stream)
     {
         NEW_AND_ACQUIRE_MEMCONTEXT(PROCESS_CONTEXT_NAME);
         processInput(sql, stream);
+        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
     }
     ON_EXCEPTION
     {
@@ -211,7 +212,6 @@ process(char *sql, FILE *stream)
         fflush(stdout);
     }
     END_ON_EXCEPTION
-    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 }
 
 static void
@@ -305,9 +305,16 @@ utility(char *command)
         char *cmd = command + 2;
         TRY
         {
+            NEW_AND_ACQUIRE_MEMCONTEXT(PROCESS_CONTEXT_NAME);
             exeRunQuery(cmd);
         }
-        END_TRY
+        ON_EXCEPTION
+        {
+            printf("\nError occured\n");
+            fflush(stdout);
+        }
+        END_ON_EXCEPTION
+        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
         return;
     }
 

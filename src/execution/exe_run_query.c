@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * exe_run_query.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -32,7 +32,7 @@ exeRunQuery (void *code)
     boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
     struct timeval st;
     struct timeval et;
-    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);	
+    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);
     int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
 	// replace \n with new line in format string
@@ -45,7 +45,7 @@ exeRunQuery (void *code)
 		printDBsample(codes);
 		return;
 	}
-	
+
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
 
@@ -125,6 +125,12 @@ outputResult(Relation *res)
     int totalSize = 0;
     int i = 0;
     int l = 0;
+
+    // return on null result
+    if(res == NULL)
+    {
+        return;
+    }
     numCol = LIST_LENGTH(res->schema);
     colSizes = MALLOC(numCol * sizeof(int));
 
@@ -178,25 +184,8 @@ outputResult(Relation *res)
             i++;
 		}
 		printf("\n");
-				
+
         if ((l++ % 1000) == 0)
             fflush(stdout);
 	}
-    /* FOREACH(List,t,res->tuples) */
-    /* { */
-    /*     i = 0; */
-    /*     FOREACH(char,a,t) */
-    /*     { */
-    /*         char *out = a ? a : "NULL"; */
-    /*         printf(" %s", out); */
-    /*         for(int j = strlen(out) + 1; j < colSizes[i]; j++) */
-    /*             printf(" "); */
-    /*         printf("|"); */
-    /*         i++; */
-    /*     } */
-    /*     printf("\n"); */
-
-    /*     if ((l++ % 1000) == 0) */
-    /*         fflush(stdout); */
-    /* } */
 }

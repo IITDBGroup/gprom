@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * exe_output_gp.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -137,6 +137,12 @@ executeOutputGP(void *sql)
     // execute GP query
     sql = replaceSubstr((char *) sql, ";", "");
     r = executeQuery(sql);
+    // stop on failure
+    if(r == NULL)
+    {
+        return;
+    }
+
     queryRes = r->tuples;
 
     // loop through query result creating edges and caching nodes

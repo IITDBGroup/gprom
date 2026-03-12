@@ -176,7 +176,7 @@
 
 // functions
 static void execStmt (char *stmt);
-static PGresult *execQuery(char *query);
+static PGresult *execQuery(char *query, boolean isQuery, boolean exceptionOnError);
 static void execCommit(void);
 static PGresult *execPrepared(char *qName, List *values);
 static boolean prepareQuery(char *qName, char *query, int parameters,
@@ -208,7 +208,7 @@ static DataType postgresTypenameToDT (char *typName);
         PQfinish(plugin->conn);                             \
         plugin->conn = NULL;                                \
         STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
-        FATAL_LOG(__VA_ARGS__);                             \
+        THROW(SEVERITY_RECOVERABLE,__VA_ARGS__);                             \
     }
 
 #define CLOSE_RES_CONN_AND_FATAL(res, ...)                  \
@@ -217,8 +217,15 @@ static DataType postgresTypenameToDT (char *typName);
         PQfinish(plugin->conn);                             \
         plugin->conn = NULL;                                \
         STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
-        FATAL_LOG(__VA_ARGS__);                             \
+        THROW(SEVERITY_RECOVERABLE,__VA_ARGS__);                             \
     } while(0)
+
+#define CLOSE_RES(res, ...)                  \
+    do {                                                    \
+        PQclear(res);                                       \
+        STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_QUERY_TIMER); \
+    } while(0)
+
 
 
 // extends MetadataLookupPlugin with postgres connection
@@ -426,7 +433,7 @@ fillOidToDTMap(HashMap *oidToDT, Set *anyOids)
 
     // get OID to DT mapping
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
-    res = execQuery(QUERY_GET_DT_OIDS);
+    res = execQuery(QUERY_GET_DT_OIDS, TRUE, TRUE);
     numRes = PQntuples(res);
 
     for(int i = 0; i < numRes; i++)
@@ -445,7 +452,7 @@ fillOidToDTMap(HashMap *oidToDT, Set *anyOids)
 
     // get OIDs of any/anyelement types that have to be treated special
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
-    res = execQuery(QUERY_GET_ANY_OIDS);
+    res = execQuery(QUERY_GET_ANY_OIDS, TRUE, TRUE);
     numRes = PQntuples(res);
 
     for(int i = 0; i < numRes; i++)
@@ -471,7 +478,7 @@ determineServerVersion(void)
 
     // get OID to DT mapping
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
-    res = execQuery(QUERY_GET_SERVER_VERSION);
+    res = execQuery(QUERY_GET_SERVER_VERSION, TRUE, TRUE);
     numRes = PQntuples(res);
     ASSERT(numRes == 1);
 
@@ -972,7 +979,7 @@ postgresGetPS (char *sql, List *attrNames)
     ACQUIRE_MEM_CONTEXT(memContext);
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute get ps");
-	res = execQuery(sql);
+	res = execQuery(sql, TRUE, TRUE);
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++) {
@@ -1012,7 +1019,7 @@ postgresGetPSTemplateFromTable ()
     ACQUIRE_MEM_CONTEXT(memContext);
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute get stored ps template");
-	res = execQuery(sql);
+	res = execQuery(sql, TRUE, TRUE);
 
 //	HashMap *tmap = getLtempNoMap();
 //	if(tmap == NULL)
@@ -1056,7 +1063,7 @@ postgresGetPSInfoFromTable ()
     ACQUIRE_MEM_CONTEXT(memContext);
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute get stored ps information");
-	res = execQuery(sql);
+	res = execQuery(sql, TRUE, TRUE);
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++) {
@@ -1200,7 +1207,7 @@ postgresGetPSHistogramFromTable ()
     ACQUIRE_MEM_CONTEXT(memContext);
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute get stored ps histogram");
-	res = execQuery(sql);
+	res = execQuery(sql, TRUE, TRUE);
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++) {
@@ -1458,7 +1465,7 @@ postgresGetHist (char *tableName, char *attrName, int numPartitions)
 	StringInfo minMax = makeStringInfo();
 	appendStringInfo(minMax,"SELECT MIN(%s), MAX(%s) FROM %s;",
 			attrName, attrName, tableName);
-	resMinMax = execQuery(minMax->data);
+	resMinMax = execQuery(minMax->data, TRUE, TRUE);
         STOP_TIMER("Postgres - execute get minmax");
 	//have to commit, otherwise, if you run another query, will get warning: there is already a transaction in progress
 	execStmt("commit;");
@@ -1701,47 +1708,47 @@ postgresGetAllMinAndMax(TableAccessOperator* table)
     appendStringInfo(statement,
             " FROM %s;",tableName);
 
-    res = execQuery(statement->data);
+    res = execQuery(statement->data, TRUE, TRUE);
 
     int numRes = PQntuples(res);
 
     for(int i = 0; i < numRes; i++)
     {
-    		int cnt = 0;
-    		FOREACH(AttributeDef, def, attrDefs)
+    	int cnt = 0;
+    	FOREACH(AttributeDef, def, attrDefs)
 		{
-    			//char *name = def->attrName;
-    			char *min = PQgetvalue(res,i,cnt);
-    			char *max = PQgetvalue(res,i,cnt+1);
+    		//char *name = def->attrName;
+    		char *min = PQgetvalue(res,i,cnt);
+    		char *max = PQgetvalue(res,i,cnt+1);
 
-    	        Constant *cmin;
-    	        Constant *cmax;
-    			if (def->dataType==DT_INT)
-    			{
-    				cmin = createConstInt(atoi(min));
-    				cmax = createConstInt(atoi(max));
-    			}
-    			else if(def->dataType==DT_LONG)
-    			{
-    				cmin = createConstLong(atol(min));
-    				cmax = createConstLong(atol(max));
-    			}
-    			else if(def->dataType==DT_FLOAT)
-    			{
-    				cmin = createConstFloat(atof(min));
-    				cmax = createConstFloat(atof(max));
-    			}
-    			else
-    			{
-    				cmin = createConstString(min);
-    				cmax = createConstString(max);
-    			}
+    	    Constant *cmin;
+    	    Constant *cmax;
+    		if (def->dataType==DT_INT)
+    		{
+    			cmin = createConstInt(atoi(min));
+    			cmax = createConstInt(atoi(max));
+    		}
+    		else if(def->dataType==DT_LONG)
+    		{
+    			cmin = createConstLong(atol(min));
+    			cmax = createConstLong(atol(max));
+    		}
+    		else if(def->dataType==DT_FLOAT)
+    		{
+    			cmin = createConstFloat(atof(min));
+    			cmax = createConstFloat(atof(max));
+    		}
+    		else
+    		{
+    			cmin = createConstString(min);
+    			cmax = createConstString(max);
+    		}
 
-    	        MAP_ADD_STRING_KEY(min_map, def->attrName, cmin);
-    	        MAP_ADD_STRING_KEY(max_map, def->attrName, cmax);
-    	        DEBUG_LOG("cnt = %d, attr = %s, min = %s, max = %s", cnt, def->attrName,nodeToString(cmin), nodeToString(cmax));
+    	    MAP_ADD_STRING_KEY(min_map, def->attrName, cmin);
+    	    MAP_ADD_STRING_KEY(max_map, def->attrName, cmax);
+    	    DEBUG_LOG("cnt = %d, attr = %s, min = %s, max = %s", cnt, def->attrName,nodeToString(cmin), nodeToString(cmax));
 
-    			cnt = cnt + 2;
+    		cnt = cnt + 2;
 		}
     }
 
@@ -1793,7 +1800,7 @@ postgresGetMinAndMax(char* tableName, char* colName)
     appendStringInfo(statement,
             "SELECT MIN(%s),MAX(%s) FROM %s;",colName,colName,tableName);
 
-    res = execQuery(statement->data);
+    res = execQuery(statement->data, TRUE, TRUE);
 
     int numRes = PQntuples(res);
 
@@ -1933,7 +1940,8 @@ execStmt (char *stmt)
 
     DEBUG_LOG("execute statement %s", stmt);
     res = PQexec(c, stmt);
-    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+    if (PQresultStatus(res) != PGRES_COMMAND_OK
+        && PQresultStatus(res) != PGRES_TUPLES_OK){
         STOP_TIMER(METADATA_LOOKUP_EXEC_STMT);
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
@@ -1946,46 +1954,117 @@ execStmt (char *stmt)
 }
 
 static PGresult *
-execQuery(char *query)
+execQuery(char *query, boolean isQuery, boolean exceptionOnError)
 {
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
     START_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
-    START_TIMER("Postgres - execute query - BEGIN TRANSACTION");
-    res = PQexec(c, "BEGIN TRANSACTION;");
-    if (PQresultStatus(res) != PGRES_COMMAND_OK){
-        STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
-        STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
-        CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
-                                 PQerrorMessage(c));
-    }
-    PQclear(res);
-    STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION");
+    /* START_TIMER("Postgres - execute query - BEGIN TRANSACTION"); */
+    /* res = PQexec(c, "BEGIN TRANSACTION;"); */
+    /* if (PQresultStatus(res) != PGRES_COMMAND_OK){ */
+    /*     STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION"); */
+    /*     STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME); */
+    /*     CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s", */
+    /*                              PQerrorMessage(c)); */
+    /* } */
+    /* PQclear(res); */
+    /* STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION"); */
 
-    START_TIMER("Postgres - execute query - DECLARE CURSOR");
-    DEBUG_LOG("create cursor for %s", query);
-    res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
-    if (PQresultStatus(res) != PGRES_COMMAND_OK){
-        STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
+    START_TIMER("Postgres - execute query - RUN STATEMENT");
+    DEBUG_LOG("start running query %s", query);
+    res = PQexec(c, query);
+    if ((isQuery
+         && PQresultStatus(res) != PGRES_TUPLES_OK)
+        || (!isQuery
+            && PQresultStatus(res) != PGRES_COMMAND_OK
+            && PQresultStatus(res) != PGRES_TUPLES_OK))
+    {
+        char *message;
+        STOP_TIMER("Postgres - execute query - RUN STATEMENT");
         STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
-        CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
-                                 PQerrorMessage(c));
+        message = PQresultErrorMessage(res);
+        if(exceptionOnError)
+        {
+            CLOSE_RES_CONN_AND_FATAL(res, "execution failed with message: %s",
+                                     message);
+        }
+        else
+        {
+            if(logLevel >= LOG_ERROR)
+            {
+                ERROR_LOG("Executing statment in postres failed:\n\n%s\n\nERROR MESSAGE:\n%s",
+                          query,
+                          message);
+            }
+            else
+            {
+                printf("Executing statment in postres failed:\n\n%s\n\nERROR MESSAGE:\n%s",
+                       query,
+                       message);
+            }
+            PQclear(res);
+            ERROR_LOG("Executing query failed");
+            return NULL;
+        }
     }
-    PQclear(res);
-    STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
+    STOP_TIMER("Postgres - execute query - RUN STATEMENT");
+    //STOP_TIMER("Postgres - execute query - DECLARE CURSOR");
 
-    START_TIMER("Postgres - execute query - FETCH ALL");
-    res = PQexec(c, "FETCH ALL in myportal");
-    if (PQresultStatus(res) != PGRES_TUPLES_OK){
-        STOP_TIMER("Postgres - execute query - FETCH ALL");
-        STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
-        CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
-    }
-    STOP_TIMER("Postgres - execute query - FETCH ALL");
+    /* START_TIMER("Postgres - execute query - FETCH ALL"); */
+    /* res = PQexec(c, "FETCH ALL in myportal"); */
+    /* if (PQresultStatus(res) != PGRES_TUPLES_OK){ */
+    /*     STOP_TIMER("Postgres - execute query - FETCH ALL"); */
+    /*     STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME); */
+    /*     CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c)); */
+    /* } */
+    /* STOP_TIMER("Postgres - execute query - FETCH ALL"); */
     STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME);
     return res;
 }
+
+
+/* static PGresult * */
+/* execQuery(char *query) */
+/* { */
+/*     PGresult *res = NULL; */
+/*     ASSERT(postgresIsInitialized()); */
+/*     PGconn *c = plugin->conn; */
+/*     START_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME); */
+/*     START_TIMER("Postgres - execute query - BEGIN TRANSACTION"); */
+/*     res = PQexec(c, "BEGIN TRANSACTION;"); */
+/*     if (PQresultStatus(res) != PGRES_COMMAND_OK){ */
+/*         STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION"); */
+/*         STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME); */
+/*         CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s", */
+/*                                  PQerrorMessage(c)); */
+/*     } */
+/*     PQclear(res); */
+/*     STOP_TIMER("Postgres - execute query - BEGIN TRANSACTION"); */
+
+/*     START_TIMER("Postgres - execute query - DECLARE CURSOR"); */
+/*     DEBUG_LOG("create cursor for %s", query); */
+/*     res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query)); */
+/*     if (PQresultStatus(res) != PGRES_COMMAND_OK){ */
+/*         STOP_TIMER("Postgres - execute query - DECLARE CURSOR"); */
+/*         STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME); */
+/*         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s", */
+/*                                  PQerrorMessage(c)); */
+/*     } */
+/*     PQclear(res); */
+/*     STOP_TIMER("Postgres - execute query - DECLARE CURSOR"); */
+
+/*     START_TIMER("Postgres - execute query - FETCH ALL"); */
+/*     res = PQexec(c, "FETCH ALL in myportal"); */
+/*     if (PQresultStatus(res) != PGRES_TUPLES_OK){ */
+/*         STOP_TIMER("Postgres - execute query - FETCH ALL"); */
+/*         STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME); */
+/*         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c)); */
+/*     } */
+/*     STOP_TIMER("Postgres - execute query - FETCH ALL"); */
+/*     STOP_TIMER(METADATA_LOOKUP_EXEC_QUERY_TIME); */
+/*     return res; */
+/* } */
 
 static void
 execCommit(void)
@@ -2144,10 +2223,28 @@ postgresExecuteQuery(char *query)
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER("Postgres - execute ExecuteQuery");
     START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+
     Relation *r = makeNode(Relation);
-    PGresult *rs = execQuery(query);
+    PGresult *rs = execQuery(query, FALSE, FALSE);
     int numRes = PQntuples(rs);
     int numFields = PQnfields(rs);
+
+    // if this was not a query, then return a dummy relation
+    if(rs == NULL)
+    {
+        STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+        STOP_TIMER("Postgres - execute ExecuteQuery");
+        STOP_TIMER(METADATA_LOOKUP_TIMER);
+        return NULL;
+    }
+    if(PQresultStatus(rs) == PGRES_COMMAND_OK)
+    {
+        execCommit();
+        STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
+        STOP_TIMER("Postgres - execute ExecuteQuery");
+        STOP_TIMER(METADATA_LOOKUP_TIMER);
+        return NULL;
+    }
 
     // set schema
     r->schema = NIL;
@@ -2178,61 +2275,65 @@ postgresExecuteQuery(char *query)
         DEBUG_NODE_LOG("read tuple <%s>", tuple);
     }
     PQclear(rs);
-    execCommit();
+
+    STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     STOP_TIMER("Postgres - execute ExecuteQuery");
     STOP_TIMER(METADATA_LOOKUP_TIMER);
     return r;
 }
 
 void
-postgresExecuteQueryIgnoreResult (char *query)
+postgresExecuteQueryIgnoreResult(char *query)
 {
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
-    boolean done = FALSE;
+    //boolean done = FALSE;
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     START_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
-    START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
+    //START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
     // start transaction
-    res = PQexec(c, CONCAT_STRINGS("BEGIN TRANSACTION;"));
-        if (PQresultStatus(res) != PGRES_COMMAND_OK){
-            STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
-            CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
-                    PQerrorMessage(c));
-        }
-    PQclear(res);
-    STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
+    /* res = PQexec(c, CONCAT_STRINGS("BEGIN TRANSACTION;")); */
+    /* if (PQresultStatus(res) != PGRES_COMMAND_OK) */
+	/* { */
+    /*     STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction"); */
+    /*     CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s", */
+	/* 							 PQerrorMessage(c)); */
+    /* } */
+    /* PQclear(res); */
+    /* STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction"); */
 
     // create a cursor
     DEBUG_LOG("create cursor for %s", query);
     START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Declare Cursor");
-    res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
-    if (PQresultStatus(res) != PGRES_COMMAND_OK){
+    res = PQexec(c, query); //CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK && PQresultStatus(res) != PGRES_TUPLES_OK)
+	{
         STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Declare Cursor");
-        CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
-                PQerrorMessage(c));
+        CLOSE_RES_CONN_AND_FATAL(res, "statment failed: %s",
+								 PQresultErrorMessage(res));
     }
     PQclear(res);
     STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Declare Cursor");
 
-    START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH");
-    while(!done)
-    {
-        res = PQexec(c, "FETCH 1000 FROM myportal");
-        if (PQresultStatus(res) != PGRES_TUPLES_OK){
-            STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH");
-            CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
-        }
-        int numRes = PQntuples(res);
-        if (numRes == 0)
-            done = TRUE;
-    }
-    STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH");
+    /* START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH"); */
+    /* while(!done) */
+    /* { */
+    /*     res = PQexec(c, "FETCH 1000 FROM myportal"); */
+    /*     if (PQresultStatus(res) != PGRES_TUPLES_OK){ */
+    /*         STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH"); */
+    /*         CLOSE_RES_CONN_AND_FATAL(res, "FETCH 1000 failed: %s", PQerrorMessage(c)); */
+    /*     } */
+    /*     int numRes = PQntuples(res); */
+    /*     if (numRes == 0) */
+    /*         done = TRUE; */
+    /* } */
+    /* STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH"); */
 
     execCommit();
     STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
+    STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     STOP_TIMER(METADATA_LOOKUP_TIMER);
 }
 
