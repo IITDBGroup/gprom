@@ -177,6 +177,7 @@
 // functions
 static void execStmt (char *stmt);
 static PGresult *execQuery(char *query, boolean isQuery, boolean exceptionOnError);
+static void beginTransaction(void);
 static void execCommit(void);
 static PGresult *execPrepared(char *qName, List *values);
 static boolean prepareQuery(char *qName, char *query, int parameters,
@@ -236,6 +237,7 @@ typedef struct PostgresPlugin
     boolean initialized;
     int serverMajorVersion;
     int serverMinorVersion;
+    boolean inTransaction;
 } PostgresPlugin;
 
 // data types: additional cache entries
@@ -265,6 +267,7 @@ MetadataLookupPlugin *
 assemblePostgresMetadataLookupPlugin (void)
 {
     plugin = NEW(PostgresPlugin);
+    plugin->inTransaction = FALSE;
     MetadataLookupPlugin *p = (MetadataLookupPlugin *) plugin;
 
     p->type = METADATA_LOOKUP_PLUGIN_POSTGRES;
@@ -448,7 +451,6 @@ fillOidToDTMap(HashMap *oidToDT, Set *anyOids)
     }
 
     PQclear(res);
-    execCommit();
 
     // get OIDs of any/anyelement types that have to be treated special
 	START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
@@ -465,7 +467,6 @@ fillOidToDTMap(HashMap *oidToDT, Set *anyOids)
     }
 
     PQclear(res);
-    execCommit();
 
     DEBUG_NODE_BEATIFY_LOG("oid -> DT map:", oidToDT);
 }
@@ -495,7 +496,6 @@ determineServerVersion(void)
     }
 
     PQclear(res);
-    execCommit();
 }
 
 static void
@@ -1753,7 +1753,6 @@ postgresGetAllMinAndMax(TableAccessOperator* table)
     }
 
     PQclear(res);
-    execCommit();
 
 //	MAP_ADD_STRING_KEY(tableMap, colName, result_map);
 //    DEBUG_LOG("POSTGRES_GET_MINMAX: GOT (%s.%s)\n%s",
@@ -1843,7 +1842,6 @@ postgresGetMinAndMax(char* tableName, char* colName)
     }
 
     PQclear(res);
-    execCommit();
 
 	MAP_ADD_STRING_KEY(tableMap, colName, result_map);
     DEBUG_LOG("POSTGRES_GET_MINMAX: GOT (%s.%s)\n%s",
@@ -1924,25 +1922,19 @@ postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel
 }
 
 static void
-execStmt (char *stmt)
+execStmt(char *stmt)
 {
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;;
     START_TIMER(METADATA_LOOKUP_EXEC_STMT);
-    res = PQexec(c, "BEGIN TRANSACTION;");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK){
-            STOP_TIMER(METADATA_LOOKUP_EXEC_STMT);
-            CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
-                    PQerrorMessage(c));
-        }
-    PQclear(res);
+    beginTransaction();
 
     DEBUG_LOG("execute statement %s", stmt);
     res = PQexec(c, stmt);
     if (PQresultStatus(res) != PGRES_COMMAND_OK
         && PQresultStatus(res) != PGRES_TUPLES_OK){
-        STOP_TIMER(METADATA_LOOKUP_EXEC_STMT);
+        STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_EXEC_STMT);
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));
     }
@@ -1951,6 +1943,21 @@ execStmt (char *stmt)
     STOP_TIMER(METADATA_LOOKUP_EXEC_STMT);
 
     execCommit();
+}
+
+static void
+beginTransaction(void)
+{
+    PGresult *res = NULL;
+    res = PQexec(plugin->conn, "BEGIN TRANSACTION;");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_EXEC_STMT);
+        CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
+                                 PQerrorMessage(plugin->conn));
+    }
+    plugin->inTransaction = TRUE;
+    PQclear(res);
 }
 
 static PGresult *
@@ -2069,6 +2076,10 @@ execQuery(char *query, boolean isQuery, boolean exceptionOnError)
 static void
 execCommit(void)
 {
+    if(!plugin->inTransaction) // TODO right now nowbody starts transactions, so everything is autocommit
+    {
+        return;
+    }
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
@@ -2077,7 +2088,7 @@ execCommit(void)
     if (PQresultStatus(res) != PGRES_COMMAND_OK)
     {
         STOP_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
-        CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
+        CLOSE_RES_CONN_AND_FATAL(res, "COMMIT failed: %s",
                                  PQerrorMessage(c));
     }
     STOP_TIMER(METADATA_LOOKUP_COMMIT_TIMER);
@@ -2288,21 +2299,13 @@ postgresExecuteQueryIgnoreResult(char *query)
     PGresult *res = NULL;
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
+    boolean isQuery = FALSE;
+
     //boolean done = FALSE;
     START_TIMER(METADATA_LOOKUP_TIMER);
     START_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     START_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
-    //START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction");
-    // start transaction
-    /* res = PQexec(c, CONCAT_STRINGS("BEGIN TRANSACTION;")); */
-    /* if (PQresultStatus(res) != PGRES_COMMAND_OK) */
-	/* { */
-    /*     STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction"); */
-    /*     CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s", */
-	/* 							 PQerrorMessage(c)); */
-    /* } */
-    /* PQclear(res); */
-    /* STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Begin Transaction"); */
+
 
     // create a cursor
     DEBUG_LOG("create cursor for %s", query);
@@ -2314,24 +2317,14 @@ postgresExecuteQueryIgnoreResult(char *query)
         CLOSE_RES_CONN_AND_FATAL(res, "statment failed: %s",
 								 PQresultErrorMessage(res));
     }
+    isQuery = PQresultStatus(res) == PGRES_TUPLES_OK;
     PQclear(res);
     STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - Declare Cursor");
 
-    /* START_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH"); */
-    /* while(!done) */
-    /* { */
-    /*     res = PQexec(c, "FETCH 1000 FROM myportal"); */
-    /*     if (PQresultStatus(res) != PGRES_TUPLES_OK){ */
-    /*         STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH"); */
-    /*         CLOSE_RES_CONN_AND_FATAL(res, "FETCH 1000 failed: %s", PQerrorMessage(c)); */
-    /*     } */
-    /*     int numRes = PQntuples(res); */
-    /*     if (numRes == 0) */
-    /*         done = TRUE; */
-    /* } */
-    /* STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult - FETCH"); */
-
-    execCommit();
+    if(!isQuery)
+    {
+        execCommit();
+    }
     STOP_TIMER("Postgres - execute ExecuteQueryIgnoreResult");
     STOP_TIMER(METADATA_LOOKUP_QUERY_TIMER);
     STOP_TIMER(METADATA_LOOKUP_TIMER);
