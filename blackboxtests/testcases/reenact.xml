@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>General settings for reenactment test cases</comment>
+  <comment>General settings for reenactment test cases</comment>
 
-<entry key="extra_settings.noopt">
-</entry>
+  <entry key="extra_settings.noopt">
+  </entry>
 
-<entry key="extra_settings.heuopt">
--heuristic_opt
-</entry>
+  <entry key="extra_settings.heuopt">
+    -heuristic_opt
+  </entry>
 
+  <entry key="extra_settings.optnopullnoselmove">
+    -heuristic_opt,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
 </properties>

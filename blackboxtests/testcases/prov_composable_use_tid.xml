@@ -24,4 +24,21 @@
     -prov_use_composable,
     -prov_instrument_agg_window
   </entry>
+
+  <entry key="extra_settings.optnopullnoselmove-aggjoin">
+    -prov_use_composable,
+    -heuristic_opt,
+    -prov_instrument_agg_window:FALSE,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
+
+  <entry key="extra_settings.optnopullnoselmove-aggwin">
+    -prov_use_composable,
+    -heuristic_opt,
+    -prov_instrument_agg_window:TRUE,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
+
 </properties>

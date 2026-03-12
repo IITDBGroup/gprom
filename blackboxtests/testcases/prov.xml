@@ -3,11 +3,18 @@
 <properties>
   <comment>General settings for Datalog test cases</comment>
 
-  <entry key="extra_settings.noopt-nocompose">
+  <entry key="extra_settings.noopt">
   </entry>
 
-  <entry key="extra_settings.heuopt-nocompose">
+  <entry key="extra_settings.heuopt">
     -heuristic_opt
   </entry>
+
+  <entry key="extra_settings.optnopullnoselmove">
+    -heuristic_opt,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
+
 
 </properties>
