@@ -105,6 +105,7 @@ static void resetPos(AttributeReference *ar,  List* attrDefs);
 static boolean internalMaterializeProjectionSequences (QueryOperator *root, void *context);
 static QueryOperator *mergeAdjacentOperatorInternal (QueryOperator *root);
 static QueryOperator *removeRedundantProjectionsInternal(QueryOperator *root);
+static List *getExpectedChildAttributes(QueryOperator *op, boolean right);
 static QueryOperator *removeRedundantDuplicateOperatorByKeyInternal(QueryOperator *root);
 static QueryOperator *removeUnnecessaryWindowOperatorInternal(QueryOperator *root);
 
@@ -564,7 +565,34 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
     List *provAttrNames = getOpProvenanceAttrNames(root);
 
-	if(isA(root, OrderOperator))
+    if(isA(root,LimitOperator))
+    {
+		/*
+		 * (1) Remove unnecessary attributeDef in schema based on icols
+		 */
+
+		//step (1)
+		root = removeUnnecessaryAttrDefInSchema(icols, root);
+    }
+    else if(isA(root, ConstRelOperator))
+    {
+        List *newVals = NIL;
+	    List *newAttrDefs = NIL;
+        ConstRelOperator *c = (ConstRelOperator *) root;
+
+	    FORBOTH(Node, a, v, root->schema->attrDefs, c->values)
+	    {
+            AttributeDef *ad = (AttributeDef *) a;
+		    if(hasSetElem(icols, ad->attrName))
+		    {
+			    newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+                newVals = appendToTailOfList(newVals, v);
+		    }
+	    }
+	    root->schema->attrDefs = newAttrDefs;
+        c->values = newVals;
+    }
+	else if(isA(root, OrderOperator))
 	{
 		/*
 		 * (1) Remove unnecessary attributeDef in schema based on icols
@@ -578,7 +606,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		List *ordList = ((OrderOperator *)root)->orderExprs;
 		resetPosInExprs((Node *) ordList, cSchema);
 	}
-
 	else if(isA(root, DuplicateRemoval))
 	{
 		//step (1)
@@ -589,13 +616,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		List *attrsList = ((DuplicateRemoval *)root)->attrs;
 		resetPosInExprs((Node *) attrsList, cSchema);
 	}
-
 	else if(isA(root, SelectionOperator))
 	{
         root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
         resetPosInExprs(((SelectionOperator *)root)->cond, cSchema);
 	}
-
 	else if(isA(root, WindowOperator))
 	{
 		//Used for debug
@@ -625,7 +650,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root), NULL);
 	}
-
 	else if(isA(root, AggregationOperator))
 	{
 		/*
@@ -665,7 +689,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		resetPosInExprs((Node *) agg->aggrs, cSchema);
 		resetPosInExprs((Node *) agg->groupBy, cSchema);
 	}
-
 	else if(isA(root, JoinOperator))
 	{
 		JoinOperator *j = (JoinOperator *) root;
@@ -755,7 +778,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
             }
 		}
 	}
-
 	else if(isA(root, TableAccessOperator))
 	{
 		/*
@@ -802,7 +824,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
  		 	setStringProperty((QueryOperator *) newpo, PROP_STORE_SET_ICOLS, (Node *)icols);
 		}
 	}
-
 	else if(isA(root, ProjectionOperator))
 	{
 		int numicols = setSize(icols);
@@ -898,7 +919,107 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		}
 	}
 
-	//reset provenance attribute position : provAttrs   provAttrNames
+    // For operators whose attributes are determined based on its child
+    // attributes, e.g., selection has the same attributes as its input, union
+    // has the same attributes than both its left and right input, and this is
+    // violated because a child has more attributes after we removed unnecessary
+    // columns, then we may have to introduce a projection on top of the child
+    // to ensure that the schema is consistent. For example for Union[a]
+    // (SELECTION[b = 5](R[a,b]),PROJECTION[c](S)) we would have to introduce a
+    // projection PROJECTION[a] on top of the selection.
+
+    // Projection and aggregation do not rely on a particular input operator
+    // schema as long as necessary columns for computing the operator are
+    // available. So we never have to introduce additional projections on top of
+    // the inputs of these operators. Also operators that do not have children
+    // cannot be affected.
+    if(!isA(root,ProjectionOperator)
+       && !isA(root,AggregationOperator)
+       && !IS_NULLARY_OP(root))
+    {
+        if(IS_UNARY_OP(root))
+        {
+            QueryOperator *child = OP_LCHILD(root);
+            QueryOperator *p;
+            List *expectedChildAttributes = getExpectedChildAttributes(root,FALSE);
+            List *actualChildAttributes = getQueryOperatorAttrNames(child);
+            DEBUG_SINGLE_OP_LOG("expection for %s", root);
+            DEBUG_LOG("expected attributes:\n%s\nactual attributes:\n%s",
+                      stringListToString(expectedChildAttributes),
+                      stringListToString(actualChildAttributes));
+            if (!equalStringList(expectedChildAttributes, actualChildAttributes))
+            {
+                p = createProjOnAttrsByName(child,
+                                            deepCopyStringList(expectedChildAttributes),
+                                            deepCopyStringList(expectedChildAttributes));
+
+                // replace child with p in root
+                removeParent(child, root);
+                addChildOperator((QueryOperator *) p, child);
+                root->inputs = singleton(p);
+                p->parents = singleton(root);
+            }
+        }
+        if(IS_BINARY_OP(root))
+        {
+            QueryOperator *lchild = OP_LCHILD(root);
+            QueryOperator *rchild = OP_RCHILD(root);
+            QueryOperator *p;
+            List *expectedChildAttributes = getExpectedChildAttributes(root,FALSE);
+            List *actualChildAttributes = getQueryOperatorAttrNames(lchild);
+            DEBUG_SINGLE_OP_LOG("expection for %s", root);
+            DEBUG_LOG("expected left attributes:\n%s\nactual attributes:\n%s",
+                      stringListToString(expectedChildAttributes),
+                      stringListToString(actualChildAttributes));
+            if (!equalStringList(expectedChildAttributes, actualChildAttributes))
+            {
+                List *origchildAttrs = copyObject((List *) GET_STRING_PROP(lchild,
+                                                                           PROP_ORIGINAL_ATTR_LIST));
+                p = createProjOnAttrsByName(lchild,
+                                            deepCopyStringList(expectedChildAttributes),
+                                            deepCopyStringList(expectedChildAttributes));
+                SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs);
+
+                // replace lchild with p in parent
+                removeParent(lchild, root);
+                addChildOperator((QueryOperator *) p, lchild);
+                root->inputs = LIST_MAKE(p,rchild);
+                p->parents = singleton(root);
+            }
+
+            if(!(isA(root,NestingOperator)
+                 && ((((NestingOperator *) root)->nestingType == NESTQ_LATERAL)
+                     || (((NestingOperator *) root)->nestingType == NESTQ_SCALAR))))
+            {
+                expectedChildAttributes = getExpectedChildAttributes(root,TRUE);
+                actualChildAttributes = getQueryOperatorAttrNames(rchild);
+
+                if (!equalStringList(expectedChildAttributes, actualChildAttributes))
+                {
+                    List *origchildAttrs = copyObject((List *) GET_STRING_PROP(rchild,
+                                                                               PROP_ORIGINAL_ATTR_LIST));
+
+                    DEBUG_SINGLE_OP_LOG("expection for %s", root);
+                    DEBUG_LOG("expected right attributes:\n%s\nactual attributes:\n%s",
+                              stringListToString(expectedChildAttributes),
+                              stringListToString(actualChildAttributes));
+
+                    p = createProjOnAttrsByName(rchild,
+                                                deepCopyStringList(expectedChildAttributes),
+                                                deepCopyStringList(expectedChildAttributes));
+                    SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs);
+
+                    // replace rchild with p in parent
+                    removeParent(rchild, root);
+                    addChildOperator((QueryOperator *) p, rchild);
+                    root->inputs = LIST_MAKE(OP_LCHILD(root),p);
+                    p->parents = singleton(root);
+                }
+            }
+        }
+    }
+
+	// reset provenance attribute position : provAttrs   provAttrNames
 	List *newProvAttrs = NIL;
 	int count = 0;
 	FOREACH(AttributeDef, a, root->schema->attrDefs)
@@ -911,6 +1032,105 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	root->provAttrs = newProvAttrs;
 
 	return root;
+}
+
+static List *
+getExpectedChildAttributes(QueryOperator *op, boolean right)
+{
+    if(isA(op,SelectionOperator)
+       || isA(op,OrderOperator)
+       || isA(op,LimitOperator)
+       || isA(op,DuplicateRemoval)
+       || (isA(op,SetOperator) && !right))
+    {
+        return getQueryOperatorAttrNames(op);
+    }
+    if(isA(op,SetOperator) && right)
+    {
+        List *originalLeftAttrs = getAndSetOriginalAttrLists(OP_LCHILD(op));
+        List *originalRightAttrs = getAndSetOriginalAttrLists(OP_RCHILD(op));
+        List *newResultAttrs = getQueryOperatorAttrNames(op);
+        List *filteredRightAttrs = NIL;
+
+        FOREACH(char,a,newResultAttrs)
+        {
+            int pos = listPosString(originalLeftAttrs, a);
+            ASSERT(pos != SEARCH_NOT_FOUND);
+            char *rightAttr = getNthOfListP(originalRightAttrs, pos);
+            filteredRightAttrs = appendToTailOfList(filteredRightAttrs, strdup(rightAttr));
+        }
+
+        return filteredRightAttrs;
+    }
+    if(isA(op,JoinOperator))
+    {
+        HashMap *outToLeft =  (HashMap *) getStringProperty(op, PROP_STORE_JOIN_OUT_TO_LEFT);
+        HashMap *outToRight =  (HashMap *) getStringProperty(op, PROP_STORE_JOIN_OUT_TO_RIGHT);
+
+		List *attrnames = NIL;
+
+        FOREACH(AttributeDef,a,op->schema->attrDefs)
+        {
+            char *inname;
+
+            // is from left
+            if(MAP_HAS_STRING_KEY(outToLeft, a->attrName) && !right)
+            {
+				inname = MAP_GET_STRING_VAL_FOR_STRING_KEY(outToLeft, a->attrName);
+                attrnames = appendToTailOfList(attrnames, strdup(inname));
+            }
+            if(MAP_HAS_STRING_KEY(outToRight, a->attrName) && right)
+            {
+				inname = MAP_GET_STRING_VAL_FOR_STRING_KEY(outToRight, a->attrName);
+                attrnames = appendToTailOfList(attrnames, strdup(inname));
+            }
+        }
+
+        return attrnames;
+    }
+    if(isA(op,NestingOperator))
+    {
+        NestingOperator *n = (NestingOperator *) op;
+        if(n->nestingType == NESTQ_LATERAL || n->nestingType == NESTQ_SCALAR)
+        {
+		    List *attrnames = NIL;
+            List *originalLeftAttrs = getAndSetOriginalAttrLists(OP_LCHILD(op));
+            List *originalRightAttrs = getAndSetOriginalAttrLists(OP_RCHILD(op));
+
+            FOREACH(AttributeDef,a,op->schema->attrDefs)
+            {
+                // is from left
+                if(searchListString(originalLeftAttrs, a->attrName) && !right)
+                {
+                    attrnames = appendToTailOfList(attrnames, strdup(a->attrName));
+                }
+                if(searchListString(originalRightAttrs, a->attrName) && right)
+                {
+                    attrnames = appendToTailOfList(attrnames, strdup(a->attrName));
+                }
+            }
+
+            return attrnames;
+        }
+        else
+        {
+            if(right)
+            {
+                THROW(SEVERITY_RECOVERABLE, "no requirements on attributes of right attributes");
+            }
+            else
+            {
+                List *anames = deepCopyStringList(getQueryOperatorAttrNames(op));
+                return sublist(anames,0,-2);
+            }
+        }
+    }
+    if(isA(op,WindowOperator))
+    {
+        List *anames = deepCopyStringList(getQueryOperatorAttrNames(op));
+        return sublist(anames,0,-2);
+    }
+    THROW(SEVERITY_RECOVERABLE,"Not implemented yet.");
 }
 
 QueryOperator *

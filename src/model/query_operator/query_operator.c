@@ -1244,7 +1244,7 @@ format_op_prop_value_for_user(QueryOperator *op, char *prop)
 
 
 static KeyValue *
-getProp (QueryOperator *op, Node *key)
+getProp(QueryOperator *op, Node *key)
 {
     if (op->properties == NULL)
     {
@@ -1255,27 +1255,27 @@ getProp (QueryOperator *op, Node *key)
 }
 
 void
-addChildOperator (QueryOperator *parent, QueryOperator *child)
+addChildOperator(QueryOperator *parent, QueryOperator *child)
 {
     parent->inputs = appendToTailOfList(parent->inputs, child);
     child->parents = appendToTailOfList(child->parents, parent);
 }
 
 void
-addParent (QueryOperator *child, QueryOperator *parent)
+addParent(QueryOperator *child, QueryOperator *parent)
 {
     if (!searchList(child->parents, parent))
         child->parents = appendToTailOfList(child->parents, parent);
 }
 
 void
-removeParent (QueryOperator *child, QueryOperator *parent)
+removeParent(QueryOperator *child, QueryOperator *parent)
 {
     child->parents = REMOVE_FROM_LIST_PTR(child->parents, parent);
 }
 
 int
-getChildPosInParent (QueryOperator *parent, QueryOperator *child)
+getChildPosInParent(QueryOperator *parent, QueryOperator *child)
 {
     int i = 0;
 

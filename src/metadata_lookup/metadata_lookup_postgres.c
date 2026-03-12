@@ -59,6 +59,10 @@
                                  "$$ " \
                                  "SELECT hash_record_extended((l,r),1); " \
                                  "$$ LANGUAGE SQL IMMUTABLE STRICT;")
+#define VARIADIC_HASH_FUNC_NAME POSTGRES_VARIADIC_HASH_FUNC
+#define CREATE_VARIADIC_HASH_FUNC ("CREATE OR REPLACE FUNCTION " POSTGRES_VARIADIC_HASH_FUNC "(VARIADIC args anyarray) RETURNS text AS $$ " \
+                                   "SELECT hash_array_extended(args, 1);" \
+                                   " $$ LANGUAGE SQL IMMUTABLE STRICT;")
 
 // we have to use syntax that works a reasonable range of postgres versions
 #define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
@@ -526,6 +530,7 @@ prepareLookupQueries(void)
     }
     CREATE_FUNC_IF_NOT_EXISTS(TID2INT8_FUNC);
     CREATE_FUNC_IF_NOT_EXISTS(MERGE_ROWID_FUNC);
+    CREATE_FUNC_IF_NOT_EXISTS(VARIADIC_HASH_FUNC);
 
     // prepare other queries used for metadata lookup
 	// postgres 8 or older does not support JSON explain output we use to extract query cost

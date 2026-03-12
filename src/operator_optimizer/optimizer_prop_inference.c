@@ -1343,7 +1343,7 @@ computeKeyPropInternal(QueryOperator *root)
             keyList = appendToTailOfList(keyList, oneKey);
         }
         setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_NODE_BEATIFY_LOG("ConstRel operator %s", root->schema->name);
+        DEBUG_SINGLE_OP_LOG("ConstRel operator %s", root);
         DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
         return;
     }
