@@ -121,6 +121,7 @@ boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
 boolean opt_graphviz_detail = FALSE;
+boolean opt_explain_analyze = FALSE;
 boolean opt_show_query_runtime = FALSE;
 char *time_query_format = NULL;
 int query_repeat_count = 1;
@@ -292,716 +293,721 @@ static char *defGetString(OptionDefault *def, OptionType type);
 
 // array storing information for all supported options
 OptionInfo opts[] =
-{
+    {
         // show help only and quit
         {
-                OPTION_SHOW_HELP,
-                "-help",
-                "Show this help text.",
-                OPTION_BOOL,
-                wrapOptionString(&opt_show_help),
-                defOptionBool(FALSE)
+            OPTION_SHOW_HELP,
+            "-help",
+            "Show this help text.",
+            OPTION_BOOL,
+            wrapOptionString(&opt_show_help),
+            defOptionBool(FALSE)
         },
         // choose test
         {
-                OPTION_TEST_NAME,
-                "-test",
-                "choose the test to run (ignored by all binaries except test_main)",
-                OPTION_STRING,
-                wrapOptionString(&opt_test),
-                defOptionString(NULL)
+            OPTION_TEST_NAME,
+            "-test",
+            "choose the test to run (ignored by all binaries except test_main)",
+            OPTION_STRING,
+            wrapOptionString(&opt_test),
+            defOptionString(NULL)
         },
         // list tests
         {
-                OPTION_LIST_TESTS,
-                "-listtests",
-                "list available tests (only used by test_main)",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_listtests),
-                defOptionBool(FALSE)
+            OPTION_LIST_TESTS,
+            "-listtests",
+            "list available tests (only used by test_main)",
+            OPTION_BOOL,
+            wrapOptionBool(&opt_listtests),
+            defOptionBool(FALSE)
         },
         // show help only and quit
         {
-                OPTION_SHOW_LANGUAGE_HELP,
-                "-languagehelp",
-                "Show supported provenance requests for a supported frontend language.",
-                OPTION_STRING,
-                wrapOptionString(&opt_language_help),
-                defOptionString(NULL)
+            OPTION_SHOW_LANGUAGE_HELP,
+            "-languagehelp",
+            "Show supported provenance requests for a supported frontend language.",
+            OPTION_STRING,
+            wrapOptionString(&opt_language_help),
+            defOptionString(NULL)
         },
         // database backend connection options
         {
-                OPTION_CONN_HOST,
-                "-host",
-                "Host IP address for backend DB connection.",
-                OPTION_STRING,
-                wrapOptionString(&connection_host),
-                defOptionString("")
+            OPTION_CONN_HOST,
+            "-host",
+            "Host IP address for backend DB connection.",
+            OPTION_STRING,
+            wrapOptionString(&connection_host),
+            defOptionString("")
         },
         {
-                OPTION_CONN_DB,
-                "-db",
-                "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
-                OPTION_STRING,
-                wrapOptionString(&connection_db),
-                defOptionString("")
+            OPTION_CONN_DB,
+            "-db",
+            "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
+            OPTION_STRING,
+            wrapOptionString(&connection_db),
+            defOptionString("")
         },
         {
-                OPTION_CONN_USER,
-                "-user",
-                "User for backend DB connection.",
-                OPTION_STRING,
-                wrapOptionString(&connection_user),
-                defOptionString("")
+            OPTION_CONN_USER,
+            "-user",
+            "User for backend DB connection.",
+            OPTION_STRING,
+            wrapOptionString(&connection_user),
+            defOptionString("")
         },
         {
-                OPTION_CONN_PASSWD,
-                "-passwd",
-                "Password for backend DB connection.",
-                OPTION_STRING,
-                wrapOptionString(&connection_passwd),
-                defOptionString("")
+            OPTION_CONN_PASSWD,
+            "-passwd",
+            "Password for backend DB connection.",
+            OPTION_STRING,
+            wrapOptionString(&connection_passwd),
+            defOptionString("")
         },
         {
-                OPTION_CONN_PORT,
-                "-port",
-                "TCP/IP port for backend DB connection.",
-                OPTION_INT,
-                wrapOptionInt(&connection_port),
-                defOptionInt(1521)
+            OPTION_CONN_PORT,
+            "-port",
+            "TCP/IP port for backend DB connection.",
+            OPTION_INT,
+            wrapOptionInt(&connection_port),
+            defOptionInt(1521)
         },
         // backend specific options
         {
-                OPTION_ORACLE_AUDITTABLE,
-                "-Boracle.audittable",
-                "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
-                OPTION_STRING,
-                wrapOptionString(&oracle_audit_log_table),
-                defOptionString("UNIFIED_AUDIT_TRAIL")
+            OPTION_ORACLE_AUDITTABLE,
+            "-Boracle.audittable",
+            "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
+            OPTION_STRING,
+            wrapOptionString(&oracle_audit_log_table),
+            defOptionString("UNIFIED_AUDIT_TRAIL")
         },
         {
-                OPTION_ORACLE_USE_SERVICE,
-                "-Boracle.servicename",
-                "if this option then the db connection parameter is interpreted as a service name instead of an SID",
-                OPTION_BOOL,
-                wrapOptionString(&oracle_use_service_name),
-                defOptionBool(FALSE)
+            OPTION_ORACLE_USE_SERVICE,
+            "-Boracle.servicename",
+            "if this option then the db connection parameter is interpreted as a service name instead of an SID",
+            OPTION_BOOL,
+            wrapOptionString(&oracle_use_service_name),
+            defOptionBool(FALSE)
         },
         {
-                OPTION_ODBC_DRIVER,
-                "-Bodbc.driver",
-                "Name of the ODBC driver to use.",
-                OPTION_STRING,
-                wrapOptionString(&odbc_driver),
-                defOptionString("")
+            OPTION_ODBC_DRIVER,
+            "-Bodbc.driver",
+            "Name of the ODBC driver to use.",
+            OPTION_STRING,
+            wrapOptionString(&odbc_driver),
+            defOptionString("")
         },
         // logging options
         {
-                OPTION_LOG_LEVEL,
-                "-loglevel",
-                "Log level determining log output: TRACE=5, DEBUG=4, INFO=3, WARN=2, ERROR=1, FATAL=0",
-                OPTION_INT,
-                wrapOptionInt(&logLevel),
-                defOptionInt(1)
+            OPTION_LOG_LEVEL,
+            "-loglevel",
+            "Log level determining log output: TRACE=5, DEBUG=4, INFO=3, WARN=2, ERROR=1, FATAL=0",
+            OPTION_INT,
+            wrapOptionInt(&logLevel),
+            defOptionInt(1)
         },
         {
-                OPTION_LOG_ACTIVE,
-                "-log",
-                "Activate/Deactivate logging",
-                OPTION_BOOL,
-                wrapOptionBool(&logActive),
-                defOptionBool(TRUE)
+            OPTION_LOG_ACTIVE,
+            "-log",
+            "Activate/Deactivate logging",
+            OPTION_BOOL,
+            wrapOptionBool(&logActive),
+            defOptionBool(TRUE)
         },
 		{
-                OPTION_LOG_OPERATOR_COLORIZED,
-                "-Loperator_colorize",
-                "Colorize relational algebra operator overviews",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_log_operator_colorize),
-                defOptionBool(TRUE)
+            OPTION_LOG_OPERATOR_COLORIZED,
+            "-Loperator_colorize",
+            "Colorize relational algebra operator overviews",
+            OPTION_BOOL,
+            wrapOptionBool(&opt_log_operator_colorize),
+            defOptionBool(TRUE)
         },
 		{
-                OPTION_LOG_OPERATOR_VERBOSE,
-                "-Loperator_verbose",
-                "Relational algebra operator overviews are verbose",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_log_operator_verbose),
-                defOptionBool(FALSE)
+            OPTION_LOG_OPERATOR_VERBOSE,
+            "-Loperator_verbose",
+            "Relational algebra operator overviews are verbose",
+            OPTION_BOOL,
+            wrapOptionBool(&opt_log_operator_verbose),
+            defOptionBool(FALSE)
         },
         {
-                OPTION_LOG_OPERATOR_VERBOSE_PROPS,
-                "-Loperator_verbose_props",
-                "Relational algebra operator overviews print properties (requires -Loperator_verbose): KEYS&VALUES=2, KEYS=1, NONE=0",
-                OPTION_INT,
-                wrapOptionInt(&opt_log_operator_verbose_props),
-                defOptionInt(0)
+            OPTION_LOG_OPERATOR_VERBOSE_PROPS,
+            "-Loperator_verbose_props",
+            "Relational algebra operator overviews print properties (requires -Loperator_verbose): KEYS&VALUES=2, KEYS=1, NONE=0",
+            OPTION_INT,
+            wrapOptionInt(&opt_log_operator_verbose_props),
+            defOptionInt(0)
         },
         // input options
         {
-                OPTION_INPUT_SQL,
-                "-sql",
-                "input query",
-                OPTION_STRING,
-                wrapOptionString(&sql),
-                defOptionString(NULL)
+            OPTION_INPUT_SQL,
+            "-sql",
+            "input query",
+            OPTION_STRING,
+            wrapOptionString(&sql),
+            defOptionString(NULL)
         },
         {
-                OPTION_INPUT_QUERY,
-                "-query",
-                "input query",
-                OPTION_STRING,
-                wrapOptionString(&sql),
-                defOptionString(NULL)
+            OPTION_INPUT_QUERY,
+            "-query",
+            "input query",
+            OPTION_STRING,
+            wrapOptionString(&sql),
+            defOptionString(NULL)
         },
         {
-                 OPTION_INPUT_QUERY_FILE,
-                 "-queryFile",
-                 "input query file name",
-                 OPTION_STRING,
-                 wrapOptionString(&sqlFile),
-                 defOptionString(NULL)
+            OPTION_INPUT_QUERY_FILE,
+            "-queryFile",
+            "input query file name",
+            OPTION_STRING,
+            wrapOptionString(&sqlFile),
+            defOptionString(NULL)
         },
         {
-                OPTION_INPUT_SQL_FILE,
-                "-sqlfile",
-                "input SQL file name",
-                OPTION_STRING,
-                wrapOptionString(&sqlFile),
-                defOptionString(NULL)
+            OPTION_INPUT_SQL_FILE,
+            "-sqlfile",
+            "input SQL file name",
+            OPTION_STRING,
+            wrapOptionString(&sqlFile),
+            defOptionString(NULL)
         },
         {
-                OPTION_INPUTDB,
-                "-inputdb",
-                "output samples of input database relations",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_inputdb),
-                defOptionBool(FALSE)
+            OPTION_INPUTDB,
+            "-inputdb",
+            "output samples of input database relations",
+            OPTION_BOOL,
+            wrapOptionBool(&opt_inputdb),
+            defOptionBool(FALSE)
         },
         // backend, frontend and plugin selection
         {
-                OPTION_BACKEND,
-                "-backend",
-                "select backend database type: postgres, oracle, sqlite, duckdb - this determines analyzer, parser, metadata-lookup, sql-code generator, and translator plugins",
-                OPTION_STRING,
-                wrapOptionString(&backend),
-                defOptionString(NULL)
+            OPTION_BACKEND,
+            "-backend",
+            "select backend database type: postgres, oracle, sqlite, duckdb - this determines analyzer, parser, metadata-lookup, sql-code generator, and translator plugins",
+            OPTION_STRING,
+            wrapOptionString(&backend),
+            defOptionString(NULL)
         },
         {
-                OPTION_FRONTEND,
-                "-frontend",
-                "select frontend language: oracle, dl - this determines analyzer, parser, and translator plugins",
-                OPTION_STRING,
-                wrapOptionString(&frontend),
-                defOptionString(NULL)
+            OPTION_FRONTEND,
+            "-frontend",
+            "select frontend language: oracle, dl - this determines analyzer, parser, and translator plugins",
+            OPTION_STRING,
+            wrapOptionString(&frontend),
+            defOptionString(NULL)
         },
         {
-                OPTION_PLUGIN_METADATA,
-                "-Pmetadata",
-                "select metadatalookup plugin: oracle, postgres, sqlite, duckdb",
-                OPTION_STRING,
-                wrapOptionString(&plugin_metadata),
-                defOptionString(NULL)
+            OPTION_PLUGIN_METADATA,
+            "-Pmetadata",
+            "select metadatalookup plugin: oracle, postgres, sqlite, duckdb",
+            OPTION_STRING,
+            wrapOptionString(&plugin_metadata),
+            defOptionString(NULL)
         },
         {
-                OPTION_PLUGIN_PARSER,
-                "-Pparser",
-                "select parser plugin: oracle, dl",
-                OPTION_STRING,
-                wrapOptionString(&plugin_parser),
-                defOptionString(NULL)
+            OPTION_PLUGIN_PARSER,
+            "-Pparser",
+            "select parser plugin: oracle, dl",
+            OPTION_STRING,
+            wrapOptionString(&plugin_parser),
+            defOptionString(NULL)
         },
         {
-                OPTION_PLUGIN_SQLCODEGEN,
-                "-Psqlcodegen",
-                "select SQL code generator plugin: oracle, postgres, sqlite, duckdb",
-                OPTION_STRING,
-                wrapOptionString(&plugin_sql_serializer),
-                defOptionString(NULL)
+            OPTION_PLUGIN_SQLCODEGEN,
+            "-Psqlcodegen",
+            "select SQL code generator plugin: oracle, postgres, sqlite, duckdb",
+            OPTION_STRING,
+            wrapOptionString(&plugin_sql_serializer),
+            defOptionString(NULL)
         },
         {
-                OPTION_PLUGIN_ANALYZER,
-                "-Panalyzer",
-                "select parser result model analyzer: oracle, dl",
-                OPTION_STRING,
-                wrapOptionString(&plugin_analyzer),
-                defOptionString(NULL)
+            OPTION_PLUGIN_ANALYZER,
+            "-Panalyzer",
+            "select parser result model analyzer: oracle, dl",
+            OPTION_STRING,
+            wrapOptionString(&plugin_analyzer),
+            defOptionString(NULL)
         },
         {
-                OPTION_PLUGIN_TRANSLATOR,
-                "-Ptranslator",
-                "select parser result to relational algebra translator: oracle",
-                OPTION_STRING,
-                wrapOptionString(&plugin_translator),
-                defOptionString(NULL)
+            OPTION_PLUGIN_TRANSLATOR,
+            "-Ptranslator",
+            "select parser result to relational algebra translator: oracle",
+            OPTION_STRING,
+            wrapOptionString(&plugin_translator),
+            defOptionString(NULL)
         },
         {
-                OPTION_PLUGIN_SQLSERIALIZER,
-                "-Psqlserializer",
-                "select SQL code generator plugin: oracle, postgres, sqlite, duckdb, dl, lb",
-                OPTION_STRING,
-                wrapOptionString(&plugin_sql_serializer),
-                defOptionString(NULL)
+            OPTION_PLUGIN_SQLSERIALIZER,
+            "-Psqlserializer",
+            "select SQL code generator plugin: oracle, postgres, sqlite, duckdb, dl, lb",
+            OPTION_STRING,
+            wrapOptionString(&plugin_sql_serializer),
+            defOptionString(NULL)
         },
         {
-                OPTION_PLUGIN_EXECUTOR,
-                "-Pexecutor",
-                "select Executor plugin: sql (output rewritten SQL code), "
-                        "gp (output Game provenance), run (execute the "
-                        "rewritten query and return its result)",
-                OPTION_STRING,
-                wrapOptionString(&plugin_executor),
-                defOptionString("run")
+            OPTION_PLUGIN_EXECUTOR,
+            "-Pexecutor",
+            "select Executor plugin: sql (output rewritten SQL code), "
+            "gp (output Game provenance), run (execute the "
+            "rewritten query and return its result)",
+            OPTION_STRING,
+            wrapOptionString(&plugin_executor),
+            defOptionString("run")
         },
         {
-                OPTION_PLUGIN_CBO,
-                "-Pcbo",
-                "select Cost-Based Optimizer plugin: exhaustive (enumerate all options), "
-                        "balance (stop optimization after optimization time exceeds estimated runtime of best plan), "
-                        "sim_ann (simmulated annealing)",
-                OPTION_STRING,
-                wrapOptionString(&plugin_cbo),
-                defOptionString(NULL)
+            OPTION_PLUGIN_CBO,
+            "-Pcbo",
+            "select Cost-Based Optimizer plugin: exhaustive (enumerate all options), "
+            "balance (stop optimization after optimization time exceeds estimated runtime of best plan), "
+            "sim_ann (simmulated annealing)",
+            OPTION_STRING,
+            wrapOptionString(&plugin_cbo),
+            defOptionString(NULL)
         },
         // boolean instrumentation options
 		{
-                OPTION_TIMING,
-                "-timing",
-                "measure and output execution time of modules.",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_timing),
-                defOptionBool(FALSE)
+            OPTION_TIMING,
+            "-timing",
+            "measure and output execution time of modules.",
+            OPTION_BOOL,
+            wrapOptionBool(&opt_timing),
+            defOptionBool(FALSE)
         },
         {
-                OPTION_MEMMEASURE,
-                "-memdebug",
-                "measure and output memory allocation stats.",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_memmeasure),
-                defOptionBool(FALSE)
+            OPTION_MEMMEASURE,
+            "-memdebug",
+            "measure and output memory allocation stats.",
+            OPTION_BOOL,
+            wrapOptionBool(&opt_memmeasure),
+            defOptionBool(FALSE)
         },
         aRewriteOption(OPTION_GRAPHVIZ,
-                "-show_graphviz",
-                "output created relational algebra graphs as graphviz scripts.",
-                opt_graphviz_output,
-                FALSE),
+                       "-show_graphviz",
+                       "output created relational algebra graphs as graphviz scripts.",
+                       opt_graphviz_output,
+                       FALSE),
         aRewriteOption(OPTION_GRAPHVIZ_DETAILS,
-                "-graphviz_details",
-                "show operator parameters in graphviz scripts.",
-                opt_graphviz_detail ,
-                FALSE),
+                       "-graphviz_details",
+                       "show operator parameters in graphviz scripts.",
+                       opt_graphviz_detail,
+                       FALSE),
+		aRewriteOption(OPTION_EXPLAIN_ANALYZE,
+                       "-explain_analyze",
+                       "use ANALYZE option when running explain.",
+                       opt_explain_analyze,
+                       FALSE),
         aRewriteOption(OPTION_TIME_QUERIES,
-                "-time_queries",
-                "measure query runtimes (only makes a difference for executor <run>).",
-                opt_show_query_runtime,
-                FALSE),
+                       "-time_queries",
+                       "measure query runtimes (only makes a difference for executor <run>).",
+                       opt_show_query_runtime,
+                       FALSE),
         {
-                OPTION_TIME_QUERY_OUTPUT_FORMAT,
-                "-time_query_format",
-                "format used for printing query timing results. "
-                        "The format is printf compatible and should contain "
-                        "exactly on %f element (additional formating such as %12f is ok)",
-                OPTION_STRING,
-                wrapOptionString(&time_query_format),
-                defOptionString(NULL)
+            OPTION_TIME_QUERY_OUTPUT_FORMAT,
+            "-time_query_format",
+            "format used for printing query timing results. "
+            "The format is printf compatible and should contain "
+            "exactly on %f element (additional formating such as %12f is ok)",
+            OPTION_STRING,
+            wrapOptionString(&time_query_format),
+            defOptionString(NULL)
         },
         {
-                OPTION_REPEAT_QUERY,
-                "-repeat_query_count",
-                "execute query this many times (useful for timing).",
-                OPTION_INT,
-                wrapOptionInt(&query_repeat_count),
-                defOptionInt(1)
+            OPTION_REPEAT_QUERY,
+            "-repeat_query_count",
+            "execute query this many times (useful for timing).",
+            OPTION_INT,
+            wrapOptionInt(&query_repeat_count),
+            defOptionInt(1)
         },
         aRewriteOption(OPTION_SHOW_QUERY_RESULT,
-                "-show_result",
-                "show query result (only makes a difference for executor <run>).",
-                opt_show_query_result,
-                TRUE),
+                       "-show_result",
+                       "show query result (only makes a difference for executor <run>).",
+                       opt_show_query_result,
+                       TRUE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
-                "-aggressive_model_checking",
-                "do aggressive validity checking of AGM models.",
-                opt_aggressive_model_checking,
-                FALSE),
+                       "-aggressive_model_checking",
+                       "do aggressive validity checking of AGM models.",
+                       opt_aggressive_model_checking,
+                       FALSE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_CONDS,
-                "-prov_reenact_only_updated_rows_use_conditions",
-                "Use disjunctions of update conditions to filter out tuples from "
-                "transaction provenance that are not updated by the transaction.",
-                opt_update_only_conditions,
-                TRUE),
+                       "-prov_reenact_only_updated_rows_use_conditions",
+                       "Use disjunctions of update conditions to filter out tuples from "
+                       "transaction provenance that are not updated by the transaction.",
+                       opt_update_only_conditions,
+                       TRUE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN,
-                "-prov_reenact_only_updated_rows_use_hist_join",
-                "Use a join between the version at commit time with the table version"
-                " at transaction start to prefilter rows that were not updated by the transaction.",
-                opt_only_updated_use_history,
-                FALSE),
+                       "-prov_reenact_only_updated_rows_use_hist_join",
+                       "Use a join between the version at commit time with the table version"
+                       " at transaction start to prefilter rows that were not updated by the transaction.",
+                       opt_only_updated_use_history,
+                       FALSE),
         aRewriteOption(OPTION_TREEIFY_OPERATOR_MODEL,
-                "-treeify-algebra-graphs",
-                "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
-                opt_treeify_opterator_model,
-                TRUE),
+                       "-treeify-algebra-graphs",
+                       "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
+                       opt_treeify_opterator_model,
+                       TRUE),
         aRewriteOption(OPTION_ALWAYS_TREEIFY,
-                "-treeify-all",
-                "Turn AGM graph into a tree passing it to serializer.",
-                opt_treeify_all,
-                FALSE),
+                       "-treeify-all",
+                       "Turn AGM graph into a tree passing it to serializer.",
+                       opt_treeify_all,
+                       FALSE),
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
-                "-prov_use_composable",
-                "Use composable version of PI-CS provenance that adds additional columns which"
-                " enumerate duplicates introduced by provenance.",
-                opt_pi_cs_composable,
-                FALSE),
+                       "-prov_use_composable",
+                       "Use composable version of PI-CS provenance that adds additional columns which"
+                       " enumerate duplicates introduced by provenance.",
+                       opt_pi_cs_composable,
+                       FALSE),
         aRewriteOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW,
-                "-prov_instrument_agg_window",
-                "When composable version of PI-CS provenance is use then rewrite aggregations using window functions.",
-                opt_pi_cs_rewrite_agg_window,
-                TRUE),
+                       "-prov_instrument_agg_window",
+                       "When composable version of PI-CS provenance is use then rewrite aggregations using window functions.",
+                       opt_pi_cs_rewrite_agg_window,
+                       TRUE),
         aRewriteOption(OPTION_TRANSLATE_UPDATE_WITH_CASE,
-                "-prov_reenact_update_with_case",
-                "Create reenactment query for UPDATE statements using CASE instead of UNION.",
-                opt_translate_update_with_case,
-                TRUE),
+                       "-prov_reenact_update_with_case",
+                       "Create reenactment query for UPDATE statements using CASE instead of UNION.",
+                       opt_translate_update_with_case,
+                       TRUE),
 		aRewriteOption(OPTION_LATERAL_REWRITE,
-				"-lateral_rewrite",
-				"Activate automatic rewrite of nested subqueries into LATERAL queries.",
-				opt_lateral_rewrite,
-				FALSE),
+				       "-lateral_rewrite",
+				       "Activate automatic rewrite of nested subqueries into LATERAL queries.",
+				       opt_lateral_rewrite,
+				       FALSE),
 		aRewriteOption(OPTION_UNNEST_REWRITE,
-						"-unnest_rewrite",
-						"Activate unnest & de-correlation rewrites.",
-						opt_unnest_rewrite,
-						FALSE),
+					   "-unnest_rewrite",
+					   "Activate unnest & de-correlation rewrites.",
+					   opt_unnest_rewrite,
+					   FALSE),
 		aRewriteOption(OPTION_AGG_REDUCTION_MODEL_REWRITE,
-				"-agg_reduction_model_rewrite",
-				"Activate aggregation reduction model rewrite",
-				opt_agg_reduction_model_rewrite,
-				FALSE),
+				       "-agg_reduction_model_rewrite",
+				       "Activate aggregation reduction model rewrite",
+				       opt_agg_reduction_model_rewrite,
+				       FALSE),
         // Optimization Options
         {
-                OPTION_OPTIMIZE_OPERATOR_MODEL,
-                "-heuristic_opt",
-                "Activate heuristic relational algebra optimization",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_optimize_operator_model),
-                defOptionBool(FALSE)
+            OPTION_OPTIMIZE_OPERATOR_MODEL,
+            "-heuristic_opt",
+            "Activate heuristic relational algebra optimization",
+            OPTION_BOOL,
+            wrapOptionBool(&opt_optimize_operator_model),
+            defOptionBool(FALSE)
         },
         {
-				OPTION_COST_BASED_OPTIMIZER,
-				"-cbo",
-				"Activate cost based optimizer",
-				OPTION_BOOL,
-				wrapOptionBool(&cost_based_optimizer),
-				defOptionBool(FALSE)
-		 },
-         {
-        		OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET,
-                "-cbo_choice_point_remove_duplicate_removal",
-                "Close cost based remove duplicate remove op by set option",
-                OPTION_BOOL,
-                wrapOptionBool(&cost_based_close_option_removedp_by_set),
-                defOptionBool(FALSE)
-         },
-         {
-                 OPTION_COST_BASED_MAX_PLANS,
-                 "-cbo_max_considered_plans",
-                 "Maximal number of plans considered by cost based optimizer",
-                 OPTION_INT,
-                 wrapOptionInt(&cost_max_considered_plans),
-                 defOptionInt(200)
-         },
-         {
-                 OPTION_COST_BASED_SIMANN_CONST,
-                 "-cbo_sim_ann_const",
-                 "Cost based optimzation: set the constant used by simulated  annealing to calculate ap, e.g., c = 10, 20, 50 or 100",
-                 OPTION_INT,
-                 wrapOptionInt(&cost_sim_ann_const),
-                 defOptionInt(10)
-         },
-         {
-                 OPTION_COST_BASED_SIMANN_COOLDOWN_RATE,
-                 "-cbo_sim_ann_cooldown_rate",
-                 "Cost based optimization: Set the cool down rate used by simulated annealing between 0.1 and 0.9, 1 means 0.1",
-                 OPTION_INT,
-                 wrapOptionInt(&cost_sim_ann_cooldown_rate),
-                 defOptionFloat(5)
-         },
-         {
-        		 OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS,
-                 "-cbo_num_heuristic_opt_iterations",
-                 "Cost base number of heuristic optimization iterations",
-                 OPTION_INT,
-                 wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
-                 defOptionInt(1)
-         },
-         {
-        		 OPTION_MAX_NUMBER_PARTITIONS_FOR_USE,
-                 "-cmax_number_paritions_for_uses",
-                 "max number of partitions can be used in any clause",
-                 OPTION_INT,
-                 wrapOptionInt(&max_number_paritions_for_uses),
-                 defOptionInt(0)
-         },
-		 {
-				 OPTION_BIT_VECTOR_SIZE,
-				 "-ps_bit_vector_size",
-				 "bit vector length used in bit or",
-				 OPTION_INT,
-				 wrapOptionInt(&bit_vector_size),
-				 defOptionInt(32)
-		 },
-		 {
-				 OPTION_PS_STORE_TABLE,
-				 "-ps_store_table",
-				 "the table name used to store the ps information",
-				 OPTION_STRING,
-				 wrapOptionString(&ps_store_table),
-				 defOptionString(NULL)
-		 },
-		 {
-				 OPTION_PS_BINARY_SEARCH,
-				 "-ps_binary_search",
-				 "Activate binary search instead of case when",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_binary_search),
-				 defOptionBool(FALSE)
-		 },
-		 {
-				 OPTION_PS_BINARY_SEARCH_CASE_WHEN,
-				 "-ps_binary_search_case_when",
-				 "Activate binary search case when",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_binary_search_case_when),
-				 defOptionBool(FALSE)
-		 },
-		 {
-				 OPTION_PS_SETTINGS,
-				 "-ps_settings",
-				 "Activate settings about provenance sketch",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_settings),
-				 defOptionBool(FALSE)
-		 },
-		 {
-				 OPTION_PS_SET_BITS,
-				 "-ps_set_bits",
-				 "Activate set_bits about provenance sketch",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_set_bits),
-				 defOptionBool(FALSE)
-		 },
-		 {
-				 OPTION_PS_ANALYZE,
-				 "-ps_analyze",
-				 "Activate ps_analyze about provenance sketch",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_analyze),
-				 defOptionBool(TRUE)
-		 },
-		 {
-				 OPTION_PS_USE_NEST,
-				 "-ps_use_nest",
-				 "Activate ps_use_nest about provenance sketch",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_use_nest),
-				 defOptionBool(FALSE)
-		 },
-		 {
-				 OPTION_PS_POST_TO_ORACLE,
-				 "-ps_post_to_oracle",
-				 "Activate using postgres generate oracle sql",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_post_to_oracle),
-				 defOptionBool(FALSE)
-		 },
-		 {
-				 OPTION_PS_USE_BRIN_OP,
-				 "-ps_use_brin_op",
-				 "Activate use_brin_op about provenance sketch",
-				 OPTION_BOOL,
-				 wrapOptionBool(&ps_use_brin_op),
-				 defOptionBool(FALSE)
-		 },
+			OPTION_COST_BASED_OPTIMIZER,
+			"-cbo",
+			"Activate cost based optimizer",
+			OPTION_BOOL,
+			wrapOptionBool(&cost_based_optimizer),
+			defOptionBool(FALSE)
+		},
+        {
+        	OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET,
+            "-cbo_choice_point_remove_duplicate_removal",
+            "Close cost based remove duplicate remove op by set option",
+            OPTION_BOOL,
+            wrapOptionBool(&cost_based_close_option_removedp_by_set),
+            defOptionBool(FALSE)
+        },
+        {
+            OPTION_COST_BASED_MAX_PLANS,
+            "-cbo_max_considered_plans",
+            "Maximal number of plans considered by cost based optimizer",
+            OPTION_INT,
+            wrapOptionInt(&cost_max_considered_plans),
+            defOptionInt(200)
+        },
+        {
+            OPTION_COST_BASED_SIMANN_CONST,
+            "-cbo_sim_ann_const",
+            "Cost based optimzation: set the constant used by simulated  annealing to calculate ap, e.g., c = 10, 20, 50 or 100",
+            OPTION_INT,
+            wrapOptionInt(&cost_sim_ann_const),
+            defOptionInt(10)
+        },
+        {
+            OPTION_COST_BASED_SIMANN_COOLDOWN_RATE,
+            "-cbo_sim_ann_cooldown_rate",
+            "Cost based optimization: Set the cool down rate used by simulated annealing between 0.1 and 0.9, 1 means 0.1",
+            OPTION_INT,
+            wrapOptionInt(&cost_sim_ann_cooldown_rate),
+            defOptionFloat(5)
+        },
+        {
+        	OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS,
+            "-cbo_num_heuristic_opt_iterations",
+            "Cost base number of heuristic optimization iterations",
+            OPTION_INT,
+            wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
+            defOptionInt(1)
+        },
+        {
+        	OPTION_MAX_NUMBER_PARTITIONS_FOR_USE,
+            "-cmax_number_paritions_for_uses",
+            "max number of partitions can be used in any clause",
+            OPTION_INT,
+            wrapOptionInt(&max_number_paritions_for_uses),
+            defOptionInt(0)
+        },
+		{
+			OPTION_BIT_VECTOR_SIZE,
+			"-ps_bit_vector_size",
+			"bit vector length used in bit or",
+			OPTION_INT,
+			wrapOptionInt(&bit_vector_size),
+			defOptionInt(32)
+		},
+		{
+			OPTION_PS_STORE_TABLE,
+			"-ps_store_table",
+			"the table name used to store the ps information",
+			OPTION_STRING,
+			wrapOptionString(&ps_store_table),
+			defOptionString(NULL)
+		},
+		{
+			OPTION_PS_BINARY_SEARCH,
+			"-ps_binary_search",
+			"Activate binary search instead of case when",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_binary_search),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_PS_BINARY_SEARCH_CASE_WHEN,
+			"-ps_binary_search_case_when",
+			"Activate binary search case when",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_binary_search_case_when),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_PS_SETTINGS,
+			"-ps_settings",
+			"Activate settings about provenance sketch",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_settings),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_PS_SET_BITS,
+			"-ps_set_bits",
+			"Activate set_bits about provenance sketch",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_set_bits),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_PS_ANALYZE,
+			"-ps_analyze",
+			"Activate ps_analyze about provenance sketch",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_analyze),
+			defOptionBool(TRUE)
+		},
+		{
+			OPTION_PS_USE_NEST,
+			"-ps_use_nest",
+			"Activate ps_use_nest about provenance sketch",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_use_nest),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_PS_POST_TO_ORACLE,
+			"-ps_post_to_oracle",
+			"Activate using postgres generate oracle sql",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_post_to_oracle),
+			defOptionBool(FALSE)
+		},
+		{
+			OPTION_PS_USE_BRIN_OP,
+			"-ps_use_brin_op",
+			"Activate use_brin_op about provenance sketch",
+			OPTION_BOOL,
+			wrapOptionBool(&ps_use_brin_op),
+			defOptionBool(FALSE)
+		},
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
-                "-Opush_selections",
-                "Optimization: Activate selection move-around",
-                opt_optimization_push_selections,
-                FALSE
-        ),
+                             "-Opush_selections",
+                             "Optimization: Activate selection move-around",
+                             opt_optimization_push_selections,
+                             FALSE
+                             ),
         anOptimizationOption(OPTIMIZATION_MERGE_OPERATORS,
-                "-Omerge_ops",
-                "Optimization: try to merge adjacent selection and projection operators",
-                opt_optimization_merge_ops,
-                TRUE
-        ),
+                             "-Omerge_ops",
+                             "Optimization: try to merge adjacent selection and projection operators",
+                             opt_optimization_merge_ops,
+                             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR,
-                "-Ofactor_attrs",
-                "Optimization: try to factor attribute references in projection"
-                " expressions to open up new operator merging opportunities",
-                opt_optimization_factor_attrs,
-                FALSE
-        ),
+                             "-Ofactor_attrs",
+                             "Optimization: try to factor attribute references in projection"
+                             " expressions to open up new operator merging opportunities",
+                             opt_optimization_factor_attrs,
+                             FALSE
+                             ),
         anOptimizationOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ,
-                "-Omaterialize_unsafe_proj",
-                "Optimization: add materialization hint for projections that "
-                "if merged with adjacent projection would cause expontential "
-                "expression size blowup",
-				opt_optimization_materialize_unsafe_proj,
-                TRUE
-        ),
+                             "-Omaterialize_unsafe_proj",
+                             "Optimization: add materialization hint for projections that "
+                             "if merged with adjacent projection would cause expontential "
+                             "expression size blowup",
+				             opt_optimization_materialize_unsafe_proj,
+                             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_MERGE_UNSAFE_PROJECTIONS,
-                "-Omerge_unsafe_proj",
-                "Optimization: merge projections even "
-                "if this may cause an expontential blowup in "
-                "expression size",
-				opt_optimization_merge_unsafe_proj,
-                FALSE
-        ),
+                             "-Omerge_unsafe_proj",
+                             "Optimization: merge projections even "
+                             "if this may cause an expontential blowup in "
+                             "expression size",
+				             opt_optimization_merge_unsafe_proj,
+                             FALSE
+                             ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS,
-                "-Oremove_redundant_projections",
-                "Optimization: try to remove redundant projections",
-                opt_optimization_remove_redundant_projections,
-                TRUE
-        ),
+                             "-Oremove_redundant_projections",
+                             "Optimization: try to remove redundant projections",
+                             opt_optimization_remove_redundant_projections,
+                             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
-                "-Oremove_redundant_duplicate_removals",
-                "Optimization: try to remove redundant duplicate removal operators",
-                opt_optimization_remove_redundant_duplicate_operator,
-                TRUE
-        ),
+                             "-Oremove_redundant_duplicate_removals",
+                             "Optimization: try to remove redundant duplicate removal operators",
+                             opt_optimization_remove_redundant_duplicate_operator,
+                             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
-                "-Oremove_redundant_window_operators",
-                "Optimization: try to remove redundant window operators",
-                opt_optimization_remove_unnecessary_window_operators,
-                TRUE
-        ),
+                             "-Oremove_redundant_window_operators",
+                             "Optimization: try to remove redundant window operators",
+                             opt_optimization_remove_unnecessary_window_operators,
+                             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS,
-                "-Oremove_unnecessary_columns",
-                "Optimization: try to remove unnecessary columns that are not used by the query",
-                opt_optimization_remove_unnecessary_columns,
-                TRUE
-        ),
+                             "-Oremove_unnecessary_columns",
+                             "Optimization: try to remove unnecessary columns that are not used by the query",
+                             opt_optimization_remove_unnecessary_columns,
+                             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS,
-        		"-Opullup_duplicate_removals",
-        		"Optimization: try to pull up duplicate remove operators",
-        		opt_optimization_pull_up_duplicate_remove_operators,
-        		TRUE
-        ),
+        		             "-Opullup_duplicate_removals",
+        		             "Optimization: try to pull up duplicate remove operators",
+        		             opt_optimization_pull_up_duplicate_remove_operators,
+        		             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,
-                "-Opullup_prov_projections",
-                "Optimization: try to pull up provenance projection",
-                opt_optimization_pulling_up_provenance_proj,
-                TRUE
-        ),
+                             "-Opullup_prov_projections",
+                             "Optimization: try to pull up provenance projection",
+                             opt_optimization_pulling_up_provenance_proj,
+                             TRUE
+                             ),
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS,
-                "-Opush_selections_through_joins",
-                "Optimization: try to push selections through joins",
-                opt_optimization_push_selections_through_joins,
-                FALSE
-        ),
+                             "-Opush_selections_through_joins",
+                             "Optimization: try to push selections through joins",
+                             opt_optimization_push_selections_through_joins,
+                             FALSE
+                             ),
         anOptimizationOption(OPTIMIZATION_SELECTION_MOVE_AROUND,
-                "-Oselection_move_around",
-                "Optimization: try to move selection operators around to push them down including side-way information passing",
-                opt_optimization_selection_move_around,
-                TRUE
-        ),
+                             "-Oselection_move_around",
+                             "Optimization: try to move selection operators around to push them down including side-way information passing",
+                             opt_optimization_selection_move_around,
+                             TRUE
+                             ),
 		anOptimizationOption(OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN,
-				"-Opush_down_aggregation_through_join",
-				"Optimization: try to push down aggregation through join",
-				opt_optimization_push_down_aggregation_through_join,
-				TRUE
-		),
+				             "-Opush_down_aggregation_through_join",
+				             "Optimization: try to push down aggregation through join",
+				             opt_optimization_push_down_aggregation_through_join,
+				             TRUE
+		                     ),
         anOptimizationOption(OPTIMIZATION_PUSH_DOWN_NORMALIZATIONS,
-				"-Opush_down_normalizations",
-				"Optimization: try to push down normalizations in nested temporal subqueries",
-				opt_optimization_push_down_normalizations,
-				TRUE
-		),
+				             "-Opush_down_normalizations",
+				             "Optimization: try to push down normalizations in nested temporal subqueries",
+				             opt_optimization_push_down_normalizations,
+				             TRUE
+		                     ),
         anOptimizationOption(OPTIMIZATION_PUSH_NORMALIZATION_BELOW_SELECT,
-				"-Opush_normalization_below_select",
-				"Optimization: try to push down normalizations below selections in nested temporal subqueries",
-				opt_optimization_push_normalization_below_select,
-				TRUE
-		),
+				             "-Opush_normalization_below_select",
+				             "Optimization: try to push down normalizations below selections in nested temporal subqueries",
+				             opt_optimization_push_normalization_below_select,
+				             TRUE
+		                     ),
         anOptimizationOption(OPTIMIZATION_NEW_NORMALIZATION_IMPL,
-				"-Onew_normalization_impl",
-				"Optimization: use optimized normalization implementation",
-				opt_optimization_new_normalization_impl,
-				TRUE
-		),
+				             "-Onew_normalization_impl",
+				             "Optimization: use optimized normalization implementation",
+				             opt_optimization_new_normalization_impl,
+				             TRUE
+		                     ),
         // temporal database options for coalesce and normalization
         anTemporaldbOption(TEMPORAL_USE_COALSECE,
-                "-temporal_use_coalesce",
-                "Temporaldb: Activate coalesce",
-				temporal_use_coalesce,
-                TRUE
-        ),
+                           "-temporal_use_coalesce",
+                           "Temporaldb: Activate coalesce",
+				           temporal_use_coalesce,
+                           TRUE
+                           ),
 		anTemporaldbOption(TEMPORAL_USE_NORMALIZATION,
-                "-temporal_use_normalization",
-                "Temporaldb: Activate normalization",
-				temporal_use_normalization,
-                TRUE
-        ),
+                           "-temporal_use_normalization",
+                           "Temporaldb: Activate normalization",
+				           temporal_use_normalization,
+                           TRUE
+                           ),
 		anTemporaldbOption(TEMPORAL_USE_NORMALIZATION_WINDOW,
-                "-temporal_use_normalization_window",
-                "Temporaldb: Activate normalization using window",
-				temporal_use_normalization_window,
-                FALSE
-        ),
+                           "-temporal_use_normalization_window",
+                           "Temporaldb: Activate normalization using window",
+				           temporal_use_normalization_window,
+                           FALSE
+                           ),
         anTemporaldbOption(TEMPORAL_AGG_WITH_NORM,
-                "-temporal_agg_combine_with_norm",
-                "Temporaldb: rewrite and aggregation by applying a rewrite that combines aggregation with normalization",
-                temporal_agg_combine_with_norm,
-                TRUE
-        ),
+                           "-temporal_agg_combine_with_norm",
+                           "Temporaldb: rewrite and aggregation by applying a rewrite that combines aggregation with normalization",
+                           temporal_agg_combine_with_norm,
+                           TRUE
+                           ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
-                "-Cunique_attr_names",
-                "Model Check: check that attribute names are unique for each operator's schema",
-                opt_operator_model_unique_schema_attribues,
-                TRUE
-        ),
+                            "-Cunique_attr_names",
+                            "Model Check: check that attribute names are unique for each operator's schema",
+                            opt_operator_model_unique_schema_attribues,
+                            TRUE
+                            ),
         anSanityCheckOption(CHECK_OM_PARENT_CHILD_LINKS,
-                "-Cparent_child_links",
-                "Model Check: check that an query operator graph is correctly "
-                "connected. For example, if X is a child of Y then Y should"
-                " be a parent of X.",
-                opt_operator_model_parent_child_links ,
-                TRUE
-        ),
+                            "-Cparent_child_links",
+                            "Model Check: check that an query operator graph is correctly "
+                            "connected. For example, if X is a child of Y then Y should"
+                            " be a parent of X.",
+                            opt_operator_model_parent_child_links ,
+                            TRUE
+                            ),
         anSanityCheckOption(CHECK_OM_SCHEMA_CONSISTENCY,
-                "-Cschema_consistency",
-                "Model Check: Perform operator type specific sanity checks"
-                " on the schema of an operator. For example, the number of"
-                " attributes in a projection's schema should be equal to the"
-                " number of projection expressions.",
-                opt_operator_model_schema_consistency,
-                TRUE
-        ),
+                            "-Cschema_consistency",
+                            "Model Check: Perform operator type specific sanity checks"
+                            " on the schema of an operator. For example, the number of"
+                            " attributes in a projection's schema should be equal to the"
+                            " number of projection expressions.",
+                            opt_operator_model_schema_consistency,
+                            TRUE
+                            ),
         anSanityCheckOption(CHECK_OM_ATTR_REF,
-                "-Cattr_reference_consistency",
-                "Model Check: check that attribute references used in "
-                "expressions are consistent. For instance, they have to "
-                "refer to existing inputs and attributes.",
-                opt_operator_model_attr_reference_consistency,
-                TRUE
-        ),
+                            "-Cattr_reference_consistency",
+                            "Model Check: check that attribute references used in "
+                            "expressions are consistent. For instance, they have to "
+                            "refer to existing inputs and attributes.",
+                            opt_operator_model_attr_reference_consistency,
+                            TRUE
+                            ),
         anSanityCheckOption(CHECK_OM_COPY_PRESERVES_DATASTRUCTURE,
-                "-Ccopy_preserves_object",
-                "Model Check: create a copy of the object and test whether the"
-                " copy is equal. This is to detect some bugs in the data "
-                "structure that cause copies to fail.",
-                opt_operator_model_copy_consistency,
-                TRUE
-        ),
+                            "-Ccopy_preserves_object",
+                            "Model Check: create a copy of the object and test whether the"
+                            " copy is equal. This is to detect some bugs in the data "
+                            "structure that cause copies to fail.",
+                            opt_operator_model_copy_consistency,
+                            TRUE
+                            ),
         // dl rewrite options
 		{
-				OPTION_WHYNOT_ADV,
-				"-whynot_adv",
-				"advanced way to create firing rules for whynot.",
-				OPTION_BOOL,
-				wrapOptionBool(&opt_whynot_adv),
-				defOptionBool(FALSE)
+			OPTION_WHYNOT_ADV,
+			"-whynot_adv",
+			"advanced way to create firing rules for whynot.",
+			OPTION_BOOL,
+			wrapOptionBool(&opt_whynot_adv),
+			defOptionBool(FALSE)
 		},
 		{
 			OPTION_DL_SEMANTIC_OPT,
@@ -1028,43 +1034,43 @@ OptionInfo opts[] =
 			defOptionBool(FALSE)
 		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
-                "-Cdata_structure_consistency",
-                "Model Check: check that nodes in a query operator graph are not sharing "
-                "datastructures incorrectly.",
-                opt_operator_model_data_structure_consistency,
-                TRUE
-        ),
+                            "-Cdata_structure_consistency",
+                            "Model Check: check that nodes in a query operator graph are not sharing "
+                            "datastructures incorrectly.",
+                            opt_operator_model_data_structure_consistency,
+                            TRUE
+                            ),
         // Unercainty options
         anUncertaintyOption(RANGE_OPTIMIZE_JOIN,
-                "-range_optimize_join",
-                "Range rewriter: Optimized join rewriting.",
-                range_optimize_join,
-                TRUE
-        ),
+                            "-range_optimize_join",
+                            "Range rewriter: Optimized join rewriting.",
+                            range_optimize_join,
+                            TRUE
+                            ),
         anUncertaintyOption(RANGE_OPTIMIZE_AGG,
-                "-range_optimize_agg",
-                "Range rewriter: Optimized aggregation rewriting.",
-                range_optimize_agg,
-                TRUE
-        ),
+                            "-range_optimize_agg",
+                            "Range rewriter: Optimized aggregation rewriting.",
+                            range_optimize_agg,
+                            TRUE
+                            ),
         {
-                 RANGE_COMPRESSION_RATE,
-                 "-range_compression_rate",
-                 "Range rewriter: Set rate of compression for possible, number indicates iterations where 1=split by half and 2=split by quarter...",
-                 OPTION_INT,
-                 wrapOptionInt(&range_compression_rate),
-                 defOptionInt(1)
-         },
+            RANGE_COMPRESSION_RATE,
+            "-range_compression_rate",
+            "Range rewriter: Set rate of compression for possible, number indicates iterations where 1=split by half and 2=split by quarter...",
+            OPTION_INT,
+            wrapOptionInt(&range_compression_rate),
+            defOptionInt(1)
+        },
         // stopper to indicate end of array
         {
-                STOPPER_STRING,
-                NULL,
-                NULL,
-                OPTION_STRING,
-                wrapOptionString(NULL),
-                defOptionString("")
+            STOPPER_STRING,
+            NULL,
+            NULL,
+            OPTION_STRING,
+            wrapOptionString(NULL),
+            defOptionString("")
         }
-};
+    };
 
 // backend plugins information
 BackendInfo backends[]  = {

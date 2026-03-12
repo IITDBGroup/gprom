@@ -72,6 +72,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_TIME_QUERY_OUTPUT_FORMAT "time_query_format"
 #define OPTION_REPEAT_QUERY "repeat_query_count"
 #define OPTION_SHOW_QUERY_RESULT "show_query_result"
+#define OPTION_EXPLAIN_ANALYZE "explain_analyze"
 
 /* provennace and some optimization options */
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"

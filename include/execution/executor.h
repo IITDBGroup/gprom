@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------
  *
  * executor.h
- *		
+ *
  *
  *		AUTHOR: lord_pretzel
  *
@@ -21,7 +21,8 @@ typedef enum ExecutorPluginType
     EXECUTOR_PLUGIN_OUTPUT_SQL,
     EXECUTOR_PLUGIN_OUTPUT_GP,
     EXECUTOR_PLUGIN_OUTPUT_DATALOG,
-    EXECUTOR_PLUGIN_RUN_QUERY
+    EXECUTOR_PLUGIN_RUN_QUERY,
+    EXECUTOR_PLUGIN_EXPLAIN_QUERY
 } ExecutorPluginType;
 
 /* plugin definition */

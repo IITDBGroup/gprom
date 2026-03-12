@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * executor.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: lord_pretzel
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -19,6 +19,7 @@
 #include "execution/exe_output_gp.h"
 #include "execution/exe_output_sql.h"
 #include "execution/exe_run_query.h"
+#include "execution/exe_explain_query.h"
 
 // plugin
 static ExecutorPlugin *plugin = NULL;
@@ -51,6 +52,9 @@ chooseExecutorPlugin(ExecutorPluginType type)
         case EXECUTOR_PLUGIN_OUTPUT_DATALOG:
             plugin->execute = executeOutputDL;
             break;
+        case EXECUTOR_PLUGIN_EXPLAIN_QUERY:
+            plugin->execute = exeExplainQuery;
+            break;
     }
 }
 
@@ -65,6 +69,8 @@ chooseExecutorPluginFromString(char *type)
         chooseExecutorPlugin(EXECUTOR_PLUGIN_OUTPUT_GP);
     else if (streq(type,"run"))
         chooseExecutorPlugin(EXECUTOR_PLUGIN_RUN_QUERY);
+    else if (streq(type,"explain"))
+        chooseExecutorPlugin(EXECUTOR_PLUGIN_EXPLAIN_QUERY);
     else if (streq(type,"dl"))
         chooseExecutorPlugin(EXECUTOR_PLUGIN_OUTPUT_DATALOG);
     else
