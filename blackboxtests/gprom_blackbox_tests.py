@@ -19,6 +19,10 @@ import difflib
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
+DIFF_METHODS = {
+    'table-level-multiplity',
+    'string-colordiff'
+}
 
 console=None
 options=None
@@ -91,16 +95,16 @@ class Table:
             return False
         return self.rows == o.rows
 
-    # def diff(self, o: "Table"):
-    #     if self.schema != o.schema:
-    #         return f"schemas differ: expected\n\n{self.schema}\n, but got:\n{o.schema}"
-    #     allrows = set(self.rows.keys()).union(o.rows.keys())
-    #     result = ""
-    #     for r in allrows:
-    #         if self.rows[r] != o.rows[r]:
-    #             result += f"row[{Table.row_to_string(r)}]\t multiplicity differs: expected {self.rows[r]}, but was {o.rows[r]}\n"
+    def mydiff(self, o: "Table"):
+        if self.schema != o.schema:
+            return f"schemas differ: expected\n\n{self.schema}\n, but got:\n{o.schema}"
+        allrows = set(self.rows.keys()).union(o.rows.keys())
+        result = ""
+        for r in allrows:
+            if self.rows[r] != o.rows[r]:
+                result += f"row[{Table.row_to_string(r)}]\t multiplicity differs: expected {self.rows[r]}, but was {o.rows[r]}\n"
 
-    #     return result
+        return result
 
     # def diff(self, o: "Table"):
     #     if self.schema != o.schema:
@@ -108,10 +112,16 @@ class Table:
     #     diff = DeepDiff(self.rows, o.rows, verbose_level=2, view=COLORED_VIEW,  ignore_order=True)
     #     return diff.pretty()
 
-    def diff(self, o: "Table"):
+    def colordiff(self, o: "Table"):
         selfstr = str(self)
         ostr = str(o)
         return color_diff_strings(selfstr, ostr)
+
+    def diff(self, o: "Table"):
+        if options.diffalgo == 'table-level-multiplity':
+            return self.mydiff(o)
+        if options.diffalgo == 'string-colordiff':
+            return self.colordiff(o)
 
     @classmethod
     def from_str(cls, inputstr: str):
@@ -247,7 +257,7 @@ class OrderedTable():
     def append(self, row: tuple[str]):
         self.rows.append(row)
 
-    def diff(self, o: "OrderedTable"):
+    def mydiff(self, o: "OrderedTable"):
         if self.schema != o.schema:
             return f"schemas differ: expected {self.schema}, but got {o.schema}"
         numself = self.num_rows()
@@ -266,6 +276,16 @@ class OrderedTable():
 
         return result
 
+    def colordiff(self, o: "OrderedTable"):
+        selfstr = str(self)
+        ostr = str(o)
+        return color_diff_strings(selfstr, ostr)
+
+    def diff(self, o: "OrderedTable"):
+        if options.diffalgo == 'table-level-multiplity':
+            return self.mydiff(o)
+        if options.diffalgo == 'string-colordiff':
+            return self.colordiff(o)
 
     @classmethod
     def from_str(cls, inputstr: str):
@@ -970,6 +990,8 @@ def parse_args():
                     help="use this gprom binary")
     ap.add_argument('--diff', action='store_true',
                     help="if provided, then show difference in outputs for failed tests")
+    ap.add_argument('--diffalgo', type=str, default='table-level-multiplity',
+                    help=f"how to compute and show differences between tables (table-level-multiplitiy [DEFAULT],string-colordiff)")
     ap.add_argument('-e', '--errordetails', action='store_true',
                     help="if provided, then show detailed error messages for tests where gprom errored out")
     ap.add_argument('-S', '--stoponerror', action='store_true',
