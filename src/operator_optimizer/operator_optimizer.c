@@ -111,7 +111,7 @@ static QueryOperator *removeUnnecessaryWindowOperatorInternal(QueryOperator *roo
 
 
 Node  *
-optimizeOperatorModel (Node *root)
+optimizeOperatorModel(Node *root)
 {
     if(isA(root, List))
     {
@@ -130,7 +130,7 @@ optimizeOperatorModel (Node *root)
 }
 
 static QueryOperator *
-optimizeOneGraph (QueryOperator *root)
+optimizeOneGraph(QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 

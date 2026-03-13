@@ -502,7 +502,19 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 		INFO_AND_DEBUG_OP_LOG("unnested subqueries", oModel);
 	}
 
-    rewrittenTree = provRewriteQBModel(oModel);
+    rewrittenTree = oModel;
+
+    //
+	if(applyOptimizations && IS_QB(rewrittenTree))
+	{
+	    START_TIMER("OptimizeModel");
+	    rewrittenTree = optimizeOperatorModel(rewrittenTree);
+	    INFO_OP_LOG("after optimizing AGM graph before provenance rewrite:", rewrittenTree);
+	    STOP_TIMER("OptimizeModel");
+	}
+
+    // rewrite any provenance computations
+    rewrittenTree = provRewriteQBModel(rewrittenTree);
 
 	if (IS_QB(rewrittenTree))
 	{
