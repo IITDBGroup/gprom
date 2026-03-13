@@ -2215,7 +2215,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         {
             HashMap *props = (HashMap *)(op->properties);
             boolean showValues = opt_log_operator_verbose_props == 2;
-            boolean oneline = mapSize(props) == 1;
+            boolean oneline = mapSize(props) <= 1;
             if(props)
             {
                 appendStringInfo(str, "[%s", oneline ? "": "\n");

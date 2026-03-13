@@ -564,7 +564,7 @@ readALine(char **str)
     appendStringInfo(promptstr, TB_FG_BG(WHITE,BLACK,"%s") " ", prompt);
 
     /* Get a line from the user. */
-    res = readline(promptstr->data);
+    res = readline(prompt);
     TRACE_LOG(res);
     /* If the line has any text in it, save it to the history. */
     addToHistory(res);
