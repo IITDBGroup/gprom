@@ -11,7 +11,19 @@
 #include "metadata_lookup/metadata_lookup.h"
 
 #include "provenance_rewriter/prov_utility.h"
+#include "utility/enum_magic.h"
 #include "utility/string_utils.h"
+
+NEW_ENUM_WITH_ONLY_TO_STRING(Semiring,
+                             SEMIRING_CUSTOM,
+                             SEMIRING_N,
+                             SEMIRING_TROPICAL,
+                             SEMIRING_VITERBI,
+                             SEMIRING_FUZZY,
+                             SEMIRING_NX);
+
+#define DUMMY_LEFT_ATTR backendifyIdentifier("__prov_left_input")
+#define DUMMY_RIGHT_ATTR backendifyIdentifier("__prov_right_input")
 
 /* function declarations */
 //static Node *deepReplaceAttrRef(Node * expr, Node *af);//replace all attributeReferences to af
@@ -37,6 +49,32 @@ deepReplaceAttrRefMutator(Node *node, HashMap *context)
     return mutate(node, deepReplaceAttrRefMutator, context);
 }
 
+static Semiring
+userStringToSemiring(char *str)
+{
+    if(streq(str,"N"))
+    {
+        return SEMIRING_N;
+    }
+    if(streq(str,"NX"))
+    {
+        return SEMIRING_NX;
+    }
+    if(streq(str,"TROPICAL"))
+    {
+        return SEMIRING_TROPICAL;
+    }
+    if(streq(str,"VITERBI"))
+    {
+        return SEMIRING_VITERBI;
+    }
+    if(streq(str, "FUZZY"))
+    {
+        return SEMIRING_FUZZY;
+    }
+
+    return SEMIRING_CUSTOM;
+}
 
 //
 //static Node *
@@ -76,35 +114,68 @@ isSemiringCombinerActivatedPs(ProvenanceStmt *stmt)
 	return FALSE;
 }
 
-Node *
-getSemiringCombinerAddExpr(QueryOperator *op){
-	Node *p = getStringProperty(op, PROP_PC_SEMIRING_COMBINER);
-	switch(p->type)
-	{
-	    // user has specified a semiring name (currently only N)
-		case T_Constant:
-		{
-			return (Node *) createFunctionCall("sum", singleton(createAttributeReference ("x")));
-		}
-		case T_List:
-		{
-			return getNthOfListP((List *) p,0);
-		}
-		default:
-		{
-			FATAL_LOG("unknown expression type for SC option: %s", nodeToString(p));
-		}
-	}
-	return NULL;
-}
 
-Node *
-getSemiringCombinerMultExpr(QueryOperator *op){
-	Node *p = getStringProperty(op, PROP_PC_SEMIRING_COMBINER);
+static Node *
+semiringMultExpr(Node *p)
+{
 	switch(p->type){
 		case T_Constant:
 		{
-			return (Node *) createOpExpr("*", appendToTailOfList(singleton(createAttributeReference("x")),createAttributeReference("y")));
+            Semiring K = userStringToSemiring(STRING_VALUE(p));
+            AttributeReference *l, *r;
+            DEBUG_LOG("Mult expression for semiring %s", SemiringToString(K));
+
+            switch(K)
+            {
+                case SEMIRING_N:
+                {
+                    // l * r
+                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_LONG);
+                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_LONG);
+			        return (Node *) createOpExpr(OPNAME_MULT,
+                                                 LIST_MAKE(l,r));
+                }
+                case SEMIRING_NX:
+                {
+                    // "(" || l || " * " || r || ")"
+                    List *operands;
+                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
+                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_STRING);
+                    operands = LIST_MAKE(createConstString("("),
+                                         l,
+                                         createConstString(" * "),
+                                         r,
+                                         createConstString(")"));
+			        return (Node *) concatExprList(operands);
+                }
+                case SEMIRING_TROPICAL:
+                {
+                    // l + r
+                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
+			        return (Node *) createOpExpr(OPNAME_ADD,
+                                                 LIST_MAKE(l,r));
+                }
+                case SEMIRING_VITERBI:
+                {
+                    // l * r
+                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
+			        return (Node *) createOpExpr(OPNAME_MULT,
+                                                 LIST_MAKE(l,r));
+                }
+                case SEMIRING_FUZZY:
+                {
+                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
+			        return (Node *) createFunctionCall(LEAST_FUNC_NAME,
+                                                       LIST_MAKE(l,r));
+                }
+                default:
+                    THROW(SEVERITY_RECOVERABLE,"unknown semiring %s specified", STRING_VALUE(p));
+                break;
+            }
+            return NULL;
 		}
 		case T_List:
 		{
@@ -118,6 +189,88 @@ getSemiringCombinerMultExpr(QueryOperator *op){
 	return NULL;
 }
 
+static Node *
+semiringAddExpr(Node *p)
+{
+	switch(p->type)
+	{
+	    // user has specified a semiring name (currently only N and N[X])
+		case T_Constant:
+		{
+            Semiring K = userStringToSemiring(STRING_VALUE(p));
+            AttributeReference *a;
+            DEBUG_LOG("Add expression for semiring %s", SemiringToString(K));
+
+            switch(K)
+            {
+                case SEMIRING_N:
+                {
+                    // l + r => sum(a)
+                    a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+			        return (Node *) createFunctionCall(SUM_FUNC_NAME,
+                                                       singleton(a));
+                }
+                case SEMIRING_TROPICAL:
+                {
+                    // min(l,r) => min(a)
+                    a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    return (Node *) createFunctionCall(MIN_FUNC_NAME,
+                                                       singleton(a));
+                }
+                case SEMIRING_VITERBI:
+                {
+                    a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    return (Node *) createFunctionCall(MAX_FUNC_NAME,
+                                                       singleton(a));
+
+                }
+                case SEMIRING_FUZZY:
+                {
+                    a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    return (Node *) createFunctionCall(MAX_FUNC_NAME,
+                                                       singleton(a));
+                }
+                case SEMIRING_NX:
+                {
+                    // 'l + r' => string_agg(a, ' + ')
+                    // TODO check who supports it
+                    a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
+			        return (Node *) createFunctionCall(STRINGAGG_FUNC_NAME,
+                                                       LIST_MAKE(a,createConstString(" + ")));
+                }
+                default:
+                    THROW(SEVERITY_RECOVERABLE,"unknown semiring %s specified", STRING_VALUE(p));
+                break;
+            }
+            return NULL;
+		}
+		case T_List:
+		{
+			return getNthOfListP((List *) p,0);
+		}
+		default:
+		{
+			FATAL_LOG("unknown expression type for SC option: %s", nodeToString(p));
+		}
+	}
+	return NULL;
+}
+
+
+Node *
+getSemiringCombinerMultExpr(QueryOperator *op)
+{
+	Node *p = getStringProperty(op, PROP_PC_SEMIRING_COMBINER);
+    return semiringMultExpr(p);
+}
+
+Node *
+getSemiringCombinerAddExpr(QueryOperator *op){
+	Node *p = getStringProperty(op, PROP_PC_SEMIRING_COMBINER);
+    return semiringAddExpr(p);
+}
+
+
 DataType
 getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 {
@@ -129,37 +282,10 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 		if(streq(STRING_VALUE(kv->key),PROP_PC_SEMIRING_COMBINER))
 		{
 			INFO_NODE_BEATIFY_LOG("get datatypes for semiring combiner expressions:",kv->value);
-			Node *addExpr;
-			Node *multExpr;
+			Node *addExpr = semiringAddExpr(kv->value);
+			Node *multExpr = semiringMultExpr(kv->value);
 
-			switch(kv->value->type)
-			{
-			    case T_Constant:
-			    {
-			        char *scop = "*";
-			        char *funcn = "sum";
-			        boolean exists = FALSE;
-			        DataType dtLeftFuncIn = getNthOfListInt(dts, 0);
-			        DataType dtRightFuncIn = LIST_LENGTH(dts) == 1 ? dtLeftFuncIn : getNthOfListInt(dts, 1);
-
-			        multType = getOpReturnType(scop,CONCAT_LISTS(singletonInt(dtLeftFuncIn), singletonInt(dtRightFuncIn)), &exists);
-			        addType = getFuncReturnType(funcn,singletonInt(multType), NULL);
-
-			        return addType;
-			    }
-				case T_List:
-				{
-				    multExpr = getNthOfListP(((List *)kv->value),1);
-				    addExpr = getNthOfListP(((List *)kv->value),0);
-				    //TODO support arithmetics over aggregation function expression (only attribute references have to be inside aggregation functions)
-					break;
-				}
-				default:
-				{
-					FATAL_LOG("unknown expression type for SC option: %s", nodeToString(kv->value));
-				}
-			}
-//			boolean exists = FALSE;
+            //			boolean exists = FALSE;
 			if (!addCombinerExprIsOK(addExpr, NEW(boolean)))
 			    FATAL_NODE_BEATIFY_LOG("expression for addition semirign combiner can only use attribute references within aggregation function calls:\n\n", addExpr);
 

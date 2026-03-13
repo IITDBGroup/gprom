@@ -236,7 +236,7 @@ createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *ex
 }
 
 Node *
-concatExprs (Node *expr, ...)
+concatExprs(Node *expr, ...)
 {
     Node *result = NULL;
     Node *curArg = NULL;
@@ -254,13 +254,13 @@ concatExprs (Node *expr, ...)
     if (LIST_LENGTH(argList) == 1)
         return expr;
 
-    result = (Node *) createFunctionCall(OPNAME_CONCAT, argList);
+    result = (Node *) createOpExpr(OPNAME_STRING_CONCAT, argList);
 
     return result;
 }
 
 Node *
-concatExprList (List *exprs)
+concatExprList(List *exprs)
 {
     Node *result = popHeadOfListP(exprs);
 

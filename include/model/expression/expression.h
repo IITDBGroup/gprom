@@ -328,6 +328,7 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define LAG_FUNC_NAME backendifyIdentifier("lag")
 #define FIRST_VALUE_FUNC_NAME backendifyIdentifier("first_value")
 #define LAST_VALUE_FUNC_NAME backendifyIdentifier("last_value")
+#define STRINGAGG_FUNC_NAME backendifyIdentifier("string_agg")
 
 #define COALESCE_FUNC_NAME backendifyIdentifier("COALESCE")
 
