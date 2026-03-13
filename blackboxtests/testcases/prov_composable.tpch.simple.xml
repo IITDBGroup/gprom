@@ -4,7 +4,7 @@
 <comment>Simpler provenance queries over the TPC-H schema</comment>
 
 <entry key="q1.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
   SELECT n_name, r_name
     FROM nation n,
          region r
@@ -42,7 +42,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q2.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
   SELECT sum(n_regionkey)
     FROM nation
   );
@@ -78,7 +78,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q3.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
   SELECT count(*) AS x, o_custkey
     FROM orders
    GROUP BY o_custkey
@@ -123,7 +123,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q4.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         s_acctbal,
         s_name,
@@ -178,7 +178,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q5.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
  select
         l_orderkey,
         sum(l_extendedprice * (1 - l_discount)) as revenue, max(l_shipdate),

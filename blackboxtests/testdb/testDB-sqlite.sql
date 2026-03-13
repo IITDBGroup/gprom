@@ -13,6 +13,8 @@ DROP TABLE IF EXISTS TEMP_DATE;
 DROP TABLE IF EXISTS TEMP_EMP;
 DROP TABLE IF EXISTS FBA_TEST;
 DROP TABLE IF EXISTS T_TC;
+DROP TABLE IF EXISTS TR;
+DROP TABLE IF EXISTS TS;
 
 DROP TABLE IF EXISTS part;
 DROP TABLE IF EXISTS supplier;
@@ -22,6 +24,21 @@ DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS lineitem;
 DROP TABLE IF EXISTS nation;
 DROP TABLE IF EXISTS region;
+
+DROP TABLE IF EXISTS t_customer;
+DROP TABLE IF EXISTS t_lineitem;
+DROP TABLE IF EXISTS t_nation;
+DROP TABLE IF EXISTS t_orders;
+DROP TABLE IF EXISTS t_part;
+DROP TABLE IF EXISTS t_partsupp;
+DROP TABLE IF EXISTS t_region;
+DROP TABLE IF EXISTS t_supplier;
+
+
+
+
+
+
 
 -------------------------------------------------------------------------------
 --                                CREATE TABLE                               --
@@ -146,6 +163,46 @@ INSERT INTO T_TC VALUES (2,1,0, 1,2);
 INSERT INTO T_TC VALUES (2,1,11, 2,3);
 INSERT INTO T_TC VALUES (2,1,7, 3,4);
 
+DROP TABLE IF EXISTS TR;
+DROP TABLE IF EXISTS TS;
+
+CREATE TABLE TR (
+  i INT,
+  j INT,
+  ts INT,
+  te INT
+);
+
+INSERT INTO TR
+VALUES (1, 1, 3, 589589),
+       (1, 2, 1, 179461),
+       (1, 2, 13, 726183),
+       (1, 3, 73, 481661),
+       (2, 1, 73, 221302),
+       (2, 2, 49, 726688),
+       (2, 2, 21, 125749),
+       (3, 3, 23, 24932),
+       (3, 3, 19, 4703),
+       (3, 3, 59, 206492);
+
+CREATE TABLE TS (
+  i INT,
+  j INT,
+  ts INT,
+  te INT
+);
+
+INSERT INTO TS
+VALUES  (1, 1, 80, 590191),
+        (1, 1, 56, 217105),
+        (1, 1, 8, 240809),
+        (2, 1, 25, 626599),
+        (2, 1, 92, 988119),
+        (2, 2, 63, 917131),
+        (2, 2, 58, 68204),
+        (3, 3, 99, 801663),
+        (3, 3, 22, 554749),
+        (5, 1, 59, 571395);
 
 
 CREATE TABLE FBA_TEST (
@@ -8976,3 +9033,150 @@ INSERT INTO nation VALUES(21,'VIETNAM',2,'hely enticingly express accounts. even
 INSERT INTO nation VALUES(22,'RUSSIA',3,' requests against the platelets use never according to the quickly regular pint');
 INSERT INTO nation VALUES(23,'UNITED KINGDOM',3,'eans boost carefully special requests. accounts are. carefull');
 INSERT INTO nation VALUES(24,'UNITED STATES',1,'y final packages. slow foxes cajole quickly. quickly silent platelets breach ironic accounts. unusual pinto be');
+
+--
+-- Name: customer; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_customer (
+    custkey bigint,
+    name VARCHAR(25),
+    address VARCHAR(40),
+    nationkey bigint NOT NULL,
+    phone CHAR(15),
+    acctbal NUMERIC,
+    mktsegment CHAR(10),
+    comment VARCHAR(117),
+    t_b timestamp without time zone,
+    t_e timestamp without time zone
+);
+
+--
+-- Name: lineitem; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_lineitem (
+    orderkey bigint NOT NULL,
+    partkey bigint NOT NULL,
+    suppkey bigint NOT NULL,
+    linenumber integer,
+    quantity NUMERIC,
+    extendedprice NUMERIC,
+    discount NUMERIC,
+    tax NUMERIC,
+    returnflag CHAR(1),
+    linestatus CHAR(1),
+    shipdate date,
+    commitdate date,
+    receiptdate date,
+    shipinstruct CHAR(25),
+    shipmode CHAR(10),
+    comment VARCHAR(44),
+    t_b timestamp without time zone,
+    t_e timestamp without time zone
+);
+
+--
+-- Name: nation; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_nation (
+    nationkey bigint NOT NULL,
+    name CHAR(25),
+    regionkey bigint NOT NULL,
+    comment VARCHAR(152)
+);
+
+--
+-- Name: orders; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_orders (
+    orderkey bigint,
+    custkey bigint NOT NULL,
+    orderstatus CHAR(1),
+    totalprice NUMERIC,
+    orderdate date,
+    orderpriority CHAR(15),
+    clerk CHAR(15),
+    shippriority integer,
+    comment VARCHAR(79),
+    receivable_time_begin date,
+    receivable_time_end date,
+    t_b timestamp without time zone,
+    t_e timestamp without time zone
+);
+
+--
+-- Name: part; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_part (
+    partkey bigint,
+    name VARCHAR(55),
+    mfgr CHAR(25),
+    brand CHAR(10),
+    type VARCHAR(25),
+    size integer,
+    container CHAR(10),
+    retailprice NUMERIC,
+    comment VARCHAR(23),
+    availability_time_begin date,
+    availability_time_end date,
+    t_b timestamp without time zone,
+    t_e timestamp without time zone
+);
+
+--
+-- Name: partsupp; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_partsupp (
+    partkey bigint NOT NULL,
+    suppkey bigint NOT NULL,
+    availqty integer,
+    supplycost NUMERIC,
+    comment VARCHAR(199),
+    t_b timestamp without time zone,
+    t_e timestamp without time zone
+);
+
+--
+-- Name: region; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_region (
+    regionkey bigint NOT NULL,
+    name CHAR(25),
+    comment VARCHAR(152)
+);
+
+--
+-- Name: supplier; Type: TABLE; Schema: public; Owner: perm
+--
+
+CREATE TABLE t_supplier (
+    suppkey bigint,
+    name CHAR(25),
+    address VARCHAR(40),
+    nationkey bigint NOT NULL,
+    phone CHAR(15),
+    acctbal NUMERIC,
+    comment VARCHAR(101),
+    t_b timestamp without time zone,
+    t_e timestamp without time zone
+);
+
+--
+-- Name: nation nation_pkey; Type: CONSTRAINT; Schema: public; Owner: perm
+--
+
+ALTER TABLE ONLY t_nation
+    ADD CONSTRAINT t_nation_pkey PRIMARY KEY (nationkey);
+
+--
+-- Name: region region_pkey; Type: CONSTRAINT; Schema: public; Owner: perm
+--
+
+ALTER TABLE ONLY t_region
+    ADD CONSTRAINT t_region_pkey PRIMARY KEY (regionkey);

@@ -81,4 +81,59 @@ SELECT a FROM r x
  2 |
 </entry>
 
+<entry key="q6.query">
+SELECT *
+  FROM r x
+ WHERE EXISTS (SELECT y.a FROM r y)
+   AND EXISTS (SELECT z.a FROM r z);
+</entry>
+<entry key="q6.result">
+ a | b |
+--------
+ 1 | 1 |
+ 1 | 2 |
+ 2 | 1 |
+ 2 | 3 |
+</entry>
+
+<entry key="q7.query">
+SELECT *
+  FROM r x
+ WHERE EXISTS (SELECT *
+                 FROM r i
+                WHERE EXISTS (SELECT c
+                                FROM s)
+                  AND i.a &lt;= (SELECT sum(e)
+                                   FROM t
+                                  WHERE t.e = i.a));
+</entry>
+<entry key="q7.result">
+ a | b |
+--------
+ 1 | 1 |
+ 1 | 2 |
+ 2 | 1 |
+ 2 | 3 |
+</entry>
+
+<entry key="q8.query">
+SELECT *
+  FROM r x
+ WHERE EXISTS (SELECT * FROM r i
+                WHERE EXISTS (SELECT c FROM s)
+                  AND EXISTS (SELECT e FROM t));
+</entry>
+<entry key="q8.result">
+ a | b |
+--------
+ 1 | 1 |
+ 1 | 2 |
+ 2 | 1 |
+ 2 | 3 |
+</entry>
+
+
+
+
+
 </properties>

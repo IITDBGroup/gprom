@@ -4,7 +4,7 @@
 <comment>Select-Project-Join Test cases</comment>
 
 <entry key="q1.query">
-PROVENANCE OF (SELECT * FROM R);
+PROVENANCE WITH RESULTTIDS OF (SELECT * FROM R);
 </entry>
 <entry key="q1.result">
  a | b | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
@@ -16,7 +16,7 @@ PROVENANCE OF (SELECT * FROM R);
 </entry>
 
 <entry key="q2.query">
-PROVENANCE OF (SELECT a FROM R);
+PROVENANCE WITH RESULTTIDS OF (SELECT a FROM R);
 </entry>
 <entry key="q2.result">
  a | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
@@ -28,7 +28,7 @@ PROVENANCE OF (SELECT a FROM R);
 </entry>
 
 <entry key="q3.query">
-PROVENANCE OF (SELECT a AS x, b AS y FROM R WHERE b=2);
+PROVENANCE WITH RESULTTIDS OF (SELECT a AS x, b AS y FROM R WHERE b=2);
 </entry>
 <entry key="q3.result">
  x | y | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
@@ -37,7 +37,7 @@ PROVENANCE OF (SELECT a AS x, b AS y FROM R WHERE b=2);
 </entry>
 
 <entry key="q4.query">
-PROVENANCE OF (SELECT a AS x, b AS y FROM R WHERE a &gt; b);
+PROVENANCE WITH RESULTTIDS OF (SELECT a AS x, b AS y FROM R WHERE a &gt; b);
 </entry>
 <entry key="q4.result">
  x | y | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
@@ -46,7 +46,7 @@ PROVENANCE OF (SELECT a AS x, b AS y FROM R WHERE a &gt; b);
 </entry>
 
 <entry key="q5.query">
-PROVENANCE OF (SELECT a as x, b as y, d as z FROM R INNER JOIN S ON R.a = S.c);
+PROVENANCE WITH RESULTTIDS OF (SELECT a as x, b as y, d as z FROM R INNER JOIN S ON R.a = S.c);
 </entry>
 <entry key="q5.result">
  x | y | z | prov_r_a | prov_r_b | prov_s_c | prov_s_d | _result_tid | _setprov_dup_count |
@@ -60,7 +60,7 @@ PROVENANCE OF (SELECT a as x, b as y, d as z FROM R INNER JOIN S ON R.a = S.c);
 </entry>
 
 <entry key="q6.query">
-PROVENANCE OF (SELECT c as x, d as y, a as z FROM S LEFT JOIN R ON R.a = S.d);
+PROVENANCE WITH RESULTTIDS OF (SELECT c as x, d as y, a as z FROM S LEFT JOIN R ON R.a = S.d);
 </entry>
 <entry key="q6.result">
  x | y | z    | prov_s_c | prov_s_d | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
@@ -74,7 +74,7 @@ PROVENANCE OF (SELECT c as x, d as y, a as z FROM S LEFT JOIN R ON R.a = S.d);
 </entry>
 
 <entry key="q7.query">
-PROVENANCE OF (SELECT c as x, d as y, a as z, b as w FROM S FULL OUTER JOIN R ON b = d);
+PROVENANCE WITH RESULTTIDS OF (SELECT c as x, d as y, a as z, b as w FROM S FULL OUTER JOIN R ON b = d);
 </entry>
 <entry key="q7.result">
  x    | y    | z    | w    | prov_s_c | prov_s_d | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
@@ -88,7 +88,7 @@ PROVENANCE OF (SELECT c as x, d as y, a as z, b as w FROM S FULL OUTER JOIN R ON
 </entry>
 
 <entry key="q8.query">
-PROVENANCE OF (SELECT a as x, b as y, d as z FROM R, S WHERE R.a = S.c);
+PROVENANCE WITH RESULTTIDS OF (SELECT a as x, b as y, d as z FROM R, S WHERE R.a = S.c);
 </entry>
 <entry key="q8.result">
  x | y | z | prov_r_a | prov_r_b | prov_s_c | prov_s_d | _result_tid | _setprov_dup_count |

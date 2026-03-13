@@ -4,7 +4,7 @@
 <comment>Provenance CTE Test cases</comment>
 
 <entry key="q1.query">
-PROVENANCE OF (WITH rr AS (SELECT a FROM r) SELECT * FROM rr);
+PROVENANCE WITH RESULTTIDS OF (WITH rr AS (SELECT a FROM r) SELECT * FROM rr);
 </entry>
 <entry key="q1.result">
  a | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
@@ -16,7 +16,7 @@ PROVENANCE OF (WITH rr AS (SELECT a FROM r) SELECT * FROM rr);
 </entry>
 
 <entry key="q2.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
   WITH x AS (SELECT a, a AS e FROM r),
        y AS (SELECT ra.e, rb.e AS f FROM x ra, x rb WHERE ra.e = rb.e)
   SELECT y.f, x.a
@@ -46,7 +46,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q3.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
 WITH x AS (SELECT sum(b) AS mb, a FROM r GROUP BY a),
      maxx AS (SELECT max(mb) AS maxmb FROM x)
 SELECT *

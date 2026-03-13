@@ -5,7 +5,7 @@
 
 
 <entry key="q1.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         l_returnflag,
         l_linestatus,
@@ -49,7 +49,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q2.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         s_acctbal,
         s_name,
@@ -104,7 +104,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q3.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     SELECT
         l_orderkey,
         sum(l_extendedprice * (1 - l_discount)) as revenue,
@@ -150,7 +150,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q4.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         o_orderpriority,
         count(*) as order_count
@@ -296,7 +296,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q5.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         n_name,
         sum(l_extendedprice * (1 - l_discount)) as revenue
@@ -357,7 +357,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q6.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
 select
 	sum(l_extendedprice * l_discount) as revenue
 from
@@ -492,7 +492,7 @@ where
 </entry>
 
 <entry key="q7.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
   select
   supp_nation,
   cust_nation,
@@ -542,7 +542,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q8.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         o_year,
         sum(case
@@ -592,7 +592,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q9.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         nation,
         o_year,
@@ -1012,7 +1012,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q10.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         c_custkey,
         c_name,
@@ -1146,7 +1146,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q11.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
 SELECT ps_partkey, value,ROUND((value/computed_value)::NUMERIC,5) AS x
 FROM (
     select
@@ -1570,7 +1570,7 @@ FROM (
 </entry>
 
 <entry key="q12.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         l_shipmode,
         sum(case
@@ -1632,7 +1632,7 @@ PROVENANCE OF (
 </entry>
 
 <entry key="q13.query">
-  PROVENANCE OF (
+  PROVENANCE WITH RESULTTIDS OF (
     select
         c_count,
         count(*) as custdist
@@ -3199,7 +3199,7 @@ PROVENANCE OF (
 </entry>
 
  <entry key="q14.query">
-PROVENANCE OF (
+PROVENANCE WITH RESULTTIDS OF (
     select
         100.00 * sum(case
             when p_type like 'PROMO%'
@@ -3337,7 +3337,7 @@ A|B|
 <!-- </entry> -->
 
 <entry key="q19.query">
-  PROVENANCE OF (
+  PROVENANCE WITH RESULTTIDS OF (
     select
         sum(l_extendedprice* (1 - l_discount)) as revenue
     from
