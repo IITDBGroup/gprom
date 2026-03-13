@@ -10,8 +10,6 @@ from enum import Enum
 from functools import reduce
 from pathlib import Path
 from typing import Dict, Union
-from deepdiff import DeepDiff
-from deepdiff.helper import COLORED_VIEW
 import rich
 from pg8000.native import Connection
 from tqdm import tqdm
