@@ -11,7 +11,9 @@
   <entry key="extra_settings.heuopt-aggjoin">
     -heuristic_opt,
     -prov_use_composable,
-    -prov_instrument_agg_window:FALSE
+    -prov_instrument_agg_window:FALSE,
+    -Opullup_prov_projections:TRUE,
+    -Oselection_move_around:TRUE
   </entry>
 
   <entry key="extra_settings.noopt-aggwin">
@@ -22,7 +24,9 @@
   <entry key="extra_settings.heuopt-aggwin">
     -heuristic_opt,
     -prov_use_composable,
-    -prov_instrument_agg_window:TRUE
+    -prov_instrument_agg_window:TRUE,
+    -Opullup_prov_projections:TRUE,
+    -Oselection_move_around:TRUE
   </entry>
 
   <entry key="extra_settings.optnopullnoselmove-aggjoin">

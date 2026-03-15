@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+  <comment>General settings for Datalog test cases</comment>
+
+  <entry key="extra_settings.noopt.nocompose">
+  </entry>
+
+  <entry key="extra_settings.optnopullnoselmove.nocompose">
+    -heuristic_opt,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
+
+  <entry key="extra_settings.heuopt.nocompose">
+    -heuristic_opt,
+    -Opullup_prov_projections:TRUE,
+    -Oselection_move_around:TRUE
+  </entry>
+
+  <entry key="extra_settings.noopt.composable-aggjoin">
+    -prov_use_composable,
+    -prov_instrument_agg_window:FALSE
+  </entry>
+
+  <entry key="extra_settings.noopt.composable-aggwin">
+    -prov_use_composable,
+    -prov_instrument_agg_window:TRUE
+  </entry>
+
+  <entry key="extra_settings.optnopullnoselmove.composable-aggjoin">
+    -prov_use_composable,
+    -heuristic_opt,
+    -prov_instrument_agg_window:FALSE,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
+
+  <entry key="extra_settings.optnopullnoselmove.composable-aggwin">
+    -prov_use_composable,
+    -heuristic_opt,
+    -prov_instrument_agg_window:TRUE,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
+
+  <entry key="extra_settings.heuopt.composable-aggjoin">
+    -heuristic_opt,
+    -prov_use_composable,
+    -prov_instrument_agg_window:FALSE,
+    -Opullup_prov_projections:TRUE,
+    -Oselection_move_around:TRUE
+  </entry>
+
+
+  <entry key="extra_settings.heuopt.composable-aggwin">
+    -heuristic_opt,
+    -prov_use_composable,
+    -prov_instrument_agg_window:TRUE,
+    -Opullup_prov_projections:TRUE,
+    -Oselection_move_around:TRUE
+  </entry>
+
+
+
+</properties>
