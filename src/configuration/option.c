@@ -95,7 +95,7 @@ char *odbc_driver = NULL;
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
-boolean opt_log_operator_colorize = TRUE;
+boolean opt_log_operator_colorize = FALSE;
 boolean opt_log_operator_verbose = FALSE;
 int opt_log_operator_verbose_props = 0;
 
@@ -125,7 +125,7 @@ boolean opt_explain_analyze = FALSE;
 boolean opt_show_query_runtime = FALSE;
 char *time_query_format = NULL;
 int query_repeat_count = 1;
-boolean opt_show_query_result = TRUE;
+boolean opt_show_query_result = FALSE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -153,8 +153,8 @@ boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_optimization_materialize_unsafe_proj = FALSE;
 boolean opt_optimization_merge_unsafe_proj = FALSE;
-boolean opt_optimization_remove_redundant_projections = TRUE;
-boolean opt_optimization_remove_redundant_duplicate_operator = TRUE;
+boolean opt_optimization_remove_redundant_projections = FALSE;
+boolean opt_optimization_remove_redundant_duplicate_operator = FALSE;
 boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
 boolean opt_optimization_selection_move_around = FALSE;
@@ -177,10 +177,10 @@ boolean opt_operator_model_copy_consistency = FALSE;
 boolean opt_operator_model_data_structure_consistency = FALSE;
 
 // temporal database options
-boolean temporal_use_coalesce =	 TRUE;
-boolean temporal_use_normalization = TRUE;
+boolean temporal_use_coalesce =	 FALSE;
+boolean temporal_use_normalization = FALSE;
 boolean temporal_use_normalization_window = FALSE;
-boolean temporal_agg_combine_with_norm = TRUE;
+boolean temporal_agg_combine_with_norm = FALSE;
 
 // lateral rewrite for nesting operator
 boolean opt_lateral_rewrite = FALSE;
@@ -645,7 +645,7 @@ OptionInfo opts[] =
                        "-treeify-algebra-graphs",
                        "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
                        opt_treeify_opterator_model,
-                       TRUE),
+                       FALSE),
         aRewriteOption(OPTION_ALWAYS_TREEIFY,
                        "-treeify-all",
                        "Turn AGM graph into a tree passing it to serializer.",
@@ -897,7 +897,7 @@ OptionInfo opts[] =
                              "-Opullup_prov_projections",
                              "Optimization: try to pull up provenance projection",
                              opt_optimization_pulling_up_provenance_proj,
-                             TRUE
+                             FALSE
                              ),
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS,
                              "-Opush_selections_through_joins",
@@ -909,7 +909,7 @@ OptionInfo opts[] =
                              "-Oselection_move_around",
                              "Optimization: try to move selection operators around to push them down including side-way information passing",
                              opt_optimization_selection_move_around,
-                             TRUE
+                             FALSE
                              ),
 		anOptimizationOption(OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN,
 				             "-Opush_down_aggregation_through_join",
