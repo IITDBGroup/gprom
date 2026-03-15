@@ -328,7 +328,7 @@ postgresSerializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOper
  * Create the SELECT, GROUP BY, and HAVING clause as well as window functions
  */
 List *
-postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
+postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo selectOuter,
         StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api)
 {
     int pos = 0;
@@ -336,8 +336,8 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     List *aggs = NIL;
     List *groupBys = NIL;
     List *windowFs = NIL;
-//    List *secondProjs = NIL;
     List *resultAttrs = NIL;
+    StringInfo select = makeStringInfo();
 
 	//TODO remove result attributes for nested subqueries from projection when these subqueries are serialized into WHERE or HAVING
 
@@ -348,12 +348,6 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
     WindowOperator *winR = (WindowOperator *) m->windowRoot;
     UpdateAggAndGroupByAttrState *state = NULL;
     HashMap *winResultAttrNameToWinf = NEW_MAP(Constant,Constant);
-
-    appendStringInfoString(select, "\nSELECT ");
-    if (materialize)
-        appendStringInfoString(select, "/*+ materialize */ ");
-    if (m->distinct)
-        appendStringInfoString(select, " DISTINCT "); //TODO deal with distinct on attributes
 
     // Projection for aggregation inputs and group-by
     if (m->secondProj != NULL && (agg != NULL || winR != NULL))
@@ -625,6 +619,33 @@ postgresSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 
     if (state)
         FREE(state);
+
+    appendStringInfoString(selectOuter, "\nSELECT ");
+    if (materialize)
+    {
+        appendStringInfoString(selectOuter, "/*+ materialize */ ");
+    }
+    if (m->distinct)
+    {
+        DuplicateRemoval *d = (DuplicateRemoval *) m->distinct;
+        appendStringInfoString(selectOuter, "DISTINCT "); //TODO deal with distinct on attributes
+        if(d->attrs)
+        {
+            appendStringInfoString(selectOuter, "ON (");
+
+            // FIXME need to adjust input attributes
+            FOREACH(AttributeReference,a,d->attrs)
+            {
+                appendStringInfo(selectOuter, "%s%s",
+                                 a->name,
+                                 FOREACH_HAS_MORE(a) ? ", ": "");
+            }
+
+            appendStringInfoString(selectOuter, ") ");
+        }
+    }
+
+    appendStringInfo(selectOuter, "%s", select->data);
 
     return resultAttrs;
 }
