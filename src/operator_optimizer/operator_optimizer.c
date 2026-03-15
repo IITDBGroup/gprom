@@ -553,13 +553,19 @@ repairEmptyOperators(QueryOperator *op)
     // repair children first
     FOREACH(QueryOperator,c,op->inputs)
     {
+        boolean isRepaired;
+        isRepaired = repairEmptyOperators(c);
         childRepaired = childRepaired
-                        || repairEmptyOperators(c);
+                        || isRepaired;
     }
 
     if(childRepaired)
     {
         adaptSchemaFromChildren(op);
+        FOREACH(QueryOperator,c,op->inputs)
+        {
+            resetPosOfAttrRefBaseOnBelowLayerSchema(op, c, NULL);
+        }
         repaired = TRUE;
         SET_ICOLS(op, makeStrSetFromList(getQueryOperatorAttrNames(op)));
     }
@@ -1390,11 +1396,16 @@ getExpectedChildAttributes(QueryOperator *op, boolean right)
         {
             if(right)
             {
-                THROW(SEVERITY_RECOVERABLE, "no requirements on attributes of right attributes");
+                THROW(SEVERITY_RECOVERABLE,
+                      "no requirements on attributes of right attributes");
             }
             else
             {
                 List *anames = deepCopyStringList(getQueryOperatorAttrNames(op));
+                // if we only have the nesting result, then there are no LHS
+                // attributes
+                if(LIST_LENGTH(anames) == 1)
+                    return NIL;
                 return sublist(anames,0,-2);
             }
         }
