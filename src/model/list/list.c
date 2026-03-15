@@ -630,7 +630,7 @@ constStringListToStringList(List *list)
     List *result = NIL;
 
     FOREACH(Constant,el,list)
-        result = appendToTailOfList(result, STRING_VALUE(el));
+        result = appendToTailOfList(result, strdup(STRING_VALUE(el)));
 
     return result;
 }
