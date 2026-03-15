@@ -218,7 +218,10 @@ extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name, boolean adaptProvAttrs);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
-extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, Set *nestResultAttr);
+extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2,
+                                                      List *attrRefs,
+                                                      boolean adjustCorrelatedAttrs,
+                                                      Set *nestResAttr);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1,QueryOperator *op2, Set * nestResultAttr);
 extern void adaptSchemaFromChildren(QueryOperator *o);
 extern void projectionSetRenamedAttrs(QueryOperator *op);
@@ -282,9 +285,12 @@ extern LimitOperator *createLimitOp(Node *limitExpr, Node *offsetExpr, QueryOper
 
 extern QueryOperator *getFirstRoot(QueryOperator *op);
 extern boolean isChild(QueryOperator *child, boolean left);
-
+extern boolean isMyChild(QueryOperator *parent, QueryOperator *child, boolean left);
 #define IS_LEFT_CHILD(_op) isChild((QueryOperator *) _op, TRUE)
 #define IS_RIGHT_CHILD(_op) isChild((QueryOperator *) _op, FALSE)
+#define IS_OP_LCHILD(_op,_child) isMyChild((QueryOperator *) _op, (QueryOperator *) _child, TRUE)
+#define IS_OP_RCHILD(_op,_child) isMyChild((QueryOperator *) _op, (QueryOperator *) _child, FALSE)
+
 
 /* deal with properties */
 extern void setProperty(QueryOperator *op, Node *key, Node *value);
@@ -348,6 +354,7 @@ extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
 extern AttributeReference *getAttrRefByPos(QueryOperator *op, int pos);
 extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
+extern HashMap *getOpAttrToPosMap(QueryOperator *op);
 
 extern List *getCorrelatedAttrRefsInOperator(QueryOperator *op);
 extern List *getAttrRefsInOperator(QueryOperator *op);
@@ -376,6 +383,7 @@ extern int nestingOperatorGetNumResultAttrs(NestingOperator *op);
 extern char *getSingleNestingResultAttribute(NestingOperator *op);
 extern char *getNestingOperatorId(NestingOperator *op);
 extern Set *getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery);
+extern List *getNestingCorrelatedAttrReferences(NestingOperator *op, boolean corrInSubquery);
 extern Set *getCorrelatedAttributes(Node *op, boolean corrInSubquery);
 extern boolean noCorrelationBelowNormalization(Node *op, boolean corrInSubquery);
 #define IS_LATERAL(_op) (((NestingOperator *) _op)->nestingType == NESTQ_LATERAL)

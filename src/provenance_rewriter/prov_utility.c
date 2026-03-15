@@ -182,6 +182,8 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
     ProjectionOperator *p;
     List *projExprs = NIL;
     List *attrNames = NIL;
+    List *newProvAttrs = NIL;
+    int curpos = 0;
 
     FOREACH_INT(i,attrPos)
     {
@@ -191,12 +193,17 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
         att = createFullAttrReference(strdup(a->attrName), 0, i, 0, a->dataType);
         projExprs = appendToTailOfList(projExprs, att);
         attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+        if(searchListInt(op->provAttrs, i))
+        {
+            newProvAttrs = appendToTailOfListInt(newProvAttrs, curpos);
+        }
+        curpos++;
     }
 
     DEBUG_LOG("projection expressions: %s", nodeToString((Node*) projExprs));
 
     p = createProjectionOp(projExprs, NULL, NIL, attrNames);
-    p->op.provAttrs = copyObject(op->provAttrs); //TODO create real prov attrs list
+    p->op.provAttrs = newProvAttrs;
 
     return (QueryOperator *) p;
 }

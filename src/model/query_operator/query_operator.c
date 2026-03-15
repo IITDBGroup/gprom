@@ -25,11 +25,18 @@
 
 typedef struct CorrelatedAttrsState {
 	int curDepth;
+	List *result;
+	boolean corrInsideSubquery;
+} CorrelatedAttrsState;
+
+typedef struct CanStayCorrelatedState {
+	int curDepth;
 	Set *result;
 	boolean corrInsideSubquery;
 	boolean childrenCanBeKeptCorrelated;
     boolean seenNormalization;
-} CorrelatedAttrsState;
+} CanStayCorrelatedState;
+
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
@@ -39,9 +46,11 @@ static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
         Set *haveSeen);
 static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
-static boolean canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state);
+static boolean canStayCorrelatedVisitor(Node *n, CanStayCorrelatedState *state);
 static boolean isAttrCorrelatedFilter(void *a, void *context);
+static boolean isChildAttrFilter(void *a, void *left);
 static char *stringKeyAndValHashMapToString(HashMap *hm);
+static Set *getAttrNameSetFromRefList(List *refs);
 
 QueryOperator *
 findNestingOperator(QueryOperator *op, int levelsUp)
@@ -239,27 +248,43 @@ deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 }
 
 void
-reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, Set *nestResultAttr)
+reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, boolean adjustCorrelatedAttrs, Set *nestResultAttr)
 {
-	int cnt;
+	/* int cnt; */
+    HashMap *childAttrToPos = getOpAttrToPosMap(op2);
+
 	DEBUG_LOG("resetAttrRefs %s\nbased references: %s",
 			  NodeTagToString(op2->type),
 			  beatify(nodeToString(attrRefs)));
-    DEBUG_OP_LOG("tree", op2);
+    DEBUG_SINGLE_OP_LOG("child", op2);
+
 	FOREACH(AttributeReference,a1,attrRefs)
 	{
-	    cnt = 0;
-        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-        {
+	    /* cnt = 0; */
+        ASSERT(a1->outerLevelsUp >= 0 || isNestingAttribute(a1->name));
 
-            if(strpeq(a1->name, a2->attrName) && !(nestResultAttr && hasSetElem(nestResultAttr, a1->name)))
+        // ignore correlated attributes unless we are asked to adjust them
+        if(a1->outerLevelsUp <= 0 || adjustCorrelatedAttrs)
+        {
+            // do not adjust provide nesting attributes that may have been removed already
+            if(!(nestResultAttr && hasSetElem(nestResultAttr, a1->name)))
             {
-                a1->attrPosition = cnt;
-                DEBUG_LOG("set attr %s position to %d", a1->name, cnt);
-                break;
+                ASSERT(MAP_HAS_STRING_KEY(childAttrToPos, a1->name));
+                a1->attrPosition = INT_VALUE(MAP_GET_STRING(childAttrToPos, a1->name));
             }
-            cnt++;
         }
+
+        /* FOREACH(AttributeDef, a2, op2->schema->attrDefs) */
+        /* { */
+
+        /*     if(strpeq(a1->name, a2->attrName) && !(nestResultAttr && hasSetElem(nestResultAttr, a1->name))) */
+        /*     { */
+        /*         a1->attrPosition = cnt; */
+        /*         DEBUG_LOG("set attr %s position to %d", a1->name, cnt); */
+        /*         break; */
+        /*     } */
+        /*     cnt++; */
+        /* } */
 	}
 }
 
@@ -294,7 +319,11 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *ch
 	else if (isA(parent,JoinOperator))
 	{
 		Node *cond = ((JoinOperator *)parent)->cond;
+        boolean isLeft = IS_OP_LCHILD(parent,child);
+
 		attrRefs = getAttrReferences(cond);
+        // only retain references from the right input
+        attrRefs = genericSublist(attrRefs, isChildAttrFilter, &isLeft);
 	}
 	else if (isA(parent,AggregationOperator))
 	{
@@ -310,6 +339,13 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *ch
 	else if (isA(parent,NestingOperator))
 	{
 		attrRefs = getAttrReferences((Node *) ((NestingOperator *) parent)->cond);
+        // when the left child of a nesting operator was changed, then need to
+        // adjust correlated attribute references to that child
+        if(IS_OP_LCHILD(parent,child))
+        {
+            List *corrAttrs = getNestingCorrelatedAttrReferences((NestingOperator *) parent, FALSE);
+            reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, corrAttrs, TRUE, nestResultAttr);
+        }
 	}
 	else if (isA(parent,WindowOperator))
 	{
@@ -328,7 +364,7 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *ch
 	{
 		attrRefs = getAttrReferences((Node *) ((OrderOperator *) parent)->orderExprs);
 	}
-    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, attrRefs, nestResultAttr);
+    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, attrRefs, FALSE, nestResultAttr);
 }
 
 /*List *
@@ -987,6 +1023,12 @@ isChild(QueryOperator *child, boolean left)
     return FALSE;
 }
 
+boolean
+isMyChild(QueryOperator *parent, QueryOperator *child, boolean left)
+{
+    return (left && OP_LCHILD(parent) == child)
+           || (!left && OP_RCHILD(parent) == child);
+}
 
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
@@ -1543,6 +1585,21 @@ getAttrNameByPos(QueryOperator *op, int pos)
     return getAttrDefByPos(op, pos)->attrName;
 }
 
+HashMap *
+getOpAttrToPosMap(QueryOperator *op)
+{
+    HashMap *result = NEW_MAP(Constant, Constant);
+    int pos = 0;
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        MAP_ADD_STRING_KEY(result, a->attrName, createConstInt(pos));
+        pos++;
+    }
+
+    return result;
+}
+
 AttributeReference *
 getAttrRefByPos (QueryOperator *op, int pos)
 {
@@ -1595,6 +1652,14 @@ isAttrCorrelatedFilter(void *a, void *context)
     return isAttrCorrelated((AttributeReference *) a);
 }
 
+static boolean
+isChildAttrFilter(void *a, void *left)
+{
+    boolean isLeft = *((boolean *) left);
+    AttributeReference *at = (AttributeReference *) a;
+    return (isLeft && at->fromClauseItem == 0)
+           || (!isLeft && at->fromClauseItem == 1);
+}
 
 List *
 getAttrRefsInOperator(QueryOperator *op)
@@ -1918,6 +1983,18 @@ getSingleNestingResultAttribute(NestingOperator *op)
     return getHeadOfListP(attrs);
 }
 
+static Set *
+getAttrNameSetFromRefList(List *refs)
+{
+    Set *result = STRSET();
+
+    FOREACH(AttributeReference,a,refs)
+    {
+        addToSet(result, strdup(a->name));
+    }
+
+    return result;
+}
 
 /**
  * @brief Determine all correlated attributes from the outer query.
@@ -1932,21 +2009,42 @@ getSingleNestingResultAttribute(NestingOperator *op)
 Set *
 getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
 {
-	Set *result = STRSET();
-	CorrelatedAttrsState state = { 1, result, corrInSubquery };
+	Set *result;
+    List *attrRefs;
+	CorrelatedAttrsState state = { 1, NIL, corrInSubquery };
 
 	findCorrelatedAttrsVisitor((Node *) OP_RCHILD(op), &state);
 
+    attrRefs = state.result;
+    result = getAttrNameSetFromRefList(attrRefs);
+
 	return result;
+}
+
+// Here it is critical not to return copies of attribute references as callers
+// may want to adjust the original attribute references.
+List *
+getNestingCorrelatedAttrReferences(NestingOperator *op, boolean corrInSubquery)
+{
+    List *result;
+	CorrelatedAttrsState state = { 1, NIL, corrInSubquery };
+
+    findCorrelatedAttrsVisitor((Node *)op, &state);
+    result = state.result;
+
+    return result;
 }
 
 Set *
 getCorrelatedAttributes(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
 {
-	Set *result = STRSET();
-	CorrelatedAttrsState state = { 1, result, corrInSubquery };
+	Set *result;
+    List *attrRefs;
+	CorrelatedAttrsState state = { 1, NIL, corrInSubquery };
 
 	findCorrelatedAttrsVisitor((Node *)op, &state);
+    attrRefs = state.result;
+    result = getAttrNameSetFromRefList(attrRefs);
 
 	return result;
 }
@@ -1956,7 +2054,7 @@ noCorrelationBelowNormalization(Node *op, boolean corrInSubquery) // boolean tra
 {
 	Set *result = STRSET();
 
-	CorrelatedAttrsState state = { 1, result, corrInSubquery, TRUE };
+	CanStayCorrelatedState state = { 1, result, corrInSubquery, TRUE };
 
 	canStayCorrelatedVisitor((Node *)op, &state);
 
@@ -2000,7 +2098,7 @@ findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
 		if(a->outerLevelsUp == state->curDepth
 		   || (a->outerLevelsUp > 0 && state->corrInsideSubquery))
 		{
-			addToSet(state->result, strdup(a->name));
+			state->result = appendToTailOfList(state->result, a);
 		}
 	}
 	if(isA(n, NestingOperator))
@@ -2022,7 +2120,7 @@ findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
 
 
 static boolean
-canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
+canStayCorrelatedVisitor(Node *n, CanStayCorrelatedState *state)
 {
 	if (n == NULL)
 		return TRUE;
@@ -2056,7 +2154,7 @@ canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
 	if(isA(n, NestingOperator))
 	{
 		NestingOperator *no = (NestingOperator *) n;
-		CorrelatedAttrsState newState = *state;
+		CanStayCorrelatedState newState = *state;
 		newState.curDepth++;
         newState.seenNormalization = FALSE; // Reset as we descend into children nesting operators
 
@@ -2068,10 +2166,12 @@ canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
         state->childrenCanBeKeptCorrelated &= newState.childrenCanBeKeptCorrelated;
         return TRUE;
 	}
-    else if(IS_OP(n)) {
+    else if(IS_OP(n))
+    {
         QueryOperator *q = (QueryOperator *) n;
 
-        if(isA(q->properties, HashMap) && MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE)) {
+        if(isA(q->properties, HashMap) && MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE))
+        {
             state->seenNormalization = TRUE;
             FOREACH(QueryOperator, a, q->inputs) {
                 visit((Node *)a, canStayCorrelatedVisitor, state);
@@ -2091,7 +2191,6 @@ canStayCorrelatedVisitor(Node *n, CorrelatedAttrsState *state)
             state->childrenCanBeKeptCorrelated = (!state->seenNormalization && a->outerLevelsUp <= 1) && state->childrenCanBeKeptCorrelated;
 		}
 	}
-
 
 	return visit(n, canStayCorrelatedVisitor, state);
 }
@@ -2274,7 +2373,7 @@ adaptSchemaFromChildren(QueryOperator *o)
         case T_ProjectionOperator: // TODO do not rename attribute if this is already a rename
         {
             ProjectionOperator *p = (ProjectionOperator *) o;
-            Set *renamedAttrs = (Set *) GET_STRING_PROP(o, PROP_PROJ_RENAMED_ATTRS);
+            //Set *renamedAttrs = (Set *) GET_STRING_PROP(o, PROP_PROJ_RENAMED_ATTRS);
             Set *childNames = makeStrSetFromList(getQueryOperatorAttrNames(OP_LCHILD(p)));
             List *newAttrDefs = NIL;
             List *newProjs = NIL;
@@ -2287,12 +2386,12 @@ adaptSchemaFromChildren(QueryOperator *o)
                     AttributeReference *ref = (AttributeReference *) proj;
                     if(hasSetElem(childNames, ref->name))
                     {
-                        if(!strpeq(aDef->attrName, ref->name)
-                           && (!renamedAttrs
-                               || !hasSetElem(renamedAttrs, aDef->attrName)))
-                        {
-                            aDef->attrName = strdup(ref->name);
-                        }
+                        /* if(strpeq(aDef->attrName, ref->name) */
+                        /*    && (!renamedAttrs */
+                        /*        || !hasSetElem(renamedAttrs, aDef->attrName))) */
+                        /* { */
+                        /*     aDef->attrName = strdup(ref->name); */
+                        /* } */
                         newAttrDefs = appendToTailOfList(newAttrDefs, aDef);
                         newProjs = appendToTailOfList(newProjs, proj);
                     }
@@ -2320,7 +2419,6 @@ adaptSchemaFromChildren(QueryOperator *o)
             // adjust projection expressions
             p->op.schema->attrDefs = newAttrDefs;
             p->projExprs = newProjs;
-
         }
         break;
         case T_JoinOperator:
@@ -2329,27 +2427,36 @@ adaptSchemaFromChildren(QueryOperator *o)
             List *lAttrs = copyObject(OP_LCHILD(o)->schema->attrDefs);
             List *rAttrs = copyObject(OP_RCHILD(o)->schema->attrDefs);
 
-            // if join operator
+            // if join operator has out to inputs stored already, then use these
+            // to retain renaming
             if(HAS_STRING_PROP(j, PROP_STORE_JOIN_OUT_TO_LEFT)
                && HAS_STRING_PROP(j, PROP_STORE_JOIN_OUT_TO_RIGHT))
             {
-                HashMap *leftToOut = invertKeyValues(joinGetChildAttrToResultAttr(j, TRUE));
-                HashMap *rightToOut = invertKeyValues(joinGetChildAttrToResultAttr(j, FALSE));
+                HashMap *leftToOut = invertKeyValues((HashMap *) GET_STRING_PROP(j, PROP_STORE_JOIN_OUT_TO_LEFT));
+                HashMap *rightToOut = invertKeyValues((HashMap *) GET_STRING_PROP(j, PROP_STORE_JOIN_OUT_TO_RIGHT));
 
+                // input operator may have renamed attribute, so only map to
+                // output if we can find the input attr in the input-to-output
+                // mapping for this child
                 FOREACH(AttributeDef,a,lAttrs)
                 {
-                    ASSERT(hasMapStringKey(leftToOut, a->attrName));
+                    //ASSERT(hasMapStringKey(leftToOut, a->attrName));
 
-                    a->attrName = MAP_GET_STRING_VAL_FOR_STRING_KEY(leftToOut, a->attrName);
+                    if(hasMapStringKey(leftToOut, a->attrName))
+                    {
+                        a->attrName = MAP_GET_STRING_VAL_FOR_STRING_KEY(leftToOut, a->attrName);
+                    }
                 }
 
                 FOREACH(AttributeDef,a,rAttrs)
                 {
-                    ASSERT(hasMapStringKey(rightToOut, a->attrName));
+                    //ASSERT(hasMapStringKey(rightToOut, a->attrName));
 
-                    a->attrName = MAP_GET_STRING_VAL_FOR_STRING_KEY(rightToOut, a->attrName);
+                    if(hasMapStringKey(rightToOut, a->attrName))
+                    {
+                        a->attrName = MAP_GET_STRING_VAL_FOR_STRING_KEY(rightToOut, a->attrName);
+                    }
                 }
-
             }
             o->schema->attrDefs = CONCAT_LISTS(lAttrs, rAttrs);
         }

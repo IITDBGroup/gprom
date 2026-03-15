@@ -71,7 +71,7 @@ static Set *castsAsSet(DataType in);
 
 
 AttributeReference *
-createAttributeReference (char *name)
+createAttributeReference(char *name)
 {
     AttributeReference *result = makeNode(AttributeReference);
 
@@ -85,7 +85,7 @@ createAttributeReference (char *name)
 }
 
 AttributeReference *
-createFullAttrReference (char *name, int fromClause, int attrPos,
+createFullAttrReference(char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType)
 {
     AttributeReference *result = makeNode(AttributeReference);

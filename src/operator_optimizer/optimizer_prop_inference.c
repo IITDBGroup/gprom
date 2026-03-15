@@ -2855,8 +2855,7 @@ computeReqColPropInternal(QueryOperator *root)
 
 		MERGE_INTO_CHILD_ICOLS(child,icols);
 	}
-
-	if(isA(root, ProjectionOperator))
+	else if(isA(root, ProjectionOperator))
 	{
 		//Get Reference Attribute Names and put it into a set
         Schema *opSchema = ((ProjectionOperator *)root)->op.schema;
@@ -2885,17 +2884,18 @@ computeReqColPropInternal(QueryOperator *root)
 		MERGE_INTO_CHILD_ICOLS(child,eicols);
 	}
     // need columns on which we wanted to eliminate duplicates on
-	if(isA(root, DuplicateRemoval))
+	else if(isA(root, DuplicateRemoval))
 	{
 		Set *eicols = copyObject(icols);
 		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root),eicols);
 	}
-
-	if (isA(root, JoinOperator))
+	else if (isA(root, JoinOperator))
 	{
 		JoinOperator *j = (JoinOperator *) root;
 		HashMap *outToLeft = joinGetChildAttrToResultAttr(j, TRUE);
 		HashMap *outToRight = joinGetChildAttrToResultAttr(j, FALSE);
+		HashMap *leftToOut = invertKeyValues(outToLeft);
+		HashMap *rightToOut = invertKeyValues(outToRight);
 		Set *leftOutputAttrs = getStringKeySet(outToLeft);
 		Set *rightOutputAttrs = getStringKeySet(outToRight);
 		Set *licols;
@@ -2928,10 +2928,21 @@ computeReqColPropInternal(QueryOperator *root)
 			FOREACH(AttributeReference,a,attrRefs)
 			{
 				char *name = strdup(a->name);
+				char *outname;
 				boolean isleft = a->fromClauseItem == 0;
 				Set *into = isleft ? licols : ricols;
 
 				addToSet(into, name);
+
+				if(isleft)
+				{
+					outname = MAP_GET_STRING_VAL_FOR_STRING_KEY(leftToOut, name);
+				}
+				else
+				{
+					outname = MAP_GET_STRING_VAL_FOR_STRING_KEY(rightToOut, name);
+				}
+				addToSet(icols, outname);
 			}
 		}
 
@@ -2939,8 +2950,7 @@ computeReqColPropInternal(QueryOperator *root)
 		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), licols);
 		MERGE_INTO_CHILD_ICOLS(OP_RCHILD(root), ricols);
 	}
-
-	if(isA(root, AggregationOperator))
+	else if(isA(root, AggregationOperator))
 	{
 		AggregationOperator *agg = (AggregationOperator *) root;
 		Set *set = STRSET();
@@ -2970,8 +2980,7 @@ computeReqColPropInternal(QueryOperator *root)
 
 		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), set);
 	}
-
-	if(isA(root,OrderOperator))
+	else if(isA(root,OrderOperator))
 	{
 		//Get attributes from order by
 		Set *ordSet = STRSET();
@@ -2990,8 +2999,7 @@ computeReqColPropInternal(QueryOperator *root)
 		unionIntoSet(icols,ordSet);
 		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), icols);
 	}
-
-	if(isA(root,WindowOperator))
+	else if(isA(root,WindowOperator))
 	{
 		/*
 		 * Get need attribute name in window function, such as the attributes
@@ -3044,7 +3052,7 @@ computeReqColPropInternal(QueryOperator *root)
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 
 	}
-	if(isA(root,JsonTableOperator))
+	else if(isA(root,JsonTableOperator))
 	{
 		char *b = ((JsonTableOperator *)root)->jsonColumn->name;
 		Set *doc = MAKE_STR_SET(b);
@@ -3059,8 +3067,7 @@ computeReqColPropInternal(QueryOperator *root)
 		Set *eicols = intersectSets(newIcols, childAttrNames);
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
-
-	if(isA(root, SetOperator))
+	else if(isA(root, SetOperator))
 	{
         Set *rightIcols = STRSET();
         QueryOperator *lchild = OP_LCHILD(root);
@@ -3080,17 +3087,15 @@ computeReqColPropInternal(QueryOperator *root)
 
 		MERGE_INTO_CHILD_ICOLS(rchild, rightIcols); //FIXME attributes of right input may be named differently!
 	}
-
     // for a limit operator just merge into children
-    if (isA(root,LimitOperator))
+    else if (isA(root,LimitOperator))
     {
 		MERGE_INTO_CHILD_ICOLS(OP_LCHILD(root), icols);
     }
-
 	// for a nesting operator we need the columns to compute its expression as
 	// well as the columns from the left input that are correlated in the right
 	// input
-	if(isA(root, NestingOperator))
+	else if(isA(root, NestingOperator))
 	{
 		NestingOperator *n = (NestingOperator *) root;
 	    Set *condCols = makeStrSetFromList(attrRefListToStringList(getAttrReferences(n->cond)));
@@ -3166,6 +3171,23 @@ computeReqColPropInternal(QueryOperator *root)
 
             /* MERGE_INTO_CHILD_ICOLS(rchild, nestingResultSet); */
         }
+	}
+	else if (isA(root, ProvenanceComputation))
+	{
+		QueryOperator *child = OP_LCHILD(root);
+
+		MERGE_INTO_CHILD_ICOLS(child,icols);
+	}
+	else if (isA(root, TableAccessOperator)
+			 || isA(root,ConstRelOperator))
+	{
+		// leaf operators
+	}
+	else
+	{
+		THROW(SEVERITY_RECOVERABLE,
+			  "do not support for computing icols for this operator type yet: %s",
+			  singleOperatorToOverview(root));
 	}
 
 	DEBUG_LOG("ICOLS: %s for [%s]", nodeToString(icols), singleOperatorToOverview(root));
@@ -3632,6 +3654,13 @@ removePropsVisitor(QueryOperator *op, void *context)
     removeStringProperty(op, PROP_STORE_MIN_MAX);
     removeStringProperty(op, PROP_STORE_MIN_MAX_ATTRS);
     removeStringProperty(op, PROP_STORE_MIN_MAX_DONE);
+    removeStringProperty(op, PROP_ORIGINAL_ATTR_LIST);
+    removeStringProperty(op, PROP_ORIGINAL_PROV_SET);
+    removeStringProperty(op, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE);
+    removeStringProperty(op, PROP_STORE_LIST_KEY_DONE);
+    removeStringProperty(op, PROP_STORE_SET_ICOLS_DONE);
+    removeStringProperty(op, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE);
+    removeStringProperty(op, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
 
     return TRUE;
 }

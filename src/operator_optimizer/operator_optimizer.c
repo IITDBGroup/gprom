@@ -106,7 +106,7 @@ static QueryOperator *mergeAdjacentOperatorInternal (QueryOperator *root);
 /* remove unnecesary operators and colors */
 static QueryOperator *removeRedundantProjectionsInternal(QueryOperator *root);
 static boolean isSingleRowOperator(QueryOperator *op);
-static QueryOperator *removeOrFixDeadOperators(QueryOperator *op);
+static QueryOperator *removeDeadOperators(QueryOperator *op);
 static List *getExpectedChildAttributes(QueryOperator *op, boolean right);
 static QueryOperator *removeRedundantDuplicateOperatorByKeyInternal(QueryOperator *root);
 static QueryOperator *removeUnnecessaryWindowOperatorInternal(QueryOperator *root);
@@ -158,8 +158,10 @@ optimizeOneGraph(QueryOperator *root)
     INFO_LOG("numHeuOptItens = %d",numHeuOptItens);
     ERROR_LOG("callback = %d",res);
     ERROR_LOG("numHeuOptItens = %d",numHeuOptItens);
+
     while(c <= res)
     {
+        // apply optimization rules
     	APPLY_AND_TIME_OPT("factor attributes in conditions",
     			factorAttrsInExpressions,
 				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
@@ -348,8 +350,8 @@ upCheckResetPos(QueryOperator *op)
         {
             projectionSetRenamedAttrs(parent);
         }
-		resetPosOfAttrRefBaseOnBelowLayerSchema(parent, op, NULL);
         adaptSchemaFromChildren(parent);
+		resetPosOfAttrRefBaseOnBelowLayerSchema(parent, op, NULL);
 		upCheckResetPos(parent);
 	}
 }
@@ -361,6 +363,7 @@ removeUnnecessaryWindowOperator(QueryOperator *root)
     ensureIcols(root, FALSE);
 
     root = removeUnnecessaryWindowOperatorInternal(root);
+	repairEmptyOperators(root);
     removeProp(root, PROP_OPT_REMOVE_RED_WIN_DONW);
     return root;
 }
@@ -381,36 +384,13 @@ removeUnnecessaryWindowOperatorInternal(QueryOperator *root)
 			// Remove root and make lChild as the new root
 			//switchSubtree((QueryOperator *) root, (QueryOperator *) lChild);
 			switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
-			root = lChild;
-
-			/* //delete the funcName in its parents' schema attrdefs */
-			/* List *newAttrDefs = NIL; */
-			/* FOREACH(QueryOperator, op, root->parents) */
-			/* { */
-			/* 	FOREACH(AttributeDef, ad, op->schema->attrDefs) */
-		    /*     { */
-			/* 	     if(!streq(funcName, ad->attrName)) */
-			/* 	    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad); */
-		    /*     } */
-		    /*     op->schema->attrDefs = newAttrDefs; */
-
-		    /*     if(isA(op, ProjectionOperator)) */
-		    /*     { */
-		    /*     	ProjectionOperator *pj = (ProjectionOperator *) op; */
-		    /*     	List *newAttrRefs = NIL; */
-			/* 		FOREACH(AttributeReference, ar, pj->projExprs) */
-			/*         { */
-			/* 		     if(!streq(funcName, ar->name)) */
-			/* 		    	 newAttrRefs = appendToTailOfList(newAttrRefs, ar); */
-			/*         } */
-			/* 		pj->projExprs = newAttrRefs; */
-			/* 		resetPosOfAttrRefBaseOnBelowLayerSchema(op, root, NULL); */
-		    /*     } */
-			/* } */
 
 			//Because remove one attribute in schema, so need to reset pos in every above operators
-			upCheckResetPos(root);
+			upCheckResetPos(lChild);
 
+            // need to continue with lchild instead of moving on to its children
+            // in case lchild is a window operator
+            return removeUnnecessaryWindowOperatorInternal(lChild);
         }
     }
 
@@ -444,12 +424,15 @@ removeUnnecessaryColumns(QueryOperator *root)
 
     // remove unnecessary columns
 	removeUnnecessaryColumnsFromProjections(root);
+    LOG_OPT_OP("", "Remove Unnecessary columns", root);
 
     // this can result in a query where some operators have no attributes which
     // in general is not supported in GProM. We now repair this by removing
     // operators with no columns where possible and repair the remaining cases.
-    root = removeOrFixDeadOperators(root);
+    root = removeDeadOperators(root);
+    LOG_OPT_OP("", "Removed dead operators", root);
     repairEmptyOperators(root);
+    LOG_OPT_OP("", "Fix empty operators", root);
     Set *done = PSET();
     disambiguateAttrNames((Node *) root, done);
 
@@ -459,7 +442,7 @@ removeUnnecessaryColumns(QueryOperator *root)
 #define IS_DEAD(_op) (LIST_LENGTH(_op->schema->attrDefs) == 0)
 
 static QueryOperator *
-removeOrFixDeadOperators(QueryOperator *op)
+removeDeadOperators(QueryOperator *op)
 {
     // if one of the inputs is dead, then eliminate the join
     if(IS_BINARY_OP(op))
@@ -480,7 +463,7 @@ removeOrFixDeadOperators(QueryOperator *op)
                     DEBUG_OP_LOG("remove join as its left input is dead", op);
                     INFO_SINGLE_OP_LOG("remove join as left child is dead", op);
                     switchSubtreeWithExisting(op, rchild);
-                    return removeOrFixDeadOperators(rchild);
+                    return removeDeadOperators(rchild);
                 }
             }
             if(IS_DEAD(rchild))
@@ -492,7 +475,7 @@ removeOrFixDeadOperators(QueryOperator *op)
                     DEBUG_OP_LOG("remove join as its right child is dead", op);
                     INFO_SINGLE_OP_LOG("remove join as right child is dead", op);
                     switchSubtreeWithExisting(op, lchild);
-                    return removeOrFixDeadOperators(lchild);
+                    return removeDeadOperators(lchild);
                 }
             }
         }
@@ -529,14 +512,14 @@ removeOrFixDeadOperators(QueryOperator *op)
                 DEBUG_OP_LOG("remove nesting operator as its right input is dead", op);
                 INFO_SINGLE_OP_LOG("remove nesting operator as right child is dead", op);
                 switchSubtreeWithExisting(op, lchild);
-                return removeOrFixDeadOperators(lchild);
+                return removeDeadOperators(lchild);
             }
         }
     }
 
     FOREACH(QueryOperator,c,op->inputs)
     {
-        removeOrFixDeadOperators(c);
+        removeDeadOperators(c);
     }
 
     return op;
@@ -562,6 +545,10 @@ repairEmptyOperators(QueryOperator *op)
     if(childRepaired)
     {
         adaptSchemaFromChildren(op);
+        if(isA(op,JoinOperator))
+        {
+            makeAttrNamesUnique(op);
+        }
         FOREACH(QueryOperator,c,op->inputs)
         {
             resetPosOfAttrRefBaseOnBelowLayerSchema(op, c, NULL);
@@ -1113,16 +1100,16 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                 resetPosOfAttrRefBaseOnBelowLayerSchema(root,child, NULL);
 
                 //if up layer is projection, reset the pos of up layer's reference
-                if(root->parents != NIL)
-                {
-            	    QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents);
-            	    if(isA(p, ProjectionOperator))
-            	    {
-            		    QueryOperator *r = root;
-            		    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r, NULL);
-            	    }
+                /* if(root->parents != NIL) */
+                /* { */
+            	/*     QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents); */
+            	/*     if(isA(p, ProjectionOperator)) */
+            	/*     { */
+            	/* 	    QueryOperator *r = root; */
+            	/* 	    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)p,(QueryOperator *)r, NULL); */
+            	/*     } */
 
-                }
+                /* } */
             }
 		}
 		else
@@ -1209,7 +1196,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                 p = createProjOnAttrsByName(child,
                                             deepCopyStringList(expectedChildAttributes),
                                             deepCopyStringList(expectedChildAttributes));
-
+				// store icols
+                COPY_STRING_PROP(child,p,PROP_ORIGINAL_ATTR_LIST);
+				SET_STRING_PROP(p,
+								PROP_STORE_SET_ICOLS,
+								makeStrSetFromList(expectedChildAttributes));
                 // replace child with p in root
                 removeParent(child, root);
                 addChildOperator((QueryOperator *) p, child);
@@ -1236,6 +1227,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                                             deepCopyStringList(expectedChildAttributes));
                 /* SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs); */
                 COPY_STRING_PROP(lchild,p,PROP_ORIGINAL_ATTR_LIST);
+				SET_STRING_PROP(p,
+								PROP_STORE_SET_ICOLS,
+								makeStrSetFromList(expectedChildAttributes));
 
                 // replace lchild with p in parent
                 removeParent(lchild, root);
@@ -1266,6 +1260,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                                                 deepCopyStringList(expectedChildAttributes));
                     /* SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs); */
                     COPY_STRING_PROP(rchild,p,PROP_ORIGINAL_ATTR_LIST);
+					SET_STRING_PROP(p,
+								PROP_STORE_SET_ICOLS,
+								makeStrSetFromList(expectedChildAttributes));
 
                     // replace rchild with p in parent
                     removeParent(rchild, root);

@@ -3213,7 +3213,7 @@ rewriteUserQuestion (List *userQ, Node *rewrittenTree)
 	FOREACH(AttributeDef,a,inOp->schema->attrDefs)
 	{
 		inputAttrRefs = appendToTailOfList(inputAttrRefs,
-				createFullAttrReference(strdup(a->attrName), 0, pos, -1, a->dataType));
+				createFullAttrReference(strdup(a->attrName), 0, pos, -1, a->dataType)); // TODO check that this is ok
 	}
 
 	// check the list for constant value to create sel condition
