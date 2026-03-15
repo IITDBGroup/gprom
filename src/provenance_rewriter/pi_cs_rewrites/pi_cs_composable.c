@@ -127,7 +127,7 @@ rewritePI_CSComposable (ProvenanceComputation *op)
         List *attrNames = getQueryOperatorAttrNames((QueryOperator *) op);
         QueryOperator *p = createProjOnAttrsByName(rewRoot, attrNames, attrNames);
         p->parents = rewRoot->parents;
-        rewRoot->parents = singleton(p);
+        rewRoot->parents = NIL;
         addChildOperator(p, rewRoot);
         rewRoot = p;
     }
@@ -276,7 +276,7 @@ rewritePI_CSComposableOperator (QueryOperator *op, PICSComposableRewriteState *s
                 }
                 else
                 {
-                       op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op, state);
+                    op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op, state);
                 }
 
                 rewrittenOp = op1;
@@ -359,7 +359,7 @@ rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteS
 	List *oldAttrs;
 	List *newAttrs;
 
-	DEBUG_NODE_BEATIFY_LOG("reuse rewritten subquery: ", rewrOp);
+	DEBUG_OP_LOG("reuse rewritten subquery: ", rewrOp);
 
 	// create new provenance attribute names
 	FOREACH(KeyValue,k,opGetProvAttrInfo(rewrOp))
@@ -663,9 +663,8 @@ rewritePI_CSComposableAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(strdup(attr->attrName)));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(
-                attr->attrName, 0, cnt, 0, attr->dataType));
+        projExpr = appendToTailOfList(projExpr,
+                                      createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -679,6 +678,7 @@ rewritePI_CSComposableAddProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
         provAttr = appendToTailOfList(provAttr, newAttrName);
         cnt = getAttrPos(op,name);
         a = getAttrDefByPos(op,cnt);
+        provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(strdup(name)));
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(name, 0,
                 cnt, 0, a->dataType));
     }
@@ -747,6 +747,7 @@ rewritePI_CSComposableUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
     int relAccessCount;
     char *tableName; // = "USER";
     boolean isTableAccess = isA(op,TableAccessOperator);
+    List *provAttrsOnly = NIL;
 
     if (isTableAccess)
         tableName = ((TableAccessOperator *) op)->tableName;
@@ -783,6 +784,7 @@ rewritePI_CSComposableUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
             name = getProvenanceAttrName(tableName, name, relAccessCount);
             attr->attrName = name;
             provAttrs = appendToTailOfListInt(provAttrs, pos);
+            provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(name));
 
             // in parent operators adapt attribute references to use new name
             FOREACH(QueryOperator,p,proj->parents)
@@ -819,6 +821,11 @@ rewritePI_CSComposableUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
 
         SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
 
+        // prov info (key: TABLE_NAME, value: (ATTRIBUTES))
+	    List *provInfo = singleton(createNodeKeyValue((Node *) createConstString(tableName),
+										              (Node *) provAttrsOnly));
+	    SET_STRING_PROP(proj, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+
         if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
             ASSERT(checkModel(proj));
 
@@ -840,6 +847,7 @@ rewritePI_CSComposableUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
             name = getProvenanceAttrName(tableName, name, relAccessCount);
             attr->attrName = name;
             provAttrs = appendToTailOfListInt(provAttrs, pos);
+            provAttrsOnly = appendToTailOfList(provAttrsOnly, createConstString(name));
 
             // in parent operators adapt attribute references to use new name
             FOREACH(QueryOperator,p,op->parents)
@@ -888,6 +896,12 @@ rewritePI_CSComposableUseProvNoRewrite(QueryOperator *op, List *userProvAttrs, P
         SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(curPos));
         SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(curPos + 1));
         SET_BOOL_STRING_PROP(projOp, PROP_PROJ_PROV_ATTR_DUP);
+
+        // prov info (key: TABLE_NAME, value: (ATTRIBUTES))
+	    List *provInfo = singleton(createNodeKeyValue((Node *) createConstString(tableName),
+										              (Node *) provAttrsOnly));
+	    SET_STRING_PROP(proj, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+
 
         return projOp;
     }
@@ -1036,9 +1050,7 @@ rewritePI_CSComposableJoin(JoinOperator *op, PICSComposableRewriteState *state)
     List *resultTidAndProvCount = NIL;
     List *projExpr;
     ProjectionOperator *proj;
-    QueryOperator *projInput = rewr; /* (noDupInput) ? */
-            /* (QueryOperator *) rewr : */
-            /* (QueryOperator *) wOp; */
+    QueryOperator *projInput = rewr;
 
     // get special attributes from window op or create projection expression for them
     if (!noDupInput)
@@ -1297,7 +1309,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSComposab
             char *name = getNthOfListP(groupByNames, pos);
             AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, 0, a->attrType);
             AttributeReference *rA = createFullAttrReference(
-                    CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR, a->attrType);
+                    CONCAT_STRINGS("_P_SIDE_",name), 1, pos, 0, a->attrType);
             if(joinCond)
                 joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
             else
@@ -1372,14 +1384,14 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op, PICSComposab
                 RESULT_TID_ATTR,
                 0,
                 getNumAttrs(pInput) - 2,
-                INVALID_ATTR,
+                0,
                 state->rowNumDT
                 ));
         projExprs = appendToTailOfList(projExprs, createFullAttrReference(
                 PROV_DUPL_COUNT_ATTR,
                 0,
                 getNumAttrs(pInput) - 1,
-                INVALID_ATTR,
+                0,
                 state->rowNumDT
                 ));
     }
@@ -1512,7 +1524,7 @@ rewritePI_CSComposableAggregationWithWindow(AggregationOperator *op, PICSComposa
         provDupAttrRef = (Node *) createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                                                           0,
                                                           INT_VALUE(GET_STRING_PROP(curChild, PROP_PROV_DUP_ATTR)),
-                                                          INVALID_ATTR,
+                                                          0,
                                                           state->rowNumDT);
     }
     else
@@ -1692,13 +1704,13 @@ rewritePI_CSComposableAggregationWithWindow(AggregationOperator *op, PICSComposa
 											                       strdup(RESULT_TID_ATTR),
 											                       0,
 											                       getNumAttrs((QueryOperator *) curChild) - 2,
-											                       INVALID_ATTR,
+											                       0,
 											                       state->rowNumDT),
 										   createFullAttrReference(
 											                       strdup(PROV_DUPL_COUNT_ATTR),
 											                       0,
 											                       getNumAttrs((QueryOperator *) curChild) - 1,
-											                       INVALID_ATTR,
+											                       0,
 											                       state->rowNumDT)));
 
 		finalAttrs = CONCAT_LISTS(aggAttrNames,
@@ -2469,12 +2481,12 @@ getResultTidAndProvDupAttrsProjExprs(QueryOperator *op)
             createFullAttrReference(RESULT_TID_ATTR,
                     0,
                     INT_VALUE(GET_STRING_PROP(op, PROP_RESULT_TID_ATTR)),
-                    INVALID_ATTR,
+                    0,
                     getRowNumDT()),
             createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                     0,
                     INT_VALUE(GET_STRING_PROP(op, PROP_PROV_DUP_ATTR)),
-                    INVALID_ATTR,
+                    0,
                     getRowNumDT())
     );
 
