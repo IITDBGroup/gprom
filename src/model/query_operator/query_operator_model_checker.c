@@ -239,6 +239,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
 
         if (attrPos < 0 || attrPos >= getNumAttrs(child))
         {
+            ERROR_OP_LOG("subquery under parent:", parent);
             ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "
                                    "exist in child:",a);
             LOG_PARENT_AND_CHILD(parent,child);
@@ -249,6 +250,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         childA = getAttrDefByPos(child, attrPos);
         if (strcmp(childA->attrName, a->name) != 0)
         {
+            ERROR_OP_LOG("subquery under parent:", parent);
             ERROR_LOG("attribute ref name and child attrdef names are not the "
                     "same: <%s> and <%s>", childA->attrName, a->name);
             LOG_PARENT_AND_CHILD(parent,child);
@@ -257,6 +259,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         }
         if (childA->dataType != a->attrType)
         {
+            ERROR_OP_LOG("subquery under parent:", parent);
             ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
                       "same: <%s:%s> (child) and <%s:%s> (parent",
                       childA->attrName,

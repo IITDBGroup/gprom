@@ -154,6 +154,7 @@ isTupleAtATimeSubtree(QueryOperator *op)
         case T_ProjectionOperator:
         case T_JoinOperator:
         case T_TableAccessOperator:
+        case T_ConstRelOperator:
             break;
         default:
         {

@@ -58,6 +58,12 @@ static void analyzeWhere(QueryBlock *qb, List *parentFroms);
 static void analyzeGroupByAgg(QueryBlock *qb, List *parentFroms);
 static void analyzeLimitAndOffset(QueryBlock *qb);
 static void analyzeOrderBy(QueryBlock *qb);
+static void analyzeDistinct(QueryBlock *qb);
+static List *getQBSelectAttrNames(QueryBlock *qb);
+static boolean findAttrInFromOrSelect(QueryBlock *qb,
+                                      AttributeReference *a,
+                                      List *selectAttrNames);
+
 
 // search for non-group and non-aggregate expressions
 static boolean searchNonGroupByRefs (Node *node, List *state);
@@ -643,11 +649,11 @@ analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
     analyzeJoinCondAttrRefs(qb->fromClause, parentFroms);
 
     // collect attribute references
-    findAttrReferences((Node *) qb->distinct, &attrRefs);
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
     findAttrReferences((Node *) qb->havingClause, &attrRefs);
     findAttrReferences((Node *) qb->limitClause, &attrRefs);
-    //TODO orderby needs to be treated differently findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+    //  distinct need to be treated differently findAttrReferences((Node *) qb->distinct, &attrRefs);
+    //  orderby needs to be treated differently findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findAttrReferences((Node *) qb->selectClause, &attrRefs);
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
 
@@ -677,6 +683,9 @@ analyzeQueryBlock(QueryBlock *qb, List *parentFroms, HashMap *ctes)
 
     // if group by or aggregation, check that no non-group by attribute references exist
     analyzeGroupByAgg(qb, parentFroms);
+
+    // check distinct
+    analyzeDistinct(qb);
 
     // check order by
     analyzeOrderBy(qb);
@@ -1519,67 +1528,119 @@ searchNonGroupByRefs (Node *node, List *state)
     return visit(node, searchNonGroupByRefs, state);
 }
 
+static void
+analyzeDistinct(QueryBlock *qb)
+{
+    if(qb->distinct)
+    {
+        ASSERT(isA(qb->distinct, DistinctClause));
+        DistinctClause *d = (DistinctClause *) qb->distinct;
+        List *selectAttrNames = getQBSelectAttrNames(qb);
 
+        if(d->distinctExprs != NIL)
+        {
+            FOREACH(Node,e,d->distinctExprs)
+            {
+                if(isA(e,AttributeReference))
+                {
+                    AttributeReference *a = (AttributeReference *) e;
+                    if(!findAttrInFromOrSelect(qb, a, selectAttrNames))
+                    {
+                        THROW(SEVERITY_RECOVERABLE,
+                              "for DISTINCT ON (... %s ...), attribute does not exist:\n%s",
+                              a->name,
+                              beatify(nodeToString(a)));
+                    }
+                }
+                else
+                {
+                    THROW(SEVERITY_RECOVERABLE,
+                          "for DISTINCT ON (l), l has to be a list of attributes:\n\n%s",
+                          beatify(nodeToString(qb->distinct)));
+                }
+            }
+        }
+    }
+}
 
 static void
 analyzeOrderBy(QueryBlock *qb)
 {
     List *attrRefs = NIL;
     List *nestedQs = NIL;
-    List *selectAttrNames = NIL;
-
-    // get attribute names from select clause
-    FOREACH(SelectItem,s,qb->selectClause)
-    {
-        selectAttrNames = appendToTailOfList(selectAttrNames, strdup(s->alias));
-    }
+    List *selectAttrNames = getQBSelectAttrNames(qb);
 
     findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findNestedSubqueries((Node *) qb->orderByClause, &nestedQs);
 
     // find attribute references in from or in select
-        // adapt attribute references
+    // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
-        // split name on each "."
-        boolean isFound = FALSE;
-        List *nameParts = splitAttrOnDot(a->name);
-        int pos;
-
-        DEBUG_LOG("attr split: %s", stringListToString(nameParts));
-
-        if (LIST_LENGTH(nameParts) == 1)
+        if (!findAttrInFromOrSelect(qb, a, selectAttrNames))
         {
-
-            a->name = getNthOfListP(nameParts, 0);
-            isFound = findAttrRefInFrom(a, NIL); //TODO add support for correlated attributes here?
+            FATAL_LOG("attribute <%s> does not exist in FROM clause or SELECT clause",
+                      a->name);
         }
-        else if (LIST_LENGTH(nameParts) == 2)
-        {
-            isFound = findQualifiedAttrRefInFrom(nameParts, a, NIL);
-        }
-        else
-            FATAL_LOG(
-                    "right now attribute names should have at most two parts");
-
-        // exists in select clause? if yes, then use this
-        pos = listPosString(selectAttrNames, a->name);
-        if (pos != -1)
-        {
-            SelectItem *selectExpr = (SelectItem *) getNthOfListP(qb->selectClause, pos);
-            a->attrPosition = pos;
-            a->fromClauseItem = INVALID_ATTR; // use this to indicate that this is a SELECT clause attribute
-            a->attrType = typeOf(selectExpr->expr);
-            isFound = TRUE;
-        }
-
-        if (!isFound)
-            FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
     }
 }
 
+static List *
+getQBSelectAttrNames(QueryBlock *qb)
+{
+    List *selectAttrNames = NIL;
+
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+        selectAttrNames = appendToTailOfList(selectAttrNames, strdup(s->alias));
+    }
+
+    return selectAttrNames;
+}
+
+
+static boolean
+findAttrInFromOrSelect(QueryBlock *qb, AttributeReference *a, List *selectAttrNames)
+{
+    // split name on each "."
+    boolean isFound = FALSE;
+    List *nameParts = splitAttrOnDot(a->name);
+    int pos;
+
+    DEBUG_LOG("attr split: %s", stringListToString(nameParts));
+
+    if (LIST_LENGTH(nameParts) == 1)
+    {
+
+        a->name = getNthOfListP(nameParts, 0);
+        isFound = findAttrRefInFrom(a, NIL); //TODO add support for correlated attributes here?
+    }
+    else if (LIST_LENGTH(nameParts) == 2)
+    {
+        isFound = findQualifiedAttrRefInFrom(nameParts, a, NIL);
+    }
+    else
+    {
+        FATAL_LOG("right now attribute names should have at most two parts %s",
+                  stringListToString(nameParts));
+    }
+
+    // exists in select clause? if yes, then use this
+    pos = listPosString(selectAttrNames, a->name);
+    if (pos != -1)
+    {
+        SelectItem *selectExpr = (SelectItem *) getNthOfListP(qb->selectClause, pos);
+        a->attrPosition = pos;
+        a->fromClauseItem = INVALID_ATTR; // use this to indicate that this is a SELECT clause attribute
+        a->attrType = typeOf(selectExpr->expr);
+        isFound = TRUE;
+    }
+
+    return isFound;
+}
+
 static void
-analyzeLimitAndOffset (QueryBlock *qb)
+analyzeLimitAndOffset(QueryBlock *qb)
 {
     List *attrRefs = NIL;
     List *nestedQs = NIL;

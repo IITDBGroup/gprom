@@ -20,6 +20,21 @@ extern void computeKeyProp (QueryOperator *root);
 #define MIN_KEY "MIN"
 #define MAX_KEY "MAX"
 
+#define SET_ICOLS(_op,_icols) setStringProperty((QueryOperator *) _op, PROP_STORE_SET_ICOLS, (Node *) _icols)
+#define GET_ICOLS(_op) ((Set *) getStringProperty((QueryOperator *) _op, PROP_STORE_SET_ICOLS))
+#define HAS_ICOLS(_op) HAS_STRING_PROP(_op, PROP_STORE_SET_ICOLS)
+#define GET_OR_CREATE_ICOLS(_op,_store_icols)	\
+	if(HAS_ICOLS(_op))							\
+	{											\
+		_store_icols = GET_ICOLS(_op);			\
+	}											\
+    else										\
+	{											\
+		_store_icols = STRSET();				\
+		SET_ICOLS(_op,_store_icols);			\
+	}
+#define IS_ICOLS_DONE(_op) HAS_STRING_PROP(_op, PROP_STORE_SET_ICOLS_DONE)
+
 extern void computeMinMaxPropForSubset(QueryOperator *root, Set *attrs);
 extern void computeMinMaxProp(QueryOperator *root);
 extern Set *getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean left);

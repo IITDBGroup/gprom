@@ -2783,20 +2783,6 @@ addAttrOfSelectCondToSet(Set *set, Node *expr)
 	return set;
 }
 
-#define SET_ICOLS(_op,_icols) setStringProperty((QueryOperator *) _op, PROP_STORE_SET_ICOLS, (Node *) _icols)
-#define GET_ICOLS(_op) ((Set *) getStringProperty((QueryOperator *) _op, PROP_STORE_SET_ICOLS))
-#define HAS_ICOLS(_op) HAS_STRING_PROP(_op, PROP_STORE_SET_ICOLS)
-#define GET_OR_CREATE_ICOLS(_op,_store_icols)	\
-	if(HAS_ICOLS(_op))							\
-	{											\
-		_store_icols = GET_ICOLS(_op);			\
-	}											\
-    else										\
-	{											\
-		_store_icols = STRSET();				\
-		SET_ICOLS(_op,_store_icols);			\
-	}
-#define IS_ICOLS_DONE(_op) HAS_STRING_PROP(_op, PROP_STORE_SET_ICOLS_DONE)
 #define MERGE_INTO_CHILD_ICOLS(_child,_icols) mergeIntoChildIcols(_child,_icols)
 
 void
@@ -2898,7 +2884,7 @@ computeReqColPropInternal(QueryOperator *root)
 
 		MERGE_INTO_CHILD_ICOLS(child,eicols);
 	}
-
+    // need columns on which we wanted to eliminate duplicates on
 	if(isA(root, DuplicateRemoval))
 	{
 		Set *eicols = copyObject(icols);
@@ -3107,10 +3093,26 @@ computeReqColPropInternal(QueryOperator *root)
 	if(isA(root, NestingOperator))
 	{
 		NestingOperator *n = (NestingOperator *) root;
-	    Set *condCols = makeStrSetFromList(
-			attrRefListToStringList(
-				getAttrReferences(n->cond)));
+	    Set *condCols = makeStrSetFromList(attrRefListToStringList(getAttrReferences(n->cond)));
 		Set *correlatedAttrs;
+        Set *leftIcols;
+        Set *rightIcols;
+        QueryOperator *lchild = (QueryOperator *) OP_LCHILD(root);
+        QueryOperator *rchild = (QueryOperator *) OP_RCHILD(root);
+        HashMap *outToLeft = nestingGetChildAttrToResultAttr(n, TRUE);
+		HashMap *outToRight;
+
+        setStringProperty(root,
+                          PROP_STORE_JOIN_OUT_TO_LEFT,
+                          (Node *) outToLeft);
+
+        if(n->nestingType == NESTQ_LATERAL || n->nestingType == NESTQ_SCALAR)
+        {
+            outToRight = nestingGetChildAttrToResultAttr(n, FALSE);
+            setStringProperty(root,
+                              PROP_STORE_JOIN_OUT_TO_RIGHT,
+                              (Node *) outToRight);
+        }
 
 		// add all attributes from condition (if the nesting op has one) into icols
 		unionIntoSet(icols, condCols);
@@ -3119,6 +3121,51 @@ computeReqColPropInternal(QueryOperator *root)
 		correlatedAttrs = getNestingCorrelatedAttributes(n, FALSE);
 
 		unionIntoSet(icols, correlatedAttrs);
+
+        // intersect with left input
+        leftIcols = intersectSets(icols, makeStrSetFromList(getQueryOperatorAttrNames(lchild)));
+
+        // merge into left
+        MERGE_INTO_CHILD_ICOLS(lchild, leftIcols);
+
+        // merge into both right if it is a LATERAL or scalar subquery
+        if(n->nestingType == NESTQ_LATERAL)
+        {
+            rightIcols = intersectSets(icols, makeStrSetFromList(getQueryOperatorAttrNames(rchild)));
+            MERGE_INTO_CHILD_ICOLS(rchild, rightIcols);
+        }
+        // for scalar subqueries we need the right input unless the nesting result attribute is not in icols
+        if(n->nestingType == NESTQ_SCALAR)
+        {
+            Set *nestingAttrs = makeStrSetFromList(getNestingResultAttributeNames(n));
+
+            rightIcols = intersectSets(nestingAttrs, icols);
+            rightIcols = renameAttrsInSetUsingMap(nestingAttrs, outToRight);
+            MERGE_INTO_CHILD_ICOLS(rchild, rightIcols);
+
+            /* List *rightChildAttrs = getQueryOperatorAttrNames(rchild); */
+            /* List *nestingResultAttrs = (List *) GET_STRING_PROP(root, */
+            /*                                                     PROP_NESTED_RESULT_ATTR); */
+            /* Set *nestingResultSet = STRSET(); */
+            /* Set *ricols; */
+
+            /* nestingResultAttrs = constStringListToStringList(nestingResultAttrs); */
+
+            /* // get nesting attributes in our icols */
+            /* ricols = makeStrSetFromList(nestingResultAttrs); */
+            /* ricols = intersectSets(ricols, icols); */
+
+            /* // map back to right result attributes */
+            /* FORBOTH(char,ra,na,rightChildAttrs,nestingResultAttrs) */
+            /* { */
+            /*     if(hasSetElem(ricols, na)) */
+            /*     { */
+            /*         addToSet(nestingResultSet, ra); */
+            /*     } */
+            /* } */
+
+            /* MERGE_INTO_CHILD_ICOLS(rchild, nestingResultSet); */
+        }
 	}
 
 	DEBUG_LOG("ICOLS: %s for [%s]", nodeToString(icols), singleOperatorToOverview(root));
@@ -3171,7 +3218,7 @@ static boolean
 printIcolsVisitor (QueryOperator *op, void *context)
 {
     Set *icols = (Set*) getStringProperty(op, PROP_STORE_SET_ICOLS);
-    DEBUG_LOG("op(%s) - icols:%s\n ",op->schema->name, nodeToString(icols));
+    DEBUG_LOG("icols:%s\n%s", nodeToString(icols), singleOperatorToOverview(op));
     return TRUE;
 }
 

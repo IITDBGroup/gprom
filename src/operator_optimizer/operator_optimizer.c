@@ -25,12 +25,10 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/query_operator/query_operator.h"
-#include "model/query_operator/schema_utility.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
-#include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/prov_utility.h"
-#include "rewriter.h"
+#include "analysis_and_translate/translator_oracle.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
@@ -104,11 +102,16 @@ static void resetPos(AttributeReference *ar,  List* attrDefs);
 /* materialze projection sequences */
 static boolean internalMaterializeProjectionSequences (QueryOperator *root, void *context);
 static QueryOperator *mergeAdjacentOperatorInternal (QueryOperator *root);
+
+/* remove unnecesary operators and colors */
 static QueryOperator *removeRedundantProjectionsInternal(QueryOperator *root);
+static boolean isSingleRowOperator(QueryOperator *op);
+static QueryOperator *removeOrFixDeadOperators(QueryOperator *op);
 static List *getExpectedChildAttributes(QueryOperator *op, boolean right);
 static QueryOperator *removeRedundantDuplicateOperatorByKeyInternal(QueryOperator *root);
 static QueryOperator *removeUnnecessaryWindowOperatorInternal(QueryOperator *root);
-
+static boolean repairEmptyOperators(QueryOperator *op);
+static void ensureIcols(QueryOperator *root, boolean force);
 
 Node  *
 optimizeOperatorModel(Node *root)
@@ -133,7 +136,6 @@ static QueryOperator *
 optimizeOneGraph(QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
-
 
     int numHeuOptItens = getIntOption(OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS);
     NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
@@ -176,15 +178,6 @@ optimizeOneGraph(QueryOperator *root)
     	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
     			mergeAdjacentOperators,
 				OPTIMIZATION_MERGE_OPERATORS);
-//    	APPLY_AND_TIME_OPT("selection pushdown",
-//    			pushDownSelectionOperatorOnProv,
-//				OPTIMIZATION_SELECTION_PUSHING);
-//    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
-//    			mergeAdjacentOperators,
-//				OPTIMIZATION_MERGE_OPERATORS);
-//    	APPLY_AND_TIME_OPT("pushdown selections through joins",
-//    			pushDownSelectionThroughJoinsOperatorOnProv,
-//				OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS);
     	APPLY_AND_TIME_OPT("factor attributes in conditions",
     			factorAttrsInExpressions,
 				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
@@ -351,7 +344,12 @@ upCheckResetPos(QueryOperator *op)
 {
 	FOREACH(QueryOperator, parent, op->parents)
 	{
+        if(isA(parent,ProjectionOperator))
+        {
+            projectionSetRenamedAttrs(parent);
+        }
 		resetPosOfAttrRefBaseOnBelowLayerSchema(parent, op, NULL);
+        adaptSchemaFromChildren(parent);
 		upCheckResetPos(parent);
 	}
 }
@@ -359,6 +357,9 @@ upCheckResetPos(QueryOperator *op)
 QueryOperator *
 removeUnnecessaryWindowOperator(QueryOperator *root)
 {
+    // determine what columns are required
+    ensureIcols(root, FALSE);
+
     root = removeUnnecessaryWindowOperatorInternal(root);
     removeProp(root, PROP_OPT_REMOVE_RED_WIN_DONW);
     return root;
@@ -382,30 +383,30 @@ removeUnnecessaryWindowOperatorInternal(QueryOperator *root)
 			switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
 			root = lChild;
 
-			//delete the funcName in its parents' schema attrdefs
-			List *newAttrDefs = NIL;
-			FOREACH(QueryOperator, op, root->parents)
-			{
-				FOREACH(AttributeDef, ad, op->schema->attrDefs)
-		        {
-				     if(!streq(funcName, ad->attrName))
-				    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-		        }
-		        op->schema->attrDefs = newAttrDefs;
+			/* //delete the funcName in its parents' schema attrdefs */
+			/* List *newAttrDefs = NIL; */
+			/* FOREACH(QueryOperator, op, root->parents) */
+			/* { */
+			/* 	FOREACH(AttributeDef, ad, op->schema->attrDefs) */
+		    /*     { */
+			/* 	     if(!streq(funcName, ad->attrName)) */
+			/* 	    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad); */
+		    /*     } */
+		    /*     op->schema->attrDefs = newAttrDefs; */
 
-		        if(isA(op, ProjectionOperator))
-		        {
-		        	ProjectionOperator *pj = (ProjectionOperator *) op;
-		        	List *newAttrRefs = NIL;
-					FOREACH(AttributeReference, ar, pj->projExprs)
-			        {
-					     if(!streq(funcName, ar->name))
-					    	 newAttrRefs = appendToTailOfList(newAttrRefs, ar);
-			        }
-					pj->projExprs = newAttrRefs;
-					resetPosOfAttrRefBaseOnBelowLayerSchema(op, root, NULL);
-		        }
-			}
+		    /*     if(isA(op, ProjectionOperator)) */
+		    /*     { */
+		    /*     	ProjectionOperator *pj = (ProjectionOperator *) op; */
+		    /*     	List *newAttrRefs = NIL; */
+			/* 		FOREACH(AttributeReference, ar, pj->projExprs) */
+			/*         { */
+			/* 		     if(!streq(funcName, ar->name)) */
+			/* 		    	 newAttrRefs = appendToTailOfList(newAttrRefs, ar); */
+			/*         } */
+			/* 		pj->projExprs = newAttrRefs; */
+			/* 		resetPosOfAttrRefBaseOnBelowLayerSchema(op, root, NULL); */
+		    /*     } */
+			/* } */
 
 			//Because remove one attribute in schema, so need to reset pos in every above operators
 			upCheckResetPos(root);
@@ -422,17 +423,268 @@ removeUnnecessaryWindowOperatorInternal(QueryOperator *root)
 	return root;
 }
 
+static void
+ensureIcols(QueryOperator *root, boolean force)
+{
+    if(!HAS_ICOLS(root) || force)
+    {
+	    START_TIMER("PropertyInference - iCols");
+        initializeIColProp(root);
+	    computeReqColProp(root);
+	    printIcols(root);
+	    STOP_TIMER("PropertyInference - iCols");
+    }
+}
+
 QueryOperator *
 removeUnnecessaryColumns(QueryOperator *root)
 {
-	START_TIMER("PropertyInference - iCols");
-    initializeIColProp(root);
-	computeReqColProp(root);
-	printIcols(root);
-	STOP_TIMER("PropertyInference - iCols");
+    // determine what columns are required
+    ensureIcols(root, FALSE);
+
+    // remove unnecessary columns
 	removeUnnecessaryColumnsFromProjections(root);
 
+    // this can result in a query where some operators have no attributes which
+    // in general is not supported in GProM. We now repair this by removing
+    // operators with no columns where possible and repair the remaining cases.
+    root = removeOrFixDeadOperators(root);
+    repairEmptyOperators(root);
+    Set *done = PSET();
+    disambiguateAttrNames((Node *) root, done);
+
     return root;
+}
+
+#define IS_DEAD(_op) (LIST_LENGTH(_op->schema->attrDefs) == 0)
+
+static QueryOperator *
+removeOrFixDeadOperators(QueryOperator *op)
+{
+    // if one of the inputs is dead, then eliminate the join
+    if(IS_BINARY_OP(op))
+    {
+        QueryOperator *lchild = OP_LCHILD(op);
+        QueryOperator *rchild = OP_RCHILD(op);
+
+        if(isA(op,JoinOperator))
+        {
+            JoinOperator *j = (JoinOperator *) op;
+
+            if(IS_DEAD(lchild))
+            {
+                // if dead child is guaranteed to return a single row, then eliminate the join
+                if(isSingleRowOperator(lchild))
+                {
+                    j->op.inputs = NIL;
+                    DEBUG_OP_LOG("remove join as its left input is dead", op);
+                    INFO_SINGLE_OP_LOG("remove join as left child is dead", op);
+                    switchSubtreeWithExisting(op, rchild);
+                    return removeOrFixDeadOperators(rchild);
+                }
+            }
+            if(IS_DEAD(rchild))
+            {
+                // if dead child is guaranteed to return a single row, then eliminate the join
+                if(isSingleRowOperator(rchild))
+                {
+                    j->op.inputs = NIL;
+                    DEBUG_OP_LOG("remove join as its right child is dead", op);
+                    INFO_SINGLE_OP_LOG("remove join as right child is dead", op);
+                    switchSubtreeWithExisting(op, lchild);
+                    return removeOrFixDeadOperators(lchild);
+                }
+            }
+        }
+
+        // if the right input of a scalar/lateral nesting operator is dead or
+        // the nesting result attribute is not needed for any other nesting
+        // operator type, then the nesting operator can be removed
+        if(isA(op,NestingOperator))
+        {
+            NestingOperator *n = (NestingOperator *) op;
+            Set *icols = GET_ICOLS(op);
+
+            // for lateral and scalar if the RHS produces a single row and
+            // none of that rows attributes are needed, the nesting operator
+            // can be removed
+            boolean safeToRemove = (n->nestingType == NESTQ_LATERAL
+                                    || n->nestingType == NESTQ_SCALAR)
+                                   && isSingleRowOperator(rchild);
+
+            // for all other nesting types if the nesting result attribute
+            // is not needed then the operator can be removed
+            safeToRemove = safeToRemove ||
+                           (n->nestingType != NESTQ_LATERAL
+                            && n->nestingType != NESTQ_SCALAR
+                            && !hasSetElem(icols,
+                                           getSingleNestingResultAttribute(n)));
+
+            // can only remove if RHS child is dead
+            safeToRemove &= IS_DEAD(rchild);
+
+            if(safeToRemove)
+            {
+                op->inputs = NIL;
+                DEBUG_OP_LOG("remove nesting operator as its right input is dead", op);
+                INFO_SINGLE_OP_LOG("remove nesting operator as right child is dead", op);
+                switchSubtreeWithExisting(op, lchild);
+                return removeOrFixDeadOperators(lchild);
+            }
+        }
+    }
+
+    FOREACH(QueryOperator,c,op->inputs)
+    {
+        removeOrFixDeadOperators(c);
+    }
+
+    return op;
+}
+
+#define DUMMY_DEAD_ATTR backendifyIdentifier("__dummy_empty")
+
+static boolean
+repairEmptyOperators(QueryOperator *op)
+{
+    boolean childRepaired = FALSE;
+    boolean repaired = FALSE;
+
+    // repair children first
+    FOREACH(QueryOperator,c,op->inputs)
+    {
+        childRepaired = childRepaired
+                        || repairEmptyOperators(c);
+    }
+
+    if(childRepaired)
+    {
+        adaptSchemaFromChildren(op);
+        repaired = TRUE;
+        SET_ICOLS(op, makeStrSetFromList(getQueryOperatorAttrNames(op)));
+    }
+
+    if(IS_DEAD(op))
+    {
+        switch(op->type)
+        {
+            // create a single long constant
+            case T_ConstRelOperator:
+            {
+                ConstRelOperator *c = (ConstRelOperator *) op;
+                c->values = singleton(createConstLong(0));
+                repaired = TRUE;
+                SET_ICOLS(op, makeStrSetFromList(getQueryOperatorAttrNames(op)));
+            }
+            break;
+            // project on constant
+            case T_ProjectionOperator:
+            {
+                ProjectionOperator *p = (ProjectionOperator *) op;
+                p->projExprs = singleton(createConstLong(0));
+                p->op.schema->attrDefs = singleton(createAttributeDef(strdup(DUMMY_DEAD_ATTR), DT_LONG));
+                SET_ICOLS(op, makeStrSetFromList(getQueryOperatorAttrNames(op)));
+                repaired = TRUE;
+            }
+            break;
+            // add a count(1)
+            case T_AggregationOperator:
+            {
+                AggregationOperator *a = (AggregationOperator *) op;
+                a->aggrs = singleton(createFunctionCall(COUNT_FUNC_NAME,
+                                                        singleton(createConstLong(0))));
+                op->schema->attrDefs = singleton(createAttributeDef(strdup(DUMMY_DEAD_ATTR), DT_LONG));
+                SET_ICOLS(op, makeStrSetFromList(getQueryOperatorAttrNames(op)));
+                repaired = TRUE;
+            }
+            break;
+            /* case T_SelectionOperator: */
+            /* { */
+            /*     op->schema->attrDefs = copyObject(OP_LCHILD(op)->schema->attrDefs); */
+            /* } */
+            /* break; */
+            /* case T_DuplicateRemoval: */
+            /* { */
+            /*     DuplicateRemoval *d = (DuplicateRemoval *) op; */
+            /*     op->schema->attrDefs = copyObject(OP_LCHILD(op)->schema->attrDefs); */
+            /*     d->attrs = NIL; */
+            /* } */
+            /* break; */
+            /* case T_WindowOperator: */
+            /* case T_OrderOperator: */
+            /* case T_LimitOperator: */
+
+            /* case T_SampleClauseOperator: */
+            /* break; */
+            /* case T_SetOperator: */
+            /* case T_JoinOperator: */
+            /* case T_NestingOperator: */
+            /* { */
+
+            /* } */
+            /* break; */
+            default:
+                DEBUG_SINGLE_OP_LOG("Dead operator, take child attributes:\n", op);
+                /* THROW(SEVERITY_RECOVERABLE, */
+                /*       "trying to repair unkown node type: %s", */
+                /*       nodeToString(op)); */
+            break;
+        }
+    }
+
+    return repaired;
+}
+
+static boolean
+isSingleRowOperator(QueryOperator *op)
+{
+    // constant relational operator is always a single row
+    if(isA(op,ConstRelOperator))
+    {
+        return TRUE;
+    }
+    // aggregation without GB return a single row, otherwise it returns a single
+    // row if the input returns a single row
+    if(isA(op,AggregationOperator))
+    {
+        AggregationOperator *a = (AggregationOperator *) op;
+        return LIST_LENGTH(a->groupBy) == 0
+               || isSingleRowOperator(OP_LCHILD(op));
+    }
+    // a join returns a single row if both inputs return a single row
+    if(isA(op,JoinOperator))
+    {
+        return isSingleRowOperator(OP_LCHILD(op))
+               && isSingleRowOperator(OP_RCHILD(op));
+    }
+    // for LATERAL and SCALAR operators, if both inputs returns a single row,
+    // then the operator returns a single row. Otherwise, it is enough for the
+    // left input to return a single row to guarantee that the operator returns
+    // a single row.
+    if(isA(op,NestingOperator))
+    {
+        NestingOperator *n = (NestingOperator *) op;
+        if(n->nestingType == NESTQ_LATERAL
+           || n->nestingType == NESTQ_SCALAR)
+        {
+            return isSingleRowOperator(OP_LCHILD(op))
+                   && isSingleRowOperator(OP_RCHILD(op));
+        }
+        else
+        {
+            return isSingleRowOperator(OP_LCHILD(op));
+        }
+    }
+    // if the operator works on single tuples and the input returns a single
+    // tuple, then this operator also returns a single tuple. Same for duplicate
+    // removal the can only reduce the number of rows.
+    if(IS_TUPLE_AT_A_TIME_OP(op)
+       || isA(op, DuplicateRemoval)) //TODO DISTINCT ON(constant attribute)
+    {
+        return isSingleRowOperator(OP_LCHILD(op));
+    }
+
+    return FALSE;
 }
 
 //void
@@ -554,17 +806,10 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
     }
 
     List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
-    /* List *leftChildOrigAttrNames = (root->inputs != NIL) ? */
-    /*                                (List *) GET_STRING_PROP(OP_LCHILD(root), */
-    /*                                                         PROP_ORIGINAL_ATTR_LIST): */
-    /*                                NIL; */
-    /* List *rightChildOrigAttrNames = IS_BINARY_OP(root) ? */
-    /*                                 (List *) GET_STRING_PROP(OP_RCHILD(root), */
-    /*                                                          PROP_ORIGINAL_ATTR_LIST): */
-    /*                                 NIL; */
 	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
     List *provAttrNames = getOpProvenanceAttrNames(root);
 
+    // handle individual operators
     if(isA(root,LimitOperator))
     {
 		/*
@@ -675,11 +920,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
         // if no group-by and no aggregation function, we have to keep some agg
         // function
-        if(LIST_LENGTH(agg->groupBy) == 0 && LIST_LENGTH(newaggfs) == 0)
-        {
-            newattrdef = singleton(getHeadOfList(agg->op.schema->attrDefs));
-            newaggfs = singleton(getHeadOfList(agg->aggrs));
-        }
+        /* if(LIST_LENGTH(agg->groupBy) == 0 && LIST_LENGTH(newaggfs) == 0) */
+        /* { */
+        /*     newattrdef = singleton(getHeadOfListP(agg->op.schema->attrDefs)); */
+        /*     newaggfs = singleton(getHeadOfListP(agg->aggrs)); */
+        /* } */
 
         // update operator
         newattrdef = CONCAT_LISTS(newattrdef, groupbyattrdefs);
@@ -918,6 +1163,12 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 			cnt++;
 		}
 	}
+    else if (isA(root,NestingOperator))
+    {
+        NestingOperator *n = (NestingOperator *) root;
+        resetPosInExprs(n->cond, cSchema);
+        root = removeUnnecessaryAttrDefInSchema(icols, root);
+    }
 
     // For operators whose attributes are determined based on its child
     // attributes, e.g., selection has the same attributes as its input, union
@@ -973,12 +1224,12 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                       stringListToString(actualChildAttributes));
             if (!equalStringList(expectedChildAttributes, actualChildAttributes))
             {
-                List *origchildAttrs = copyObject((List *) GET_STRING_PROP(lchild,
-                                                                           PROP_ORIGINAL_ATTR_LIST));
+                /* List *origchildAttrs = copyObject(getAndSetOriginalAttrLists(lchild)); */
                 p = createProjOnAttrsByName(lchild,
                                             deepCopyStringList(expectedChildAttributes),
                                             deepCopyStringList(expectedChildAttributes));
-                SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs);
+                /* SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs); */
+                COPY_STRING_PROP(lchild,p,PROP_ORIGINAL_ATTR_LIST);
 
                 // replace lchild with p in parent
                 removeParent(lchild, root);
@@ -987,8 +1238,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                 p->parents = singleton(root);
             }
 
-            if(!(isA(root,NestingOperator)
-                 && ((((NestingOperator *) root)->nestingType == NESTQ_LATERAL)
+            if(!isA(root,NestingOperator)
+               || (isA(root,NestingOperator)
+                    && ((((NestingOperator *) root)->nestingType == NESTQ_LATERAL)
                      || (((NestingOperator *) root)->nestingType == NESTQ_SCALAR))))
             {
                 expectedChildAttributes = getExpectedChildAttributes(root,TRUE);
@@ -996,8 +1248,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
                 if (!equalStringList(expectedChildAttributes, actualChildAttributes))
                 {
-                    List *origchildAttrs = copyObject((List *) GET_STRING_PROP(rchild,
-                                                                               PROP_ORIGINAL_ATTR_LIST));
+                    /* List *origchildAttrs = copyObject(getAndSetOriginalAttrLists(rchild)); */
 
                     DEBUG_SINGLE_OP_LOG("expection for %s", root);
                     DEBUG_LOG("expected right attributes:\n%s\nactual attributes:\n%s",
@@ -1007,7 +1258,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                     p = createProjOnAttrsByName(rchild,
                                                 deepCopyStringList(expectedChildAttributes),
                                                 deepCopyStringList(expectedChildAttributes));
-                    SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs);
+                    /* SET_STRING_PROP(p, PROP_ORIGINAL_ATTR_LIST,origchildAttrs); */
+                    COPY_STRING_PROP(rchild,p,PROP_ORIGINAL_ATTR_LIST);
 
                     // replace rchild with p in parent
                     removeParent(rchild, root);
@@ -1025,7 +1277,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	FOREACH(AttributeDef, a, root->schema->attrDefs)
 	{
 		if(searchListString(provAttrNames, a->attrName))
+        {
 			newProvAttrs = appendToTailOfListInt(newProvAttrs, count);
+        }
 
 		count ++;
 	}
@@ -1091,11 +1345,15 @@ getExpectedChildAttributes(QueryOperator *op, boolean right)
     if(isA(op,NestingOperator))
     {
         NestingOperator *n = (NestingOperator *) op;
-        if(n->nestingType == NESTQ_LATERAL || n->nestingType == NESTQ_SCALAR)
+        List *originalLeftAttrs = getAndSetOriginalAttrLists(OP_LCHILD(op));
+        List *originalRightAttrs = getAndSetOriginalAttrLists(OP_RCHILD(op));
+        HashMap *outToRight = (HashMap *) GET_STRING_PROP(n, PROP_STORE_JOIN_OUT_TO_RIGHT);
+
+        // left or right
+        if(n->nestingType == NESTQ_LATERAL
+           || (!right && n->nestingType == NESTQ_SCALAR))
         {
 		    List *attrnames = NIL;
-            List *originalLeftAttrs = getAndSetOriginalAttrLists(OP_LCHILD(op));
-            List *originalRightAttrs = getAndSetOriginalAttrLists(OP_RCHILD(op));
 
             FOREACH(AttributeDef,a,op->schema->attrDefs)
             {
@@ -1107,6 +1365,22 @@ getExpectedChildAttributes(QueryOperator *op, boolean right)
                 if(searchListString(originalRightAttrs, a->attrName) && right)
                 {
                     attrnames = appendToTailOfList(attrnames, strdup(a->attrName));
+                }
+            }
+
+            return attrnames;
+        }
+        // right and scalar
+        else if (n->nestingType == NESTQ_SCALAR)
+        {
+            List *attrnames = NIL;
+            FOREACH(AttributeDef,a,op->schema->attrDefs)
+            {
+                if(MAP_HAS_STRING_KEY(outToRight, a->attrName))
+                {
+                    attrnames = appendToTailOfList(attrnames,
+                                                   strdup(MAP_GET_STRING_VAL_FOR_STRING_KEY(outToRight,
+                                                                                            a->attrName)));
                 }
             }
 
@@ -1668,11 +1942,8 @@ getAndSetOriginalAttrLists(QueryOperator *op)
                         PROP_ORIGINAL_PROV_SET,
                         makeStrSetFromList(getOpProvenanceAttrNames(op)));
     }
-    else
-    {
-        result = constStringListToStringList((List *) GET_STRING_PROP(op,
-                                                                      PROP_ORIGINAL_ATTR_LIST));
-    }
+    result = constStringListToStringList((List *) GET_STRING_PROP(op,
+                                                                  PROP_ORIGINAL_ATTR_LIST));
 
     return result;
 }

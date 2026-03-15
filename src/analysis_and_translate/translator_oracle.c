@@ -43,13 +43,10 @@ typedef struct ReplaceGroupByState {
 
 //static List *attrsOffsetsList = NIL;
 
-#define PROP_PROJ_RENAMED_ATTRS "RenamedProjAttrs"
-
 // function declarations
 static Node *translateGeneral(Node *node, List **attrsOffsetsList);
 static QueryOperator *translateQueryOracleInternal (Node *node, List **attrsOffsetsList);
 //static Node *translateSummary(Node *input, Node *node);
-static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq, List **attrsOffsetsList);
@@ -296,6 +293,7 @@ disambiguateAttrNames(Node *node, Set *done)
 
     op = (QueryOperator *) node;
 
+    // process children first
     FOREACH(Node,child,op->inputs)
     {
         changed |= disambiguateAttrNames(child, done);
@@ -307,27 +305,10 @@ disambiguateAttrNames(Node *node, Set *done)
         DEBUG_OP_LOG("child operator's schema has changed", op);
         // first adapt attribute references
         List *attrRefs = getAttrRefsInOperator(op);
-        //TODO keep track of what attributes are renamed by a projection and store this to not override renaming
-        if (isA(op, ProjectionOperator))
+        // TODO keep track of what attributes are renamed by a projection and store this to not override renaming
+        if(isA(op, ProjectionOperator))
         {
-            ProjectionOperator *p = (ProjectionOperator *) op;
-            Set *renamedAttrs = STRSET();
-
-            // find renamed attributes
-            FORBOTH(Node,projExpr,attr,p->projExprs, op->schema->attrDefs)
-            {
-                AttributeReference *aRef;
-                AttributeDef *aDef = (AttributeDef *) attr;
-
-                // only consider the case A AS B
-                if(isA(projExpr, AttributeReference))
-                {
-                    aRef = (AttributeReference *) projExpr;
-                    if (!streq(aRef->name, aDef->attrName))
-                       addToSet(renamedAttrs, strdup(aDef->attrName));
-                }
-            }
-            SET_STRING_PROP(op, PROP_PROJ_RENAMED_ATTRS, renamedAttrs);
+            projectionSetRenamedAttrs(op);
         }
 
         FOREACH(AttributeReference,a,attrRefs)
@@ -346,24 +327,60 @@ disambiguateAttrNames(Node *node, Set *done)
         }
 
         // adapt schema based on changed attributes, but only if renames
-        // attributes are not unique. If they are already unique we can stop
-        // here. Also if this is the final projection or the input of a
-        // provenance computation we would like to keep attribute names.
-        // We can then allow repeated attribute names as SQL does?
-        boolean hasNonProvenanceOpParents = FALSE;
-        FOREACH(QueryOperator,p,op->parents)
-        {
-            hasNonProvenanceOpParents |= !isA(p,ProvenanceComputation);
-        }
-        if(op->parents != NIL
-           || hasNonProvenanceOpParents
-           || !checkUniqueAttrNames(op))
+        // attributes are not unique or we have an operator which cannot rename
+        // (everything but projection and join). Also if this is the final
+        // projection or the input of a provenance computation we would like to
+        // keep attribute names for which we need a projection if need be. We
+        // can then allow repeated attribute names as SQL does?
+        /* boolean hasNonProvenanceOpParents = FALSE; */
+        /* boolean hasProvenanceOpParent = FALSE; */
+        boolean needsExtraProjection;
+        boolean adjustAttrsFromChild = !IS_RENAMING_OP(op)
+                                       || !checkUniqueAttrNames(op);
+        List *originalAttrNames = getQueryOperatorAttrNames(op);
+        List *newAttrNames;
+        /* FOREACH(QueryOperator,p,op->parents) */
+        /* { */
+        /*     hasNonProvenanceOpParents |= !isA(p,ProvenanceComputation); */
+        /*     hasProvenanceOpParent |= isA(p,ProvenanceComputation); */
+        /* } */
+
+        // is the operator is the last operator and the operator cannot rename
+        // attributes, then we need to add a projection to restore the original
+        // attribute names
+        needsExtraProjection= !IS_RENAMING_OP(op)
+                              && (op->parents == NIL);
+
+        // if operator cannot rename attributes or attributes are not unique,
+        // then use new names from children
+        if(adjustAttrsFromChild)
         {
             adaptSchemaFromChildren(op);
+            newAttrNames = getQueryOperatorAttrNames(op);
         }
+
+        // add projection to rename to original attribute names
+        if(needsExtraProjection)
+        {
+            QueryOperator *p;
+
+            p = createProjOnAttrsByName(op, newAttrNames, originalAttrNames);
+            switchSubtrees(op, p);
+            p->inputs = singleton(op);
+            op->parents = singleton(p);
+            addToSet(done, op);
+            op = p;
+        }
+
+        // if we have not added an extra projection and have adjusted attributes
+        // from modified child, then we are changed too
+        changed = adjustAttrsFromChild && !needsExtraProjection;
     }
 
-    //TODO What other ops to consider
+    // FIXME lateral nesting operator not handled
+
+    // TODO What other ops to consider
+    // only joins and projection can rename
     if (isA(node,JoinOperator) || isA(node,ProjectionOperator))
     {
         if(!checkUniqueAttrNames(op))
@@ -376,95 +393,6 @@ disambiguateAttrNames(Node *node, Set *done)
 
     addToSet(done, node);
     return changed;
-}
-
-static void
-adaptSchemaFromChildren(QueryOperator *o)
-{
-    switch(o->type)
-    {
-        case T_SelectionOperator:
-        case T_SetOperator:
-        case T_DuplicateRemoval:
-        case T_OrderOperator:
-        {
-            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
-        }
-        break;
-        case T_ProjectionOperator: //TODO do not rename attribute if this is already a rename
-        {
-            ProjectionOperator *p = (ProjectionOperator *) o;
-            Set *renamedAttrs = (Set *) GET_STRING_PROP(o, PROP_PROJ_RENAMED_ATTRS);
-
-            FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)
-            {
-                AttributeDef *aDef = (AttributeDef *) a;
-                if (isA(proj,AttributeReference))
-                {
-                    AttributeReference *ref = (AttributeReference *) proj;
-                    if (!strpeq(aDef->attrName, ref->name) && !hasSetElem(renamedAttrs, aDef->attrName))
-                    {
-                        aDef->attrName = strdup(ref->name);
-                    }
-                }
-            }
-        }
-        break;
-        case T_JoinOperator:
-        {
-            List *lAttrs = copyObject(OP_LCHILD(o)->schema->attrDefs);
-            List *rAttrs = copyObject(OP_RCHILD(o)->schema->attrDefs);
-            o->schema->attrDefs = CONCAT_LISTS(lAttrs, rAttrs);
-        }
-        break;
-        case T_NestingOperator:
-        {
-            NestingOperator *n = (NestingOperator *) o;
-            QueryOperator *rChild = OP_RCHILD(o);
-            Node *lastOne = getTailOfListP(o->schema->attrDefs);
-
-            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
-            // lateral or scalar get all of the attributes from the RHS
-            if(n->nestingType == NESTQ_LATERAL)
-            {
-                o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs,
-                                                   copyObject(rChild->schema->attrDefs));
-            }
-            // all other nesting operators get
-            else
-            {
-                o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
-            }
-            INFO_LOG("disambiguated names of nesting operator:\n %s", singleOperatorToOverview(o));
-        }
-        break;
-        case T_WindowOperator:
-        {
-            Node *lastOne = getTailOfListP(o->schema->attrDefs);
-            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
-            o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
-        }
-        break;
-        case T_JsonTableOperator:
-        {
-            List *childAttr = OP_LCHILD(o)->schema->attrDefs;
-            FORBOTH(AttributeDef,a,childA,o->schema->attrDefs,childAttr)
-            {
-                if (!strpeq(a->attrName, childA->attrName))
-                {
-                    a->attrName = strdup(childA->attrName);
-                }
-            }
-        }
-        break;
-        case T_ProvenanceComputation:
-        {
-            //TODO should never end up here?
-        }
-        break;
-        default:
-            break;
-    }
 }
 
 static QueryOperator *
@@ -1997,9 +1925,28 @@ translateDistinct(DistinctClause *distinctClause, QueryOperator *input)
 
     if (distinctClause)
     {
-        List *attrNames = getAttrNames(input->schema);
+        List *attrNames = NIL;
+        List *distinctAttrs = NIL;
 
-        DuplicateRemoval *o = createDuplicateRemovalOp(NIL, input, NIL, attrNames);
+        attrNames = getAttrNames(input->schema);
+
+        if(distinctClause->distinctExprs)
+        {
+            FOREACH(AttributeReference,a,distinctClause->distinctExprs)
+            {
+                distinctAttrs = appendToTailOfList(distinctAttrs,
+                                                   copyObject(a));
+            }
+        }
+        else
+        {
+            attrNames = deepCopyStringList(attrNames);
+        }
+
+        DuplicateRemoval *o = createDuplicateRemovalOp(distinctAttrs,
+                                                       input,
+                                                       NIL,
+                                                       attrNames);
         input->parents = singleton(o);
 
         output = (QueryOperator *) o;

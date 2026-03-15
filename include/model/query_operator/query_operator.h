@@ -191,9 +191,19 @@ typedef struct ExecPreparedOperator
         || isA(op,NestingOperator))
 
 #define IS_SPECIAL_OP(op) (isA(op,ProvenanceComputation) \
-    || isA(op,/UpdateOperator) \
-    || isA(op,/ExecPreparedOperator) \
+    || isA(op,UpdateOperator) \
+    || isA(op,ExecPreparedOperator) \
     )
+
+#define  IS_TUPLE_AT_A_TIME_OP(op) (isA(op,ProjectionOperator)     \
+    || isA(op,SelectionOperator)                    \
+    || isA(op,TableAccessOperator) \
+    || isA(op,ConstRelOperator) \
+	|| isA(op,OrderOperator)                        \
+	|| isA(op,LimitOperator))
+
+#define IS_RENAMING_OP(op) (isA(op,ProjectionOperator) \
+    || isA(op,JoinOperator))
 
 #define IS_OP(op) (IS_NULLARY_OP(op) || IS_UNARY_OP(op) || IS_BINARY_OP(op))
 
@@ -210,6 +220,8 @@ extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
 extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, Set *nestResultAttr);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1,QueryOperator *op2, Set * nestResultAttr);
+extern void adaptSchemaFromChildren(QueryOperator *o);
+extern void projectionSetRenamedAttrs(QueryOperator *op);
 
 /* union equal element between two set list */
 extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
@@ -217,8 +229,8 @@ extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
 extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
-extern List *getAttrDefNames (List *defs);
-extern List *getAttrDataTypes (List *defs);
+extern List *getAttrDefNames(List *defs);
+extern List *getAttrDataTypes(List *defs);
 extern List *inferOpResultDTs (QueryOperator *op);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
@@ -285,8 +297,6 @@ extern List *appendToListStringProperty(QueryOperator *op, char *key, Node *newT
 extern char *format_prop_value_for_user(char *prop, Node *val);
 extern char *format_op_prop_value_for_user(QueryOperator *op, char *prop);
 
-
-
 #define SET_KEYVAL_PROPERTY(op,kv) (setProperty(((QueryOperator *) op), kv->key, kv->value))
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
@@ -304,6 +314,7 @@ extern char *format_op_prop_value_for_user(QueryOperator *op, char *prop);
 #define GET_STRING_PROP_STRING_VAL(op,key) (HAS_STRING_PROP(op,key) ? STRING_VALUE(getStringProperty((QueryOperator *) op, key)) : NULL)
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
     && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
+#define COPY_STRING_PROP(from,to,key) (setStringProperty((QueryOperator *) to, key, copyObject(getStringProperty((QueryOperator *) from, key))))
 
 /* children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
@@ -327,14 +338,14 @@ extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);
 extern List *getAttrRefNamesContainOps(ProjectionOperator *op);
 extern int getNumNormalAttrs(QueryOperator *op);
 
-extern List *getQueryOperatorAttrNames (QueryOperator *op);
+extern List *getQueryOperatorAttrNames(QueryOperator *op);
 
 extern int getNumAttrs(QueryOperator *op);
 
 extern int getAttrPos(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByName(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
-extern AttributeReference *getAttrRefByPos (QueryOperator *op, int pos);
+extern AttributeReference *getAttrRefByPos(QueryOperator *op, int pos);
 extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
@@ -352,6 +363,7 @@ extern List *aggOpGetAggAttrDefs(AggregationOperator *op);
 extern WindowFunction *winOpGetFunc(WindowOperator *op);
 
 extern HashMap *joinGetChildAttrToResultAttr(JoinOperator *op, boolean left);
+extern HashMap *nestingGetChildAttrToResultAttr(NestingOperator *op, boolean left);
 
 extern List *getProjExprsForAttrNames(QueryOperator *op, List *names);
 extern List *getProjExprsForAllAttrs(QueryOperator *op);
@@ -388,7 +400,7 @@ extern unsigned int numOpsInGraph (QueryOperator *root);
 extern unsigned int numOpsInTree (QueryOperator *root);
 
 //find NestingOperator based on levelsUp
-extern QueryOperator*findNestingOperator(QueryOperator *op, int levelsUp);
+extern QueryOperator *findNestingOperator(QueryOperator *op, int levelsUp);
 extern char *getNestingAttrPrefix();
 extern char *getLateralNestingId(int number);
 extern char *getNestingResultAttribute(int number);

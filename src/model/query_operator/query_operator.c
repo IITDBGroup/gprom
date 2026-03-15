@@ -44,7 +44,7 @@ static boolean isAttrCorrelatedFilter(void *a, void *context);
 static char *stringKeyAndValHashMapToString(HashMap *hm);
 
 QueryOperator *
-findNestingOperator (QueryOperator *op, int levelsUp)
+findNestingOperator(QueryOperator *op, int levelsUp)
 {
     QueryOperator *result = op;
 
@@ -1716,6 +1716,38 @@ joinGetChildAttrToResultAttr(JoinOperator *op, boolean left)
 	return caToA;
 }
 
+HashMap *
+nestingGetChildAttrToResultAttr(NestingOperator *op, boolean left)
+{
+	HashMap *caToA = NEW_MAP(Constant,Constant);
+    int numleftattr = getNumAttrs(OP_LCHILD(op));
+    List *inNames = NIL;
+    List *outNames = getQueryOperatorAttrNames((QueryOperator *) op);
+
+    // only scalar and LATERAL subqueries have attributes from the RHS
+    ASSERT(left || (op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR));
+
+    if(left)
+    {
+        outNames = sublist(outNames, 0, numleftattr);
+        inNames = getQueryOperatorAttrNames(OP_LCHILD(op));
+    }
+    else
+    {
+        outNames = getNestingResultAttributeNames(op);
+        inNames = getQueryOperatorAttrNames(OP_RCHILD(op));
+    }
+
+    FORBOTH(char,in,out,inNames,outNames)
+    {
+        MAP_ADD_STRING_KEY_AND_VAL(caToA, out, in);
+    }
+
+	return caToA;
+}
+
+
+
 List *
 aggOpGetGroupByAttrNames(AggregationOperator *op)
 {
@@ -2174,7 +2206,7 @@ countUniqueOpsVisitor(QueryOperator *op, void *context)
 #define PROP_CHILD_COUNT "CC"
 
 unsigned int
-numOpsInTree (QueryOperator *root)
+numOpsInTree(QueryOperator *root)
 {
     unsigned int result = 0;
     NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
@@ -2199,4 +2231,176 @@ numOpsInTreeInternal (QueryOperator *q, unsigned int *count)
         opC += numOpsInTreeInternal(c, count);
     SET_STRING_PROP(q, PROP_CHILD_COUNT, createConstInt(opC));
     return opC;
+}
+
+void
+projectionSetRenamedAttrs(QueryOperator *op)
+{
+    ProjectionOperator *p = (ProjectionOperator *) op;
+    Set *renamedAttrs = STRSET();
+
+    // find renamed attributes
+    FORBOTH(Node,projExpr,attr,p->projExprs, op->schema->attrDefs)
+    {
+        AttributeReference *aRef;
+        AttributeDef *aDef = (AttributeDef *) attr;
+
+        // only consider the case A AS B
+        if(isA(projExpr, AttributeReference))
+        {
+            aRef = (AttributeReference *) projExpr;
+            if (!streq(aRef->name, aDef->attrName))
+            {
+                addToSet(renamedAttrs, strdup(aDef->attrName));
+            }
+        }
+    }
+    SET_STRING_PROP(op, PROP_PROJ_RENAMED_ATTRS, renamedAttrs);
+}
+
+void
+adaptSchemaFromChildren(QueryOperator *o)
+{
+    switch(o->type)
+    {
+        case T_SelectionOperator:
+        case T_SetOperator:
+        case T_DuplicateRemoval:
+        case T_OrderOperator:
+        {
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+        }
+        break;
+        case T_ProjectionOperator: // TODO do not rename attribute if this is already a rename
+        {
+            ProjectionOperator *p = (ProjectionOperator *) o;
+            Set *renamedAttrs = (Set *) GET_STRING_PROP(o, PROP_PROJ_RENAMED_ATTRS);
+            Set *childNames = makeStrSetFromList(getQueryOperatorAttrNames(OP_LCHILD(p)));
+            List *newAttrDefs = NIL;
+            List *newProjs = NIL;
+
+            FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)
+            {
+                AttributeDef *aDef = (AttributeDef *) a;
+                if(isA(proj,AttributeReference))
+                {
+                    AttributeReference *ref = (AttributeReference *) proj;
+                    if(hasSetElem(childNames, ref->name))
+                    {
+                        if(!strpeq(aDef->attrName, ref->name)
+                           && (!renamedAttrs
+                               || !hasSetElem(renamedAttrs, aDef->attrName)))
+                        {
+                            aDef->attrName = strdup(ref->name);
+                        }
+                        newAttrDefs = appendToTailOfList(newAttrDefs, aDef);
+                        newProjs = appendToTailOfList(newProjs, proj);
+                    }
+                }
+                else
+                {
+                    List *attrRefs = getAttrReferences(proj);
+                    FOREACH(AttributeReference,a,attrRefs)
+                    {
+                        if(!hasSetElem(childNames, a->name))
+                        {
+                            THROW(SEVERITY_RECOVERABLE,
+                                  "\ninput attribute missing for expression:\n%s\n%s\nparent: %s\nchild: %s",
+                                  nodeToString(proj),
+                                  nodeToString(a),
+                                  singleOperatorToOverview(p),
+                                  singleOperatorToOverview(OP_LCHILD(p)));
+                        }
+                    }
+                    newAttrDefs = appendToTailOfList(newAttrDefs, aDef);
+                    newProjs = appendToTailOfList(newProjs, proj);
+                }
+            }
+
+            // adjust projection expressions
+            p->op.schema->attrDefs = newAttrDefs;
+            p->projExprs = newProjs;
+
+        }
+        break;
+        case T_JoinOperator:
+        {
+            JoinOperator *j = (JoinOperator *) o;
+            List *lAttrs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            List *rAttrs = copyObject(OP_RCHILD(o)->schema->attrDefs);
+
+            // if join operator
+            if(HAS_STRING_PROP(j, PROP_STORE_JOIN_OUT_TO_LEFT)
+               && HAS_STRING_PROP(j, PROP_STORE_JOIN_OUT_TO_RIGHT))
+            {
+                HashMap *leftToOut = invertKeyValues(joinGetChildAttrToResultAttr(j, TRUE));
+                HashMap *rightToOut = invertKeyValues(joinGetChildAttrToResultAttr(j, FALSE));
+
+                FOREACH(AttributeDef,a,lAttrs)
+                {
+                    ASSERT(hasMapStringKey(leftToOut, a->attrName));
+
+                    a->attrName = MAP_GET_STRING_VAL_FOR_STRING_KEY(leftToOut, a->attrName);
+                }
+
+                FOREACH(AttributeDef,a,rAttrs)
+                {
+                    ASSERT(hasMapStringKey(rightToOut, a->attrName));
+
+                    a->attrName = MAP_GET_STRING_VAL_FOR_STRING_KEY(rightToOut, a->attrName);
+                }
+
+            }
+            o->schema->attrDefs = CONCAT_LISTS(lAttrs, rAttrs);
+        }
+        break;
+        case T_NestingOperator:
+        {
+            NestingOperator *n = (NestingOperator *) o;
+            QueryOperator *rChild = OP_RCHILD(o);
+            Node *lastOne = getTailOfListP(o->schema->attrDefs);
+
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            // lateral or scalar get all of the attributes from the RHS
+            if(n->nestingType == NESTQ_LATERAL)
+            {
+                o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs,
+                                                   copyObject(rChild->schema->attrDefs));
+            }
+            // all other nesting operators get
+            else
+            {
+                o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
+            }
+            INFO_LOG("disambiguated names of nesting operator:\n %s", singleOperatorToOverview(o));
+        }
+        break;
+        case T_WindowOperator:
+        {
+            Node *lastOne = getTailOfListP(o->schema->attrDefs);
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
+        }
+        break;
+        case T_JsonTableOperator:
+        {
+            List *childAttr = OP_LCHILD(o)->schema->attrDefs;
+            FORBOTH(AttributeDef,a,childA,o->schema->attrDefs,childAttr)
+            {
+                if (!strpeq(a->attrName, childA->attrName))
+                {
+                    a->attrName = strdup(childA->attrName);
+                }
+            }
+        }
+        break;
+        case T_ProvenanceComputation:
+        {
+            // FIXME potentially needed for queries over provenance
+            //TODO should never end up here?
+        }
+        break;
+        default:
+            break;
+    }
 }

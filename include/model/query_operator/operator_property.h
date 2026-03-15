@@ -17,6 +17,9 @@
 #define PROP_DO_NOT_MATERIALIZE "DO_NOT_MATERIALIZE"        // marks operators that should never be materialized as a CTE
 #define PROP_NO_MODEL_CHECKING_ROOT "NO_CHECKING_ROOT"      // model checking will ignore this operator and everything below
 
+// translator
+#define PROP_PROJ_RENAMED_ATTRS "RenamedProjAttrs"
+
 // exec and prepared queries
 #define PROP_PREPARED_QUERY_NAME "PREPARED_QUERY"
 #define PROP_PREPARED_QUERY_DTS "PREPARED_DTS"
