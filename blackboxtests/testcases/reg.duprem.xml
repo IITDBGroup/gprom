@@ -22,6 +22,47 @@ X|
 7|
 </entry>
 
+<entry key="q3.query">
+SELECT DISTINCT ON (a) a,b FROM r WHERE b = 1;
+</entry>
+<entry key="q3.result">
+ a | b |
+--------
+ 1 | 1 |
+ 2 | 1 |
+</entry>
+
+<entry key="q4.query">
+SELECT DISTINCT ON (x) a AS x,b FROM r WHERE b = 1;
+</entry>
+<entry key="q4.result">
+ x | b |
+--------
+ 1 | 1 |
+ 2 | 1 |
+</entry>
+
+<entry key="q5.query">
+SELECT DISTINCT ON (a) r2.a, r2.b FROM r r1, r r2 WHERE r1.a = 1;
+</entry>
+<entry key="q5.result">
+ a | b |
+--------
+ 1 | 1 |
+ 2 | 1 |
+</entry>
+
+<entry key="q6.query">
+SELECT DISTINCT ON (x) a AS x,b FROM r WHERE b = 1;
+</entry>
+<entry key="q6.result">
+ x | b |
+--------
+ 1 | 1 |
+ 2 | 1 |
+</entry>
+
+
 
 
 </properties>

@@ -169,4 +169,19 @@ X|
 3|
 </entry>
 
+<entry key="q16.query">
+SELECT r.* FROM r, (SELECT max(A) AS x FROM r) sub;
+</entry>
+<entry key="q16.result">
+ a | b |
+--------
+ 1 | 1 |
+ 1 | 2 |
+ 2 | 1 |
+ 2 | 3 |
+</entry>
+
+
+
+
 </properties>
