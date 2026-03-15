@@ -314,7 +314,7 @@ joinConditionTypeFromString (char *condType)
 }
 
 JoinType
-joinTypeFromString (char *joinType)
+joinTypeFromString(char *joinType)
 {
     if (strcmp(joinType,"JOIN_INNER") == 0)
         return JOIN_INNER;
@@ -331,7 +331,7 @@ joinTypeFromString (char *joinType)
 }
 
 DistinctClause *
-createDistinctClause (List *distinctExprs)
+createDistinctClause(List *distinctExprs)
 {
     DistinctClause *result = makeNode(DistinctClause);
 

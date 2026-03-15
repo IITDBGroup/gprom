@@ -2093,7 +2093,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         break;
         case T_DuplicateRemoval:
             WRITE_OP_TYPE(DuplicateRemoval);
-            break;
+        break;
         case T_ConstRelOperator:
         {
             ConstRelOperator *o = (ConstRelOperator *) op;
