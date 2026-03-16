@@ -22,7 +22,7 @@
 
 static void outputResult(Relation *res);
 static void printDBsample(List *stmts);
-
+static char *getExplainString(boolean analyze);
 
 void
 exeExplainQuery(void *code)
@@ -49,14 +49,7 @@ exeExplainQuery(void *code)
 
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); // FIXME not safe if ; in strings
-    if(analyze)
-    {
-        adaptedQuery = CONCAT_STRINGS("EXPLAIN ANALYZE ", adaptedQuery);
-    }
-    else
-    {
-        adaptedQuery = CONCAT_STRINGS("EXPLAIN ", adaptedQuery);
-    }
+    adaptedQuery = CONCAT_STRINGS(getExplainString(analyze), adaptedQuery);
 
     // execute query
     INFO_LOG("explain query (analyzer: %s, time query: %s):\n%s", analyze ? "yes" : "no", showTime ? "yes" : "no", (char *) adaptedQuery);
@@ -189,21 +182,44 @@ outputResult(Relation *res)
         if ((l++ % 1000) == 0)
             fflush(stdout);
 	}
-    /* FOREACH(List,t,res->tuples) */
-    /* { */
-    /*     i = 0; */
-    /*     FOREACH(char,a,t) */
-    /*     { */
-    /*         char *out = a ? a : "NULL"; */
-    /*         printf(" %s", out); */
-    /*         for(int j = strlen(out) + 1; j < colSizes[i]; j++) */
-    /*             printf(" "); */
-    /*         printf("|"); */
-    /*         i++; */
-    /*     } */
-    /*     printf("\n"); */
+}
 
-    /*     if ((l++ % 1000) == 0) */
-    /*         fflush(stdout); */
-    /* } */
+static char *
+getExplainString(boolean analyze)
+{
+    BackendType b = getBackend();
+
+    switch(b)
+    {
+        case BACKEND_POSTGRES:
+        {
+            if(analyze)
+            {
+                return "EXPLAIN (ANALYZE, TIMING OFF) ";
+            }
+            return "EXPLAIN ";
+        }
+        case BACKEND_DUCKDB:
+        {
+            if(analyze)
+            {
+                return "EXPLAIN ANALYZE ";
+            }
+            return "EXPLAIN ";
+        }
+        case BACKEND_SQLITE:
+        {
+            return "EXPLAIN QUERY PLAN ";
+            //there is no analyze
+        }
+        case BACKEND_MONETDB:
+        {
+            return "EXPLAIN ";
+        }
+        case BACKEND_MSSQL:
+        case BACKEND_ORACLE:
+            THROW(SEVERITY_RECOVERABLE,
+                  "explain not implemented yet for this backend");
+        break;
+    }
 }

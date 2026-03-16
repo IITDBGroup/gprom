@@ -310,9 +310,12 @@ checkSchemaConsistency(QueryOperator *op, void *context)
                 if (typeOf(p) != def->dataType)
                 {
                     ERROR_LOG("schema and projection expression data types should"
-                            " be the same: %s = %s",
-                            DataTypeToString(typeOf(p)),
-                            DataTypeToString(def->dataType));
+                              " be the same: %s = %s\n\nPROJ EXPR:\n%s\nATTRDEF:\n%s\n\n%s",
+                              DataTypeToString(typeOf(p)),
+                              DataTypeToString(def->dataType),
+                              beatify(nodeToString(p)),
+                              beatify(nodeToString(def)),
+                              singleOperatorToOverview(o));
                     DEBUG_LOG("details: %s", beatify(nodeToString(o)));
                     return FALSE;
                 }
