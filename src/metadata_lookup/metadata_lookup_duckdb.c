@@ -376,6 +376,16 @@ duckdbGetFuncReturnType(char *fName, List *argTypes, boolean *funcExists)
             types = typeListToDTs(typesStrs);
         }
 
+        if(streq(parameters,"ANY"))
+        {
+            DEBUG_LOG("return type %s for %s(%s)",
+                      DataTypeToString(resType),
+                      fName,
+                      nodeToString(argTypes));
+            resType = stringToDT(retType);
+            *funcExists = TRUE;
+        }
+
         if(equal(argTypes, types))
         {
             DEBUG_LOG("return type %s for %s(%s)",

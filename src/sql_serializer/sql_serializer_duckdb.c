@@ -148,6 +148,12 @@ quoteIdentifierDuckDB(char *ident)
     if (ident[0] == '"')
         return ident;
 
+    // identifiers cannot start with numbers
+    if (regExMatch("[0-9].*", ident))
+    {
+        needsQuotes = TRUE;
+    }
+
     // duckdb completely ignores case no matter whether the identifier is quoted or not
     // so upper/lower case does not indicate whether we need to escape
     for(i = 0; i < strlen(ident); i++)
