@@ -87,6 +87,18 @@ GProM now supports **CTable** (Confidence Table) functionality for handling unce
 - Support cross-row dependencies where constraints from different rows affect each other
 - Add uncertainty bounds (`lb` and `ub` columns) to query results
 
+### USET IS Declaration Requirement
+
+**Important:** `uset()` queries require at least one table in the FROM clause to have an **IS** declaration (e.g., `IS CTABLE(c_conf)`) to specify the uncertainty format. Queries without any IS declaration will report an error during semantic analysis.
+
+```sql
+-- Correct: table has IS CTABLE(c_conf)
+uset(SELECT * FROM employee IS CTABLE(c_conf));
+
+-- Error: no IS declaration
+uset(SELECT * FROM employee);  -- Will fail with semantic error
+```
+
 ### Example Usage
 
 ```sql
@@ -103,7 +115,7 @@ INSERT INTO employee VALUES
     (2, 'Bob', 'Y', 'Y<40000'),
     (3, 'Eve', '20000', 'TRUE');
 
--- Query with CTable rewriting
+-- Query with CTable rewriting (IS CTABLE is required)
 uset(SELECT name, salary, ub, lb FROM employee IS CTABLE(c_conf));
 ```
 

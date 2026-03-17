@@ -2164,6 +2164,67 @@ analyzeSetQuery (SetQuery *q, List *parentFroms)
 }
 
 /*
+ * 检查 FROM 项是否有 IS 声明（如 IS CTABLE(...)、IS UTDB 等）
+ * 用于 uset() 查询必须带 is 的语义检查
+ */
+static boolean
+fromItemHasIsDeclaration(FromItem *f)
+{
+    if (f == NULL || f->provInfo == NULL || f->provInfo->provProperties == NULL)
+        return FALSE;
+    FromProvInfo *fp = f->provInfo;
+    if (getStringProvProperty(fp, PROV_PROP_CTABLE_CONF))
+        return TRUE;
+    if (getStringProvProperty(fp, PROV_PROP_RADB))
+        return TRUE;
+    if (getStringProvProperty(fp, PROV_PROP_UADB))
+        return TRUE;
+    if (getStringProvProperty(fp, PROV_PROP_XTABLE_GROUPID) && getStringProvProperty(fp, PROV_PROP_XTABLE_PROB))
+        return TRUE;
+    if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
+        return TRUE;
+    if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
+        return TRUE;
+    return FALSE;
+}
+
+/*
+ * 递归检查 query 的 FROM 子句中是否至少有一个表带了 IS 声明
+ */
+static boolean
+queryHasAtLeastOneFromWithIs(Node *query)
+{
+    if (query == NULL)
+        return FALSE;
+    if (isA(query, QueryBlock))
+    {
+        QueryBlock *qb = (QueryBlock *) query;
+        List *leafs = getFromTreeLeafs(qb->fromClause);
+        FOREACH(FromItem, f, leafs)
+        {
+            if (fromItemHasIsDeclaration(f))
+                return TRUE;
+        }
+        return FALSE;
+    }
+    if (isA(query, SetQuery))
+    {
+        SetQuery *sq = (SetQuery *) query;
+        if (queryHasAtLeastOneFromWithIs(sq->lChild))
+            return TRUE;
+        if (queryHasAtLeastOneFromWithIs(sq->rChild))
+            return TRUE;
+        return FALSE;
+    }
+    if (isA(query, WithStmt))
+    {
+        WithStmt *ws = (WithStmt *) query;
+        return queryHasAtLeastOneFromWithIs(ws->query);
+    }
+    return FALSE;
+}
+
+/*
  * Analyze a provenance computation. The main part is to figure out the attributes
  */
 
@@ -2299,6 +2360,14 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         {
             List *provAttrNames = NIL;
             List *provDts = NIL;
+
+            /* uset() 要求至少有一个 FROM 表带 IS 声明（如 IS CTABLE(...)、IS UTDB 等）*/
+            if (!queryHasAtLeastOneFromWithIs(q->query))
+            {
+                THROW(SEVERITY_RECOVERABLE,
+                    "uset() queries require at least one table in the FROM clause to have an IS declaration "
+                    "(e.g., IS CTABLE(c_conf), IS UTDB). Please add 'IS CTABLE(...)' or 'IS UTDB' to specify the uncertainty format.");
+            }
 
             analyzeQueryBlockStmt(q->query, parentFroms);
             correctFromTableVisitor(q->query, NULL);
