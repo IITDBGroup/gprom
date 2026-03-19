@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include <string.h>
 #include "configuration/option_parser.h"
 #include "configuration/option.h"
 #include "model/node/nodetype.h"
@@ -109,6 +110,49 @@ parseOneOption (char *opt, char* const argv[], const int argc, int *pos)
         (*pos)++;
         (*pos) -= 2;
         setBoolOption(o,FALSE);
+        return 0;
+    }
+    else if (strcmp(opt,"-option") == 0)
+    {
+        ASSERT_HAS_NEXT();
+        char *arg = argv[++(*pos)];
+        char *eq = strchr(arg, '=');
+        if (!eq)
+        {
+            errorMessage = "Expected name=value for -option";
+            return 1;
+        }
+        int nameLen = (int)(eq - arg);
+        static char nameBuf[256];
+        if (nameLen >= (int)sizeof(nameBuf))
+        {
+            errorMessage = "Option name too long for -option";
+            return 1;
+        }
+        strncpy(nameBuf, arg, (unsigned)nameLen);
+        nameBuf[nameLen] = '\0';
+        char *name = nameBuf;
+        char *val = eq + 1;
+        if (!hasOption(name))
+        {
+            errorMessage = nameBuf;
+            return 1;
+        }
+        switch (getOptionType(name))
+        {
+            case OPTION_BOOL:
+                setBoolOption(name, parseBool(val));
+                break;
+            case OPTION_INT:
+                setIntOption(name, atoi(val));
+                break;
+            case OPTION_STRING:
+                setStringOption(name, strdup(val));
+                break;
+            case OPTION_FLOAT:
+                setFloatOption(name, atof(val));
+                break;
+        }
         return 0;
     }
     else if (hasCommandOption(opt))

@@ -99,6 +99,30 @@ uset(SELECT * FROM employee IS CTABLE(c_conf));
 uset(SELECT * FROM employee);  -- Will fail with semantic error
 ```
 
+### NORMALIZE Option
+
+You can add a top-level `range_normalize()` projection to merge overlapping intervals in each column. Enable it in two ways:
+
+**1. Keyword** – Add `NORMALIZE` after the CTABLE declaration:
+```sql
+uset(SELECT * FROM employee IS CTABLE(c_conf) NORMALIZE);
+```
+
+**2. Command-line option** – Use `-normalize` or `-option normalize=true`:
+```bash
+gprom -normalize -query "uset(SELECT * FROM employee IS CTABLE(c_conf));"
+# or
+gprom -option normalize=true -query "uset(SELECT * FROM employee IS CTABLE(c_conf));"
+```
+
+**Prerequisite:** Create a PostgreSQL `range_normalize()` function. For `int4range[]` columns, use the version that merges overlapping ranges. For `text`/`varchar` output from CTable, add an overload:
+
+```sql
+CREATE OR REPLACE FUNCTION range_normalize(rangeset text) RETURNS text AS $$
+BEGIN RETURN rangeset; END;
+$$ LANGUAGE plpgsql;
+```
+
 ### Example Usage
 
 ```sql
@@ -175,6 +199,17 @@ To use the CTable uncertainty table rewriting feature, you need to:
    ```bash
    cat parse_ctable_condition_z3_sympy.sql | sudo -u postgres psql -d your_database
    cat parse_ctable_condition_cross_row.sql | sudo -u postgres psql -d your_database
+   ```
+
+4. **Create `range_normalize()` for NORMALIZE support (optional):**
+   ```sql
+   -- For int4range[] (if your columns use that type)
+   -- See your existing range_normalize(int4range[]) implementation.
+
+   -- For text/varchar (CTable output):
+   CREATE OR REPLACE FUNCTION range_normalize(rangeset text) RETURNS text AS $$
+   BEGIN RETURN rangeset; END;
+   $$ LANGUAGE plpgsql;
    ```
 
 See [CTable.md](CTable.md) for detailed setup instructions and usage examples.

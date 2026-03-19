@@ -1417,6 +1417,8 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 			setStringProperty(op, "CTABLE_CONF",
 							  (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_CTABLE_CONF))));
 			hasProv = TRUE;
+			if (getStringProvProperty(from, PROV_PROP_CTABLE_NORMALIZE))
+				setStringProperty(op, PROV_PROP_CTABLE_NORMALIZE, (Node *) createConstBool(TRUE));
 		}
     }
 

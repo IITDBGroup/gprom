@@ -67,7 +67,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE USET ZUNCERT
-%token <stringVal> TIP INCOMPLETE VTABLE XTABLE CTABLE RADB UADB
+%token <stringVal> TIP INCOMPLETE VTABLE XTABLE CTABLE RADB UADB NORMALIZE
 
 %token <stringVal> FROM LATERAL
 %token <stringVal> ISOLATION LEVEL
@@ -155,7 +155,7 @@ Node *oracleParseResult = NULL;
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
 %type <stringVal> optionalFormat optionalWrapper optionalstringConst
-%type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample
+%type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample optionalNormalize
 %type <list> optionalSummarization
 %type <intVal>	optionalCountDistinct
 
@@ -2121,13 +2121,20 @@ optionalFromXTable:
 ;
 
 optionalFromCTable:
-		IS CTABLE '(' identifier ')'
+		IS CTABLE '(' identifier ')' optionalNormalize
 		{
 			RULELOG("optionalFromCTable");
 			FromProvInfo *p = makeNode(FromProvInfo);
 			setStringProvProperty(p, PROV_PROP_CTABLE_CONF, (Node *) createConstString($4));
+			if ($5 != NULL)
+				setStringProvProperty(p, PROV_PROP_CTABLE_NORMALIZE, (Node *) createConstBool(TRUE));
 			$$ = (Node *) p;
 		}
+;
+
+optionalNormalize:
+		/* empty */ { RULELOG("optionalNormalize::empty"); $$ = NULL; }
+		| NORMALIZE { RULELOG("optionalNormalize::NORMALIZE"); $$ = (Node *) createConstBool(TRUE); }
 ;
 
 

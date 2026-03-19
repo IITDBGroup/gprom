@@ -199,6 +199,7 @@ char *ps_store_table = NULL;
 boolean range_optimize_join = TRUE;
 boolean range_optimize_agg = TRUE;
 int range_compression_rate = 1;
+boolean opt_uset_normalize = FALSE;
 
 // struct that encapsulates option state
 struct option_state {
@@ -1016,6 +1017,12 @@ OptionInfo opts[] =
                 "Range rewriter: Optimized aggregation rewriting.",
                 range_optimize_agg,
                 TRUE
+        ),
+        anUncertaintyOption(OPTION_USET_NORMALIZE,
+                "-normalize",
+                "USET: Enable top-level range_normalize for each column.",
+                opt_uset_normalize,
+                FALSE
         ),
         {
                  RANGE_COMPRESSION_RATE,

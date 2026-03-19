@@ -11,6 +11,7 @@ CTable (Confidence Table) is a mechanism in GProM for handling uncertain data. I
 3. **Interval Calculation**: Convert constraint conditions into numeric intervals (e.g., `(9000,+∞)`)
 4. **Cross-Row Dependencies**: Support constraints from different rows affecting each other
 5. **Uncertainty Annotation**: Automatically add `lb` (lower bound) and `ub` (upper bound) columns
+6. **NORMALIZE Option**: Optionally apply `range_normalize()` on each column to merge overlapping intervals (see [NORMALIZE Section](#normalize-option) below)
 
 ### Rewriting Process
 
@@ -34,6 +35,42 @@ CTable rewriting consists of two steps:
 #### PostgreSQL Functions
 - **`parse_ctable_condition_z3_sympy`**: Base parsing function that uses the Z3 solver to parse conditions
 - **`parse_ctable_condition_cross_row`**: Cross-row constraint function that collects constraints for the same variable from all rows
+- **`range_normalize`**: Merges overlapping ranges (optional, for NORMALIZE feature)
+
+---
+
+## NORMALIZE Option
+
+You can add a top-level `range_normalize()` projection to merge overlapping intervals in each column.
+
+### Enabling NORMALIZE
+
+**1. SQL Keyword** – Add `NORMALIZE` after `IS CTABLE(c_conf)`:
+```sql
+uset(SELECT * FROM employee IS CTABLE(c_conf) NORMALIZE);
+```
+
+**2. Command-line** – Use `-normalize` or `-option normalize=true`:
+```bash
+gprom -normalize -query "uset(SELECT * FROM employee IS CTABLE(c_conf));"
+gprom -option normalize=true -query "uset(SELECT * FROM employee IS CTABLE(c_conf));"
+```
+
+### Default Behavior
+
+By default, NORMALIZE is **disabled** (backward compatible). Enable it explicitly via the keyword or option.
+
+### PostgreSQL Prerequisite
+
+Create a `range_normalize()` overload for your column types:
+
+- **`int4range[]`**: Implement sorting and merging of overlapping ranges (see your existing UDF).
+- **`text` / `varchar`**: CTable output is often text; add a pass-through or parser overload:
+  ```sql
+  CREATE OR REPLACE FUNCTION range_normalize(rangeset text) RETURNS text AS $$
+  BEGIN RETURN rangeset; END;
+  $$ LANGUAGE plpgsql;
+  ```
 
 ---
 

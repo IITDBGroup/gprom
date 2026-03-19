@@ -46,4 +46,8 @@ GProM supports uncertain data via uset() and CTable. uset() queries REQUIRE at
 least one FROM table to have an IS declaration (e.g., IS CTABLE(c_conf)). Without
 it, the query will fail at semantic analysis. Example:
   uset(SELECT * FROM employee IS CTABLE(c_conf));
+
+NORMALIZE: Add NORMALIZE after IS CTABLE(c_conf) or use -normalize / -option normalize=true
+to apply range_normalize() on each column. Example:
+  uset(SELECT * FROM employee IS CTABLE(c_conf) NORMALIZE);
 See readme.md and CTable.md for details.

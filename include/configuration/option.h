@@ -144,6 +144,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define RANGE_OPTIMIZE_JOIN "range_optimize_join"
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"
 #define RANGE_COMPRESSION_RATE "range_compression_rate"
+#define OPTION_USET_NORMALIZE "normalize"
 
 /* dl rewrite options */
 #define OPTION_WHYNOT_ADV "whynot_adv"
@@ -242,6 +243,7 @@ extern boolean opt_agg_reduction_model_rewrite;
 extern boolean range_optimize_join;
 extern boolean range_optimize_agg;
 extern boolean range_compression_rate;
+extern boolean opt_uset_normalize;
 
 // optimization options for group by
 extern boolean opt_optimization_push_down_group_by_operator_through_join;

@@ -2517,6 +2517,10 @@ rewrite_UncertCTable(QueryOperator *op)
 	setStringProperty(proj, UNCERT_MAPPING_PROP, (Node *)hmp);
 	markUncertAttrsAsProv(proj);
 
+	/* Copy PROV_PROP_CTABLE_NORMALIZE to result so top-level USET can add normalize projection */
+	if (HAS_STRING_PROP(op, PROV_PROP_CTABLE_NORMALIZE))
+		setStringProperty(proj, PROV_PROP_CTABLE_NORMALIZE, (Node *) createConstBool(TRUE));
+
 	INFO_LOG("CTable: 重写完成 - 已添加lb和ub列，变量已转换为区间表示");
 	DEBUG_NODE_BEATIFY_LOG("rewritten query root for CTABLE uncertainty is:", proj);
 
@@ -6264,6 +6268,59 @@ addRangeRowToSchema(HashMap *hmp, QueryOperator *target)
 
 
 
+/* Check if any operator in the tree has PROV_PROP_CTABLE_NORMALIZE (from IS CTABLE(...) NORMALIZE) */
+static boolean
+hasNormalizeInTree(QueryOperator *op)
+{
+	if (!op) return FALSE;
+	if (HAS_STRING_PROP(op, PROV_PROP_CTABLE_NORMALIZE))
+		return TRUE;
+	if (op->inputs) {
+		FOREACH(QueryOperator, child, op->inputs) {
+			if (hasNormalizeInTree(child))
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+/* Wrap root with a projection that applies range_normalize to data columns.
+ * Skip metadata columns: lb, ub, ROW_CERTAIN, ROW_BESTGUESS, ROW_POSSIBLE.
+ * Note: range_normalize expects int4range[]; columns from parse_ctable_condition_*
+ * may return text - ensure PostgreSQL has matching overloads (e.g. range_normalize(text))
+ * or the function returns int4range[].
+ */
+static QueryOperator *
+addNormalizeProjection(QueryOperator *root)
+{
+	List *attrExprs = getProjExprsForAllAttrs(root);
+	List *normExprs = NIL;
+	List *attrNames = NIL;
+
+	FOREACH(Node, nd, attrExprs) {
+		AttributeReference *ar = (AttributeReference *)nd;
+		char *attrName = ar->name;
+		/* Skip provenance/metadata columns: lb, ub, ROW_CERTAIN, ROW_BESTGUESS, ROW_POSSIBLE */
+		if (strcmp(attrName, "lb") == 0 || strcmp(attrName, "ub") == 0 ||
+		    strcmp(attrName, ROW_CERTAIN) == 0 || strcmp(attrName, ROW_BESTGUESS) == 0 ||
+		    strcmp(attrName, ROW_POSSIBLE) == 0)
+		{
+			normExprs = appendToTailOfList(normExprs, copyObject(nd));
+		} else {
+			/* Apply range_normalize to data columns (name, salary, etc.) */
+			normExprs = appendToTailOfList(normExprs,
+				(Node *)createFunctionCall("range_normalize", singleton(copyObject(nd))));
+		}
+		attrNames = appendToTailOfList(attrNames, strdup(attrName));
+	}
+
+	QueryOperator *normProj = (QueryOperator *)createProjectionOp(normExprs, root, NIL, attrNames);
+	switchSubtrees(root, normProj);
+	root->parents = singleton(normProj);
+	INFO_LOG("USET: Added top-level range_normalize projection");
+	return normProj;
+}
+
 //Uset query rewriting
 static QueryOperator *
 rewriteUsetProvComp(QueryOperator *op)
@@ -6344,6 +6401,13 @@ rewriteUsetProvComp(QueryOperator *op)
     Set *done = PSET();
     disambiguiteAttrNames((Node *) top, done);
 
+    /* Add top-level range_normalize projection when: NORMALIZE keyword or -option normalize=true */
+    if (isUsetMode(op) &&
+        (getBoolOption(OPTION_USET_NORMALIZE) || hasNormalizeInTree(top)))
+    {
+        top = addNormalizeProjection(top);
+    }
+
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, top);
     DEBUG_NODE_BEATIFY_LOG("rewritten query root for USET is:\n", top);
@@ -6383,19 +6447,17 @@ rewrite_UsetTableAccess(QueryOperator *op)
     INFO_LOG("REWRITE-USET - TableAccess");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
     
-    // 自动检测c_conf列，如果存在则设置为CTABLE
+    /* Handle explicit IS CTABLE(c_conf) from translator or auto-detect c_conf in schema */
     if (op->type == T_TableAccessOperator) {
-        // 检查schema中是否有c_conf列
+        if (HAS_STRING_PROP(op, "CTABLE_CONF")) {
+            return rewrite_UncertCTable(op);
+        }
         if (op->schema && op->schema->attrDefs) {
             FOREACH(AttributeDef, attr, op->schema->attrDefs) {
                 if (attr->attrName && strcmp(attr->attrName, "c_conf") == 0) {
                     INFO_LOG("CTable: 检测到c_conf列，自动设置为CTABLE");
                     setStringProperty(op, "CTABLE_CONF", (Node *)createConstString("c_conf"));
-                    // 如果已设置为CTABLE，直接调用重写函数
-                    if (HAS_STRING_PROP(op, "CTABLE_CONF")) {
-                        return rewrite_UncertCTable(op);
-                    }
-                    break;
+                    return rewrite_UncertCTable(op);
                 }
             }
         }
