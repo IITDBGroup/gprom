@@ -105,7 +105,11 @@ RUN  mkdir -p /monetdb \
     && cd /monetdb/MonetDB-${MONETDB_VERSION} \
     && cmake -DCMAKE_INSTALL_PREFIX=/monetdb/install /monetdb/MonetDB-${MONETDB_VERSION} \
     && cmake --build . \
-    && cmake --build . --target install
+    && cmake --build . --target install \
+    && ln -s /monetdb/install/lib64/libmapi-11.55.3.so /monetdb/install/lib64/libmapi.so \
+    && echo "/monetdb/install/lib64" > /etc/ld.so.conf.d/monetdb.conf \
+	&& /sbin/ldconfig
+
 ########################################
 # Setup MonetDB
 ########################################
@@ -123,7 +127,7 @@ RUN cd /ocilib/src \
 	&& ./configure --with-oracle-headers-path=/usr/include/oracle/23/client64/ --with-oracle-lib-path=/usr/lib/oracle/23/client64/lib/\
 	&& make -j \
 	&& make -j install \
-	&& echo "/usr/local/bin/" > /etc/ld.so.conf.d/ocilib.conf \
+	&& echo "/usr/local/lib/" > /etc/ld.so.conf.d/ocilib.conf \
 	&& /sbin/ldconfig
 ########################################
 # Install docker client

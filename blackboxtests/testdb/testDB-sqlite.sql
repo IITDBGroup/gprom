@@ -40,12 +40,6 @@ DROP TABLE IF EXISTS t_partsupp;
 DROP TABLE IF EXISTS t_region;
 DROP TABLE IF EXISTS t_supplier;
 
-
-
-
-
-
-
 -------------------------------------------------------------------------------
 --                                CREATE TABLE                               --
 -------------------------------------------------------------------------------
@@ -9254,17 +9248,3 @@ CREATE TABLE t_supplier (
     t_b timestamp without time zone,
     t_e timestamp without time zone
 );
-
---
--- Name: nation nation_pkey; Type: CONSTRAINT; Schema: public; Owner: perm
---
-
-ALTER TABLE ONLY t_nation
-    ADD CONSTRAINT t_nation_pkey PRIMARY KEY (nationkey);
-
---
--- Name: region region_pkey; Type: CONSTRAINT; Schema: public; Owner: perm
---
-
-ALTER TABLE ONLY t_region
-    ADD CONSTRAINT t_region_pkey PRIMARY KEY (regionkey);
