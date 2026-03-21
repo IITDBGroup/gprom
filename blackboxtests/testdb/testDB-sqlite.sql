@@ -15,6 +15,12 @@ DROP TABLE IF EXISTS FBA_TEST;
 DROP TABLE IF EXISTS T_TC;
 DROP TABLE IF EXISTS TR;
 DROP TABLE IF EXISTS TS;
+DROP TABLE IF EXISTS r_n;
+DROP TABLE IF EXISTS s_n;
+DROP TABLE IF EXISTS r_nx;
+DROP TABLE IF EXISTS s_nx;
+
+DROP TABLE IF EXISTS taxi_trips;
 
 DROP TABLE IF EXISTS part;
 DROP TABLE IF EXISTS supplier;
@@ -211,6 +217,88 @@ CREATE TABLE FBA_TEST (
 );
 
 -------------------------------------------------------------------------------
+--                                 semirings                                 --
+-------------------------------------------------------------------------------
+CREATE TABLE r_n (
+	A int,
+	B int,
+    mult int
+);
+
+INSERT INTO R_n VALUES (1,1,3);
+INSERT INTO R_n VALUES (1,2,4);
+INSERT INTO R_n VALUES (2,1,5);
+INSERT INTO R_n VALUES (2,3,1);
+
+
+CREATE TABLE s_n (
+	C int,
+	D int,
+    mult int
+);
+
+INSERT INTO S_n VALUES (2,2,3);
+INSERT INTO S_n VALUES (2,3,3);
+INSERT INTO S_n VALUES (3,2,4);
+INSERT INTO S_n VALUES (1,4,1);
+
+CREATE TABLE r_nx (
+	A int,
+	B int,
+    prov TEXT
+);
+
+INSERT INTO R_nx VALUES (1,1,'x1');
+INSERT INTO R_nx VALUES (1,2,'x2');
+INSERT INTO R_nx VALUES (2,1,'x3');
+INSERT INTO R_nx VALUES (2,3,'x4');
+
+
+CREATE TABLE s_nx (
+	C int,
+	D int,
+    prov TEXT
+);
+
+INSERT INTO S_nx VALUES (2,2,'y1');
+INSERT INTO S_nx VALUES (2,3,'y2');
+INSERT INTO S_nx VALUES (3,2,'y3');
+INSERT INTO S_nx VALUES (1,4,'y4');
+
+
+-------------------------------------------------------------------------------
+--                                 taxi trips                                --
+-------------------------------------------------------------------------------
+
+CREATE TABLE taxi_trips (
+    trip_id text,
+    taxi_id text,
+    t_b timestamp without time zone,
+    t_e timestamp without time zone,
+    trip_seconds integer,
+    trip_miles numeric(6,2),
+    pickup_census_tract bigint,
+    dropoff_census_tract bigint,
+    pickup_community_area integer,
+    dropoff_community_area integer,
+    fare numeric(8,2),
+    tips numeric(8,2),
+    tolls numeric(8,2),
+    extras numeric(8,2),
+    trip_total numeric(8,2),
+    payment_type text,
+    company text,
+    pickup_centroid_latitude numeric,
+    pickup_centroid_longitude numeric,
+    pickup_centroid_location text,
+    dropoff_centroid_latitude numeric,
+    dropoff_centroid_longitude numeric,
+    dropoff_centroid_location text
+);
+
+
+
+-------------------------------------------------------------------------------
 --                                   TPC-H                                   --
 -------------------------------------------------------------------------------
 
@@ -277,7 +365,7 @@ CREATE TABLE lineitem (
 	l_partkey	INT8,
 	l_suppkey	INT8,
 	l_linenumber	INT8,
-	l_quantity	FLOAT8,
+	l_quantity	INT8,
 	l_extendedprice	FLOAT8,
 	l_discount	FLOAT8,
 	l_tax		FLOAT8,
