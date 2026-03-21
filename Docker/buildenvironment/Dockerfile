@@ -37,6 +37,7 @@ RUN dnf -y install \
 	ant \
     bison \
     bzip2 \
+    cmake \
 	curl \
     flex \
 	git \
@@ -101,10 +102,10 @@ RUN  mkdir -p /monetdb \
     && wget https://www.monetdb.org/downloads/sources/${MONETDB_RELEASE}/MonetDB-${MONETDB_VERSION}.tar.bz2 --no-check-certificate \
     && bzip2 -d MonetDB-${MONETDB_VERSION}.tar.bz2 \
     && tar xf MonetDB-${MONETDB_VERSION}.tar \
-    && cd MonetDB-${MONETDB_VERSION} \
-    && ./configure --prefix=/monetdb/install --enable-assert --enable-debug --with-libxml2=no \
-    && make -j && make install \
-    && rm -fr /monetdb/MonetDB-${MONETDB_VERSION}.tar /monetdb/MonetDB-${MONETDB_VERSION}
+    && cd /monetdb/MonetDB-${MONETDB_VERSION} \
+    && cmake -DCMAKE_INSTALL_PREFIX=/monetdb/install /monetdb/MonetDB-${MONETDB_VERSION} \
+    && cmake --build . \
+    && cmake --build . --target install
 ########################################
 # Setup MonetDB
 ########################################
@@ -116,18 +117,19 @@ RUN git clone https://github.com/vrogier/ocilib.git /ocilib/src
 ########################################
 # Build OCILIB
 ########################################
+# --with-oracle-headers-path=/usr/local/oracle/include/oracle/12.2/client64/ \
 RUN cd /ocilib/src \
 	&& sh reconf \
-	&& ./configure --with-oracle-headers-path=/usr/local/oracle/include/oracle/12.2/client64/ \
-	&& make \
-	&& make install \
+	&& ./configure --with-oracle-headers-path=/usr/include/oracle/23/client64/ --with-oracle-lib-path=/usr/lib/oracle/23/client64/lib/\
+	&& make -j \
+	&& make -j install \
 	&& echo "/usr/local/bin/" > /etc/ld.so.conf.d/ocilib.conf \
 	&& /sbin/ldconfig
 ########################################
 # Install docker client
 ########################################
-RUN mkdir -p /tmp/download && \
- 	curl -L https://get.docker.com/builds/Linux/x86_64/docker-1.13.1.tgz | tar -xz -C /tmp/download && \
-	rm -rf /tmp/download/docker/dockerd && \
-	mv /tmp/download/docker/docker* /usr/local/bin/ && \
-	rm -rf /tmp/download
+# RUN mkdir -p /tmp/download && \
+#  	curl -L https://get.docker.com/builds/Linux/x86_64/docker-1.13.1.tgz | tar -xz -C /tmp/download && \
+# 	rm -rf /tmp/download/docker/dockerd && \
+# 	mv /tmp/download/docker/docker* /usr/local/bin/ && \
+# 	rm -rf /tmp/download
