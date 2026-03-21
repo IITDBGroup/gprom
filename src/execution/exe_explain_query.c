@@ -218,8 +218,10 @@ getExplainString(boolean analyze)
         }
         case BACKEND_MSSQL:
         case BACKEND_ORACLE:
+        default:
             THROW(SEVERITY_RECOVERABLE,
                   "explain not implemented yet for this backend");
+            return NULL;
         break;
     }
 }

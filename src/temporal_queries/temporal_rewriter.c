@@ -625,11 +625,15 @@ tempRewrGeneralAggregation(AggregationOperator *op, TemporalRewrState *state)
     minmax = GET_BOOL_STRING_PROP(rewrInput,PROP_TEMP_NORMALIZE_INPUTS);
 
     if(getBoolOption(TEMPORAL_AGG_WITH_NORM) && !minmax)
+    {
         rewr = rewriteTemporalAggregationWithNormalization((AggregationOperator *) op, state);
+    }
     else
+    {
         rewr = tempRewrAggregation((AggregationOperator *) op, state);
+    }
 
-	LOG_RESULT_AND_RETURN_TEMP(Aggregation);
+    LOG_RESULT_AND_RETURN_TEMP(Aggregation);
     /* return rewrittenOp; */
 }
 
