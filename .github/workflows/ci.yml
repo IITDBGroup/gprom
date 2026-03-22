@@ -198,7 +198,9 @@ jobs:
       working-directory: blackboxtests
       if: matrix.database == 'duckdb'
       run: |
-           python ./gprom_blackbox_tests.py --gprom ../build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
+           . venv/bin/activate
+           pip install -r requirements.txt
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ../build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
     - name: Tests on sqlite
       working-directory: blackboxtests
