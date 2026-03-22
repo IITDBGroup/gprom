@@ -52,10 +52,10 @@ jobs:
           push: true
           tags: iitdbgroup/gprom-build-env:latest
 
+################################################################################
+  # build gprom and setup databases
   ################################################################################
-  # build gprom and run blackbox tests on different databases
-  ################################################################################
-  build-and-test:
+  build:
     needs: build-docker-base-image
     # only build build-env docker image from master and if docker files where as this does not depend on gprom code
     if: ${{ always() && (needs.build-docker-base-image.result == 'success' || needs.build-docker-base-image.result == 'skipped' )}}
@@ -63,20 +63,13 @@ jobs:
     # run in development container with all client libraries and DBs preinstalled
     container:
       image: iitdbgroup/gprom-build-env:latest
-    # run tests on different databases
-    strategy:
-      matrix:
-        include:
-          - database: sqlite
-          - database: duckdb
-          - database: postgres
     steps:
     - uses: actions/checkout@v6
 
     - name: Configure
       run: |
            ./autogen.sh &&  ./configure \
-           --prefix=/gprom/install \
+           --prefix=build \
            --enable-monetdb --with-mapi-lib=/monetdb/install/lib64/ --with-mapi-headers=/monetdb/install/include/monetdb/ \
            --enable-postgres --with-libpq-headers=/usr/include/postgresql \
            --enable-oracle --with-oci-headers=/usr/include/oracle/23/client64/ --with-oci-lib=/usr/lib/oracle/23/client64/lib/ \
@@ -99,27 +92,94 @@ jobs:
            sudo -u postgres initdb -D dbs/postgres/
 
     - name: Python packages for blackbox tests
-      run: /usr/bin/pip install -r blackboxtests/requirements.txt
+      working-directory: blackboxtests
+      run: |
+           python3.12 -m venv venv
+           . venv/bin/activate
+           pip install -r requirements.txt
 
     - name: Run regular tests
       run: make -j check
 
+    - name: Upload gprom build
+      uses: actions/upload-artifact@v4
+      with:
+        name: gprom-build
+        path: build/
+        retention-days: 5
+
+    - name: Upload databases
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-dbs
+        path: blackboxtests/dbs
+        retention-days: 5
+
+    - name: Upload venv
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-python-venv
+        path: blackboxtests/venv
+        retention-days: 5
+
+  ################################################################################
+  # build gprom and run blackbox tests on different databases
+  ################################################################################
+  backboxtests:
+    needs: build
+    runs-on: ubuntu-latest
+    # run in development container with all client libraries and DBs preinstalled
+    container:
+      image: iitdbgroup/gprom-build-env:latest
+    # run tests on different databases
+    strategy:
+      matrix:
+        include:
+          - database: sqlite
+          - database: duckdb
+          - database: postgres
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: gprom-build # Specify the name of the artifact to download
+        path: ./build
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: test-dbs # Specify the name of the artifact to download
+        path: blackboxtests/dbs
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: test-python-venv
+        path: blackboxtests/venv
+
     - name: Tests on duckdb
       working-directory: blackboxtests
       if: matrix.database == 'duckdb'
-      run: python3.12 ./gprom_blackbox_tests.py -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
+      run: |
+           . venv/bin/activate
+           python3.12 ./gprom_blackbox_tests.py -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
     - name: Tests on sqlite
       working-directory: blackboxtests
       if: matrix.database == 'sqlite'
-      run: python3.12 ./gprom_blackbox_tests.py -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
+      run: |
+           . venv/bin/activate
+           python3.12 ./gprom_blackbox_tests.py -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
 
     - name: Tests on postgres
       working-directory: blackboxtests
       if: matrix.database == 'postgres'
       run: |
+           . venv/bin/activate
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ start
-           python3.12 ./gprom_blackbox_tests.py -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.noopt -t reg
+           python3.12 ./gprom_blackbox_tests.py -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
   ################################################################################
@@ -127,7 +187,7 @@ jobs:
   ################################################################################
   build-gprom-docker-images:
     runs-on: ubuntu-latest
-    needs: build-and-test
+    needs: backboxtests
     if: github.ref == 'refs/heads/master' # only build docker image from master
     steps:
       - uses: actions/checkout@v6
