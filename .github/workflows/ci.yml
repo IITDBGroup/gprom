@@ -111,11 +111,18 @@ jobs:
            chown -R postgres /var/run/postgresql/
            sudo -u postgres initdb -D dbs/postgres/
 
-    - name: Python packages for blackbox tests
+    - name: Python venv for blackbox tests
       working-directory: blackboxtests
       run: |
            python3.12 -m venv venv
-           . venv/bin/activate
+           echo "VIRTUAL_ENV=$PWD/venv" >> $GITHUB_ENV
+           echo "$PWD/venv/bin" >> $GITHUB_PATH
+      shell: bash
+
+    - name: Install required packages into VENV for blackbox tests
+      working-directory: blackboxtests
+      run: |
+           pip install --upgrade pip
            pip install -r requirements.txt
 
     - name: Run regular tests
@@ -181,25 +188,28 @@ jobs:
         name: test-python-venv
         path: blackboxtests/venv
 
+    - name: Activate venv
+      working-directory: blackboxtests
+      run: |
+           echo "VIRTUAL_ENV=$PWD/venv" >> $GITHUB_ENV
+           echo "$PWD/venv/bin" >> $GITHUB_PATH
+
     - name: Tests on duckdb
       working-directory: blackboxtests
       if: matrix.database == 'duckdb'
       run: |
-           . venv/bin/activate
            python ./gprom_blackbox_tests.py --gprom ../build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
     - name: Tests on sqlite
       working-directory: blackboxtests
       if: matrix.database == 'sqlite'
       run: |
-           . venv/bin/activate
            python ./gprom_blackbox_tests.py --gprom ../build/gprom -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
 
     - name: Tests on postgres
       working-directory: blackboxtests
       if: matrix.database == 'postgres'
       run: |
-           . venv/bin/activate
            chown -R postgres dbs/postgres/
            mkdir -p /var/run/postgresql/
            chown -R postgres /var/run/postgresql/
