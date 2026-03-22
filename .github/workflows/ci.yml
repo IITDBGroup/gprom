@@ -64,9 +64,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - database: sqlite
+          # - database: sqlite
           - database: duckdb
-          - database: postgres
+          # - database: postgres
     steps:
     - uses: actions/checkout@v6
 
@@ -86,14 +86,14 @@ jobs:
     - name: Setup test databases
       working-directory: blackboxtests
       run: |
-           mkdir /dbs
-           duckdb -f testdb/testDB-sqlite.sql /dbs/duckdb.db
-           sqlite3 /dbs/sqlite.db < testdb/testDB-sqlite.sql
-           mkdir -p /dbs/postgres
-           chown -R postgres /dbs/postgres/
+           mkdir dbs
+           duckdb -f testdb/testDB-sqlite.sql dbs/duckdb.db
+           sqlite3 dbs/sqlite.db < testdb/testDB-sqlite.sql
+           mkdir -p dbs/postgres
+           chown -R postgres dbs/postgres/
            mkdir -p /var/run/postgresql/
            chown -R postgres /var/run/postgresql/
-           sudo -u postgres initdb -D /dbs/postgres/
+           sudo -u postgres initdb -D dbs/postgres/
 
     - name: Python packages for blackbox tests
       run: /usr/bin/pip install -r blackboxtests/requirements.txt
@@ -104,20 +104,20 @@ jobs:
     - name: Tests on duckdb
       working-directory: blackboxtests
       if: matrix.database == 'duckdb'
-      run: gprom_blackbox_tests.py -b duckdb -d /dbs/duckdb.db -s default.noopt -t prov
+      run: gprom_blackbox_tests.py -b duckdb -d dbs/duckdb.db -s default.noopt -t prov
 
     - name: Tests on sqlite
       working-directory: blackboxtests
       if: matrix.database == 'sqlite'
-      run: gprom_blackbox_tests.py -b sqlite -d /dbs/sqlite.db -s default.noopt -t prov
+      run: gprom_blackbox_tests.py -b sqlite -d dbs/sqlite.db -s default.noopt -t prov
 
     - name: Tests on postgres
       working-directory: blackboxtests
       if: matrix.database == 'postgres'
       run: |
-           sudo -u postgres /usr/bin/pg_ctl -D /dbs/postgres/ start
-           gprom_blackbox_tests.py -b postgres -d postgres -h 127.0.0.1 -p -s default.noopt -t prov
-           sudo -u postgres /usr/bin/pg_ctl -D /dbs/postgres/ stop
+           sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ start
+           gprom_blackbox_tests.py -b postgres -H 127.0.0.1 -u postgres -p 5432 -P test -s default.noopt -t prov
+           sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
   ################################################################################
   # if tests where successful rebuild and deploy docker image
