@@ -153,13 +153,13 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: gprom-build # Specify the name of the artifact to download
-        path: ./build
+        path: ./blackboxtests/build
 
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: test-dbs # Specify the name of the artifact to download
-        path: blackboxtests/dbs
+        path: ./blackboxtests/dbs
 
     - name: Activate venv
       working-directory: blackboxtests
@@ -167,6 +167,7 @@ jobs:
            python3.12 -m venv venv
            echo "VIRTUAL_ENV=$PWD/venv" >> $GITHUB_ENV
            echo "$PWD/venv/bin" >> $GITHUB_PATH
+           chmod 777 ./build/gprom
 
     - name: Tests on duckdb
       working-directory: blackboxtests
@@ -174,7 +175,7 @@ jobs:
       run: |
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ../build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
     - name: Tests on sqlite
       working-directory: blackboxtests
@@ -182,7 +183,7 @@ jobs:
       run: |
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ../build/gprom -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
 
     - name: Tests on postgres
       working-directory: blackboxtests
@@ -194,7 +195,7 @@ jobs:
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ start
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ../build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
   ################################################################################
