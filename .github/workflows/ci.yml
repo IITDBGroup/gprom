@@ -162,6 +162,7 @@ jobs:
       image: iitdbgroup/gprom-build-env:latest
     # run tests on different databases
     strategy:
+      fail-fast: false
       matrix:
         include:
           - database: sqlite
