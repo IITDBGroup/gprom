@@ -105,11 +105,6 @@ jobs:
            mkdir dbs
            duckdb -f testdb/testDB-sqlite.sql dbs/duckdb.db
            sqlite3 dbs/sqlite.db < testdb/testDB-sqlite.sql
-           mkdir -p dbs/postgres
-           chown -R postgres dbs/postgres/
-           mkdir -p /var/run/postgresql/
-           chown -R postgres /var/run/postgresql/
-           sudo -u postgres initdb -D dbs/postgres/
 
     - name: Run regular tests
       run: make -j check
@@ -174,6 +169,7 @@ jobs:
       if: matrix.database == 'duckdb'
       run: |
            . venv/bin/activate
+           venv/bin/pip install --upgrade pipw
            venv/bin/pip install -r requirements.txt
            venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
@@ -189,11 +185,14 @@ jobs:
       working-directory: blackboxtests
       if: matrix.database == 'postgres'
       run: |
-           chmod -R 700 dbs/postgres/
+           rm -rf dbs/postgres
+           mkdir -p dbs/postgres
            chown -R postgres dbs/postgres/
            mkdir -p /var/run/postgresql/
            chown -R postgres /var/run/postgresql/
-           sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ start
+           sudo -u postgres initdb -D dbs/postgres/
+           psql -f testdb/testDB-sqlite.sql
+           sudo -u postgres /usr/bin/postgres -D dbs/postgres/ &
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
            venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
