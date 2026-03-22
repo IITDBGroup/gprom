@@ -51,8 +51,10 @@ jobs:
           file: "./Docker/buildenvironment/Dockerfile"
           push: true
           tags: iitdbgroup/gprom-build-env:latest
-
-################################################################################
+          platforms: |
+                     linux/amd64
+                     linux/arm64
+  ################################################################################
   # build gprom and setup databases
   ################################################################################
   build:
@@ -214,3 +216,6 @@ jobs:
           file: "./Docker/Dockerfile"
           push: true
           tags: iitdbgroup/gprom:latest
+          platforms: |
+                     linux/amd64
+                     linux/arm64

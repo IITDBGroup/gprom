@@ -134,10 +134,12 @@ RUN cd /ocilib/src \
 ########################################
 # Build MSSQL client
 ########################################
-RUN curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-microsoft https://packages.microsoft.com/keys/microsoft.asc \
+RUN if [ "${TARGETARCH}" == "amd64" ]; then \
+    curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-microsoft https://packages.microsoft.com/keys/microsoft.asc \
     && curl -o /etc/yum.repos.d/mssql-server.repo https://packages.microsoft.com/config/rhel/9/mssql-server-2025.repo \
     && curl -o /etc/yum.repos.d/mssql-prod.repo https://packages.microsoft.com/config/rhel/9/prod.repo \
-    && ACCEPT_EULA=Y yum install -y mssql-server mssql-tools unixODBC-devel
+    && ACCEPT_EULA=Y yum install -y mssql-server mssql-tools unixODBC-devel; \
+    fi
 
 ########################################
 # Install docker client

@@ -12,14 +12,24 @@ RUN git clone https://github.com/IITDBGroup/gprom.git /gprom/src
 ########################################
 RUN cd /gprom/src \
 	&& make -f Makefile.maintainer \
-	&&  ./configure \
+	&& if [ "${TARGETARCH}" == "amd64" ]; then \
+       ./configure \
        --prefix=/gprom/install \
        --enable-monetdb --with-mapi-lib=/monetdb/install/lib64/ --with-mapi-headers=/monetdb/install/include/monetdb/ \
        --enable-postgres --with-libpq-headers=/usr/include/postgresql \
        --enable-oracle --with-oci-headers=/usr/include/oracle/23/client64/ --with-oci-lib=/usr/lib/oracle/23/client64/lib/ \
        --enable-sqlite \
        --enable-duckdb \
-       --enable-mssql \
+       --enable-mssql; \
+       else \
+       ./configure \
+       --prefix=/gprom/install \
+       --enable-monetdb --with-mapi-lib=/monetdb/install/lib64/ --with-mapi-headers=/monetdb/install/include/monetdb/ \
+       --enable-postgres --with-libpq-headers=/usr/include/postgresql \
+       --enable-oracle --with-oci-headers=/usr/include/oracle/23/client64/ --with-oci-lib=/usr/lib/oracle/23/client64/lib/ \
+       --enable-sqlite \
+       --enable-duckdb; \
+       fi
 	&& make -j \
 	&& make -j install \
     && echo "export PATH=$PATH:/gprom/install/bin" >> ~/.bashrc
