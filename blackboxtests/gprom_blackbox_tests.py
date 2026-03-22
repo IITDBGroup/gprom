@@ -14,6 +14,7 @@ import rich
 from pg8000.native import Connection
 from tqdm import tqdm
 import difflib
+import sys
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
@@ -728,7 +729,7 @@ class GProMTestRunner:
             self.progressbar.update()
             return False
 
-    def run(self, conf: GProMSettings = None):
+    def run(self, conf: GProMSettings = None) -> bool:
         if not conf:
             conf = self.conf
         log(f"Start running tests: {self.testcases}")
@@ -738,7 +739,8 @@ class GProMTestRunner:
         self.progressbar = tqdm(total=self.totalnumtests, desc="Testcases")
         self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
         self.progressbar.close()
-        self.print_results(self.root, DEFAULT_SETTING_NAME)
+        (numbase, basepassed) = self.print_results(self.root, DEFAULT_SETTING_NAME)
+        return numbase == basepassed
 
     def should_run_test(self, t: GProMTest):
         return t.should_run_test(self.testcases)
@@ -1050,7 +1052,10 @@ def main():
                     failonerror=options.stoponerror,
                     testcases=options.tests,
                     settings=options.settings)
-    runner.run(conf)
+    result = runner.run(conf)
+    exitcode = 0 if result else 1
+    return exitcode
 
 if __name__ == '__main__':
-    main()
+    exitcode = main()
+    sys.exit(exitcode)
