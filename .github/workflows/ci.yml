@@ -184,6 +184,9 @@ jobs:
       if: matrix.database == 'postgres'
       run: |
            . venv/bin/activate
+           chown -R postgres dbs/postgres/
+           mkdir -p /var/run/postgresql/
+           chown -R postgres /var/run/postgresql/
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ start
            python3.12 ./gprom_blackbox_tests.py --gprom ../build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
