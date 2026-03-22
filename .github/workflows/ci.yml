@@ -189,6 +189,7 @@ jobs:
       working-directory: blackboxtests
       if: matrix.database == 'postgres'
       run: |
+           chmod -R 700 dbs/postgres/
            chown -R postgres dbs/postgres/
            mkdir -p /var/run/postgresql/
            chown -R postgres /var/run/postgresql/
