@@ -477,9 +477,9 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries, boolean tr
 				appendStringInfo(str, "%s(%d)", c->otherDT, c->num);
             }
             else if(c->otherDT && (
-                        streq(c->otherDT, "date")
-                        || streq(c->otherDT, "interval")
-                        || streq(c->otherDT, "timestamp")))
+                        strieq(c->otherDT, "date")
+                        || strieq(c->otherDT, "interval")
+                        || strieq(c->otherDT, "timestamp")))
             {
                 appendStringInfoString(str, c->otherDT);
             }

@@ -67,7 +67,7 @@ testequalAttributeReference (void)
     b->name = "test";
     b->fromClauseItem = INVALID_ATTR;
     b->attrPosition = INVALID_ATTR;
-    b->outerLevelsUp = INVALID_ATTR;
+    b->outerLevelsUp = 0;
     b->attrType = DT_STRING;
 
     ASSERT_EQUALS_INT(a->type, T_AttributeReference, "type is attribute reference");
