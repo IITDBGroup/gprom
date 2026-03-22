@@ -69,15 +69,17 @@ jobs:
     - name: Configure
       run: |
            ./autogen.sh &&  ./configure \
-           --prefix=build \
+           --prefix=/gprom/install \
            --enable-monetdb --with-mapi-lib=/monetdb/install/lib64/ --with-mapi-headers=/monetdb/install/include/monetdb/ \
            --enable-postgres --with-libpq-headers=/usr/include/postgresql \
            --enable-oracle --with-oci-headers=/usr/include/oracle/23/client64/ --with-oci-lib=/usr/lib/oracle/23/client64/lib/ \
            --enable-sqlite \
            --enable-duckdb
-
     - name: Build
-      run: make -j && make -j install
+      run: |
+           make -j
+           make -j install
+           cp -r /gprom/install/bin gprombin
 
     - name: Setup test databases
       working-directory: blackboxtests
@@ -105,7 +107,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: gprom-build
-        path: build/
+        path: gprombin/
         retention-days: 5
 
     - name: Upload databases
@@ -164,14 +166,14 @@ jobs:
       if: matrix.database == 'duckdb'
       run: |
            . venv/bin/activate
-           python3.12 ./gprom_blackbox_tests.py -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
+           python3.12 ./gprom_blackbox_tests.py --gprom ../build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
     - name: Tests on sqlite
       working-directory: blackboxtests
       if: matrix.database == 'sqlite'
       run: |
            . venv/bin/activate
-           python3.12 ./gprom_blackbox_tests.py -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
+           python3.12 ./gprom_blackbox_tests.py --gprom ../build/gprom -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
 
     - name: Tests on postgres
       working-directory: blackboxtests
@@ -179,7 +181,7 @@ jobs:
       run: |
            . venv/bin/activate
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ start
-           python3.12 ./gprom_blackbox_tests.py -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
+           python3.12 ./gprom_blackbox_tests.py --gprom ../build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
   ################################################################################
