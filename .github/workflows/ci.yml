@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  ################################################################################
+  # test whether a docker file was changed
+  ################################################################################
+  dockerfile-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'Docker/**'
+
+  ################################################################################
+  # if docker files where changed rebuild and deploy base development env image
+  ################################################################################
+  build-docker-base-image:
+    needs: dockerfile-changes
+    if: ${{ needs.changes.outputs.src_changed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          file: "./Docker/buildenvironment/Dockerfile"
+          push: true
+          tags: iitdbgroup/gprom-build-env:latest
+
+  ################################################################################
+  # build gprom and run blackbox tests on different databases
+  ################################################################################
+  build-and-test:
+    if: ${{ needs.build-docker-images.result == 'success' || needs.build-docker-images.result == 'skipped' }}
+    runs-on: ubuntu-latest
+    # run in development container with all client libraries and DBs preinstalled
+    container:
+      image: iitdbgroup/gprom-build-env:latest
+    # run tests on different databases
+    strategy:
+      matrix:
+        include:
+          - database: sqlite
+          - database: duckdb
+          - database: postgres
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Configure
+      run: |
+           ./autogen.sh &&  ./configure \
+           --prefix=/gprom/install \
+           --enable-monetdb --with-mapi-lib=/monetdb/install/lib64/ --with-mapi-headers=/monetdb/install/include/monetdb/ \
+           --enable-postgres --with-libpq-headers=/usr/include/postgresql \
+           --enable-oracle --with-oci-headers=/usr/include/oracle/23/client64/ --with-oci-lib=/usr/lib/oracle/23/client64/lib/ \
+           --enable-sqlite \
+           --enable-duckdb
+
+    - name: Build
+      run: make -j && make -j install
+
+    - name: Setup test databases
+      working-directory: blackboxtests
+      run: |
+           mkdir /dbs
+           duckdb -f testdb/testDB-sqlite.sql /dbs/duckdb.db
+           sqlite3 /dbs/sqlite.db < testdb/testDB-sqlite.sql
+           mkdir -p /dbs/postgres
+           chown -R postgres /dbs/postgres/
+           mkdir -p /var/run/postgresql/
+           chown -R postgres /var/run/postgresql/
+           sudo -u postgres initdb -D /dbs/postgres/
+
+    - name: Python packages for blackbox tests
+      run: /usr/bin/pip install -r blackboxtests/requirements.txt
+
+    - name: Run regular tests
+      run: make -j check
+
+    - name: Tests on duckdb
+      working-directory: blackboxtests
+      if: matrix.database == 'duckdb'
+      run: gprom_blackbox_tests.py -b duckdb -d /dbs/duckdb.db -s default.noopt -t prov
+
+    - name: Tests on sqlite
+      working-directory: blackboxtests
+      if: matrix.database == 'sqlite'
+      run: gprom_blackbox_tests.py -b sqlite -d /dbs/sqlite.db -s default.noopt -t prov
+
+    - name: Tests on postgres
+      working-directory: blackboxtests
+      if: matrix.database == 'postgres'
+      run: |
+           sudo -u postgres /usr/bin/pg_ctl -D /dbs/postgres/ start
+           gprom_blackbox_tests.py -b postgres -d postgres -h 127.0.0.1 -p -s default.noopt -t prov
+           sudo -u postgres /usr/bin/pg_ctl -D /dbs/postgres/ stop
+
+  ################################################################################
+  # if tests where successful rebuild and deploy docker image
+  ################################################################################
+  build-gprom-docker-images:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          file: "./Docker/Dockerfile"
+          push: true
+          tags: iitdbgroup/gprom:latest

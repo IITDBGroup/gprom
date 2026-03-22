@@ -19,9 +19,14 @@ RUN cd /gprom/src \
        --enable-oracle --with-oci-headers=/usr/include/oracle/23/client64/ --with-oci-lib=/usr/lib/oracle/23/client64/lib/ \
        --enable-sqlite \
        --enable-duckdb \
+       --enable-mssql \
 	&& make -j \
 	&& make -j install \
     && echo "export PATH=$PATH:/gprom/install/bin" >> ~/.bashrc
+########################################
+# Install python requirements
+########################################
+RUN /usr/bin/pip install -r /gprom/src/blackboxtests/requirements.txt
 ########################################
 # Create example databases and default connection
 ########################################
@@ -31,10 +36,7 @@ RUN mkdir /dbs \
     && echo "backend=duckdb" >> /root/.gprom \
     && echo "connection.db=/dbs/duckdb.db" >> /root/.gprom
 ########################################
-# Per default start the gprom command line interface
+# Per default start the gprom command line interface connecting to
+# /dbs/duckdb.db using the duckdb backend
 ########################################
 ENTRYPOINT ["/gprom/install/bin/gprom"]
-########################################
-# Per default show help message
-########################################
-CMD ["-help"]
