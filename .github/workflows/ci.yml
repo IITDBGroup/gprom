@@ -191,11 +191,12 @@ jobs:
            mkdir -p /var/run/postgresql/
            chown -R postgres /var/run/postgresql/
            sudo -u postgres initdb -D dbs/postgres/
-           psql -f testdb/testDB-sqlite.sql
-           sudo -u postgres /usr/bin/postgres -D dbs/postgres/ &
+           sudo -u postgres pg_ctl -D dbs/postgres/ start
+           sleep 3
+           psql -U postgres -f testdb/testDB-sqlite.sql postgres
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
   ################################################################################
