@@ -77,9 +77,9 @@ RUN dnf -y install \
 ########################################
 # Install python3.11
 ########################################
-RUN dnf install python3.11 python3.11-pip -y \
-    && ln -s /usr/bin/python3.11 /usr/bin/python \
-    && ln -s /usr/bin/pip3.11 /usr/bin/pip \
+RUN dnf install python3.12 python3.12-pip -y \
+    && ln -s /usr/bin/python3.12 /usr/bin/python \
+    && ln -s /usr/bin/pip3.12 /usr/bin/pip \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 ########################################
