@@ -23,6 +23,22 @@ jobs:
             src:
               - 'Docker/**'
 
+  src-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'src/**'
+              - 'include/**'
+              - 'Makefile.maintainer'
+              - 'Makefile.am'
+              - 'configure.ac'
   ################################################################################
   # if docker files where changed rebuild and deploy base development env image
   ################################################################################
@@ -58,7 +74,7 @@ jobs:
   # build gprom and setup databases
   ################################################################################
   build:
-    needs: build-docker-base-image
+    needs: [ src-changes, build-docker-base-image ]
     # only build build-env docker image from master and if docker files where as this does not depend on gprom code
     if: ${{ always() && (needs.build-docker-base-image.result == 'success' || needs.build-docker-base-image.result == 'skipped' )}}
     runs-on: ubuntu-latest
@@ -170,14 +186,14 @@ jobs:
       if: matrix.database == 'duckdb'
       run: |
            . venv/bin/activate
-           python3.12 ./gprom_blackbox_tests.py --gprom ../build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
+           python ./gprom_blackbox_tests.py --gprom ../build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
     - name: Tests on sqlite
       working-directory: blackboxtests
       if: matrix.database == 'sqlite'
       run: |
            . venv/bin/activate
-           python3.12 ./gprom_blackbox_tests.py --gprom ../build/gprom -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
+           python ./gprom_blackbox_tests.py --gprom ../build/gprom -b sqlite -d dbs/sqlite.db -s default.noopt -t reg
 
     - name: Tests on postgres
       working-directory: blackboxtests
@@ -188,7 +204,7 @@ jobs:
            mkdir -p /var/run/postgresql/
            chown -R postgres /var/run/postgresql/
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ start
-           python3.12 ./gprom_blackbox_tests.py --gprom ../build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
+           python ./gprom_blackbox_tests.py --gprom ../build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
   ################################################################################
