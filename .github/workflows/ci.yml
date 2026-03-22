@@ -54,7 +54,7 @@ jobs:
   # build gprom and run blackbox tests on different databases
   ################################################################################
   build-and-test:
-    if: ${{ needs.build-docker-images.result == 'success' || needs.build-docker-images.result == 'skipped' }}
+    if: ${{ needs.build-docker-base-image.result == 'success' || needs.build-docker-base-image.result == 'skipped' }}
     runs-on: ubuntu-latest
     # run in development container with all client libraries and DBs preinstalled
     container:
