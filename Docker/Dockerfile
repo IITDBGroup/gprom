@@ -29,7 +29,7 @@ RUN cd /gprom/src \
        --enable-oracle --with-oci-headers=/usr/include/oracle/23/client64/ --with-oci-lib=/usr/lib/oracle/23/client64/lib/ \
        --enable-sqlite \
        --enable-duckdb; \
-       fi
+       fi \
 	&& make -j \
 	&& make -j install \
     && echo "export PATH=$PATH:/gprom/install/bin" >> ~/.bashrc
