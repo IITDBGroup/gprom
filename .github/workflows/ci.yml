@@ -169,7 +169,7 @@ jobs:
       if: matrix.database == 'duckdb'
       run: |
            . venv/bin/activate
-           venv/bin/pip install --upgrade pipw
+           venv/bin/pip install --upgrade pip
            venv/bin/pip install -r requirements.txt
            venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b duckdb -d dbs/duckdb.db -s default.noopt -t reg
 
@@ -190,7 +190,7 @@ jobs:
            chown -R postgres dbs/postgres/
            mkdir -p /var/run/postgresql/
            chown -R postgres /var/run/postgresql/
-           sudo -u postgres initdb -D dbs/postgres/
+           sudo -u postgres initdb --auth=trust --auth-host=trust -D dbs/postgres/
            sudo -u postgres pg_ctl -D dbs/postgres/ start
            sleep 3
            psql -U postgres -f testdb/testDB-sqlite.sql postgres
