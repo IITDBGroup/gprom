@@ -59,6 +59,12 @@
                                  "$$ " \
                                  "SELECT hash_record_extended((l,r),1); " \
                                  "$$ LANGUAGE SQL IMMUTABLE STRICT;")
+#define MERGE_ROWID_13_FUNC_NAME POSTGRES_MERGE_ROWID_FUNC
+#define CREATE_MERGE_ROWID_13_FUNC ("CREATE OR REPLACE FUNCTION " POSTGRES_MERGE_ROWID_FUNC " (l int8, r int8) RETURNS int8 AS " \
+                                 "$$ " \
+                                 "SELECT hash_array_extended(ARRAY[l,r],1); " \
+                                 "$$ LANGUAGE SQL IMMUTABLE STRICT;")
+
 #define VARIADIC_HASH_FUNC_NAME POSTGRES_VARIADIC_HASH_FUNC
 #define CREATE_VARIADIC_HASH_FUNC ("CREATE OR REPLACE FUNCTION " POSTGRES_VARIADIC_HASH_FUNC "(VARIADIC args anyarray) RETURNS text AS $$ " \
                                    "SELECT hash_array_extended(args, 1);" \
@@ -536,7 +542,14 @@ prepareLookupQueries(void)
         CREATE_FUNC_IF_NOT_EXISTS(EXPLAIN_FUNC);
     }
     CREATE_FUNC_IF_NOT_EXISTS(TID2INT8_FUNC);
-    CREATE_FUNC_IF_NOT_EXISTS(MERGE_ROWID_FUNC);
+    if (plugin->serverMajorVersion >= 14)
+    {
+        CREATE_FUNC_IF_NOT_EXISTS(MERGE_ROWID_FUNC);
+    }
+    else
+    {
+        CREATE_FUNC_IF_NOT_EXISTS(MERGE_ROWID_13_FUNC);
+    }
     CREATE_FUNC_IF_NOT_EXISTS(VARIADIC_HASH_FUNC);
 
     // prepare other queries used for metadata lookup
@@ -1933,10 +1946,12 @@ execStmt(char *stmt)
     DEBUG_LOG("execute statement %s", stmt);
     res = PQexec(c, stmt);
     if (PQresultStatus(res) != PGRES_COMMAND_OK
-        && PQresultStatus(res) != PGRES_TUPLES_OK){
+        && PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
         STOP_TIMER_IF_RUNNING(METADATA_LOOKUP_EXEC_STMT);
-        CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
-                PQerrorMessage(c));
+        CLOSE_RES_CONN_AND_FATAL(res, "EXECUTE STATEMENT failed:\n%s\nWITH ERROR:\n%s",
+                                 stmt,
+                                 PQerrorMessage(c));
     }
     PQclear(res);
 
