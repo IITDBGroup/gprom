@@ -2040,7 +2040,7 @@ getResultTidExprForBase(QueryOperator *base)
 				{
 					if(IS_INTEGER_DT(rownumDT) && IS_INTEGER_DT(ar->attrType))
 					{
-						singleKeyAttr = (Node *) createCastExpr(singleKeyAttr, rownumDT);
+						singleKeyAttr = (Node *) createCastExpr(copyObject(ar), rownumDT);
 					}
 				}
             }
