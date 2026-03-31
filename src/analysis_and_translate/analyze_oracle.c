@@ -203,7 +203,18 @@ visitAdaptIdents(Node *node, Set *context)
 
                 // change alias
                 if (f->name != NULL)
+                {
                     f->name = backendifyIdentifier(f->name);
+                }
+
+                // adapt attribute names if given
+                if (f->attrNames != NULL)
+                {
+                    FOREACH_LC(lc, f->attrNames)
+                    {
+                        lc->data.ptr_value = backendifyIdentifier((char *) lc->data.ptr_value);
+                    }
+                }
 
                 switch(node->type)
                 {
