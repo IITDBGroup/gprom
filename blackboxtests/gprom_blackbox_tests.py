@@ -6,7 +6,7 @@ import traceback
 import xml.etree.ElementTree as ET
 from collections import Counter
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from functools import reduce
 from pathlib import Path
 from typing import Dict, Union
@@ -45,12 +45,20 @@ def forcelogfat(m):
 def wrap_line(m):
     return "\n" + "=" * 80 + "\n" + m + "\n"  + "=" * 80
 
-class DatabaseBackends(Enum):
-    POSTGRES = 1
-    SQLITE = 2
-    DUCKDB = 3
-    MSSQL = 4
-    ORACLE = 5
+class DatabaseBackend(StrEnum):
+    postgres = "postgres"
+    sqlite = "sqlite"
+    duckdb = "duckdb"
+    mssql = "mssql"
+    oracle = "oracle"
+    monetdb = "monetdb"
+
+    def asstr(self) -> str:
+        return self.name
+
+    @classmethod
+    def allbackends_as_str(cls: "DatabaseBackend"):
+        return [ x.name for x in DatabaseBackend ]
 
 def color_diff_strings(s1, s2):
     """Highlights character-level differences using ANSI codes."""
@@ -451,7 +459,14 @@ class GProMTest:
 class GProMTestCase(GProMTest):
     query: str
     expected: Union[Table,OrderedTable]
+    backend_expected: Dict[str,Union[Table,OrderedTable]]
     issorted: bool
+
+    def get_expected(self,backend: str) -> Union[Table,OrderedTable]:
+        if backend in self.backend_expected:
+            return self.backend_expected[backend]
+        else:
+            return self.expected
 
     def count_testcases(self, allowed, settings, parentset):
         if self.should_run_test(allowed) and self.should_run_setting(parentset,  settings, True):
@@ -592,6 +607,7 @@ class GProMXMLTestLoader:
             )
 
             for q in queries:
+                backend_expected = {}
                 curquery = q
                 qkey = q + '.query'
                 rkey = q + '.result'
@@ -603,9 +619,17 @@ class GProMXMLTestLoader:
                 issorted = propdict[skey] if skey in propdict else False
                 disabled = dkey in propdict
                 #log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
+
+                for b in DatabaseBackend.allbackends_as_str():
+                    rbkey = q + '.result.' + b
+                    if rbkey in propdict:
+                        rbresult = propdict[rbkey]
+                        bt = OrderedTable.from_str(rbresult) if issorted else Table.from_str(rbresult)
+                        backend_expected[b] = bt
+
                 if not disabled:
                     t = OrderedTable.from_str(result) if issorted else Table.from_str(result)
-                    testcases[q] = GProMTestCase(testcasename, None, None, query, t, issorted)
+                    testcases[q] = GProMTestCase(testcasename, None, None, query, t, backend_expected, issorted)
 
             return GProMTestSuite(suitenameparts, extrasettings, disallow, testcases)
         except Exception as e:
@@ -654,7 +678,7 @@ class GProMTestRunner:
 
     def run_test(self, test: GProMTestCase, conf: GProMSettings, name: str): #TODO deal with forbidden settings
         log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
-        exp = test.expected
+        exp = test.get_expected(options.backend)
         setting = conf[name]
         is_prov_composable = '-prov_use_composable' in setting
         self.ensure_dicts(name)
@@ -895,7 +919,7 @@ WHERE pid <> pg_backend_pid();
 
     @classmethod
     def cleanup_database_connection(cls, gprom: str, conf: GProMSetting):
-        if options.backend == 'postgres':
+        if options.backend == DatabaseBackend.postgres.name:
             conninfo = {
                 "host": conf["-host"],
                 "database": conf["-db"],
