@@ -2077,7 +2077,7 @@ getResultTidExprForBase(QueryOperator *base)
                                                                                DT_STRING));
             }
         }
-            // duckdb use rowid pseudocolumn
+        // duckdb use rowid pseudocolumn
         else if (getBackend() == BACKEND_DUCKDB)
         {
             DEBUG_LOG("input table TIDs: Duckdb => rowid pseudocolumn");

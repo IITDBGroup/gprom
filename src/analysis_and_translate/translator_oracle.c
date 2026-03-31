@@ -28,6 +28,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/set/hashmap.h"
+#include "model/set/set.h"
 #include "parameterized_query/parameterized_queries.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
@@ -36,8 +37,10 @@
 // data types
 typedef struct ReplaceGroupByState {
     List *expressions;
+    Set *groupbyExprs;
     List *attrNames;
     int attrOffset;
+    boolean inaggf;
 } ReplaceGroupByState;
 
 
@@ -90,32 +93,45 @@ static boolean visitAttrRefToSetNewAttrPos(Node *n, List *state);
 
 /* Functions of translating simple select clause in a QueryBlock */
 static QueryOperator *translateSelectClause(List *selectClause,
-        QueryOperator *select, List *attrsOffsets, boolean hasAgg);
+                                            QueryOperator *select,
+                                            List *attrsOffsets,
+                                            boolean hasAgg);
 static QueryOperator *translateDistinct(DistinctClause *distinctClause,
-        QueryOperator *input);
+                                        QueryOperator *input);
 
 /* Functions of translating aggregations, having and group by */
 static QueryOperator *translateHavingClause(Node *havingClause,
-        QueryOperator *input, List *attrsOffsets);
-static QueryOperator *translateAggregation(QueryBlock *qb, QueryOperator *input,
-        List *attrsOffsets);
-static QueryOperator *translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
-        List *attrsOffsets);
+                                            QueryOperator *input,
+                                            List *attrsOffsets);
+static QueryOperator *translateAggregation(QueryBlock *qb,
+                                           QueryOperator *input,
+                                           List *attrsOffsets);
+static QueryOperator *translateWindowFuncs(QueryBlock *qb,
+                                           QueryOperator *input,
+                                           List *attrsOffsets);
 
-static QueryOperator *translateOrderBy(QueryBlock *qb, QueryOperator *input,
-        List *attrsOffsets);
-static QueryOperator *translateLimitOffset(QueryBlock *qb, QueryOperator *input,
+static QueryOperator *translateOrderBy(QueryBlock *qb,
+                                       QueryOperator *input,
+                                       List *attrsOffsets);
+static QueryOperator *translateLimitOffset(QueryBlock *qb,
+                                           QueryOperator *input,
 										   List *attrsOffsets);
 
 
 /* helpers */
+static ReplaceGroupByState *copyReplaceGroupByState(ReplaceGroupByState *state);
 static Node *replaceAggsAndGroupByMutator(Node *node,
-        ReplaceGroupByState *state);
+                                          ReplaceGroupByState *state);
 static QueryOperator *createProjectionOverNonAttrRefExprs(List **selectClause,
-        Node **havingClause, List **groupByClause, QueryOperator *input,
-        List *attrsOffsets);
-static List *getListOfNonAttrRefExprs(List *selectClause, Node *havingClause,
-        List *groupByClause);
+                                                          Node **havingClause,
+                                                          List **groupByClause,
+                                                          QueryOperator *input,
+                                                          List *attrsOffsets);
+static void getListOfNonAttrRefExprs(List *selectClause,
+                                     Node *havingClause,
+                                     List *groupByClause,
+                                     List **projExprs,
+                                     Set *groupbyExprs);
 static List *getListOfAggregFunctionCalls(List *selectClause,
         Node *havingClause);
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
@@ -2009,7 +2025,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     // if necessary create projection for aggregation inputs that are not simple
     // attribute references
     in = createProjectionOverNonAttrRefExprs(&selectClause,
-                &havingClause, &groupByClause, input, attrsOffsets);
+                                             &havingClause,
+                                             &groupByClause,
+                                             input,
+                                             attrsOffsets);
 
     // create fake attribute names for aggregation output schema
     for (i = 0; i < LIST_LENGTH(aggrs); i++)
@@ -2035,11 +2054,12 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     state->expressions = aggPlusGroup;
     state->attrNames = attrNames;
     state->attrOffset = 0;
+    state->groupbyExprs = NULL;
 
-    qb->selectClause = (List *) replaceAggsAndGroupByMutator(
-            (Node *) selectClause, state);
+    qb->selectClause = (List *) replaceAggsAndGroupByMutator((Node *) selectClause,
+                                                             state);
     qb->havingClause = replaceAggsAndGroupByMutator((Node *) havingClause,
-            state);
+                                                    state);
 
     freeList(aggrs);
     FREE(state);
@@ -2094,37 +2114,85 @@ translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
     return (QueryOperator *) wOp;
 }
 
+static ReplaceGroupByState *
+copyReplaceGroupByState(ReplaceGroupByState *state)
+{
+    ReplaceGroupByState *result = NEW(ReplaceGroupByState);
+
+    result->groupbyExprs = state->groupbyExprs;
+    result->attrNames = state->attrNames;
+    result->attrOffset = state->attrOffset;
+    result->expressions = state->expressions;
+    result->groupbyExprs = state->groupbyExprs;
+    result->inaggf = state->inaggf;
+
+    return result;
+}
+
 static Node *
-replaceAggsAndGroupByMutator (Node *node, ReplaceGroupByState *state)
+replaceAggsAndGroupByMutator(Node *node, ReplaceGroupByState *state)
 {
     int i = 0;
+    ReplaceGroupByState *newstate = state;
 
-    if (node == NULL)
+    if(node == NULL)
         return NULL;
 
-    // if node is an expression replace it
+    // if node is a group-by expression replace it, if it is another aggregation
+    // input projection then only replace it in aggregation function inputs.
+    // This is to ensure that constants in expressions like count(1),
+    // round(sum(a),1) do not get replaced like this: count(AGG_GB_INPUT_1),
+    // round(sum(a), AGG_GB_INPUT_1).
     FOREACH(Node,e,state->expressions)
     {
         char *attrName;
 
         if (equal(node, e))
         {
-            attrName = (char *) getNthOfListP(state->attrNames, i);
-            return (Node *) createFullAttrReference(strdup(attrName), 0, i + state->attrOffset, 0, typeOf(e));
+            // if we are not replacing pre-aggregation projection expressions
+            // (state->groupbyExprs == NULL), then replace every match.
+            // Otherwise, only replace group-by expressions or inputs of
+            // aggregation functions.
+            if(state->groupbyExprs == NULL || hasSetElem(state->groupbyExprs, node) || state->inaggf)
+            {
+                attrName = (char *) getNthOfListP(state->attrNames, i);
+                return (Node *) createFullAttrReference(strdup(attrName), 0, i + state->attrOffset, 0, typeOf(e));
+            }
         }
         i++;
     }
 
-    return mutate(node, replaceAggsAndGroupByMutator, state);
+    if(isA(node,FunctionCall))
+    {
+        FunctionCall *f = (FunctionCall *) node;
+
+        if(f->isAgg)
+        {
+            newstate = copyReplaceGroupByState(state);
+
+            newstate->inaggf = TRUE;
+        }
+    }
+
+    return mutate(node, replaceAggsAndGroupByMutator, newstate);
 }
 
 static QueryOperator *
-createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
-        List **groupByClause, QueryOperator *input, List *attrsOffsets)
+createProjectionOverNonAttrRefExprs(List **selectClause,
+                                    Node **havingClause,
+                                    List **groupByClause,
+                                    QueryOperator *input,
+                                    List *attrsOffsets)
 {
     // each entry of the list directly points to the original expression, not copy
-    List *projExprs = getListOfNonAttrRefExprs(*selectClause, *havingClause,
-            *groupByClause);
+    List *projExprs = NIL;
+    Set *groupbyExprs = NODESET();
+
+    getListOfNonAttrRefExprs(*selectClause,
+                             *havingClause,
+                             *groupByClause,
+                             &projExprs,
+                             groupbyExprs);
 
     QueryOperator *output = input;
 
@@ -2162,8 +2230,10 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
 
         state = NEW(ReplaceGroupByState);
         state->expressions = projExprs;
+        state->groupbyExprs = groupbyExprs;
         state->attrNames = attrNames;
         state->attrOffset = 0;
+        state->inaggf = FALSE;
 
         *selectClause = (List *) replaceAggsAndGroupByMutator((Node *) *selectClause, state);
         *havingClause = (Node *) replaceAggsAndGroupByMutator((Node *) *havingClause, state);
@@ -2222,8 +2292,12 @@ translateLimitOffset(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     return (QueryOperator *) o;
 }
 
-static List *
-getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByClause)
+static void
+getListOfNonAttrRefExprs(List *selectClause,
+                         Node *havingClause,
+                         List *groupByClause,
+                         List **projExprs,
+                         Set *groupbyExprs)
 {
     List *nonAttrRefExprs = NIL;
     List *aggregs = getListOfAggregFunctionCalls(selectClause, havingClause);
@@ -2246,6 +2320,7 @@ getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByCl
         FOREACH(Node, expr, groupByClause)
         {
             nonAttrRefExprs = appendToTailOfList(nonAttrRefExprs, expr);
+            addToSet(groupbyExprs, copyObject(expr));
             if (!isA(expr, AttributeReference))
                 needProjection = TRUE;
         }
@@ -2256,9 +2331,10 @@ getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByCl
             nodeToString(nonAttrRefExprs), (needProjection) ? "": " not ");
 
     freeList(aggregs);
-    if  (needProjection)
-        return nonAttrRefExprs;
-    return NULL;
+    if(needProjection)
+    {
+        *projExprs = nonAttrRefExprs;
+    }
 }
 
 /*
