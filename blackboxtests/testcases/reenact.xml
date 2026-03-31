@@ -4,18 +4,29 @@
   <comment>General settings for reenactment test cases</comment>
 
   <entry key="extra_settings.noopt">
+    -treeify-algebra-graphs:TRUE
   </entry>
 
   <entry key="extra_settings.optnopullnoselmove">
     -heuristic_opt,
     -Opullup_prov_projections:FALSE,
-    -Oselection_move_around:FALSE
+    -Oselection_move_around:FALSE,
+    -treeify-algebra-graphs:TRUE
   </entry>
 
   <entry key="extra_settings.heuopt">
     -heuristic_opt,
     -Opullup_prov_projections:TRUE,
-    -Oselection_move_around:TRUE
+    -Oselection_move_around:TRUE,
+    -treeify-algebra-graphs:TRUE
   </entry>
+
+  <entry key="extra_settings.heuoptnotree">
+    -heuristic_opt,
+    -Opullup_prov_projections:TRUE,
+    -Oselection_move_around:TRUE,
+    -treeify-algebra-graphs:FALSE
+  </entry>
+
 
 </properties>

@@ -1,48 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>smiring transformation test cases</comment>
+<comment>semiring N transformation test cases</comment>
 
 <entry key="q1.query">
-PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT * FROM R_nx HAS PROVENANCE (prov));
+PROVENANCE WITH SEMIRING COMBINER N OF (SELECT * FROM R_n HAS PROVENANCE (mul));
 </entry>
 <entry key="q1.result">
- a | b | PROV |
+ A | B | PROV |
 ---------------
- 1 | 1 | x1   |
- 2 | 3 | x4   |
- 1 | 2 | x2   |
- 2 | 1 | x3   |
+ 1 | 1 | 3    |
+ 1 | 2 | 4    |
+ 2 | 1 | 5    |
+ 2 | 3 | 1    |
 </entry>
 
 
 <entry key="q2.query">
-PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT a FROM R_nx HAS PROVENANCE (prov));
+PROVENANCE WITH SEMIRING COMBINER N OF (SELECT a FROM R_n HAS PROVENANCE (mul));
 </entry>
 <entry key="q2.result">
- a | PROV    |
---------------
- 2 | x3 + x4 |
- 1 | x1 + x2 |
+ A | PROV |
+-----------
+ 1 | 7    |
+ 2 | 6    |
 </entry>
 
 <entry key="q3.query">
-PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT a FROM R_nx HAS PROVENANCE (prov), (SELECT 1 FROM S_nx HAS PROVENANCE (prov)) sub);
+PROVENANCE WITH SEMIRING COMBINER N OF (SELECT a FROM R_n HAS PROVENANCE (mul), (SELECT 1 FROM S_n HAS PROVENANCE (mul)) sub);
 </entry>
 <entry key="q3.result">
- a | PROV                                                                                          |
-----------------------------------------------------------------------------------------------------
- 2 | (x3 * y1) + (x3 * y2) + (x3 * y3) + (x3 * y4) + (x4 * y1) + (x4 * y2) + (x4 * y3) + (x4 * y4) |
- 1 | (x1 * y1) + (x1 * y2) + (x1 * y3) + (x1 * y4) + (x2 * y1) + (x2 * y2) + (x2 * y3) + (x2 * y4) |
+ A | PROV |
+-----------
+ 1 | 77   |
+ 2 | 66   |
 </entry>
 
 <entry key="q4.query">
-PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT 1 FROM (SELECT 1 FROM  R_nx HAS PROVENANCE (prov)) r, (SELECT 1 FROM S_nx HAS PROVENANCE (prov)) s);
+PROVENANCE WITH SEMIRING COMBINER N OF (SELECT 1 FROM (SELECT 1 FROM  R_n HAS PROVENANCE (mul)) r, (SELECT 1 FROM S_n HAS PROVENANCE (mul)) s);
 </entry>
 <entry key="q4.result">
- 1 | PROV                                                                                                                                                                                          |
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- 1 | (x1 * y1) + (x1 * y2) + (x1 * y3) + (x1 * y4) + (x2 * y1) + (x2 * y2) + (x2 * y3) + (x2 * y4) + (x3 * y1) + (x3 * y2) + (x3 * y3) + (x3 * y4) + (x4 * y1) + (x4 * y2) + (x4 * y3) + (x4 * y4) |
+ 1 | PROV |
+-----------
+ 1 | 143  |
 </entry>
 
 

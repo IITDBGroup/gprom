@@ -19,6 +19,9 @@ DROP TABLE IF EXISTS r_n;
 DROP TABLE IF EXISTS s_n;
 DROP TABLE IF EXISTS r_nx;
 DROP TABLE IF EXISTS s_nx;
+DROP TABLE IF EXISTS r_f;
+DROP TABLE IF EXISTS s_f;
+
 
 DROP TABLE IF EXISTS taxi_trips;
 
@@ -216,7 +219,7 @@ CREATE TABLE FBA_TEST (
 CREATE TABLE r_n (
 	A int,
 	B int,
-    mult int
+    mul int
 );
 
 INSERT INTO R_n VALUES (1,1,3);
@@ -228,7 +231,7 @@ INSERT INTO R_n VALUES (2,3,1);
 CREATE TABLE s_n (
 	C int,
 	D int,
-    mult int
+    mul int
 );
 
 INSERT INTO S_n VALUES (2,2,3);
@@ -258,6 +261,36 @@ INSERT INTO S_nx VALUES (2,2,'y1');
 INSERT INTO S_nx VALUES (2,3,'y2');
 INSERT INTO S_nx VALUES (3,2,'y3');
 INSERT INTO S_nx VALUES (1,4,'y4');
+
+CREATE TABLE r_f (
+	A int,
+	B int,
+    f NUMERIC(6,3)
+);
+
+INSERT INTO R_f VALUES (1,1,0.7);
+INSERT INTO R_f VALUES (1,2,0.2);
+INSERT INTO R_f VALUES (2,3,1.0);
+INSERT INTO R_f VALUES (2,4,0.3);
+INSERT INTO R_f VALUES (4,5,0.8);
+INSERT INTO R_f VALUES (1,5,0.1);
+INSERT INTO R_f VALUES (5,6,0.3);
+INSERT INTO R_f VALUES (6,7,0.9);
+INSERT INTO R_f VALUES (6,8,0.9);
+INSERT INTO R_f VALUES (7,9,0.6);
+INSERT INTO R_f VALUES (8,9,0.2);
+
+CREATE TABLE s_f (
+	C int,
+	D int,
+    f NUMERIC(6.3)
+);
+
+INSERT INTO S_f VALUES (2,2,1.0);
+INSERT INTO S_f VALUES (2,3,0.1);
+INSERT INTO S_f VALUES (3,2,0.7);
+INSERT INTO S_f VALUES (1,4,0.75);
+
 
 
 -------------------------------------------------------------------------------

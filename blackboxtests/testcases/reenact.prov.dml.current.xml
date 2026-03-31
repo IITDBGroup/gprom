@@ -92,6 +92,14 @@ REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE (UPDATE R SET A = A + 2 W
 <entry key="q8.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (UPDATE R SET A = A + 2 WHERE B = 2; UPDATE R SET A = 4 WHERE B = 3;);
 </entry>
+<entry key="q8.result.duckdb">
+ a | b | prov_r_a | prov_r_b | prov_u1_up | prov_u2_up |
+--------------------------------------------------------
+ 1 | 1 | 1        | 1        | false      | false      |
+ 3 | 2 | 1        | 2        | true       | false      |
+ 2 | 1 | 2        | 1        | false      | false      |
+ 4 | 3 | 2        | 3        | false      | true       |
+</entry>
 <entry key="q8.result">
  A | B | PROV_R_A | PROV_R_B | PROV_U1_up | PROV_U2_up |
 --------------------------------------------------------
@@ -103,6 +111,12 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (UPDATE R SET A = A + 2 WHERE B = 
 
 <entry key="q9.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (UPDATE R SET A = A + 2 WHERE B = 2; UPDATE R SET A = 4 WHERE B = 3;);
+</entry>
+<entry key="q9.result.duckdb">
+a | b | prov_r_a | prov_r_b | prov_u1_up | prov_u2_up |
+--------------------------------------------------------
+ 3 | 2 | 1        | 2        | true       | false      |
+ 4 | 3 | 2        | 3        | false      | true       |
 </entry>
 <entry key="q9.result">
  A | B | PROV_R_A | PROV_R_B | PROV_U1_up | PROV_U2_up |
@@ -119,6 +133,12 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS SHOW INTERMEDIATE ONLY UPDATED (UP
 --------------------------------------------------------------------------------------------------------------------
  3 | 2 | 1        | 2        | 3            | 2            | t          | 3            | 2            | f          |
  4 | 3 | 2        | 3        | 2            | 3            | f          | 4            | 3            | t          |
+</entry>
+<entry key="q10.result.duckdb">
+ a | b | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up | prov_u2__r_a | prov_u2__r_b | prov_u2_up |
+--------------------------------------------------------------------------------------------------------------------
+ 3 | 2 | 1        | 2        | 3            | 2            | true       | 3            | 2            | false      |
+ 4 | 3 | 2        | 3        | 2            | 3            | false      | 4            | 3            | true       |
 </entry>
 
 <entry key="q11.query">
@@ -150,6 +170,17 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R (SELECT * FROM R WH
  1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | f             | t           |
  1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | t             | t           |
 </entry>
+<entry key="q12.result.duckdb">
+a | b | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b | prov_u1_ins | prov_r_2_a | prov_r_2_b | prov_r_3_a | prov_r_3_b | prov_u1_1_ins | prov_u2_ins |
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ 1 | 1 | 1        | 1        | NULL       | NULL       | false       | NULL       | NULL       | NULL       | NULL       | NULL          | false       |
+ 1 | 2 | 1        | 2        | NULL       | NULL       | false       | NULL       | NULL       | NULL       | NULL       | NULL          | false       |
+ 2 | 1 | 2        | 1        | NULL       | NULL       | false       | NULL       | NULL       | NULL       | NULL       | NULL          | false       |
+ 2 | 3 | 2        | 3        | NULL       | NULL       | false       | NULL       | NULL       | NULL       | NULL       | NULL          | false       |
+ 1 | 2 | NULL     | NULL     | 1          | 2          | true        | NULL       | NULL       | NULL       | NULL       | NULL          | false       |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | false         | true        |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | true          | true        |
+</entry>
 
 <entry key="q13.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R (SELECT * FROM R WHERE B = 2););
@@ -162,6 +193,15 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R (SELECT * FROM R WH
  2 | 1 | 2        | 1        | NULL       | NULL       | f           |
  2 | 3 | 2        | 3        | NULL       | NULL       | f           |
  1 | 2 | NULL     | NULL     | 1          | 2          | t           |
+</entry>
+<entry key="q13.result.duckdb">
+a | b | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b | prov_u1_ins |
+----------------------------------------------------------------------
+ 1 | 1 | 1        | 1        | NULL       | NULL       | false       |
+ 1 | 2 | 1        | 2        | NULL       | NULL       | false       |
+ 2 | 1 | 2        | 1        | NULL       | NULL       | false       |
+ 2 | 3 | 2        | 3        | NULL       | NULL       | false       |
+ 1 | 2 | NULL     | NULL     | 1          | 2          | true        |
 </entry>
 
 <entry key="q14.query">
@@ -191,10 +231,10 @@ REENACT WITH PROVENANCE (INSERT INTO R VALUES (1,2); UPDATE R SET A = 100 WHERE 
  100 | 2 | NULL     | NULL     | NULL         | NULL         | 1              | 2              |
 </entry>
 
-<entry key="q15.query"> <!--  https://github.com/IITDBGroup/gprom/issues/10  -->
+<entry key="q16.query"> <!--  https://github.com/IITDBGroup/gprom/issues/10  -->
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); UPDATE R SET A = 100 WHERE B = 2;);
 </entry>
-<entry key="q15.result">
+<entry key="q16.result">
  A   | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U1_ins | PROV_U2_up |
 -----------------------------------------------------------------------------------------
  1   | 1 | 1        | 1        | NULL         | NULL         | f           | f          |
@@ -203,12 +243,20 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); UPDAT
  2   | 3 | 2        | 3        | NULL         | NULL         | f           | f          |
  1   | 1 | NULL     | NULL     | 1            | 1            | t           | f          |
 </entry>
+<entry key="q16.result.duckdb">
+   a   | b | prov_r_a | prov_r_b | prov_query_a | prov_query_b | prov_u1_ins | prov_u2_up |
+-----------------------------------------------------------------------------------------
+ 1   | 1 | 1        | 1        | NULL         | NULL         | false       | false      |
+ 100 | 2 | 1        | 2        | NULL         | NULL         | false       | true       |
+ 2   | 1 | 2        | 1        | NULL         | NULL         | false       | false      |
+ 2   | 3 | 2        | 3        | NULL         | NULL         | false       | false      |
+ 1   | 1 | NULL     | NULL     | 1            | 1            | true        | false      |
+</entry>
 
-
-<entry key="q16.query">
+<entry key="q17.query">
 REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( UPDATE R SET A = 39;);
 </entry>
-<entry key="q16.result">
+<entry key="q17.result">
  A  | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 --------------------------------------------------------------------------
  39 | 1 | 1        | 1        | 39           | 1            | t          |
@@ -216,21 +264,36 @@ REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( U
  39 | 1 | 2        | 1        | 39           | 1            | t          |
  39 | 3 | 2        | 3        | 39           | 3            | t          |
 </entry>
+<entry key="q17.result.duckdb">
+a  | b | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up |
+--------------------------------------------------------------------------
+ 39 | 1 | 1        | 1        | 39           | 1            | true       |
+ 39 | 2 | 1        | 2        | 39           | 2            | true       |
+ 39 | 1 | 2        | 1        | 39           | 1            | true       |
+ 39 | 3 | 2        | 3        | 39           | 3            | true       |
+</entry>
 
-<entry key="q17.query">
+<entry key="q18.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES (1,1); UPDATE R SET A = 100 WHERE B = 2;);
 </entry>
-<entry key="q17.result">
+<entry key="q18.result">
  A   | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U1_ins | PROV_U2_up |
 -----------------------------------------------------------------------------------------
  100 | 2 | 1        | 2        | NULL         | NULL         | f           | t          |
  1   | 1 | NULL     | NULL     | 1            | 1            | t           | f          |
 </entry>
+<entry key="q18.result.duckdb">
+ a   | b | prov_r_a | prov_r_b | prov_query_a | prov_query_b | prov_u1_ins | prov_u2_up |
+-----------------------------------------------------------------------------------------
+ 100 | 2 | 1        | 2        | NULL         | NULL         | false       | true       |
+ 1   | 1 | NULL     | NULL     | 1            | 1            | true        | false      |
+</entry>
 
-<entry key="q18.query">
+
+<entry key="q19.query">
 REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( UPDATE R SET A = 39; INSERT INTO R VALUES (50,50); );
 </entry>
-<entry key="q18.result">
+<entry key="q19.result">
  a  | b  | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up | prov_query_a | prov_query_b | prov_u2__r_a | prov_u2__r_b | prov_u2_ins |
 -----------------------------------------------------------------------------------------------------------------------------------------------------
  39 | 1  | 1        | 1        | 39           | 1            | t          | NULL         | NULL         | 39           | 1            | f           |
@@ -239,23 +302,37 @@ REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( U
  39 | 3  | 2        | 3        | 39           | 3            | t          | NULL         | NULL         | 39           | 3            | f           |
  50 | 50 | NULL     | NULL     | NULL         | NULL         | NULL       | 50           | 50           | 50           | 50           | t           |
 </entry>
+<entry key="q19.result.duckdb">
+a  | b  | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up | prov_query_a | prov_query_b | prov_u2__r_a | prov_u2__r_b | prov_u2_ins |
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ 39 | 1  | 1        | 1        | 39           | 1            | true       | NULL         | NULL         | 39           | 1            | false       |
+ 39 | 2  | 1        | 2        | 39           | 2            | true       | NULL         | NULL         | 39           | 2            | false       |
+ 39 | 1  | 2        | 1        | 39           | 1            | true       | NULL         | NULL         | 39           | 1            | false       |
+ 39 | 3  | 2        | 3        | 39           | 3            | true       | NULL         | NULL         | 39           | 3            | false       |
+ 50 | 50 | NULL     | NULL     | NULL         | NULL         | NULL       | 50           | 50           | 50           | 50           | true        |
+</entry>
 
-
-<entry key="q19.query">
+<entry key="q20.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2); );
 </entry>
-<entry key="q19.result">
+<entry key="q20.result">
  a | b | prov_query_a | prov_query_b | prov_u1_ins | prov_query_1_a | prov_query_1_b | prov_u2_ins |
 ----------------------------------------------------------------------------------------------------
  1 | 1 | 1            | 1            | t           | NULL           | NULL           | f           |
  1 | 2 | NULL         | NULL         | NULL        | 1              | 2              | t           |
 </entry>
+<entry key="q20.result.duckdb">
+ a | b | prov_query_a | prov_query_b | prov_u1_ins | prov_query_1_a | prov_query_1_b | prov_u2_ins |
+----------------------------------------------------------------------------------------------------
+ 1 | 1 | 1            | 1            | true        | NULL           | NULL           | false       |
+ 1 | 2 | NULL         | NULL         | NULL        | 1              | 2              | true        |
+</entry>
 
 
-<entry key="q20.query">
+<entry key="q21.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2); );
 </entry>
-<entry key="q20.result">
+<entry key="q21.result">
  a | b | prov_r_a | prov_r_b | prov_query_a | prov_query_b | prov_u1_ins | prov_query_1_a | prov_query_1_b | prov_u2_ins |
 --------------------------------------------------------------------------------------------------------------------------
  1 | 1 | 1        | 1        | NULL         | NULL         | f           | NULL           | NULL           | f           |
@@ -265,42 +342,64 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); INSER
  1 | 1 | NULL     | NULL     | 1            | 1            | t           | NULL           | NULL           | f           |
  1 | 2 | NULL     | NULL     | NULL         | NULL         | NULL        | 1              | 2              | t           |
 </entry>
+<entry key="q21.result.duckdb">
+ a | b | prov_r_a | prov_r_b | prov_query_a | prov_query_b | prov_u1_ins | prov_query_1_a | prov_query_1_b | prov_u2_ins |
+--------------------------------------------------------------------------------------------------------------------------
+ 1 | 1 | 1        | 1        | NULL         | NULL         | false       | NULL           | NULL           | false       |
+ 1 | 2 | 1        | 2        | NULL         | NULL         | false       | NULL           | NULL           | false       |
+ 2 | 1 | 2        | 1        | NULL         | NULL         | false       | NULL           | NULL           | false       |
+ 2 | 3 | 2        | 3        | NULL         | NULL         | false       | NULL           | NULL           | false       |
+ 1 | 1 | NULL     | NULL     | 1            | 1            | true        | NULL           | NULL           | false       |
+ 1 | 2 | NULL     | NULL     | NULL         | NULL         | NULL        | 1              | 2              | true        |
+</entry>
 
-<entry key="q21.query">
+
+<entry key="q22.query">
 REENACT WITH PROVENANCE ONLY UPDATED (INSERT INTO R (SELECT * FROM R WHERE B = 2); );
 </entry>
-<entry key="q21.result">
+<entry key="q22.result">
  a | b | prov_r_a | prov_r_b | prov_u1_ins |
 --------------------------------------------
  1 | 2 | 1        | 2        | t           |
 </entry>
+<entry key="q22.result.duckdb">
+a | b | prov_r_a | prov_r_b | prov_u1_ins |
+--------------------------------------------
+ 1 | 2 | 1        | 2        | true        |
+</entry>
 
-<entry key="q22.query">
+<entry key="q23.query">
 REENACT WITH PROVENANCE ONLY UPDATED (INSERT INTO R (SELECT * FROM R WHERE B = 2); INSERT INTO R (SELECT * FROM R WHERE B = 2); );
 </entry>
-<entry key="q22.result">
+<entry key="q23.result">
  a | b | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b | prov_u1_ins | prov_r_2_a | prov_r_2_b | prov_r_3_a | prov_r_3_b | prov_u1_1_ins | prov_u2_ins |
 --------------------------------------------------------------------------------------------------------------------------------------------------------
  1 | 2 | NULL     | NULL     | 1          | 2          | t           | NULL       | NULL       | NULL       | NULL       | NULL          | f           |
  1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | f             | t           |
  1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | t             | t           |
 </entry>
+<entry key="q23.result.duckdb">
+a | b | prov_r_a | prov_r_b | prov_r_1_a | prov_r_1_b | prov_u1_ins | prov_r_2_a | prov_r_2_b | prov_r_3_a | prov_r_3_b | prov_u1_1_ins | prov_u2_ins |
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ 1 | 2 | NULL     | NULL     | 1          | 2          | true        | NULL       | NULL       | NULL       | NULL       | NULL          | false       |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | false         | true        |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | true          | true        |
+</entry>
 
-
-<entry key="q23.query">
+<entry key="q24.query">
 REENACT WITH PROVENANCE TABLE R ONLY UPDATED (UPDATE R SET A = 3 WHERE B =1; UPDATE S SET C = 3 WHERE D = 2;);
 </entry>
-<entry key="q23.result">
+<entry key="q24.result">
  A | B | PROV_R_A | PROV_R_B |
 ------------------------------
  3 | 1 | 1        | 1        |
  3 | 1 | 2        | 1        |
 </entry>
 
-<entry key="q24.query">
+<entry key="q25.query">
 REENACT WITH PROVENANCE TABLE S ONLY UPDATED (UPDATE R SET A = 3 WHERE B =1; UPDATE S SET C = 3 WHERE D = 2;);
 </entry>
-<entry key="q24.result">
+<entry key="q25.result">
  C | D | PROV_S_C | PROV_S_D |
 ------------------------------
  3 | 2 | 3        | 2        |
@@ -308,23 +407,26 @@ REENACT WITH PROVENANCE TABLE S ONLY UPDATED (UPDATE R SET A = 3 WHERE B =1; UPD
 </entry>
 
 
-<entry key="q25.query">
+<entry key="q26.query">
 REENACT WITH PROVENANCE TABLE R ONLY UPDATED STATEMENT ANNOTATIONS SHOW INTERMEDIATE (UPDATE R SET A = 3 WHERE B =1; UPDATE S SET C = 3 WHERE D = 2;);
 </entry>
-<entry key="q25.result">
+<entry key="q26.result">
   A | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 -------------------------------------------------------------------------
  3 | 1 | 1        | 1        | 3            | 1            | t          |
  3 | 1 | 2        | 1        | 3            | 1            | t          |
 </entry>
+<entry key="q26.result.duckdb">
+a | b | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up |
+-------------------------------------------------------------------------
+ 3 | 1 | 1        | 1        | 3            | 1            | true       |
+ 3 | 1 | 2        | 1        | 3            | 1            | true       |
+</entry>
 
-
-
-
-<entry key="q26.query">
+<entry key="q27.query">
 REENACT WITH PROVENANCE (OPTIONS (NO PROVENANCE) UPDATE R SET A = A + 2 WHERE B = 2; UPDATE R SET A = 4 WHERE B = 3;);
 </entry>
-<entry key="q26.result">
+<entry key="q27.result">
  A | B | PROV_R_A | PROV_R_B |
 ------------------------------
  1 | 1 | 1        | 1        |
@@ -333,20 +435,26 @@ REENACT WITH PROVENANCE (OPTIONS (NO PROVENANCE) UPDATE R SET A = A + 2 WHERE B 
  4 | 3 | 2        | 3        |
 </entry>
 
-<entry key="q27.query">
+<entry key="q28.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS SHOW INTERMEDIATE ONLY UPDATED (OPTIONS (NO PROVENANCE) UPDATE R SET A = A + 2 WHERE B = 2; UPDATE R SET A = 4 WHERE B = 3;);
 </entry>
-<entry key="q27.result">
+<entry key="q28.result">
  A | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 -------------------------------------------------------------------------
  3 | 2 | 3        | 2        | 3            | 2            | f          |
  4 | 3 | 2        | 3        | 4            | 3            | t          |
 </entry>
+<entry key="q28.result.duckdb">
+ a | b | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up |
+-------------------------------------------------------------------------
+ 3 | 2 | 3        | 2        | 3            | 2            | false      |
+ 4 | 3 | 2        | 3        | 4            | 3            | true       |
+</entry>
 
-<entry key="q28.query">
+<entry key="q29.query">
 REENACT WITH PROVENANCE (OPTIONS (NO PROVENANCE) UPDATE R SET A = A + 2 WHERE B = 2; OPTIONS (NO PROVENANCE) UPDATE R SET A = 4 WHERE B = 3; UPDATE R SET B = 100 WHERE A = 4; );
 </entry>
-<entry key="q28.result">
+<entry key="q29.result">
  A | B   | PROV_R_A | PROV_R_B |
 --------------------------------
  1 | 1   | 1        | 1        |
@@ -355,14 +463,20 @@ REENACT WITH PROVENANCE (OPTIONS (NO PROVENANCE) UPDATE R SET A = A + 2 WHERE B 
  4 | 100 | 4        | 3        |
 </entry>
 
-<entry key="q29.query">
+<entry key="q30.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS SHOW INTERMEDIATE ONLY UPDATED (OPTIONS (NO PROVENANCE) UPDATE R SET A = A + 2 WHERE B = 2; OPTIONS (NO PROVENANCE) UPDATE R SET A = 4 WHERE B = 3; UPDATE R SET B = 100 WHERE A = 4; );
 </entry>
-<entry key="q29.result">
+<entry key="q30.result">
  A | B   | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U1_up |
 ---------------------------------------------------------------------------
  3 | 2   | 3        | 2        | 3            | 2            | f          |
  4 | 100 | 4        | 3        | 4            | 100          | t          |
+</entry>
+<entry key="q30.result.duckdb">
+ a | b   | prov_r_a | prov_r_b | prov_u1__r_a | prov_u1__r_b | prov_u1_up |
+---------------------------------------------------------------------------
+ 3 | 2   | 3        | 2        | 3            | 2            | false      |
+ 4 | 100 | 4        | 3        | 4            | 100          | true       |
 </entry>
 
 </properties>

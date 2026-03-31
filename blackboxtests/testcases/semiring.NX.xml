@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>semiring N[X] test cases</comment>
+
+<entry key="q1.query">
+PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT * FROM R_nx HAS PROVENANCE (prov));
+</entry>
+<entry key="q1.result">
+ a | b | PROV |
+---------------
+ 1 | 1 | x1   |
+ 2 | 3 | x4   |
+ 1 | 2 | x2   |
+ 2 | 1 | x3   |
+</entry>
+
+
+<entry key="q2.query">
+PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT a FROM R_nx HAS PROVENANCE (prov));
+</entry>
+<entry key="q2.result">
+ a | PROV    |
+--------------
+ 2 | x3 + x4 |
+ 1 | x1 + x2 |
+</entry>
+
+<entry key="q3.query">
+PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT a FROM (SELECT a,b FROM R_nx HAS PROVENANCE (prov) ORDER BY a,b), (SELECT c,d FROM S_nx HAS PROVENANCE (prov) ORDER BY C,D) sub);
+</entry>
+<entry key="q3.result.duckdb">
+ A | PROV                                                                                          |
+----------------------------------------------------------------------------------------------------
+ 1 | (x1 * y4) + (x2 * y4) + (x1 * y1) + (x2 * y1) + (x1 * y2) + (x2 * y2) + (x1 * y3) + (x2 * y3) |
+ 2 | (x3 * y4) + (x4 * y4) + (x3 * y1) + (x4 * y1) + (x3 * y2) + (x4 * y2) + (x3 * y3) + (x4 * y3) |
+</entry>
+<entry key="q3.result">
+ a | prov                                                                                          |
+----------------------------------------------------------------------------------------------------
+ 1 | (x1 * y4) + (x1 * y1) + (x1 * y2) + (x1 * y3) + (x2 * y4) + (x2 * y1) + (x2 * y2) + (x2 * y3) |
+ 2 | (x3 * y4) + (x3 * y1) + (x3 * y2) + (x3 * y3) + (x4 * y4) + (x4 * y1) + (x4 * y2) + (x4 * y3) |
+</entry>
+
+<entry key="q4.query">
+PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT 1 FROM (SELECT 1 FROM  R_nx HAS PROVENANCE (prov)) r, (SELECT 1 FROM S_nx HAS PROVENANCE (prov)) s);
+</entry>
+<entry key="q4.result.duckdb">
+ 1 | prov                                                                                                                                                                                          |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 1 | (x1 * y1) + (x2 * y1) + (x3 * y1) + (x4 * y1) + (x1 * y2) + (x2 * y2) + (x3 * y2) + (x4 * y2) + (x1 * y3) + (x2 * y3) + (x3 * y3) + (x4 * y3) + (x1 * y4) + (x2 * y4) + (x3 * y4) + (x4 * y4) |
+</entry>
+<entry key="q4.result">
+ 1 | PROV                                                                                                                                                                                          |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 1 | (x1 * y1) + (x1 * y2) + (x1 * y3) + (x1 * y4) + (x2 * y1) + (x2 * y2) + (x2 * y3) + (x2 * y4) + (x3 * y1) + (x3 * y2) + (x3 * y3) + (x3 * y4) + (x4 * y1) + (x4 * y2) + (x4 * y3) + (x4 * y4) |
+</entry>
+
+
+</properties>
