@@ -283,7 +283,7 @@ INSERT INTO R_f VALUES (8,9,0.2);
 CREATE TABLE s_f (
 	C int,
 	D int,
-    f NUMERIC(6.3)
+    f NUMERIC(6,3)
 );
 
 INSERT INTO S_f VALUES (2,2,1.0);
