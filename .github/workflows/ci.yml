@@ -39,6 +39,7 @@ jobs:
               - 'Makefile.maintainer'
               - 'Makefile.am'
               - 'configure.ac'
+              - 'blackboxtests/testdb/**'
   ################################################################################
   # if docker files where changed rebuild and deploy base development env image
   ################################################################################
