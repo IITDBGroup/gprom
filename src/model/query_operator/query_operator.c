@@ -269,7 +269,10 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, bo
             // do not adjust provide nesting attributes that may have been removed already
             if(!(nestResultAttr && hasSetElem(nestResultAttr, a1->name)))
             {
-                ASSERT(MAP_HAS_STRING_KEY(childAttrToPos, a1->name));
+                ASSERT_WITH_MESSAGE(MAP_HAS_STRING_KEY(childAttrToPos, a1->name),
+                                    "expected to have %s in childAttrToPos:\n\n%s",
+                                    a1->name,
+                                    beatify(nodeToString(childAttrToPos)));
                 a1->attrPosition = INT_VALUE(MAP_GET_STRING(childAttrToPos, a1->name));
             }
         }
@@ -338,6 +341,8 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *ch
 	}
 	else if (isA(parent,NestingOperator))
 	{
+        boolean isLeft = IS_OP_LCHILD(parent,child);
+
 		attrRefs = getAttrReferences((Node *) ((NestingOperator *) parent)->cond);
         // when the left child of a nesting operator was changed, then need to
         // adjust correlated attribute references to that child
@@ -346,6 +351,9 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent, QueryOperator *ch
             List *corrAttrs = getNestingCorrelatedAttrReferences((NestingOperator *) parent, FALSE);
             reSetPosOfOpAttrRefBaseOnBelowLayerSchema(child, corrAttrs, TRUE, nestResultAttr);
         }
+
+        // only attempt to adjust attribute references from this child
+        attrRefs = genericSublist(attrRefs, isChildAttrFilter, &isLeft);
 	}
 	else if (isA(parent,WindowOperator))
 	{
@@ -1185,6 +1193,32 @@ format_prop_value_for_user(char *prop, Node *val)
 
 		return s->data;
 	}
+
+    // temporal attributes
+    if(streq(prop, PROP_TEMP_TBEGIN_ATTR)
+       || streq(prop, PROP_TEMP_TEND_ATTR))
+    {
+        AttributeDef *a = (AttributeDef *) val;
+
+        return formatMes("%s: %s", a->attrName, DataTypeToString(a->dataType));
+    }
+
+    // temporal normalization
+    if(streq(prop, PROP_TEMP_NORMALIZE))
+    {
+        StringInfo s = makeStringInfo();
+        List *leftAttrs, *rightAttrs;
+        leftAttrs = (List *) MAP_GET_STRING((HashMap *) val, "leftAttrs");
+        rightAttrs = (List *) MAP_GET_STRING((HashMap *) val, "leftAttrs");
+
+        appendStringInfo(s,"left attrs: %s",
+                         stringListToString((List *) constStringListToStringList((List *) leftAttrs)));
+        appendStringInfo(s,", right attrs: %s",
+                         stringListToString((List *) constStringListToStringList((List *) rightAttrs)));
+        appendStringInfo(s, ", op=%s", exprToSQL(MAP_GET_STRING((HashMap *) val, "op"), NULL, FALSE));
+
+        return s->data;
+    }
 
     // provenance attribute information for pull-up
     if(streq(prop, PROP_PROVENANCE_TABLE_ATTRS))
