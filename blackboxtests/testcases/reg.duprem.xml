@@ -43,14 +43,21 @@ SELECT DISTINCT ON (x) a AS x,b FROM r WHERE b = 1;
 </entry>
 
 <entry key="q5.query">
-SELECT DISTINCT ON (a) r2.a, r2.b FROM r r1, r r2 WHERE r1.a = 1;
+SELECT DISTINCT ON (a) r2.a FROM r r1, (SELECT * FROM r ORDER BY a,b) r2 WHERE r1.a = 1;
 </entry>
 <entry key="q5.result">
- a | b |
---------
- 1 | 1 |
- 2 | 1 |
+ a |
+----
+ 1 |
+ 2 |
 </entry>
+<entry key="q5.result.sqlite">
+ a |
+----
+ 1 |
+ 2 |
+</entry>
+
 
 <entry key="q6.query">
 SELECT DISTINCT ON (x) a AS x,b FROM r WHERE b = 1;

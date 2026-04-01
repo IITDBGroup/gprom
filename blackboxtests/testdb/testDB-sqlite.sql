@@ -2,7 +2,6 @@
 --                         DROP TABLES IF THEY EEXIST                        --
 -------------------------------------------------------------------------------
 
--- TODO check whether they exit
 DROP TABLE IF EXISTS R;
 DROP TABLE IF EXISTS S;
 DROP TABLE IF EXISTS T;

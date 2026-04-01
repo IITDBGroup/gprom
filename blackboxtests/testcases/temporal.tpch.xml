@@ -3,17 +3,76 @@
 <properties>
 <comment>Temporal Sequenced Rewrites Test Cases for TPC-H queries</comment>
 
-<entry key="q1.query">
-</entry>
-<entry key="q1.result">
- a | b | t_b | t_e |
---------------------
- 1 | 1 | 1   | 5   |
- 1 | 1 | 2   | 6   |
- 1 | 1 | 5   | 10  |
-</entry>
+  <entry key="extra_settings.noopt">
+    -temporal_use_coalesce:FALSE
+  </entry>
+
+  <entry key="extra_settings.optnopullnoselmove">
+    -temporal_use_coalesce:FALSE,
+    -heuristic_opt,
+    -Opullup_prov_projections:FALSE,
+    -Oselection_move_around:FALSE
+  </entry>
+
+  <entry key="extra_settings.heuopt">
+    -temporal_use_coalesce:FALSE,
+    -heuristic_opt,
+    -Opullup_prov_projections:TRUE,
+    -Oselection_move_around:TRUE
+  </entry>
+
+
+<!-- <entry key="q1.query"> -->
+
+<!-- </entry> -->
+<!-- <entry key="q1.result"> -->
+<!--  a | b | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1 | 1 | 1   | 5   | -->
+<!--  1 | 1 | 2   | 6   | -->
+<!--  1 | 1 | 5   | 10  | -->
+<!-- </entry> -->
 
 <entry key="q2.query">
+SEQUENCED TEMPORAL (
+    select
+    s.acctbal,
+    s.name,
+    n.name,
+    p.partkey,
+    p.mfgr,
+    s.address,
+    s.phone,
+    s.comment
+    from
+    t_part WITH TIME (t_b, t_e) p,
+    t_supplier WITH TIME (t_b, t_e) s,
+    t_partsupp WITH TIME (t_b, t_e) ps,
+    t_nation WITH TIME (t_b, t_e) n,
+    t_region WITH TIME (t_b, t_e) r
+    where
+    p.partkey = ps.partkey
+    and s.suppkey = ps.suppkey
+    and p.size = 15
+    and p.type like '%BRASS'
+    and s.nationkey = n.nationkey
+    and n.regionkey = r.regionkey
+    and r.name = 'EUROPE'
+    and ps.supplycost = (
+        select
+        min(ps2.supplycost)
+        from
+        t_partsupp WITH TIME(t_b, t_e) ps2,
+        t_supplier s,
+        t_nation n,
+        (SELECT * FROM t_region r2 WHERE r2.name = 'Europe') WITH TIME (t_b, t_e) r3
+        where
+        p.partkey = ps2.partkey
+        and s.suppkey = ps2.suppkey
+        and s.nationkey = n.nationkey
+        and n.regionkey = r3.regionkey
+        )
+);
 </entry>
 <entry key="q2.result">
  a | t_b | t_e |
@@ -21,15 +80,34 @@
  1 | 1   | 5   |
 </entry>
 
-<entry key="q3.query">
-</entry>
-<entry key="q3.result">
- x | c | t_b | t_e |
---------------------
- 3 | 2 | 1   | 5   |
-</entry>
+<!-- <entry key="q3.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q3.result"> -->
+<!--  x | c | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  3 | 2 | 1   | 5   | -->
+<!-- </entry> -->
 
 <entry key="q4.query">
+  SEQUENCED TEMPORAL (
+    select
+    o.orderpriority,
+    count(*) as order_count
+    from
+    t_orders WITH TIME (t_b, t_e) o
+    where
+    o.orderdate >= '1993-07-01'
+    and o.orderdate &lt; '1993-10-01'
+    and exists (
+        select
+        *
+        from (select * from t_lineitem l2 where l2.commitdate &lt; l2.receiptdate) WITH TIME (t_b, t_e) l
+        where
+        l.orderkey = o.orderkey
+        )
+    group by
+    o.orderpriority
+);
 </entry>
 <entry key="q4.result">
  a | t_b | t_e |
@@ -37,77 +115,108 @@
  1 | 1   | 13  |
 </entry>
 
-<entry key="q5.query">
+<!-- <entry key="q5.query"> -->
 
-</entry>
-<entry key="q5.result">
- a | t_b | t_e |
-----------------
- 1 | 1   | 5   |
- 1 | 2   | 6   |
- 1 | 5   | 10  |
-</entry>
+<!-- </entry> -->
+<!-- <entry key="q5.result"> -->
+<!--  a | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1 | 1   | 5   | -->
+<!--  1 | 2   | 6   | -->
+<!--  1 | 5   | 10  | -->
+<!-- </entry> -->
 
-<entry key="q6.query">
-</entry>
-<entry key="q6.result">
- la | lb | ra | rb | t_b | t_e |
---------------------------------
- 1  | 1  | 1  | 2  | 1   | 5   |
-</entry>
-
-
-<entry key="q7.query">
-</entry>
-<entry key="q7.result">
- la | lb | ra | rb | t_b | t_e |
---------------------------------
- 1  | 1  | 1  | 1  | 1   | 5   |
-</entry>
+<!-- <entry key="q6.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q6.result"> -->
+<!--  la | lb | ra | rb | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1  | 1  | 1  | 2  | 1   | 5   | -->
+<!-- </entry> -->
 
 
-<entry key="q8.query">
-</entry>
-<entry key="q8.result">
- la | t_b | t_e |
------------------
- 1  | 1   | 5   |
- 1  | 1   | 5   |
- 1  | 2   | 5   |
- 1  | 2   | 5   |
- 1  | 2   | 6   |
- 1  | 2   | 6   |
- 1  | 5   | 6   |
- 1  | 5   | 6   |
- 1  | 5   | 10  |
- 1  | 5   | 10  |
- 1  | 1   | 2   |
-</entry>
+<!-- <entry key="q7.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q7.result"> -->
+<!--  la | lb | ra | rb | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1  | 1  | 1  | 1  | 1   | 5   | -->
+<!-- </entry> -->
 
-<entry key="q9.query">
-</entry>
-<entry key="q9.result">
-  boo | t_b | t_e |
-------------------
- 1   | 1   | 5   |
- 1   | 2   | 6   |
- 1   | 5   | 10  |
- 1   | 1   | 13  |
- 1   | 1   | 2   |
- 1   | 1   | 2   |
- 1   | 2   | 3   |
- 1   | 3   | 4   |
-</entry>
 
-<entry key="q10.query">
-</entry>
-<entry key="q10.result">
- la | t_b | t_e |
------------------
- 1  | 1   | 5   |
-</entry>
+<!-- <entry key="q8.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q8.result"> -->
+<!--  la | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1  | 1   | 5   | -->
+<!--  1  | 1   | 5   | -->
+<!--  1  | 2   | 5   | -->
+<!--  1  | 2   | 5   | -->
+<!--  1  | 2   | 6   | -->
+<!--  1  | 2   | 6   | -->
+<!--  1  | 5   | 6   | -->
+<!--  1  | 5   | 6   | -->
+<!--  1  | 5   | 10  | -->
+<!--  1  | 5   | 10  | -->
+<!--  1  | 1   | 2   | -->
+<!-- </entry> -->
+
+<!-- <entry key="q9.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q9.result"> -->
+<!--   boo | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1   | 1   | 5   | -->
+<!--  1   | 2   | 6   | -->
+<!--  1   | 5   | 10  | -->
+<!--  1   | 1   | 13  | -->
+<!--  1   | 1   | 2   | -->
+<!--  1   | 1   | 2   | -->
+<!--  1   | 2   | 3   | -->
+<!--  1   | 3   | 4   | -->
+<!-- </entry> -->
+
+<!-- <entry key="q10.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q10.result"> -->
+<!--  la | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1  | 1   | 5   | -->
+<!-- </entry> -->
 
 <entry key="q11.query">
+SEQUENCED TEMPORAL (
+    select
+    *
+    from (
+    select
+        ps.partkey,
+        sum(ps.supplycost * ps.availqty) as value
+    from
+        t_partsupp WITH TIME (t_b, t_e) ps,
+        t_supplier WITH TIME (t_b, t_e) s,
+        t_nation WITH TIME (t_b, t_e) n
+    where
+        ps.suppkey = s.suppkey
+        and s.nationkey = n.nationkey
+        and n.name = 'GERMANY'
+    group by
+        ps.partkey
+    ) as inner_query
+    where
+    value &gt; (
+        select
+        sum(ps2.supplycost * ps2.availqty) * 0.0001
+        from
+        t_partsupp WITH TIME (t_b, t_e) ps2,
+        t_supplier WITH TIME (t_b, t_e) s2,
+        (SELECT nationkey FROM t_nation WITH TIME (t_b, t_e) WHERE name = 'GERMANY') n2
+        where
+        ps2.suppkey = s2.suppkey
+        and s2.nationkey = n2.nationkey
+    )
+);
 </entry>
 <entry key="q11.result">
  la | lb | ra | rb | t_b | t_e |
@@ -115,44 +224,74 @@
  1  | 1  | 1  | 1  | 1   | 5   |
 </entry>
 
-<entry key="q12.query">
-</entry>
-<entry key="q12.result">
- la | lb | ra | rb | t_b | t_e |
---------------------------------
- 1  | 1  | 1  | 2  | 1   | 2   |
- 1  | 1  | 1  | 2  | 1   | 5   |
- 1  | 1  | 1  | 1  | 2   | 5   |
- 1  | 1  | 1  | 1  | 2   | 5   |
- 1  | 1  | 1  | 1  | 1   | 5   |
-</entry>
+<!-- <entry key="q12.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q12.result"> -->
+<!--  la | lb | ra | rb | t_b | t_e | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1  | 1  | 1  | 2  | 1   | 2   | -->
+<!--  1  | 1  | 1  | 2  | 1   | 5   | -->
+<!--  1  | 1  | 1  | 1  | 2   | 5   | -->
+<!--  1  | 1  | 1  | 1  | 2   | 5   | -->
+<!--  1  | 1  | 1  | 1  | 1   | 5   | -->
+<!-- </entry> -->
 
-<entry key="q13.query">
-</entry>
-<entry key="q13.result">
- x  | t_b         | t_e        |
---------------------------------
- 0  | -2000000000 | 1          |
- 8  | 1           | 2          |
- 10 | 2           | 3          |
- 10 | 3           | 4          |
- 6  | 4           | 5          |
- 6  | 5           | 6          |
- 2  | 6           | 10         |
- 0  | 10          | 2000000000 |
-</entry>
+<!-- <entry key="q13.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q13.result"> -->
+<!--  x  | t_b         | t_e        | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  0  | -2000000000 | 1          | -->
+<!--  8  | 1           | 2          | -->
+<!--  10 | 2           | 3          | -->
+<!--  10 | 3           | 4          | -->
+<!--  6  | 4           | 5          | -->
+<!--  6  | 5           | 6          | -->
+<!--  2  | 6           | 10         | -->
+<!--  0  | 10          | 2000000000 | -->
+<!-- </entry> -->
 
-<entry key="q14.query">
-</entry>
-<entry key="q14.result">
- a | b | t_b        | t_e        |
-----------------------------------
- 1 | 1 | 2017-01-01 | 2017-02-01 |
- 1 | 1 | 2017-01-05 | 2017-02-15 |
- 1 | 1 | 2017-02-01 | 2017-04-07 |
-</entry>
+<!-- <entry key="q14.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q14.result"> -->
+<!--  a | b | t_b        | t_e        | -->
+<!-- -\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- -->
+<!--  1 | 1 | 2017-01-01 | 2017-02-01 | -->
+<!--  1 | 1 | 2017-01-05 | 2017-02-15 | -->
+<!--  1 | 1 | 2017-02-01 | 2017-04-07 | -->
+<!-- </entry> -->
 
 <entry key="q15.query">
+SEQUENCED TEMPORAL (
+    with revenue_view as (
+    select
+        l.suppkey as supplier_no,
+        sum(l.extendedprice * (1 - l.discount)) as total_revenue
+    from
+        t_lineitem WITH TIME(t_b, t_e) l
+    where
+        l.shipdate &gt;= '1996-01-01'
+        and l.shipdate &lt; '1996-04-01'
+    group by
+        l.suppkey)
+    select
+    s.suppkey,
+    s.name,
+    s.address,
+    s.phone,
+    total_revenue
+    from
+    t_supplier WITH TIME(t_b, t_e) s,
+    revenue_view
+    where
+    s.suppkey = supplier_no
+    and total_revenue = (
+        select
+        max(total_revenue)
+        from
+        revenue_view
+        )
+);
 </entry>
 <entry key="q15.result">
  a | t_b        | t_e        |
@@ -161,6 +300,21 @@
 </entry>
 
 <entry key="q16.query">
+SEQUENCED TEMPORAL (
+  SELECT p.brand, p.type, p.size, count(DISTINCT ps.suppkey) AS supplier_cnt
+    FROM t_partsupp WITH TIME (t_b, t_e) ps
+   JOIN
+     (SELECT *
+      FROM t_part WITH TIME (t_b, t_e) p2
+      WHERE p2.brand &lt;&gt; 'Brand#45'
+        AND NOT (p2.type like 'MEDIUM POLISHED%')
+        AND p2.size IN (49, 14, 23, 45, 19, 3, 36, 9) ) p ON p.partkey = ps.partkey
+   WHERE ps.suppkey NOT IN
+       (SELECT s.suppkey
+        FROM t_supplier WITH TIME (t_b, t_e) s
+        WHERE s.comment like '%Customer%Complaints%' )
+   GROUP BY p.brand, p.type, p.size
+);
 </entry>
 <entry key="q16.result">
  a | t_b        | t_e        |
@@ -170,8 +324,158 @@
 
 
 <entry key="q17.query">
+SEQUENCED TEMPORAL (
+  SELECT sum(l.extendedprice) / 7.0 as avg_yearly
+  FROM
+  t_lineitem WITH TIME (t_b, t_e) l
+  JOIN
+  (SELECT partkey AS p_partkey, brand, container, t_b, t_e
+   FROM t_part p2
+   WHERE p2.brand = 'Brand#23' AND p2.container = 'MED BOX'
+  ) WITH TIME (t_b, t_e) p
+  ON p.p_partkey = l.partkey
+  WHERE l.quantity &lt; (
+    select
+      0.2 * avg(ll.quantity)
+    from
+      t_lineitem WITH TIME (t_b, t_e) ll
+    where
+      ll.partkey = p.p_partkey
+  )
+);
 </entry>
 <entry key="q17.result">
+ a | t_b        | t_e        |
+------------------------------
+ 1 | 2017-01-01 | 2017-02-01 |
+</entry>
+
+
+<entry key="q20.query">
+SEQUENCED TEMPORAL (
+  SELECT s.name, s.address
+  FROM
+  t_supplier WITH TIME (t_b, t_e) s,
+  t_nation WITH TIME (t_b, t_e) n
+  WHERE
+    s.suppkey IN (
+      SELECT
+        ps.suppkey
+      FROM
+        t_partsupp WITH TIME (t_b, t_e) ps
+      WHERE
+        ps.partkey in (
+          SELECT
+            p.partkey
+          FROM
+            t_part WITH TIME (t_b, t_e) p
+          WHERE
+            p.name = 'forest%'
+          )
+        AND ps.availqty > (
+          SELECT
+            0.5 * sum(l.quantity)
+          FROM
+            t_lineitem WITH TIME (t_b, t_e) l
+          WHERE
+            l.partkey = ps.partkey
+            AND l.suppkey = ps.suppkey
+            AND l.shipdate &gt;= '1994-01-01'
+            AND l.shipdate &lt; '1995-01-01'
+          )
+      )
+    AND s.nationkey = n.nationkey
+    AND n.name = 'CANADA'
+);
+</entry>
+<entry key="q20.result">
+ a | t_b        | t_e        |
+------------------------------
+ 1 | 2017-01-01 | 2017-02-01 |
+</entry>
+
+
+<entry key="q21.query">
+SEQUENCED TEMPORAL (
+    select
+    s.name,
+    count(*) as numwait
+    from
+    t_supplier WITH TIME (t_b, t_e) s,
+    t_lineitem WITH TIME (t_b, t_e) l1,
+    t_orders WITH TIME (t_b, t_e) o,
+    t_nation WITH TIME (t_b, t_e) n
+    where
+    s.suppkey = l1.suppkey
+    and o.orderkey = l1.orderkey
+    and o.orderstatus = 'F'
+    and l1.receiptdate > l1.commitdate
+    and exists (
+        select
+        *
+        from
+        (SELECT orderkey AS orderkey_r, suppkey AS suppkey_r FROM t_lineitem WITH TIME (t_b, t_e)) l2
+        where
+        l2.orderkey_r = l1.orderkey
+        and l2.suppkey_r &lt;&gt; l1.suppkey
+    )
+    and not exists (
+        select
+        *
+        from
+        (SELECT orderkey AS orderkey_rr, suppkey AS suppkey_rr FROM t_lineitem WITH TIME (t_b, t_e) WHERE receiptdate > commitdate) l3
+        where
+        l3.orderkey_rr = l1.orderkey
+        and l3.suppkey_rr &lt;&gt; l1.suppkey
+    )
+    and s.nationkey = n.nationkey
+    and n.name = 'SAUDI ARABIA'
+    group by
+    s.name
+);
+</entry>
+<entry key="q21.result">
+ a | t_b        | t_e        |
+------------------------------
+ 1 | 2017-01-01 | 2017-02-01 |
+</entry>
+
+<entry key="q22.query">
+SEQUENCED TEMPORAL (
+    select
+    cntrycode,
+    count(*) as numcust,
+    sum(custsale.acctbal) as totacctbal
+    from (
+    select
+        substr(c.phone, 1, 2) as cntrycode,
+        c.acctbal
+    from
+        (SELECT * FROM t_customer cc WHERE substr(cc.phone, 1, 2) in ('70')) WITH TIME (t_b, t_e) c
+    where
+        c.acctbal > (
+        select
+            avg(c2.acctbal)
+        from
+            t_customer WITH TIME (t_b, t_e) c2
+        where
+            c2.acctbal &gt; 0.00
+            and substr(c2.phone, 1, 2) in ('70')
+        )
+        and not exists (
+        select
+            *
+        from
+            t_orders WITH TIME (t_b, t_e) o
+        where
+            o.custkey = c.custkey
+        )
+    ) as custsale
+    group by
+    cntrycode
+);
+</entry>
+<entry key="q22.result">
  a | t_b        | t_e        |
 ------------------------------
  1 | 2017-01-01 | 2017-02-01 |
