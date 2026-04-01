@@ -118,6 +118,8 @@ typedef enum QOVisitorState {
 #define TEMP_MAX_MULT_ATTR backendifyIdentifier("n")
 
 #define PROP_OP_KEY "op"
+#define PROP_LEFT_ATTRS_KEY "leftAttrs"
+#define PROP_RIGHT_ATTRS_KEY "rightAttrs"
 #define EMPTY_MARKER_STRING "!EMPTY!"
 
 #define MIN_DATE "1900-01-01"
@@ -865,8 +867,8 @@ HashMap *normalizationStateToMap(NestedNormalizationState *state) {
 
     HashMap *map = NEW_MAP(Constant, Node);
     MAP_ADD_STRING_KEY(map, PROP_OP_KEY, (Node*)createConstInt(state->op));
-    MAP_ADD_STRING_KEY(map, "leftAttrs", (Node*)stringListToConstList(state->leftAttrs));
-    MAP_ADD_STRING_KEY(map, "rightAttrs", (Node*)stringListToConstList(state->rightAttrs));
+    MAP_ADD_STRING_KEY(map, PROP_LEFT_ATTRS_KEY, (Node*)stringListToConstList(state->leftAttrs));
+    MAP_ADD_STRING_KEY(map, PROP_RIGHT_ATTRS_KEY, (Node*)stringListToConstList(state->rightAttrs));
 
     ACQUIRE_MEM_CONTEXT(ctxt);
     return map;
@@ -1224,8 +1226,8 @@ tempRewrNestedSubqueryCorrelated(NestingOperator *op, TemporalRewrState *state)
         QueryOperator *rightOp = (QueryOperator *)(k->key);
         HashMap *normalizationProps = (HashMap *)(k->value);
 
-        List *leftAttrs = (List*)MAP_GET_STRING(normalizationProps, "leftAttrs");
-        List *rightAttrs = (List*)MAP_GET_STRING(normalizationProps, "rightAttrs");
+        List *leftAttrs = (List*)MAP_GET_STRING(normalizationProps, PROP_LEFT_ATTRS_KEY);
+        List *rightAttrs = (List*)MAP_GET_STRING(normalizationProps, PROP_RIGHT_ATTRS_KEY);
         INFO_LOG("normalizing with leftAttrs %s and rightAttrs %s to normalize\n%s\nwith\n%s",
                  nodeToString(leftAttrs),
                  nodeToString(rightAttrs),

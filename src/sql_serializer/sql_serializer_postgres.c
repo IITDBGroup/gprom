@@ -656,6 +656,7 @@ postgresSerializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext
 {
     int pos = 0;
     List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
+    boolean isChildOfSetOP = isA(OP_FIRST_PARENT(t),SetOperator);
     boolean isRightChildOfSetOp = IS_RIGHT_CHILD(t)
                                   && isA(OP_FIRST_PARENT(t),SetOperator);
     boolean noParen = getBackend() == BACKEND_SQLITE && isRightChildOfSetOp;
@@ -690,7 +691,7 @@ postgresSerializeConstRel(StringInfo from, ConstRelOperator* t, FromAttrsContext
         appendStringInfoString(from, ")");
     }
 
-    if(!isRightChildOfSetOp)
+    if(!isChildOfSetOP)
     {
         appendStringInfo(from, " F%u_%u", (*curFromItem)++, LIST_LENGTH(fac->fromAttrsList));
     }

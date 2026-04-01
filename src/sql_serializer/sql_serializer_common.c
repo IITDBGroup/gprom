@@ -46,6 +46,7 @@
 typedef struct UpdateWindowOpAttrsContext {
     FromAttrsContext *fac;
     HashMap *winfAttrs;
+    HashMap *winfFromAttrs;
 } UpdateWindowOpAttrsContext;
 
 typedef struct UpdateWindowOpAttrsSimpleContext {
@@ -778,7 +779,8 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
        && matchInfo->orderBy == NULL
        && matchInfo->limitOffset == NULL)
     {
-        api->serializeConstRel(str,(ConstRelOperator *) matchInfo->fromRoot,fac,0,api);
+        int curFromItem = 0;
+        api->serializeConstRel(str,(ConstRelOperator *) matchInfo->fromRoot,fac,&curFromItem,api);
         FREE(matchInfo);
         return attrNames;
     }
@@ -1996,6 +1998,7 @@ updateWindowAttributeNames(Node *node, FromAttrsContext *fac, HashMap *winfAttrs
     boolean result;
     UpdateWindowOpAttrsContext *context = NEW(UpdateWindowOpAttrsContext);
     context->winfAttrs = winfAttrs;
+    context->winfFromAttrs = invertKeyValues(winfAttrs);
     context->fac = fac;
 
     result = updateWindowAttrsInternal(node, context);
@@ -2013,11 +2016,14 @@ updateWindowAttrsInternal(Node *node, UpdateWindowOpAttrsContext *context)
     if (isA(node, AttributeReference))
     {
         AttributeReference *a = (AttributeReference *) node;
+        // if this is a window operator result attribute name, then replace it
+        // with the definition, e.g., winf_0 -> sum(a) OVER()
         if(MAP_HAS_STRING_KEY(context->winfAttrs,a->name))
         {
             a->name = strdup(MAP_GET_STRING_VAL_FOR_STRING_KEY(context->winfAttrs, a->name));
         }
-        else
+        // unless it is an already translated window function call, e.g., sum(a) OVER(), update attribute references
+        else if(!MAP_HAS_STRING_KEY(context->winfFromAttrs, a->name))
         {
             updateAttributeReference(a, context->fac);
         }
@@ -2057,11 +2063,10 @@ updateAttributeReference(AttributeReference *a, FromAttrsContext *fac)
 		attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         if(attrPos < 0 || attrPos >= LIST_LENGTH(outer))
         {
-            printFromAttrsContext(fac);
             THROW(SEVERITY_RECOVERABLE,
                   "attribute <%s> not found in FromClauseAttr:\n%s",
                   a->name,
-                  a);
+                  fromAttrsContextToString(fac));
         }
 		newName = getNthOfListP(outer, attrPos);
 
