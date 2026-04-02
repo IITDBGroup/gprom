@@ -627,7 +627,7 @@ AS_IF([test "x$enable_monetdb" == "xyes"], [
 AC_DEFUN([AC_ENABLE_ODBC],
 [
 AC_MSG_CHECKING([should be compiled with support for ODBC backends])
-AC_ARG_ENABLE(odbc, AS_HELP_STRING([--disable-odbc],[Disable compilation with support for ODBC backends]))
+AC_ARG_ENABLE(odbc, AS_HELP_STRING([--enable-odbc],[Enable compilation with support for ODBC backends]))
 
 AS_IF([test "x$enable_odbc" == "xyes"], [
   AC_MSG_RESULT([yes])
@@ -656,7 +656,7 @@ AS_IF([test "x$enable_mssql" == "xyes"], [
 AC_DEFUN([AC_ENABLE_POSTGRES],
 [
 AC_MSG_CHECKING([should be compiled with support for Postgres backends])
-AC_ARG_ENABLE(postgres, AS_HELP_STRING([--disable-postgres],[Disable compilation with support for Postgres backends]))
+AC_ARG_ENABLE(postgres, AS_HELP_STRING([--enable-postgres],[Enable compilation with support for Postgres backends]))
 
 AS_IF([test "x$enable_postgres" == "xyes"], [
   AC_MSG_RESULT([yes])
@@ -670,7 +670,7 @@ AS_IF([test "x$enable_postgres" == "xyes"], [
 AC_DEFUN([AC_ENABLE_ORACLE],
 [
 AC_MSG_CHECKING([should be compiled with support for Oracle backends])
-AC_ARG_ENABLE(oracle, AS_HELP_STRING([--enable-oracle],[Disable compilation with support for Oracle backends]))
+AC_ARG_ENABLE(oracle, AS_HELP_STRING([--enable-oracle],[Enable compilation with support for Oracle backends]))
 
 AS_IF([test "x$enable_oracle" == "xyes"], [
   AC_MSG_RESULT([yes])
@@ -702,7 +702,7 @@ AM_CONDITIONAL(JAVABINDING, test "x$enable_java" = "xyes")
 AC_DEFUN([AC_ENABLE_READLINE],
 [
 AC_MSG_CHECKING([should support readline library in CLI interface])
-AC_ARG_ENABLE(readline, AS_HELP_STRING([--disable-readline],[Disable compilation with support for readline library]))
+AC_ARG_ENABLE(readline, AS_HELP_STRING([--disable-readline],[Disable compilation with support for readline library (command history)]))
 
 AS_IF([test "x$enable_readline" == "xno"], [
   AC_DEFINE([DISABLE_READLINE],[],[Disable support for readline])

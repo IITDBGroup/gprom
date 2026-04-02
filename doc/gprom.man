@@ -1,4 +1,4 @@
-.TH gprom 1 "2018-06-18" "version 1.0.3"
+.TH gprom 1 "2026-04-02" "version 1.0.3"
 .\" ********************************************************************************
 .SH NAME
 .B gprom
@@ -21,16 +21,16 @@
 .B gprom \-languagehelp \fIlanguage\fR
 .\" ********************************************************************************
 .SH DESCRIPTION
-\fBGProM\fR is a database middleware that adds provenance support to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called instrumentation. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle).
+\fBGProM\fR is a database middleware that support for provenance and other extension of the relational model (temporal queries, uncertain data, ...) to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using compilation: transpiling from SQL+X to plain SQL. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. GProM extends not just SQL but also other frontend languages (e.g., Datalog) with provenance requests and can produce code for multiple backends (currently Duckdb, Postgres, SQLite, MonetDB, Oracle, MS SQLServer).
 
 .PP
 \fBgprom\fR
-is a command line interface for GProM. gprom can be called in several ways as shown above in the synopsis. The first form starts an interactive shell where the user enters queries (in SQL or Datalog) and utility commands. The second form evaluates a single query given as parameter \fIquery\fR.
+is a command line interface for GProM. gprom can be called in several ways as shown above in the synopsis. The first form starts an interactive shell where the user enters queries (in SQL or Datalog) and utility commands. The second form evaluates a single query given as parameter \fIquery\fR and then exits.
 The third form runs all SQL commands from file \fIfile\fR.
-The last form describes the provenance extensions that GProM supports for a particular frontend language, e.g., \fIoracle\fR for Oracle SQL. See discussion on parser plugins below for a comprehensive list of supported frontend languages. See the \fBEXAMPLES\fR section for some typical usage examples.
+The last form describes the provenance extensions that GProM supports for a particular frontend language, e.g., \fIoracle\fR for Oracle SQL and \fIdl\fR for Datalog. See discussion on parser plugins below for a comprehensive list of supported frontend languages. See the \fBEXAMPLES\fR section for some typical usage examples.
 .\" ********************************************************************************
 .SH OPTIONS
-Boolean options take a single argument, e.g., \fB-time_queries\fR \fITRUE\fR activates timing of queries and \fB-time_queries\fR \fIFALSE\fR deactivates this option. 
+Boolean options take a single argument, e.g., \fB-time_queries\fR \fITRUE\fR activates timing of queries and \fB-time_queries\fR \fIFALSE\fR deactivates this option. If the boolean argument is omitted this is equivalent to passing \fITRUE\fR.
 \"****************************************
 .SS HELP
 Options to get help on GProM usage.
@@ -44,16 +44,16 @@ show help message and quit
 show help for the selected language (see section on parser plugins below for a list of supported languages)
 \"****************************************
 .SS INPUT
-These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is created.
+These options determine whether GProM operates as an interactive shell or just processes one query or queries from a file. If none of the options below is set, then an interactive shell is created.
 \"********************
 .TP
 .BR \-query " " \fIquery\fR
-process 
+process
 .I query
 \"********************
 .TP
 .BR \-queryFile " " \fIfile\fR
-read query to be processed from \fIfile\fR
+read queries to be processed from \fIfile\fR
 \"****************************************
 .SS OUTPUT AND TIMING QUERIES
 These options control what information GProM is printing for an executed query.
@@ -64,7 +64,7 @@ measure runtimes of executing rewritten queries. This option is ignored for all 
 \"********************
 .TP
 .BR \-time_query_format
-if \fI-time_queries\fR is activated, then this format is used for printing query runtimes. The format is printf compatible and should contain exactly on \fI%f\fR element (additional formating such as \fI%12f\fR is ok). Any occurrence of \fB"\\n"\fR in the format string is replaced with a newline. For instance, "query took\\n%f\\nmsecs\\n" will print the time of a query as three lines: "query took", a second line with just the time itself, and a third line "msecs". 
+if \fI-time_queries\fR is activated, then this format is used for printing query runtimes. The format is printf compatible and should contain exactly on \fI%f\fR element (additional formating such as \fI%12f\fR is ok). Any occurrence of \fB"\\n"\fR in the format string is replaced with a newline. For instance, "query took\\n%f\\nmsecs\\n" will print the time of a query as three lines: "query took", a second line with just the time itself, and a third line "msecs".
 \"********************
 .TP
 .BR \-repeat_query_count
@@ -78,7 +78,7 @@ show query result (default if \fItrue\fR). This option is ignored for all execut
 Set logging and debugging options.
 \"********************
 .TP
-.BR \-log 
+.BR \-log
 activate logging
 \"********************
 .TP
@@ -86,7 +86,19 @@ activate logging
 set minimum level of log messages to be shown. Valid settings for \fIlevel\fR are \fB0 = NONE\fR, \fB1 = FATAL\fR, \fB2 = ERROR\fR, \fB3 = INFO\fR, \fB4 = DEBUG\fR, \fB5 = TRACE\fR.
 \"********************
 .TP
-.BR \-timing 
+.BR \-Loperator_colorize
+colorize relational algebra operators. Default value: \fITRUE\fR
+\"********************
+.TP
+.BR \-Loperator_verbose
+show additional information about relational algebra operators including their schema. Default value: \fIFALSE\fR
+\"********************
+.TP
+.BR \-Loperator_verbose_props " " \fIlevel\fR
+show properties that the compilation process associates with relational algebra operators to pass information, e.g., what key constraints hold for the output relation produced by an operator. If set to \fB0\fR then properties are not shown. If set to \fB1\fR then just the names of properties are shown. If set to \fB2\fR then the values associated with property keys are also shown. Default value: \fI0\fR
+\"********************
+.TP
+.BR \-timing
 measure how much time is spend in each component of the system and output this information at exit
 \"********************
 .TP
@@ -122,22 +134,22 @@ Select \fIbackend\fR as the active database backend. This overwrites most other 
 \"********************
 .TP
 .BR \-frontend\fR " " \fIfrontend_name\fR
-Select the \fIfrontend_name\fR as the active frontend language. This is the language in which the user communicates with GProM. For instance, \fIoracle\fR corresponds to a subset of Oracle's SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. \fIfrontend\fR takes precedence over \fIbackend\fR. Use \fB-languagehelp\fR to get a brief description of the language features.
+Select the \fIfrontend_name\fR as the active frontend language. This is the language in which the user communicates with GProM. For instance, \fIoracle\fR corresponds to a SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. \fIfrontend\fR takes precedence over \fIbackend\fR. Use \fB-languagehelp\fR to get a brief description of the language features. Currently supported frontend are \fIoracle\fR (SQL) and \fIdl\fR (Datalog).
 \"****************************************
 .SS CONNECTION OPTIONS
 Configure the connection to the backend database system.
 \"********************
 .TP
 .BR \-host " " \fIhost\fR
-Host IP address for backend DB connection, e.g., \fI127.0.0.1\fR or \fImyhost.com\fR.
+Host IP address for backend DB connection, e.g., \fI127.0.0.1\fR or \fImyhost.com\fR. Omit for embedded databases like \fIduckdb\fR.
 \"********************
 .TP
-.BR \-db " " \fIorcl\fR
-Database name for the backend DB connection. The meaning of this option is backend specific. For Oracle connections this determines \fISID\fR or \fISERVICE_NAME\fR. For PostgreSQL databases it is the database name. For SQLite databases this is a path to the database file. For DuckDB databases this is a path to the database file. Default value: \fIorcl\fR
+.BR \-db " " \fIdatabase\fR
+Database name for the backend DB connection. The meaning of this option is backend specific. For Oracle connections this determines \fISID\fR or \fISERVICE_NAME\fR. For PostgreSQL databases it is the database name. For SQLite and DuckDB this is a path to the database file. Default value: \fIorcl\fR
 \"********************
 .TP
 .BR \-user " " \fIuser\fR
-User for the backend DB connection. Default value: \fIfga_user\fR
+Use user \fIuser\fR for the backend DB connection. Default value: \fIfga_user\fR
 \"********************
 .TP
 .BR \-passwd " " \fIpassword\fR
@@ -152,15 +164,15 @@ GProM main purpose is to provide provenance support for relational databases by 
 \"********************
 .TP
 .BR \-treeify-algebra-graphs
-Transform relational algebra graphs into trees before performing provenance instrumentation. Currently, this option activated by default since GProM's provenance instrumentation cannot deal with graphs yet.
+Transform relational algebra graphs into trees before performing provenance instrumentation. Currently, this option deactivated by default. Default value: \fIFALSE\fR
 \"********************
 .TP
 .BR \-prov_reenact_update_with_case
-When reenacting update operations use \fBCASE\fR instead of \fBUNION\fR to simulate an update
+When reenacting update operations use \fBCASE\fR instead of \fBUNION\fR to simulate an update. Default value: \fITRUE\fR
 \"********************
 .TP
 .BR \-prov_instrument_agg_window
-When instrumenting an aggregation operator for provenance capture use window function to perform the instrumentation instead of using joins (the default)
+When instrumenting an aggregation operator for provenance capture use window functions to perform the instrumentation instead of using joins (the default). This only takes effect if \fI-prov_use_composable\fR is turned on.
 \"********************
 .TP
 .BR \-prov_reenact_only_updated_rows_use_conditions
@@ -175,11 +187,11 @@ If the user requests the provenance of a transaction restricted to rows that whe
 Use composable version of provenance instrumentation that adds additional columns which enumerate duplicates of result rows introduced by provenance instrumentation
 \"****************************************
 .SS TEMPORAL FEATURES
-GProM also implements a form of temporal queries called sequenced semantics over interval-timestamped data. These options control the application of normalization operations applied by the rewrites for sequenced semantics.
+GProM also implements a form of temporal queries for snapshot-reducible semantics over interval-timestamped data. These options control the application of normalization operations applied by the rewrites for sequenced semantics.
 \"********************
 .TP
 .BR \-temporal_use_coalesce
-If activated (the default), then GProM applies coalescing to the result of a temporal query to produce a unique interval-timestamped representation of a temporal query result.
+If activated (the default), then GProM applies coalescing to the result of a temporal query to produce a unique interval-timestamped representation of a temporal query result where intervals for value-equivalent tuples are either the same or disjoint.
 \"********************
 .TP
 .BR \-temporal_use_normalization
@@ -188,6 +200,10 @@ If activated (the default), then GProM normalizes the input to temporal aggregat
 .TP
 .BR \-temporal_use_normalization_window
 GProM supports two implementations of temporal normalization one based on joins and one which uses analytical functions (window functions). If this option is activated, then GProM applies the window based implementation.
+\"********************
+.TP
+.BR \-temporal_agg_combine_with_norm
+For aggregation the aggregation and normalization can be combined into one step which is typically more efficient. Default value: \fITRUE\fR
 \"****************************************
 .SS OPTIMIZATION
 GProM features a heuristic and cost-based optimizer for relational algebra and provenance instrumentation. These options control the optimizer. Additional options are described in the \fBOPTIMIZATION\fR section below.
@@ -223,6 +239,8 @@ GProM translates statements in an input language with provenance features into a
 \fBrun\fR \- Run the generated query and show its result
 .IP
 \fBdl\fR \- Output a datalog program (only works if \fIdl\fR analyzer, translator, and parser plugins have been chosen
+.IP
+\fBexplain\fR \- Print query plan produced by the database. If \fB-explain_analyze\fR is activated then also run the query.
 \"****************************************
 .SS analyzer
 This plugin checks the output of the parser for semantic correctness.
@@ -241,7 +259,7 @@ This plugin translates the input language into \fBrelational algebra\fR which is
 \fBdummy\fR \- Do not translate the input (this can be used to produce an output language other than SQL to circumvent the limitations of GProM's relational algebra model, e.g., we currently do not support recursion)
 \"****************************************
 .SS metadatalookup
-The metadata lookup plugin handles communication with the backend database. This involves 1) running queries over the catalog of the backend to do, e.g., semantic analysis and 2) executing queries instrumented for provenance capture to compute the results of provenance requests submitted by the user. To be able to do this, the plugin manages a connection to the backend database using the C library of the backend DBMS. The type of metadata lookup plugin determines how connection parameters will be interpreted. 
+The metadata lookup plugin handles communication with the backend database. This involves 1) running queries over the catalog of the backend to do, e.g., semantic analysis and 2) executing queries instrumented for provenance capture to compute the results of provenance requests submitted by the user. To be able to do this, the plugin manages a connection to the backend database using the C library of the backend DBMS. The type of metadata lookup plugin determines how connection parameters will be interpreted.
 .IP
 \fBoracle\fR \- This plugin manages communication with an Oracle database backend. We use Oracle's \fIOCI\fR interface wrapped by the open source library \fIOCILIB\fR.
 .IP
@@ -252,9 +270,10 @@ The metadata lookup plugin handles communication with the backend database. This
 \fBmonetdb\fR \- This plugin manages communication with a MonetDB database backend. We use the MonetDB's \fImapi\fR library.
 .IP
 \fBduckdb\fR \- This plugin manages communication with a DuckDB database backend. We use DuckDB's \fIlibduckdb\fR library, which provides a C API to execute queries and retrieve metadata.
+\fBmssql\fR \- This plugin manages communication with a SQLServer database backend. We use the ODBC driver for that.
 \"****************************************
 .SS sqlcodegen
-This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect. 
+This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect.
 .IP
 \fBdl\fR \- Output a Datalog program
 .IP
@@ -291,13 +310,13 @@ GProM currently implement the following transformation rules that are activated 
 \fBfactor_attrs\fR \- try to factor attributes in projection expressions to reduce the number of references to attributes. We currently support addition and multiplication expressions in \fBCASE\fR constructs. For example, \fBCASE WHEN \fIcond\fB THEN A + 2 ELSE A END AS A\fR can be refactored into \fBA + CASE WHEN \fIcond\fB THEN 2 ELSE 0 END AS A\fR to reduce the number of references to attribute \fBA\fR from 2 to 1.
 
 .IP
-\fBmaterialize_unsafe_proj\fR \- Force the backend database to materialize projections that could lead to uncontrolled expression growth if they would be merged with adjacent projections (as explained above for \fBmerge_ops\fR). 
+\fBmaterialize_unsafe_proj\fR \- Force the backend database to materialize projections that could lead to uncontrolled expression growth if they would be merged with adjacent projections (as explained above for \fBmerge_ops\fR).
 
 .IP
-\fBremove_redundant_projections\fR \- Removes projections that are unnecessary from a query, e.g., a projection on \fBA, B\fR over a table \fBR(A,B)\fR is redundant and should be removed to simplify the query. 
+\fBremove_redundant_projections\fR \- Removes projections that are unnecessary from a query, e.g., a projection on \fBA, B\fR over a table \fBR(A,B)\fR is redundant and should be removed to simplify the query.
 
 .IP
-\fBremove_redundant_duplicate_removals\fR \- Removes duplicate removal operators if the application of duplicate removal has no effect on the query result. We check for two cases here: 1) if the input relation has at least one candidate key, then there are no duplicates and the operator has no effect and 2) if the result of the duplicate removal is later subjected to duplicate removal by a downstream operator and none of the operators on the path to this downstream operator are sensitive to the number of duplicates then the operator can be safely removed. 
+\fBremove_redundant_duplicate_removals\fR \- Removes duplicate removal operators if the application of duplicate removal has no effect on the query result. We check for two cases here: 1) if the input relation has at least one candidate key, then there are no duplicates and the operator has no effect and 2) if the result of the duplicate removal is later subjected to duplicate removal by a downstream operator and none of the operators on the path to this downstream operator are sensitive to the number of duplicates then the operator can be safely removed.
 
 .IP
 \fBremove_redundant_window_operators\fR \- Remove window operators (corresponding to SQL \fBOVER\fR clause expressions) which produce an output that is not used by any downstream operators.
@@ -309,10 +328,25 @@ GProM currently implement the following transformation rules that are activated 
 \fBpullup_duplicate_removals\fR \- This optimization tries to pull up duplicate removal operators.
 
 .IP
-\fBpullup_prov_projections\fR \- The provenance instrumentation used by GProM duplicates attributes of input tables using projection and propagates them to produce results annotated with provenance. This optimization tries to pull up such projections to delay the increase of schema sized caused by duplicating attributes. 
+\fBpullup_prov_projections\fR \- The provenance instrumentation used by GProM duplicates attributes of input tables using projection and propagates them to produce results annotated with provenance. This optimization tries to pull up such projections to delay the increase of schema sized caused by duplicating attributes.
 
 .IP
 \fBselection_move_around\fR \- This optimization applies standard selection move-around techniques.
+
+.IP
+\fBpush_down_normalizations\fR \- Pushdown temporal normalization of subqueries if possible. Default value: \fITRUE\fR
+
+.IP
+\fBpush_normalization_below_select\fR \- This is only relevant for tempoal nested subqueries. Should we push normalization below selections (sometimes it is better to first filter and then normalize). Default value: \fITRUE\fR
+
+.IP
+\fBnew_normalization_impl\fR \- This is only relevant for tempoal nested subqueries. If turned on, then we use left-alignment.
+
+.IP
+\fBsemantic_opt\fR \- Only applicable for Datalog lineage. This applies semantic query optimization techniques to eliminate joins. Default value: \fIFALSE\fR
+
+.IP
+\fBflatten_dl\fR \- Only applicable for Datalog lineage. This merges Datalog rules by replacing IDB predicates with the body of rules that define them. Default value: \fIFALSE\fR
 
 \"********************
 .SS Cost-based optimization options
@@ -328,7 +362,7 @@ The following options control the behavior of GProM's cost-based optimizer:
 \fB\-cbo_sim_ann_const\fR \fIc\fR \- Set the constant \fIc\fR used by the simulated annealing search strategy to calculate ap, e.g., c = 10, 20, 50 or 100
 
 .IP
-\fB\-cbo_sim_ann_cooldown_rate\fR \- 
+\fB\-cbo_sim_ann_cooldown_rate\fR \-
 Set the cooling down rate used by simulated annealing. Value has to be between 0.1 and 0.9.
 
 .IP
@@ -403,16 +437,20 @@ gprom -backend duckdb -db test.duckdb \\
 \fBBahareh Arab\fR (\fIbarab@hawk.iit.edu\fR)
 
 .IP
-\fBSu Feng\fR (\fIsfeng@hawk.iit.edu\fR)
+\fBSu Feng\fR (\fIsufeng@njtech.edu.cn\fR)
 
 .IP
-\fBBoris Glavic\fR (\fIbglavic@iit.edu\fR)
+\fBBoris Glavic\fR (\fIbglavic@uic.edu\fR)
 
 .IP
-\fBSeokki Lee\fR (\fIslee195@hawk.iit.edu\fR)
+\fBSeokki Lee\fR (\fIlee5sk@ucmail.uc.edu\fR)
 
 .IP
-\fBXing Niu\fR (\fIxniu7@hawk.iit.edu\fR)
+\fBXing Niu\fR (\fIxing.niu@oracle.com\fR)
+
+.IP
+\fBPengyuan Li\fR (\fIpli26@hawk.illinoistech.edu\fR)
+
 
 \"********************************************************************************
 .SH BUGS
@@ -420,10 +458,8 @@ gprom -backend duckdb -db test.duckdb \\
 .IP
 To see a list of current bugs or to report a new bug: \fIhttps://github.com/IITDBGroup/gprom/issues\fR
 
-
-
 \"********************************************************************************
 .SH SEE ALSO
 
 .IP
-To learn more about the research behind GProM see \fIhttp://www.cs.iit.edu/%7edbgroup/research/gprom.php\fR
+To learn more about the research behind GProM see \fIhttps://www.cs.uic.edu/~bglavic/dbgroup/research/gprom.php\fR
