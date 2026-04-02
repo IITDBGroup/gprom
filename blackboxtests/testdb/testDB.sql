@@ -42,6 +42,12 @@ DROP TABLE IF EXISTS t_partsupp;
 DROP TABLE IF EXISTS t_region;
 DROP TABLE IF EXISTS t_supplier;
 
+DROP TABLE IF EXISTS xtabletest;
+DROP TABLE IF EXISTS tiptest;
+DROP TABLE IF EXISTS r_radb;
+DROP TABLE IF EXISTS s_radb;
+DROP TABLE IF EXISTS vtabletest;
+
 -------------------------------------------------------------------------------
 --                                CREATE TABLE                               --
 -------------------------------------------------------------------------------
@@ -9280,3 +9286,86 @@ CREATE TABLE t_supplier (
     t_b timestamp without time zone,
     t_e timestamp without time zone
 );
+
+-------------------------------------------------------------------------------
+--                            uncertain databases                            --
+-------------------------------------------------------------------------------
+CREATE TABLE xtabletest (
+  a INT,
+  b INT,
+  tid INT,
+  p FLOAT
+);
+
+INSERT INTO xtabletest
+VALUES (1, 1, 1, 0.6),
+       (1, 2, 1, 0.2),
+       (1, 3, 1, 0.1),
+       (2, 1, 2, 1.0),
+       (3, 1, 3, 0.5),
+       (3, 2, 3, 0.5),
+       (4, 4, 4, 0.3);
+
+CREATE TABLE tiptest (
+  a INT,
+  p FLOAT
+);
+
+INSERT INTO tiptest
+VALUES (1, 0.1),
+       (2, 0.3),
+       (3, 0.9),
+       (4, 1.0),
+       (1, 0.1),
+       (2, 0.3),
+       (3, 0.9),
+       (4, 1.0);
+
+CREATE TABLE r_radb (
+  a INT,
+  b INT,
+  a_ub INT,
+  b_ub INT,
+  a_lb INT,
+  b_lb INT,
+  cet_r INT,
+  bst_r INT,
+  pos_r INT
+);
+
+INSERT INTO r_radb
+VALUES (2,2,3,2,1,2,1,1,1),
+       (1,1,1,1,1,1,0,1,2),
+       (3,3,3,3,3,3,0,1,1),
+       (5,6,5,10,5,3,1,1,1),
+       (4,4,7,4,3,4,1,1,1);
+
+CREATE TABLE s_radb (
+  c INT,
+  d INT,
+  c_ub INT,
+  d_ub INT,
+  c_lb INT,
+  d_lb INT,
+  cet_r INT,
+  bst_r INT,
+  pos_r INT
+);
+
+INSERT INTO s_radb
+VALUES (2,2,3,2,1,2,1,1,1),
+       (1,1,1,1,1,1,0,1,2),
+       (1,1,1,1,1,1,0,1,1),
+       (2,6,2,10,2,3,1,1,1),
+       (2,4,2,4,2,4,1,1,1);
+
+CREATE TABLE vtabletest (
+  a INT,
+  b INT
+);
+
+INSERT INTO vtabletest
+VALUES (1,1),
+       (2, NULL),
+       (NULL,3),
+       (4,4);

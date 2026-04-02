@@ -41,8 +41,8 @@ RUN /usr/bin/pip install -r /gprom/src/blackboxtests/requirements.txt
 # Create example databases and default connection
 ########################################
 RUN mkdir /dbs \
-    && duckdb -f /gprom/src/blackboxtests/testdb/testDB-sqlite.sql /dbs/duckdb.db \
-    && sqlite3 /dbs/sqlite.db < /gprom/src/blackboxtests/testdb/testDB-sqlite.sql \
+    && duckdb -f /gprom/src/blackboxtests/testdb/testDB.sql /dbs/duckdb.db \
+    && sqlite3 /dbs/sqlite.db < /gprom/src/blackboxtests/testdb/testDB.sql \
     && echo "backend=duckdb" >> /root/.gprom \
     && echo "connection.db=/dbs/duckdb.db" >> /root/.gprom
 ########################################

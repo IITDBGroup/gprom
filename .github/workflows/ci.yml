@@ -104,8 +104,8 @@ jobs:
       working-directory: blackboxtests
       run: |
            mkdir dbs
-           duckdb -f testdb/testDB-sqlite.sql dbs/duckdb.db
-           sqlite3 dbs/sqlite.db < testdb/testDB-sqlite.sql
+           duckdb -f testdb/testDB.sql dbs/duckdb.db
+           sqlite3 dbs/sqlite.db < testdb/testDB.sql
 
     - name: Run regular tests
       run: make -j check
@@ -194,7 +194,7 @@ jobs:
            sudo -u postgres initdb --auth=trust --auth-host=trust -D dbs/postgres/
            sudo -u postgres pg_ctl -D dbs/postgres/ start
            sleep 3
-           psql -U postgres -f testdb/testDB-sqlite.sql postgres
+           psql -U postgres -f testdb/testDB.sql postgres
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
            venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid,semiring,reenact
