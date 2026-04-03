@@ -132,6 +132,31 @@ SELECT *
  2 | 3 |
 </entry>
 
+<entry key="q9.query">
+SELECT *
+  FROM r x
+ WHERE x.b IN (SELECT s.c FROM s);
+</entry>
+<entry key="q9.result">
+ a | b |
+--------
+ 1 | 1 |
+ 1 | 2 |
+ 2 | 1 |
+ 2 | 3 |
+</entry>
+
+<entry key="q10.query">
+SELECT *
+  FROM r x
+ WHERE x.b &gt; ALL (SELECT a FROM r);
+</entry>
+<entry key="q10.result">
+ a | b |
+--------
+ 2 | 3 |
+</entry>
+
 
 
 

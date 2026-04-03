@@ -24,10 +24,13 @@ SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B =
 SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 MINUS ALL SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
 </entry>
 <entry key="q2.result">
-A | T_B | T_E |
+ a | t_b | t_e |
 ----------------
- 1 | 2   | 6   |
- 2 | 1   | 4   |
+ 1 | 2   | 5   |
+ 1 | 5   | 6   |
+ 2 | 1   | 2   |
+ 2 | 2   | 3   |
+ 2 | 3   | 4   |
 </entry>
 
 <entry key="q3.query">
