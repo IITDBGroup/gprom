@@ -54,7 +54,7 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 	$(top_builddir)/javatest \
 	$(top_srcdir)/blackboxtests/build.xml \
 	$(top_srcdir)/blackboxtests/testcases/*.xml \
-	$(top_srcdir)/blackboxtests/testdb/testDB.sql.in \
+	$(top_srcdir)/blackboxtests/testdb/testDB.sql \
 	$(top_srcdir)/blackboxtests/TestTemplates/*.stg
 
 # Debian packaging
