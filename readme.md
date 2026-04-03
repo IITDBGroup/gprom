@@ -1,9 +1,9 @@
 [![analytics](http://www.google-analytics.com/collect?v=1&t=pageview&_s=1&dl=https%3A%2F%2Fgithub.com%2FIITDBGroup%2Fgprom%2Fmain&_u=MAC~&cid=123456789&tid=UA-92255635-2)]()
-[![Build Status](https://travis-ci.org/IITDBGroup/gprom.svg?branch=master)](https://travis-ci.org/IITDBGroup/gprom)
+[![Build Status](https://github.com/IITDBGroup/gprom/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/IITDBGroup/gprom/actions/workflows/ci.yml)
 
 # Overview
 
-**GProM** is a database middleware that adds provenance support to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called *instrumentation*. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. Provenance for transactions is captured retroactively using a declarative replay technique called *reenactment* that we have developed at IIT. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle). For information about the research behind GProM have a look at the IIT DBGroup's [webpage](http://www.cs.iit.edu/%7edbgroup/research/gprom.php). 
+**GProM** is a database middleware that adds provenance support to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called *instrumentation*. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. Provenance for transactions is captured retroactively using a declarative replay technique called *reenactment* that we have developed at IIT / UIC. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle). For information about the research behind GProM have a look at the UIC DBGroup's [webpage](https://www.cs.uic.edu/~bglavic/dbgroup/projects/gprom.html).
 
 GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC driver.
 
@@ -73,7 +73,7 @@ As you can see, `PROVENANCE OF (q)` returns the same answer as query `q`, but ad
 Oracle SQL - SQLite:./examples/test.db$ \q
 ```
 
-Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/IITDBGroup/gprom/wiki/). See the [man page](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system. 
+Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/IITDBGroup/gprom/wiki/). See the [man page](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system.
 
 # Installation
 
@@ -88,5 +88,18 @@ sudo make install
 
 # Research and Background
 
-The functionality of GProM is based on a long term research effort by the [IIT DBGroup](http://www.cs.iit.edu/~dbgroup/) studying how to capture provenance on-demand using instrumentation. Links to [publications](http://www.cs.iit.edu/~dbgroup/publications) and more research oriented descriptions of the techniques implemented in GProM can be found at [http://www.cs.iit.edu/~dbgroup/research](http://www.cs.iit.edu/~dbgroup/research).
+The functionality of GProM is based on a long term research effort by the [UIC DBGroup](https://www.cs.uic.edu/~bglavic/dbgroup/) studying how to capture provenance on-demand using instrumentation. Links to [publications](https://www.cs.uic.edu/~bglavic/dbgroup/publications.html) and more research oriented descriptions of the techniques implemented in GProM can be found at [https://www.cs.uic.edu/~bglavic/dbgroup//research](https://www.cs.uic.edu/~bglavic/dbgroup//research).
 
+
+# What to do next?
+
+Provenance for SQL queries is only one of the features supported by GProM.
+
+* A full list of provenance SQL language extensions supported by GProM can be found in the [wiki](https://github.com/IITDBGroup/gprom/wiki/sql_extensions).
+* See the [man page](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system.
+* GProM can also generate provenance graphs for why and why-not questions over Datalog queries. This page documents the Datalog dialect supported by GProM [see here](https://github.com/IITDBGroup/gprom/wiki/lang_datalog). For some examples of these provenance graphs and the research behind them see [Datalog Provenance](https://github.com/IITDBGroup/gprom/wiki/datalog_prov).
+* GProM uses relational algebra as an intermediate code representation and features a heuristic and cost-based [optimizer](https://github.com/IITDBGroup/gprom/wiki/research_optimization) for such expressions.
+* GProM can compute provenance for transactions using reenactment and can reenact sequences of updates and DDL commands. The SQL language extensions implementing these features are explained [here](https://github.com/IITDBGroup/gprom/wiki/sql_extensions). For a more scientific explanation of reenactment see [here](https://github.com/IITDBGroup/gprom/wiki/research_reenactment).
+* GProM can evaluate temporal queries under snapshot-reducible semantics. See [here](https://github.com/IITDBGroup/gprom/wiki/temporal).
+* GProM can bounds the possible answers of queries over uncertain and dirty data to certify the robustness of query answers and highlight parts of the data that need more attention / work. See [here](https://github.com/IITDBGroup/gprom/wiki/uncertain).
+* For convenient setup of GProM have a look at the docker containers we provide: [docker](https://github.com/IITDBGroup/gprom/wiki/docker)

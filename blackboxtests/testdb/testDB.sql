@@ -47,6 +47,7 @@ DROP TABLE IF EXISTS tiptest;
 DROP TABLE IF EXISTS r_radb;
 DROP TABLE IF EXISTS s_radb;
 DROP TABLE IF EXISTS vtabletest;
+DROP TABLE IF EXISTS vitals;
 
 -------------------------------------------------------------------------------
 --                                CREATE TABLE                               --

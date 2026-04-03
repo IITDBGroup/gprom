@@ -1,3 +1,9 @@
+gprom (1.0.4-1) unstable; urgency=low
+
+  * github tag 1.0.4
+
+ -- Boris Glavic <bglavic@uic.edu>  Thu Apr  2 20:02:31 CDT 2026
+
 gprom (1.0.3-1) unstable; urgency=low
 
   * github tag 1.0.3
