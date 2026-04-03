@@ -52,14 +52,14 @@ typedef struct UpdateWindowOpAttrsContext {
 typedef struct UpdateWindowOpAttrsSimpleContext {
     List *attrNames;
     HashMap *winfAttrs;
+    HashMap *winfFromAttrs;
 } UpdateWindowOpAttrsSimpleContext;
 
-
 static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
-static boolean quoteAttributeNames (Node *node, void *context);
-static char *createViewName (SerializeClausesAPI *api);
-static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
-static char *createAttrName (char *name, int fItem, FromAttrsContext *fac);
+static boolean quoteAttributeNames(Node *node, void *context);
+static char *createViewName(SerializeClausesAPI *api);
+static boolean renameAttrsVisitor(Node *node, void *state);
+static char *createAttrName(char *name, int fItem, FromAttrsContext *fac);
 static char *nestMapToString(HashMap *m);
 static void setNestAttrMap(QueryOperator *op, FromAttrsContext *fac, SerializeClausesAPI *api, boolean where);
 static boolean nestedSubqueryFirstUsedInProjection(QueryOperator *op, char *a, QueryBlockMatch *m);
@@ -67,11 +67,11 @@ static void findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatch
 static void removeNestingAttributeFromOperators(QueryOperator *op, char *nestingAttr, SerializeClausesAPI *api);
 static List *removeAllStringsFromList(List *l, Set *strs);
 static boolean hasInlinedAttr(FromAttrsContext *fac);
-static boolean updateAttributeNamesInternal(Node *node, FromAttrsContext *fac);
+static boolean updateAttributeNamesInternal(Node *node, void *fac);
 static boolean analyzeNestingVisitor(QueryOperator *q, void *api);
 static void gatherCorrelatedAttrs(QueryOperator *q, List *nestScopes, SerializeClausesAPI *api);
-static boolean updateWindowAttrsInternal(Node *node, UpdateWindowOpAttrsContext *context);
-static boolean updateWindowAttributeNamesSimpleInternal(Node *node, UpdateWindowOpAttrsSimpleContext *context);
+static boolean updateWindowAttrsInternal(Node *node, void *context);
+static boolean updateWindowAttributeNamesSimpleInternal(Node *node, void *context);
 
 /*
  * create API struct
@@ -1585,8 +1585,10 @@ genSerializeOrderByOperator(OrderOperator *q, StringInfo order, FromAttrsContext
 }
 
 boolean
-updateAttributeNames(Node *node, FromAttrsContext *fac)
+updateAttributeNames(Node *node, void *state)
 {
+    FromAttrsContext *fac = (FromAttrsContext *) state;
+
     removeInlinedNestingFromAttrsContext(fac);
     if(hasInlinedAttr(fac))
     {
@@ -1597,8 +1599,10 @@ updateAttributeNames(Node *node, FromAttrsContext *fac)
 }
 
 static boolean
-updateAttributeNamesInternal(Node *node, FromAttrsContext *fac)
+updateAttributeNamesInternal(Node *node, void *state)
 {
+    FromAttrsContext *fac = (FromAttrsContext *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -1821,8 +1825,10 @@ exprToSQLWithNamingScheme(Node *expr, int rOffset,FromAttrsContext *fac)
 }
 
 static boolean
-renameAttrsVisitor(Node *node, JoinAttrRenameState *state)
+renameAttrsVisitor(Node *node, void *context)
 {
+    JoinAttrRenameState *state = (JoinAttrRenameState *) context;
+
     if (node == NULL)
         return TRUE;
 
@@ -1881,8 +1887,10 @@ createAttrName (char *name, int fItem, FromAttrsContext *fac)
 }
 
 boolean
-updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
+updateAggsAndGroupByAttrs(Node *node, void *context)
 {
+    UpdateAggAndGroupByAttrState *state = (UpdateAggAndGroupByAttrState *) context;
+
     if (node == NULL)
         return TRUE;
 
@@ -1909,8 +1917,10 @@ updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
 }
 
 boolean
-updateAttributeNamesSimple(Node *node, List *attrNames)
+updateAttributeNamesSimple(Node *node, void *state)
 {
+    List *attrNames = (List *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -2008,8 +2018,10 @@ updateWindowAttributeNames(Node *node, FromAttrsContext *fac, HashMap *winfAttrs
 }
 
 static boolean
-updateWindowAttrsInternal(Node *node, UpdateWindowOpAttrsContext *context)
+updateWindowAttrsInternal(Node *node, void *state)
 {
+    UpdateWindowOpAttrsContext *context = (UpdateWindowOpAttrsContext *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -2084,6 +2096,7 @@ updateWindowAttributeNamesSimple(Node *node, List *attrNames, HashMap *winfAttrs
     boolean result;
     UpdateWindowOpAttrsSimpleContext *context = NEW(UpdateWindowOpAttrsSimpleContext);
     context->winfAttrs = winfAttrs;
+    context->winfFromAttrs = invertKeyValues(winfAttrs);
     context->attrNames = attrNames;
 
     result = updateWindowAttributeNamesSimpleInternal(node, context);
@@ -2093,8 +2106,10 @@ updateWindowAttributeNamesSimple(Node *node, List *attrNames, HashMap *winfAttrs
 }
 
 static boolean
-updateWindowAttributeNamesSimpleInternal(Node *node, UpdateWindowOpAttrsSimpleContext *context)
+updateWindowAttributeNamesSimpleInternal(Node *node, void *state)
 {
+    UpdateWindowOpAttrsSimpleContext *context = (UpdateWindowOpAttrsSimpleContext *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -2106,7 +2121,8 @@ updateWindowAttributeNamesSimpleInternal(Node *node, UpdateWindowOpAttrsSimpleCo
         {
             a->name = strdup(MAP_GET_STRING_VAL_FOR_STRING_KEY(context->winfAttrs, a->name));
         }
-        else
+        // unless it is an already translated window function call, e.g., sum(a) OVER(), update attribute references
+        else if(!MAP_HAS_STRING_KEY(context->winfFromAttrs, a->name))
         {
             ASSERT(a->attrPosition >= 0 && LIST_LENGTH(context->attrNames) > a->attrPosition);
             char *newName = getNthOfListP(context->attrNames, a->attrPosition);

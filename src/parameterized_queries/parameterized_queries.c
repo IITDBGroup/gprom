@@ -44,8 +44,8 @@ typedef struct QueryToTemplateContext {
 
 static HashMap *paramQueries = NULL;
 static MemContext *paramContext = NULL;
-static boolean queryToTemplateVisitor(Node *node, QueryToTemplateContext *state);
-static Node *queryToTemplateMutator(Node *n, QueryToTemplateContext *state);
+static boolean queryToTemplateVisitor(Node *node, void *state);
+static Node *queryToTemplateMutator(Node *n, void *state);
 
 void
 setupParameterizedQueryMap()
@@ -120,8 +120,10 @@ queryToSqlTemplate(QueryOperator * op)
 }
 
 static boolean
-queryToTemplateVisitor(Node *node, QueryToTemplateContext *state)
+queryToTemplateVisitor(Node *node, void *context)
 {
+    QueryToTemplateContext *state = (QueryToTemplateContext *) context;
+
 	if (node == NULL)
 		return TRUE;
 
@@ -141,8 +143,10 @@ queryToTemplateVisitor(Node *node, QueryToTemplateContext *state)
 }
 
 static Node *
-queryToTemplateMutator(Node *node, QueryToTemplateContext *state)
+queryToTemplateMutator(Node *node, void *context)
 {
+    QueryToTemplateContext *state = (QueryToTemplateContext *) context;
+
 	if (node == NULL)
         return NULL;
 

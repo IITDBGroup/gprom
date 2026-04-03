@@ -45,37 +45,48 @@ monotoneCheck(Node *qbModel)
 }//check whether it is monotone
 
 boolean
-checkMonotone(Node* node, Set *operatorSet){
+checkMonotone(Node* node, void *state)
+{
+    Set *operatorSet = (Set *) state;
 	if(node == NULL)
-			return TRUE;
-		if(node->type == T_AggregationOperator){
-			addToSet(operatorSet, AGGREGATION_OPERATOR);
-		} //Check aggreationOperator
-		if(node->type == T_WindowOperator){
-			addToSet(operatorSet, WINDOW_OPERATOR);
-		}//Check WindowOperator
-		if(node->type == T_SetOperator){
-			if(((SetOperator *) node)->setOpType == SETOP_DIFFERENCE){
-				addToSet(operatorSet, SET_OPERATOR);
-			}
-		}//Check set difference
-		if(node->type == T_JoinOperator){
-			JoinOperator *j = (JoinOperator *) node;
-			if(j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER){
-				addToSet(operatorSet, JOIN_OPERATOR);
-			}
-		}//Check outer join
-		if(node->type == T_NestingOperator){
-			addToSet(operatorSet, NESTING_OPERATOR);
-		}//Check nesting
+		return TRUE;
+	if(node->type == T_AggregationOperator)
+    {
+		addToSet(operatorSet, AGGREGATION_OPERATOR);
+	} //Check aggreationOperator
+	if(node->type == T_WindowOperator)
+    {
+		addToSet(operatorSet, WINDOW_OPERATOR);
+	}//Check WindowOperator
+	if(node->type == T_SetOperator)
+    {
+		if(((SetOperator *) node)->setOpType == SETOP_DIFFERENCE)
+        {
+			addToSet(operatorSet, SET_OPERATOR);
+		}
+	}//Check set difference
+	if(node->type == T_JoinOperator)
+    {
+		JoinOperator *j = (JoinOperator *) node;
+		if(j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER)
+        {
+			addToSet(operatorSet, JOIN_OPERATOR);
+		}
+	}//Check outer join
+	if(node->type == T_NestingOperator)
+    {
+		addToSet(operatorSet, NESTING_OPERATOR);
+	}//Check nesting
 
-		return visit(node, checkMonotone, operatorSet);
+	return visit(node, checkMonotone, operatorSet);
 }
 
 
 boolean
-hasOperator(Node* node, Set *operatorSet)
+hasOperator(Node* node, void *state)
 {
+    Set *operatorSet = (Set *) state;
+
 	if(node == NULL)
 		return TRUE;
 	if(node->type == T_OrderOperator){
@@ -153,25 +164,32 @@ safetyCheck(Node* qbModel, Set *hasOperator) {
 }
 
 boolean
-getSafeProvenanceSketch(Node* node, HashMap *map) {
+getSafeProvenanceSketch(Node* node, void *state)
+{
+    HashMap *map = (HashMap *) state;
+
 	if (node == NULL)
 		return TRUE;
-	if (node->type == T_ProjectionOperator) {
+	if (node->type == T_ProjectionOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		operatorList = appendToTailOfList(operatorList, node);
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
 	}
-	if (node->type == T_SelectionOperator) {
+	if (node->type == T_SelectionOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		operatorList = appendToTailOfList(operatorList, node);
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
 	}
-	if (node->type == T_OrderOperator) {
+	if (node->type == T_OrderOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		operatorList = appendToTailOfList(operatorList, node);
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
 	} //Check aggreationOperator
-	if (node->type == T_WindowOperator) {
+	if (node->type == T_WindowOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		HashMap *table_map =
 				(HashMap *) MAP_GET_STRING_ENTRY(map, "Table_map")->value;
@@ -183,45 +201,58 @@ getSafeProvenanceSketch(Node* node, HashMap *map) {
 				partitionBy)->data.ptr_value)->name;
 		char *tableName = findTable(table_map, partitionByColName);
 
-		if (setSize(findFiltering(operatorList)) == 0) {
+		if (setSize(findFiltering(operatorList)) == 0)
+        {
 
 			//Safe PS is ALL, intersection with the former Safe PS
-		} else if (hasSetElem(findFiltering(operatorList),
-		SELECTION_OPERATOR)) {
+		}
+        else if (hasSetElem(findFiltering(operatorList),
+		                    SELECTION_OPERATOR))
+        {
 			DEBUG_LOG("find filtering");
 			int size = getListLength(operatorList);
 			//DEBUG_LOG("size is: %d", size);
 			List *newList = NIL;
 			SelectionOperator *selectOperator;
-			for (int i = size - 1; i >= 0; i--) {
+			for (int i = size - 1; i >= 0; i--)
+            {
 				Node *n = (Node *) getNthOfList(operatorList, i)->data.ptr_value;
 				//DEBUG_NODE_BEATIFY_LOG("The node is:", n);
-				if (n->type != T_SelectionOperator) {
+				if (n->type != T_SelectionOperator)
+                {
 					newList = appendToHeadOfList(newList, n);
-				} else {
+				}
+                else
+                {
 					selectOperator = (SelectionOperator *) n; //check rule1
 					break;
 				}
 			}
 
-			if (setSize(findFiltering(newList)) == 0) {
+			if (setSize(findFiltering(newList)) == 0)
+            {
 				OrderOperator *OrderOperator = findOrderOperator(newList);
 				if (OrderOperator != NULL) {
 					DEBUG_LOG("FIND ORDERBY");
 					if (monotonicity2(OrderOperator, node, table_map,
-							partitionByColName)) {
+							          partitionByColName))
+                    {
 						DEBUG_LOG("ps is all");
-					} else {
+					}
+                    else {
 						HashMap *page_map =
 								(HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 						MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 						map = updateResultMap(map, result, PAGE, page_map);
 						//page is not safe
-						if (isSimple) {
+						if (isSimple)
+                        {
 							//range hash on group is safe
 							map = hashRangeOnGroupbySafe(map, result, tableName,
 									partitionByColName);
-						} else {
+						}
+                        else
+                        {
 							map = hashRangeOnGroupbyNotSafe(map, result,
 									tableName, partitionByColName);
 							//range hash on group is not safe, no one is safe
@@ -229,53 +260,69 @@ getSafeProvenanceSketch(Node* node, HashMap *map) {
 					}
 					//check rule2
 				} else {
-					if (monotonicity1(selectOperator, node, table_map)) {
+					if (monotonicity1(selectOperator, node, table_map))
+                    {
 						DEBUG_LOG("ps is all");
-					} else {
+					}
+                    else
+                    {
 						HashMap *page_map =
 								(HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 						MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 						map = updateResultMap(map, result, PAGE, page_map);
 						//page is not safe
-						if (isSimple) {
+						if (isSimple)
+                        {
 							//range hash on group is safe
 							map = hashRangeOnGroupbySafe(map, result, tableName,
 									partitionByColName);
-						} else {
+						}
+                        else
+                        {
 							map = hashRangeOnGroupbyNotSafe(map, result,
 									tableName, partitionByColName);
 							//range hash on group is not safe, no one is safe
 						}
 					}
 				}
-			} else {
+            }
+            else
+            {
 				HashMap *page_map =
 						(HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 				MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 				map = updateResultMap(map, result, PAGE, page_map);
 				//page is not safe
-				if (isSimple) {
+				if (isSimple)
+                {
 					map = hashRangeOnGroupbySafe(map, result, tableName,
 							partitionByColName);
 					//range hash on group is safe
-				} else {
+				}
+                else
+                {
 					map = hashRangeOnGroupbyNotSafe(map, result, tableName,
 							partitionByColName);
 					//range hash on group is not safe. no one is safe
 				}
 			}
 
-		} else {
+		}
+        else
+        {
 			HashMap *page_map =
 					(HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 			MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 			map = updateResultMap(map, result, PAGE, page_map);
 			//page is not safe
-			if (isSimple) {
+			if (isSimple)
+            {
 				map = hashRangeOnGroupbySafe(map, result, tableName,
 						partitionByColName);
 				//range hash on group is safe
-			} else {
+			}
+            else
+            {
 				map = hashRangeOnGroupbyNotSafe(map, result, tableName,
 						partitionByColName);
 				//range hash on group is not safe. no one is safe
@@ -284,9 +331,9 @@ getSafeProvenanceSketch(Node* node, HashMap *map) {
 
 		operatorList = appendToTailOfList(operatorList, node);
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
-
 	} //Check aggreationOperator
-	if (node->type == T_AggregationOperator) {
+	if (node->type == T_AggregationOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		HashMap *table_map =
 				(HashMap *) MAP_GET_STRING_ENTRY(map, "Table_map")->value;
@@ -299,69 +346,93 @@ getSafeProvenanceSketch(Node* node, HashMap *map) {
 		char *groupByColName = ((AttributeReference *) getHeadOfList(groupby)->data.ptr_value)->name;
 		char *tableName = findTable(table_map, groupByColName);
 
-		if (findSetDifference(operatorList)) {
+		if (findSetDifference(operatorList))
+        {
 			HashMap *page_map = (HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 			MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 			map = updateResultMap(map, result, PAGE, page_map);
 			map = hashRangeOnGroupbySafe(map, result, tableName,
 					groupByColName);
 		}
-		if (setSize(findFiltering(operatorList)) == 0) {
+		if (setSize(findFiltering(operatorList)) == 0)
+        {
 			//Safe PS is ALL, intersection with the former Safe PS
-		} else if (hasSetElem(findFiltering(operatorList),
-				SELECTION_OPERATOR)) {
+		}
+        else if (hasSetElem(findFiltering(operatorList),
+				            SELECTION_OPERATOR))
+        {
 			DEBUG_LOG("find filtering");
 			int size = getListLength(operatorList);
 			//DEBUG_LOG("size is: %d", size);
 			List *newList = NIL;
 			SelectionOperator *selectOperator;
-			for (int i = size - 1; i >= 0; i--) {
+			for (int i = size - 1; i >= 0; i--)
+            {
 				Node *n = (Node *) getNthOfList(operatorList, i)->data.ptr_value;
 				//DEBUG_NODE_BEATIFY_LOG("The node is:", n);
-				if (n->type != T_SelectionOperator) {
+				if (n->type != T_SelectionOperator)
+                {
 					newList = appendToHeadOfList(newList, n);
-				} else {
+				}
+                else
+                {
 					selectOperator = (SelectionOperator *) n; //check rule1
 					break;
 				}
 			}
 			//DEBUG_NODE_BEATIFY_LOG("The node is:", selectOperator);
-			if (setSize(findFiltering(newList)) == 0) {
+			if (setSize(findFiltering(newList)) == 0)
+            {
 				OrderOperator *OrderOperator = findOrderOperator(newList);
-				if (OrderOperator != NULL) {
+				if (OrderOperator != NULL)
+                {
 					DEBUG_LOG("FIND ORDERBY");
-					if (monotonicity2(OrderOperator, node, table_map, groupByColName)) {
+					if (monotonicity2(OrderOperator, node, table_map, groupByColName))
+                    {
 						DEBUG_LOG("ps is all");
-					} else {
+					}
+                    else
+                    {
 						HashMap *page_map = (HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 						MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 						map = updateResultMap(map, result, PAGE, page_map);
 						//page is not safe
-						if (isSimple) {
+						if (isSimple)
+                        {
 							//range hash on group is safe
 							map = hashRangeOnGroupbySafe(map, result, tableName,
 									groupByColName);
-						} else {
+						}
+                        else
+                        {
 							map = hashRangeOnGroupbyNotSafe(map, result,
 									tableName, groupByColName);
 							//range hash on group is not safe, no one is safe
 						}
 					}
 					//check rule2
-				} else {
+				}
+                else
+                {
 					//check rule1
-					if (monotonicity1(selectOperator, node, table_map)) {
+					if (monotonicity1(selectOperator, node, table_map))
+                    {
 						DEBUG_LOG("ps is all");
-					} else {
+					}
+                    else
+                    {
 						HashMap *page_map = (HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 						MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 						map = updateResultMap(map, result, PAGE, page_map);
 						//page is not safe
-						if (isSimple) {
+						if (isSimple)
+                        {
 							//range hash on group is safe
 							map = hashRangeOnGroupbySafe(map, result, tableName,
 									groupByColName);
-						} else {
+						}
+                        else
+                        {
 							map = hashRangeOnGroupbyNotSafe(map, result,
 									tableName, groupByColName);
 							//range hash on group is not safe, no one is safe
@@ -369,16 +440,21 @@ getSafeProvenanceSketch(Node* node, HashMap *map) {
 					}
 
 				}
-			} else {
+			}
+            else
+            {
 				HashMap *page_map = (HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 				MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 				map = updateResultMap(map, result, PAGE, page_map);
 				//page is not safe
-				if (isSimple) {
+				if (isSimple)
+                {
 					map = hashRangeOnGroupbySafe(map, result, tableName,
 							groupByColName);
 					//range hash on group is safe
-				} else {
+				}
+                else
+                {
 					map = hashRangeOnGroupbyNotSafe(map, result, tableName,
 							groupByColName);
 					//range hash on group is not safe. no one is safe
@@ -387,16 +463,21 @@ getSafeProvenanceSketch(Node* node, HashMap *map) {
 			//DEBUG_NODE_BEATIFY_LOG("The new list is:", newList);
 			//hasSetElem(findFiltering(operatorList), SELECTION_OPERATOR)
 			// rule 1, intersection with the former Safe PS
-		} else {
+		}
+        else
+        {
 			HashMap *page_map = (HashMap *) MAP_GET_STRING_ENTRY(result,PAGE)->value;
 			MAP_ADD_STRING_KEY(page_map, tableName, (Node *)NIL);
 			map = updateResultMap(map, result, PAGE, page_map);
 			// page is not safe.
-			if (isSimple) {
+			if (isSimple)
+            {
 				map = hashRangeOnGroupbySafe(map, result, tableName,
 						groupByColName);
 				//range hash on group is safe
-			} else {
+			}
+            else
+            {
 				map = hashRangeOnGroupbyNotSafe(map, result, tableName,
 						groupByColName);
 				//range hash on group is not safe
@@ -406,17 +487,20 @@ getSafeProvenanceSketch(Node* node, HashMap *map) {
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
 		//map = checkAggregation(node, map);
 	} //Check aggreationOperator
-	if (node->type == T_TableAccessOperator) {
+	if (node->type == T_TableAccessOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		operatorList = appendToTailOfList(operatorList, node);
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
 	}
-	if (node->type == T_SetOperator) {
+	if (node->type == T_SetOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		operatorList = appendToTailOfList(operatorList, node);
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
 	} //Check set difference
-	if (node->type == T_JoinOperator) {
+	if (node->type == T_JoinOperator)
+    {
 		List *operatorList = (List *) MAP_GET_STRING_ENTRY(map, "List")->value;
 		operatorList = appendToTailOfList(operatorList, node);
 		MAP_ADD_STRING_KEY(map, "List", (Node * )operatorList);
@@ -729,16 +813,11 @@ monotonicity2
 		return TRUE;
 }
 
-
-
-
-
-
-
-
 boolean
-getTableAccessOperator(Node* node, HashMap *map)
+getTableAccessOperator(Node* node, void *state)
 {
+    HashMap *map = (HashMap *) state;
+
 	if(node == NULL)
 		return TRUE;
 
@@ -753,8 +832,10 @@ getTableAccessOperator(Node* node, HashMap *map)
 }//get the table
 
 boolean
-getAll(Node* node, HashMap *map)
+getAll(Node* node, void *state)
 {
+    HashMap *map = (HashMap *) state;
+
 	if(node == NULL)
 		return TRUE;
 
@@ -769,8 +850,10 @@ getAll(Node* node, HashMap *map)
 }//get the attribute of the tabe
 
 boolean
-getSubset(Node* node, HashMap *map)
+getSubset(Node* node, void *state)
 {
+    HashMap *map = (HashMap *) state;
+
 	if(node == NULL)
 		return TRUE;
 
@@ -817,12 +900,15 @@ addBitset(unsigned int length, List *result)
 
 
 boolean
-getData(Node* node, HashMap *data)
+getData(Node* node, void *state)
 {
+    HashMap *data = (HashMap *) state;
+
 	if(node == NULL)
 		return TRUE;
 
-	if(node->type == T_AggregationOperator){
+	if(node->type == T_AggregationOperator)
+    {
 		//char *aggregation_key = "aggregation";
 		HashMap *aggreation_map = NEW_MAP(Constant,Node);
 
@@ -836,7 +922,8 @@ getData(Node* node, HashMap *data)
 
 		MAP_ADD_STRING_KEY(data, AGGREGATION_OPERATOR, (Node *)aggreation_map);
 	}
-	if(node->type == T_WindowOperator){
+	if(node->type == T_WindowOperator)
+    {
 		//char *WindowOperator_key = "WindowOperator";
 		HashMap *WindowOperator_map = NEW_MAP(Constant,Node);
 		char *f_key = "f";
@@ -849,20 +936,23 @@ getData(Node* node, HashMap *data)
 
 		MAP_ADD_STRING_KEY(data, WINDOW_OPERATOR, (Node *)WindowOperator_map);
 	}
-	if(node->type == T_SelectionOperator){
+	if(node->type == T_SelectionOperator)
+    {
 		//char *SelectionOperator_key = "SelectionOperator";
 		Node *cond = ((SelectionOperator *) node)->cond;
 		MAP_ADD_STRING_KEY(data, SELECTION_OPERATOR, (Node *)cond);
 	}
-	if(node->type == T_OrderOperator){
+	if(node->type == T_OrderOperator)
+    {
 		//char *OrderOperator_key = "OrderOperator";
 		List *orderExprs = ((OrderOperator *) node)->orderExprs;
 		MAP_ADD_STRING_KEY(data, ORDER_OPERATOR, (Node *)orderExprs);
 	}
-	if (node->type == T_TableAccessOperator) {
+	if (node->type == T_TableAccessOperator)
+    {
 		//char *TableAccessOperator_key = "TableAccessOperator";
-		if (hasMapStringKey(data, TABLEACCESS_OPERATOR)) {
-
+		if (hasMapStringKey(data, TABLEACCESS_OPERATOR))
+        {
 			HashMap *TableAccessOperator_map = NEW_MAP(Constant, Node);
 			char *tablename = ((TableAccessOperator *) node)->tableName;
 			Schema *schema = ((TableAccessOperator *) node)->op.schema;
@@ -870,7 +960,9 @@ getData(Node* node, HashMap *data)
 			TableAccessOperator_map = (HashMap *)MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
 			MAP_ADD_STRING_KEY(TableAccessOperator_map, tablename, (Node * )attrDef);
 			MAP_ADD_STRING_KEY(data, TABLEACCESS_OPERATOR, TableAccessOperator_map);
-		} else {
+		}
+        else
+        {
 			HashMap *TableAccessOperator_map = NEW_MAP(Constant,Node);
 			char *tablename = ((TableAccessOperator *) node)->tableName;
 			Schema *schema = ((TableAccessOperator *) node)->op.schema;
@@ -879,16 +971,19 @@ getData(Node* node, HashMap *data)
 			MAP_ADD_STRING_KEY(data, TABLEACCESS_OPERATOR, TableAccessOperator_map);
 		}
 	}
+
 	return visit(node, getData, data);
 }
 
-boolean checkPageSafety(HashMap *data, Set *hasOperator) {
+boolean checkPageSafety(HashMap *data, Set *hasOperator)
+{
 	char *function_name;
 	char *colName;
 	HashMap *table_map =
 			(HashMap *) MAP_GET_STRING_ENTRY(data, TABLEACCESS_OPERATOR)->value;
 	//char *tableName;
-	if (hasSetElem(hasOperator, WINDOW_OPERATOR)) {
+	if (hasSetElem(hasOperator, WINDOW_OPERATOR))
+    {
 		//DEBUG_LOG("it's window");
 		//char *WindowOperator_key = "WindowOperator";
 		HashMap *WindowOperator_map =
@@ -901,8 +996,8 @@ boolean checkPageSafety(HashMap *data, Set *hasOperator) {
 		colName =
 				((AttributeReference *) getHeadOfList(args)->data.ptr_value)->name;
 	}
-	if (hasSetElem(hasOperator, AGGREGATION_OPERATOR)) {
-
+	if (hasSetElem(hasOperator, AGGREGATION_OPERATOR))
+    {
 		//char *aggregation_key = "aggregation";
 		HashMap *aggreation_map =
 				(HashMap *) MAP_GET_STRING_ENTRY(data, AGGREGATION_OPERATOR)->value;
@@ -921,7 +1016,8 @@ boolean checkPageSafety(HashMap *data, Set *hasOperator) {
 	//DEBUG_LOG("The TABLENAME is: %s", tableName);
 
 	//char *SelectionOperator_key = "SelectionOperator";
-	if (hasSetElem(hasOperator, SELECTION_OPERATOR)) {
+	if (hasSetElem(hasOperator, SELECTION_OPERATOR))
+    {
 		Node *cond = MAP_GET_STRING_ENTRY(data, SELECTION_OPERATOR)->value;
 		char *operator_name = ((Operator *) cond)->name;
 
@@ -1036,9 +1132,8 @@ boolean checkPageSafety(HashMap *data, Set *hasOperator) {
 	return FALSE;
 }
 
-
-
-boolean checkPageSafety_rownum(HashMap *data){
+boolean checkPageSafety_rownum(HashMap *data)
+{
 	//char *OrderOperator_key = "OrderOperator";
 	List *orderExprs = (List *) MAP_GET_STRING_ENTRY(data, ORDER_OPERATOR)->value;
 	Node *attribute_reference = ((OrderExpr *) getHeadOfList(orderExprs)->data.ptr_value)->expr;
@@ -1102,7 +1197,9 @@ boolean checkPageSafety_rownum(HashMap *data){
 	return TRUE;
 }
 
-boolean checkAllIsPostive(HashMap *table_map, char *colName) {
+boolean
+checkAllIsPostive(HashMap *table_map, char *colName)
+{
 	//DEBUG_NODE_BEATIFY_LOG("The TABLE_map is:",table_map);
 	List *key_List = getKeys(table_map);
 	boolean postive = FALSE;
@@ -1122,7 +1219,8 @@ boolean checkAllIsPostive(HashMap *table_map, char *colName) {
 	return postive;
 }
 
-boolean checkAllIsNegative(HashMap *table_map, char *colName) {
+boolean
+checkAllIsNegative(HashMap *table_map, char *colName) {
 	List *key_List = getKeys(table_map);
 	boolean negative;
 	//DEBUG_NODE_BEATIFY_LOG("The key_List is:", key_List);
@@ -1140,7 +1238,8 @@ boolean checkAllIsNegative(HashMap *table_map, char *colName) {
 	return negative;
 }
 
-boolean isPostive(char *tableName, char *colName) {
+boolean
+isPostive(char *tableName, char *colName) {
 	HashMap *result = getMinAndMax(tableName, colName);
 	Constant *number = (Constant *) MAP_GET_STRING_ENTRY(result, "MIN")->value;
 	if (number->constType == DT_INT) {
@@ -1163,7 +1262,9 @@ boolean isPostive(char *tableName, char *colName) {
 	return TRUE;
 }
 
-boolean isNegative(char *tableName, char *colName) {
+boolean
+isNegative(char *tableName, char *colName)
+{
 	HashMap *result = getMinAndMax(tableName, colName);
 	Constant *number = (Constant *) MAP_GET_STRING_ENTRY(result, "MAX")->value;
 	if (number->constType == DT_INT) {
@@ -1187,7 +1288,8 @@ boolean isNegative(char *tableName, char *colName) {
 }
 
 void
-test(Node *qbModel){
+test(Node *qbModel)
+{
 	//110, 011
 	/*
     unsigned long a = 6, b = 3;

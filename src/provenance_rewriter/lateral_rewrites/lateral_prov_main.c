@@ -31,12 +31,12 @@ static void adatpUpNestingAttrDataType(QueryOperator *op, DataType nestingAttrDa
 static void getNestCondNode(Node *n, List **nestOpLists);
 
 Node *
-lateralTranslateQBModel (Node *qbModel)
+lateralTranslateQBModel(Node *qbModel)
 {
     if (isA(qbModel, List))
         return (Node *) lateralRewriteQueryList((List *) qbModel);
     else if (IS_OP(qbModel))
-         return (Node *) lateralRewriteQuery((QueryOperator *) qbModel);
+        return (Node *) lateralRewriteQuery((QueryOperator *) qbModel);
 
     FATAL_LOG("cannot lateral rewrite node <%s>", nodeToString(qbModel));
 
@@ -65,6 +65,8 @@ lateralRewriteQuery(QueryOperator *input)
 	{
 		QueryOperator *rChild = OP_RCHILD(op);
 		QueryOperator *lChild = OP_LCHILD(op);
+
+        DEBUG_SINGLE_OP_LOG("lateralize nesting operator: ", op);
 
 		Constant *c0 = createConstInt(0);
 		Constant *c1a = createConstInt(1);
@@ -313,7 +315,7 @@ lateralRewriteQuery(QueryOperator *input)
 		int pos = LIST_LENGTH(op->schema->attrDefs) - 1;
 		adatpUpNestingAttrDataType(op, nestingAttrDataType, pos); //TODO should be unnecessary for salar!
 
-        INFO_LOG("rewrite nesting operator with result attr [%s] into lateral:\n%s\n\tleft child: %s\tright child: %s",
+        INFO_LOG("result of rewriting nesting operator with result attr [%s] into lateral:\n%s\n\tleft child: %s\tright child: %s",
                  nestResultAttr,
                  singleOperatorToOverview(no),
                  singleOperatorToOverview(OP_LCHILD(no)),
@@ -434,6 +436,11 @@ List *
 getListNestingOperator(QueryOperator *op)
 {
     List *result = NIL;
+
+    if(isA(op, NestingOperator))
+    {
+        result = appendToTailOfList(result, op);
+    }
     appendNestingOperator(op, &result);
 
     return result;

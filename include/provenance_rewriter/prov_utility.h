@@ -117,7 +117,7 @@ extern void substOpInParentList(QueryOperator *op, QueryOperator *orig, QueryOpe
 extern void substOpInInputs(QueryOperator *op, QueryOperator *orig, QueryOperator *newOp);
 
 // graph search
-extern boolean findTableAccessVisitor (Node *node, List **result);
+extern boolean findTableAccessVisitor (Node *node, void *result);
 extern List *findOperatorAttrRefs (QueryOperator *op);
 extern boolean hasProvComputation(Node *op);
 

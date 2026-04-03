@@ -66,22 +66,22 @@ static boolean findAttrInFromOrSelect(QueryBlock *qb,
 
 
 // search for non-group and non-aggregate expressions
-static boolean searchNonGroupByRefs (Node *node, List *state);
+static boolean searchNonGroupByRefs(Node *node, void *state);
 
 // adapt identifiers and quoted identifiers based on backend
-static void adaptIdentifiers (Node *stmt);
-static boolean visitAdaptIdents(Node *node, Set *context);
+static void adaptIdentifiers(Node *stmt);
+static boolean visitAdaptIdents(Node *node, void *context);
 
 // search for attributes and other relevant node types
-static void analyzeFromProvInfo (FromItem *f);
+static void analyzeFromProvInfo(FromItem *f);
 static void adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a);
 static void adaptAttributeRefs(List* attrRefs, List* parentFroms);
-static boolean findAttrReferences (Node *node, List **state);
-static void enumerateParameters (Node *stmt);
-static boolean findAttrRefInFrom (AttributeReference *a, List *fromClauses);
-static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
-static int findAttrInFromItem (FromItem *fromItem, AttributeReference *attr);
-static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromClauses);
+static boolean findAttrReferences(Node *node, void *state);
+static void enumerateParameters(Node *stmt);
+static boolean findAttrRefInFrom(AttributeReference *a, List *fromClauses);
+static FromItem *findNamedFromItem(FromItem *fromItem, char *name);
+static int findAttrInFromItem(FromItem *fromItem, AttributeReference *attr);
+static boolean findQualifiedAttrRefInFrom(List *nameParts, AttributeReference *a,  List *fromClauses);
 static void logFromClauses(char *mes, List *fromClauses, LogLevel l);
 
 #define DEBUG_LOG_FROM_CLAUSES(_mes, _fromClauses) \
@@ -103,7 +103,7 @@ static void analyzeFromLateralSubquery(FromLateralSubquery *lq, List *parentFrom
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 static boolean correctFromTableVisitor (Node *node, void *context);
-static boolean checkTemporalAttributesVisitor (Node *node, TemporalAttributesVisitorContext *context);
+static boolean checkTemporalAttributesVisitor (Node *node, void *context);
 
 // analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
@@ -122,7 +122,7 @@ static List *splitTableName(char *tableName);
 static void getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts);
 static boolean compareAttrDefName(AttributeDef *a, AttributeDef *b);
 static void backendifyTableRef(FromTableRef *f);
-static boolean setViewFromTableRefAttrs(Node *node, List *views);
+static boolean setViewFromTableRefAttrs(Node *node, void *views);
 static boolean schemaInfoHasTable(char *tableName);
 static List *schemaInfoGetSchema(char *tableName);
 static List *schemaInfoGetAttributeNames (char *tableName);
@@ -162,8 +162,10 @@ adaptIdentifiers(Node *stmt)
  * - provenance sketch specfications in Provenance
  */
 static boolean
-visitAdaptIdents(Node *node, Set *context)
+visitAdaptIdents(Node *node, void *state)
 {
+    Set *context = (Set *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -1336,8 +1338,10 @@ hasNestedSubqueries (Node *node)
 }
 
 boolean
-findNestedSubqueries (Node *node, List **state)
+findNestedSubqueries(Node *node, void *context)
 {
+    List **state = (List **) context;
+
     if (node == NULL)
         return TRUE;
 
@@ -1355,8 +1359,10 @@ findNestedSubqueries (Node *node, List **state)
 }
 
 boolean
-findFunctionCall(Node *node, List **state)
+findFunctionCall(Node *node, void *context)
 {
+    List **state = (List **) context;
+
     if(node == NULL)
         return TRUE;
 
@@ -1504,7 +1510,7 @@ analyzeGroupByAgg(QueryBlock *qb, List *parentFroms)
 }
 
 static boolean
-searchNonGroupByRefs (Node *node, List *state)
+searchNonGroupByRefs(Node *node, void *state)
 {
     if(node == NULL)
         return TRUE;
@@ -1520,7 +1526,7 @@ searchNonGroupByRefs (Node *node, List *state)
     }
 
     // is node equal to one of the group-by expressions then do not traverse further
-    FOREACH(Node,g,state)
+    FOREACH(Node,g,(List *) state)
     {
         if(equal(g, node))
             return TRUE;
@@ -2528,8 +2534,10 @@ analyzeProvenanceStmt(ProvenanceStmt *q, List *parentFroms, HashMap *ctes)
 }
 
 static boolean
-checkTemporalAttributesVisitor(Node *node, TemporalAttributesVisitorContext *context)
+checkTemporalAttributesVisitor(Node *node, void *state)
 {
+    TemporalAttributesVisitorContext *context = (TemporalAttributesVisitorContext *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -2938,8 +2946,10 @@ backendifyTableRef(FromTableRef *f)
 }
 
 static boolean
-setViewFromTableRefAttrs(Node *node, List *views)
+setViewFromTableRefAttrs(Node *node, void *state)
 {
+    List *views = (List *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -3041,14 +3051,16 @@ schemaInfoGetAttributeDataTypes (char *tableName)
 
 
 static boolean
-findAttrReferences (Node *node, List **state)
+findAttrReferences(Node *node, void *state)
 {
+    List **result = (List **) state;
+
     if (node == NULL)
         return TRUE;
 
     if (isA(node, AttributeReference))
     {
-        *state = appendToTailOfList(*state, node);
+        *result = appendToTailOfList(*result, node);
     }
 
     if (isQBQuery(node))

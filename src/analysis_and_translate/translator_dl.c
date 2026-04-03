@@ -50,12 +50,12 @@ static void setVarDTs(Node *expr, HashMap *varToDT);
 static QueryOperator *joinGoalTranslations(DLRule *r, List *goalTrans);
 static Node *createJoinCondOnCommonAttrs(QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
 static List *getHeadProjectionExprs(DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
-static Node *replaceDLVarMutator(Node *node, HashMap *vToA);
+static Node *replaceDLVarMutator(Node *node, void *vToA);
 static Node *createCondFromComparisons(List *comparisons, QueryOperator *in, HashMap *varDTmap);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static boolean adaptProjectionAttrRef(QueryOperator *o, void *context);
 
-static Node *replaceVarWithAttrRef(Node *node, List *context);
+static Node *replaceVarWithAttrRef(Node *node, void *context);
 
 boolean provQ = FALSE;
 static List *negBoolDone = NIL;
@@ -1008,8 +1008,10 @@ getHeadProjectionExprs(DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs)
 }
 
 static Node *
-replaceDLVarMutator(Node *node, HashMap *vToA)
+replaceDLVarMutator(Node *node, void *state)
 {
+    HashMap *vToA = (HashMap *) state;
+
     if (node == NULL)
         return node;
 
@@ -1217,8 +1219,10 @@ createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTm
 }
 
 static Node *
-replaceVarWithAttrRef(Node *node, List *context)
+replaceVarWithAttrRef(Node *node, void *state)
 {
+    List *context = (List *) state;
+
     if (node == NULL)
         return NULL;
 

@@ -21,8 +21,8 @@
 #include "utility/string_utils.h"
 
 static List *unnestRewriteQueryList(List *list);
-static boolean adaptAttrName (Node *node, char *attr);
-static boolean getScalarAttrName (Node *node, char **attr);
+static boolean adaptAttrName(Node *node, void *state);
+static boolean getScalarAttrName(Node *node, void *attr);
 static void adaptSchema (List *attrDefs, char *attr);
 static void adaptSchemaByName (List *attrDefs, char *name, char *attr);
 static void upPropAdaptSchemaByName(QueryOperator *op, char *name, char *attr);
@@ -39,7 +39,7 @@ static void removeOperator(QueryOperator *op);
 static int getInAttrPos(List *conds);
 static char* getInAttrName(Node *node);
 static void adaptCond(Operator *oper, List *inputs); //might use following one
-static boolean adaptCondNode (Node *node, List *defs);
+static boolean adaptCondNode(Node *node, void *defs);
 static boolean existsAttr(char *name, List *defs);
 static List *duplicateList(List *l);
 static List *getCorrelatedAttrRefs(List *conds);
@@ -50,24 +50,24 @@ static boolean isCorrelatedCond(Node *node);
 static void adaptJoinCondAttrName(Node *n, char *oldName, char* newName);
 static List *getAdditionalConds(List *l1, List *l2);
 static TableAccessOperator *getTableAccess(QueryOperator *childNestRchild);
-static boolean adaptCondsPos (Node *node, List *defs);
+static boolean adaptCondsPos (Node *node, void *defs);
 static void addSuffixInCond(List *l);
 
 static boolean hasNestingAttr(Node *node);
-static boolean hasNestingAttrVisitor(Node *q, boolean *found);
+static boolean hasNestingAttrVisitor(Node *q, void *found);
 static boolean isExistSpecial(List *nestOps);
 static boolean isExistAndNotExist(NestingOperator *nest);
 //static boolean isNotContainNestingAttr (Node *node, char *status);
 static boolean isContainOverlappedConds(NestingOperator *nest, NestingOperator* childNest);
 static boolean isContainOperator(List *l, Operator *oper);
-static boolean getAttrRefs (Node *node, List **l);
+static boolean getAttrRefs(Node *node, void *l);
 static boolean isContainAttr(List *l, AttributeReference *ar);
 //static TableAccessOperator *getTableAccessByName(QueryOperator *op, char *name);
 static void getTableAccessByName(QueryOperator *op, char *name, TableAccessOperator **table);
 static List *getUnNestAttrsInExistsSqecial(List *conds);
 static void propagateUpSchema(QueryOperator *base, QueryOperator *top);
 static List* createDefsByInputs(QueryOperator *op);
-static boolean addSuffixAdditionalCond(Node *node, char *state);
+static boolean addSuffixAdditionalCond(Node *node, void *state);
 static Node *removeNestingConds(Node *node);
 static void adaptSchemaByChild(QueryOperator *op1, QueryOperator *op2);
 static Node *likeToNotLike(Node *node);
@@ -781,8 +781,10 @@ unnestExistsSpecial(List *l)
 }
 
 static boolean
-addSuffixAdditionalCond(Node *node, char *state)
+addSuffixAdditionalCond(Node *node, void *context)
 {
+    char *state = (char *) context;
+
     if (node == NULL)
         return FALSE;
 
@@ -859,14 +861,16 @@ getTableAccessByName(QueryOperator *op, char *name, TableAccessOperator **table)
 }
 
 static boolean
-getAttrRefs (Node *node, List **l)
+getAttrRefs(Node *node, void *state)
 {
+    List **l = (List **) state;
+
     if (node == NULL)
         return FALSE;
 
     if(isA(node, AttributeReference))
     {
-    	 	 *l = appendToTailOfList(*l, node);
+    	*l = appendToTailOfList(*l, node);
     }
 
     return visit(node, getAttrRefs, l);
@@ -889,8 +893,10 @@ isContainAttr(List *l, AttributeReference *ar)
 }
 
 static boolean
-adaptCondsPos (Node *node, List *defs)
+adaptCondsPos(Node *node, void *state)
 {
+    List *defs = (List *) state;
+
     if (node == NULL)
         return FALSE;
 
@@ -1420,8 +1426,10 @@ hasNestingAttr(Node *node)
 }
 
 static boolean
-hasNestingAttrVisitor(Node *q, boolean *found)
+hasNestingAttrVisitor(Node *q, void *state)
 {
+    boolean *found = (boolean *) state;
+
     if(q == NULL)
         return TRUE;
 
@@ -1637,8 +1645,10 @@ existsAttr(char *name, List *defs)
 
 
 static boolean
-adaptCondNode (Node *node, List *defs)
+adaptCondNode(Node *node, void *state)
 {
+    List *defs = (List *) state;
+
     if (node == NULL)
         return FALSE;
 
@@ -1875,8 +1885,10 @@ isNestAttr(AttributeReference *a)
 }
 
 static boolean
-adaptAttrName (Node *node, char *attr)
+adaptAttrName(Node *node, void *state)
 {
+    char *attr = (char *) state;
+
     if (node == NULL)
         return FALSE;
 
@@ -1918,8 +1930,10 @@ adaptAttrName (Node *node, char *attr)
 
 
 static boolean
-getScalarAttrName (Node *node, char **attr)
+getScalarAttrName(Node *node, void *state)
 {
+    char **attr = (char **) state;
+
     if (node == NULL)
         return FALSE;
 

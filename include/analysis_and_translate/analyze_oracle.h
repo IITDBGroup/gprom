@@ -18,9 +18,9 @@
 extern Node *analyzeOracleModel(Node *stmt);
 extern HashMap *analyzeQueryBlockStmt(Node *stmt, List *parentFroms, HashMap *ctes);
 extern boolean hasNestedSubqueries(Node *node);
-extern boolean findNestedSubqueries(Node *node, List **state);
+extern boolean findNestedSubqueries(Node *node, void *state);
 extern List *splitAttrOnDot(char *dotName);
 extern char *lastAttrNamePart(char *attrName);
-extern boolean findFunctionCall(Node *node, List **state);
+extern boolean findFunctionCall(Node *node, void *state);
 
 #endif /* ANALYSE_ORACLE_H_ */

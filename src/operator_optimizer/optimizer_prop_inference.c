@@ -28,12 +28,14 @@
 
 
 static List *attrRefListToStringList (List *input);
+static List *pairwiseUnionOfKeys(List *lKeys, List *rKeys);
 static List *removeContainedKeys(List *keys);
 static boolean removePropsVisitor(QueryOperator *op, void *context);
 static boolean removeOnePropVisitor(QueryOperator *op, void *context);
 static void computeReqColPropInternal(QueryOperator *root);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
 static void mergeIntoChildIcols(QueryOperator *child, Set *newIcols);
+static void computeSetPropInternal(QueryOperator *root);
 static boolean printECProVisitor(QueryOperator *root, void *context);
 static List *renameECattributes(List *ec, HashMap *rename);
 static List *mergeIntoEC(List *ec, List *toMerge);
@@ -1436,17 +1438,17 @@ computeKeyPropInternal(QueryOperator *root)
     if (isA(root, JoinOperator))
     {
     	//  union individual keys
-        Set *nSet = STRSET();
-        List *nKeyList = NIL;
-        FOREACH(Set,l1,lKeyList)
-        {
-            FOREACH(Set,l2,rKeyList)
-            {
-                nSet = unionSets (l1, l2);
-                nKeyList = appendToTailOfList(nKeyList, nSet);
-            }
-        }
-        keyList = nKeyList;
+        /* Set *nSet = STRSET(); */
+        /* List *nKeyList = NIL; */
+        /* FOREACH(Set,l1,lKeyList) */
+        /* { */
+        /*     FOREACH(Set,l2,rKeyList) */
+        /*     { */
+        /*         nSet = unionSets(l1, l2); */
+        /*         nKeyList = appendToTailOfList(nKeyList, nSet); */
+        /*     } */
+        /* } */
+        keyList = pairwiseUnionOfKeys(lKeyList, rKeyList);
     }
 
     // SET OPERATORS
@@ -1515,10 +1517,19 @@ computeKeyPropInternal(QueryOperator *root)
     	keyList = nKeyList;
     }
 
-    // NESTING OPERATOR return keys from left input (keyList)
+    // NESTING OPERATOR return keys from left input (keyList) except for lateral
+    // where we pairwise union the keys from the left and right
     if (isA(root, NestingOperator))
     {
-        keyList = copyObject(lKeyList);
+        NestingOperator *n = (NestingOperator *) root;
+        if(n->nestingType != NESTQ_LATERAL)
+        {
+            keyList = copyObject(lKeyList);
+        }
+        else
+        {
+            keyList = pairwiseUnionOfKeys(lKeyList, rKeyList);
+        }
     }
 
     // ORDER OPERATOR keep the same keys from input (keyList)
@@ -1535,7 +1546,7 @@ computeKeyPropInternal(QueryOperator *root)
     if (isA(root, SelectionOperator))
     {
         keyList = copyObject(lKeyList);
-        //TODO
+        // TODO use equivalence classes
     }
 
     // remove contained keys
@@ -1544,6 +1555,24 @@ computeKeyPropInternal(QueryOperator *root)
     setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) keyList);
     DEBUG_LOG("%s operator %s", NodeTagToString(root->type), root->schema->name);
     DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
+}
+
+static List *
+pairwiseUnionOfKeys(List *lKeys, List *rKeys)
+{
+    Set *nSet = STRSET();
+    List *nKeyList = NIL;
+
+    FOREACH(Set,l1,lKeys)
+    {
+        FOREACH(Set,l2,rKeys)
+        {
+            nSet = unionSets(l1, l2);
+            nKeyList = appendToTailOfList(nKeyList, nSet);
+        }
+    }
+
+    return nKeyList;
 }
 
 static List *
@@ -2663,7 +2692,8 @@ GenerateCondECBasedOnCondOp(List *condList)
 	return result;
 }
 
-void initializeSetProp(QueryOperator *root)
+void
+initializeSetProp(QueryOperator *root)
 {
 	SET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET);
 	removeStringProperty(root, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
@@ -2675,49 +2705,78 @@ void initializeSetProp(QueryOperator *root)
 }
 
 void
-computeSetProp (QueryOperator *root)
+computeSetProp(QueryOperator *root)
 {
-	if (isA(root, ProjectionOperator) || isA(root, SelectionOperator) || isA(root, JsonTableOperator) || isA(root, WindowOperator) || isA(root, OrderOperator) || isA(root, AggregationOperator))
+    LOG_PROPERTY_INFERENCE_START("set (operator subject to downstream duplicate elim)");
+
+    initializeSetProp(root);
+    // Set FALSE for root
+    setStringProperty((QueryOperator *) root,
+                      PROP_STORE_BOOL_SET,
+                      (Node *) createConstBool(FALSE));
+    computeSetPropInternal(root);
+
+    LOG_PROPERTY_INFERENCE("set (operator subject to downstream duplicate elim)",
+                           root);
+}
+
+static void
+computeSetPropInternal(QueryOperator *root)
+{
+	if(isA(root, ProjectionOperator)
+        || isA(root, SelectionOperator)
+        || isA(root, JsonTableOperator)
+        || isA(root, WindowOperator)
+        || isA(root, OrderOperator)
+        || isA(root, AggregationOperator)
+        || isA(root, LimitOperator))
 	{
 		QueryOperator *lChild = OP_LCHILD(root);
 
 		boolean rootprop = GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET);
-		if (lChild)
-		{
-			boolean childprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
-			boolean finalchildprop = rootprop && childprop;
-			setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalchildprop));
-		}
+		boolean childprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
+		boolean finalchildprop = rootprop && childprop;
+		setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalchildprop));
 	}
 
-	if (isA(root, DuplicateRemoval))
+	if(isA(root, DuplicateRemoval))
 	{
 		QueryOperator *lChild = OP_LCHILD(root);
 
-		if(lChild)
-		{
-			boolean childprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
-			boolean finalchildprop = TRUE && childprop;
-			setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalchildprop));
-		}
+		boolean childprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
+		boolean finalchildprop = TRUE && childprop;
+		setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalchildprop));
 	}
 
-	if (isA(root, JoinOperator) || isA(root, SetOperator))
+	if(isA(root, JoinOperator) || isA(root, SetOperator))
 	{
 		QueryOperator *lChild = OP_LCHILD(root);
 		QueryOperator *rChild = OP_RCHILD(root);
 
 		boolean rootprop = GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET);
 
-		if (lChild && rChild)
-		{
-			boolean leftchildprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
-			boolean rightchildprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
-			boolean finalleftchildprop = rootprop && leftchildprop;
-			boolean finalrightchildprop = rootprop && rightchildprop;
-			setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalleftchildprop));
-			setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalrightchildprop));
-		}
+		boolean leftchildprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
+		boolean rightchildprop = GET_BOOL_STRING_PROP(rChild, PROP_STORE_BOOL_SET);
+		boolean finalleftchildprop = rootprop && leftchildprop;
+		boolean finalrightchildprop = rootprop && rightchildprop;
+		setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalleftchildprop));
+		setStringProperty((QueryOperator *) rChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalrightchildprop));
+	}
+
+	if(isA(root, NestingOperator))
+	{
+        NestingOperator *n = (NestingOperator *) root;
+		QueryOperator *lChild = OP_LCHILD(root);
+		QueryOperator *rChild = OP_RCHILD(root);
+        boolean isLateral = n->nestingType == NESTQ_LATERAL;
+		boolean rootprop = GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET);
+
+		boolean leftchildprop = GET_BOOL_STRING_PROP(lChild, PROP_STORE_BOOL_SET);
+		boolean rightchildprop = GET_BOOL_STRING_PROP(rChild, PROP_STORE_BOOL_SET);
+		boolean finalleftchildprop = rootprop && leftchildprop;
+		boolean finalrightchildprop = isLateral && rightchildprop; // TODO determine safe conditions
+		setStringProperty((QueryOperator *) lChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalleftchildprop));
+		setStringProperty((QueryOperator *) rChild, PROP_STORE_BOOL_SET, (Node *) createConstBool(finalrightchildprop));
 	}
 
 	// check if all parents have been processed
@@ -2728,12 +2787,12 @@ computeSetProp (QueryOperator *root)
 	}
 
 	// only proceed to children once op is done
-	if (allParents)
+	if(allParents)
 	{
 	    SET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
         FOREACH(QueryOperator, o, root->inputs)
         {
-            computeSetProp(o);
+            computeSetPropInternal(o);
         }
 	}
 }
@@ -3140,36 +3199,28 @@ computeReqColPropInternal(QueryOperator *root)
             MERGE_INTO_CHILD_ICOLS(rchild, rightIcols);
         }
         // for scalar subqueries we need the right input unless the nesting result attribute is not in icols
-        if(n->nestingType == NESTQ_SCALAR)
+        else if(n->nestingType == NESTQ_SCALAR)
         {
             Set *nestingAttrs = makeStrSetFromList(getNestingResultAttributeNames(n));
 
             rightIcols = intersectSets(nestingAttrs, icols);
             rightIcols = renameAttrsInSetUsingMap(nestingAttrs, outToRight);
             MERGE_INTO_CHILD_ICOLS(rchild, rightIcols);
+        }
+        // for ANY and ALL the condition attributes from RHS are required attributes for the RHS
+        else if(n->nestingType == NESTQ_ALL || n->nestingType == NESTQ_ANY)
+        {
+            Set *rightCondCols = STRSET();
+            Set *rightIcols;
+            boolean isleft = FALSE;
+            List *condAttrRefs = getAttrReferences(n->cond);
 
-            /* List *rightChildAttrs = getQueryOperatorAttrNames(rchild); */
-            /* List *nestingResultAttrs = (List *) GET_STRING_PROP(root, */
-            /*                                                     PROP_NESTED_RESULT_ATTR); */
-            /* Set *nestingResultSet = STRSET(); */
-            /* Set *ricols; */
-
-            /* nestingResultAttrs = constStringListToStringList(nestingResultAttrs); */
-
-            /* // get nesting attributes in our icols */
-            /* ricols = makeStrSetFromList(nestingResultAttrs); */
-            /* ricols = intersectSets(ricols, icols); */
-
-            /* // map back to right result attributes */
-            /* FORBOTH(char,ra,na,rightChildAttrs,nestingResultAttrs) */
-            /* { */
-            /*     if(hasSetElem(ricols, na)) */
-            /*     { */
-            /*         addToSet(nestingResultSet, ra); */
-            /*     } */
-            /* } */
-
-            /* MERGE_INTO_CHILD_ICOLS(rchild, nestingResultSet); */
+            condAttrRefs = genericSublist(condAttrRefs,
+                                          isChildAttrFilter,
+                                          &isleft);
+            rightCondCols = makeStrSetFromList(attrRefListToStringList(condAttrRefs));
+            rightIcols = intersectSets(icols, rightCondCols);
+            MERGE_INTO_CHILD_ICOLS(rchild, rightIcols);
         }
 	}
 	else if (isA(root, ProvenanceComputation))

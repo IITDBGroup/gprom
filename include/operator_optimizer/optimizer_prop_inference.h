@@ -15,8 +15,6 @@
 #include "model/set/set.h"
 #include "model/set/hashmap.h"
 
-extern void computeKeyProp (QueryOperator *root);
-
 #define MIN_KEY "MIN"
 #define MAX_KEY "MAX"
 
@@ -41,6 +39,7 @@ extern Set *getInputSchemaDependencies(QueryOperator *op, Set *attrs, boolean le
 extern void computeChildOperatorProp(QueryOperator *root);
 extern void getConMap(Node *expr, HashMap *leftResult, HashMap *rightResult);
 
+extern void computeKeyProp(QueryOperator *root);
 extern void computeECProp (QueryOperator *root);
 extern void computeECPropBottomUp (QueryOperator *root);
 extern List *GenerateCondECSetListUsedInBottomUp(Node *op);
@@ -55,7 +54,7 @@ extern void SCHBtoAUsedInTopBom(List **setList, List *attrRefs, List *attrDefs);
 
 extern void computeReqColProp(QueryOperator *root);
 extern boolean isAttrRequired(QueryOperator *q, char *attr);
-extern void computeSetProp (QueryOperator *root);
+extern void computeSetProp(QueryOperator *root);
 
 extern void initializeSetProp(QueryOperator *root);
 extern void initializeIColProp(QueryOperator *root);

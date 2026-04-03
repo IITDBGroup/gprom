@@ -39,10 +39,10 @@ typedef struct ProvSchemaInfo
 } ProvSchemaInfo;
 
 /* function declarations */
-static boolean findBaserelationsVisitor (Node *node, ProvSchemaInfo *status);
+static boolean findBaserelationsVisitor(Node *node, void *status);
 static int getRelCount(ProvSchemaInfo *info, char *tableName);
-static boolean findTablerefVisitor (Node *node, ProvSchemaInfo *status);
-static boolean findTablerefVisitorForCoarse (Node *node, ProvSchemaInfo *status);
+static boolean findTablerefVisitor(Node *node, void *status);
+static boolean findTablerefVisitorForCoarse(Node *node, void *status);
 static char *escapeUnderscore (char *str);
 
 /* definitions */
@@ -151,8 +151,10 @@ escapeUnderscore (char *str)
 }
 
 static boolean
-findBaserelationsVisitor (Node *node, ProvSchemaInfo *status)
+findBaserelationsVisitor(Node *node, void *state)
 {
+    ProvSchemaInfo *status = (ProvSchemaInfo *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -363,8 +365,10 @@ getQBProvenanceAttrList(ProvenanceStmt *stmt, List **attrNames, List **dts)
 }
 
 static boolean
-findTablerefVisitor(Node *node, ProvSchemaInfo *status)
+findTablerefVisitor(Node *node, void *state)
 {
+    ProvSchemaInfo *status = (ProvSchemaInfo *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -480,8 +484,10 @@ findTablerefVisitor(Node *node, ProvSchemaInfo *status)
 
 
 static boolean
-findTablerefVisitorForCoarse (Node *node, ProvSchemaInfo *status)
+findTablerefVisitorForCoarse (Node *node, void *state)
 {
+    ProvSchemaInfo *status = (ProvSchemaInfo *) state;
+
     if (node == NULL)
         return TRUE;
 

@@ -45,10 +45,9 @@ static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
 static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
         Set *haveSeen);
-static boolean findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state);
-static boolean canStayCorrelatedVisitor(Node *n, CanStayCorrelatedState *state);
+static boolean findCorrelatedAttrsVisitor(Node *n, void *context);
+static boolean canStayCorrelatedVisitor(Node *n, void *state);
 static boolean isAttrCorrelatedFilter(void *a, void *context);
-static boolean isChildAttrFilter(void *a, void *left);
 static char *stringKeyAndValHashMapToString(HashMap *hm);
 static Set *getAttrNameSetFromRefList(List *refs);
 
@@ -1686,7 +1685,7 @@ isAttrCorrelatedFilter(void *a, void *context)
     return isAttrCorrelated((AttributeReference *) a);
 }
 
-static boolean
+boolean
 isChildAttrFilter(void *a, void *left)
 {
     boolean isLeft = *((boolean *) left);
@@ -2097,8 +2096,10 @@ noCorrelationBelowNormalization(Node *op, boolean corrInSubquery) // boolean tra
 
 
 static boolean
-findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
+findCorrelatedAttrsVisitor(Node *n, void *context)
 {
+    CorrelatedAttrsState *state = (CorrelatedAttrsState *) context;
+
 	if (n == NULL)
 		return TRUE;
 
@@ -2154,8 +2155,10 @@ findCorrelatedAttrsVisitor(Node *n, CorrelatedAttrsState *state)
 
 
 static boolean
-canStayCorrelatedVisitor(Node *n, CanStayCorrelatedState *state)
+canStayCorrelatedVisitor(Node *n, void *context)
 {
+    CanStayCorrelatedState *state = (CanStayCorrelatedState *) context;
+
 	if (n == NULL)
 		return TRUE;
 

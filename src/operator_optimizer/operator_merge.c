@@ -35,7 +35,7 @@ typedef struct ReplaceRefState {
 
 /* declarations */
 //static Node *replaceAttributeRefsMutator (Node *node, ReplaceRefState *state);
-static boolean replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPointer);
+static boolean replaceAttributeRefsMutator (Node *node, void *state, void **parentPointer);
 static Vector *calculateChildAttrRefCnts(ProjectionOperator *op, QueryOperator *child);
 static inline void getAttrRefCount(Node *expr, Vector *cnts);
 static boolean isMergeSafe(Vector *opRef, Vector *childRef);
@@ -290,8 +290,10 @@ pushDownSelectionWithProjection(SelectionOperator *op)
 //}
 
 static boolean
-replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPointer)
+replaceAttributeRefsMutator(Node *node, void *context, void **parentPointer)
 {
+    ReplaceRefState *state = (ReplaceRefState *) context;
+
     if (node == NULL)
         return TRUE;
 
@@ -301,19 +303,23 @@ replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPo
         AttributeReference *a = (AttributeReference *) node;
         int pos = getAttributeNum(a->name, (QueryOperator *) state->op);
 
-        // do not copy if not necessary
-        if (VEC_TO_IA(state->refCount)[pos] == 0)
+        // corrrelated attribute should not be attempted to be merged
+        if(a->outerLevelsUp == 0)
         {
-            DEBUG_LOG("usage count is 0 for %s - do not copy", a->name ? a->name : "NULL");
-            *parentP = VEC_TO_ARR(state->projExpr,Node)[pos];
-            VEC_TO_IA(state->refCount)[pos] = 1;
+            // do not copy if not necessary
+            if (VEC_TO_IA(state->refCount)[pos] == 0)
+            {
+                DEBUG_LOG("usage count is 0 for %s - do not copy", a->name ? a->name : "NULL");
+                *parentP = VEC_TO_ARR(state->projExpr,Node)[pos];
+                VEC_TO_IA(state->refCount)[pos] = 1;
+            }
+            else
+            {
+                DEBUG_LOG("%s has been used before - copy", a->name ? a->name : "NULL");
+                *parentP = copyObject(VEC_TO_ARR(state->projExpr,Node)[pos]);
+            }
+            deepFree(a);
         }
-        else
-        {
-            DEBUG_LOG("%s has been used before - copy", a->name ? a->name : "NULL");
-            *parentP = copyObject(VEC_TO_ARR(state->projExpr,Node)[pos]);
-        }
-        deepFree(a);
 
         return TRUE;
     }

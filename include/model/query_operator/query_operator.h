@@ -290,7 +290,7 @@ extern boolean isMyChild(QueryOperator *parent, QueryOperator *child, boolean le
 #define IS_RIGHT_CHILD(_op) isChild((QueryOperator *) _op, FALSE)
 #define IS_OP_LCHILD(_op,_child) isMyChild((QueryOperator *) _op, (QueryOperator *) _child, TRUE)
 #define IS_OP_RCHILD(_op,_child) isMyChild((QueryOperator *) _op, (QueryOperator *) _child, FALSE)
-
+extern boolean isChildAttrFilter(void *a, void *left);
 
 /* deal with properties */
 extern void setProperty(QueryOperator *op, Node *key, Node *value);

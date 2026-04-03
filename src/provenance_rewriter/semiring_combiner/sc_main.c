@@ -30,12 +30,14 @@ NEW_ENUM_WITH_ONLY_TO_STRING(Semiring,
 //QueryOperator * addSemiringCombiner(QueryOperator * result);
 static void getAttributeReferencesForSC(Node *expr, AttributeReference **leftName,
         AttributeReference **rightName, boolean twoInputs);
-static Node *deepReplaceAttrRefMutator(Node *node, HashMap *context);
-static boolean addCombinerExprIsOK(Node *node, boolean *inAgg);
+static Node *deepReplaceAttrRefMutator(Node *node,  void *state);
+static boolean addCombinerExprIsOK(Node *node, void *state);
 
 static Node *
-deepReplaceAttrRefMutator(Node *node, HashMap *context)
+deepReplaceAttrRefMutator(Node *node, void *state)
 {
+    HashMap *context = (HashMap *) state;
+
     if (node == NULL)
         return NULL;
 
@@ -445,8 +447,10 @@ getAttributeReferencesForSC(Node *expr, AttributeReference **leftName, Attribute
 
 
 static boolean
-addCombinerExprIsOK(Node *node, boolean *inAgg)
+addCombinerExprIsOK(Node *node, void *state)
 {
+    boolean *inAgg = (boolean *) state;
+
     if (node == NULL)
         return TRUE;
 

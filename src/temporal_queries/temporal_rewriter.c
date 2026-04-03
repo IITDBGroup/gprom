@@ -1058,11 +1058,12 @@ findNormalizationInQuery(QueryOperator *q, void *c)
     if (q == NULL)
         return TRUE;
 
-    if(q->properties && MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE)) {
-        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), PROP_TEMP_NORMALIZE));
+    if(HAS_STRING_PROP(q, PROP_TEMP_NORMALIZE)) {
+        HashMap *map = (HashMap *) GET_STRING_PROP(q, PROP_TEMP_NORMALIZE);
         if(state->op == INT_VALUE(MAP_GET_STRING(map, PROP_OP_KEY))) {
             INFO_LOG("located normalization");
-            state->normalizations = appendToTailOfList(state->normalizations, createNodeKeyValue((Node*)q, (Node*)map));
+            state->normalizations = appendToTailOfList(state->normalizations,
+                                                       createNodeKeyValue((Node*)q, (Node*)map));
         }
     }
 
@@ -1078,11 +1079,13 @@ removeNormalizationFromQuery(QueryOperator *q, void *context)
         return FALSE;
     }
 
-    if (MAP_HAS_STRING_KEY((HashMap *)(q->properties), PROP_TEMP_NORMALIZE)) {
-        HashMap *map = (HashMap *)(MAP_GET_STRING((HashMap *)(q->properties), PROP_TEMP_NORMALIZE));
-        if(equal((QueryOperator *)removeFrom, MAP_GET_STRING(map, PROP_OP_KEY))) {
+    if (HAS_STRING_PROP(q, PROP_TEMP_NORMALIZE))
+    {
+        HashMap *map = (HashMap *) GET_STRING_PROP(q, PROP_TEMP_NORMALIZE);
+        if(equal((QueryOperator *) removeFrom, MAP_GET_STRING(map, PROP_OP_KEY))) {
             INFO_LOG("removing normalization");
-            removeMapStringElem((HashMap *)(q->properties), PROP_TEMP_NORMALIZE);
+            removeMapStringElem((HashMap *)(q->properties),
+                                PROP_TEMP_NORMALIZE);
         }
     }
 
@@ -1095,12 +1098,21 @@ tempRewrNestedSubquery(NestingOperator *op, TemporalRewrState *state)
     // three stages:
     // top-level normalization
     // determine how far we can push down the normalization (and mark it)
-    if(getBoolOption(OPTIMIZATION_PUSH_DOWN_NORMALIZATIONS)) {
-        NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), PROP_TEMP_NESTEDQ_ID)), NIL, NIL };
+    if(getBoolOption(OPTIMIZATION_PUSH_DOWN_NORMALIZATIONS))
+    {
+        NestedNormalizationState state = { INT_VALUE(GET_STRING_PROP(op,PROP_TEMP_NESTEDQ_ID)),
+                                           NIL,
+                                           NIL };
         visitQOGraphLocalWithNewCtx(OP_RCHILD(op), TRAVERSAL_PRE, pushDownNormalization, &state);
-    } else {
-        NestedNormalizationState state = { INT_VALUE(MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), PROP_TEMP_NESTEDQ_ID)), NIL, NIL };
-        MAP_ADD_STRING_KEY((HashMap *)(OP_RCHILD(op)->properties), PROP_TEMP_NORMALIZE, (Node*)normalizationStateToMap(&state));
+    }
+    else
+    {
+        NestedNormalizationState state = { INT_VALUE(GET_STRING_PROP(op,PROP_TEMP_NESTEDQ_ID)),
+                                           NIL,
+                                           NIL };
+        SET_STRING_PROP(OP_RCHILD(op),
+                        PROP_TEMP_NORMALIZE,
+                        (Node*)normalizationStateToMap(&state));
     }
 
     // (query_operator.c findCorrelatedattrsVisitor comment)
@@ -1114,11 +1126,15 @@ tempRewrNestedSubquery(NestingOperator *op, TemporalRewrState *state)
     // If we can't keep it a nested subquery, remove the normalization tags
     if(!canStayNested)
     {
-        visitQOGraph((QueryOperator *)op, TRAVERSAL_PRE, removeNormalizationFromQuery, MAP_GET_STRING((HashMap *)(((QueryOperator *)op)->properties), PROP_TEMP_NESTEDQ_ID));
+        visitQOGraph((QueryOperator *)op,
+                     TRAVERSAL_PRE,
+                     removeNormalizationFromQuery,
+                     GET_STRING_PROP(op,
+                                     PROP_TEMP_NESTEDQ_ID));
     }
 
 	//TODO add other rewrite methods
-    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && canStayNested)
+    if(getBoolOption(OPTION_COST_BASED_OPTIMIZER) && canStayNested)
     {
         // if we are in the cost based
         // we need to make sure that the above procedure does not normalize if we end up in lateral join option
@@ -1136,10 +1152,13 @@ tempRewrNestedSubquery(NestingOperator *op, TemporalRewrState *state)
         return tempRewrNestedSubqueryCorrelated(op, state);
     }
 
-    if(canStayNested && !opt_lateral_rewrite) {
+    if(canStayNested && !opt_lateral_rewrite)
+    {
 		INFO_SINGLE_OP_LOG("subquery option", op);
         return tempRewrNestedSubqueryCorrelated(op, state);
-    } else {
+    }
+    else
+    {
 		INFO_SINGLE_OP_LOG("lateral option", op);
         return tempRewrNestedSubqueryLateralPostFilterTime(op, state);
     }
@@ -1358,6 +1377,17 @@ tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op, TemporalRewrSta
 	QueryOperator *inner; // = OP_RCHILD(op);
 	QueryOperator *selection;
 	Node *overlapCond;
+
+    // not a lateral subquery, rewrite
+    if(op->nestingType != NESTQ_LATERAL)
+    {
+        op = (NestingOperator *) lateralTranslateQBModel((Node *) op);
+        DEBUG_OP_LOG("translated into lateral for temporal rewrite", op);
+    }
+
+    ASSERT_WITH_MESSAGE(op->nestingType == NESTQ_LATERAL,
+                        "If we apply lateral rewrite, then the nesting operator's type  should be LATERAL.\n\n%s",
+                        operatorToOverviewString(op));
 
     REWR_BINARY_CHILDREN_TEMP();
 	// rewrite children and adapt nesting operator's schema

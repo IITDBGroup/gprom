@@ -53,9 +53,9 @@ static CastGraphEdge castGraph[] = {
 #define PREFSTOPPER -1
 static int typePreferences[] = { DT_BOOL, DT_INT, DT_FLOAT, DT_STRING, PREFSTOPPER };
 
-static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
-static boolean findAttrReferences (Node *node, List **state);
-static boolean findDLVars (Node *node, List **state);
+static boolean findAllNodesVisitor(Node *node, void *context);
+static boolean findAttrReferences(Node *node, void *state);
+static boolean findDLVars(Node *node, void *state);
 static boolean findDLVarsIgnoreProps (Node *node, List **state);
 static DataType typeOfOp (Operator *op, boolean *exists);
 static DataType typeOfOpSplit (char *opName, List *argDTs, boolean *exists);
@@ -1486,14 +1486,16 @@ getAttrReferences (Node *node)
 }
 
 static boolean
-findAttrReferences (Node *node, List **state)
+findAttrReferences(Node *node, void *state)
 {
+    List **result = (List **) state;
+
     if (node == NULL)
         return TRUE;
 
     if (isA(node, AttributeReference))
     {
-        *state = appendToTailOfList(*state, node);
+        *result = appendToTailOfList(*result, node);
     }
 
     return visit(node, findAttrReferences, state);
@@ -1531,13 +1533,15 @@ getDLVars (Node *node)
 }
 
 static boolean
-findDLVars (Node *node, List **state)
+findDLVars(Node *node, void *state)
 {
+    List **result = (List **) state;
+
     if (node == NULL)
         return TRUE;
 
     if (isA(node, DLVar))
-        *state = appendToTailOfList(*state, node);
+        *result = appendToTailOfList(*result, node);
 
     return visit(node, findDLVars, state);
 }
@@ -1651,8 +1655,10 @@ findAllNodes(Node *node, NodeTag type)
 
 
 static boolean
-findAllNodesVisitor(Node *node, FindNotesContext *context)
+findAllNodesVisitor(Node *node, void *state)
 {
+    FindNotesContext *context = (FindNotesContext *) state;
+
     if (node == NULL)
        return TRUE;
 
@@ -1662,5 +1668,5 @@ findAllNodesVisitor(Node *node, FindNotesContext *context)
         return TRUE;
     }
 
-    return visit(node, findAllNodesVisitor, context);
+    return visit(node, findAllNodesVisitor, state);
 }

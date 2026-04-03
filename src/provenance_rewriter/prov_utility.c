@@ -22,7 +22,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "log/logger.h"
 
-static boolean hasProvVisitor(Node *q, boolean *found);
+static boolean hasProvVisitor(Node *q, void *found);
 
 
 void
@@ -379,8 +379,10 @@ copyUnrootedSubtree(QueryOperator *op)
  */
 
 boolean
-findTableAccessVisitor (Node *node, List **result)
+findTableAccessVisitor(Node *node, void *state)
 {
+    List **result = (List **) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -531,8 +533,10 @@ hasProvComputation(Node *op)
 }
 
 static boolean
-hasProvVisitor(Node *q, boolean *found)
+hasProvVisitor(Node *q, void *state)
 {
+    boolean *found = (boolean *) state;
+
 	if(q == NULL)
 		return TRUE;
 

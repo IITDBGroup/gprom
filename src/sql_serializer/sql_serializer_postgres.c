@@ -34,7 +34,7 @@ static SerializeClausesAPI *api = NULL;
 
 /* methods */
 static void createAPI(void);
-static boolean addNullCasts(Node *n, Set *visited, void **parentPointer);
+static boolean addNullCasts(Node *n, void *visited, void **parentPointer);
 /* static boolean needsQuote(char *ident); */
 
 char *
@@ -81,8 +81,10 @@ serializeOperatorModelPostgres(Node *q)
 }
 
 static boolean
-addNullCasts(Node *n, Set *visited, void **parentPointer)
+addNullCasts(Node *n, void *state, void **parentPointer)
 {
+    Set *visited = (Set *) state;
+
     if (n == NULL)
         return TRUE;
 

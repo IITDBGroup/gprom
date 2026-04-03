@@ -33,7 +33,7 @@
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "metadata_lookup/metadata_lookup.h"
-#include <stdint.h>
+
 
 // macros for running and timing an optimization rule and logging the resulting AGM graph.
 #define OPTIMIZER_LOG_PREFIX "\n**********************************************" \
@@ -83,7 +83,7 @@ static void keepTrackOfRemainingAttributeRenaming(QueryOperator *p, PullUpProvPr
 static void pushDownSelection(QueryOperator *root, List *opList,
                               QueryOperator *r, QueryOperator *child);
 static void renameOpAttrRefs(QueryOperator *op, HashMap *nameMap, QueryOperator *pro);
-static boolean renameAttrRefs (Node *node, HashMap *nameMap);
+static boolean renameAttrRefs(Node *node, void *nameMap);
 
 /* Selection move around */
 static boolean compareTwoOperators(Operator *o1, Operator *o2);
@@ -195,9 +195,6 @@ optimizeOneGraph(QueryOperator *root)
     		//exit(-1);
     		// Set TRUE for each Operator
     		START_TIMER("PropertyInference - Set");
-    		initializeSetProp(rewrittenTree);
-    		// Set FALSE for root
-    		setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
     		computeSetProp(rewrittenTree);
             STOP_TIMER("PropertyInference - Set");
 
@@ -721,12 +718,18 @@ removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op)
 }
 
 static void
-resetPosInExprs (Node *exprs, List *attrDefs)
+resetPosInExprs(Node *exprs, List *attrDefs)
 {
     List *attrRefs = getAttrReferences(exprs);
 
     FOREACH(AttributeReference,a,attrRefs)
-        resetPos(a, attrDefs);
+    {
+        // do not change correlated attribute references
+        if(a->outerLevelsUp == 0)
+        {
+            resetPos(a, attrDefs);
+        }
+    }
 }
 
 static void
@@ -1780,8 +1783,10 @@ renameOpAttrRefs(QueryOperator *op, HashMap *nameMap, QueryOperator *pro)
 }
 
 static boolean
-renameAttrRefs (Node *node, HashMap *nameMap)
+renameAttrRefs(Node *node, void *state)
 {
+    HashMap *nameMap = (HashMap *) state;
+
     if (node == NULL)
         return TRUE;
 

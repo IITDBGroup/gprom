@@ -83,13 +83,13 @@ static QueryOperator *translateNestedSubquery(QueryBlock *qb,
         QueryOperator *joinTreeRoot, List *attrsOffsets, List **attrsOffsetsList);
 extern boolean findNestedSubqueries(Node *node, List **state);
 static List *getListOfNestedSubqueries(QueryBlock *qb);
-static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr);
-static Node *replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr);
+static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, void *qToAttr);
+static Node *replaceNestedSubqueryWithAuxExpr(Node *node, void *qToAttr);
 
 /* Functions of translating where clause in a QueryBlock */
 static QueryOperator *translateWhereClause(Node *whereClause,
         QueryOperator *nestingOp, List *attrsOffsets);
-static boolean visitAttrRefToSetNewAttrPos(Node *n, List *state);
+static boolean visitAttrRefToSetNewAttrPos(Node *n, void *state);
 
 /* Functions of translating simple select clause in a QueryBlock */
 static QueryOperator *translateSelectClause(List *selectClause,
@@ -121,7 +121,7 @@ static QueryOperator *translateLimitOffset(QueryBlock *qb,
 /* helpers */
 static ReplaceGroupByState *copyReplaceGroupByState(ReplaceGroupByState *state);
 static Node *replaceAggsAndGroupByMutator(Node *node,
-                                          ReplaceGroupByState *state);
+                                          void *state);
 static QueryOperator *createProjectionOverNonAttrRefExprs(List **selectClause,
                                                           Node **havingClause,
                                                           List **groupByClause,
@@ -134,11 +134,11 @@ static void getListOfNonAttrRefExprs(List *selectClause,
                                      Set *groupbyExprs);
 static List *getListOfAggregFunctionCalls(List *selectClause,
         Node *havingClause);
-static boolean visitAggregFunctionCall(Node *n, List **aggregs);
-static boolean visitFindWindowFuncs(Node *n, List **wfs);
-static boolean replaceWithViewRefsMutator(Node *node, List *views);
+static boolean visitAggregFunctionCall(Node *n, void *aggregs);
+static boolean visitFindWindowFuncs(Node *n, void *wfs);
+static boolean replaceWithViewRefsMutator(Node *node, void *views);
 
-static boolean visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList);
+static boolean visitAttrRefToSetNewAttrPosList(Node *n, void *offsetsList);
 
 static char *summaryType = NULL;
 static Node *prop = NULL;
@@ -1095,8 +1095,10 @@ translateWithStmt(WithStmt *with, List **attrsOffsetsList)
 
 
 static boolean
-replaceWithViewRefsMutator(Node *node, List *views)
+replaceWithViewRefsMutator(Node *node, void *state)
 {
+    List *views = (List *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -1766,8 +1768,10 @@ getListOfNestedSubqueries(QueryBlock *qb)
 }
 
 static void
-replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr)
+replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, void *state)
 {
+    HashMap *qToAttr = (HashMap *) state;
+
     qb->selectClause = (List *) replaceNestedSubqueryWithAuxExpr(
             (Node *) qb->selectClause, qToAttr);
     qb->distinct = replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, qToAttr);
@@ -1786,8 +1790,10 @@ replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr)
 }
 
 static Node *
-replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
+replaceNestedSubqueryWithAuxExpr(Node *node, void *state)
 {
+    HashMap *qToAttr = (HashMap *) state;
+
     if (node == NULL)
         return NULL;
 
@@ -1842,8 +1848,10 @@ translateWhereClause(Node *whereClause, QueryOperator *nestingOp,
 }
 
 static boolean
-visitAttrRefToSetNewAttrPos(Node *n, List *state)
+visitAttrRefToSetNewAttrPos(Node *n, void *context)
 {
+    List *state = (List *) context;
+
     if (n == NULL)
         return TRUE;
 
@@ -1863,8 +1871,10 @@ visitAttrRefToSetNewAttrPos(Node *n, List *state)
 
 
 static boolean
-visitAttrRefToSetNewAttrPosList(Node *n, List *offsetsList)
+visitAttrRefToSetNewAttrPosList(Node *n, void *state)
 {
+    List *offsetsList = (List *) state;
+
     if (n == NULL)
     {
         return TRUE;
@@ -2130,8 +2140,10 @@ copyReplaceGroupByState(ReplaceGroupByState *state)
 }
 
 static Node *
-replaceAggsAndGroupByMutator(Node *node, ReplaceGroupByState *state)
+replaceAggsAndGroupByMutator(Node *node, void *context)
 {
+    ReplaceGroupByState *state = (ReplaceGroupByState *) context;
+
     int i = 0;
     ReplaceGroupByState *newstate = state;
 
@@ -2371,8 +2383,10 @@ getListOfAggregFunctionCalls(List *selectClause, Node *havingClause)
 }
 
 static boolean
-visitAggregFunctionCall(Node *n, List **aggregs)
+visitAggregFunctionCall(Node *n, void *state)
 {
+    List **aggregs = (List **) state;
+
     if (n == NULL)
         return TRUE;
 
@@ -2393,8 +2407,10 @@ visitAggregFunctionCall(Node *n, List **aggregs)
 }
 
 static boolean
-visitFindWindowFuncs(Node *n, List **wfs)
+visitFindWindowFuncs(Node *n, void *state)
 {
+    List **wfs = (List **) state;
+
     if (n == NULL)
         return TRUE;
 

@@ -53,7 +53,8 @@ static boolean quoteAttributeNames(Node *node, void *context);
 static void  makeDTOracleConformant(QueryOperator *q);
 static boolean replaceNonOracleDTsVisitQO (QueryOperator *node, void *context);
 static boolean replaceNonOracleDTs(Node *node,
-									ReplaceNonOracleDTsContext *context, void **partentPointer);
+								   void *context,
+                                   void **partentPointer);
 
 static List *serializeQueryOperator(QueryOperator *q, StringInfo str, QueryOperator *parent, FromAttrsContext *fac);
 static List *serializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac);
@@ -78,13 +79,13 @@ static void oracleSerializeOrder(OrderOperator *q, StringInfo order, FromAttrsCo
 static void oracleSerializeWhere(SelectionOperator *q, StringInfo where, FromAttrsContext *fac);
 //static boolean updateAttributeNamesOracle(Node *node, FromAttrsContext *fac);
 /* static boolean updateAttributeNamesSimpleOracle(Node *node, List *attrNames); */
-static boolean updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state);
+static boolean updateAggsAndGroupByAttrsOracle(Node *node, void *state);
 
 static List *oracleSerializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
 													 StringInfo having, StringInfo groupBy, FromAttrsContext *fac, boolean materialize, SerializeClausesAPI *api);
 
 static char *oracleExprToSQLWithNamingScheme(Node *expr, int rOffset, FromAttrsContext *fac);
-static boolean renameAttrsVisitor(Node *node,  JoinAttrRenameState *state);
+static boolean renameAttrsVisitor(Node *node,  void *state);
 //static boolean renameAttrsVisitor(Node *node,  JoinStateFac *jsf);
 
 static char *createAttrName(char *name, int fItem, FromAttrsContext *fac);
@@ -344,8 +345,10 @@ replaceNonOracleDTsVisitQO (QueryOperator *node, void *context)
 }
 
 static boolean
-replaceNonOracleDTs(Node *node, ReplaceNonOracleDTsContext *context, void **partentPointer)
+replaceNonOracleDTs(Node *node, void *state, void **partentPointer)
 {
+    ReplaceNonOracleDTsContext *context = (ReplaceNonOracleDTsContext *) state;
+
     if (node == NULL)
         return TRUE;
 
@@ -1345,8 +1348,10 @@ oracleExprToSQLWithNamingScheme(Node *expr, int rOffset, FromAttrsContext *fac)
 }
 
 static boolean
-renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
+renameAttrsVisitor(Node *node, void *context)
 {
+    JoinAttrRenameState *state= (JoinAttrRenameState *) context;
+
 	//JoinAttrRenameState *state = jsf->state;
 	//FromAttrsContext *fac = jsf->fac;
 
@@ -1588,8 +1593,10 @@ oracleSerializeWhere (SelectionOperator *q, StringInfo where, FromAttrsContext *
 /* } */
 
 static boolean
-updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state)
+updateAggsAndGroupByAttrsOracle(Node *node, void *context)
 {
+    UpdateAggAndGroupByAttrState *state = (UpdateAggAndGroupByAttrState *) context;
+
     if (node == NULL)
         return TRUE;
 

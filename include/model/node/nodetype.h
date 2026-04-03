@@ -285,10 +285,14 @@ extern uint64_t hashValue(void *a);
  * user function has to take a state parameter as second input that can, e.g.,
  * be used to store search results.
  */
-extern boolean visit (Node *node, boolean (*checkNode) (), void *state);
-extern Node *mutate (Node *node, Node *(*modifyNode) (), void *state);
-extern boolean visitWithPointers (Node *node,
-        boolean (*userF) (),
-        void **parentLink, void *state);
+extern boolean visit(Node *node,
+                     boolean (*checkNode) (struct Node *n, void *state),
+                     void *state);
+extern Node *mutate(Node *node,
+                    Node *(*modifyNode) (Node *n, void *state),
+                    void *state);
+extern boolean visitWithPointers(Node *node,
+                                 boolean (*userVisitor) (Node *n, void *state, void **ptr),
+                                 void **parentLink, void *state);
 
 #endif /*NODETYPE_H*/

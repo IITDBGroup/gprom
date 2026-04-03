@@ -33,7 +33,7 @@ HashMap *getSchema(Node *qbModel);
 //HashMap *safetyCheck_aggregation(Node *qbModel);
 //HashMap *safetyCheck_windowOperator(Node* qbModel);
 HashMap *safetyCheck(Node* qbModel, Set *hasOpeator);
-boolean getSafeProvenanceSketch(Node* node, HashMap *map);
+boolean getSafeProvenanceSketch(Node* node, void *map);
 Set *findFiltering(List* operatorList);
 boolean findSetDifference(List* operatorList);
 OrderOperator* findOrderOperator(List* operatorList);
@@ -45,10 +45,10 @@ HashMap* hashRangeOnGroupbyNotSafe(HashMap *map, HashMap *result, char *tableNam
 char* findTable(HashMap *table_map, char *colName);
 HashMap* updateResultMap(HashMap *map, HashMap *orginalResult, char *type, HashMap *newResultMapOfType);
 boolean check(Node* node, HashMap *state);
-boolean checkMonotone(Node* node, Set *operatorSet);
-boolean getTableAccessOperator(Node* node, HashMap *map);
-boolean getSubset(Node* node, HashMap *map);
-boolean getAll(Node* node, HashMap *map);
+boolean checkMonotone(Node* node, void *operatorSet);
+boolean getTableAccessOperator(Node* node, void *state);
+boolean getSubset(Node* node, void *map);
+boolean getAll(Node* node, void *map);
 
 List *addBitset(unsigned int length, List* result);
 //char *binDis(int length, int value);
@@ -57,13 +57,13 @@ List *addBitset(unsigned int length, List* result);
 //boolean getData_windowOperator(Node* node, HashMap *data);
 //boolean checkPageSafety_windowOperator(HashMap *data);
 
-boolean getData(Node* node, HashMap *data);
+boolean getData(Node* node, void *data);
 boolean checkPageSafety(HashMap *data, Set *hasOpeator);
 boolean checkPageSafety_rownum(HashMap *data);
 
 HashMap *getMonotoneResultMap(Node* qbModel);
 
-boolean hasOperator(Node* node, Set *operatorSet);
+boolean hasOperator(Node* node, void *operatorSet);
 boolean checkAllIsPostive(HashMap *table_map, char *colName);
 boolean checkAllIsNegative(HashMap *table_map, char *colName);
 boolean isPostive(char *tableName, char *colName);

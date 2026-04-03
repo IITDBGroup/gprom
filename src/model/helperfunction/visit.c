@@ -566,7 +566,7 @@ visit(Node *node, boolean (*checkNode) (Node *n, void *state), void *state)
     } while (0)
 
 Node *
-mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
+mutate(Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
 {
     if (node == NULL)
         return NULL;
@@ -994,10 +994,10 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
  */
 
 #define VISIT_P(field) \
-    if (!userVisitor((Node *) n->field, state, &(n->field))) \
+    if (!userVisitor((Node *) n->field, state, (void **) &(n->field))) \
         return FALSE;
 #define VISIT_LC_P(_el) \
-    if (!userVisitor((Node *) _el->data.ptr_value, state, &(_el->data.ptr_value))) \
+    if (!userVisitor((Node *) _el->data.ptr_value, state, (void **) &(_el->data.ptr_value))) \
         return FALSE;
 
 #define PREP_VISIT_P(_type) \
@@ -1012,7 +1012,7 @@ mutate (Node *node, Node *(*modifyNode) (Node *n, void *state), void *state)
         } while(0)
 
 boolean
-visitWithPointers (Node *node, boolean (*userVisitor) (Node *n, void *state, void *ptr), void **parentLink, void *state)
+visitWithPointers(Node *node, boolean (*userVisitor) (Node *n, void *state, void **ptr), void **parentLink, void *state)
 {
     switch(node->type)
     {

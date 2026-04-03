@@ -35,10 +35,10 @@
 #include <assert.h>
 
 static List *makeUniqueVarNames(List *args, int *varId, boolean doNotOrigNames, Set *allnames);
-static boolean findVarsVisitor(Node *node, List **context);
+static boolean findVarsVisitor(Node *node, void *context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
-static Node *unificationMutator(Node *node, HashMap *context);
+static Node *unificationMutator(Node *node, void *context);
 static List *mergeRule(DLRule *super, List *replacements);
 static char *getFirstSubstitutableIDBAtom(DLRule *r, DLProgram *p, Set *idbPreds, Set *aggPreds, Set *genProjPreds, char *ansPred, HashMap *predToRule, List *fds, boolean allowRuleNumberIncrease,boolean isAgg);
 /* static boolean ruleHasPosSubstitutableIDBAtom(DLRule *r, Set *idbPreds, Set *aggPreds, char *ansPred); */
@@ -807,8 +807,10 @@ applyVarMapAsLists(Node *input, List *vars, List *replacements)
 }
 
 static Node *
-unificationMutator(Node *node, HashMap *context)
+unificationMutator(Node *node, void *state)
 {
+    HashMap *context = (HashMap *) state;
+
     if (node == NULL)
         return NULL;
 
@@ -872,8 +874,10 @@ getExprVars(Node *expr)
 }
 
 static boolean
-findVarsVisitor(Node *node, List **context)
+findVarsVisitor(Node *node, void *state)
 {
+    List **context = (List **) state;
+
     if (node == NULL)
         return TRUE;
 

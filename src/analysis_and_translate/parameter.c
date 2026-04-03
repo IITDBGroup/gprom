@@ -30,10 +30,10 @@ typedef struct ParByNameState
 } ParByNameState;
 
 // static functions
-static boolean findParamVisitor(Node *node, List **state);
-static Node *replaceParamMutator (Node *node, List *state);
-static Node *replaceParamByNameMutator (Node *node, ParByNameState *state);
-static Constant *createBindConstant (char *value);
+static boolean findParamVisitor(Node *node, void *state);
+static Node *replaceParamMutator(Node *node, void *state);
+static Node *replaceParamByNameMutator(Node *node, void *state);
+static Constant *createBindConstant(char *value);
 
 Node *
 applyBinds(ParameterizedQuery *p, List *values)
@@ -48,8 +48,10 @@ setParameterValues (Node *qbModel, List *values)
 }
 
 static Node *
-replaceParamMutator (Node *node, List *state)
+replaceParamMutator(Node *node, void *context)
 {
+    List *state = (List *) context;
+
     if (node == NULL)
         return NULL;
 
@@ -86,8 +88,10 @@ setParValsByName (Node *qbModel, List *values, List *names)
 }
 
 static Node *
-replaceParamByNameMutator (Node *node, ParByNameState *state)
+replaceParamByNameMutator(Node *node, void *context)
 {
+    ParByNameState *state = (ParByNameState *) context;
+
     if (node == NULL)
         return NULL;
 
@@ -123,8 +127,10 @@ findParameters (Node *qbModel)
 }
 
 static boolean
-findParamVisitor(Node *node, List **state)
+findParamVisitor(Node *node, void *context)
 {
+    List **state = (List **) context;
+
     if (node == NULL)
         return TRUE;
 

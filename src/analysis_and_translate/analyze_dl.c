@@ -49,7 +49,7 @@ static void analyzeFD(FD *f, DLProgram *p);
 static void analyzeExpression(Node *expr);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
-static boolean hasAggFunctionVisitor(Node *n, boolean *context);
+static boolean hasAggFunctionVisitor(Node *n, void *context);
 
 Node *
 analyzeDLModel(Node *stmt)
@@ -905,8 +905,10 @@ analyzeFD(FD *f, DLProgram *p)
 }
 
 static boolean
-hasAggFunctionVisitor(Node *n, boolean *context)
+hasAggFunctionVisitor(Node *n, void *state)
 {
+    boolean *context = (boolean *) state;
+
 	if (n == NULL)
 		return TRUE;
 

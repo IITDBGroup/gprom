@@ -172,11 +172,11 @@ extern void genSerializeOrderByOperator (OrderOperator *q, StringInfo order,  Fr
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,
         QueryOperator *parent, FromAttrsContext *fac, SerializeClausesAPI *api);
 extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, FromAttrsContext *fac);
-extern boolean updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state);
-extern boolean updateAttributeNames(Node *node, FromAttrsContext *fac);
+extern boolean updateAggsAndGroupByAttrs(Node *node, void *state);
+extern boolean updateAttributeNames(Node *node, void *fac);
 extern void updateAttributeReference(AttributeReference *a, FromAttrsContext *fac);
 extern boolean updateWindowAttributeNames(Node *node, FromAttrsContext *fac, HashMap *winfAttrs);
-extern boolean updateAttributeNamesSimple(Node *node, List *attrNames);
+extern boolean updateAttributeNamesSimple(Node *node, void *attrNames);
 extern boolean updateWindowAttributeNamesSimple(Node *node, List *attrNames, HashMap *winfAttrs);
 
 //for nesting
