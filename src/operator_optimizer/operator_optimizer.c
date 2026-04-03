@@ -27,6 +27,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
+#include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "operator_optimizer/cost_based_optimizer.h"
@@ -450,8 +451,12 @@ removeDeadOperators(QueryOperator *op)
         if(isA(op,JoinOperator))
         {
             JoinOperator *j = (JoinOperator *) op;
+            boolean leftOuter = (j->joinType == JOIN_LEFT_OUTER || j->joinType == JOIN_FULL_OUTER);
+            boolean rightOuter = (j->joinType == JOIN_RIGHT_OUTER || j->joinType == JOIN_FULL_OUTER);
 
-            if(IS_DEAD(lchild))
+            // if this is not a left / full outer join and the left child is
+            // dead we can potentially eliminate the join
+            if(IS_DEAD(lchild) && !leftOuter)
             {
                 // if dead child is guaranteed to return a single row, then eliminate the join
                 if(isSingleRowOperator(lchild))
@@ -463,7 +468,9 @@ removeDeadOperators(QueryOperator *op)
                     return removeDeadOperators(rchild);
                 }
             }
-            if(IS_DEAD(rchild))
+            // if this is not a right / full outer join and the right child is
+            // dead we can potentially eliminate the join
+            if(IS_DEAD(rchild) && !rightOuter)
             {
                 // if dead child is guaranteed to return a single row, then eliminate the join
                 if(isSingleRowOperator(rchild))
