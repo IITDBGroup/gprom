@@ -17,7 +17,7 @@ sed -i "1s/.*/.TH gprom 1 \"${MYDATE}\" \"version ${VERSION_NUMBER}\"/" ${BASEDI
 
 # create changelog entry
 sed -i "s/revision=\"[0-9]\+\.[0-9]\+\.[0-9]\+\"/revision=\"${VERSION_NUMBER}\"/g" ivy.xml
-sed -i "s/AC_INIT(\[GProM\],\[[0-9]\+\.[0-9]\+\.[0-9]\+\],\[bglavic@iit.edu\])/AC_INIT([GProM],[${VERSION_NUMBER}],[bglavic@uic.edu])/g" ${BASEDIR}/configure.ac
+sed -i "s/AC_INIT(\[GProM\],\[[0-9]\+\.[0-9]\+\.[0-9]\+\],\[bglavic@uic.edu\])/AC_INIT([GProM],[${VERSION_NUMBER}],[bglavic@uic.edu])/g" ${BASEDIR}/configure.ac
 
 CHANGELOG_FILE=${BASEDIR}/packaging/debfiles/changelog
 CHANGELOG_ENTRY="gprom (${VERSION_NUMBER}-1) unstable; urgency=low
