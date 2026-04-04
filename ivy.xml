@@ -2,11 +2,11 @@
 <ivy-module version="2.0"
  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
  xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
-	 <info 
-	 	organisation="iit.edu" 
-	 	module="GProMJDBC" 
+	 <info
+	 	organisation="iit.edu"
+	 	module="GProMJDBC"
 	 	status="integration"
-		revision="1.0.3">
+		revision="1.0.5">
 	 </info>
 	 <dependencies>
 	   <dependency org="org.apache.logging.log4j" name="log4j-api" rev="2.8.2" />
