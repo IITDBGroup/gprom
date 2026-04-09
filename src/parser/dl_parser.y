@@ -9,6 +9,7 @@
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal_dl.h"
 #include "log/logger.h"
+#include "utility/string_utils.h"
 #include "model/query_operator/operator_property.h"
 #include "model/integrity_constraints/integrity_constraints.h"
 
@@ -67,7 +68,7 @@ Node *dlParseResult = NULL;
 %token <stringVal> stringConst
 
 /* comparison and arithmetic operators */
-%token <stringVal> comparisonOp 
+%token <stringVal> comparisonOp
 
 /*
  * Declare token for operators specify their associativity and precedence
@@ -91,7 +92,7 @@ Node *dlParseResult = NULL;
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison parenComparison ansrelation provStatement rpqStatement associateDomain
 %type <node> functional_dependency
 %type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType optLineageOptions caseExpression caseWhen optionalCaseElse castExpression
-%type <node> optionalFPattern 
+%type <node> optionalFPattern
 %type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds nameList caseWhenList
 %type <stringVal> optProvFormat
 
@@ -555,8 +556,8 @@ parenComparison:
 				    RULELOG("parenComparison::parenComparison");
 				    $$ = $2;
 				}
-		|       comparison {{ $$ = $1; }}		 
-				
+		|       comparison {{ $$ = $1; }}
+
 		;
 
 comparison:
@@ -624,10 +625,12 @@ castExpression:
 				CAST '(' expression AS name ')'
 				{
                      RULELOG("expression::cast");
-                     $$ = (Node *) createCastExpr($3, SQLdataTypeToDataType($5));
+				     char *typname = backendifyIdentifier($5);
+				     CastExpr *c = createCastExprOtherDT($3, strToLower(typname), -1, SQLdataTypeToDataType(typname));
+                     $$ = (Node *) c;
 				}
 				;
-				
+
 /*
  * Parse operator expression
  */

@@ -27,14 +27,12 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
-#include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "metadata_lookup/metadata_lookup.h"
-
 
 // macros for running and timing an optimization rule and logging the resulting AGM graph.
 #define OPTIMIZER_LOG_PREFIX "\n**********************************************" \
@@ -236,7 +234,7 @@ optimizeOneGraph(QueryOperator *root)
     	DEBUG_LOG("callback = %d in loop %d",res,c);
     	c++;
         START_TIMER("OptimizeModel - RemoveProperties");
-        ERROR_LOG("number of operators in graph: %d", numOpsInGraph(rewrittenTree));
+        /* ERROR_LOG("number of operators in graph: %d", numOpsInGraph(rewrittenTree)); */
         INFO_LOG("number of operators in tree: %d", numOpsInTree(rewrittenTree));
     	emptyProperty(rewrittenTree);
     	STOP_TIMER("OptimizeModel - RemoveProperties");
@@ -949,7 +947,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 		//Set schema attr def
 		List *newAttrDefs = NIL;
-		if(LIST_LENGTH(root->schema->attrDefs) != (LIST_LENGTH(OP_LCHILD(root)->schema) + LIST_LENGTH(OP_RCHILD(root)->schema)))
+		if(LIST_LENGTH(root->schema->attrDefs) !=
+           (LIST_LENGTH(OP_LCHILD(root)->schema) + LIST_LENGTH(OP_RCHILD(root)->schema)))
 		{
 			FOREACH(AttributeDef, ad, root->schema->attrDefs)
 		    {
@@ -981,24 +980,12 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
                 }
 			}
 		}
-	    /* else */
-	    /* { */
-	    /* 	newAttrDefs = concatTwoLists(copyObject(OP_LCHILD(root)->schema->attrDefs), copyObject(OP_RCHILD(root)->schema->attrDefs)); */
-	    /* } */
-	    root->schema->attrDefs = newAttrDefs;
 
-		// we may have un-uniquified attribute names, so uniqify them again if necessary
-		/* if(!checkUniqueAttrNames(root)) */
-        /* { */
-        /*     makeAttrNamesUnique(root); */
-        /*     DEBUG_OP_LOG("join or projection attributes are not unique", root); */
-        /* } */
-        // do not rename again, this is hard to repair (downstream operators may use old name) and unnecessary
+	    root->schema->attrDefs = newAttrDefs;
 
 		// Set cond attr ref pos
 		if(j->cond != NULL)
 		{
-		    //DONE: TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
 			List *attrRefs = getAttrReferences(j->cond);
 			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
 
@@ -1166,11 +1153,42 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 			cnt++;
 		}
 	}
+    // nesting oeprator, adapt references in condition
     else if (isA(root,NestingOperator))
     {
         NestingOperator *n = (NestingOperator *) root;
         resetPosInExprs(n->cond, cSchema);
+
         root = removeUnnecessaryAttrDefInSchema(icols, root);
+
+        if(n->cond != NULL)
+        {
+			List *attrRefs = getAttrReferences(n->cond);
+			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
+
+			List *leftRefs = NIL;
+			List *rightRefs = NIL;
+
+			FOREACH(AttributeReference,a,attrRefs)
+			{
+				if(a->fromClauseItem == 0 && a->outerLevelsUp == 0)
+					leftRefs = appendToTailOfList(leftRefs, a);
+				else if(a->fromClauseItem == 1 && a->outerLevelsUp == 0)
+					rightRefs = appendToTailOfList(rightRefs, a);
+			}
+
+			DEBUG_LOG("Reset join left");
+			FOREACH(AttributeReference,a,leftRefs)
+            {
+			    resetPos(a,cSchema);
+            }
+
+			DEBUG_LOG("Reset join right");
+			FOREACH(AttributeReference,a,rightRefs)
+            {
+			    resetPos(a,rcSchema);
+            }
+        }
     }
 
     // For operators whose attributes are determined based on its child

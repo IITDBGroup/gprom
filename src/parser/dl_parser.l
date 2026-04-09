@@ -100,34 +100,9 @@ MINUS					'-'
 STAR					'*'
 MOD						'%'
 STRCONCAT				"||"
-						
+
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">="|"!=")
 LOG_IMPLIES             "->"
-
-/* KEYWORDS */
-ANS					"ANS"
-AS					"AS"
-BY					"BY"
-FAILURE				"FAILURE"
-FD                  "FD"
-FOR					"FOR"
-FORMAT				"FORMAT"
-GP					"GP"
-IS					"IS"
-LINEAGE             "LINEAGE"
-OF					"OF"
-RPQ					"RPQ"
-SAMPLE				"SAMPLE"
-SCORE				"SCORE"
-SUMMARIZED			"SUMMARIZED"
-THRESHOLDS			"THRESHOLDS"
-TOP					"TOP"
-USERDOMAIN			"USERDOMAIN"
-WHY					"WHY"
-WHYNOT				"WHYNOT"
-WITH				"WITH"
-RESULTS             "RESULTS"
-FROM                "FROM"
 
 /* LITERAL ONES */
 
@@ -143,29 +118,29 @@ FROM                "FROM"
 (?i:LIKE)           TOK(LIKE)
 {IMPLIES}			TOK(RULE_IMPLICATION)
 {LOG_IMPLIES}       TOK(IMPLIES)
-{FD}                TOK(KEYWORD_FD)
-{ANS}				TOK(ANS)
-{GP}				TOK(GP)
-{WHY}				TOK(WHYPROV)
-{WHYNOT}			TOK(WHYNOTPROV)
-{LINEAGE}           TOK(LINEAGE)
-{FOR}               TOK(FOR)
-{RPQ}				TOK(RPQ)
-{FORMAT}			TOK(FORMAT)
-{OF}				TOK(OF)
-{IS}				TOK(IS)
-{USERDOMAIN}		TOK(USERDOMAIN)
-{TOP}				TOK(TOP)
-{FAILURE}			TOK(FAILURE)
-{SUMMARIZED}		TOK(SUMMARIZED)
-{BY}				TOK(BY)
-{WITH}				TOK(WITH)
-{SAMPLE}			TOK(SAMPLE)
-{SCORE}				TOK(SCORE)
-{AS}				TOK(AS)
-{THRESHOLDS}		TOK(THRESHOLDS)
-{RESULTS}           TOK(RESULTS)
-{FROM}              TOK(FROM)
+(?i:FD)                TOK(KEYWORD_FD)
+(?i:ANS)				TOK(ANS)
+(?i:GP)				TOK(GP)
+(?i:WHY)				TOK(WHYPROV)
+(?i:WHYNOT)			TOK(WHYNOTPROV)
+(?i:LINEAGE)           TOK(LINEAGE)
+(?i:FOR)               TOK(FOR)
+(?i:RPQ)				TOK(RPQ)
+(?i:FORMAT)			TOK(FORMAT)
+(?i:OF)				TOK(OF)
+(?i:IS)				TOK(IS)
+(?i:USERDOMAIN)		TOK(USERDOMAIN)
+(?i:TOP)				TOK(TOP)
+(?i:FAILURE)			TOK(FAILURE)
+(?i:SUMMARIZED)		TOK(SUMMARIZED)
+(?i:BY)				TOK(BY)
+(?i:WITH)				TOK(WITH)
+(?i:SAMPLE)			TOK(SAMPLE)
+(?i:SCORE)				TOK(SCORE)
+(?i:AS)				TOK(AS)
+(?i:THRESHOLDS)		TOK(THRESHOLDS)
+(?i:RESULTS)           TOK(RESULTS)
+(?i:FROM)              TOK(FROM)
 (?i:CASE)			UPCASE_TOK(CASE)
 (?i:WHEN)			UPCASE_TOK(WHEN)
 (?i:THEN)			UPCASE_TOK(THEN)
