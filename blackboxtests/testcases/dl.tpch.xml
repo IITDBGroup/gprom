@@ -1,0 +1,757 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Lineage with semantics query optimization - TPC-H queries</comment>
+
+<entry key="extra_settings.nosemopt">
+  -dl_load_fds:TRUE
+</entry>
+<entry key="extra_settings.semopt">
+  -dl_load_fds:TRUE,
+  -Osemantic_opt:TRUE
+</entry>
+
+<entry key="q1.query">
+Q(l_return, l_linestat, sum(l_quant), sum(l_extp), sum(l_extp*(1-l_disc)),  sum(l_extp*(1-l_disc)*(1+l_tax)), avg(l_quant), avg(l_extp), avg(l_disc), count(x1)) :-
+    lineitem(x1, x2, x3, x4, l_quant, l_extp, l_disc, l_tax, l_return, l_linestat, l_shipdate, x5, x6, x7, x8, x9),
+    l_shipdate &lt;= '1998-09-01'.
+
+ANS: Q.
+</entry>
+<entry key="q1.result">
+ a0 | a1 | a2    | a3                | a4                 | a5                | a6                  | a7                 | a8                   | a9   |
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ R  | F  | 36511 | 36570841.24       | 34738472.87580004  | 36169060.11219294 | 25.0590253946465340 | 25100.09693891558  | 0.050027453671928686 | 1457 |
+ A  | F  | 37474 | 37569624.63999998 | 35676192.096999995 | 37101416.22242404 | 25.3545331529093369 | 25419.231826792948 | 0.050866035182679493 | 1478 |
+ N  | F  | 1041  | 1041301.07        | 999060.8979999998  | 1036450.80228     | 27.3947368421052632 | 27402.659736842103 | 0.042894736842105284 | 38   |
+ N  | O  | 75163 | 75380110.0699997  | 71648611.72140016  | 74494106.9136128  | 25.5656462585034014 | 25639.49322108833  | 0.049693877551020525 | 2940 |
+</entry>
+
+<entry key="q2.query">
+Q1(s_account_bal,s_name,n_name,p_key,s_cost,p_manu,s_addr,s_phone,s_comment) :-
+    nation(n_key,n_name,r_key,x1),
+    region(r_key,'EUROPE',x2),
+    supplier(s_key,s_name,s_addr,n_key,s_phone,s_account_bal,s_comment),
+    part(p_key,x3,p_manu,x4,p_type,15,x5,x6,x7),
+    partsupp(p_key,s_key,x8,s_cost,x9),
+p_type LIKE '%TIN'.
+
+Q2(p_key,min(s_cost)) :-
+    Q1(x1,x2,x3,p_key,s_cost,x5,x6,x7,x8).
+
+Q(s_account_bal,s_name,n_name,p_key,s_cost,p_manu,s_addr,s_phone,s_comment) :-
+    Q1(s_account_bal,s_name,n_name,p_key,s_cost,p_manu,s_addr,s_phone,s_comment),
+    Q2(p_key,s_cost).
+
+ANS: Q.
+</entry>
+<entry key="q2.result">
+ a0      | a1                 | a2             | a3  | a4     | a5             | a6                    | a7            | a8                                                                                                  |
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 6820.35 | Supplier#000000007 | UNITED KINGDOM | 186 | 252.84 | Manufacturer#2 | s,4TicNGB4uO6PaSqNBUq | 33-990-965-2201 | s unwind silently furiously regular courts. final requests are deposits. requests wake quietly blit |
+</entry>
+
+<entry key="q3.query">
+Q(l_orderkey,o_orderdate,o_shippriority,sum(l_extendedprice*(1 - l_discount))) :-
+customer(c_custkey, C1, C2, C3, C4, C5, 'BUILDING', C6),
+orders(l_orderkey, c_custkey, O1, O2, o_orderdate, O3, O4, o_shippriority, O5),
+lineitem(l_orderkey, X1, X2, X3, X4, l_extendedprice, l_discount, X5, X6, X7, l_shipdate, X8, X9, X10, X11, X12),
+o_orderdate &lt; '1995-03-15',
+l_shipdate &gt; '1995-03-15'.
+
+ANS: Q.
+</entry>
+<entry key="q3.result">
+ a0   | a1         | a2 | a3                 |
+----------------------------------------------
+ 998  | 1994-11-26 | 0  | 11785.548600000002 |
+ 1637 | 1995-02-08 | 0  | 164224.9253        |
+ 3430 | 1994-12-12 | 0  | 4726.6775          |
+ 2883 | 1995-01-23 | 0  | 36666.9612         |
+ 3492 | 1994-11-24 | 0  | 43716.072400000005 |
+ 4423 | 1995-02-17 | 0  | 3055.9365          |
+ 5191 | 1994-12-11 | 0  | 49378.309400000006 |
+ 742  | 1994-12-23 | 0  | 43728.048          |
+</entry>
+
+<entry key="q4.query">
+Q1(l_okey) :-
+    lineitem(l_okey,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,l_comm_date,l_receipt_date,x11,x12,x13),
+    l_comm_date &lt; l_receipt_date.
+
+Q(o_opriority,count(1)) :-
+    orders(l_okey,x1,x2,x3,o_odate,o_opriority,x4,x5,x6),
+    Q1(l_okey),
+    o_odate &gt;= '1993-07-01',
+    o_odate &lt; '1993-10-01'.
+
+ANS: Q.
+</entry>
+<entry key="q4.result">
+ a0              | a1 |
+-----------------------
+ 1-URGENT        | 9  |
+ 2-HIGH          | 7  |
+ 3-MEDIUM        | 9  |
+ 4-NOT SPECIFIED | 8  |
+ 5-LOW           | 12 |
+</entry>
+
+<entry key="q5.query">
+  Q(n_n,sum(l_ep * (1-l_d))):-
+customer(c_ck,c1,c2,c_nk,c3,c4,c5,c6),
+orders(o_ok,c_ck,o1,o2,o_od,o3,o4,o5,o6),
+lineitem(o_ok,l1,l_sk,l2,l3,l_ep,l_d,l5,l6,l7,l8,l9,l10,l11,l12,l13),
+supplier(l_sk,s1,s2,c_nk,s3,s4,s5),
+nation(c_nk,n_n,n_rk,n1),
+region(n_rk,r_nam,r2),
+o_od &gt;= '1994-01-01',
+o_od &lt; '1995-01-01'.
+
+ANS: Q.
+</entry>
+<entry key="q5.result">
+ a0       | a1                |
+-------------------------------
+ ETHIOPIA | 115183.8546       |
+ IRAN     | 41912.964         |
+ IRAQ     | 74391.78899999999 |
+ MOROCCO  | 220457.0142       |
+ PERU     | 272671.522        |
+</entry>
+
+<entry key="q6.query">
+Q(sum(l_ep * l_d)):-
+    lineitem(l1,l2,l3,l4,l_q,l_ep,l_d,l5,l6,l7,l_sd,l8,l9,l10,l11,l12),
+    l_sd &gt;= '1994-01-01',
+    l_sd &lt; '1995-01-01',
+    l_d &gt;= 0.05,
+    l_d &lt;= 0.07,
+    l_q &lt; 24.
+
+ANS: Q.
+</entry>
+<entry key="q6.result">
+ a0         |
+-------------
+ 77949.9186 |
+</entry>
+
+<entry key="q7.query">
+Qnations('SAUDI ARABIA','UNITED STATES').
+Qnations('UNITED STATES','SAUDI ARABIA').
+
+Qsub(supp_nation,cust_nation,date_part('year', l_sd), l_extendedprice * (1 - l_discount)) :-
+    supplier(l_sk,s2,s3,s_nationkey,s4,s5,s6),
+    lineitem(l_ok,l1,l_sk,l2,l3,l_extendedprice,l_discount,l6,l7,l8,l_sd,l9,l10,l11,l12,l13),
+    orders(l_ok,l_ck,o1,o2,o3,o4,o5,o6,o7),
+    customer(l_ck, c1,c2,c_nationkey,c3,c4,c5,c6),
+    nation(s_nationkey,supp_nation,n1,n2),
+    nation(c_nationkey,cust_nation,n3,n4),
+    l_sd &gt;= '1991-01-01',
+    l_sd &lt;= '1994-12-31',
+    Qnations(supp_nation,cust_nation).
+
+Q(supp_nation,cust_nation,l_year,sum(volume)) :- Qsub(supp_nation,cust_nation,l_year,volume).
+
+ANS : Q.
+</entry>
+<entry key="q7.result">
+ a0            | a1           | a2   | a3                 |
+-----------------------------------------------------------
+ UNITED STATES | SAUDI ARABIA | 1992 | 16937.222400000002 |
+</entry>
+
+
+<entry key="q8.query">
+Q2(date_part('YEAR',o_odate),l_extend*(1-l_discount),n_name) :-
+    supplier(s_key,x1,x2,s_nkey,x3,x4,x5),
+    nation(s_nkey,n_name,x6,x7),
+    customer(c_ckey,x8,x9,c_nkey,x10,x11,x12,x13),
+    nation(c_nkey,x14,n_rkey,x15),
+    region(n_rkey,'AMERICA',x16),
+    orders(o_okey,c_ckey,x18,x19,o_odate,x20,x21,x22,x23),
+    lineitem(o_okey,l_pkey,s_key,x24,x25,l_extend,l_discount,x26,x27,x28,x29,x30,x31,x32,x33,x34),
+    part(l_pkey,x35,x36,x37,'ECONOMY ANODIZED STEEL',x38,x39,x40,x41),
+    o_odate &gt;= '1995-01-01',
+    o_odate &lt; '1996-12-31'.
+
+Q1(year, sum(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END), sum(volume)) :-
+    Q2(year,volume,nation).
+
+Q(year, x / y) :- Q1(year,X,Y).
+
+ANS:Q.
+</entry>
+<entry key="q8.result">
+ a0   | a1 |
+------------
+ 1995 | 0  |
+ 1996 | 0  |
+</entry>
+
+<entry key="q9.query">
+Q1(n_name, date_part('year',o_orderdate), ((l_ep * (1-l_discount)) - (ps_supplycost * l_quantity))) :-
+    part(p_partkey, p_name, p1, p2, p3, p4, p5, p6, p7),
+    supplier(s_suppkey, s1, s2, n_nationkey, s3, s4, s5),
+    lineitem(o_orderkey, p_partkey, s_suppkey, l1, l_quantity, l_ep, l_discount, l2, l3, l4, l5, l6, l7, l8, l9, l10),
+    partsupp(p_partkey, s_suppkey, ps1, ps_supplycost, ps2),
+    nation(n_nationkey, n_name, n1, n2),
+    orders(o_orderkey, o1, o2, o3, o_orderdate, o4, o5, o6, o7),
+    p_name LIKE '%green%'.
+
+Q(nation, o_year, sum(amount)) :-
+    Q1(nation, o_year, amount).
+
+ANS: Q.
+</entry>
+<entry key="q9.result">
+ a0             | a1   | a2                 |
+---------------------------------------------
+ ARGENTINA      | 1992 | 35740              |
+ ARGENTINA      | 1993 | 35857.08           |
+ ARGENTINA      | 1994 | 36767.101500000004 |
+ ARGENTINA      | 1995 | 134490.5697        |
+ ARGENTINA      | 1996 | 7731.089399999995  |
+ ARGENTINA      | 1997 | 18247.873399999993 |
+ ETHIOPIA       | 1992 | 1525.8234999999986 |
+ ETHIOPIA       | 1994 | 3578.9478999999974 |
+ ETHIOPIA       | 1995 | 51231.87439999999  |
+ ETHIOPIA       | 1997 | 19419.294599999997 |
+ ETHIOPIA       | 1998 | 2758.7801999999992 |
+ IRAN           | 1992 | 87142.2396         |
+ IRAN           | 1993 | 78655.1676         |
+ IRAN           | 1994 | 18140.925599999995 |
+ IRAN           | 1995 | 84094.58260000001  |
+ IRAN           | 1996 | 70143.7761         |
+ IRAN           | 1997 | 52643.7736         |
+ IRAN           | 1998 | 37817.229600000006 |
+ IRAQ           | 1992 | 47755.05900000001  |
+ IRAQ           | 1993 | 33221.9399         |
+ IRAQ           | 1994 | 36010.728599999995 |
+ IRAQ           | 1996 | 45103.3242         |
+ IRAQ           | 1997 | 93676.24359999999  |
+ IRAQ           | 1998 | 22860.8082         |
+ KENYA          | 1992 | 181517.2089        |
+ KENYA          | 1993 | 128422.01959999997 |
+ KENYA          | 1994 | 102360.66609999999 |
+ KENYA          | 1995 | 79262.6278         |
+ KENYA          | 1996 | 59195.90209999999  |
+ KENYA          | 1997 | 57578.36259999999  |
+ KENYA          | 1998 | 44194.831999999995 |
+ MOROCCO        | 1992 | 159097.0888        |
+ MOROCCO        | 1993 | 100050.20439999999 |
+ MOROCCO        | 1994 | 139474.158         |
+ MOROCCO        | 1995 | 180062.255         |
+ MOROCCO        | 1996 | 147888.0158        |
+ MOROCCO        | 1997 | 51796.2218         |
+ MOROCCO        | 1998 | 95135.54319999999  |
+ PERU           | 1992 | 80646.8605         |
+ PERU           | 1993 | 49379.8138         |
+ PERU           | 1994 | 88046.2533         |
+ PERU           | 1995 | 122247.94519999999 |
+ PERU           | 1996 | 177040.40759999995 |
+ PERU           | 1997 | 121110.41070000001 |
+ PERU           | 1998 | 86999.36459999997  |
+ UNITED KINGDOM | 1992 | 67747.88279999999  |
+ UNITED KINGDOM | 1993 | 322548.4921        |
+ UNITED KINGDOM | 1994 | 140595.5864        |
+ UNITED KINGDOM | 1995 | 225267.65759999998 |
+ UNITED KINGDOM | 1996 | 147684.46480000002 |
+ UNITED KINGDOM | 1997 | 114288.86050000001 |
+ UNITED KINGDOM | 1998 | 50577.25560000001  |
+ UNITED STATES  | 1992 | 34092.366          |
+ UNITED STATES  | 1993 | 27168.486199999992 |
+ UNITED STATES  | 1994 | 43075.6299         |
+ UNITED STATES  | 1995 | 62201.23360000001  |
+ UNITED STATES  | 1996 | 79297.8567         |
+ UNITED STATES  | 1997 | 94729.5704         |
+ UNITED STATES  | 1998 | 3957.0431999999996 |
+</entry>
+
+<entry key="q10.query">
+Q(c_ck,c_n,sum(l_ep * (1-l_d)),c_ab,n_n,c_a,c_p,c_c) :-
+    customer(c_ck,c_n,c_a,c_nk,c_p,c_ab,c1,c_c),
+    orders(o_ok,c_ck,o1,o2,o_od,o3,o4,o5,o6),
+    lineitem(o_ok,l1,l2,l3,l4,l_ep,l_d,l5,'R',l6,l7,l8,l9,l10,l11,l12),
+    nation(c_nk,n_n,n2,n3),
+    o_od &gt;= '1993-10-01',
+    o_od &lt; '1994-01-01'.
+
+ANS: Q.
+</entry>
+<entry key="q10.result">
+ a0  | a1                 | a2                 | a3      | a4             | a5                                       | a6              | a7                                                                                                                   |
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 2   | Customer#000000002 | 11676.266399999999 | 121.65  | JORDAN         | XSTf4,NCwDVaWNe6tEgvwfmRchLXak           | 23-768-687-3665 | l accounts. blithely ironic theodolites integrate boldly: caref                                                      |
+ 4   | Customer#000000004 | 31830.178399999997 | 2866.83 | EGYPT          | XxVSJsLAGtn                              | 14-128-190-5944 | requests. final, regular ideas sleep final accou                                                                     |
+ 16  | Customer#000000016 | 161422.04609999998 | 4681.03 | IRAN           | cYiaeMLZSMAOQ2 d0W,                      | 20-781-609-3107 | kly silent courts. thinly regular theodolites sleep fluffily after                                                   |
+ 17  | Customer#000000017 | 27916.7564         | 6.34    | BRAZIL         | izrh 6jdqtp2eqdtbkswDD8SG4SzXruMfIXyR7   | 12-970-682-3487 | packages wake! blithely even pint                                                                                    |
+ 19  | Customer#000000019 | 99306.0127         | 8914.71 | CHINA          | uc,3bHIx84H,wdrmLOjVsiqXCq2tr            | 28-396-526-5053 | nag. furiously careful packages are slyly at the accounts. furiously regular in                                      |
+ 22  | Customer#000000022 | 12870.9355         | 591.98  | CANADA         | QI6p41,FNs5k7RZoCCVPUTkUdYpB             | 13-806-545-9701 | s nod furiously above the furiously ironic ideas.                                                                    |
+ 29  | Customer#000000029 | 56516.475          | 7618.27 | ALGERIA        | sJ5adtfyAkCK63df2,vF25zyQMVYE34uh        | 10-773-203-7342 | its after the carefully final platelets x-ray against                                                                |
+ 31  | Customer#000000031 | 40442.252400000005 | 5236.89 | UNITED KINGDOM | LUACbO0viaAv6eXOAebryDB xjVst            | 33-197-837-7094 | s use among the blithely pending depo                                                                                |
+ 37  | Customer#000000037 | 88065.74579999998  | -917.75 | INDIA          | 7EV4Pwh,3SboctTWt                        | 18-385-235-7162 | ilent packages are carefully among the deposits. furiousl                                                            |
+ 43  | Customer#000000043 | 75485.95869999999  | 9904.28 | ROMANIA        | ouSbjHk8lh5fKX3zGso3ZSIj9Aa3PoaFd        | 29-316-665-2897 | ial requests: carefully pending foxes detect quickly. carefully final courts cajole quickly. carefully               |
+ 44  | Customer#000000044 | 149364.5652        | 7315.94 | MOZAMBIQUE     | Oi,dOSPwDu4jo4x,,P85E0dmhZGvNtBwi        | 26-190-260-5375 | r requests around the unusual, bold a                                                                                |
+ 49  | Customer#000000049 | 90965.7262         | 4573.94 | IRAN           | cNgAeX7Fqrdf7HQN9EwjUa4nxT,68L FKAxzl    | 20-908-631-4424 | nusual foxes! fluffily pending packages maintain to the regular                                                      |
+ 52  | Customer#000000052 | 46220.94           | 5630.28 | IRAQ           | 7 QOqGqqSy9jfV51BC71jcHJSD0              | 21-186-284-5998 | ic platelets use evenly even accounts. stealthy theodolites cajole furiou                                            |
+ 53  | Customer#000000053 | 92568.9124         | 4113.64 | MOROCCO        | HnaxHzTfFTZs8MuCpJyTbZ47Cm4wFOOgib       | 25-168-852-5363 | ar accounts are. even foxes are blithely. fluffily pending deposits boost                                            |
+ 56  | Customer#000000056 | 41169.612          | 6530.86 | IRAN           | BJYZYJQk4yD5B                            | 20-895-685-6920 | . notornis wake carefully. carefully fluffy requests are furiously even accounts. slyly expre                        |
+ 59  | Customer#000000059 | 84655.5711         | 3458.6  | ARGENTINA      | zLOCP0wh92OtBihgspOGl4                   | 11-355-584-3112 | ously final packages haggle blithely after the express deposits. furiou                                              |
+ 61  | Customer#000000061 | 12291.834799999999 | 1536.24 | PERU           | 9kndve4EAJxhg3veF BfXr7AqOsT39o gtqjaYE  | 27-626-559-8599 | egular packages shall have to impress along the                                                                      |
+ 62  | Customer#000000062 | 106368.0153        | 595.61  | GERMANY        | upJK2Dnw13,                              | 17-361-978-7059 | kly special dolphins. pinto beans are slyly. quickly regular accounts are furiously a                                |
+ 65  | Customer#000000065 | 60379.767900000006 | 8795.16 | UNITED KINGDOM | RGT yzQ0y4l0H90P783LG4U95bXQFDRXbWa1sl,X | 33-733-623-5267 | y final foxes serve carefully. theodolites are carefully. pending i                                                  |
+ 67  | Customer#000000067 | 34848.65930000001  | 8166.59 | INDONESIA      | rfG0cOgtr5W8 xILkwp9fpCS8                | 19-403-114-4356 | indle furiously final, even theodo                                                                                   |
+ 71  | Customer#000000071 | 129481.0245        | -611.19 | GERMANY        | TlGalgdXWBmMV,6agLyWYDyIz9MKzcY8gl,w6t1B | 17-710-812-5403 | g courts across the regular, final pinto beans are blithely pending ac                                               |
+ 76  | Customer#000000076 | 71918.90599999999  | 5745.33 | ALGERIA        | m3sbCvjMOHyaOofH,e UkGPtqc4              | 10-349-718-3044 | pecial deposits. ironic ideas boost blithely according to the closely ironic theodolites! furiously final deposits n |
+ 82  | Customer#000000082 | 86998.9644         | 9468.34 | CHINA          | zhG3EZbap4c992Gj3bK,3Ne,Xn               | 28-159-442-5305 | s wake. bravely regular accounts are furiously. regula                                                               |
+ 83  | Customer#000000083 | 25887.6152         | 6463.51 | RUSSIA         | HnhTNB5xpnSF20JBH4Ycs6psVnkC3RDf         | 32-817-154-4122 | ccording to the quickly bold warhorses. final, regular foxes integrate carefully. bold packages nag blithely ev      |
+ 85  | Customer#000000085 | 16365.405299999999 | 3386.64 | ETHIOPIA       | siRerlDwiolhYR 8FgksoezycLj              | 15-745-585-8219 | ronic ideas use above the slowly pendin                                                                              |
+ 86  | Customer#000000086 | 24827.064599999998 | 3306.32 | ALGERIA        | US6EGGHXbTTXPL9SBsxQJsuvy                | 10-677-951-2353 | quests. pending dugouts are carefully aroun                                                                          |
+ 89  | Customer#000000089 | 121663.1243        | 1530.76 | KENYA          | dtR, y9JQWUO6FoJExyp8whOU                | 24-394-451-5404 | counts are slyly beyond the slyly final accounts. quickly final ideas wake. r                                        |
+ 91  | Customer#000000091 | 7995.9728          | 4643.14 | INDIA          | S8OMYFrpHwoNHaGBeuS6E 6zhHGZiprw1b7 q    | 18-239-400-3677 | onic accounts. fluffily silent pinto beans boost blithely according to the fluffily exp                              |
+ 94  | Customer#000000094 | 7136.196899999999  | 5500.11 | INDONESIA      | IfVNIN9KtkScJ9dUjK3Pg5gY1aFeaXewwf       | 19-953-499-8833 | latelets across the bold, final requests sleep according to the fluffily bold accounts. unusual deposits amon        |
+ 97  | Customer#000000097 | 45063.648          | 2164.48 | PERU           | OApyejbhJG,0Iw3j rd1M                    | 27-588-919-5638 | haggle slyly. bold, special ideas are blithely above the thinly bold theo                                            |
+ 103 | Customer#000000103 | 97311.77240000002  | 2757.45 | INDONESIA      | 8KIsQX4LJ7QMsj6DrtFtXu0nUEdV,8a          | 19-216-107-2107 | furiously pending notornis boost slyly around the blithely ironic ideas? final, even instructions cajole fl          |
+ 106 | Customer#000000106 | 190241.3334        | 3288.42 | ARGENTINA      | xGCOEAUjUNG                              | 11-751-989-4627 | lose slyly. ironic accounts along the evenly regular theodolites wake about the special, final gifts.                |
+ 109 | Customer#000000109 | 38469.9242         | -716.1  | MOZAMBIQUE     | OOOkYBgCMzgMQXUmkocoLb56rfrdWp2NE2c      | 26-992-422-8153 | es. fluffily final dependencies sleep along the blithely even pinto beans. final deposits haggle furiously furiou    |
+ 112 | Customer#000000112 | 111137.71409999998 | 2953.35 | ROMANIA        | RcfgG3bO7QeCnfjqJT1                      | 29-233-262-8382 | rmanently unusual multipliers. blithely ruthless deposits are furiously along the                                    |
+ 116 | Customer#000000116 | 46116.520000000004 | 8403.99 | MOZAMBIQUE     | yCuVxIgsZ3,qyK2rloThy3u                  | 26-632-309-5792 | as. quickly final sauternes haggle slyly carefully even packages. brave, ironic pinto beans are above the furious    |
+ 121 | Customer#000000121 | 282635.1719        | 6428.32 | PERU           | tv nCR2YKupGN73mQudO                     | 27-411-990-2959 | uriously stealthy ideas. carefully final courts use carefully                                                        |
+ 124 | Customer#000000124 | 222182.5188        | 1842.49 | CHINA          | aTbyVAW5tCd,v09O                         | 28-183-750-7809 | le fluffily even dependencies. quietly s                                                                             |
+ 125 | Customer#000000125 | 84808.068          | -234.12 | ROMANIA        | ,wSZXdVR xxIIfm9s8ITyLl3kgjT6UC07GY0Y    | 29-261-996-3120 | x-ray finally after the packages? regular requests c                                                                 |
+ 136 | Customer#000000136 | 95855.39799999999  | -842.39 | GERMANY        | QoLsJ0v5C1IQbh,DS1                       | 17-501-210-4726 | ackages sleep ironic, final courts. even requests above the blithely bold requests g                                 |
+ 139 | Customer#000000139 | 46680.12899999999  | 7897.78 | INDONESIA      | 3ElvBwudHKL02732YexGVFVt                 | 19-140-352-1403 | nstructions. quickly ironic ideas are carefully. bold,                                                               |
+ 142 | Customer#000000142 | 21215.799          | 2209.81 | INDONESIA      | AnJ5lxtLjioClr2khl9pb8NLxG2,             | 19-407-425-2584 | . even, express theodolites upo                                                                                      |
+ 145 | Customer#000000145 | 99256.9018         | 9748.93 | JORDAN         | kQjHmt2kcec cy3hfMh969u                  | 23-562-444-8454 | ests? express, express instructions use. blithely fina                                                               |
+ 146 | Customer#000000146 | 103265.98879999999 | 3328.68 | CANADA         | GdxkdXG9u7iyI1,,y5tq4ZyrcEy              | 13-835-723-3223 | ffily regular dinos are slyly unusual requests. slyly specia                                                         |
+ 148 | Customer#000000148 | 63188.932          | 2135.6  | IRAQ           | BhSPlEWGvIJyT9swk vCWE                   | 21-562-498-6636 | ing to the carefully ironic requests. carefully regular dependencies about the theodolites wake furious              |
+ 149 | Customer#000000149 | 30070.928999999996 | 8959.65 | ROMANIA        | 3byTHCp2mNLPigUrrq                       | 29-797-439-6760 | al instructions haggle against the slyly bold w                                                                      |
+</entry>
+
+<entry key="q11.query">
+Qsub1(ps_pk,sum(ps_sc * ps_aq)):-
+    partsupp(ps_pk,ps_sk,ps_aq,ps_sc,ps2),
+    supplier(ps_sk,s1,s2,s_nk,s3,s4,s5),
+    nation(s_nk,'IRAN',n1,n2).
+
+Qsub2(sum((CAST (c2 AS float8))*0.0001)) :- Qsub1(c1, c2).
+
+Q(c1,c2) :- Qsub1(c1, c2), Qsub2(c3), c2 > c3.
+
+ANS: Q.
+</entry>
+<entry key="q11.result">
+ a0  | a1                 |
+---------------------------
+ 179 | 728353.5           |
+ 115 | 852703.3500000001  |
+ 128 | 2969374.7800000003 |
+ 4   | 138390.78          |
+ 168 | 137006.00999999998 |
+ 164 | 196486.92          |
+ 126 | 5072828.9399999995 |
+ 102 | 1603740.84         |
+ 180 | 308539.84          |
+ 150 | 536837.6           |
+ 58  | 2348026.56         |
+ 146 | 5059670.87         |
+ 196 | 179700.58          |
+ 15  | 2617258.8          |
+ 32  | 6795642.42         |
+ 162 | 1655794.98         |
+ 6   | 690254.75          |
+ 197 | 734180.55          |
+ 134 | 2434515.5999999996 |
+ 78  | 7237355.100000001  |
+ 124 | 3606392.16         |
+ 18  | 747191.25          |
+ 8   | 1705971.42         |
+ 148 | 1420441.8          |
+ 71  | 1704564.27         |
+ 2   | 926829.75          |
+ 97  | 1095432.5999999999 |
+ 108 | 2318668.65         |
+ 186 | 6446613.96         |
+ 12  | 277737.44          |
+ 95  | 7185227.46         |
+ 70  | 3650926.4          |
+ 48  | 3087580.32         |
+ 158 | 1162808.4000000001 |
+ 68  | 108038.28          |
+ 130 | 2147628.5          |
+ 38  | 698954.86          |
+ 178 | 2363267.36         |
+ 119 | 456180.01          |
+ 137 | 173653.95          |
+ 50  | 225485.68          |
+ 188 | 3732378.25         |
+ 138 | 76735.68000000001  |
+ 54  | 56739.08           |
+ 35  | 398837.24000000005 |
+ 171 | 7097915.81         |
+ 26  | 7973976.78         |
+ 19  | 464872.80000000005 |
+ 104 | 1340876.41         |
+ 30  | 4412078.16         |
+ 133 | 193184.72          |
+ 157 | 980594.0000000001  |
+ 98  | 8615280.06         |
+ 170 | 559080.08          |
+ 42  | 2075418.6199999999 |
+ 151 | 212535.18          |
+ 112 | 4417981.25         |
+ 198 | 4040205.98         |
+ 80  | 5092702.2          |
+ 46  | 106785.5           |
+ 86  | 4528475.38         |
+ 62  | 5659470.16         |
+ 57  | 630987.4400000001  |
+ 195 | 2781332.81         |
+ 64  | 53189.28           |
+ 33  | 4097110.5          |
+ 88  | 2046291.2799999998 |
+ 28  | 1360884.98         |
+ 132 | 1872277.18         |
+ 106 | 2451313.92         |
+ 24  | 1138442.4          |
+ 154 | 7023789.850000001  |
+ 51  | 622249.54          |
+ 118 | 516842.62          |
+ 96  | 6712815.649999999  |
+</entry>
+
+<entry key="q12.query">
+Q1(l_okey,l_linenumber,l_shipmode) :-
+    lineitem(l_okey,x8,x9,l_linenumber,x11,x12,x13,x14,x15,x16,l_shipdate,l_commitdate,l_receiptdate,x17,l_shipmode,x18),
+    l_commitdate &lt; l_receiptdate,
+    l_shipdate &lt; l_commitdate,
+    l_receiptdate &gt;= '1994-01-01',
+    l_receiptdate &lt; '1995-01-01'.
+
+Qshipmodes('SHIP').
+Qshipmodes('MAIL').
+
+Q2(l_okey,l_linenumber,l_shipmode) :- Q1(l_okey,l_linenumber,l_shipmode),Qshipmodes(l_shipmode).
+
+Q(l_shipmode,
+  sum(CASE WHEN o_orderpriority = '1-URGENT' THEN 1
+           WHEN o_orderpriority = '2-HIGH' THEN 1
+           ELSE 0
+           END),
+  sum(CASE WHEN o_orderpriority &lt;&gt; '1-URGENT'
+           THEN (CASE WHEN o_orderpriority &lt;&gt; '2-HIGH' THEN 1 ELSE 0 END)
+           ELSE 0
+           END))
+:-
+orders(o_okey,x1,x2,x3,x4,o_orderpriority,x5,x6,x7),
+Q2(o_okey,l_linenumber,l_shipmode).
+
+ANS:Q.
+</entry>
+<entry key="q12.result">
+ a0   | a1 | a2 |
+-----------------
+ MAIL | 5  | 5  |
+ SHIP | 5  | 10 |
+</entry>
+
+<entry key="q13.query">
+  Q1(c_custkey, count(o_orderkey)) :-
+    customer(c_custkey,c1,c2,c3,c4,c5,c6,c7),
+    orders(o_orderkey,c_custkey,o1, o2, o3,o4, o5,o6,o_comment),
+    o_comment NOT LIKE '%special%requests%'.
+
+Q1(c_custkey, 0) :- customer(c_custkey,c1,c2,c3,c4,c5,c6,c7).
+
+Q2(c_custkey, sum(Y)) :- Q1(c_custkey, Y).
+
+Q(c_count, count(1)) :-
+    Q2(q1, c_count).
+
+ANS: Q.
+</entry>
+<entry key="q13.result">
+ a0 | a1 |
+----------
+ 29 | 2  |
+ 3  | 1  |
+ 14 | 5  |
+ 18 | 4  |
+ 21 | 4  |
+ 23 | 5  |
+ 26 | 3  |
+ 24 | 2  |
+ 22 | 3  |
+ 4  | 3  |
+ 9  | 6  |
+ 13 | 6  |
+ 6  | 3  |
+ 16 | 8  |
+ 10 | 5  |
+ 8  | 4  |
+ 19 | 2  |
+ 17 | 7  |
+ 7  | 4  |
+ 25 | 1  |
+ 28 | 1  |
+ 11 | 4  |
+ 15 | 2  |
+ 12 | 6  |
+ 0  | 50 |
+ 20 | 6  |
+ 5  | 3  |
+</entry>
+
+<entry key="q14.query">
+Q1(sum(CASE WHEN p_type LIKE 'PROMO%' THEN l_extp*(1-l_discount) ELSE 0 END),
+   sum(l_extp*(1-l_discount))) :-
+    part(p_partkey,p1,p2,p3,p_type,p4,p5,p6,p7),
+    lineitem(l1,p_partkey,l2,l3,l4,l_extp,l_discount,l5,l6,l7,l_shipdate,l8,l9,l10,l11,l12),
+    l_shipdate &gt;= '1995-09-01',
+    l_shipdate &lt; '1995-10-01'.
+
+Q(100 * (X / Y)) :- Q1(X,Y).
+
+ANS: Q.
+</entry>
+<entry key="q14.result">
+ a0                 |
+---------------------
+ 15.230212611597254 |
+</entry>
+
+<entry key="q15.query">
+Q1(l_suppkey, sum(l_extp*(1-l_discount))) :-
+lineitem(l1,l2,l_suppkey,l3,l4,l_extp,l_discount,l5,l6,l7,l_shipdate,l8,l9,l10,l11,l12),
+l_shipdate &gt;= '1996-01-01',
+l_shipdate &lt; '1996-04-01'.
+
+Q2(max(rev)) :-
+Q1(q1, rev).
+
+Q(s_suppkey,s_name,s_address,s_phone,rev) :-
+supplier(s_suppkey,s_name,s_address,s1,s_phone,s2,s3),
+Q1(s_suppkey, rev),
+Q2(rev).
+
+ANS: Q.
+</entry>
+<entry key="q15.result">
+ a0 | a1                 | a2                 | a3              | a4          |
+-------------------------------------------------------------------------------
+ 10 | Supplier#000000010 | Saygah3gYWMp72i PY | 34-852-489-8585 | 797313.3838 |
+</entry>
+
+<entry key="q16.query">
+Qsizes(49).
+Qsizes(14).
+Qsizes(23).
+Qsizes(45).
+Qsizes(19).
+Qsizes(3).
+Qsizes(36).
+Qsizes(9).
+
+Q(p_brand,p_type,p_size,count(s_suppkey)) :-
+    Qaggin(p_brand,p_type,p_size,s_suppkey).
+
+Qaggin(p_brand,p_type,p_size,ps_suppkey) :-
+    Qfilter(p_brand,p_type,p_size,ps_suppkey),
+    Qttlcom(ps_suppkey, 0).
+
+Qttlcom(ps_suppkey, sum(cnt)) :- Qcomplaints(ps_suppkey, cnt).
+
+Qcomplaints(s_suppkey,1) :-
+    supplier(s_suppkey,s1,s2,s3,s4,s5,s_comment),
+    s_comment LIKE '%Customer%Complaints%'.
+
+Qcomplaints(ps_suppkey,0) :- Qfilter(x1,x2,x3,ps_suppkey).
+
+Qfilter(p_brand,p_type,p_size,ps_suppkey) :-
+    partsupp(p_partkey,ps_suppkey,ps1,ps2,ps3),
+    part(p_partkey,p1,p2,p_brand,p_type,p_size,p3,p4,p5),
+    QSizes(p_size),
+    p_brand != 'Brand#45',
+    p_type NOT LIKE 'MEDIUM POLISHED%'.
+
+ANS: Q.
+</entry>
+<entry key="q16.result">
+ a0       | a1                      | a2 | a3 |
+-----------------------------------------------
+ Brand#11 | PROMO ANODIZED TIN      | 45 | 4  |
+ Brand#11 | SMALL PLATED COPPER     | 45 | 4  |
+ Brand#11 | STANDARD POLISHED TIN   | 45 | 4  |
+ Brand#13 | MEDIUM ANODIZED STEEL   | 36 | 4  |
+ Brand#13 | SMALL BRUSHED NICKEL    | 19 | 4  |
+ Brand#14 | SMALL ANODIZED NICKEL   | 45 | 4  |
+ Brand#15 | LARGE ANODIZED BRASS    | 45 | 4  |
+ Brand#21 | LARGE BURNISHED COPPER  | 19 | 4  |
+ Brand#23 | ECONOMY BRUSHED COPPER  | 9  | 4  |
+ Brand#24 | MEDIUM PLATED STEEL     | 19 | 4  |
+ Brand#25 | MEDIUM PLATED BRASS     | 45 | 4  |
+ Brand#25 | SMALL BURNISHED COPPER  | 3  | 4  |
+ Brand#31 | ECONOMY PLATED STEEL    | 23 | 4  |
+ Brand#31 | PROMO POLISHED TIN      | 23 | 4  |
+ Brand#32 | MEDIUM BURNISHED BRASS  | 49 | 4  |
+ Brand#33 | LARGE BRUSHED TIN       | 36 | 4  |
+ Brand#33 | SMALL BURNISHED NICKEL  | 3  | 4  |
+ Brand#34 | LARGE PLATED BRASS      | 45 | 4  |
+ Brand#34 | MEDIUM BRUSHED COPPER   | 9  | 4  |
+ Brand#34 | SMALL PLATED BRASS      | 14 | 4  |
+ Brand#35 | STANDARD ANODIZED STEEL | 23 | 4  |
+ Brand#43 | MEDIUM ANODIZED BRASS   | 14 | 4  |
+ Brand#43 | PROMO POLISHED BRASS    | 19 | 4  |
+ Brand#43 | SMALL BRUSHED NICKEL    | 9  | 4  |
+ Brand#44 | SMALL PLATED COPPER     | 19 | 4  |
+ Brand#51 | ECONOMY POLISHED STEEL  | 49 | 4  |
+ Brand#52 | MEDIUM BURNISHED TIN    | 45 | 4  |
+ Brand#52 | SMALL BURNISHED NICKEL  | 14 | 4  |
+ Brand#53 | LARGE BURNISHED NICKEL  | 23 | 4  |
+ Brand#53 | MEDIUM BRUSHED COPPER   | 3  | 4  |
+ Brand#53 | STANDARD PLATED STEEL   | 45 | 4  |
+ Brand#54 | ECONOMY ANODIZED BRASS  | 9  | 4  |
+ Brand#55 | STANDARD ANODIZED BRASS | 36 | 4  |
+ Brand#55 | STANDARD BRUSHED COPPER | 3  | 4  |
+</entry>
+
+<entry key="q17.query">
+Qsub(l_pk,avg(0.2*l_q)):-
+lineitem(l1,l_pk,l2,l3,l_q,l_ep,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13).
+
+Q(sum(l_ep/7.0)):-
+Qsub(l_pk,q2),
+part(l_pk,p1,p2,'Brand#34',p3,p4,'MED BAG',p5,p6),
+lineitem(l1,l_pk,l2,l3,l_q,l_ep,l4,l5,l6,l7,l8,l9,l10,l11,l12,l13),
+l_q &lt; q2.
+
+ANS: Q.
+</entry>
+<entry key="q17.result">
+ a0                |
+--------------------
+ 2256.321428571429 |
+</entry>
+
+<entry key="q18.query">
+Q1(l_orderkey, sum(l_quantity)):-
+    lineitem(l_orderkey, X1, X2, X3, l_quantity, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14).
+
+Q(c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity)) :-
+    customer(c_custkey, c_name, C1, C2, C3, C4, C5, C6),
+    orders(o_orderkey, c_custkey, O1, o_totalprice, o_orderdate, O2, O3, O4, O5),
+    lineitem(o_orderkey, X1, X2, X3, l_quantity, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14),
+    Q1(o_orderkey, t1),
+    t1 > 250.0.
+
+ANS: Q.
+</entry>
+<entry key="q18.result">
+ a0                 | a1 | a2   | a3         | a4        | a5  |
+----------------------------------------------------------------
+ Customer#000000082 | 82 | 3460 | 1995-10-03 | 245976.74 | 254 |
+ Customer#000000070 | 70 | 2567 | 1998-02-27 | 263411.29 | 266 |
+ Customer#000000010 | 10 | 4421 | 1997-04-04 | 258779.02 | 255 |
+ Customer#000000068 | 68 | 2208 | 1995-05-01 | 245388.06 | 256 |
+</entry>
+
+<entry key="q19.query">
+Qquantities(1,1,11).
+Qquantities(2,10,20).
+Qquantities(3,20,30).
+
+Qpsize(1,5).
+Qpsize(2,10).
+Qpsize(3,15).
+
+Qbrand(1,'Brand#12').
+Qbrand(2,'Brand#23').
+Qbrand(3,'Brand#34').
+
+Qcontainer(1,'SM CASE').
+Qcontainer(1,'SM BOX').
+Qcontainer(1,'SM PACK').
+Qcontainer(1,'SM PKG').
+Qcontainer(2,'MED BAG').
+Qcontainer(2,'MED BOX').
+Qcontainer(2,'MED PACK').
+Qcontainer(2,'MED PKG').
+Qcontainer(3,'LG CASE').
+Qcontainer(3,'LG BOX').
+Qcontainer(3,'LG PACK').
+Qcontainer(3,'LG PKG').
+
+Qoptions(x1,x2,x3,x4,x5) :- Qquantities(id,x1,x2), Qcontainer(id,x3), Qpsize(id,x4), Qbrand(id,x5).
+
+Qshipmodes('AIR').
+Qshipmodes('AIR REG').
+Qshipmodes('TRAIN').
+Qshipmodes('TRUCK').
+Qshipmodes('MAIL').
+Qshipmodes('RAIL').
+Qshipmodes('FOB').
+Qshipmodes('SHIP').
+
+Qfilter(l_orderkey, l_linenumber, l_discount, l_extp) :-
+    lineitem(l_orderkey,p_partkey,l2,l_linenumber,l_quantity,l_extp,l_discount,l4,l5,l6,l7,l8,l9,l_deliver,l_shipmode,l10),
+    part(p_partkey,p1,p2,p_brand,p3,p_size,p_container,p4,p5),
+    Qshipmodes(l_shipmode),
+    Qoptions(q_low, q_high, p_container, p_high, p_brand),
+    l_quantity &gt;= q_low,
+    l_quantity &lt;= q_high,
+    p_size &gt;= 1,
+    p_size &lt;= p_high.
+
+Q(sum(l_extp * (1-l_discount))) :-
+    Qfilter(l_orderkey, l_linenumber, l_discount, l_extp).
+
+ANS: Q.
+</entry>
+<entry key="q19.result">
+ A0                 |
+---------------------
+ 40436.816999999995 |
+</entry>
+
+<entry key="q20.query">
+Q1(l_partkey,l_suppkey,sum(0.5*l_quantity)) :-
+    lineitem(l1,l_partkey,l_suppkey,l2,l_quantity,l3,l4,l5,l6,l7,l_shipdate,l8,l9,l10,l11,l12),
+    l_shipdate &gt;= '1994-01-01',
+    l_shipdate &lt; '1995-01-01'.
+
+Q2(s_suppkey) :-
+    part(p_partkey, p_name,p1,p2,p3,p4,p5,p6,p7),
+    partsupp(p_partkey,s_suppkey,s_available,s1,s2),
+    Q1(p_partkey,s_suppkey,quantity),
+    s_available &gt; quantity,
+    p_name LIKE 'forest%'.
+
+Q(s_name,s_address) :-
+    supplier(s_suppkey,s_name,s_address,n_nationkey,s1,s2,s3),
+    nation(n_nationkey,n_name,n1,n2),
+    Q2(s_suppkey).
+
+ANS: Q.
+</entry>
+<entry key="q20.result">
+ a0                 | a1                             |
+------------------------------------------------------
+ Supplier#000000002 | 89eJ5ksX3ImxJQBvxObC,          |
+ Supplier#000000006 | tQxuVm7s7CnK                   |
+ Supplier#000000008 | 9Sq4bBH2FQEmaFOocY45sRTxo6yuoG |
+</entry>
+
+<!-- <entry key="q21.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q21.result"> -->
+<!-- </entry> -->
+
+<!-- <entry key="q22.query"> -->
+<!-- </entry> -->
+<!-- <entry key="q22.result"> -->
+<!-- </entry> -->
+
+
+</properties>

@@ -157,6 +157,20 @@ SELECT *
  2 | 3 |
 </entry>
 
+<entry key="q11.query">
+SELECT *
+FROM r
+WHERE b IN (SELECT b FROM r);
+</entry>
+<entry key="q11.result">
+ a | b |
+--------
+ 1 | 1 |
+ 1 | 2 |
+ 2 | 1 |
+ 2 | 3 |
+</entry>
+
 
 
 
