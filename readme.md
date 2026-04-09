@@ -1,5 +1,6 @@
-[![analytics](http://www.google-analytics.com/collect?v=1&t=pageview&_s=1&dl=https%3A%2F%2Fgithub.com%2FIITDBGroup%2Fgprom%2Fmain&_u=MAC~&cid=123456789&tid=UA-92255635-2)]()
 [![Build Status](https://github.com/IITDBGroup/gprom/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/IITDBGroup/gprom/actions/workflows/ci.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/iitdbgroup/gprom.svg)](https://hub.docker.com/r/iitdbgroup/gprom/)
+[![Docker Stars](https://shields.io/docker/stars/iitdbgroup/gprom.svg)](https://hub.docker.com/r/iitdbgroup/gprom/)
 
 # Overview
 
@@ -7,22 +8,20 @@
 
 GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC driver.
 
-# Online Demos
-
-* [Online Demo for PUG Provenance Graph Explorer](http://ec2-18-218-236-30.us-east-2.compute.amazonaws.com:5000/)
-
 # Documentation (Wiki Links)
 
-* [Installation Instructions](https://github.com/IITDBGroup/gprom/wiki/installation)
 * [Tutorial](https://github.com/IITDBGroup/gprom/wiki/tutorial)
+* [Installation instructions](https://github.com/IITDBGroup/gprom/wiki/installation)
+* [Docker images](https://github.com/IITDBGroup/gprom/wiki/docker)
 * [GProM Commandline Shell Manual](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md)
 * Provenance Language Features
   * [SQL](https://github.com/IITDBGroup/gprom/wiki/sql_extensions)
   * [Datalog](https://github.com/IITDBGroup/gprom/wiki/lang_datalog)
-* [Docker containers](https://github.com/IITDBGroup/gprom/wiki/docker)
 * [Optimization](https://github.com/IITDBGroup/gprom/wiki/research_optimization)
 * [Reenactment](https://github.com/IITDBGroup/gprom/wiki/research_reenactment)
-* [Provenance Graphs for Datalog](https://github.com/IITDBGroup/gprom/wiki/datalog_prov)
+* [Provenance graphs for Datalog](https://github.com/IITDBGroup/gprom/wiki/datalog_prov)
+* [Snapshot-reducible temporal semantics](https://github.com/IITDBGroup/gprom/wiki/temporal)
+* [Bounding answers over uncertain data](https://github.com/IITDBGroup/gprom/wiki/uncertain)
 
 # Features
 
