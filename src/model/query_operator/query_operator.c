@@ -260,7 +260,9 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs, bo
 	FOREACH(AttributeReference,a1,attrRefs)
 	{
 	    /* cnt = 0; */
-        ASSERT(a1->outerLevelsUp >= 0 || isNestingAttribute(a1->name));
+        ASSERT_WITH_MESSAGE((a1->outerLevelsUp >= 0 || isNestingAttribute(a1->name)),
+							"attribute reference: %s",
+							beatify(nodeToString(a1)));
 
         // ignore correlated attributes unless we are asked to adjust them
         if(a1->outerLevelsUp <= 0 || adjustCorrelatedAttrs)

@@ -273,7 +273,7 @@ lateralRewriteQuery(QueryOperator *input)
 											LIST_MAKE(createFullAttrReference(strdup(nestResultAttr),
 																			  0,
 																			  0,
-																			  INVALID_ATTR,
+																			  0,
 																			  nestingAttrDataType),
 													  copyObject(c1a))));
 		}

@@ -1861,7 +1861,7 @@ visitAttrRefToSetNewAttrPos(Node *n, void *context)
         AttributeReference *attrRef = (AttributeReference *) n;
         if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
         {
-        		attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
+        	attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
             attrRef->fromClauseItem = 0;
         }
     }

@@ -1039,12 +1039,12 @@ rewritePI_CSAggregation (AggregationOperator *op, PICSRewriteState *state)
 			AttributeReference *lA = createFullAttrReference(name,
                                                              0,
                                                              LIST_LENGTH(op->aggrs) + pos,
-                                                             INVALID_ATTR,
+                                                             0,
                                                              a->attrType);
 			AttributeReference *rA = createFullAttrReference(CONCAT_STRINGS("_P_SIDE_",name),
                                                              1,
                                                              pos,
-                                                             INVALID_ATTR,
+                                                             0,
                                                              a->attrType);
 
             // can use equality if attribute is not null
@@ -1186,7 +1186,7 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op, PICSRewriteState
 		    char *name = getNthOfListP(groupByNames, pos);
 			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, 0, a->attrType);
 			AttributeReference *rA = createFullAttrReference(
-			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos + aggAttrsLen, INVALID_ATTR, a->attrType);
+			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos + aggAttrsLen, 0, a->attrType);
 			if(joinCond)
 				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
 			else
@@ -1212,7 +1212,7 @@ rewritePI_CSAggregationReductionModel (AggregationOperator *op, PICSRewriteState
 		AttributeReference *ar = getNthOfListP(attrList, 0);
 
 		AttributeReference *rA = createFullAttrReference(
-				ar->name, 1, ar->attrPosition, INVALID_ATTR, ar->attrType);
+				ar->name, 1, ar->attrPosition, 0, ar->attrType);
 
 		Node *subJoinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
 

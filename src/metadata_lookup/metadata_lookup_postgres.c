@@ -662,7 +662,11 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
         List *argDTs = oidVecToDTList(strdup(candArgTypes));
         List *argOids = oidVecToOidList(candArgTypes);
 
-        DEBUG_LOG("argDTs: %s, argTypes: %s", nodeToString(argDTs), nodeToString(argTypes));
+        DEBUG_LOG("FUNCTION RETURN TYPES FOR [%s]\npostgres argument types: [%s]\nactual argument types argDTs: [%s]\nexpected arg types argTypes: [%s]",
+                  fName,
+                  candArgTypes,
+                  nodeToString(argDTs),
+                  nodeToString(argTypes));
         if (equal(argDTs, argTypes)) //TODO compatible data types
         {
             DataType retDT = postgresOidToDT(retType);

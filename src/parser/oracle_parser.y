@@ -1820,12 +1820,12 @@ windowBound:
  * Rule to parse JSON Functions
  */
 jsonTable:
-                /* empty */	{ RULELOG("jsonTable::NULL"); $$ = NULL; }
+        /* empty */	{ RULELOG("jsonTable::NULL"); $$ = NULL; }
 		| JSON_TABLE '(' attributeRef ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
-			{
-				RULELOG("jsonTable::jsonTable");
-  $$ = (Node *) createFromJsonTable((AttributeReference *) $3, $5, $8, $12, NULL);
-			}
+		{
+    		RULELOG("jsonTable::jsonTable");
+            $$ = (Node *) createFromJsonTable((AttributeReference *) $3, $5, $8, $12, NULL);
+		}
 	;
 
 jsonColInfo:
