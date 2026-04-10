@@ -99,5 +99,27 @@ A0|
 2|
 </entry>
 
+<entry key="q9.query">
+Q(X) :- R(X,Y), S(Y,Z), T(A,B), Z = 3.
+ANS : Q.
+</entry>
+<entry key="q9.result">
+ A0 |
+-----
+ 1  |
+</entry>
+
+<entry key="q10.query">
+Q(X) :- R(X,Y), T(A,B), Y = 3.
+ANS : Q.
+</entry>
+<entry key="q10.result">
+ A0 |
+-----
+ 2  |
+</entry>
+
+
+
 
 </properties>

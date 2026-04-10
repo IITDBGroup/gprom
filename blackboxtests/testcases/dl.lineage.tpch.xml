@@ -12,13 +12,34 @@
 </entry>
 
 <entry key="q1.query">
-Q(l_return, l_linestat, sum(l_quant), sum(l_extp), sum(l_extp*(1-l_disc)),  sum(l_extp*(1-l_disc)*(1+l_tax)), avg(l_quant), avg(l_extp), avg(l_disc), count(x1)) :-
+Q(l_return,
+  l_linestat,
+  sum(l_quant),
+  sum(l_extp),
+  sum(l_extp*(1-l_disc)),
+  sum(l_extp*(1-l_disc)*(1+l_tax)),
+  avg(l_quant),
+  avg(l_extp),
+  avg(l_disc),
+  count(x1)) :-
     lineitem(x1, x2, x3, x4, l_quant, l_extp, l_disc, l_tax, l_return, l_linestat, l_shipdate, x5, x6, x7, x8, x9),
     l_shipdate &lt;= '1998-09-01'.
 
-RP('R','F', 36511, 36570841.24, 34738472.87580004, 36169060.11219294, 25.0590253946465340, 25100.09693891558, 0.050027453671928686, 1457).
+Qround(l_return,
+       l_linestat,
+       sum_l_quant,
+       ROUND(CAST((sum_l_extp) AS NUMERIC),1),
+       ROUND(CAST((sum_l_extp_disc) AS NUMERIC),1),
+       ROUND(CAST((sum_l_extp_disc_tax) AS NUMERIC),1),
+       ROUND(CAST((avg_l_quant) AS NUMERIC),1),
+       ROUND(CAST((avg_l_extp) AS NUMERIC),1),
+       ROUND(CAST((avg_l_disc) AS NUMERIC),1),
+       cnt) :-
+    Q(l_return, l_linestat, sum_l_quant, sum_l_extp, sum_l_extp_disc, sum_l_extp_disc_tax, avg_l_quant, avg_l_extp, avg_l_disc, cnt).
 
-ANS: Q.
+RP('R','F', 36511, 36570841.2, 34738472.9, 36169060.1, 25.1, 25100.1, 0.1, 1457).
+
+ANS: Qround.
 
 LINEAGE FOR lineitem FOR RESULTS FROM RP.
 </entry>

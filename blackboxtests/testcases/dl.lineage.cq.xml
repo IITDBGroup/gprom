@@ -98,4 +98,18 @@ LINEAGE FOR PK_R.
  2  | 1  |
 </entry>
 
+<entry key="q8.query">
+Q(X) :- PK_R(X,Y), X &lt; 10.
+Q(X) :- PK_R(X,Y), Y &gt; 10.
+ANS : Q.
+LINEAGE FOR PK_R.
+</entry>
+<entry key="q8.result">
+ a0 | a1 |
+----------
+ 1  | 1  |
+ 3  | 3  |
+ 2  | 1  |
+</entry>
+
 </properties>
