@@ -15,6 +15,8 @@ from pg8000.native import Connection
 from tqdm import tqdm
 import difflib
 import sys
+from difflib import Differ
+import io
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
@@ -62,6 +64,29 @@ class DatabaseBackend(StrEnum):
 
 def color_diff_strings(s1, s2):
     """Highlights character-level differences using ANSI codes."""
+    GREEN = '[bold black on green]'
+    RED = '[bold white on red]'
+    END = '[/]'
+
+    output = []
+    s1lines = s1.splitlines()
+    s2lines = s2.splitlines()
+
+    diff = Differ().compare(s1lines, s2lines)
+    for line in diff:
+        if line.startswith('+'):
+            output.append(GREEN + " " + line[1:] + END)
+        elif line.startswith('-'):
+            output.append(RED + " " + line[1:] + END)
+        elif line.startswith('?'):
+            continue # Skip meta-information
+        else:
+            output.append(line)
+
+    return "\n".join(output)
+
+def old_color_diff_strings(s1, s2):
+    """Highlights character-level differences using ANSI codes."""
     # GREEN = '\x1b[38;5;16;48;5;2m'
     # RED = '\x1b[38;5;16;48;5;1m'
     # END = '\x1b[0m'
@@ -78,6 +103,7 @@ def color_diff_strings(s1, s2):
             output.append(RED + s1[a0:a1] + END)
             output.append(GREEN + s2[b0:b1] + END)
     return "".join(output)
+
 
 @dataclass
 class Table:
@@ -120,8 +146,15 @@ class Table:
     #     return diff.pretty()
 
     def colordiff(self, o: "Table"):
-        selfstr = str(self)
+        selfstr = str(self) # todo method for returning list of row strings to avoid this
         ostr = str(o)
+        selflines = selfstr.splitlines()
+        olines = ostr.splitlines()
+        selflines = selflines[0:2] + sorted(selflines[2:])
+        olines = olines[0:2] + sorted(olines[2:])
+        selfstr = "\n".join(selflines)
+        ostr = "\n".join(olines)
+
         return color_diff_strings(selfstr, ostr)
 
     def diff(self, o: "Table"):
@@ -160,20 +193,21 @@ class Table:
         return ' |'.join([ ' ' + x.ljust(attrvallen[i]) for i, x in enumerate(r)]) + " |" + ("\n" if newline else "")
 
     def __str__(self):
-        result = ""
+        result = io.StringIO()
         attrvallen = [ max([ len(x[i]) for x in self.rows ] + [0]) for i in range(0,len(self.schema)) ]
         attrvallen = [ max(attrvallen[i], len(self.schema[i]) ) for i in range(0,len(self.schema)) ]
 
-        result += Table.row_to_string(self.schema, attrvallen, True)
+        result.write(Table.row_to_string(self.schema, attrvallen, True))
         dividerlen = sum(attrvallen) + 3 * len(attrvallen)
 
-        result += "-" * dividerlen + "\n"
+        result.write("-" * dividerlen + "\n")
 
         for r in self.rows:
             rstr = Table.row_to_string(r, attrvallen, True)
             for i in range(0,self.rows[r]):
-                result += rstr
+                result.write(rstr)
 
+        result = result.getvalue()
         result = result[:-1]
 
         return result
