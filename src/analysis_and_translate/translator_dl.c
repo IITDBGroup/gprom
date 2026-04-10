@@ -334,7 +334,7 @@ translateProgram(DLProgram *p)
 }
 
 void
-analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
+analyzeProgramDTs(DLProgram *p, HashMap *predToRules)
 {
     HashMap *predToDTs = NEW_MAP(Constant,List);
 
@@ -397,7 +397,7 @@ analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
 }
 
 static void
-analyzeFactDTs (DLAtom *f, HashMap *predToDTs)
+analyzeFactDTs(DLAtom *f, HashMap *predToDTs)
 {
     List *dts = NIL;
 
@@ -409,7 +409,7 @@ analyzeFactDTs (DLAtom *f, HashMap *predToDTs)
 }
 
 static void
-analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
+analyzeRuleDTs(DLRule *r, HashMap *predToDTs, HashMap *predToRules)
 {
     HashMap *varToDT = NEW_MAP(Constant,Constant);
 
@@ -498,7 +498,7 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
 }
 
 static void
-setVarDTs (Node *expr, HashMap *varToDT)
+setVarDTs(Node *expr, HashMap *varToDT)
 {
     List *vars = getDLVarsIgnoreProps (expr);
 //    List *vars = getDLVars (expr);
@@ -1233,7 +1233,7 @@ replaceVarWithAttrRef(Node *node, void *state)
         AttributeReference *a = createFullAttrReference(strdup(v->name),
                 0,
                 pos,
-                INVALID_ATTR,
+                0,
                 v->dt);
         return (Node *) a;
     }
@@ -1348,7 +1348,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     				AttributeDef *a = getAttrDefByPos(sdom,s);
     				comp = (Node *) createOpExpr(OPNAME_EQ,
     						LIST_MAKE(createFullAttrReference(strdup(a->attrName),
-    								0, s, INVALID_ATTR, a->dataType),
+    														  0, s, 0, a->dataType),
     						copyObject(arg)));
 
     				ASSERT(a->dataType == ((Constant *) arg)->constType);
@@ -1660,7 +1660,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 						AttributeDef *a = getAttrDefByPos(sdom,s);
 						comp = (Node *) createOpExpr(OPNAME_EQ,
 								LIST_MAKE(createFullAttrReference(strdup(a->attrName),
-										0, s, INVALID_ATTR, a->dataType),
+										0, s, 0, a->dataType),
 								copyObject(arg)));
 
 						ASSERT(a->dataType == ((Constant *) arg)->constType);
@@ -1961,7 +1961,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
                 AttributeDef *a = getAttrDefByPos(pInput,i);
                 comp = (Node *) createOpExpr(OPNAME_EQ,
                         LIST_MAKE(createFullAttrReference(strdup(a->attrName),
-                                0, i, INVALID_ATTR, a->dataType),
+                                0, i, 0, a->dataType),
                         copyObject(arg)));
 
                 ASSERT(a->dataType == ((Constant *) arg)->constType);
@@ -1995,9 +1995,9 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
                             AttributeDef *aJ = getAttrDefByPos(pInput,j);
                             comp = (Node *) createOpExpr(OPNAME_EQ,
                                     LIST_MAKE(createFullAttrReference(strdup(aI->attrName),
-                                            0, i, INVALID_ATTR, aI->dataType),
+                                            0, i, 0, aI->dataType),
                                             createFullAttrReference(strdup(aJ->attrName),
-                                                    0, j, INVALID_ATTR, aJ->dataType))
+                                                    0, j, 0, aJ->dataType))
                                     );
 
                             selExpr = appendToTailOfList(selExpr, comp);
@@ -2371,7 +2371,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
             AttributeDef *a = getAttrDefByPos(pInput,i);
             comp = (Node *) createOpExpr(OPNAME_EQ,
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName),
-                            0, i, INVALID_ATTR, a->dataType),
+													  0, i, 0, a->dataType),
                     copyObject(arg)));
 
             // commented out as CAST later handles the data types
@@ -2405,10 +2405,10 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                         AttributeDef *aI = getAttrDefByPos(pInput,i);
                         AttributeDef *aJ = getAttrDefByPos(pInput,j);
                         comp = (Node *) createOpExpr(OPNAME_EQ,
-                                LIST_MAKE(createFullAttrReference(strdup(aI->attrName),
-                                        0, i, INVALID_ATTR, aI->dataType),
-                                        createFullAttrReference(strdup(aJ->attrName),
-                                                0, j, INVALID_ATTR, aJ->dataType))
+													 LIST_MAKE(createFullAttrReference(strdup(aI->attrName),
+																					   0, i, 0, aI->dataType),
+															   createFullAttrReference(strdup(aJ->attrName),
+																					   0, j, 0, aJ->dataType))
                                 );
 
                         selExpr = appendToTailOfList(selExpr, comp);

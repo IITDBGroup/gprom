@@ -736,14 +736,14 @@ functionCall:
         name '(' exprList ')'
             {
                 RULELOG("functionCall::IDENTIFIER::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
+				FunctionCall *f = createFunctionCall(backendifyIdentifier($1), $3);
 				f->isAgg = TRUE;
 				$$ = (Node *) f;
             }
 		| AMMSC '(' exprList ')'
             {
                 RULELOG("functionCall::AMMSC::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
+				FunctionCall *f = createFunctionCall(backendifyIdentifier($1), $3);
 				f->isAgg = TRUE;
 				$$ = (Node *) f;
             }
