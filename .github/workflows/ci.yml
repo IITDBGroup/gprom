@@ -206,6 +206,7 @@ jobs:
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
     - name: Create test summary
+      working-directory: blackboxtests
       if: always()
       uses: pmeier/pytest-results-action@main
       with:

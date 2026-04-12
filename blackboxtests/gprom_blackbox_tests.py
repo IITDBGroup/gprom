@@ -724,13 +724,6 @@ class GProMTestRunner:
     testcases: list[str] = None
     settings: list[str] = None
     tr: TestResult = None
-    # results: Dict[str,Dict[str, bool]] = field(default_factory=dict)
-    # errors: Dict[str,Dict[str, str]] = field(default_factory=dict)
-    # queries: Dict[str,Dict[str,str]] = field(default_factory=dict)
-    # diffs: Dict[str,Dict[str,str]] = field(default_factory=dict)
-    # testsettings: Dict[str,list[str]] = field(default_factory=dict)
-    # actualresults: Dict[str,list[str]] = field(default_factory=dict)
-    # totalnumtests: int = 0
     progressbar: tqdm = None
 
     FAT_STYLE = "bold black on white"
@@ -833,7 +826,7 @@ class GProMTestRunner:
         self.tr.errors = {}
         self.tr.settings = self.settings
         self.tr.testcases = self.testcases
-        self.tr.totalnumtests = self.root.count_testcases(self.testcases, self.tr.testsettings, DEFAULT_SETTING_NAME) # TODO conf?
+        self.tr.totalnumtests = self.root.count_testcases(self.testcases, self.tr.testsettings, DEFAULT_SETTING_NAME) # TODO DEFAULT_SETTING_NAME conf?
         print(f"num tests: {self.tr.totalnumtests}")
         self.progressbar = tqdm(total=self.tr.totalnumtests, desc="Testcases")
         self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
