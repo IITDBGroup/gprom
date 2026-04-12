@@ -16,15 +16,27 @@ Q(l_return, l_linestat, sum(l_quant), sum(l_extp), sum(l_extp*(1-l_disc)),  sum(
     lineitem(x1, x2, x3, x4, l_quant, l_extp, l_disc, l_tax, l_return, l_linestat, l_shipdate, x5, x6, x7, x8, x9),
     l_shipdate &lt;= '1998-09-01'.
 
-ANS: Q.
+Qround(l_return,
+       l_linestat,
+       sum_l_quant,
+       ROUND(CAST((sum_l_extp) AS NUMERIC),1),
+       ROUND(CAST((sum_l_extp_disc) AS NUMERIC),1),
+       ROUND(CAST((sum_l_extp_disc_tax) AS NUMERIC),1),
+       ROUND(CAST((avg_l_quant) AS NUMERIC),1),
+       ROUND(CAST((avg_l_extp) AS NUMERIC),1),
+       ROUND(CAST((avg_l_disc) AS NUMERIC),1),
+       cnt) :-
+    Q(l_return, l_linestat, sum_l_quant, sum_l_extp, sum_l_extp_disc, sum_l_extp_disc_tax, avg_l_quant, avg_l_extp, avg_l_disc, cnt).
+
+ANS: Qround.
 </entry>
 <entry key="q1.result">
- a0 | a1 | a2    | a3                | a4                 | a5                | a6                  | a7                 | a8                   | a9   |
---------------------------------------------------------------------------------------------------------------------------------------------------------
- R  | F  | 36511 | 36570841.24       | 34738472.87580004  | 36169060.11219294 | 25.0590253946465340 | 25100.09693891558  | 0.050027453671928686 | 1457 |
- A  | F  | 37474 | 37569624.63999998 | 35676192.096999995 | 37101416.22242404 | 25.3545331529093369 | 25419.231826792948 | 0.050866035182679493 | 1478 |
- N  | F  | 1041  | 1041301.07        | 999060.8979999998  | 1036450.80228     | 27.3947368421052632 | 27402.659736842103 | 0.042894736842105284 | 38   |
- N  | O  | 75163 | 75380110.0699997  | 71648611.72140016  | 74494106.9136128  | 25.5656462585034014 | 25639.49322108833  | 0.049693877551020525 | 2940 |
+ a0 | a1 | a2    | a3         | a4         | a5         | a6   | a7      | a8  | a9   |
+  ---------------------------------------------------------------------------------------
+   A  | F  | 37474 | 37569624.6 | 35676192.1 | 37101416.2 | 25.4 | 25419.2 | 0.1 | 1478 |
+   N  | F  | 1041  | 1041301.1  | 999060.9   | 1036450.8  | 27.4 | 27402.7 | 0.0 | 38   |
+   N  | O  | 75163 | 75380110.1 | 71648611.7 | 74494106.9 | 25.6 | 25639.5 | 0.0 | 2940 |
+   R  | F  | 36511 | 36570841.2 | 34738472.9 | 36169060.1 | 25.1 | 25100.1 | 0.1 | 1457 |
 </entry>
 
 <entry key="q2.query">
@@ -108,16 +120,19 @@ region(n_rk,r_nam,r2),
 o_od &gt;= '1994-01-01',
 o_od &lt; '1995-01-01'.
 
-ANS: Q.
+Qround(n_n,ROUND(CAST(s AS NUMERIC), 2)) :-
+    Q(n_n,s).
+
+ANS: Qround.
 </entry>
 <entry key="q5.result">
- a0       | a1                |
--------------------------------
- ETHIOPIA | 115183.8546       |
- IRAN     | 41912.964         |
- IRAQ     | 74391.78899999999 |
- MOROCCO  | 220457.0142       |
- PERU     | 272671.522        |
+ a0       | a1        |
+-----------------------
+ PERU     | 272671.52 |
+ ETHIOPIA | 115183.85 |
+ IRAN     | 41912.96  |
+ MOROCCO  | 220457.01 |
+ IRAQ     | 74391.79  |
 </entry>
 
 <entry key="q6.query">
@@ -179,7 +194,7 @@ Q2(date_part('YEAR',o_odate),l_extend*(1-l_discount),n_name) :-
 Q1(year, sum(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END), sum(volume)) :-
     Q2(year,volume,nation).
 
-Q(year, x / y) :- Q1(year,X,Y).
+Q(year, CAST((x / y) AS INT)) :- Q1(year,X,Y).
 
 ANS:Q.
 </entry>
@@ -203,70 +218,73 @@ Q1(n_name, date_part('year',o_orderdate), ((l_ep * (1-l_discount)) - (ps_supplyc
 Q(nation, o_year, sum(amount)) :-
     Q1(nation, o_year, amount).
 
-ANS: Q.
+Qround(nation,o_year,ROUND(CAST(suma AS NUMERIC),1)) :-
+    Q(nation,o_year,suma).
+
+ANS: Qround.
 </entry>
 <entry key="q9.result">
- a0             | a1   | a2                 |
----------------------------------------------
- ARGENTINA      | 1992 | 35740              |
- ARGENTINA      | 1993 | 35857.08           |
- ARGENTINA      | 1994 | 36767.101500000004 |
- ARGENTINA      | 1995 | 134490.5697        |
- ARGENTINA      | 1996 | 7731.089399999995  |
- ARGENTINA      | 1997 | 18247.873399999993 |
- ETHIOPIA       | 1992 | 1525.8234999999986 |
- ETHIOPIA       | 1994 | 3578.9478999999974 |
- ETHIOPIA       | 1995 | 51231.87439999999  |
- ETHIOPIA       | 1997 | 19419.294599999997 |
- ETHIOPIA       | 1998 | 2758.7801999999992 |
- IRAN           | 1992 | 87142.2396         |
- IRAN           | 1993 | 78655.1676         |
- IRAN           | 1994 | 18140.925599999995 |
- IRAN           | 1995 | 84094.58260000001  |
- IRAN           | 1996 | 70143.7761         |
- IRAN           | 1997 | 52643.7736         |
- IRAN           | 1998 | 37817.229600000006 |
- IRAQ           | 1992 | 47755.05900000001  |
- IRAQ           | 1993 | 33221.9399         |
- IRAQ           | 1994 | 36010.728599999995 |
- IRAQ           | 1996 | 45103.3242         |
- IRAQ           | 1997 | 93676.24359999999  |
- IRAQ           | 1998 | 22860.8082         |
- KENYA          | 1992 | 181517.2089        |
- KENYA          | 1993 | 128422.01959999997 |
- KENYA          | 1994 | 102360.66609999999 |
- KENYA          | 1995 | 79262.6278         |
- KENYA          | 1996 | 59195.90209999999  |
- KENYA          | 1997 | 57578.36259999999  |
- KENYA          | 1998 | 44194.831999999995 |
- MOROCCO        | 1992 | 159097.0888        |
- MOROCCO        | 1993 | 100050.20439999999 |
- MOROCCO        | 1994 | 139474.158         |
- MOROCCO        | 1995 | 180062.255         |
- MOROCCO        | 1996 | 147888.0158        |
- MOROCCO        | 1997 | 51796.2218         |
- MOROCCO        | 1998 | 95135.54319999999  |
- PERU           | 1992 | 80646.8605         |
- PERU           | 1993 | 49379.8138         |
- PERU           | 1994 | 88046.2533         |
- PERU           | 1995 | 122247.94519999999 |
- PERU           | 1996 | 177040.40759999995 |
- PERU           | 1997 | 121110.41070000001 |
- PERU           | 1998 | 86999.36459999997  |
- UNITED KINGDOM | 1992 | 67747.88279999999  |
- UNITED KINGDOM | 1993 | 322548.4921        |
- UNITED KINGDOM | 1994 | 140595.5864        |
- UNITED KINGDOM | 1995 | 225267.65759999998 |
- UNITED KINGDOM | 1996 | 147684.46480000002 |
- UNITED KINGDOM | 1997 | 114288.86050000001 |
- UNITED KINGDOM | 1998 | 50577.25560000001  |
- UNITED STATES  | 1992 | 34092.366          |
- UNITED STATES  | 1993 | 27168.486199999992 |
- UNITED STATES  | 1994 | 43075.6299         |
- UNITED STATES  | 1995 | 62201.23360000001  |
- UNITED STATES  | 1996 | 79297.8567         |
- UNITED STATES  | 1997 | 94729.5704         |
- UNITED STATES  | 1998 | 3957.0431999999996 |
+ a0             | a1   | a2       |
+-----------------------------------
+ ARGENTINA      | 1994 | 36767.1  |
+ ARGENTINA      | 1996 | 7731.1   |
+ IRAN           | 1995 | 84094.6  |
+ KENYA          | 1993 | 128422.0 |
+ UNITED KINGDOM | 1993 | 322548.5 |
+ MOROCCO        | 1992 | 159097.1 |
+ ARGENTINA      | 1997 | 18247.9  |
+ IRAN           | 1994 | 18140.9  |
+ MOROCCO        | 1997 | 51796.2  |
+ ETHIOPIA       | 1995 | 51231.9  |
+ ETHIOPIA       | 1992 | 1525.8   |
+ IRAQ           | 1996 | 45103.3  |
+ MOROCCO        | 1993 | 100050.2 |
+ KENYA          | 1997 | 57578.4  |
+ MOROCCO        | 1995 | 180062.3 |
+ PERU           | 1993 | 49379.8  |
+ IRAQ           | 1992 | 47755.1  |
+ PERU           | 1996 | 177040.4 |
+ PERU           | 1992 | 80646.9  |
+ UNITED STATES  | 1992 | 34092.4  |
+ UNITED KINGDOM | 1994 | 140595.6 |
+ MOROCCO        | 1996 | 147888.0 |
+ UNITED KINGDOM | 1995 | 225267.7 |
+ IRAN           | 1992 | 87142.2  |
+ ARGENTINA      | 1992 | 35740.0  |
+ UNITED STATES  | 1996 | 79297.9  |
+ PERU           | 1998 | 86999.4  |
+ KENYA          | 1994 | 102360.7 |
+ ETHIOPIA       | 1997 | 19419.3  |
+ IRAN           | 1997 | 52643.8  |
+ UNITED KINGDOM | 1997 | 114288.9 |
+ KENYA          | 1995 | 79262.6  |
+ IRAQ           | 1993 | 33221.9  |
+ IRAN           | 1993 | 78655.2  |
+ IRAN           | 1998 | 37817.2  |
+ KENYA          | 1998 | 44194.8  |
+ KENYA          | 1992 | 181517.2 |
+ IRAQ           | 1994 | 36010.7  |
+ PERU           | 1994 | 88046.3  |
+ UNITED STATES  | 1995 | 62201.2  |
+ UNITED STATES  | 1998 | 3957.0   |
+ ETHIOPIA       | 1994 | 3578.9   |
+ UNITED STATES  | 1997 | 94729.6  |
+ UNITED KINGDOM | 1996 | 147684.5 |
+ PERU           | 1995 | 122247.9 |
+ UNITED KINGDOM | 1998 | 50577.3  |
+ IRAN           | 1996 | 70143.8  |
+ UNITED KINGDOM | 1992 | 67747.9  |
+ ARGENTINA      | 1995 | 134490.6 |
+ UNITED STATES  | 1993 | 27168.5  |
+ KENYA          | 1996 | 59195.9  |
+ PERU           | 1997 | 121110.4 |
+ MOROCCO        | 1998 | 95135.5  |
+ IRAQ           | 1998 | 22860.8  |
+ IRAQ           | 1997 | 93676.2  |
+ UNITED STATES  | 1994 | 43075.6  |
+ MOROCCO        | 1994 | 139474.2 |
+ ARGENTINA      | 1993 | 35857.1  |
+ ETHIOPIA       | 1998 | 2758.8   |
 </entry>
 
 <entry key="q10.query">
@@ -278,56 +296,59 @@ Q(c_ck,c_n,sum(l_ep * (1-l_d)),c_ab,n_n,c_a,c_p,c_c) :-
     o_od &gt;= '1993-10-01',
     o_od &lt; '1994-01-01'.
 
-ANS: Q.
+Qround(c_ck,c_n,ROUND(CAST(suma AS NUMERIC),1),c_ab,n_n,c_a,c_p,c_c) :-
+    Q(c_ck,c_n,suma,c_ab,n_n,c_a,c_p,c_c).
+
+ANS: Qround.
 </entry>
 <entry key="q10.result">
- a0  | a1                 | a2                 | a3      | a4             | a5                                       | a6              | a7                                                                                                                   |
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- 2   | Customer#000000002 | 11676.266399999999 | 121.65  | JORDAN         | XSTf4,NCwDVaWNe6tEgvwfmRchLXak           | 23-768-687-3665 | l accounts. blithely ironic theodolites integrate boldly: caref                                                      |
- 4   | Customer#000000004 | 31830.178399999997 | 2866.83 | EGYPT          | XxVSJsLAGtn                              | 14-128-190-5944 | requests. final, regular ideas sleep final accou                                                                     |
- 16  | Customer#000000016 | 161422.04609999998 | 4681.03 | IRAN           | cYiaeMLZSMAOQ2 d0W,                      | 20-781-609-3107 | kly silent courts. thinly regular theodolites sleep fluffily after                                                   |
- 17  | Customer#000000017 | 27916.7564         | 6.34    | BRAZIL         | izrh 6jdqtp2eqdtbkswDD8SG4SzXruMfIXyR7   | 12-970-682-3487 | packages wake! blithely even pint                                                                                    |
- 19  | Customer#000000019 | 99306.0127         | 8914.71 | CHINA          | uc,3bHIx84H,wdrmLOjVsiqXCq2tr            | 28-396-526-5053 | nag. furiously careful packages are slyly at the accounts. furiously regular in                                      |
- 22  | Customer#000000022 | 12870.9355         | 591.98  | CANADA         | QI6p41,FNs5k7RZoCCVPUTkUdYpB             | 13-806-545-9701 | s nod furiously above the furiously ironic ideas.                                                                    |
- 29  | Customer#000000029 | 56516.475          | 7618.27 | ALGERIA        | sJ5adtfyAkCK63df2,vF25zyQMVYE34uh        | 10-773-203-7342 | its after the carefully final platelets x-ray against                                                                |
- 31  | Customer#000000031 | 40442.252400000005 | 5236.89 | UNITED KINGDOM | LUACbO0viaAv6eXOAebryDB xjVst            | 33-197-837-7094 | s use among the blithely pending depo                                                                                |
- 37  | Customer#000000037 | 88065.74579999998  | -917.75 | INDIA          | 7EV4Pwh,3SboctTWt                        | 18-385-235-7162 | ilent packages are carefully among the deposits. furiousl                                                            |
- 43  | Customer#000000043 | 75485.95869999999  | 9904.28 | ROMANIA        | ouSbjHk8lh5fKX3zGso3ZSIj9Aa3PoaFd        | 29-316-665-2897 | ial requests: carefully pending foxes detect quickly. carefully final courts cajole quickly. carefully               |
- 44  | Customer#000000044 | 149364.5652        | 7315.94 | MOZAMBIQUE     | Oi,dOSPwDu4jo4x,,P85E0dmhZGvNtBwi        | 26-190-260-5375 | r requests around the unusual, bold a                                                                                |
- 49  | Customer#000000049 | 90965.7262         | 4573.94 | IRAN           | cNgAeX7Fqrdf7HQN9EwjUa4nxT,68L FKAxzl    | 20-908-631-4424 | nusual foxes! fluffily pending packages maintain to the regular                                                      |
- 52  | Customer#000000052 | 46220.94           | 5630.28 | IRAQ           | 7 QOqGqqSy9jfV51BC71jcHJSD0              | 21-186-284-5998 | ic platelets use evenly even accounts. stealthy theodolites cajole furiou                                            |
- 53  | Customer#000000053 | 92568.9124         | 4113.64 | MOROCCO        | HnaxHzTfFTZs8MuCpJyTbZ47Cm4wFOOgib       | 25-168-852-5363 | ar accounts are. even foxes are blithely. fluffily pending deposits boost                                            |
- 56  | Customer#000000056 | 41169.612          | 6530.86 | IRAN           | BJYZYJQk4yD5B                            | 20-895-685-6920 | . notornis wake carefully. carefully fluffy requests are furiously even accounts. slyly expre                        |
- 59  | Customer#000000059 | 84655.5711         | 3458.6  | ARGENTINA      | zLOCP0wh92OtBihgspOGl4                   | 11-355-584-3112 | ously final packages haggle blithely after the express deposits. furiou                                              |
- 61  | Customer#000000061 | 12291.834799999999 | 1536.24 | PERU           | 9kndve4EAJxhg3veF BfXr7AqOsT39o gtqjaYE  | 27-626-559-8599 | egular packages shall have to impress along the                                                                      |
- 62  | Customer#000000062 | 106368.0153        | 595.61  | GERMANY        | upJK2Dnw13,                              | 17-361-978-7059 | kly special dolphins. pinto beans are slyly. quickly regular accounts are furiously a                                |
- 65  | Customer#000000065 | 60379.767900000006 | 8795.16 | UNITED KINGDOM | RGT yzQ0y4l0H90P783LG4U95bXQFDRXbWa1sl,X | 33-733-623-5267 | y final foxes serve carefully. theodolites are carefully. pending i                                                  |
- 67  | Customer#000000067 | 34848.65930000001  | 8166.59 | INDONESIA      | rfG0cOgtr5W8 xILkwp9fpCS8                | 19-403-114-4356 | indle furiously final, even theodo                                                                                   |
- 71  | Customer#000000071 | 129481.0245        | -611.19 | GERMANY        | TlGalgdXWBmMV,6agLyWYDyIz9MKzcY8gl,w6t1B | 17-710-812-5403 | g courts across the regular, final pinto beans are blithely pending ac                                               |
- 76  | Customer#000000076 | 71918.90599999999  | 5745.33 | ALGERIA        | m3sbCvjMOHyaOofH,e UkGPtqc4              | 10-349-718-3044 | pecial deposits. ironic ideas boost blithely according to the closely ironic theodolites! furiously final deposits n |
- 82  | Customer#000000082 | 86998.9644         | 9468.34 | CHINA          | zhG3EZbap4c992Gj3bK,3Ne,Xn               | 28-159-442-5305 | s wake. bravely regular accounts are furiously. regula                                                               |
- 83  | Customer#000000083 | 25887.6152         | 6463.51 | RUSSIA         | HnhTNB5xpnSF20JBH4Ycs6psVnkC3RDf         | 32-817-154-4122 | ccording to the quickly bold warhorses. final, regular foxes integrate carefully. bold packages nag blithely ev      |
- 85  | Customer#000000085 | 16365.405299999999 | 3386.64 | ETHIOPIA       | siRerlDwiolhYR 8FgksoezycLj              | 15-745-585-8219 | ronic ideas use above the slowly pendin                                                                              |
- 86  | Customer#000000086 | 24827.064599999998 | 3306.32 | ALGERIA        | US6EGGHXbTTXPL9SBsxQJsuvy                | 10-677-951-2353 | quests. pending dugouts are carefully aroun                                                                          |
- 89  | Customer#000000089 | 121663.1243        | 1530.76 | KENYA          | dtR, y9JQWUO6FoJExyp8whOU                | 24-394-451-5404 | counts are slyly beyond the slyly final accounts. quickly final ideas wake. r                                        |
- 91  | Customer#000000091 | 7995.9728          | 4643.14 | INDIA          | S8OMYFrpHwoNHaGBeuS6E 6zhHGZiprw1b7 q    | 18-239-400-3677 | onic accounts. fluffily silent pinto beans boost blithely according to the fluffily exp                              |
- 94  | Customer#000000094 | 7136.196899999999  | 5500.11 | INDONESIA      | IfVNIN9KtkScJ9dUjK3Pg5gY1aFeaXewwf       | 19-953-499-8833 | latelets across the bold, final requests sleep according to the fluffily bold accounts. unusual deposits amon        |
- 97  | Customer#000000097 | 45063.648          | 2164.48 | PERU           | OApyejbhJG,0Iw3j rd1M                    | 27-588-919-5638 | haggle slyly. bold, special ideas are blithely above the thinly bold theo                                            |
- 103 | Customer#000000103 | 97311.77240000002  | 2757.45 | INDONESIA      | 8KIsQX4LJ7QMsj6DrtFtXu0nUEdV,8a          | 19-216-107-2107 | furiously pending notornis boost slyly around the blithely ironic ideas? final, even instructions cajole fl          |
- 106 | Customer#000000106 | 190241.3334        | 3288.42 | ARGENTINA      | xGCOEAUjUNG                              | 11-751-989-4627 | lose slyly. ironic accounts along the evenly regular theodolites wake about the special, final gifts.                |
- 109 | Customer#000000109 | 38469.9242         | -716.1  | MOZAMBIQUE     | OOOkYBgCMzgMQXUmkocoLb56rfrdWp2NE2c      | 26-992-422-8153 | es. fluffily final dependencies sleep along the blithely even pinto beans. final deposits haggle furiously furiou    |
- 112 | Customer#000000112 | 111137.71409999998 | 2953.35 | ROMANIA        | RcfgG3bO7QeCnfjqJT1                      | 29-233-262-8382 | rmanently unusual multipliers. blithely ruthless deposits are furiously along the                                    |
- 116 | Customer#000000116 | 46116.520000000004 | 8403.99 | MOZAMBIQUE     | yCuVxIgsZ3,qyK2rloThy3u                  | 26-632-309-5792 | as. quickly final sauternes haggle slyly carefully even packages. brave, ironic pinto beans are above the furious    |
- 121 | Customer#000000121 | 282635.1719        | 6428.32 | PERU           | tv nCR2YKupGN73mQudO                     | 27-411-990-2959 | uriously stealthy ideas. carefully final courts use carefully                                                        |
- 124 | Customer#000000124 | 222182.5188        | 1842.49 | CHINA          | aTbyVAW5tCd,v09O                         | 28-183-750-7809 | le fluffily even dependencies. quietly s                                                                             |
- 125 | Customer#000000125 | 84808.068          | -234.12 | ROMANIA        | ,wSZXdVR xxIIfm9s8ITyLl3kgjT6UC07GY0Y    | 29-261-996-3120 | x-ray finally after the packages? regular requests c                                                                 |
- 136 | Customer#000000136 | 95855.39799999999  | -842.39 | GERMANY        | QoLsJ0v5C1IQbh,DS1                       | 17-501-210-4726 | ackages sleep ironic, final courts. even requests above the blithely bold requests g                                 |
- 139 | Customer#000000139 | 46680.12899999999  | 7897.78 | INDONESIA      | 3ElvBwudHKL02732YexGVFVt                 | 19-140-352-1403 | nstructions. quickly ironic ideas are carefully. bold,                                                               |
- 142 | Customer#000000142 | 21215.799          | 2209.81 | INDONESIA      | AnJ5lxtLjioClr2khl9pb8NLxG2,             | 19-407-425-2584 | . even, express theodolites upo                                                                                      |
- 145 | Customer#000000145 | 99256.9018         | 9748.93 | JORDAN         | kQjHmt2kcec cy3hfMh969u                  | 23-562-444-8454 | ests? express, express instructions use. blithely fina                                                               |
- 146 | Customer#000000146 | 103265.98879999999 | 3328.68 | CANADA         | GdxkdXG9u7iyI1,,y5tq4ZyrcEy              | 13-835-723-3223 | ffily regular dinos are slyly unusual requests. slyly specia                                                         |
- 148 | Customer#000000148 | 63188.932          | 2135.6  | IRAQ           | BhSPlEWGvIJyT9swk vCWE                   | 21-562-498-6636 | ing to the carefully ironic requests. carefully regular dependencies about the theodolites wake furious              |
- 149 | Customer#000000149 | 30070.928999999996 | 8959.65 | ROMANIA        | 3byTHCp2mNLPigUrrq                       | 29-797-439-6760 | al instructions haggle against the slyly bold w                                                                      |
+ a0  | a1                 | a2       | a3      | a4             | a5                                       | a6              | a7                                                                                                                   |
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 53  | Customer#000000053 | 92568.9  | 4113.64 | MOROCCO        | HnaxHzTfFTZs8MuCpJyTbZ47Cm4wFOOgib       | 25-168-852-5363 | ar accounts are. even foxes are blithely. fluffily pending deposits boost                                            |
+ 2   | Customer#000000002 | 11676.3  | 121.65  | JORDAN         | XSTf4,NCwDVaWNe6tEgvwfmRchLXak           | 23-768-687-3665 | l accounts. blithely ironic theodolites integrate boldly: caref                                                      |
+ 71  | Customer#000000071 | 129481.0 | -611.19 | GERMANY        | TlGalgdXWBmMV,6agLyWYDyIz9MKzcY8gl,w6t1B | 17-710-812-5403 | g courts across the regular, final pinto beans are blithely pending ac                                               |
+ 91  | Customer#000000091 | 7996.0   | 4643.14 | INDIA          | S8OMYFrpHwoNHaGBeuS6E 6zhHGZiprw1b7 q    | 18-239-400-3677 | onic accounts. fluffily silent pinto beans boost blithely according to the fluffily exp                              |
+ 31  | Customer#000000031 | 40442.3  | 5236.89 | UNITED KINGDOM | LUACbO0viaAv6eXOAebryDB xjVst            | 33-197-837-7094 | s use among the blithely pending depo                                                                                |
+ 109 | Customer#000000109 | 38469.9  | -716.1  | MOZAMBIQUE     | OOOkYBgCMzgMQXUmkocoLb56rfrdWp2NE2c      | 26-992-422-8153 | es. fluffily final dependencies sleep along the blithely even pinto beans. final deposits haggle furiously furiou    |
+ 86  | Customer#000000086 | 24827.1  | 3306.32 | ALGERIA        | US6EGGHXbTTXPL9SBsxQJsuvy                | 10-677-951-2353 | quests. pending dugouts are carefully aroun                                                                          |
+ 43  | Customer#000000043 | 75486.0  | 9904.28 | ROMANIA        | ouSbjHk8lh5fKX3zGso3ZSIj9Aa3PoaFd        | 29-316-665-2897 | ial requests: carefully pending foxes detect quickly. carefully final courts cajole quickly. carefully               |
+ 106 | Customer#000000106 | 190241.3 | 3288.42 | ARGENTINA      | xGCOEAUjUNG                              | 11-751-989-4627 | lose slyly. ironic accounts along the evenly regular theodolites wake about the special, final gifts.                |
+ 16  | Customer#000000016 | 161422.0 | 4681.03 | IRAN           | cYiaeMLZSMAOQ2 d0W,                      | 20-781-609-3107 | kly silent courts. thinly regular theodolites sleep fluffily after                                                   |
+ 125 | Customer#000000125 | 84808.1  | -234.12 | ROMANIA        | ,wSZXdVR xxIIfm9s8ITyLl3kgjT6UC07GY0Y    | 29-261-996-3120 | x-ray finally after the packages? regular requests c                                                                 |
+ 76  | Customer#000000076 | 71918.9  | 5745.33 | ALGERIA        | m3sbCvjMOHyaOofH,e UkGPtqc4              | 10-349-718-3044 | pecial deposits. ironic ideas boost blithely according to the closely ironic theodolites! furiously final deposits n |
+ 52  | Customer#000000052 | 46220.9  | 5630.28 | IRAQ           | 7 QOqGqqSy9jfV51BC71jcHJSD0              | 21-186-284-5998 | ic platelets use evenly even accounts. stealthy theodolites cajole furiou                                            |
+ 19  | Customer#000000019 | 99306.0  | 8914.71 | CHINA          | uc,3bHIx84H,wdrmLOjVsiqXCq2tr            | 28-396-526-5053 | nag. furiously careful packages are slyly at the accounts. furiously regular in                                      |
+ 139 | Customer#000000139 | 46680.1  | 7897.78 | INDONESIA      | 3ElvBwudHKL02732YexGVFVt                 | 19-140-352-1403 | nstructions. quickly ironic ideas are carefully. bold,                                                               |
+ 112 | Customer#000000112 | 111137.7 | 2953.35 | ROMANIA        | RcfgG3bO7QeCnfjqJT1                      | 29-233-262-8382 | rmanently unusual multipliers. blithely ruthless deposits are furiously along the                                    |
+ 44  | Customer#000000044 | 149364.6 | 7315.94 | MOZAMBIQUE     | Oi,dOSPwDu4jo4x,,P85E0dmhZGvNtBwi        | 26-190-260-5375 | r requests around the unusual, bold a                                                                                |
+ 89  | Customer#000000089 | 121663.1 | 1530.76 | KENYA          | dtR, y9JQWUO6FoJExyp8whOU                | 24-394-451-5404 | counts are slyly beyond the slyly final accounts. quickly final ideas wake. r                                        |
+ 17  | Customer#000000017 | 27916.8  | 6.34    | BRAZIL         | izrh 6jdqtp2eqdtbkswDD8SG4SzXruMfIXyR7   | 12-970-682-3487 | packages wake! blithely even pint                                                                                    |
+ 61  | Customer#000000061 | 12291.8  | 1536.24 | PERU           | 9kndve4EAJxhg3veF BfXr7AqOsT39o gtqjaYE  | 27-626-559-8599 | egular packages shall have to impress along the                                                                      |
+ 85  | Customer#000000085 | 16365.4  | 3386.64 | ETHIOPIA       | siRerlDwiolhYR 8FgksoezycLj              | 15-745-585-8219 | ronic ideas use above the slowly pendin                                                                              |
+ 116 | Customer#000000116 | 46116.5  | 8403.99 | MOZAMBIQUE     | yCuVxIgsZ3,qyK2rloThy3u                  | 26-632-309-5792 | as. quickly final sauternes haggle slyly carefully even packages. brave, ironic pinto beans are above the furious    |
+ 59  | Customer#000000059 | 84655.6  | 3458.6  | ARGENTINA      | zLOCP0wh92OtBihgspOGl4                   | 11-355-584-3112 | ously final packages haggle blithely after the express deposits. furiou                                              |
+ 65  | Customer#000000065 | 60379.8  | 8795.16 | UNITED KINGDOM | RGT yzQ0y4l0H90P783LG4U95bXQFDRXbWa1sl,X | 33-733-623-5267 | y final foxes serve carefully. theodolites are carefully. pending i                                                  |
+ 148 | Customer#000000148 | 63188.9  | 2135.6  | IRAQ           | BhSPlEWGvIJyT9swk vCWE                   | 21-562-498-6636 | ing to the carefully ironic requests. carefully regular dependencies about the theodolites wake furious              |
+ 149 | Customer#000000149 | 30070.9  | 8959.65 | ROMANIA        | 3byTHCp2mNLPigUrrq                       | 29-797-439-6760 | al instructions haggle against the slyly bold w                                                                      |
+ 67  | Customer#000000067 | 34848.7  | 8166.59 | INDONESIA      | rfG0cOgtr5W8 xILkwp9fpCS8                | 19-403-114-4356 | indle furiously final, even theodo                                                                                   |
+ 124 | Customer#000000124 | 222182.5 | 1842.49 | CHINA          | aTbyVAW5tCd,v09O                         | 28-183-750-7809 | le fluffily even dependencies. quietly s                                                                             |
+ 146 | Customer#000000146 | 103266.0 | 3328.68 | CANADA         | GdxkdXG9u7iyI1,,y5tq4ZyrcEy              | 13-835-723-3223 | ffily regular dinos are slyly unusual requests. slyly specia                                                         |
+ 82  | Customer#000000082 | 86999.0  | 9468.34 | CHINA          | zhG3EZbap4c992Gj3bK,3Ne,Xn               | 28-159-442-5305 | s wake. bravely regular accounts are furiously. regula                                                               |
+ 145 | Customer#000000145 | 99256.9  | 9748.93 | JORDAN         | kQjHmt2kcec cy3hfMh969u                  | 23-562-444-8454 | ests? express, express instructions use. blithely fina                                                               |
+ 62  | Customer#000000062 | 106368.0 | 595.61  | GERMANY        | upJK2Dnw13,                              | 17-361-978-7059 | kly special dolphins. pinto beans are slyly. quickly regular accounts are furiously a                                |
+ 29  | Customer#000000029 | 56516.5  | 7618.27 | ALGERIA        | sJ5adtfyAkCK63df2,vF25zyQMVYE34uh        | 10-773-203-7342 | its after the carefully final platelets x-ray against                                                                |
+ 136 | Customer#000000136 | 95855.4  | -842.39 | GERMANY        | QoLsJ0v5C1IQbh,DS1                       | 17-501-210-4726 | ackages sleep ironic, final courts. even requests above the blithely bold requests g                                 |
+ 121 | Customer#000000121 | 282635.2 | 6428.32 | PERU           | tv nCR2YKupGN73mQudO                     | 27-411-990-2959 | uriously stealthy ideas. carefully final courts use carefully                                                        |
+ 142 | Customer#000000142 | 21215.8  | 2209.81 | INDONESIA      | AnJ5lxtLjioClr2khl9pb8NLxG2,             | 19-407-425-2584 | . even, express theodolites upo                                                                                      |
+ 22  | Customer#000000022 | 12870.9  | 591.98  | CANADA         | QI6p41,FNs5k7RZoCCVPUTkUdYpB             | 13-806-545-9701 | s nod furiously above the furiously ironic ideas.                                                                    |
+ 97  | Customer#000000097 | 45063.6  | 2164.48 | PERU           | OApyejbhJG,0Iw3j rd1M                    | 27-588-919-5638 | haggle slyly. bold, special ideas are blithely above the thinly bold theo                                            |
+ 37  | Customer#000000037 | 88065.7  | -917.75 | INDIA          | 7EV4Pwh,3SboctTWt                        | 18-385-235-7162 | ilent packages are carefully among the deposits. furiousl                                                            |
+ 56  | Customer#000000056 | 41169.6  | 6530.86 | IRAN           | BJYZYJQk4yD5B                            | 20-895-685-6920 | . notornis wake carefully. carefully fluffy requests are furiously even accounts. slyly expre                        |
+ 94  | Customer#000000094 | 7136.2   | 5500.11 | INDONESIA      | IfVNIN9KtkScJ9dUjK3Pg5gY1aFeaXewwf       | 19-953-499-8833 | latelets across the bold, final requests sleep according to the fluffily bold accounts. unusual deposits amon        |
+ 83  | Customer#000000083 | 25887.6  | 6463.51 | RUSSIA         | HnhTNB5xpnSF20JBH4Ycs6psVnkC3RDf         | 32-817-154-4122 | ccording to the quickly bold warhorses. final, regular foxes integrate carefully. bold packages nag blithely ev      |
+ 4   | Customer#000000004 | 31830.2  | 2866.83 | EGYPT          | XxVSJsLAGtn                              | 14-128-190-5944 | requests. final, regular ideas sleep final accou                                                                     |
+ 49  | Customer#000000049 | 90965.7  | 4573.94 | IRAN           | cNgAeX7Fqrdf7HQN9EwjUa4nxT,68L FKAxzl    | 20-908-631-4424 | nusual foxes! fluffily pending packages maintain to the regular                                                      |
+ 103 | Customer#000000103 | 97311.8  | 2757.45 | INDONESIA      | 8KIsQX4LJ7QMsj6DrtFtXu0nUEdV,8a          | 19-216-107-2107 | furiously pending notornis boost slyly around the blithely ironic ideas? final, even instructions cajole fl          |
 </entry>
 
 <entry key="q11.query">
@@ -707,12 +728,15 @@ Qfilter(l_orderkey, l_linenumber, l_discount, l_extp) :-
 Q(sum(l_extp * (1-l_discount))) :-
     Qfilter(l_orderkey, l_linenumber, l_discount, l_extp).
 
-ANS: Q.
+Qround(ROUND(CAST(s AS NUMERIC),2)) :-
+    Q(s).
+
+ANS: Qround.
 </entry>
 <entry key="q19.result">
  A0                 |
 ---------------------
- 40436.816999999995 |
+ 40436.82 |
 </entry>
 
 <entry key="q20.query">
