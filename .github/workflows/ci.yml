@@ -209,7 +209,7 @@ jobs:
       if: always()
       uses: pmeier/pytest-results-action@main
       with:
-        path: ${{ matrix.database }}.xml
+        path: testresults/${{ matrix.database }}.xml
 
         # (Optional) Add a summary of the results at the top of the report
         summary: true
