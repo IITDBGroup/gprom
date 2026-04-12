@@ -17,13 +17,18 @@ import difflib
 import sys
 from difflib import Differ
 import io
+from junit_xml import TestSuite, TestCase
 
 FAT_STYLE = "bold black on white"
 DEFAULT_SETTING_NAME = "default"
-DIFF_METHODS = {
+DIFF_METHODS = [
     'table-level-multiplity',
     'string-colordiff'
-}
+]
+TEST_OUTPUT_FORMATS = [
+    "default",
+    "junitxml"
+]
 
 console=None
 options=None
@@ -249,7 +254,7 @@ class Table:
 
         # if this input does not have the compositional provenance attributes,
         # then do not attempt to normalize
-        if not Table.RESULT_TID_ATTR in self.schema or not Table.DUP_ATTR in self.schema:
+        if Table.RESULT_TID_ATTR not in self.schema or Table.DUP_ATTR not in self.schema:
             return self
 
         for row in self.rows.elements():
@@ -677,16 +682,10 @@ def java_xml_properties_to_dict(file:str):
     #log(f"Read properties file {file} with keys:\n{'\n'.join(d.keys())}")
     return d
 
-
 @dataclass
-class GProMTestRunner:
-    root: GProMTestSuite
-    gprompath: str
-    conf: GProMSettings
-    debugconf: GProMSetting
-    failonerror: bool = False
-    testcases: list[str] = None
-    settings: list[str] = None
+class TestResult:
+    testcases: list[str] = field(default_factory=list)
+    settings: list[str] = field(default_factory=list)
     results: Dict[str,Dict[str, bool]] = field(default_factory=dict)
     errors: Dict[str,Dict[str, str]] = field(default_factory=dict)
     queries: Dict[str,Dict[str,str]] = field(default_factory=dict)
@@ -694,111 +693,6 @@ class GProMTestRunner:
     testsettings: Dict[str,list[str]] = field(default_factory=dict)
     actualresults: Dict[str,list[str]] = field(default_factory=dict)
     totalnumtests: int = 0
-    progressbar: tqdm = None
-
-    FAT_STYLE = "bold black on white"
-
-    def ensure_dicts(self,name):
-        if name not in self.results:
-            self.results[name] = {}
-        if name not in self.errors:
-            self.errors[name] = {}
-        if name not in self.queries:
-            self.queries[name] = {}
-        if name not in self.diffs:
-            self.diffs[name] = {}
-        if name not in self.actualresults:
-            self.actualresults[name] = {}
-
-    def run_test(self, test: GProMTestCase, conf: GProMSettings, name: str): #TODO deal with forbidden settings
-        log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
-        exp = test.get_expected(options.backend)
-        setting = conf[name]
-        is_prov_composable = '-prov_use_composable' in setting
-        self.ensure_dicts(name)
-        self.queries[name][test.name] = test.query
-        try:
-            if test.issorted:
-                actual = GProMRunner.gprom_exec_to_ordered_table(self.gprompath, test.query, setting)
-            else:
-                actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
-            log(f"actual result was {'different' if not (exp == actual) else 'correct'}:\n{actual}")
-            self.actualresults[name][test.name] = str(actual)
-            if is_prov_composable:
-                actual = actual.normalize_prov_composable()
-                exp = exp.normalize_prov_composable()
-            correct = (exp == actual)
-            self.results[name][test.name] = correct
-
-            if not correct:
-                self.diffs[name][test.name] = exp.diff(actual)
-                # write query results to a file?
-                if options.log_query_results:
-                    with open(options.log_query_results,'a') as f:
-                        f.write(80 * "-" + f"\n{test.name}\n" + 80 * "-" + "\n")
-                        f.write(self.actualresults[name][test.name])
-                        f.write("\n")
-            self.progressbar.update()
-            return correct
-        except GProMRunException as e:
-            self.results[name][test.name] = False
-            if options.errordetails:
-                self.errors[name][test.name] = "ORIGNAL RUN:\n" + str(e)
-            else:
-                self.errors[name][test.name] = e.shortversion()
-            if options.debug:
-                traceback.print_exc()
-            if options.errordetails:
-                try:
-                    mergedconf = setting.union(self.debugconf)
-                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
-                    if rc == -1:
-                        self.errors[name][test.name] += "TIMED OUT"
-                    else:
-                        self.errors[name][test.name] += wrap_line("DEBUGRUN") + f"\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
-                except Exception as e2:
-                    self.errors[name][test.name] += "\n\nADDITIONAL EXCEPTION DURING DEBUG RUN\n\n" + str(e2)
-            return False
-        except TimeoutError as e:
-            self.results[name][test.name] = False
-            self.errors[name][test.name] = "TIMED OUT"
-            return False
-        except Exception as e:
-            self.results[name][test.name] = False
-            log(f"got exception: {e}")
-            if options.debug:
-                traceback.print_exc()
-            # if asked for details rerun gprom in debug settings
-            self.results[name][test.name] = False
-            if options.errordetails:
-                try:
-                    mergedconf = setting.union(self.debugconf)
-                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
-                    self.actualresults[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
-                    self.errors[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
-                except Exception as e2:
-                    self.errors[name][test.name] = str(e2)
-            if self.failonerror:
-                self.progressbar.update()
-                raise e
-            else:
-                if test.name not in self.errors[name]:
-                    self.errors[name][test.name] = str(e)
-            self.progressbar.update()
-            return False
-
-    def run(self, conf: GProMSettings = None) -> bool:
-        if not conf:
-            conf = self.conf
-        log(f"Start running tests: {self.testcases}")
-        self.results = {}
-        self.errors = {}
-        self.totalnumtests = self.root.count_testcases(self.testcases, self.testsettings, DEFAULT_SETTING_NAME)
-        self.progressbar = tqdm(total=self.totalnumtests, desc="Testcases")
-        self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
-        self.progressbar.close()
-        (numbase, basepassed) = self.print_results(self.root, DEFAULT_SETTING_NAME)
-        return numbase == basepassed
 
     def should_run_test(self, t: GProMTest):
         return t.should_run_test(self.testcases)
@@ -815,8 +709,140 @@ class GProMTestRunner:
                 return True
         return False
 
+    def determine_settings(self, t: GProMTestSuite, parentset: str):
+        ss = [ s for s in self.testsettings[t.name] if s.startswith(parentset) ]
+        return ss
+
+
+@dataclass
+class GProMTestRunner:
+    root: GProMTestSuite
+    gprompath: str
+    conf: GProMSettings
+    debugconf: GProMSetting
+    failonerror: bool = False
+    testcases: list[str] = None
+    settings: list[str] = None
+    tr: TestResult = None
+    # results: Dict[str,Dict[str, bool]] = field(default_factory=dict)
+    # errors: Dict[str,Dict[str, str]] = field(default_factory=dict)
+    # queries: Dict[str,Dict[str,str]] = field(default_factory=dict)
+    # diffs: Dict[str,Dict[str,str]] = field(default_factory=dict)
+    # testsettings: Dict[str,list[str]] = field(default_factory=dict)
+    # actualresults: Dict[str,list[str]] = field(default_factory=dict)
+    # totalnumtests: int = 0
+    progressbar: tqdm = None
+
+    FAT_STYLE = "bold black on white"
+
+    def ensure_dicts(self,name):
+        if name not in self.tr.results:
+            self.tr.results[name] = {}
+        if name not in self.tr.errors:
+            self.tr.errors[name] = {}
+        if name not in self.tr.queries:
+            self.tr.queries[name] = {}
+        if name not in self.tr.diffs:
+            self.tr.diffs[name] = {}
+        if name not in self.tr.actualresults:
+            self.tr.actualresults[name] = {}
+
+    def run_test(self, test: GProMTestCase, conf: GProMSettings, name: str): #TODO deal with forbidden settings
+        log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
+        exp = test.get_expected(options.backend)
+        setting = conf[name]
+        is_prov_composable = '-prov_use_composable' in setting
+        self.ensure_dicts(name)
+        self.tr.queries[name][test.name] = test.query
+        try:
+            if test.issorted:
+                actual = GProMRunner.gprom_exec_to_ordered_table(self.gprompath, test.query, setting)
+            else:
+                actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
+            log(f"actual result was {'different' if not (exp == actual) else 'correct'}:\n{actual}")
+            self.tr.actualresults[name][test.name] = str(actual)
+            if is_prov_composable:
+                actual = actual.normalize_prov_composable()
+                exp = exp.normalize_prov_composable()
+            correct = (exp == actual)
+            self.tr.results[name][test.name] = correct
+
+            if not correct:
+                self.tr.diffs[name][test.name] = exp.diff(actual)
+                # write query results to a file?
+                if options.log_query_results:
+                    with open(options.log_query_results,'a') as f:
+                        f.write(80 * "-" + f"\n{test.name}\n" + 80 * "-" + "\n")
+                        f.write(self.tr.actualresults[name][test.name])
+                        f.write("\n")
+            self.progressbar.update()
+            return correct
+        except GProMRunException as e:
+            self.tr.results[name][test.name] = False
+            if options.errordetails:
+                self.tr.errors[name][test.name] = "ORIGNAL RUN:\n" + str(e)
+            else:
+                self.tr.errors[name][test.name] = e.shortversion()
+            if options.debug:
+                traceback.print_exc()
+            if options.errordetails:
+                try:
+                    mergedconf = setting.union(self.debugconf)
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
+                    if rc == -1:
+                        self.tr.errors[name][test.name] += "TIMED OUT"
+                    else:
+                        self.tr.errors[name][test.name] += wrap_line("DEBUGRUN") + f"\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
+                except Exception as e2:
+                    self.tr.errors[name][test.name] += "\n\nADDITIONAL EXCEPTION DURING DEBUG RUN\n\n" + str(e2)
+            return False
+        except TimeoutError as e:
+            self.tr.results[name][test.name] = False
+            self.tr.errors[name][test.name] = "TIMED OUT"
+            return False
+        except Exception as e:
+            self.tr.results[name][test.name] = False
+            log(f"got exception: {e}")
+            if options.debug:
+                traceback.print_exc()
+            # if asked for details rerun gprom in debug settings
+            self.tr.results[name][test.name] = False
+            if options.errordetails:
+                try:
+                    mergedconf = setting.union(self.debugconf)
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
+                    self.tr.actualresults[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
+                    self.tr.errors[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
+                except Exception as e2:
+                    self.tr.errors[name][test.name] = str(e2)
+            if self.failonerror:
+                self.progressbar.update()
+                raise e
+            else:
+                if test.name not in self.tr.errors[name]:
+                    self.tr.errors[name][test.name] = str(e)
+            self.progressbar.update()
+            return False
+
+    def run(self, conf: GProMSettings = None) -> bool:
+        if not conf:
+            conf = self.conf
+        log(f"Start running tests: {self.testcases}")
+        self.tr = TestResult()
+        self.tr.results = {}
+        self.tr.errors = {}
+        self.tr.settings = self.settings
+        self.tr.testcases = self.testcases
+        self.tr.totalnumtests = self.root.count_testcases(self.testcases, self.tr.testsettings, DEFAULT_SETTING_NAME) # TODO conf?
+        print(f"num tests: {self.tr.totalnumtests}")
+        self.progressbar = tqdm(total=self.tr.totalnumtests, desc="Testcases")
+        self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
+        self.progressbar.close()
+        (numbase, basepassed) = TestResultOutputter.output_test_results(self.root, self.tr) # self.print_results(self.root, DEFAULT_SETTING_NAME)
+        return numbase == basepassed
+
     def run_suite(self, t: GProMTestSuite, parentconf: GProMSettings, setname: str):
-        if not self.should_run_test(t):
+        if not self.tr.should_run_test(t):
             return
         log(f"RUN TEST SUITE: [{t.name}]: EXTRA: {t.extra_settings} DISALLOW: {t.disallowed_settings}")
         conf = parentconf.extensions(setname, t.extra_settings) if t.extra_settings else parentconf.singleton(setname)
@@ -824,36 +850,32 @@ class GProMTestRunner:
         success = True
         allconfsuccess = True
 
-        if t.name not in self.testsettings:
-            self.testsettings[t.name] = []
+        if t.name not in self.tr.testsettings:
+            self.tr.testsettings[t.name] = []
 
-        for name in [ n for n in conf if self.should_run_setting(n) ] :
+        for name in [ n for n in conf if self.tr.should_run_setting(n) ] :
             log(f"do settings <{name}> for <{t.name}> from {conf}")
             self.ensure_dicts(name)
-            self.testsettings[t.name].append(name)
+            self.tr.testsettings[t.name].append(name)
             log(f"still do settings <{name}> for <{t.name}> from {conf}")
 
             for child in t.tests.values():
                 log(f"child {child.name} still do settings <{name}> for <{t.name}> from {conf}")
-                if self.should_run_test(child):
+                if self.tr.should_run_test(child):
                     if isinstance(child,GProMTestCase):
-                        if self.should_run_setting(name, True):
+                        if self.tr.should_run_setting(name, True):
                             log(f"run test case {child.name} in suite {t.name}, setting <{name}> <{conf}>")
                             self.run_test(child, conf, name)
                     else:
                         log(f"call child suite {child.name} in suite {t.name}, setting <{name}> <{conf}>")
                         self.run_suite(child, conf, name)
-                    success = success and self.results[name][child.name]
-            self.results[name][t.name] = success
-            allconfsuccess = allconfsuccess and self.results[name][t.name]
-        self.results[setname][t.name] = allconfsuccess
-
-    def determine_settings(self, t: GProMTestSuite, parentset: str):
-        ss = [ s for s in self.testsettings[t.name] if s.startswith(parentset) ]
-        return ss
+                    success = success and self.tr.results[name][child.name]
+            self.tr.results[name][t.name] = success
+            allconfsuccess = allconfsuccess and self.tr.results[name][t.name]
+        self.tr.results[setname][t.name] = allconfsuccess
 
     def print_results(self, t: GProMTestSuite, parentset: str):
-        if not self.should_run_test(t):
+        if not self.tr.should_run_test(t):
             return 0,0
         console = rich.get_console()
         indentlen = len(t.name) * 4
@@ -871,24 +893,24 @@ class GProMTestRunner:
             suitestr = f"[white on black]SUITE: <{t.get_name_str()}> SETTING: <{set}> [/]"
             console.print(f"{blackindent}[b white on black]START [/] {suitestr}")
             for child in t.tests.values():
-                if isinstance(child,GProMTestCase) and child.name in self.results[set]:
+                if isinstance(child,GProMTestCase) and child.name in self.tr.results[set]:
                     numbase += 1
-                    if self.results[set][child.name]:
+                    if self.tr.results[set][child.name]:
                         mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]"
                         basepassed += 1
                         console.print(f"{testblackindent}{mes}")
                     else:
                         mes = f"[white on red]FAIL[/] {child.get_name_str()}"
-                        if options.diff and child.name in self.diffs[set]:
-                            mes += "  [white on red]QUERY ANSWER DIFFERS:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + f"\n{self.actualresults[set][child.name]}\n" + redbar + f"\n{self.diffs[set][child.name]}\n" + redbar
-                        if child.name in self.errors[set]:
+                        if options.diff and child.name in self.tr.diffs[set]:
+                            mes += "  [white on red]QUERY ANSWER DIFFERS:[/]\n" + redbar + self.tr.queries[set][child.name] + "\n" + redbar + f"\n{self.tr.actualresults[set][child.name]}\n" + redbar + f"\n{self.tr.diffs[set][child.name]}\n" + redbar
+                        if child.name in self.tr.errors[set]:
                             if options.errordetails:
-                                mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.queries[set][child.name] + "\n" + redbar + "\n"
+                                mes += "  [white on red]EXCEPTION:[/]\n" + redbar + self.tr.queries[set][child.name] + "\n" + redbar + "\n"
                                 console.print(f"{testblackindent}{mes}")
-                                print(self.errors[set][child.name])
+                                print(self.tr.errors[set][child.name])
                                 console.print(redbar)
                             else:
-                                shorterror = self.errors[set][child.name][:60].replace("\n", " ")
+                                shorterror = self.tr.errors[set][child.name][:60].replace("\n", " ")
                                 mes += f"  [white on red]EXCEPTION:[/] {shorterror}"
                                 console.print(f"{testblackindent}{mes}")
                         else:
@@ -897,13 +919,143 @@ class GProMTestRunner:
                     newtest, newpassed = self.print_results(child, set)
                     numbase += newtest
                     basepassed += newpassed
-            runtests = [ x for x in t.tests.values() if self.should_run_test(x) ]
+            runtests = [ x for x in t.tests.values() if self.tr.should_run_test(x) ]
             numtests = len(runtests)
-            numsuccess = reduce(lambda x,y: x + y, [ self.results[set][c.name] for c in t.tests.values() if c.name in self.results[set] ], 0)
+            numsuccess = reduce(lambda x,y: x + y, [ self.tr.results[set][c.name] for c in t.tests.values() if c.name in self.tr.results[set] ], 0)
             #allpass = numsuccess == runtests
-            mes = f"[black on green] OK {numsuccess}/{numtests} CHILDREN PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]" if self.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]"
+            mes = f"[black on green] OK {numsuccess}/{numtests} CHILDREN PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]" if self.tr.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]"
             console.print(f"{blackindent}{suitestr} {mes}")
         return (numbase, basepassed)
+
+class TestResultJunitXMLSerializer:
+
+    def serialize(self, t: GProMTestSuite, tr: TestResult) -> tuple[str, int, int]:
+        ts, numbase, basepassed = self.serialize_results(t,DEFAULT_SETTING_NAME, tr)
+        return TestSuite.to_xml_string(ts), numbase, basepassed
+
+    def serialize_results(self, t: GProMTestSuite, parentset: str, tr: TestResult):
+        if not tr.should_run_test(t):
+            return [],0,0
+
+        redbar = "[white on red]" + 80 * " " + "[/]\n"
+
+        settings = tr.determine_settings(t, parentset)
+        numbase = 0
+        basepassed = 0
+        testsuites = []
+
+        isbasesuite = all([ isinstance(x,GProMTestCase) for x in t.tests.values() ])
+
+        if isbasesuite:
+            for set in settings:
+                suitename = f"{t.get_name_str()} for |{set}|"
+                testcases = []
+                for child in t.tests.values():
+                    if isinstance(child,GProMTestCase) and child.name in tr.results[set]:
+                        tc = TestCase(child.get_name_str())
+                        numbase += 1
+                        if tr.results[set][child.name]:
+                            basepassed += 1
+                        else:
+                            mes = f"[white on red]FAIL[/] {child.get_name_str()}"
+                            if options.diff and child.name in tr.diffs[set]:
+                                shortmes = "QUERY ANSWER DIFFERS"
+                                mes += tr.queries[set][child.name] + "\n" + redbar + f"\n{tr.actualresults[set][child.name]}\n" + redbar + f"\n{tr.diffs[set][child.name]}\n" + redbar
+                                tc.add_failure_info(message=shortmes,output=mes)
+                            if child.name in tr.errors[set]:
+                                mes += tr.errors[set][child.name]
+                                shorterror = tr.errors[set][child.name][:120].replace("\n", " ")
+                                tc.add_error_info(message=shorterror, output = mes)
+                        testcases.append(tc)
+                testsuites.append(TestSuite(suitename, testcases))
+        else:
+            for set in settings:
+                for child in t.tests.values():
+                    newtestsuites, newtest, newpassed = self.serialize_results(child, set, tr)
+                    numbase += newtest
+                    basepassed += newpassed
+                    if newtestsuites:
+                        testsuites += newtestsuites
+        return (testsuites, numbase, basepassed)
+
+class TestResultDefaultSerializer:
+
+    def serialize(self, t: GProMTestSuite, tr: TestResult) -> tuple[str, int, int]:
+        out: io.StringIO = io.StringIO()
+        numbase, basepassed = self.serialize_results(t,DEFAULT_SETTING_NAME,out,tr)
+        return out.getvalue(), numbase, basepassed
+
+    def serialize_results(self, t: GProMTestSuite, parentset: str, out: io.StringIO, tr: TestResult):
+        if not tr.should_run_test(t):
+            return 0,0
+        indentlen = len(t.name) * 4
+        testindentlen = indentlen + 4
+        blankindent = indentlen * " "
+        blackindent = f"[white on black]{blankindent}[/]"
+        testblackindent = testindentlen * " "
+        settings = tr.determine_settings(t, parentset)
+        redbar = "[white on red]" + 80 * " " + "[/]\n"
+
+        numbase = 0
+        basepassed = 0
+
+        for set in settings:
+            suitestr = f"[white on black]SUITE: <{t.get_name_str()}> SETTING: <{set}> [/]"
+            out.write(f"{blackindent}[b white on black]START [/] {suitestr}\n")
+            for child in t.tests.values():
+                if isinstance(child,GProMTestCase) and child.name in tr.results[set]:
+                    numbase += 1
+                    if tr.results[set][child.name]:
+                        mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]"
+                        basepassed += 1
+                        out.write(f"{testblackindent}{mes}\n")
+                    else:
+                        mes = f"[white on red]FAIL[/] {child.get_name_str()}"
+                        if options.diff and child.name in tr.diffs[set]:
+                            mes += "  [white on red]QUERY ANSWER DIFFERS:[/]\n" + redbar + tr.queries[set][child.name] + "\n" + redbar + f"\n{tr.actualresults[set][child.name]}\n" + redbar + f"\n{tr.diffs[set][child.name]}\n" + redbar
+                        if child.name in tr.errors[set]:
+                            if options.errordetails:
+                                mes += "  [white on red]EXCEPTION:[/]\n" + redbar + tr.queries[set][child.name] + "\n" + redbar + "\n"
+                                out.write(f"{testblackindent}{mes}\n")
+                                out.write(tr.errors[set][child.name])
+                                out.write(redbar + "\n")
+                            else:
+                                shorterror = tr.errors[set][child.name][:60].replace("\n", " ")
+                                mes += f"  [white on red]EXCEPTION:[/] {shorterror}"
+                                out.write(f"{testblackindent}{mes}\n")
+                        else:
+                            out.write(f"{testblackindent}{mes}\n")
+                else:
+                    newtest, newpassed = self.serialize_results(child, set, out, tr)
+                    numbase += newtest
+                    basepassed += newpassed
+            runtests = [ x for x in t.tests.values() if tr.should_run_test(x) ]
+            numtests = len(runtests)
+            numsuccess = reduce(lambda x,y: x + y, [ tr.results[set][c.name] for c in t.tests.values() if c.name in tr.results[set] ], 0)
+                    #allpass = numsuccess == runtests
+            mes = f"[black on green] OK {numsuccess}/{numtests} CHILDREN PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]" if tr.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]"
+            out.write(f"{blackindent}{suitestr} {mes}\n")
+        return (numbase, basepassed)
+
+class TestResultOutputter:
+
+    TEST_OUTPUT_SERIALIZERS = {
+        "default": TestResultDefaultSerializer,
+        "junitxml": TestResultJunitXMLSerializer
+    }
+
+    @classmethod
+    def output_test_results(cls, t: GProMTestSuite, tr: TestResult):
+        serializer = cls.TEST_OUTPUT_SERIALIZERS[options.result_format]()
+        output, numbase, basepassed = serializer.serialize(t, tr)
+        if options.result_file is None:
+            console = rich.get_console()
+            console.print(output)
+        else:
+            with open(options.result_file, 'w') as f:
+                f.write(output)
+        return numbase, basepassed
+
 
 class GProMRunException(Exception):
 
@@ -1073,7 +1225,12 @@ def parse_args():
     ap.add_argument("-P", "--password", type=str, default="test",
                     help="database password")
     ap.add_argument("--log_query_results", type=str, default=None,
-                    help="if true, then write actual query results to this file.")
+                    help="if true, then write actual query results to this file. The main purpose of this is to speed up creation of tests.")
+    ap.add_argument("-o", "--result_file", type=str, default=None,
+                    help="write test results to this file")
+    ap.add_argument("-f", "--result_format", type=str, default="default",
+                    choices = TEST_OUTPUT_FORMATS,
+                    help="output")
 
 
     args = ap.parse_args()

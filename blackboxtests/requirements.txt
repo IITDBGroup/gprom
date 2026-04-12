@@ -1,3 +1,4 @@
 pg8000
 rich
 tqdm
+junit_xml

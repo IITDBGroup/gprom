@@ -165,6 +165,11 @@ jobs:
            echo "$PWD/venv/bin" >> $GITHUB_PATH
            chmod 777 ./build/gprom
 
+    - name: Create test results directory
+      working-directory: blackboxtests
+      run: |
+           mkdir -p testresults
+
     - name: Tests on duckdb
       working-directory: blackboxtests
       if: matrix.database == 'duckdb'
@@ -172,7 +177,7 @@ jobs:
            . venv/bin/activate
            venv/bin/pip install --upgrade pip
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b duckdb -d dbs/duckdb.db -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_use_tid,prov_composable,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b duckdb -d dbs/duckdb.db -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_use_tid,prov_composable,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage -f junitxml -o testresults/duckdb.xml
 
     - name: Tests on sqlite
       working-directory: blackboxtests
@@ -180,7 +185,7 @@ jobs:
       run: |
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b sqlite -d dbs/sqlite.db -s default.optnopullnoselmove,default.noopt -t reg.agg,reg.proj,reg.ordby,reg.set,reg.join,reg.duprem
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b sqlite -d dbs/sqlite.db -s default.optnopullnoselmove,default.noopt -t reg.agg,reg.proj,reg.ordby,reg.set,reg.join,reg.duprem -f junitxml -o testresults/sqlite.xml
 
     - name: Tests on postgres
       working-directory: blackboxtests
@@ -197,8 +202,24 @@ jobs:
            psql -U postgres -f testdb/testDB.sql postgres
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage  -f junitxml -o testresults/postgres.xml
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
+
+    - name: Create test summary
+      if: always()
+      uses: pmeier/pytest-results-action@main
+      with:
+        path: ${{ matrix.database }}.xml
+
+        # (Optional) Add a summary of the results at the top of the report
+        summary: true
+
+        # (Optional) Fail the workflow if no JUnit XML was found.
+        fail-on-empty: true
+
+        # (Optional) Title of the test results section in the workflow summary
+        title: Test results ${{ matrix.database }}
+
 
   ################################################################################
   # if tests where successful rebuild and deploy docker image
