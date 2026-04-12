@@ -172,7 +172,7 @@ jobs:
            . venv/bin/activate
            venv/bin/pip install --upgrade pip
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b duckdb -d dbs/duckdb.db -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_use_tid,prov_composable,prov_composable_use_tid,semiring,reenact,query_prov
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b duckdb -d dbs/duckdb.db -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_use_tid,prov_composable,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage
 
     - name: Tests on sqlite
       working-directory: blackboxtests
@@ -197,7 +197,7 @@ jobs:
            psql -U postgres -f testdb/testDB.sql postgres
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid,semiring,reenact,query_prov
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
   ################################################################################
