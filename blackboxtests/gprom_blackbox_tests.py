@@ -832,6 +832,7 @@ class GProMTestRunner:
         self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
         self.progressbar.close()
         (numbase, basepassed) = TestResultOutputter.output_test_results(self.root, self.tr) # self.print_results(self.root, DEFAULT_SETTING_NAME)
+        print(f"{basepassed}/{numbase}")
         return numbase == basepassed
 
     def run_suite(self, t: GProMTestSuite, parentconf: GProMSettings, setname: str):
