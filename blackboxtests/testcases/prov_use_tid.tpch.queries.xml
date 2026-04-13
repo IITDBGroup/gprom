@@ -3452,7 +3452,7 @@ PROVENANCE OF (
  3       | 1        | 86                       | 4675                    |
 </entry>
 
- <entry key="q14.query">
+<entry key="q14.query">
 PROVENANCE OF (
     select
         100.00 * sum(case
