@@ -1266,4 +1266,5 @@ def main():
 
 if __name__ == '__main__':
     exitcode = main()
+    print(f"exitcode: {exitcode}")
     sys.exit(exitcode)

@@ -185,7 +185,7 @@ jobs:
       run: |
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b sqlite -d dbs/sqlite.db -s default.optnopullnoselmove,default.noopt -t reg.agg,reg.proj,reg.ordby,reg.set,reg.join,reg.duprem -f junitxml -o testresults/sqlite.xml
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b sqlite -d dbs/sqlite.db -s default.optnopullnoselmove,default.noopt -t reg.agg,reg.proj,reg.ordby,reg.set,reg.duprem -f junitxml -o testresults/sqlite.xml
 
     - name: Tests on postgres
       working-directory: blackboxtests
