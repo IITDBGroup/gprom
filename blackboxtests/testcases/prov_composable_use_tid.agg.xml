@@ -77,7 +77,7 @@ PROVENANCE WITH RESULTTIDS OF (SELECT min(a) AS x, max(a) as y FROM r USE PROVEN
 </entry>
 
 <entry key="q10.query">
-PROVENANCE WITH RESULTTIDS OF (SELECT round(avg(a),1) AS x, round(avg(b),2) AS y FROM r USE PROVENANCE (b));
+PROVENANCE WITH RESULTTIDS OF (SELECT round(avg(a)::numeric,1) AS x, round(avg(b)::numeric,2) AS y FROM r USE PROVENANCE (b));
 </entry>
 <entry key="q10.result">
  x   | y    | prov_r_b | _result_tid | _setprov_dup_count |
@@ -101,7 +101,7 @@ PROVENANCE WITH RESULTTIDS OF (SELECT a AS x, count(b) AS y FROM r USE PROVENANC
 </entry>
 
 <entry key="q12.query">
-PROVENANCE WITH RESULTTIDS OF (SELECT sum(A) AS x, round(avg(b),2) AS Y FROM r USE PROVENANCE (b));
+PROVENANCE WITH RESULTTIDS OF (SELECT sum(A) AS x, round(avg(b)::numeric,2) AS Y FROM r USE PROVENANCE (b));
 </entry>
 <entry key="q12.result">
  x | y    | prov_r_b | _result_tid | _setprov_dup_count |
@@ -193,7 +193,7 @@ PROVENANCE WITH RESULTTIDS OF (SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT
 </entry>
 
 <entry key="q18.query">
-PROVENANCE WITH RESULTTIDS OF (SELECT round(avg(a),2) AS x, round(avg(a+b),1) AS y, round(sum(0.1 + a*b*(d-c)/2),1) AS z FROM R USE PROVENANCE (b), S USE PROVENANCE (d) WHERE b&gt;c);
+PROVENANCE WITH RESULTTIDS OF (SELECT round(avg(a)::numeric,2) AS x, round(avg(a+b)::numeric,1) AS y, round(sum(0.1 + a*b*(d-c)/2)::numeric,1) AS z FROM R USE PROVENANCE (b), S USE PROVENANCE (d) WHERE b&gt;c);
 </entry>
 <entry key="q18.result">
  x    | y   | z    | prov_r_b | prov_s_d | _result_tid | _setprov_dup_count |

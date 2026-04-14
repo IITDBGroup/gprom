@@ -1661,7 +1661,7 @@ postgresBackendDatatypeToSQL (DataType dt)
             return "int8";
             break;
         case DT_FLOAT:
-            return "NUMERIC";
+            return "numeric";
             break;
         case DT_STRING:
         case DT_VARCHAR2:
