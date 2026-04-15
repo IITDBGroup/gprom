@@ -488,6 +488,11 @@ castExprToSQL(StringInfo str, CastExpr *c, HashMap *nestedSubqueries, boolean tr
             {
                 appendStringInfoString(str, c->otherDT);
             }
+            else if (c->otherDT != NULL && c->otherDT[0] != '\0')
+            {
+                /* PostgreSQL cast target name (e.g. int4range); resultDT may be DT_STRING */
+                appendStringInfoString(str, c->otherDT);
+            }
             else
             {
 				dataTypeToSQL(str, c->resultDT);

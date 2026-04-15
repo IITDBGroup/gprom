@@ -51,3 +51,13 @@ NORMALIZE: Add NORMALIZE after IS CTABLE(c_conf) or use -normalize / -option nor
 to apply range_normalize() on each column. Example:
   uset(SELECT * FROM employee IS CTABLE(c_conf) NORMALIZE);
 See readme.md and CTable.md for details.
+
+USET + AUDB Range-Set Pruning (optional):
+====================
+
+For FROM tables declared IS UADB, GProM can rewrite USET queries so WHERE uses
+AUDB set_* comparisons and SELECT uses prune_* on int4range[] semantics. Enable
+with -uset_pruning or: USET WITH PRUNING ( SELECT ... FROM ... IS UADB WHERE ... ).
+PostgreSQL needs i4r/AUDB setup per test/uset_pruning_pg_setup.sql. Details:
+test/USET_PRUNING.md and test/USET_PRUNING_TEST.md. Note: u_r may not be a
+SELECT-visible column for IS UADB; see readme.md.

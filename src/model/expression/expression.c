@@ -1410,6 +1410,24 @@ typeOfFunc(FunctionCall *f)
         return DT_STRING;  // range_set_logic返回int4range[]类型，在GProM中映射为DT_STRING
     }
 
+    /* AUDB i4r：三值比较谓词（boolean）；int_to_range_set / prune_* 为 int4range[] */
+    if (strieq(f->functionname, "set_eq") || strieq(f->functionname, "set_lt")
+        || strieq(f->functionname, "set_gt") || strieq(f->functionname, "set_lte")
+        || strieq(f->functionname, "set_gte"))
+    {
+        return DT_BOOL;
+    }
+    if (strieq(f->functionname, "int_to_range_set"))
+    {
+        return DT_STRING;
+    }
+    if (strieq(f->functionname, "prune_eq") || strieq(f->functionname, "prune_lt")
+        || strieq(f->functionname, "prune_gt") || strieq(f->functionname, "prune_and")
+        || strieq(f->functionname, "prune_or"))
+    {
+        return DT_STRING;
+    }
+
     argDTs = typeOfArgs(f->args);
     result = getFuncReturnType(f->functionname, argDTs, &fExists);
     if (!fExists)
@@ -1425,6 +1443,13 @@ funcExists(char *fName, List *argDTs)
 
     // uncertainty dummy functions
     if (strieq(fName, UNCERTAIN_MAKER_FUNC_NAME))
+    {
+        return TRUE;
+    }
+    if (strieq(fName, "set_eq") || strieq(fName, "set_lt") || strieq(fName, "set_gt")
+        || strieq(fName, "set_lte") || strieq(fName, "set_gte") || strieq(fName, "int_to_range_set")
+        || strieq(fName, "prune_eq") || strieq(fName, "prune_lt") || strieq(fName, "prune_gt")
+        || strieq(fName, "prune_and") || strieq(fName, "prune_or"))
     {
         return TRUE;
     }

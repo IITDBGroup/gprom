@@ -519,7 +519,10 @@ translateQueryBlock(QueryBlock *qb, List **attrsOffsetsList)
     DEBUG_NODE_BEATIFY_LOG("translate a QB:", qb);
     QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause, attrsOffsetsList);
     LOG_TRANSLATED_OP("translatedFrom is", joinTreeRoot);
-    attrsOffsets = getAttrsOffsets(qb->fromClause);
+    if (qb->fromClause == NULL || LIST_LENGTH(qb->fromClause) == 0)
+        attrsOffsets = singletonInt(0);
+    else
+        attrsOffsets = getAttrsOffsets(qb->fromClause);
     *attrsOffsetsList = appendToHeadOfList(*attrsOffsetsList, attrsOffsets);
 
     // adapt attribute references to match new from clause root's schema
@@ -1147,6 +1150,20 @@ replaceWithViewRefsMutator(Node *node, List *views)
 static QueryOperator *
 translateFromClause(List *fromClause, List **attrsOffsetsList)
 {
+    /*
+     * PostgreSQL allows SELECT <expr> with no FROM (implicit one-row input).
+     * The operator model always expects a non-empty FROM side; use a single-row
+     * ConstRel so translation and serialization remain valid.
+     */
+    if (fromClause == NULL || LIST_LENGTH(fromClause) == 0)
+    {
+        List *dummyNames = singleton(strdup("_gprom_dummy"));
+        List *dummyVals = singleton((Node *) createConstInt(1));
+
+        DEBUG_LOG("empty FROM: using single-row ConstRel as implicit input");
+        return (QueryOperator *) createConstRelOp(dummyVals, NIL, dummyNames, NIL);
+    }
+
     List *selfOffsets = getAttrsOffsets(fromClause);
 
     List *opList = translateFromClauseToOperatorList(fromClause, attrsOffsetsList, selfOffsets);

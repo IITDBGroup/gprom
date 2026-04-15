@@ -145,6 +145,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define RANGE_OPTIMIZE_AGG "range_optimize_agg"
 #define RANGE_COMPRESSION_RATE "range_compression_rate"
 #define OPTION_USET_NORMALIZE "normalize"
+#define OPTION_USET_PRUNING "uset_pruning"
 
 /* dl rewrite options */
 #define OPTION_WHYNOT_ADV "whynot_adv"

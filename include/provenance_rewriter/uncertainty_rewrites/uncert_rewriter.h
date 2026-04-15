@@ -24,6 +24,17 @@
 #define RANGE_SET_LOGIC_FUNC_NAME "range_set_logic"
 #define RANGE_SET_SUBTRACT_FUNC_NAME "range_set_subtract"
 
+/* AUDB / i4r：WHERE 三值比较（与 -uset_pruning 联用） */
+#define AUDB_SET_EQ_FUNC_NAME "set_eq"
+#define AUDB_SET_LT_FUNC_NAME "set_lt"
+#define AUDB_SET_GT_FUNC_NAME "set_gt"
+/* 常量侧与列侧统一用 int_to_range_set（库内实现为 ARRAY[lift_scalar(x)]） */
+#define PRUNE_EQ_FUNC_NAME "prune_eq"
+#define PRUNE_LT_FUNC_NAME "prune_lt"
+#define PRUNE_GT_FUNC_NAME "prune_gt"
+#define PRUNE_AND_FUNC_NAME "prune_and"
+#define PRUNE_OR_FUNC_NAME "prune_or"
+
 extern QueryOperator *rewriteUncert(QueryOperator *op);
 extern QueryOperator *rewriteUncertTuple(QueryOperator *op);
 extern QueryOperator *rewriteRange(QueryOperator *op);

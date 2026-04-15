@@ -210,4 +210,7 @@
 
 #define PROP_STORE_POSSIBLE_TREE "STORE SPLICED POSSIBLE ALGEBRA TREE"
 
+/* USET: syntax USET WITH PRUNING (...) enables AUDB set_* / prune_* rewrite without -uset_pruning */
+#define PROP_USET_PRUNING "USET_PRUNING"
+
 #endif /* OPERATOR_PROPERTY_H_ */

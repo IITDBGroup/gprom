@@ -200,6 +200,7 @@ boolean range_optimize_join = TRUE;
 boolean range_optimize_agg = TRUE;
 int range_compression_rate = 1;
 boolean opt_uset_normalize = FALSE;
+boolean opt_uset_pruning = FALSE;
 
 // struct that encapsulates option state
 struct option_state {
@@ -1022,6 +1023,12 @@ OptionInfo opts[] =
                 "-normalize",
                 "USET: Enable top-level range_normalize for each column.",
                 opt_uset_normalize,
+                FALSE
+        ),
+        anUncertaintyOption(OPTION_USET_PRUNING,
+                "-uset_pruning",
+                "USET: Use AUDB set_* predicates (set_eq, set_lt) with int_to_range_set for scalars, and prune_* in SELECT (range-set pruning). Or use USET WITH PRUNING (...).",
+                opt_uset_pruning,
                 FALSE
         ),
         {

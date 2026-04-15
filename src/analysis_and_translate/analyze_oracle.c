@@ -2189,6 +2189,42 @@ fromItemHasIsDeclaration(FromItem *f)
 }
 
 /*
+ * 若查询中根本不存在任何 FROM 关系（例如 SELECT 常量/纯函数，无 FROM），
+ * 则不需要 IS CTABLE/UTDB 等声明；仅当存在 FROM 表时才强制要求至少一处 IS。
+ */
+static boolean
+queryHasAnyFromRelation(Node *query)
+{
+    if (query == NULL)
+        return FALSE;
+    if (isA(query, QueryBlock))
+    {
+        QueryBlock *qb = (QueryBlock *) query;
+        List *leafs = (qb->fromClause != NULL)
+                          ? getFromTreeLeafs(qb->fromClause)
+                          : NIL;
+        if (leafs != NIL && LIST_LENGTH(leafs) > 0)
+            return TRUE;
+        return FALSE;
+    }
+    if (isA(query, SetQuery))
+    {
+        SetQuery *sq = (SetQuery *) query;
+        if (queryHasAnyFromRelation(sq->lChild))
+            return TRUE;
+        if (queryHasAnyFromRelation(sq->rChild))
+            return TRUE;
+        return FALSE;
+    }
+    if (isA(query, WithStmt))
+    {
+        WithStmt *ws = (WithStmt *) query;
+        return queryHasAnyFromRelation(ws->query);
+    }
+    return FALSE;
+}
+
+/*
  * 递归检查 query 的 FROM 子句中是否至少有一个表带了 IS 声明
  */
 static boolean
@@ -2361,8 +2397,9 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             List *provAttrNames = NIL;
             List *provDts = NIL;
 
-            /* uset() 要求至少有一个 FROM 表带 IS 声明（如 IS CTABLE(...)、IS UTDB 等）*/
-            if (!queryHasAtLeastOneFromWithIs(q->query))
+            /* 有 FROM 表时：至少一处 IS 声明；无 FROM（仅常量/函数表达式）时不作此要求 */
+            if (queryHasAnyFromRelation(q->query)
+                && !queryHasAtLeastOneFromWithIs(q->query))
             {
                 THROW(SEVERITY_RECOVERABLE,
                     "uset() queries require at least one table in the FROM clause to have an IS declaration "

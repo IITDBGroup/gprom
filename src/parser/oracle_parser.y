@@ -66,7 +66,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB HASH CAPTUREUSE BIND FOR CANUSE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE USET ZUNCERT
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN URANGE USET ZUNCERT PRUNING
 %token <stringVal> TIP INCOMPLETE VTABLE XTABLE CTABLE RADB UADB NORMALIZE
 
 %token <stringVal> FROM LATERAL
@@ -143,7 +143,7 @@ Node *oracleParseResult = NULL;
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalOffset optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
-%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable optionalFromCTable optionalFromRADB optionalFromUADB
+%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromXTable optionalFromCTable optionalNormalize optionalFromRADB optionalFromUADB
 %type <node> expression expressionWithParens constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem
@@ -155,7 +155,7 @@ Node *oracleParseResult = NULL;
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
 %type <stringVal> optionalFormat optionalWrapper optionalstringConst
-%type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample optionalNormalize
+%type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample
 %type <list> optionalSummarization
 %type <intVal>	optionalCountDistinct
 
@@ -576,6 +576,18 @@ provStmt:
 			p->provType = PROV_NONE;
 			p->asOf = NULL;
 			p->options = NIL;
+			$$ = (Node *) p;
+		}
+		| USET WITH PRUNING '(' stmt ')'
+		{
+			RULELOG("provStmt::uset_with_pruning");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
+			p->inputType = PROV_INPUT_USET_QUERY;
+			p->provType = PROV_NONE;
+			p->asOf = NULL;
+			p->options = singleton(createNodeKeyValue(
+					(Node *) createConstString(PROP_USET_PRUNING),
+					(Node *) createConstBool(TRUE)));
 			$$ = (Node *) p;
 		}
         | optionalTopK PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate optionalSummarization
