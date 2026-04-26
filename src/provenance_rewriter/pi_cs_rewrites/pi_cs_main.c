@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "common.h"
 #include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
@@ -31,6 +32,7 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
+#include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 
 typedef struct PICSRewriteState {
     HashMap *opToRewrittenOp; // mapping op address to address of rewritten operator
@@ -126,6 +128,14 @@ rewritePI_CS(ProvenanceComputation  *op)
     DEBUG_NODE_BEATIFY_LOG("*\n************************************\nREWRITE INPUT\n"
             "******************************\n", op);
 
+    // replace nesting operators with equivalent LATERAL if we have not done
+    // this already
+    if(!opt_lateral_rewrite)
+    {
+        op = (ProvenanceComputation *) lateralTranslateQBModel((Node *) op);
+    }
+
+
 //    //mark the number of table - used in provenance scratch
 //    markNumOfTableAccess((QueryOperator *) op);
 
@@ -158,6 +168,11 @@ rewritePI_CS(ProvenanceComputation  *op)
     if(HAS_STRING_PROP(op, PROP_TRANSLATE_AS))
     {
     	rewRoot = rewriteTransformationProvenance(rewRoot);
+    }
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+    {
+        ASSERT(checkModel(rewRoot));
     }
 
     STOP_TIMER("rewrite - PI-CS rewrite");
@@ -318,13 +333,14 @@ rewritePI_CSOperator (QueryOperator *op, PICSRewriteState *state)
     }
 
     if (showIntermediate)
+    {
         rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs, ignoreProvAttrs, provRelName, state);
+    }
 
     if (rewriteAddProv)
+    {
         rewrittenOp = addUserProvenanceAttributes(rewrittenOp, addProvAttrs, showIntermediate, provRelName, provAddRelName, state);
-
-    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-        ASSERT(checkModel(rewrittenOp));
+    }
 
 	// associate rewritten operator with original operator
 	setRewrittenOp(state->opToRewrittenOp, op, rewrittenOp);
@@ -813,6 +829,7 @@ rewritePI_CSSelection(SelectionOperator *op, PICSRewriteState *state)
 
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, OP_LCHILD(rewr));
+    COPY_PROV_INFO(rewr, rewrInput);
 
 	LOG_RESULT_AND_RETURN_PI(Selection);
 }
@@ -856,17 +873,16 @@ rewritePI_CSJoin (JoinOperator *op, PICSRewriteState *state)
     QueryOperator *rChild = OP_RCHILD(op);
     List *rNormAttrs;
     int numLAttrs, numRAttrs;
-	List *provInfo;
+	/* List *provInfo; */
 
     numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
     numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
 
-
-    // rewrite children
     //add semiring options
     addSCOptionToChild((QueryOperator *) op,lChild);
     addSCOptionToChild((QueryOperator *) op,rChild);
 
+    // rewrite children
 	REWR_BINARY_CHILDREN_PI();
 
     // adapt schema for join op
@@ -894,11 +910,13 @@ rewritePI_CSJoin (JoinOperator *op, PICSRewriteState *state)
 	rewr = (QueryOperator *) proj;
 
 	// provenance info is concatenation of child prov infos
-	provInfo = CONCAT_LISTS(
-		                    (List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)),
-		                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS)));
+	/* provInfo = CONCAT_LISTS( */
+	/* 	                    (List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)), */
+	/* 	                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS))); */
 
-	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+	/* SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo); */
+
+    concatProvInfos(rewr, rewrLeftInput, rewrRightInput);
 
 	LOG_RESULT_AND_RETURN_PI(Join);
 }
@@ -912,17 +930,20 @@ rewritePI_CSNestingOp(NestingOperator *op, PICSRewriteState *state)
     QueryOperator *rrChild = OP_RCHILD(op);
     List *rNormAttrs;
     int numLAttrs, numRAttrs;
+	/* List *provInfo; */
+
+	ASSERT_WITH_MESSAGE(op->nestingType == NESTQ_LATERAL,
+						"provenance rewrites currently only supported for LATERAL nested queries, use -lateral_rewrite TRUE to have GProM rewrite nested subqueries into LATERAL\n\n%s",
+						singleOperatorToOverview(op));
 
     numLAttrs = LIST_LENGTH(llChild->schema->attrDefs);
     numRAttrs = LIST_LENGTH(rrChild->schema->attrDefs);
-
-
-    // rewrite children
 
     //add semiring options
     addSCOptionToChild((QueryOperator *) op,llChild);
     addSCOptionToChild((QueryOperator *) op,rrChild);
 
+	// rewrite children
 	REWR_BINARY_CHILDREN_PI();
 
     // get attributes from right input
@@ -942,12 +963,25 @@ rewritePI_CSNestingOp(NestingOperator *op, PICSRewriteState *state)
             getProvAttrProjectionExprs((QueryOperator *) rewr));
     ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
 
+	// recreate schema and set provenance attribute positions
+	clearAttrsFromSchema((QueryOperator *) proj);
     addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) rewr);
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) rewr);
     addChildOperator((QueryOperator *) proj, (QueryOperator *) rewr);
 
 	// set rewritten op
 	rewr = (QueryOperator *) proj;
+
+	// copy prov info
+	rewr = (QueryOperator *) proj;
+
+	// provenance info is concatenation of child prov infos
+	/* provInfo = CONCAT_LISTS( */
+	/* 	                    (List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)), */
+	/* 	                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS))); */
+
+	/* SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo); */
+    concatProvInfos(rewr, rewrLeftInput, rewrRightInput);
 
 	LOG_RESULT_AND_RETURN_PI(NestingOperator);
 }
@@ -1260,7 +1294,7 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
 	REWR_BINARY_SETUP_PI(Set-Operation);
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
-	List *provInfo;
+	/* List *provInfo; */
 
     //add semiring options
     addSCOptionToChild((QueryOperator *) op,lChild);
@@ -1485,10 +1519,11 @@ rewritePI_CSSet(SetOperator *op, PICSRewriteState *state)
     }
 
 	// provenance info is concatenation of child prov infos
-	provInfo = CONCAT_LISTS((List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)),
-		                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS)));
+	/* provInfo = CONCAT_LISTS((List *) copyObject(GET_STRING_PROP(rewrLeftInput, PROP_PROVENANCE_TABLE_ATTRS)), */
+	/* 	                    (List *) copyObject(GET_STRING_PROP(rewrRightInput, PROP_PROVENANCE_TABLE_ATTRS))); */
 
-	SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+	/* SET_STRING_PROP(rewr, PROP_PROVENANCE_TABLE_ATTRS, provInfo); */
+    concatProvInfos(rewr, rewrLeftInput, rewrRightInput);
 
 	LOG_RESULT_AND_RETURN_PI(SetOperation);
 }
@@ -1642,6 +1677,7 @@ rewritePI_CSOrderOp(OrderOperator *op, PICSRewriteState *state)
 
     // adapt provenance attr list and schema
     addProvenanceAttrsToSchema((QueryOperator *) rewr, rewrInput);
+    COPY_PROV_INFO(rewr, rewrInput);
 
 	LOG_RESULT_AND_RETURN_PI(OrderBy);
 }

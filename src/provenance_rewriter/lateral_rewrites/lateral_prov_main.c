@@ -35,7 +35,7 @@ lateralTranslateQBModel(Node *qbModel)
 {
     if (isA(qbModel, List))
         return (Node *) lateralRewriteQueryList((List *) qbModel);
-    else if (IS_OP(qbModel))
+    else if (IS_OP(qbModel) || isA(qbModel,ProvenanceComputation))
         return (Node *) lateralRewriteQuery((QueryOperator *) qbModel);
 
     FATAL_LOG("cannot lateral rewrite node <%s>", nodeToString(qbModel));

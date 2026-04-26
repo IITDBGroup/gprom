@@ -157,7 +157,7 @@ checkAttributeRefConsistency(QueryOperator *op, void *context)
         // Check Attribute that we use as Json Column should be from/should exist in child
         case T_JsonTableOperator:
         {
-            JsonTableOperator *o = (JsonTableOperator *)op;
+            JsonTableOperator *o = (JsonTableOperator *) op;
             attrRefs = singleton(o->jsonColumn);
         }
         break;
@@ -217,7 +217,7 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
             return FALSE;
         }
 
-        if (input < 0 || input >= LIST_LENGTH(children))
+        if (levelsUp == 0 && (input < 0 || input >= LIST_LENGTH(children)))
         {
             ERROR_NODE_BEATIFY_LOG("attribute references input operator that "
                     "does not exist:",a);
@@ -252,7 +252,11 @@ checkAttributeRefList(List *attrRefs, List *children, QueryOperator *parent)
         {
             ERROR_OP_LOG("subquery under parent:", parent);
             ERROR_LOG("attribute ref name and child attrdef names are not the "
-                    "same: <%s> and <%s>", childA->attrName, a->name);
+                      "same: <%s> and <%s>:\nChildA:\n%s\n\nreference:\n%s",
+                      childA->attrName,
+                      a->name,
+                      beatify(nodeToString(childA)),
+                      beatify(nodeToString(a)));
             LOG_PARENT_AND_CHILD(parent,child);
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;

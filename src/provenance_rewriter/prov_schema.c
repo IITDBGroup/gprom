@@ -218,9 +218,28 @@ opGetProvAttrInfo(QueryOperator *op)
 void
 copyProvInfo(QueryOperator *to, QueryOperator *from)
 {
+    ASSERT_WITH_MESSAGE(HAS_STRING_PROP(from, PROP_PROVENANCE_TABLE_ATTRS),
+                        "Cannot copy provenance info if input operator does not have it\n%s",
+                        operatorToOverviewString(from));
 	SET_STRING_PROP(to,
 		            PROP_PROVENANCE_TABLE_ATTRS,
 		            copyObject(GET_STRING_PROP(from, PROP_PROVENANCE_TABLE_ATTRS)));
+}
+
+void
+concatProvInfos(QueryOperator *to, QueryOperator *left, QueryOperator *right)
+{
+    List *provInfo;
+
+    ASSERT_WITH_MESSAGE(HAS_STRING_PROP(left, PROP_PROVENANCE_TABLE_ATTRS),
+                        "Cannot copy provenance info if input operator does not have it\n%s",
+                        operatorToOverviewString(left));
+    ASSERT_WITH_MESSAGE(HAS_STRING_PROP(right, PROP_PROVENANCE_TABLE_ATTRS),
+                        "Cannot copy provenance info if input operator does not have it\n%s",
+                        operatorToOverviewString(right));
+	provInfo = CONCAT_LISTS((List *) copyObject(GET_STRING_PROP(left, PROP_PROVENANCE_TABLE_ATTRS)),
+		                    (List *) copyObject(GET_STRING_PROP(right, PROP_PROVENANCE_TABLE_ATTRS)));
+	SET_STRING_PROP(to, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
 }
 
 void
