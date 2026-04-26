@@ -63,7 +63,7 @@ static QueryOperator *rewriteTemporalAggregationWithNormalization(AggregationOpe
 static QueryOperator *rewriteTemporalSetDiffWithNormalization(SetOperator *diff, TemporalRewrState *state);
 
 static ConstRelOperator *createConstRelForNeuralAggVals(List *origAggs, List *aNames, List *inputAttrs);
-static int avoidCTEforCorrelatedSubqueries(QueryOperator *root);
+/* static int avoidCTEforCorrelatedSubqueries(QueryOperator *root); */
 static QueryOperator *temporalLateralizeAndUnnestSubqueries(QueryOperator *root);
 static QueryOperator *constructJoinIntervalIntersection(QueryOperator *op);
 static Node *constructNestingIntervalOverlapCondition(QueryOperator *op);
@@ -164,7 +164,7 @@ rewriteImplicitTemporal(QueryOperator *q)
 
     // nested queries with correlation and their subqueries cannot be put into
     // CTEs, we mark them to not be turned into CTEs
-    avoidCTEforCorrelatedSubqueries(top);
+    /* avoidCTEforCorrelatedSubqueries(top); */
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
@@ -205,43 +205,43 @@ rewriteImplicitTemporal(QueryOperator *q)
     return top;
 }
 
-static int
-avoidCTEforCorrelatedSubqueries(QueryOperator *root)
-{
-    int maxchildDepth = 0;
-    List *attrRefs = getCorrelatedAttrRefsInOperator(root);
+/* static int */
+/* avoidCTEforCorrelatedSubqueries(QueryOperator *root) */
+/* { */
+/*     int maxchildDepth = 0; */
+/*     List *attrRefs = getCorrelatedAttrRefsInOperator(root); */
 
-    FOREACH(QueryOperator,child,root->inputs)
-    {
-        int childDepth = avoidCTEforCorrelatedSubqueries(child);
-        maxchildDepth = MAX(maxchildDepth, childDepth);
-    }
+/*     FOREACH(QueryOperator,child,root->inputs) */
+/*     { */
+/*         int childDepth = avoidCTEforCorrelatedSubqueries(child); */
+/*         maxchildDepth = MAX(maxchildDepth, childDepth); */
+/*     } */
 
-    FOREACH(AttributeReference,a,attrRefs)
-    {
-        maxchildDepth = MAX(maxchildDepth, a->outerLevelsUp);
-    }
+/*     FOREACH(AttributeReference,a,attrRefs) */
+/*     { */
+/*         maxchildDepth = MAX(maxchildDepth, a->outerLevelsUp); */
+/*     } */
 
-    // if there are correlated attributes below then do not CTE
-    if(maxchildDepth > 0) /* && */
-       /* (LIST_LENGTH(root->parents) > 1 */
-       /*  || */
-       /*  (isA(root, type) */
-       /*  ) */
-        //TODO needed to avoid other code marking some operators to materialize
-    {
-        SET_BOOL_STRING_PROP(root,PROP_DO_NOT_MATERIALIZE);
-        DEBUG_LOG("do not use CTEs for %s", singleOperatorToOverview(root));
-    }
+/*     // if there are correlated attributes below then do not CTE */
+/*     if(maxchildDepth > 0) /\* && *\/ */
+/*        /\* (LIST_LENGTH(root->parents) > 1 *\/ */
+/*        /\*  || *\/ */
+/*        /\*  (isA(root, type) *\/ */
+/*        /\*  ) *\/ */
+/*         //TODO needed to avoid other code marking some operators to materialize */
+/*     { */
+/*         SET_BOOL_STRING_PROP(root,PROP_DO_NOT_MATERIALIZE); */
+/*         DEBUG_LOG("do not use CTEs for %s", singleOperatorToOverview(root)); */
+/*     } */
 
-    // each nesting operator reduces the maxchildDepth by 1
-    if(isA(root,NestingOperator))
-    {
-        maxchildDepth--;
-    }
+/*     // each nesting operator reduces the maxchildDepth by 1 */
+/*     if(isA(root,NestingOperator)) */
+/*     { */
+/*         maxchildDepth--; */
+/*     } */
 
-    return MAX(maxchildDepth,0);
-}
+/*     return MAX(maxchildDepth,0); */
+/* } */
 
 static QueryOperator *
 temporalLateralizeAndUnnestSubqueries(QueryOperator *root)

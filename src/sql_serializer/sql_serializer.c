@@ -48,6 +48,18 @@ serializeOperatorModel(Node *q)
     char *result;
     ASSERT(plugin);
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER_CONTEXT");
+    if(isA(q,List))
+    {
+        FOREACH(QueryOperator,c,(List *) q)
+        {
+            markCorrelatedSubqueriesAsNonCTE(c);
+        }
+    }
+    if(isA(q,QueryOperator))
+    {
+        markCorrelatedSubqueriesAsNonCTE((QueryOperator *) q);
+    }
+
     result = plugin->serializeOperatorModel(q);
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
@@ -58,6 +70,7 @@ serializeQuery(QueryOperator *q)
     char *result;
     ASSERT(plugin);
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER_CONTEXT");
+    markCorrelatedSubqueriesAsNonCTE(q);
     result = plugin->serializeQuery(q);
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }

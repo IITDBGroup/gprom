@@ -490,7 +490,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	char *rewrittenSQL = NULL;
 	START_TIMER("rewrite");
 
-    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE) && !hasProvComputation(oModel))
+    if(isRewriteOptionActivated(OPTION_LATERAL_REWRITE)) // && !hasProvComputation(oModel))
 	{
 		oModel = lateralTranslateQBModel(oModel);
 		INFO_AND_DEBUG_OP_LOG("subqueries rewritten into lateral", oModel);

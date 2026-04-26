@@ -178,6 +178,7 @@ extern void updateAttributeReference(AttributeReference *a, FromAttrsContext *fa
 extern boolean updateWindowAttributeNames(Node *node, FromAttrsContext *fac, HashMap *winfAttrs);
 extern boolean updateAttributeNamesSimple(Node *node, void *attrNames);
 extern boolean updateWindowAttributeNamesSimple(Node *node, List *attrNames, HashMap *winfAttrs);
+extern int markCorrelatedSubqueriesAsNonCTE(QueryOperator *root);
 
 //for nesting
 extern void analyzeNesting(QueryOperator *q, SerializeClausesAPI *api);

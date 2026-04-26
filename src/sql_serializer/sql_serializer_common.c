@@ -72,6 +72,7 @@ static boolean analyzeNestingVisitor(QueryOperator *q, void *api);
 static void gatherCorrelatedAttrs(QueryOperator *q, List *nestScopes, SerializeClausesAPI *api);
 static boolean updateWindowAttrsInternal(Node *node, void *context);
 static boolean updateWindowAttributeNamesSimpleInternal(Node *node, void *context);
+static boolean materializeAsCTE(QueryOperator *op);
 
 /*
  * create API struct
@@ -488,8 +489,8 @@ genSerializeQueryBlock(QueryOperator *q, StringInfo str, FromAttrsContext *fac, 
     {
         DEBUG_LOG("STATE: %s", OUT_MATCH_STATE(state));
         DEBUG_LOG("Operator %s", singleOperatorToOverview((Node *) cur));
-        // first check that cur does not have more than one parent
-        if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) && (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1))
+        // first check that cur does not get materialized as a CTE
+        if (materializeAsCTE(cur)) // isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) && (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1))
         {
             if (cur != q)
             {
@@ -1394,10 +1395,10 @@ genSerializeFromItem(QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
     // if operator has more than one parent then it will be represented as a CTE
     // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
 	// also do not materialized if the user forced a tree structions
-    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE))
-        || q == fromRoot
-        || isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY)
-        || !HAS_STRING_PROP(q, PROP_DO_NOT_MATERIALIZE))
+    if (!materializeAsCTE(q) || q == fromRoot) /* (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) */
+        /* || q == fromRoot */
+        /* || isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) */
+        /* || !HAS_STRING_PROP(q, PROP_DO_NOT_MATERIALIZE)) */
     {
         switch(q->type)
         {
@@ -1738,9 +1739,9 @@ genSerializeQueryOperator(QueryOperator *q, StringInfo str, QueryOperator *paren
 		api->serializeExecPreparedOperator((ExecPreparedOperator *) q, str);
 		return NIL;
 	}
-    if (!isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) &&
-		(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)) &&
-        !HAS_STRING_PROP(q, PROP_DO_NOT_MATERIALIZE))
+    if (materializeAsCTE(q)) /* !isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY) && */
+		/* (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE)) && */
+        /* !HAS_STRING_PROP(q, PROP_DO_NOT_MATERIALIZE)) */
     {
         return api->createTempView(q, str, parent, fac, api);
     }
@@ -2131,4 +2132,50 @@ updateWindowAttributeNamesSimpleInternal(Node *node, void *state)
     }
 
     return visit(node, updateWindowAttributeNamesSimpleInternal, context);
+}
+
+static boolean
+materializeAsCTE(QueryOperator *op)
+{
+    boolean treeify = isRewriteOptionActivated(OPTION_ALWAYS_TREEIFY);
+    boolean multiple_parents = LIST_LENGTH(op->parents) > 1;
+    boolean materialize = HAS_STRING_PROP(op,PROP_MATERIALIZE);
+    boolean nomaterialize = HAS_STRING_PROP(op, PROP_DO_NOT_MATERIALIZE);
+
+    return !treeify
+           && (multiple_parents || materialize)
+           && !nomaterialize;
+}
+
+int
+markCorrelatedSubqueriesAsNonCTE(QueryOperator *root)
+{
+    int maxchildDepth = 0;
+    List *attrRefs = getCorrelatedAttrRefsInOperator(root);
+
+    FOREACH(QueryOperator,child,root->inputs)
+    {
+        int childDepth = markCorrelatedSubqueriesAsNonCTE(child);
+        maxchildDepth = MAX(maxchildDepth, childDepth);
+    }
+
+    FOREACH(AttributeReference,a,attrRefs)
+    {
+        maxchildDepth = MAX(maxchildDepth, a->outerLevelsUp);
+    }
+
+    // if there are correlated attributes below then do not CTE
+    if(maxchildDepth > 0)
+    {
+        SET_BOOL_STRING_PROP(root,PROP_DO_NOT_MATERIALIZE);
+        DEBUG_LOG("do not use CTEs for %s", singleOperatorToOverview(root));
+    }
+
+    // each nesting operator reduces the maxchildDepth by 1
+    if(isA(root,NestingOperator))
+    {
+        maxchildDepth--;
+    }
+
+    return MAX(maxchildDepth,0);
 }
