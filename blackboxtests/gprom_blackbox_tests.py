@@ -11,6 +11,7 @@ from functools import reduce
 from pathlib import Path
 from typing import Dict, Union
 import rich
+import rich.console
 from pg8000.native import Connection
 from tqdm import tqdm
 import difflib
@@ -49,7 +50,7 @@ def forcelogfat(m):
     console.print(m, style=FAT_STYLE, justify="center")
     console.print(80 * " ", style=FAT_STYLE, justify="center")
 
-def wrap_line(m):
+def wrap_line(m) -> str:
     return "\n" + "=" * 80 + "\n" + m + "\n"  + "=" * 80
 
 class DatabaseBackend(StrEnum):
@@ -64,10 +65,10 @@ class DatabaseBackend(StrEnum):
         return self.name
 
     @classmethod
-    def allbackends_as_str(cls: "DatabaseBackend"):
+    def allbackends_as_str(cls: "DatabaseBackend") -> list[str]:
         return [ x.name for x in DatabaseBackend ]
 
-def color_diff_strings(s1, s2):
+def color_diff_strings(s1, s2) -> str:
     """Highlights character-level differences using ANSI codes."""
     GREEN = '[bold black on green]'
     RED = '[bold white on red]'
@@ -90,7 +91,7 @@ def color_diff_strings(s1, s2):
 
     return "\n".join(output)
 
-def old_color_diff_strings(s1, s2):
+def old_color_diff_strings(s1, s2) -> str:
     """Highlights character-level differences using ANSI codes."""
     # GREEN = '\x1b[38;5;16;48;5;2m'
     # RED = '\x1b[38;5;16;48;5;1m'
@@ -101,9 +102,12 @@ def old_color_diff_strings(s1, s2):
 
     output = []
     for op, a0, a1, b0, b1 in difflib.SequenceMatcher(None, s1, s2).get_opcodes():
-        if op == "equal": output.append(s1[a0:a1])
-        elif op == "insert": output.append(GREEN + s2[b0:b1] + END)
-        elif op == "delete": output.append(RED + s1[a0:a1] + END)
+        if op == "equal":
+            output.append(s1[a0:a1])
+        elif op == "insert":
+            output.append(GREEN + s2[b0:b1] + END)
+        elif op == "delete":
+            output.append(RED + s1[a0:a1] + END)
         elif op == "replace":
             output.append(RED + s1[a0:a1] + END)
             output.append(GREEN + s2[b0:b1] + END)
@@ -125,15 +129,15 @@ class Table:
     def add_row(self, row: tuple[str]):
         self.rows.update([row])
 
-    def num_rows(self):
+    def num_rows(self) -> int:
         return sum(self.rows.values())
 
-    def __eq__(self,o):
+    def __eq__(self,o) -> bool:
         if self.schema != o.schema:
             return False
         return self.rows == o.rows
 
-    def mydiff(self, o: "Table"):
+    def mydiff(self, o: "Table") -> str:
         if self.schema != o.schema:
             return f"schemas differ: expected\n\n{self.schema}\n, but got:\n{o.schema}"
         allrows = set(self.rows.keys()).union(o.rows.keys())
@@ -150,7 +154,7 @@ class Table:
     #     diff = DeepDiff(self.rows, o.rows, verbose_level=2, view=COLORED_VIEW,  ignore_order=True)
     #     return diff.pretty()
 
-    def colordiff(self, o: "Table"):
+    def colordiff(self, o: "Table") -> str:
         selfstr = str(self) # todo method for returning list of row strings to avoid this
         ostr = str(o)
         selflines = selfstr.splitlines()
@@ -162,14 +166,14 @@ class Table:
 
         return color_diff_strings(selfstr, ostr)
 
-    def diff(self, o: "Table"):
+    def diff(self, o: "Table") -> str:
         if options.diffalgo == 'table-level-multiplity':
             return self.mydiff(o)
         if options.diffalgo == 'string-colordiff':
             return self.colordiff(o)
 
     @classmethod
-    def from_str(cls, inputstr: str):
+    def from_str(cls, inputstr: str) -> "Table":
         try:
             lines = inputstr.split('\n')
             lines = [ x for x in lines if x.strip() != "" ]
@@ -192,12 +196,12 @@ class Table:
             raise TableParseException(str)
 
     @classmethod
-    def row_to_string(cls, r, attrvallen=None, newline=False):
+    def row_to_string(cls, r, attrvallen=None, newline=False) -> str:
         if not attrvallen:
             attrvallen = [ len(v) for v in r ]
         return ' |'.join([ ' ' + x.ljust(attrvallen[i]) for i, x in enumerate(r)]) + " |" + ("\n" if newline else "")
 
-    def __str__(self):
+    def __str__(self) -> str:
         result = io.StringIO()
         attrvallen = [ max([ len(x[i]) for x in self.rows ] + [0]) for i in range(0,len(self.schema)) ]
         attrvallen = [ max(attrvallen[i], len(self.schema[i]) ) for i in range(0,len(self.schema)) ]
@@ -217,27 +221,27 @@ class Table:
 
         return result
 
-    def get_attr_pos(self,a):
+    def get_attr_pos(self,a) -> int:
         return self.schema.index(a)
 
-    def get_composable_attrs_pos(self):
+    def get_composable_attrs_pos(self) -> tuple[int,int]:
         return (self.get_attr_pos(Table.RESULT_TID_ATTR), self.get_attr_pos(Table.DUP_ATTR))
 
     @classmethod
-    def is_prov_attr(cls, a):
+    def is_prov_attr(cls, a) -> bool:
         return a.startswith("prov_")
 
     @classmethod
-    def is_normal_attr(cls, a):
+    def is_normal_attr(cls, a) -> bool:
         return a not in [ Table.DUP_ATTR, Table.RESULT_TID_ATTR ] and not Table.is_prov_attr(a)
 
-    def row_project_normal(self,row):
+    def row_project_normal(self,row) -> tuple:
         return tuple([ row[i] for i in [ i for (i,x) in enumerate(self.schema) if Table.is_normal_attr(x) ] ])
 
-    def row_project_provenance(self,row):
+    def row_project_provenance(self,row) -> tuple:
         return tuple([ row[i] for i in [ i for (i,x) in enumerate(self.schema) if Table.is_prov_attr(x) ] ])
 
-    def row_get_attr(self,row,a):
+    def row_get_attr(self,row,a) -> str:
         pos = self.schema.index(a)
         return row[pos]
 
@@ -245,7 +249,7 @@ class Table:
         pos = self.schema.index(a)
         row[pos] = val
 
-    def normalize_prov_composable(self):
+    def normalize_prov_composable(self) -> "Table":
         """
         replace _result_tid attribute with a hash based on the (non-provenance attributes), and set provenance duplicate counter attribute based on sorting on a hash of the provenance attributes
         """
@@ -292,10 +296,10 @@ class OrderedTable():
     def add_row(self, row: tuple[str]):
         self.rows.update([row])
 
-    def num_rows(self):
+    def num_rows(self) -> int:
         return sum(self.rows.values())
 
-    def __eq__(self,o):
+    def __eq__(self,o: "OrderedTable") -> bool:
         if self.schema != o.schema:
             return False
         return self.rows == o.rows
@@ -303,7 +307,7 @@ class OrderedTable():
     def append(self, row: tuple[str]):
         self.rows.append(row)
 
-    def mydiff(self, o: "OrderedTable"):
+    def mydiff(self, o: "OrderedTable") -> str:
         if self.schema != o.schema:
             return f"schemas differ: expected {self.schema}, but got {o.schema}"
         numself = self.num_rows()
@@ -322,19 +326,19 @@ class OrderedTable():
 
         return result
 
-    def colordiff(self, o: "OrderedTable"):
+    def colordiff(self, o: "OrderedTable") -> str:
         selfstr = str(self)
         ostr = str(o)
         return color_diff_strings(selfstr, ostr)
 
-    def diff(self, o: "OrderedTable"):
+    def diff(self, o: "OrderedTable") -> str:
         if options.diffalgo == 'table-level-multiplity':
             return self.mydiff(o)
         if options.diffalgo == 'string-colordiff':
             return self.colordiff(o)
 
     @classmethod
-    def from_str(cls, inputstr: str):
+    def from_str(cls, inputstr: str) -> "OrderedTable":
         try:
             lines = inputstr.split('\n')
             lines = [ x for x in lines if x.strip() != "" ]
@@ -355,7 +359,7 @@ class OrderedTable():
             raise TableParseException(str)
 
 
-    def __str__(self):
+    def __str__(self) -> str:
         result = ""
         attrvallen = [ max([ len(x[i]) for x in self.rows ] + [0]) for i in range(0,len(self.schema)) ]
         attrvallen = [ max(attrvallen[i], len(self.schema[i])) for i in range(0,len(self.schema)) ]
@@ -384,25 +388,25 @@ class GProMSetting:
     def merge_into(self, other: "GProMSetting") -> "GProMSetting":
         self.setting = self.union(other)
 
-    def __getitem__(self,key):
+    def __getitem__(self,key) -> str:
         return self.setting[key]
 
     def __setitem__(self, key, value):
         self.setting[key] = value
 
-    def __eq__(self,o):
+    def __eq__(self,o) -> bool:
         return self.setting == o.setting
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.setting)
 
-    def __contains__(self, key):
+    def __contains__(self, key) -> bool:
         return key in self.setting
 
-    def items(self):
+    def items(self) -> list:
         return self.setting.items()
 
-    def to_list(self):
+    def to_list(self) -> list:
         result = []
         for o,v in self.setting.items():
             if v is not None:
@@ -412,13 +416,13 @@ class GProMSetting:
         return result
 
     @classmethod
-    def option_kv_to_str(cls,k:str, v:object):
+    def option_kv_to_str(cls,k:str, v:object) -> str:
         if v is None:
             return k
         else:
             return k + " " + str(v)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return ' '.join([ GProMSetting.option_kv_to_str(*kv) for kv in self.setting.items()])
 
 @dataclass
@@ -434,14 +438,14 @@ class GProMSettings:
     def __iter__(self):
         return self.settings.keys().__iter__()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.settings)
 
-    def names(self):
+    def names(self) -> list[str]:
         return self.settings.keys()
 
     @classmethod
-    def merge(cls, s1: "GProMSettings", s2: "GProMSettings"):
+    def merge(cls, s1: "GProMSettings", s2: "GProMSettings") -> "GProMSettings":
         if s1 is None:
             return s2
         if s2 is None:
@@ -449,16 +453,16 @@ class GProMSettings:
         mergeddict = { **s1.settings, **s2.settings }
         return GProMSettings(mergeddict)
 
-    def combinations(self,other: "GProMSettings"):
+    def combinations(self,other: "GProMSettings") -> "GProMSettings":
         """
         Build all combinations of settings from self with other. For conflicting values for options, other wins.
         """
         return GProMSettings({k2+"."+k: self.settings[k2].union(other.settings[k]) for k2 in self.settings for k in other.settings })
 
-    def extensions(self,name,other: "GProMSettings"):
+    def extensions(self,name,other: "GProMSettings") -> "GProMSettings":
         return GProMSettings({name+"."+k: self.settings[name].union(other.settings[k]) for k in other.settings })
 
-    def singleton(self,name):
+    def singleton(self,name) -> "GProMSettings":
         return GProMSettings({name:self.settings[name]})
 
 @dataclass
@@ -467,7 +471,7 @@ class GProMTest:
     extra_settings: GProMSettings
     disallowed_settings: GProMSettings
 
-    def should_run_test(self, allowedtests):
+    def should_run_test(self, allowedtests) -> bool:
         if not allowedtests:
             return True
         for allowed in allowedtests:
@@ -478,7 +482,7 @@ class GProMTest:
                 return True
         return False
 
-    def should_run_setting(self, setting: str, allowedset, strict=False):
+    def should_run_setting(self, setting: str, allowedset, strict=False) -> bool:
         if not allowedset:
             return True
         for allowed in allowedset:
@@ -488,15 +492,16 @@ class GProMTest:
                 return True
         return False
 
-    def get_name_str(self):
+    def get_name_str(self) -> str:
         return '.'.join(self.name)
 
-    def count_testcases(self, allowed, settings, parentset):
+    def count_testcases(self, allowed, settings, parentset) -> int:
         return 0
 
 @dataclass
 class GProMTestCase(GProMTest):
     query: str
+    backend_queries: Dict[str,str]
     expected: Union[Table,OrderedTable]
     backend_expected: Dict[str,Union[Table,OrderedTable]]
     issorted: bool
@@ -506,6 +511,12 @@ class GProMTestCase(GProMTest):
             return self.backend_expected[backend]
         else:
             return self.expected
+
+    def get_query(self,backend: str) -> str:
+        if backend in self.backend_queries:
+            return self.backend_queries[backend]
+        else:
+            return self.query
 
     def count_testcases(self, allowed, settings, parentset):
         if self.should_run_test(allowed) and self.should_run_setting(parentset,  settings, True):
@@ -647,16 +658,19 @@ class GProMXMLTestLoader:
 
             for q in queries:
                 backend_expected = {}
+                backend_queries = {}
                 curquery = q
                 qkey = q + '.query'
                 rkey = q + '.result'
                 skey = q + '.issorted'
                 dkey = q + '.disabled'
+                dbackendkey = q + ".disabled-backends"
                 testcasename = tuple(list(suitenameparts) + [q])
                 query = propdict[qkey]
                 result = propdict[rkey]
                 issorted = propdict[skey] if skey in propdict else False
                 disabled = dkey in propdict
+                disabledbackends = dbackendkey in propdict
                 #log(f"PARSE TEST CASE {q} [{testcasename} sorted:{issorted} disabled:{disabled} from file <{f}>:\n{query}\n\n{result}")
 
                 for b in DatabaseBackend.allbackends_as_str():
@@ -666,9 +680,20 @@ class GProMXMLTestLoader:
                         bt = OrderedTable.from_str(rbresult) if issorted else Table.from_str(rbresult)
                         backend_expected[b] = bt
 
+                for b in DatabaseBackend.allbackends_as_str():
+                    rbkey = q + '.query.' + b
+                    if rbkey in propdict:
+                        rbquery = propdict[rbkey]
+                        backend_queries[b] = rbquery
+
+                if disabledbackends:
+                    disbackends = [ DatabaseBackend(x.strip()) for x in propdict[dbackendkey].split(",") ]
+                    if options.backend in disbackends:
+                        disabled = True
+
                 if not disabled:
                     t = OrderedTable.from_str(result) if issorted else Table.from_str(result)
-                    testcases[q] = GProMTestCase(testcasename, None, None, query, t, backend_expected, issorted)
+                    testcases[q] = GProMTestCase(testcasename, None, None, query, backend_queries, t, backend_expected, issorted)
 
             return GProMTestSuite(suitenameparts, extrasettings, disallow, testcases)
         except Exception as e:
@@ -741,17 +766,18 @@ class GProMTestRunner:
             self.tr.actualresults[name] = {}
 
     def run_test(self, test: GProMTestCase, conf: GProMSettings, name: str): #TODO deal with forbidden settings
-        log(f"Test case query:\n{test.query}\nwith expected result:\n{test.expected}")
+        query = test.get_query(options.backend)
         exp = test.get_expected(options.backend)
+        log(f"Test case query:\n{query}\nwith expected result:\n{exp}")
         setting = conf[name]
         is_prov_composable = '-prov_use_composable' in setting
         self.ensure_dicts(name)
-        self.tr.queries[name][test.name] = test.query
+        self.tr.queries[name][test.name] = query
         try:
             if test.issorted:
-                actual = GProMRunner.gprom_exec_to_ordered_table(self.gprompath, test.query, setting)
+                actual = GProMRunner.gprom_exec_to_ordered_table(self.gprompath, query, setting)
             else:
-                actual = GProMRunner.gprom_exec_to_table(self.gprompath, test.query, setting)
+                actual = GProMRunner.gprom_exec_to_table(self.gprompath, query, setting)
             log(f"actual result was {'different' if not (exp == actual) else 'correct'}:\n{actual}")
             self.tr.actualresults[name][test.name] = str(actual)
             if is_prov_composable:
@@ -781,7 +807,7 @@ class GProMTestRunner:
             if options.errordetails:
                 try:
                     mergedconf = setting.union(self.debugconf)
-                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, query, mergedconf)
                     if rc == -1:
                         self.tr.errors[name][test.name] += "TIMED OUT"
                     else:
@@ -803,7 +829,7 @@ class GProMTestRunner:
             if options.errordetails:
                 try:
                     mergedconf = setting.union(self.debugconf)
-                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, test.query, mergedconf)
+                    (rc,stdout,stderr) = GProMRunner.gprom_exec_to_string(self.gprompath, query, mergedconf)
                     self.tr.actualresults[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
                     self.tr.errors[name][test.name] = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n\nRETURN CODE: {rc}"
                 except Exception as e2:
@@ -871,7 +897,6 @@ class GProMTestRunner:
     def print_results(self, t: GProMTestSuite, parentset: str):
         if not self.tr.should_run_test(t):
             return 0,0
-        console = rich.get_console()
         indentlen = len(t.name) * 4
         testindentlen = indentlen + 4
         blankindent = indentlen * " "
@@ -1043,7 +1068,6 @@ class TestResultOutputter:
         serializer = cls.TEST_OUTPUT_SERIALIZERS[options.result_format]()
         output, numbase, basepassed = serializer.serialize(t, tr)
         if options.result_file is None:
-            console = rich.get_console()
             console.print(output)
         else:
             with open(options.result_file, 'w') as f:
@@ -1060,13 +1084,13 @@ class GProMRunException(Exception):
         self.stderr = stderr
         self.cmd = cmd
 
-    def wrap_in_lines(self, s):
+    def wrap_in_lines(self, s) -> str:
         return "\n" + "=" * 80 + "\n" + s + "\n"  + "=" * 80
 
-    def shortversion(self):
+    def shortversion(self) -> str:
         return f"RC: [{self.rc}] {self.stdout}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         title = self.wrap_in_lines(f"\nGProM Run Exception [return code <{self.rc}>]\n")
         cmd = self.wrap_in_lines(self.cmd)
         stdout = self.wrap_in_lines("STDOUT")
@@ -1079,14 +1103,14 @@ class TableParseException(Exception):
         super().__init__(message)
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "\n" + "=" * 80 + "\nTable Parse Exception\n" + "=" * 80 + "\n\n" + self.message + "\n" + "=" * 80
 
 
 class GProMRunner():
 
     @classmethod
-    def construct_gprom_cmd_as_list(cls, gprom: str, query: str, args: GProMSetting):
+    def construct_gprom_cmd_as_list(cls, gprom: str, query: str, args: GProMSetting) -> list[str]:
         query = query.replace("\n", " ")
         cmdlist = [ gprom ] + args.to_list() + ["-query", query]
         return cmdlist
@@ -1112,7 +1136,7 @@ WHERE pid <> pg_backend_pid();
             con.close()
 
     @classmethod
-    def gprom_exec_to_string(cls, gprom: str, query: str, args: GProMSetting):
+    def gprom_exec_to_string(cls, gprom: str, query: str, args: GProMSetting) -> tuple[int,str,str]:
         log(f"will run {query} with args {args.items()}")
         cmdlist = GProMRunner.construct_gprom_cmd_as_list(gprom, query, args)
         log(f"run gprom with args:\n\t{' '.join(cmdlist)}")
@@ -1129,7 +1153,7 @@ WHERE pid <> pg_backend_pid();
         return (process.returncode, process.stdout.strip(), process.stderr.strip())
 
     @classmethod
-    def gprom_exec_to_table(cls, gprom: str, query: str, args: GProMSetting):
+    def gprom_exec_to_table(cls, gprom: str, query: str, args: GProMSetting) -> Table:
         rc, res, stderr = GProMRunner.gprom_exec_to_string(gprom, query, args)
         log(f"running get us RC: {rc} with STDOUT:\n{res}")
         if rc:
@@ -1139,21 +1163,21 @@ WHERE pid <> pg_backend_pid();
 
 
     @classmethod
-    def gprom_exec_to_ordered_table(cls, gprom: str, query: str, args: GProMSetting):
+    def gprom_exec_to_ordered_table(cls, gprom: str, query: str, args: GProMSetting) -> OrderedTable:
         rc, res, stderr = GProMRunner.gprom_exec_to_string(gprom, query, args)
         log(f"running get us RC: {rc} with STDOUT:\n{res}")
         if rc:
             raise Exception(f"failed running [{rc}]:\nSTDOUT:\n{res}\nSTDERR:\n{stderr}")
         return OrderedTable.from_str(res)
 
-def gprom_debug_settings():
+def gprom_debug_settings() -> GProMSetting:
     return GProMSetting({
         "-Loperator_verbose": None,
         "-Loperator_verbose_props": "2",
         "-loglevel": "3"
     })
 
-def default_gprom_settings_from_options(opions):
+def default_gprom_settings_from_options(opions) -> tuple[GProMSettings,GProMSettings]:
     common = GProMSetting({"-loglevel": "0"})
     if options.backend == 'sqlite':
         settings = common.union(GProMSetting({
@@ -1195,7 +1219,7 @@ def parse_args():
     ap.add_argument('--diff', action='store_true',
                     help="if provided, then show difference in outputs for failed tests")
     ap.add_argument('--diffalgo', type=str, default='table-level-multiplity',
-                    help=f"how to compute and show differences between tables (table-level-multiplitiy [DEFAULT],string-colordiff)")
+                    help="how to compute and show differences between tables (table-level-multiplitiy [DEFAULT],string-colordiff)")
     ap.add_argument('-e', '--errordetails', action='store_true',
                     help="if provided, then show detailed error messages for tests where gprom errored out")
     ap.add_argument('-S', '--stoponerror', action='store_true',
@@ -1226,7 +1250,6 @@ def parse_args():
                     choices = TEST_OUTPUT_FORMATS,
                     help="output")
 
-
     args = ap.parse_args()
     return args
 
@@ -1242,13 +1265,13 @@ def parse_settings_selection():
         options.settings = [ x.strip() for x in s.split(",") ]
         log(f"user selecected settings: {options.settings}")
 
-def get_relative_path(p):
+def get_relative_path(p) -> str:
     return str(Path(__file__).resolve().parent) + "/" + p
 
-def main():
+def main() -> int:
     global options
     global console
-    console = rich.get_console()
+    console = rich.console.Console(highlight=False)
     options = parse_args()
     parse_test_cases_selection()
     parse_settings_selection()
