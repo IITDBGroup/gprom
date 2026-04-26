@@ -93,7 +93,7 @@ getParserPluginName (void)
     switch(plugin->type)
     {
         case PARSER_PLUGIN_ORACLE:
-            return "Oracle SQL";
+            return "SQL";
         case PARSER_PLUGIN_POSTGRES:
             return "Postgres SQL";
         case PARSER_PLUGIN_HIVE:
