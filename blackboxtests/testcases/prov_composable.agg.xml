@@ -253,5 +253,23 @@ PROVENANCE WITH RESULTTIDS OF (SELECT * FROM (SELECT max(a) AS y FROM r) n, (SEL
  2 | 1 | 2        | 3        | 2          | 3          | 1           | 16                 |
 </entry>
 
+<entry key="q22.query">
+PROVENANCE WITH RESULTTIDS OF (SELECT sum(A) FROM r WHERE a != a);
+</entry>
+<entry key="q22.result">
+ sum(a) | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
+------------------------------------------------------------------
+ NULL   | NULL     | NULL     | 1           | 1                  |
+</entry>
+
+<entry key="q23.query">
+PROVENANCE WITH RESULTTIDS OF (SELECT count(1) FROM r WHERE a != a);
+</entry>
+<entry key="q23.result">
+ count(1) | prov_r_a | prov_r_b | _result_tid | _setprov_dup_count |
+--------------------------------------------------------------------
+ 0        | NULL     | NULL     | 1           | 1                  |
+</entry>
+
 
 </properties>
