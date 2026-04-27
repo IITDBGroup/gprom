@@ -189,20 +189,38 @@ Scalars are lifted in SQL via **`int_to_range_set`**; if backend metadata alread
 
 ```sql
 -- Uncertain integer columns a, b; u_r is row metadata (often not SELECT-visible)
+DROP TABLE IF EXISTS r;
 CREATE TABLE r (a int, b int, u_r int);
 
-INSERT INTO r (a, b, u_r) VALUES (3, 5, 1);
+-- 多样本：便于测 USET / set_* / prune_*（GProM 与手工 SQL）
+-- u_r：任意行标识；a,b 为不确定整型列（IS UADB 语义下由元数据使用）
+INSERT INTO r (a, b, u_r) VALUES
+  (3, 5, 1),      
+  (3, 10, 2),    
+  (3, 100, 3),    
+  (3, 7, 10),     
+  (3, 3, 4),      
+  (3, 2, 5),      
+  (1, 5, 6),      
+  (4, 9, 7),     
+  (2, 8, 8),      
+  (-1, 10, 9),    
+  (0, 3, 11),     
+  (3, 4, 12);     
 
 -- IS UADB is required. Pruning is on because of WITH PRUNING (or use -uset_pruning).
-USET WITH PRUNING (SELECT a, b FROM r IS UADB WHERE a = 3 AND b = 5);
+USET WITH PRUNING (SELECT a, b FROM r IS UADB WHERE a = 3 AND a < b AND b > 4);
 ```
 
-**Result:** after GProM compiles the request to SQL and you run it on PostgreSQL, each integer is lifted to a **half-open** point range (**`3` → `[3,4)`**, **`5` → `[5,6)`**). One matching row yields one result line; **`int4range[]`** columns may print as an array literal.
+**Result:** 
 
 ```
-  a        | b
-----------+----------
- {"[3,4)"} | {"[5,6)"}
+ a         | b             |
+----------------------------
+ {"[3,4)"} | {"[5,6)"}     |
+ {"[3,4)"} | {"[10,11)"}   |
+ {"[3,4)"} | {"[100,101)"} |
+ {"[3,4)"} | {"[7,8)"}     |
 ```
 
 
