@@ -203,7 +203,16 @@ usetWrapArgForPredicate(Node *arg)
             return copyObject(arg);
         if (a->attrType == DT_STRING)
             return copyObject(arg);
+        /* PostgreSQL 通常无 int_to_range_set(boolean)；布尔列保持 SQL bool（不参与 AUDB 区间 lift） */
+        if (a->attrType == DT_BOOL)
+            return copyObject(arg);
         return (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(arg)));
+    }
+    if (isA(arg, Constant))
+    {
+        Constant *c = (Constant *)arg;
+        if (c->constType == DT_BOOL)
+            return copyObject(arg);
     }
     /* 常量与列统一为 int_to_range_set（PG 中实现为 ARRAY[lift_scalar(x)]） */
     return (Node *)createFunctionCall("int_to_range_set", singleton(copyObject(arg)));
@@ -735,6 +744,10 @@ static Node *rewriteUsetExpression(Node *expr, HashMap *hmp) {
                 && usetSchemaAttrTypeByName(g_uset_expr_input_op, attr->name) == DT_STRING)
                 return copyObject(expr);
 
+            /* 布尔列（如 is_outlier）：不按不确定整数 lift，避免生成 int_to_range_set(boolean) */
+            if (attr->attrType == DT_BOOL)
+                return copyObject(expr);
+
             // 如果属性类型不是DT_STRING（int4range[]），需要转换
             if (attr->attrType != DT_STRING) {
                 INFO_LOG("USET: Converting attribute %s from type %d to range_set", 
@@ -777,6 +790,7 @@ static QueryOperator *rewrite_UsetJoin(QueryOperator *op);
 static QueryOperator *rewrite_UsetAggregation(QueryOperator *op);
 static QueryOperator *rewrite_UsetAggregation2(QueryOperator *op);
 static QueryOperator *rewrite_UsetXTable(QueryOperator *op);
+static QueryOperator *addUsetNormalizeProjection(QueryOperator *root);
 
 
 
@@ -6495,6 +6509,55 @@ hasNormalizeInTree(QueryOperator *op)
 	return FALSE;
 }
 
+/* USET + IS UADB (and similar): wrap projection outputs with range_normalize on AUDB range-set
+ * columns only (modelled as DT_STRING / int4range[]). Scalar columns (e.g. orig_id, u_r, int dims)
+ * are passed through. Enabled by CLI -normalize / OPTION_USET_NORMALIZE.
+ */
+static QueryOperator *
+addUsetNormalizeProjection(QueryOperator *root)
+{
+	ASSERT(root->type == T_ProjectionOperator);
+
+	List *normExprs = NIL;
+	List *attrNames = NIL;
+
+	FOREACH(AttributeDef, ad, root->schema->attrDefs)
+	{
+		char *attrName = ad->attrName;
+		AttributeReference *ref = getAttrRefByName(root, attrName);
+		ASSERT(ref);
+
+		boolean skipMeta =
+		    strcmp(attrName, "lb") == 0 || strcmp(attrName, "ub") == 0
+		    || strcmp(attrName, ROW_CERTAIN) == 0
+		    || strcmp(attrName, ROW_BESTGUESS) == 0
+		    || strcmp(attrName, ROW_POSSIBLE) == 0;
+
+		if (skipMeta || ad->dataType != DT_STRING)
+			normExprs = appendToTailOfList(normExprs, (Node *)copyObject(ref));
+		else
+			normExprs = appendToTailOfList(
+			    normExprs,
+			    (Node *)createFunctionCall(
+				"range_normalize", singleton((Node *)copyObject(ref))));
+
+		attrNames = appendToTailOfList(attrNames, strdup(attrName));
+	}
+
+	QueryOperator *normProj =
+	    (QueryOperator *)createProjectionOp(normExprs, root, NIL, attrNames);
+	switchSubtrees(root, normProj);
+	root->parents = singleton(normProj);
+
+	if (HAS_STRING_PROP(root, UNCERT_MAPPING_PROP))
+		SET_STRING_PROP(normProj, UNCERT_MAPPING_PROP,
+		    copyObject(getStringProperty(root, UNCERT_MAPPING_PROP)));
+
+	setUsetMode(normProj);
+	INFO_LOG("USET: range_normalize projection (-normalize) on DT_STRING range-set columns");
+	return normProj;
+}
+
 /* Wrap root with a projection that applies range_normalize to data columns.
  * Skip metadata columns: lb, ub, ROW_CERTAIN, ROW_BESTGUESS, ROW_POSSIBLE.
  * Note: range_normalize expects int4range[]; columns from parse_ctable_condition_*
@@ -7201,7 +7264,11 @@ rewrite_UsetProjection(QueryOperator *op)
             FOREACH(Node, pex, pjo->projExprs)
                 syncAttrRefTypesFromInput(pex, OP_LCHILD(op));
         }
-        
+
+        /* Merge overlapping int4range[] in SELECT output when -normalize is set (with pruning or not). */
+        if (getBoolOption(OPTION_USET_NORMALIZE) && op->type == T_ProjectionOperator)
+            op = addUsetNormalizeProjection(op);
+
         // 设置USET模式属性
         setUsetMode(op);
         
