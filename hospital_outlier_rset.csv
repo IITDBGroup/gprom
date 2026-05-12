@@ -1,0 +1,973 @@
+ProviderNumber,HospitalName,ZipCode,Score,u_r
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",1
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",2
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",3
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",4
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",5
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",6
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",7
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",8
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[97,98)""}",9
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[92,93)""}",10
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[75,76)""}",11
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[100,101)""}",12
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[86,87)""}",13
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[0,101)""}",14
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[80,81)""}",15
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[99,100)""}",16
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[92,93)""}",17
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[100,101)""}",18
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[98,99)""}",19
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[99,100)""}",20
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[96,97)""}",21
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[100,101)""}",22
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[99,100)""}",23
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[0,101)""}",24
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[72,73)""}",25
+10001,southeast alabama medxcal center,"{""[36302,36303)""}","{""[78,79)""}",26
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[99,100)""}",27
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[91,92)""}",28
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[100,101)""}",29
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[93,94)""}",30
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[89,90)""}",31
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[99,100)""}",32
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[92,93)""}",33
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[80,81)""}",34
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[84,85)""}",35
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[72,73)""}",36
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[94,95)""}",37
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[98,99)""}",38
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[88,89)""}",39
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[96,97)""}",40
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[90,91)""}",41
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[86,87)""}",42
+10001,southeast alabama medical center,"{""[36302,36303)""}","{""[83,84)""}",43
+10005,marshall medical center south,"{""[0,100000)""}","{""[80,81)""}",44
+10005,marshall medical center south,"{""[35957,35958)""}","{""[100,101)""}",45
+10005,marshall medical center south,"{""[35957,35958)""}","{""[0,101)""}",46
+10005,marshall medical center south,"{""[35957,35958)""}","{""[100,101)""}",47
+10005,marshall medical center south,"{""[35957,35958)""}","{""[0,101)""}",48
+10005,marshall medical center south,"{""[35957,35958)""}","{""[0,101)""}",49
+10005,marshall medical center south,"{""[35957,35958)""}","{""[78,79)""}",50
+10005,marshall medical center south,"{""[35957,35958)""}","{""[99,100)""}",51
+10005,marshall medical center south,"{""[35957,35958)""}","{""[90,91)""}",52
+10005,marshall medical center south,"{""[35957,35958)""}","{""[94,95)""}",53
+10005,marshall medical center south,"{""[35957,35958)""}","{""[97,98)""}",54
+10005,marshall medical center south,"{""[35957,35958)""}","{""[97,98)""}",55
+10005,marshall medical center south,"{""[35957,35958)""}","{""[97,98)""}",56
+10005,marshall medical center south,"{""[35957,35958)""}","{""[96,97)""}",57
+10005,marshall medical center south,"{""[35957,35958)""}","{""[92,93)""}",58
+10005,marshall medical center south,"{""[35957,35958)""}","{""[81,82)""}",59
+10005,marshall medical center south,"{""[35957,35958)""}","{""[21,101)""}",60
+10005,marshall medical center south,"{""[35957,35958)""}","{""[96,97)""}",61
+10005,marshall medical center south,"{""[0,100000)""}","{""[93,94)""}",62
+10005,marshall medical center south,"{""[35957,35958)""}","{""[95,96)""}",63
+10005,marshall medical center south,"{""[35957,35958)""}","{""[0,101)""}",64
+10005,marshall medical center south,"{""[35957,35958)""}","{""[100,101)""}",65
+10005,marshall medical center south,"{""[35957,35958)""}","{""[78,79)""}",66
+10005,marshall medical center south,"{""[35957,35958)""}","{""[74,75)""}",67
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[97,98)""}",68
+10006,eliza coffee memorial hospital,"{""[0,100000)""}","{""[96,97)""}",69
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[93,94)""}",70
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[100,101)""}",71
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[96,97)""}",72
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[0,101)""}",73
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[98,99)""}",74
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[79,80)""}",75
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[97,98)""}",76
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[82,83)""}",77
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[100,101)""}",78
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[90,91)""}",79
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[100,101)""}",80
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[96,97)""}",81
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[91,92)""}",82
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[88,89)""}",83
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[96,97)""}",84
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[99,100)""}",85
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[99,100)""}",86
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[94,95)""}",87
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[89,90)""}",88
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[100,101)""}",89
+10006,eliza coffee memorial hospital,"{""[35631,35632)""}","{""[95,96)""}",90
+10006,eliza coffee memorial hospital,"{""[0,100000)""}","{""[92,93)""}",91
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[50,101)""}",92
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[40,101)""}",93
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[0,101)""}",94
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[0,101)""}",95
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[100,101)""}",96
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[0,101)""}",97
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[0,101)""}",98
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[98,99)""}",99
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[87,88)""}",100
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[54,101)""}",101
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[100,101)""}",102
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[87,88)""}",103
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[78,79)""}",104
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[100,101)""}",105
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[95,96)""}",106
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[88,89)""}",107
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[90,91)""}",108
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[91,92)""}",109
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[88,89)""}",110
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[91,92)""}",111
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[93,94)""}",112
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[0,101)""}",113
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[100,101)""}",114
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[87,88)""}",115
+10007,mizell memorial hospital,"{""[36467,36468)""}","{""[88,89)""}",116
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",117
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",118
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",119
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",120
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",121
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",122
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",123
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",124
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[72,73)""}",125
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[75,76)""}",126
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",127
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[10,101)""}",128
+10008,crenshaw cxmmunity hxspital,"{""[36049,36050)""}","{""[93,94)""}",129
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[18,101)""}",130
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[95,96)""}",131
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[52,101)""}",132
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[32,101)""}",133
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[100,101)""}",134
+10008,crenshaw community hospital,"{""[0,100000)""}","{""[100,101)""}",135
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[100,101)""}",136
+10008,crenshaw community hospital,"{""[0,100000)""}","{""[100,101)""}",137
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[0,101)""}",138
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[100,101)""}",139
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[100,101)""}",140
+10008,crenshaw community hospital,"{""[36049,36050)""}","{""[100,101)""}",141
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",142
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",143
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",144
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",145
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",146
+10009,hartselle medical center,"{""[0,100000)""}","{""[0,101)""}",147
+10009,hartselle medical center,"{""[35640,35641)""}","{""[0,101)""}",148
+10009,hartselle medical center,"{""[35640,35641)""}","{""[97,98)""}",149
+10009,hartselle medical center,"{""[35640,35641)""}","{""[98,99)""}",150
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",151
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",152
+10009,hartselle medical center,"{""[35640,35641)""}","{""[98,99)""}",153
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",154
+10009,hartselle medical center,"{""[0,100000)""}","{""[100,101)""}",155
+10009,hartselle medical center,"{""[35640,35641)""}","{""[0,101)""}",156
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",157
+10009,hartselle medical center,"{""[35640,35641)""}","{""[97,98)""}",158
+10009,hartselle medical center,"{""[35640,35641)""}","{""[57,101)""}",159
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",160
+10009,hartselle medical center,"{""[35640,35641)""}","{""[0,101)""}",161
+10009,hartselle medical center,"{""[35640,35641)""}","{""[80,81)""}",162
+10009,hartselle medical center,"{""[35640,35641)""}","{""[0,101)""}",163
+10009,hartselle medical center,"{""[35640,35641)""}","{""[100,101)""}",164
+10009,hartselle medical center,"{""[35640,35641)""}","{""[78,79)""}",165
+10009,hartselle medical center,"{""[35640,35641)""}","{""[78,79)""}",166
+10010,marshall medical center north,"{""[35976,35977)""}","{""[100,101)""}",167
+10010,marshall medical center north,"{""[35976,35977)""}","{""[100,101)""}",168
+10010,marshall medical cenxer norxh,"{""[35976,35977)""}","{""[40,101)""}",169
+10010,marshall medical center north,"{""[35976,35977)""}","{""[100,101)""}",170
+10010,marshall medical center north,"{""[35976,35977)""}","{""[83,84)""}",171
+10010,marshall medical center north,"{""[35976,35977)""}","{""[0,101)""}",172
+10010,marshall medical center north,"{""[35976,35977)""}","{""[0,101)""}",173
+10010,marshall medical center north,"{""[35976,35977)""}","{""[93,94)""}",174
+10010,marshall medical center north,"{""[35976,35977)""}","{""[84,85)""}",175
+10010,marshall medical center north,"{""[35976,35977)""}","{""[78,79)""}",176
+10010,marshall medical center north,"{""[35976,35977)""}","{""[100,101)""}",177
+10010,marshall medical center north,"{""[35976,35977)""}","{""[87,88)""}",178
+10010,marshall medical center north,"{""[35976,35977)""}","{""[94,95)""}",179
+10010,marshall medical center north,"{""[35976,35977)""}","{""[94,95)""}",180
+10010,marshall medical center north,"{""[35976,35977)""}","{""[97,98)""}",181
+10010,marshall medical center north,"{""[35976,35977)""}","{""[93,94)""}",182
+10010,marshall medical center north,"{""[35976,35977)""}","{""[90,91)""}",183
+10010,marshall medical center north,"{""[35976,35977)""}","{""[86,87)""}",184
+10010,marshall medical center north,"{""[35976,35977)""}","{""[0,101)""}",185
+10010,marshall medical center north,"{""[35976,35977)""}","{""[91,92)""}",186
+10010,marshall medical center north,"{""[35976,35977)""}","{""[100,101)""}",187
+10010,marshall medical center north,"{""[35976,35977)""}","{""[0,101)""}",188
+10010,marshall medical center north,"{""[35976,35977)""}","{""[100,101)""}",189
+10010,marshall medical center north,"{""[35976,35977)""}","{""[86,87)""}",190
+10010,marshall medical center north,"{""[35976,35977)""}","{""[84,85)""}",191
+10011,st vincents east,"{""[35235,35236)""}","{""[99,100)""}",192
+10011,st vincents east,"{""[35235,35236)""}","{""[96,97)""}",193
+10011,st vincents east,"{""[0,100000)""}","{""[91,92)""}",194
+10011,st vincents east,"{""[35235,35236)""}","{""[100,101)""}",195
+10011,st vincents east,"{""[35235,35236)""}","{""[99,100)""}",196
+10011,st vincents east,"{""[35235,35236)""}","{""[0,101)""}",197
+10011,st vincents east,"{""[35235,35236)""}","{""[85,86)""}",198
+10011,st vincents east,"{""[35235,35236)""}","{""[94,95)""}",199
+10011,st vincents east,"{""[35235,35236)""}","{""[98,99)""}",200
+10011,st vincents east,"{""[35235,35236)""}","{""[98,99)""}",201
+10011,st vincents east,"{""[35235,35236)""}","{""[100,101)""}",202
+10011,st vincents east,"{""[35235,35236)""}","{""[87,88)""}",203
+10011,st vincents east,"{""[35235,35236)""}","{""[96,97)""}",204
+10011,st vincents east,"{""[35235,35236)""}","{""[100,101)""}",205
+10011,st vincents east,"{""[35235,35236)""}","{""[0,101)""}",206
+10011,st vincents east,"{""[35235,35236)""}","{""[91,92)""}",207
+10011,st vincents east,"{""[35235,35236)""}","{""[85,86)""}",208
+10011,st vincents east,"{""[35235,35236)""}","{""[83,84)""}",209
+10011,st vincents east,"{""[35235,35236)""}","{""[97,98)""}",210
+10011,st vincents east,"{""[35235,35236)""}","{""[81,82)""}",211
+10011,st vincents east,"{""[35235,35236)""}","{""[50,101)""}",212
+10011,st vincents east,"{""[35235,35236)""}","{""[100,101)""}",213
+10011,st vincents east,"{""[35235,35236)""}","{""[89,90)""}",214
+10011,st vincents east,"{""[35235,35236)""}","{""[83,84)""}",215
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[100,101)""}",216
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[95,96)""}",217
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[91,92)""}",218
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[100,101)""}",219
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[95,96)""}",220
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[100,101)""}",221
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[25,101)""}",222
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[89,90)""}",223
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[100,101)""}",224
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[94,95)""}",225
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[100,101)""}",226
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[97,98)""}",227
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[93,94)""}",228
+10012,dekalb regional medical center,"{""[0,100000)""}","{""[100,101)""}",229
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[99,100)""}",230
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[88,89)""}",231
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[98,99)""}",232
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[100,101)""}",233
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[0,101)""}",234
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[0,101)""}",235
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[98,99)""}",236
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[0,101)""}",237
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[100,101)""}",238
+10012,dekalb regional medical center,"{""[35968,35969)""}","{""[97,98)""}",239
+10012,dexalb regional medical center,"{""[35968,35969)""}","{""[97,98)""}",240
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",241
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",242
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",243
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",244
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",245
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",246
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[100,101)""}",247
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",248
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[88,89)""}",249
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[92,93)""}",250
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",251
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[100,101)""}",252
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[96,97)""}",253
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[100,101)""}",254
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[92,93)""}",255
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",256
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[86,87)""}",257
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[93,94)""}",258
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[86,87)""}",259
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[0,101)""}",260
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[100,101)""}",261
+10015,southwest alabama medical center,"{""[0,100000)""}","{""[90,91)""}",262
+10015,southwest alabama medical center,"{""[36784,36785)""}","{""[90,91)""}",263
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[99,100)""}",264
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[97,98)""}",265
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[100,101)""}",266
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[100,101)""}",267
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[0,101)""}",268
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[83,84)""}",269
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[86,87)""}",270
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[100,101)""}",271
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[97,98)""}",272
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[100,101)""}",273
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[97,98)""}",274
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[100,101)""}",275
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[100,101)""}",276
+10016,shelby baptist medical center,"{""[0,100000)""}","{""[96,97)""}",277
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[93,94)""}",278
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[92,93)""}",279
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[89,90)""}",280
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[98,99)""}",281
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[99,100)""}",282
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[91,92)""}",283
+10016,shelby baptist medical center,"{""[0,100000)""}","{""[93,94)""}",284
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[100,101)""}",285
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[97,98)""}",286
+10016,shelby baptist medical center,"{""[35007,35008)""}","{""[94,95)""}",287
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",288
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",289
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",290
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",291
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",292
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",293
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",294
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",295
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",296
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",297
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",298
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",299
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",300
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",301
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",302
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",303
+10018,callahan eye foundation hospital,"{""[35233,35234)""}","{""[0,101)""}",304
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[100,101)""}",305
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[18,101)""}",306
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[98,99)""}",307
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[93,94)""}",308
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[100,101)""}",309
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[93,94)""}",310
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[0,101)""}",311
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[87,88)""}",312
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[87,88)""}",313
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[100,101)""}",314
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[90,91)""}",315
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[100,101)""}",316
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[97,98)""}",317
+10038,stringfellow memorial hospital,"{""[0,100000)""}","{""[100,101)""}",318
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[100,101)""}",319
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[97,98)""}",320
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[92,93)""}",321
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[91,92)""}",322
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[83,84)""}",323
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",324
+10055,flowers hospital,"{""[0,100000)""}","{""[100,101)""}",325
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",326
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",327
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",328
+10055,flowers hospital,"{""[36305,36306)""}","{""[0,101)""}",329
+10055,floxers hospital,"{""[36305,36306)""}","{""[99,100)""}",330
+10055,flowers hospital,"{""[36305,36306)""}","{""[99,100)""}",331
+10055,flowers hospital,"{""[36305,36306)""}","{""[99,100)""}",332
+10055,flowers hospital,"{""[0,100000)""}","{""[100,101)""}",333
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",334
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",335
+10055,flowers hospital,"{""[36305,36306)""}","{""[99,100)""}",336
+10055,flowers hospital,"{""[36305,36306)""}","{""[98,99)""}",337
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",338
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",339
+10055,flowers hospital,"{""[36305,36306)""}","{""[100,101)""}",340
+10056,st vincents hospital,"{""[35205,35206)""}","{""[97,98)""}",341
+10056,st vincents hospital,"{""[35205,35206)""}","{""[98,99)""}",342
+10056,st vincents hospital,"{""[35205,35206)""}","{""[85,86)""}",343
+10056,st vincents hospital,"{""[35205,35206)""}","{""[100,101)""}",344
+10056,st vincents hospital,"{""[35205,35206)""}","{""[96,97)""}",345
+10085,decatur general hospital,"{""[35609,35610)""}","{""[87,88)""}",346
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",347
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",348
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",349
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",350
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",351
+10086,northwest medical center,"{""[35594,35595)""}","{""[0,101)""}",352
+10086,northwest medical center,"{""[35594,35595)""}","{""[90,91)""}",353
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",354
+10086,northwest medical center,"{""[35594,35595)""}","{""[85,86)""}",355
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",356
+10086,northwest medical center,"{""[35594,35595)""}","{""[91,92)""}",357
+10086,northwest medical center,"{""[0,100000)""}","{""[98,99)""}",358
+10086,northwest medical center,"{""[35594,35595)""}","{""[98,99)""}",359
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",360
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",361
+10086,northwest medical center,"{""[35594,35595)""}","{""[82,83)""}",362
+10086,northwest medical center,"{""[35594,35595)""}","{""[89,90)""}",363
+10086,northwest medical center,"{""[35594,35595)""}","{""[98,99)""}",364
+10086,northwest medical center,"{""[35594,35595)""}","{""[99,100)""}",365
+10086,northwest medical center,"{""[35594,35595)""}","{""[94,95)""}",366
+10086,northwest medical center,"{""[0,100000)""}","{""[0,101)""}",367
+10086,northwest medical center,"{""[35594,35595)""}","{""[100,101)""}",368
+10086,northwest medical center,"{""[35594,35595)""}","{""[95,96)""}",369
+10086,northwest medical center,"{""[35594,35595)""}","{""[0,101)""}",370
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[99,100)""}",371
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[97,98)""}",372
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[100,101)""}",373
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[100,101)""}",374
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[96,97)""}",375
+10087,univ ox south alabama medical center,"{""[36617,36618)""}","{""[0,101)""}",376
+10087,xniv of soxth alabama medical center,"{""[36617,36618)""}","{""[40,101)""}",377
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[83,84)""}",378
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[98,99)""}",379
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[96,97)""}",380
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[100,101)""}",381
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[71,72)""}",382
+10087,univ of south alabama medical center,"{""[36617,36618)""}","{""[89,90)""}",383
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[100,101)""}",384
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[57,101)""}",385
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[0,101)""}",386
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[100,101)""}",387
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[0,101)""}",388
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[0,101)""}",389
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[96,97)""}",390
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[94,95)""}",391
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[94,95)""}",392
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[96,97)""}",393
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[94,95)""}",394
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[95,96)""}",395
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[100,101)""}",396
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[0,101)""}",397
+10108,prattville baptist hospital,"{""[0,100000)""}","{""[92,93)""}",398
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[99,100)""}",399
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[90,91)""}",400
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[90,91)""}",401
+10108,prattville baptist hospital,"{""[36067,36068)""}","{""[0,101)""}",402
+10158,russellville hospital,"{""[35653,35654)""}","{""[100,101)""}",403
+10158,russellville hospital,"{""[35653,35654)""}","{""[98,99)""}",404
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[90,91)""}",405
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[100,101)""}",406
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[100,101)""}",407
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[0,101)""}",408
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[100,101)""}",409
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[0,101)""}",410
+10164,coosa valley medical center,"{""[0,100000)""}","{""[0,101)""}",411
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[77,78)""}",412
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[99,100)""}",413
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[85,86)""}",414
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[100,101)""}",415
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[93,94)""}",416
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[0,101)""}",417
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[100,101)""}",418
+10164,coosa valley medical center,"{""[0,100000)""}","{""[97,98)""}",419
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[96,97)""}",420
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[88,89)""}",421
+10164,coosa valley medical center,"{""[35150,35151)""}","{""[82,83)""}",422
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[91,92)""}",423
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[98,99)""}",424
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[100,101)""}",425
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[100,101)""}",426
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[97,98)""}",427
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[100,101)""}",428
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[96,97)""}",429
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[97,98)""}",430
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[95,96)""}",431
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[90,91)""}",432
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[87,88)""}",433
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[96,97)""}",434
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[98,99)""}",435
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[88,89)""}",436
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[94,95)""}",437
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[100,101)""}",438
+20017,xlxskx regionxl hospitxl,"{""[99508,99509)""}","{""[94,95)""}",439
+20017,alaska regional hospital,"{""[99508,99509)""}","{""[94,95)""}",440
+20018,yukon kuskokwim delta reg hospital,"{""[99559,99560)""}","{""[0,101)""}",441
+20018,yukon kuskokwim delta reg hospital,"{""[99559,99560)""}","{""[0,101)""}",442
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[89,90)""}",443
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[99,100)""}",444
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[97,98)""}",445
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[98,99)""}",446
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[86,87)""}",447
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[82,83)""}",448
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[81,82)""}",449
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[92,93)""}",450
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[91,92)""}",451
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[84,85)""}",452
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[0,101)""}",453
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[97,98)""}",454
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[85,86)""}",455
+10019,helen keller memorial hospital,"{""[35660,35661)""}","{""[79,80)""}",456
+10021,dale medical center,"{""[36360,36361)""}","{""[100,101)""}",457
+10021,dale medical center,"{""[36360,36361)""}","{""[100,101)""}",458
+10021,dale medical center,"{""[36360,36361)""}","{""[0,101)""}",459
+10021,dale medical center,"{""[36360,36361)""}","{""[100,101)""}",460
+10021,dale medical center,"{""[36360,36361)""}","{""[83,84)""}",461
+10021,dale medical center,"{""[36360,36361)""}","{""[0,101)""}",462
+10021,dale medical center,"{""[36360,36361)""}","{""[0,101)""}",463
+10021,dale medical center,"{""[36360,36361)""}","{""[56,101)""}",464
+10021,dale medical center,"{""[36360,36361)""}","{""[96,97)""}",465
+10021,dale medical center,"{""[36360,36361)""}","{""[94,95)""}",466
+10021,dale medical center,"{""[36360,36361)""}","{""[94,95)""}",467
+10021,dale medical center,"{""[36360,36361)""}","{""[85,86)""}",468
+10021,dale medical center,"{""[36360,36361)""}","{""[94,95)""}",469
+10021,dale medical center,"{""[36360,36361)""}","{""[87,88)""}",470
+10021,dale medical center,"{""[36360,36361)""}","{""[95,96)""}",471
+10021,dale medical center,"{""[36360,36361)""}","{""[54,101)""}",472
+10021,dale medical center,"{""[36360,36361)""}","{""[90,91)""}",473
+10021,dale medical center,"{""[36360,36361)""}","{""[100,101)""}",474
+10021,dale medical center,"{""[36360,36361)""}","{""[94,95)""}",475
+10021,dale medical center,"{""[36360,36361)""}","{""[96,97)""}",476
+10021,dale medical center,"{""[36360,36361)""}","{""[85,86)""}",477
+10021,dale medical center,"{""[36360,36361)""}","{""[0,101)""}",478
+10021,dale medical center,"{""[36360,36361)""}","{""[0,101)""}",479
+10021,dale medical center,"{""[36360,36361)""}","{""[88,89)""}",480
+10021,dale medical center,"{""[0,100000)""}","{""[58,101)""}",481
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",482
+10022,cherokee medical center,"{""[35960,35961)""}","{""[100,101)""}",483
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",484
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",485
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",486
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",487
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",488
+10022,cherokee medical center,"{""[35960,35961)""}","{""[83,84)""}",489
+10022,cherokee medical center,"{""[0,100000)""}","{""[94,95)""}",490
+10022,cherokee medical center,"{""[35960,35961)""}","{""[90,91)""}",491
+10022,cherokee medical center,"{""[35960,35961)""}","{""[100,101)""}",492
+10022,cherokee medical center,"{""[35960,35961)""}","{""[93,94)""}",493
+10022,cherokee medical center,"{""[35960,35961)""}","{""[97,98)""}",494
+10022,cherokee medical center,"{""[35960,35961)""}","{""[100,101)""}",495
+10022,cherokee medical center,"{""[35960,35961)""}","{""[89,90)""}",496
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",497
+10022,cherokee medical center,"{""[35960,35961)""}","{""[81,82)""}",498
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",499
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",500
+10022,cherokee medical center,"{""[35960,35961)""}","{""[100,101)""}",501
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",502
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",503
+10022,cherokee medical center,"{""[35960,35961)""}","{""[100,101)""}",504
+10022,cherokee medical center,"{""[35960,35961)""}","{""[0,101)""}",505
+10022,cherokee medical center,"{""[35960,35961)""}","{""[100,101)""}",506
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",507
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",508
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",509
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",510
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",511
+10023,baptist medical center south,"{""[36116,36117)""}","{""[0,101)""}",512
+10023,baptist medical center south,"{""[36116,36117)""}","{""[96,97)""}",513
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",514
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",515
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",516
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",517
+10023,baptist medical center south,"{""[36116,36117)""}","{""[94,95)""}",518
+10023,baptist medical center south,"{""[36116,36117)""}","{""[96,97)""}",519
+10023,baptist medical center south,"{""[36116,36117)""}","{""[94,95)""}",520
+10023,baptist medical center south,"{""[36116,36117)""}","{""[95,96)""}",521
+10023,baptist medical center south,"{""[36116,36117)""}","{""[90,91)""}",522
+10023,baptist medical cexter south,"{""[36116,36117)""}","{""[92,93)""}",523
+10023,baptist medical center south,"{""[36116,36117)""}","{""[97,98)""}",524
+10023,baptist medical center south,"{""[36116,36117)""}","{""[97,98)""}",525
+10023,baptist medical center south,"{""[36116,36117)""}","{""[97,98)""}",526
+10023,baptist medical center south,"{""[36116,36117)""}","{""[94,95)""}",527
+10023,baptist medical center south,"{""[36116,36117)""}","{""[95,96)""}",528
+10023,baptist medical center south,"{""[36116,36117)""}","{""[100,101)""}",529
+10023,baptist medical center south,"{""[36116,36117)""}","{""[98,99)""}",530
+10023,baptist medical center south,"{""[36116,36117)""}","{""[94,95)""}",531
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[95,96)""}",532
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[92,93)""}",533
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[79,80)""}",534
+10024,jackson hospital & clinic inc,"{""[0,100000)""}","{""[97,98)""}",535
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[95,96)""}",536
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[0,101)""}",537
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[25,101)""}",538
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[30,101)""}",539
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[90,91)""}",540
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[85,86)""}",541
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[99,100)""}",542
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[85,86)""}",543
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[95,96)""}",544
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[91,92)""}",545
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[88,89)""}",546
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[82,83)""}",547
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[82,83)""}",548
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[57,101)""}",549
+10024,jaxkson hospital & xlinix inx,"{""[36106,36107)""}","{""[98,99)""}",550
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[83,84)""}",551
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[72,73)""}",552
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[97,98)""}",553
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[92,93)""}",554
+10024,jackson hospital & clinic inc,"{""[36106,36107)""}","{""[87,88)""}",555
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[92,93)""}",556
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[90,91)""}",557
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[100,101)""}",558
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[40,101)""}",559
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[92,93)""}",560
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[0,101)""}",561
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[0,101)""}",562
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[44,101)""}",563
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[99,100)""}",564
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[96,97)""}",565
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[97,98)""}",566
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[80,81)""}",567
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[95,96)""}",568
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[91,92)""}",569
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[82,83)""}",570
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[85,86)""}",571
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[75,76)""}",572
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[17,101)""}",573
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[100,101)""}",574
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[93,94)""}",575
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[79,80)""}",576
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[0,101)""}",577
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[96,97)""}",578
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[88,89)""}",579
+10025,g h lanier memorial hospital,"{""[36854,36855)""}","{""[82,83)""}",580
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",581
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",582
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",583
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",584
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",585
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",586
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",587
+10027,elba general hospital,"{""[36323,36324)""}","{""[100,101)""}",588
+10027,elba general hospital,"{""[36323,36324)""}","{""[100,101)""}",589
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",590
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",591
+10027,elba general hospital,"{""[36323,36324)""}","{""[100,101)""}",592
+10027,elba general hospital,"{""[36323,36324)""}","{""[100,101)""}",593
+10027,elba general hospital,"{""[36323,36324)""}","{""[100,101)""}",594
+10027,elba general hospital,"{""[36323,36324)""}","{""[100,101)""}",595
+10027,elba general hospital,"{""[36323,36324)""}","{""[93,94)""}",596
+10027,elba general hospital,"{""[36323,36324)""}","{""[100,101)""}",597
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",598
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",599
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",600
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",601
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",602
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",603
+10027,elba general hospital,"{""[36323,36324)""}","{""[0,101)""}",604
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[98,99)""}",605
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[97,98)""}",606
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[93,94)""}",607
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[100,101)""}",608
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[98,99)""}",609
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[0,101)""}",610
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[85,86)""}",611
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[82,83)""}",612
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[100,101)""}",613
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[92,93)""}",614
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[100,101)""}",615
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[91,92)""}",616
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[100,101)""}",617
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[96,97)""}",618
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[97,98)""}",619
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[88,89)""}",620
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[98,99)""}",621
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[99,100)""}",622
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[99,100)""}",623
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[97,98)""}",624
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[98,99)""}",625
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[100,101)""}",626
+10029,east alabama medical center and snf,"{""[36801,36802)""}","{""[90,91)""}",627
+10032,wedowee hospital,"{""[36278,36279)""}","{""[40,101)""}",628
+10032,wedowee hospital,"{""[36278,36279)""}","{""[57,101)""}",629
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",630
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",631
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",632
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",633
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",634
+10032,wedowee hospital,"{""[36278,36279)""}","{""[23,101)""}",635
+10032,wedowee hospital,"{""[36278,36279)""}","{""[10,101)""}",636
+10032,wedowee hospital,"{""[36278,36279)""}","{""[100,101)""}",637
+10032,wedowee hospital,"{""[36278,36279)""}","{""[10,101)""}",638
+10032,wedowee hospital,"{""[36278,36279)""}","{""[100,101)""}",639
+10032,wedowee hosxital,"{""[36278,36279)""}","{""[57,101)""}",640
+10032,wedowee hospital,"{""[36278,36279)""}","{""[96,97)""}",641
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",642
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",643
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",644
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",645
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",646
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",647
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",648
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",649
+10032,wedowee hospital,"{""[36278,36279)""}","{""[0,101)""}",650
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[98,99)""}",651
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[98,99)""}",652
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[91,92)""}",653
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[100,101)""}",654
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[97,98)""}",655
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[0,101)""}",656
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[98,99)""}",657
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[31,101)""}",658
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[96,97)""}",659
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[94,95)""}",660
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[100,101)""}",661
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[74,75)""}",662
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[92,93)""}",663
+10033,university of alabama hospital,"{""[0,100000)""}","{""[100,101)""}",664
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[92,93)""}",665
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[85,86)""}",666
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[79,80)""}",667
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[59,101)""}",668
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[88,89)""}",669
+10033,university of alabama hospital,"{""[0,100000)""}","{""[95,96)""}",670
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[87,88)""}",671
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[76,77)""}",672
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[97,98)""}",673
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[79,80)""}",674
+10033,university of alabama hospital,"{""[35233,35234)""}","{""[77,78)""}",675
+10034,community hospital inc,"{""[36078,36079)""}","{""[77,78)""}",676
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",677
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",678
+10034,community hospital inc,"{""[36078,36079)""}","{""[0,101)""}",679
+10034,community hospital inc,"{""[36078,36079)""}","{""[75,76)""}",680
+10034,community hospital inc,"{""[36078,36079)""}","{""[0,101)""}",681
+10034,communitx hospital inc,"{""[36078,36079)""}","{""[0,101)""}",682
+10034,community hospital inc,"{""[36078,36079)""}","{""[0,101)""}",683
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",684
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",685
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",686
+10034,community hospital inc,"{""[36078,36079)""}","{""[87,88)""}",687
+10034,community hospital inc,"{""[36078,36079)""}","{""[95,96)""}",688
+10034,community hospital inc,"{""[36078,36079)""}","{""[97,98)""}",689
+10034,community hospital inc,"{""[36078,36079)""}","{""[96,97)""}",690
+10034,community hospital inc,"{""[36078,36079)""}","{""[93,94)""}",691
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",692
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",693
+10034,communixy hospixal inc,"{""[0,100000)""}","{""[100,101)""}",694
+10034,community hospital inc,"{""[36078,36079)""}","{""[0,101)""}",695
+10034,community hospital inc,"{""[36078,36079)""}","{""[0,101)""}",696
+10034,community hospital inc,"{""[36078,36079)""}","{""[100,101)""}",697
+10034,community hospital inc,"{""[36078,36079)""}","{""[88,89)""}",698
+10034,community hospital inc,"{""[36078,36079)""}","{""[88,89)""}",699
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",700
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",701
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[0,101)""}",702
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",703
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",704
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[0,101)""}",705
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[99,100)""}",706
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[97,98)""}",707
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",708
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",709
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",710
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",711
+10035,cullmxn regionxl medicxl center,"{""[35058,35059)""}","{""[99,100)""}",712
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[98,99)""}",713
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[98,99)""}",714
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[99,100)""}",715
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[99,100)""}",716
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[98,99)""}",717
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[98,99)""}",718
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[0,101)""}",719
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[100,101)""}",720
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[95,96)""}",721
+10035,cullman regional medical center,"{""[35058,35059)""}","{""[95,96)""}",722
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",723
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[50,101)""}",724
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",725
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[0,101)""}",726
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",727
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[0,101)""}",728
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[0,101)""}",729
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",730
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[91,92)""}",731
+10036,andalusia regional hospital,"{""[0,100000)""}","{""[86,87)""}",732
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",733
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",734
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[89,90)""}",735
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",736
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[75,76)""}",737
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[92,93)""}",738
+10036,andaxusia regionax hospitax,"{""[36420,36421)""}","{""[89,90)""}",739
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[97,98)""}",740
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[88,89)""}",741
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[99,100)""}",742
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[0,101)""}",743
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[100,101)""}",744
+10036,andalusia regional hospital,"{""[36420,36421)""}","{""[80,81)""}",745
+10036,andaluxia regional hoxpital,"{""[36420,36421)""}","{""[80,81)""}",746
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[100,101)""}",747
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[99,100)""}",748
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[93,94)""}",749
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[0,101)""}",750
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[0,101)""}",751
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[100,101)""}",752
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[90,91)""}",753
+10038,stringfellow memorial hospital,"{""[36201,36202)""}","{""[89,90)""}",754
+10039,huntsville hospital,"{""[35801,35802)""}","{""[100,101)""}",755
+10039,huntsville hospital,"{""[35801,35802)""}","{""[98,99)""}",756
+10039,huntsville hospital,"{""[35801,35802)""}","{""[0,101)""}",757
+10039,huntsvxlle hospxtal,"{""[35801,35802)""}","{""[98,99)""}",758
+10039,huntsville hospital,"{""[35801,35802)""}","{""[100,101)""}",759
+10039,huntsville hospital,"{""[35801,35802)""}","{""[97,98)""}",760
+10039,huntsville hospital,"{""[35801,35802)""}","{""[100,101)""}",761
+10039,huntsville hospital,"{""[35801,35802)""}","{""[0,101)""}",762
+10039,huntsville hospital,"{""[35801,35802)""}","{""[82,83)""}",763
+10039,huntsville hospital,"{""[35801,35802)""}","{""[72,73)""}",764
+10039,huntsville hospital,"{""[35801,35802)""}","{""[95,96)""}",765
+10039,huntsville hospital,"{""[35801,35802)""}","{""[98,99)""}",766
+10039,huntsville hospital,"{""[35801,35802)""}","{""[100,101)""}",767
+10039,huntsville hospital,"{""[35801,35802)""}","{""[96,97)""}",768
+10039,huntsville hospital,"{""[35801,35802)""}","{""[97,98)""}",769
+10039,huntsville hospital,"{""[35801,35802)""}","{""[93,94)""}",770
+10039,huntsville hospital,"{""[35801,35802)""}","{""[89,90)""}",771
+10039,huntsville hospital,"{""[35801,35802)""}","{""[90,91)""}",772
+10039,huntsville hospital,"{""[35801,35802)""}","{""[95,96)""}",773
+10039,huntsville hospital,"{""[35801,35802)""}","{""[99,100)""}",774
+10039,huntsville hospital,"{""[35801,35802)""}","{""[93,94)""}",775
+10039,huntsville hospital,"{""[35801,35802)""}","{""[95,96)""}",776
+10039,huntsville hospital,"{""[35801,35802)""}","{""[99,100)""}",777
+10039,huntsville hospital,"{""[35801,35802)""}","{""[93,94)""}",778
+10039,huntsville hospital,"{""[35801,35802)""}","{""[90,91)""}",779
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[94,95)""}",780
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[99,100)""}",781
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[89,90)""}",782
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[100,101)""}",783
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[95,96)""}",784
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[58,101)""}",785
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[83,84)""}",786
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[32,101)""}",787
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[100,101)""}",788
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[93,94)""}",789
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[100,101)""}",790
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[96,97)""}",791
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[96,97)""}",792
+10040,gadsden regional medical center,"{""[0,100000)""}","{""[100,101)""}",793
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[94,95)""}",794
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[89,90)""}",795
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[96,97)""}",796
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[91,92)""}",797
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[98,99)""}",798
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[97,98)""}",799
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[90,91)""}",800
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[94,95)""}",801
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[100,101)""}",802
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[95,96)""}",803
+10040,gadsden regional medical center,"{""[35903,35904)""}","{""[87,88)""}",804
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",805
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",806
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",807
+10043,chilton medical center,"{""[35045,35046)""}","{""[0,101)""}",808
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",809
+10043,chilton medical center,"{""[35045,35046)""}","{""[0,101)""}",810
+10043,chilton medical center,"{""[35045,35046)""}","{""[0,101)""}",811
+10043,chilton medical center,"{""[35045,35046)""}","{""[84,85)""}",812
+10043,chilton medical center,"{""[35045,35046)""}","{""[89,90)""}",813
+10043,chilton medical center,"{""[35045,35046)""}","{""[75,76)""}",814
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",815
+10043,chilton medical center,"{""[35045,35046)""}","{""[89,90)""}",816
+10043,chilton medical center,"{""[35045,35046)""}","{""[92,93)""}",817
+10043,chilton medical center,"{""[35045,35046)""}","{""[94,95)""}",818
+10043,chilton medical center,"{""[35045,35046)""}","{""[98,99)""}",819
+10043,chilton medical center,"{""[35045,35046)""}","{""[95,96)""}",820
+10043,chilton medical center,"{""[35045,35046)""}","{""[81,82)""}",821
+10043,chilton medical center,"{""[35045,35046)""}","{""[40,101)""}",822
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",823
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",824
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",825
+10043,chilton medical center,"{""[35045,35046)""}","{""[0,101)""}",826
+10043,chilton medical center,"{""[35045,35046)""}","{""[100,101)""}",827
+10043,chilton medical center,"{""[35045,35046)""}","{""[0,101)""}",828
+10043,chilton medical center,"{""[35045,35046)""}","{""[0,101)""}",829
+10044,marion regional medical center,"{""[35570,35571)""}","{""[57,101)""}",830
+10044,marion regional medical center,"{""[35570,35571)""}","{""[57,101)""}",831
+10044,marion regional medical center,"{""[35570,35571)""}","{""[100,101)""}",832
+10044,marion regional medical center,"{""[35570,35571)""}","{""[0,101)""}",833
+10044,marion regional medical center,"{""[35570,35571)""}","{""[18,101)""}",834
+10044,marion regional medical center,"{""[35570,35571)""}","{""[0,101)""}",835
+10044,marion regional medical center,"{""[35570,35571)""}","{""[0,101)""}",836
+10044,marion regional medical center,"{""[35570,35571)""}","{""[0,101)""}",837
+10044,marion regional medical center,"{""[35570,35571)""}","{""[78,79)""}",838
+10044,marion regional medical center,"{""[35570,35571)""}","{""[80,81)""}",839
+10044,marion regional medical center,"{""[35570,35571)""}","{""[96,97)""}",840
+10044,marion regional medical center,"{""[35570,35571)""}","{""[99,100)""}",841
+10044,marion regional medical center,"{""[35570,35571)""}","{""[90,91)""}",842
+10044,marion regional medical center,"{""[35570,35571)""}","{""[98,99)""}",843
+10044,marion regional medical center,"{""[35570,35571)""}","{""[76,77)""}",844
+10044,marion regional medical center,"{""[35570,35571)""}","{""[91,92)""}",845
+10044,marion regional medical center,"{""[35570,35571)""}","{""[57,101)""}",846
+10044,marion regional medical center,"{""[35570,35571)""}","{""[80,81)""}",847
+10044,marion regional medical center,"{""[35570,35571)""}","{""[87,88)""}",848
+10044,marion regional medical center,"{""[35570,35571)""}","{""[87,88)""}",849
+10044,marion regional medical center,"{""[35570,35571)""}","{""[0,101)""}",850
+10044,marion regional medical center,"{""[35570,35571)""}","{""[100,101)""}",851
+10044,marion regional medical center,"{""[35570,35571)""}","{""[100,101)""}",852
+10044,marion regional medical center,"{""[35570,35571)""}","{""[100,101)""}",853
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",854
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",855
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",856
+10045,fayette medical center,"{""[35555,35556)""}","{""[82,83)""}",857
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",858
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",859
+10045,fayette medical center,"{""[35555,35556)""}","{""[87,88)""}",860
+10045,fayette medical center,"{""[35555,35556)""}","{""[94,95)""}",861
+10045,fayette medical center,"{""[35555,35556)""}","{""[89,90)""}",862
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",863
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",864
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",865
+10045,fayette medical center,"{""[35555,35556)""}","{""[97,98)""}",866
+10045,fayette medical center,"{""[35555,35556)""}","{""[87,88)""}",867
+10045,fayette medical center,"{""[35555,35556)""}","{""[87,88)""}",868
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",869
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",870
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",871
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",872
+10045,fayette medical center,"{""[35555,35556)""}","{""[0,101)""}",873
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",874
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",875
+10045,fayette medical center,"{""[35555,35556)""}","{""[100,101)""}",876
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",877
+10046,rivxrvixw rxgional mxdical cxntxr,"{""[35901,35902)""}","{""[100,101)""}",878
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",879
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",880
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",881
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",882
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",883
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",884
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[88,89)""}",885
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",886
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",887
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",888
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",889
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",890
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[99,100)""}",891
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[97,98)""}",892
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",893
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[87,88)""}",894
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[76,77)""}",895
+10046,xivexview xegional medical centex,"{""[35901,35902)""}","{""[99,100)""}",896
+10046,riverview rexional medical center,"{""[35901,35902)""}","{""[95,96)""}",897
+10046,riverview regional medical center,"{""[0,100000)""}","{""[95,96)""}",898
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[95,96)""}",899
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[79,80)""}",900
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[76,77)""}",901
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[100,101)""}",902
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[91,92)""}",903
+10046,riverview regional medical center,"{""[35901,35902)""}","{""[84,85)""}",904
+10047,georgiana hospital,"{""[36033,36034)""}","{""[43,101)""}",905
+10047,georgiana hospital,"{""[36033,36034)""}","{""[40,101)""}",906
+10047,georgiana hospital,"{""[36033,36034)""}","{""[100,101)""}",907
+10047,georgiana hospital,"{""[36033,36034)""}","{""[50,101)""}",908
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",909
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",910
+10047,georgiana hospital,"{""[36033,36034)""}","{""[43,101)""}",911
+10047,georgiaxa hospital,"{""[36033,36034)""}","{""[53,101)""}",912
+10047,georgiana hospital,"{""[36033,36034)""}","{""[57,101)""}",913
+10047,georgiana hospital,"{""[36033,36034)""}","{""[75,76)""}",914
+10047,georgiana hospital,"{""[36033,36034)""}","{""[90,91)""}",915
+10047,georgiana hospital,"{""[36033,36034)""}","{""[40,101)""}",916
+10047,georgiana hospital,"{""[36033,36034)""}","{""[80,81)""}",917
+10047,georgiana hospital,"{""[36033,36034)""}","{""[97,98)""}",918
+10047,georgiana hospital,"{""[36033,36034)""}","{""[40,101)""}",919
+10047,georgiana hospital,"{""[36033,36034)""}","{""[55,101)""}",920
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",921
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",922
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",923
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",924
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",925
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",926
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",927
+10047,georgiana hospital,"{""[36033,36034)""}","{""[0,101)""}",928
+10049,medixal xenter enterprise,"{""[36330,36331)""}","{""[100,101)""}",929
+10049,medical center enterprise,"{""[36330,36331)""}","{""[0,101)""}",930
+10049,medical center enterprise,"{""[36330,36331)""}","{""[0,101)""}",931
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",932
+10049,medical center enterprise,"{""[36330,36331)""}","{""[0,101)""}",933
+10049,medical center enterprise,"{""[36330,36331)""}","{""[0,101)""}",934
+10049,medxcal center enterprxse,"{""[36330,36331)""}","{""[96,97)""}",935
+10049,medical center enterprise,"{""[36330,36331)""}","{""[99,100)""}",936
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",937
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",938
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",939
+10049,medical center enterprise,"{""[36330,36331)""}","{""[98,99)""}",940
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",941
+10049,medical center enterprise,"{""[36330,36331)""}","{""[99,100)""}",942
+10049,medical center enterprise,"{""[36330,36331)""}","{""[99,100)""}",943
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",944
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",945
+10049,medical center enterprise,"{""[36330,36331)""}","{""[99,100)""}",946
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",947
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",948
+10049,medical center enterprise,"{""[36330,36331)""}","{""[0,101)""}",949
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",950
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",951
+10049,medical center enterprise,"{""[36330,36331)""}","{""[100,101)""}",952
+10050,st vincents blount,"{""[35121,35122)""}","{""[100,101)""}",953
+10050,st vincents blount,"{""[35121,35122)""}","{""[100,101)""}",954
+10050,st vincents blount,"{""[35121,35122)""}","{""[100,101)""}",955
+10050,st vincents blount,"{""[35121,35122)""}","{""[0,101)""}",956
+10050,st vincents blount,"{""[35121,35122)""}","{""[100,101)""}",957
+10050,st vincents blount,"{""[35121,35122)""}","{""[0,101)""}",958
+10050,st vincents blount,"{""[35121,35122)""}","{""[0,101)""}",959
+10050,st vincents bxount,"{""[35121,35122)""}","{""[40,101)""}",960
+10050,st vincents blount,"{""[35121,35122)""}","{""[85,86)""}",961
+10050,st vincents blount,"{""[35121,35122)""}","{""[100,101)""}",962
+10050,st vincents blount,"{""[35121,35122)""}","{""[28,101)""}",963
+10050,st vincents blount,"{""[35121,35122)""}","{""[74,75)""}",964
+10050,st vincents blount,"{""[35121,35122)""}","{""[83,84)""}",965
+10050,st vincents blount,"{""[35121,35122)""}","{""[83,84)""}",966
+10050,st vincents blount,"{""[35121,35122)""}","{""[98,99)""}",967
+10050,st vincents blount,"{""[35121,35122)""}","{""[77,78)""}",968
+10050,st vincents blount,"{""[35121,35122)""}","{""[54,101)""}",969
+10050,st vincents blount,"{""[35121,35122)""}","{""[10,101)""}",970
+10050,st vincents blount,"{""[35121,35122)""}","{""[54,101)""}",971
+10050,st vincents blount,"{""[35121,35122)""}","{""[88,89)""}",972
