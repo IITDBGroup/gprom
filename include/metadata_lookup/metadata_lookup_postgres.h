@@ -17,6 +17,8 @@
 #include "libpq-fe.h"
 #endif
 
+#define PGEXT_INTARRAY "intarray"
+
 extern MetadataLookupPlugin *assemblePostgresMetadataLookupPlugin (void);
 
 /* plugin methods */
@@ -61,6 +63,7 @@ extern HashMap *postgresGetMinAndMax(char* tableName, char* colName);
 extern List *postgresGetAllMinAndMax(TableAccessOperator *table);
 extern Set *postgresNotNullAttrs(char *tableName);
 extern boolean postgresFunctionIsStrict(char *fname, List *argTypes, boolean *funcExists);
+extern boolean postgresExtensionInstalled(char *extension);
 
 extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

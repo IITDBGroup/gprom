@@ -28,7 +28,8 @@
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "model/set/vector.h"
-#include <stdlib.h>
+#include "utility/string_utils.h"
+//#include <stdlib.h>
 
 #if HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
@@ -70,6 +71,14 @@
                                    "SELECT hash_array_extended(args, 1);" \
                                    " $$ LANGUAGE SQL IMMUTABLE STRICT;")
 
+#define ARRAY_CONCAT_AGG_FUNC_NAME POSTGRES_ARRAY_CONCAT_AGG_FUNC
+#define CREATE_ARRAY_CONCAT_AGG_FUNC ("CREATE OR REPLACE AGGREGATE " POSTGRES_ARRAY_CONCAT_AGG_FUNC " (ar anycompatiblearray) ( " \
+                                      "  SFUNC = array_cat, " \
+                                      "  STYPE = anycompatiblearray, " \
+                                      "  INITCOND = '{}', " \
+                                      "  PARALLEL = SAFE " \
+                                      "  ); ")
+
 // we have to use syntax that works a reasonable range of postgres versions
 #define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
 	    "(SELECT regexp_split_to_array(substring(version() from 'PostgreSQL ([0-9]+[.][0-9]+)'), '[.]') AS version) getv;"
@@ -79,6 +88,14 @@
 #define NAME_FUNC_EXISTS "GProM_CheckFunctionExists"
 #define PARAMS_FUNC_EXISTS 1
 #define QUERY_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = $1::text);"
+
+#define NAME_EXTENSION_EXISTS "GProM_CheckExtensionExists"
+#define PARAMS_EXTENSION_EXISTS 1
+#define QUERY_EXTENSION_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_extension WHERE extname = $1::text);"
+
+#define NAME_EXTENSION_AVAILABLE "GProM_CheckExtensionAvailable"
+#define PARAMS_EXTENSION_AVAILABLE 1
+#define QUERY_EXTENSION_AVAILABLE "SELECT EXISTS (SELECT * FROM pg_catalog.pg_available_extensions WHERE name = $1::text);"
 
 #define NAME_QUERY_GET_COST "GProM_GetQueryCost"
 #define PARAMS_QUERY_GET_COST 1
@@ -167,7 +184,6 @@
 #define PARAMS_FUNC_IS_STRICT 1
 #define QUERY_FUNC_IS_STRICT "SELECT EXISTS (SELECT * FROM (SELECT oprname AS fname FROM pg_operator o, pg_proc p WHERE oprcode = p.oid AND proisstrict UNION ALL SELECT proname FROM pg_proc WHERE proisstrict) sub WHERE sub.fname = $1::text);"
 
-
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
 //#define QUERY_ "SELECT"
@@ -181,7 +197,7 @@
 #ifdef HAVE_POSTGRES_BACKEND
 
 // functions
-static void execStmt (char *stmt);
+static void execStmt(char *stmt);
 static PGresult *execQuery(char *query, boolean isQuery, boolean exceptionOnError);
 static void beginTransaction(void);
 static void execCommit(void);
@@ -201,6 +217,9 @@ static List *oidVecToOidList (char *oidVec);
 static DataType postgresOidToDT(char *Oid);
 static DataType postgresOidIntToDT(int oid);
 static DataType postgresTypenameToDT (char *typName);
+static boolean postgresBooleanPrepQuery(char *prepQ, List *args);
+/* static boolean postgresBooleanQuery(char *Q); */
+static void postgresInstallExtension(char *extension);
 
 // closing result sets and connections
 #define CLOSE_QUERY() \
@@ -551,6 +570,7 @@ prepareLookupQueries(void)
         CREATE_FUNC_IF_NOT_EXISTS(MERGE_ROWID_13_FUNC);
     }
     CREATE_FUNC_IF_NOT_EXISTS(VARIADIC_HASH_FUNC);
+    CREATE_FUNC_IF_NOT_EXISTS(ARRAY_CONCAT_AGG_FUNC);
 
     // prepare other queries used for metadata lookup
 	// postgres 8 or older does not support JSON explain output we use to extract query cost
@@ -581,6 +601,12 @@ prepareLookupQueries(void)
         PREP_QUERY(IS_WIN_FUNC);
         PREP_QUERY(IS_AGG_FUNC);
     }
+
+    PREP_QUERY(EXTENSION_EXISTS);
+    PREP_QUERY(EXTENSION_AVAILABLE);
+
+    // install extensions we may use
+    postgresInstallExtension(PGEXT_INTARRAY);
 }
 
 int
@@ -888,7 +914,7 @@ postgresCatalogTableExists (char * tableName)
 }
 
 boolean
-postgresCatalogViewExists (char * viewName)
+postgresCatalogViewExists(char * viewName)
 {
     PGresult *res = NULL;
     START_TIMER(METADATA_LOOKUP_TIMER);
@@ -1938,6 +1964,29 @@ postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel
     return (Node *) xid;
 }
 
+boolean
+postgresExtensionInstalled(char *extension)
+{
+    return postgresBooleanPrepQuery(NAME_EXTENSION_EXISTS,
+                                    singleton(createConstString(extension)));
+}
+
+static void
+postgresInstallExtension(char *extension)
+{
+    List *args = singleton(createConstString(extension));
+
+    // extension available  but not installed
+    if(postgresBooleanPrepQuery(NAME_EXTENSION_AVAILABLE,
+                                args)
+       && !postgresBooleanPrepQuery(NAME_EXTENSION_EXISTS, args))
+    {
+        char *createQ = specializeTemplate("CREATE EXTENSION $1;",
+                                           singleton(extension));
+        execStmt(createQ);
+    }
+}
+
 static void
 execStmt(char *stmt)
 {
@@ -1977,6 +2026,47 @@ beginTransaction(void)
     }
     plugin->inTransaction = TRUE;
     PQclear(res);
+}
+
+
+/* static boolean */
+/* postgresBooleanQuery(char *q) */
+/* { */
+/*     PGresult *res = NULL; */
+
+/*     // do query */
+/*     ACQUIRE_MEM_CONTEXT(memContext); */
+/*     res = execQuery(q, TRUE, TRUE); */
+/*     if (strcmp(PQgetvalue(res,0,0),"t") == 0) */
+/*     { */
+/*         PQclear(res); */
+/* 		RELEASE_MEM_CONTEXT(); */
+/*         return TRUE; */
+/*     } */
+/*     PQclear(res); */
+/*     RELEASE_MEM_CONTEXT(); */
+
+/*     return FALSE; */
+/* } */
+
+static boolean
+postgresBooleanPrepQuery(char *prepQ, List *args)
+{
+    PGresult *res = NULL;
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+    res = execPrepared(prepQ, args);
+    if (strcmp(PQgetvalue(res,0,0),"t") == 0)
+    {
+        PQclear(res);
+		RELEASE_MEM_CONTEXT();
+        return TRUE;
+    }
+    PQclear(res);
+    RELEASE_MEM_CONTEXT();
+
+    return FALSE;
 }
 
 static PGresult *
