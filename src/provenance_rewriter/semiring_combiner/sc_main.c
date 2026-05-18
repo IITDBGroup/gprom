@@ -1,6 +1,8 @@
 #include "common.h"
+#include "configuration/option.h"
 #include "log/logger.h"
 
+#include "metadata_lookup/metadata_lookup_postgres.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/node/nodetype.h"
@@ -20,6 +22,7 @@ NEW_ENUM_WITH_ONLY_TO_STRING(Semiring,
                              SEMIRING_TROPICAL,
                              SEMIRING_VITERBI,
                              SEMIRING_FUZZY,
+                             SEMIRING_WHICH,
                              SEMIRING_NX);
 
 #define DUMMY_LEFT_ATTR backendifyIdentifier("__prov_left_input")
@@ -32,6 +35,8 @@ static void getAttributeReferencesForSC(Node *expr, AttributeReference **leftNam
         AttributeReference **rightName, boolean twoInputs);
 static Node *deepReplaceAttrRefMutator(Node *node,  void *state);
 static boolean addCombinerExprIsOK(Node *node, void *state);
+static boolean onlySemiringSupportedOpsInternal(QueryOperator *op);
+
 
 static Node *
 deepReplaceAttrRefMutator(Node *node, void *state)
@@ -73,6 +78,10 @@ userStringToSemiring(char *str)
     if(streq(str, "FUZZY"))
     {
         return SEMIRING_FUZZY;
+    }
+    if(streq(str, "WHICH"))
+    {
+        return SEMIRING_WHICH;
     }
 
     return SEMIRING_CUSTOM;
@@ -117,6 +126,14 @@ isSemiringCombinerActivatedPs(ProvenanceStmt *stmt)
 }
 
 
+
+/**
+ * @brief Given a parsed semiring specification, return a scalar expression for multiplication in the semiring.
+ *
+ * @param p the parsed semiring specification, either a string constants (the semiring name) or an expression provided by the user.
+ * @return an expression over two dummy attribute references implementing the multiplication in the semiring.
+ */
+
 static Node *
 semiringMultExpr(Node *p)
 {
@@ -124,7 +141,7 @@ semiringMultExpr(Node *p)
 		case T_Constant:
 		{
             Semiring K = userStringToSemiring(STRING_VALUE(p));
-            AttributeReference *l, *r;
+            Node *l, *r;
             DEBUG_LOG("Mult expression for semiring %s", SemiringToString(K));
 
             switch(K)
@@ -132,8 +149,8 @@ semiringMultExpr(Node *p)
                 case SEMIRING_N:
                 {
                     // l * r
-                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_LONG);
-                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_LONG);
+                    l = (Node *) createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_LONG);
+                    r = (Node *) createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_LONG);
 			        return (Node *) createOpExpr(OPNAME_MULT,
                                                  LIST_MAKE(l,r));
                 }
@@ -141,8 +158,8 @@ semiringMultExpr(Node *p)
                 {
                     // "(" || l || " * " || r || ")"
                     List *operands;
-                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
-                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_STRING);
+                    l = (Node *) createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
+                    r = (Node *) createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_STRING);
                     operands = LIST_MAKE(createConstString("("),
                                          l,
                                          createConstString(" * "),
@@ -153,25 +170,66 @@ semiringMultExpr(Node *p)
                 case SEMIRING_TROPICAL:
                 {
                     // l + r
-                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
-                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
+                    l = (Node *) createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    r = (Node *) createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
 			        return (Node *) createOpExpr(OPNAME_ADD,
                                                  LIST_MAKE(l,r));
                 }
                 case SEMIRING_VITERBI:
                 {
                     // l * r
-                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
-                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
+                    l = (Node *) createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    r = (Node *) createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
 			        return (Node *) createOpExpr(OPNAME_MULT,
                                                  LIST_MAKE(l,r));
                 }
                 case SEMIRING_FUZZY:
                 {
-                    l = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
-                    r = createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
+                    // min(l,r)
+                    l = (Node *) createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
+                    r = (Node *) createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_FLOAT);
 			        return (Node *) createFunctionCall(LEAST_FUNC_NAME,
                                                        LIST_MAKE(l,r));
+                }
+                case SEMIRING_WHICH:
+                {
+                    BackendType backend = getBackend();
+
+                    // l || r: only for backends that support arrays and concatenation
+                    if(backend == BACKEND_POSTGRES || backend == BACKEND_DUCKDB)
+                    {
+                        l = (Node *) createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
+                        r = (Node *) createFullAttrReference(strdup(DUMMY_RIGHT_ATTR),0,0,0,DT_STRING);
+
+                        if(backend == BACKEND_POSTGRES)
+                        {
+                            char *dt = postgresExtensionInstalled(PGEXT_INTARRAY) ? "int4[]": "int8[]";
+                            Node *arraycat;
+
+                            l = (Node *) createCastExprOtherDT((Node *) l, dt, -1, DT_STRING);
+                            r = (Node *) createCastExprOtherDT((Node *) r, dt, -1, DT_STRING);
+                            arraycat = (Node *) createCastExprOtherDT((Node *) createOpExpr(OPNAME_ARRAY_CONCAT,
+                                                                                            LIST_MAKE(l,r)),
+                                                                      strdup(dt),
+                                                                      0,
+                                                                      DT_STRING);
+
+                            return arraycat;
+                        }
+                        else
+                        {
+                            l = (Node *) createCastExprOtherDT((Node *) l, strdup("int32[]"), -1, DT_STRING);
+                            r = (Node *) createCastExprOtherDT((Node *) r, strdup("int32[]"), -1, DT_STRING);
+                            return (Node *) createOpExpr(OPNAME_ARRAY_CONCAT,
+                                                         LIST_MAKE(l,r));
+                        }
+                    }
+                    else
+                    {
+                        THROW(SEVERITY_RECOVERABLE,
+                              "semiring WHICH not supported on backend %s",
+                              BackendTypeToString(getBackend()));
+                    }
                 }
                 default:
                     THROW(SEVERITY_RECOVERABLE,"unknown semiring %s specified", STRING_VALUE(p));
@@ -191,12 +249,21 @@ semiringMultExpr(Node *p)
 	return NULL;
 }
 
+/**
+ * @brief Given semiring specification provided by the user, return an aggregation function implementing addition.
+ *
+ * @param p the parsed semiring specification, either a String constant (semiring name) or an expression for custom semrirings.
+ * @return an expression with the aggregation implementing semiring addition over a dummy attribute reference.
+ */
+
 static Node *
 semiringAddExpr(Node *p)
 {
+    BackendType b = getBackend();
+
 	switch(p->type)
 	{
-	    // user has specified a semiring name (currently only N and N[X])
+	    // user has specified a semiring name (Should be one of Semiring enum)
 		case T_Constant:
 		{
             Semiring K = userStringToSemiring(STRING_VALUE(p));
@@ -221,13 +288,14 @@ semiringAddExpr(Node *p)
                 }
                 case SEMIRING_VITERBI:
                 {
+                    // max(l,r) => max(a)
                     a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
                     return (Node *) createFunctionCall(MAX_FUNC_NAME,
                                                        singleton(a));
-
                 }
                 case SEMIRING_FUZZY:
                 {
+                    // max(l,r) => max(a)
                     a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_FLOAT);
                     return (Node *) createFunctionCall(MAX_FUNC_NAME,
                                                        singleton(a));
@@ -239,6 +307,46 @@ semiringAddExpr(Node *p)
                     a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
 			        return (Node *) createFunctionCall(STRINGAGG_FUNC_NAME,
                                                        LIST_MAKE(a,createConstString(" + ")));
+                }
+                case SEMIRING_WHICH:
+                {
+                    // l={a,...} u r={b,...} => array_agg(a)
+                    if(b == BACKEND_POSTGRES)
+                    {
+                        a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
+
+                        if(postgresExtensionInstalled(PGEXT_INTARRAY))
+                        {
+                            Node *arrayagg, *sort, *unique;
+
+                            arrayagg = (Node *) createFunctionCall(POSTGRES_ARRAY_CONCAT_AGG_FUNC,
+                                                          singleton(a));
+                            sort = (Node *) createFunctionCall(POSTGRES_INTARRAY_SORT_FUNC,
+                                                               singleton(arrayagg));
+                            unique = (Node *) createFunctionCall(POSTGRES_INTARRAY_UNIQ_FUNC,
+                                                                 singleton(sort));
+                            return unique;
+                        }
+                        else
+                        {
+                            return (Node *) createFunctionCall(POSTGRES_ARRAY_CONCAT_AGG_FUNC,
+                                                               singleton(a));
+                        }
+                    }
+                    // => list_flatten(list(a))
+                    else if(b == BACKEND_DUCKDB)
+                    {
+                        a = createFullAttrReference(strdup(DUMMY_LEFT_ATTR),0,0,0,DT_STRING);
+                        return (Node *) createFunctionCall(DUCKDB_LIST_FLATTEN_FUNC,
+                                                           singleton(createFunctionCall(DUCKDB_LIST_AGG_FUNC,
+                                                                                        singleton(a))));
+                    }
+                    else
+                    {
+                        THROW(SEVERITY_RECOVERABLE,
+                              "semiring WHICH not supported for Backend %s yet",
+                              BackendTypeToString(b));
+                    }
                 }
                 default:
                     THROW(SEVERITY_RECOVERABLE,"unknown semiring %s specified", STRING_VALUE(p));
@@ -273,6 +381,15 @@ getSemiringCombinerAddExpr(QueryOperator *op){
 }
 
 
+/**
+ * @brief return datatype for a particular semiring
+ *
+ *
+ * @param stmt provenance statement that uses semiring combiner
+ * @param dts the input data types to the expression
+ * @return result datatype for semiring expressions
+ */
+
 DataType
 getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 {
@@ -289,7 +406,7 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 
             //			boolean exists = FALSE;
 			if (!addCombinerExprIsOK(addExpr, NEW(boolean)))
-			    FATAL_NODE_BEATIFY_LOG("expression for addition semirign combiner can only use attribute references within aggregation function calls:\n\n", addExpr);
+			    FATAL_NODE_BEATIFY_LOG("expression for addition semiring combiner can only use attribute references within aggregation function calls:\n\n", addExpr);
 
 
 			// replace user provided attribute references with actual ones
@@ -323,6 +440,13 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 	FATAL_LOG("No semiring combiner info in provenance options.");
 }
 
+/**
+ * @brief Copies semiring combiner property from one operator to another.
+ *
+ * @param op copy from this operator
+ * @param to copy to this operator
+ */
+
 extern void
 addSCOptionToChild(QueryOperator *op, QueryOperator *to)
 {
@@ -331,6 +455,72 @@ addSCOptionToChild(QueryOperator *op, QueryOperator *to)
 		SET_STRING_PROP(to, PROP_PC_SC_AGGR_OPT, GET_STRING_PROP(op,PROP_PC_SC_AGGR_OPT));
 	}
 }
+
+extern boolean
+onlySemiringSupportedOps(QueryOperator *op)
+{
+    return onlySemiringSupportedOpsInternal(op);
+}
+
+
+/**
+ * @brief Returns true if query only uses operators for which we support semiring operations.
+ *
+ * @param op the root of the subtree to tests
+ * @return true, if only supported operators are used in subtree rooted at op
+ */
+
+static boolean
+onlySemiringSupportedOpsInternal(QueryOperator *op)
+{
+    boolean res = TRUE;
+
+    FOREACH(QueryOperator,child,op->inputs)
+    {
+        res &= onlySemiringSupportedOpsInternal(child);
+    }
+
+    if(!(isA(op,ProjectionOperator)
+         || isA(op,SelectionOperator)
+         || isA(op,ProvenanceComputation)
+         || isA(op,TableAccessOperator)
+         || isA(op,JoinOperator)
+         || isA(op,ConstRelOperator)))
+    {
+        res = FALSE;
+    }
+
+    // no outer joins
+    if(isA(op,JoinOperator))
+    {
+        JoinOperator *j = (JoinOperator *) op;
+        if(!(j->joinType == JOIN_CROSS
+             || j->joinType == JOIN_INNER))
+        {
+            res = FALSE;
+        }
+    }
+
+    // only union set operator
+    if(isA(op,SetOperator))
+    {
+        SetOperator *s = (SetOperator *) op;
+        res &= (s->setOpType == SETOP_UNION);
+    }
+
+    return res;
+}
+
+
+/**
+ * @brief Add operators on top of operator result that implement semiring multiplication and addition.
+ * Projection is used for multiplication, multiplying all input provenance attributes and then using aggregation to sum up the results.
+ *
+ * @param result the query operator on top of which we need to introduce semiring addition and multiplication.
+ * @param addExpr expression implementing semiring addition, that contains and aggregation function over a dummy attribtue
+ * @param multExpr expression implementing semiring multiplication as a scalar expression over two dummy attribute references
+ * @return the root of the operator graph implementing addition on top of result
+ */
 
 QueryOperator *
 addSemiringCombiner(QueryOperator * result, Node *addExpr, Node *multExpr)
@@ -445,6 +635,18 @@ getAttributeReferencesForSC(Node *expr, AttributeReference **leftName, Attribute
     }
 }
 
+
+/**
+ * @brief Return true if semiring addition expression is valid.
+ *
+ * We require this to be an aggregation expression over a dummy attribute
+ * reference, e.g., sum(a * 2) + 3 + avg(a) is ok, but a + sum(1) is not
+ * (attribute used outside of an aggregation's scope).
+ *
+ * @param node the expression implementing semiring addition (as an aggregation expression)
+ * @param state pointer to boolean recording whether we are withing an aggregation
+ * @return true, if the expression is valid
+ */
 
 static boolean
 addCombinerExprIsOK(Node *node, void *state)
