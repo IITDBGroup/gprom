@@ -1020,14 +1020,16 @@ class TestResultDefaultSerializer:
 
         for set in settings:
             suitestr = f"[white on black]SUITE: <{t.get_name_str()}> SETTING: <{set}> [/]"
-            out.write(f"{blackindent}[b white on black]START [/] {suitestr}\n")
+            if not options.failed_only:
+                out.write(f"{blackindent}[b white on black]START [/] {suitestr}\n")
             for child in t.tests.values():
                 if isinstance(child,GProMTestCase) and child.name in tr.results[set]:
                     numbase += 1
                     if tr.results[set][child.name]:
-                        mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]"
                         basepassed += 1
-                        out.write(f"{testblackindent}{mes}\n")
+                        if not options.failed_only:
+                            mes = f"[black on green]OK[/]   [green]{child.get_name_str()}[/]"
+                            out.write(f"{testblackindent}{mes}\n")
                     else:
                         mes = f"[white on red]FAIL[/] {child.get_name_str()}"
                         if options.diff and child.name in tr.diffs[set]:
@@ -1051,9 +1053,11 @@ class TestResultDefaultSerializer:
             runtests = [ x for x in t.tests.values() if tr.should_run_test(x) ]
             numtests = len(runtests)
             numsuccess = reduce(lambda x,y: x + y, [ tr.results[set][c.name] for c in t.tests.values() if c.name in tr.results[set] ], 0)
-                    #allpass = numsuccess == runtests
-            mes = f"[black on green] OK {numsuccess}/{numtests} CHILDREN PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]" if tr.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]"
-            out.write(f"{blackindent}{suitestr} {mes}\n")
+            #allpass = numsuccess == runtests
+            if not options.failed_only or basepassed != numbase:
+                mes = f"[black on green] OK {numsuccess}/{numtests} CHILDREN PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]" if tr.results[set][t.name] else f"[white on red] FAIL {numsuccess}/{numtests} PASSED {basepassed}/{numbase} INDIVIDUAL TESTS PASSED [/]"
+                out.write(f"{blackindent}{suitestr} {mes}\n")
+
         return (numbase, basepassed)
 
 class TestResultOutputter:
@@ -1248,7 +1252,10 @@ def parse_args():
                     help="write test results to this file")
     ap.add_argument("-f", "--result_format", type=str, default="default",
                     choices = TEST_OUTPUT_FORMATS,
-                    help="output")
+                    help=f"output format only of {TEST_OUTPUT_FORMATS}")
+    ap.add_argument("-F", "--failed_only", action='store_true',
+                    help="only show failed test cases")
+
 
     args = ap.parse_args()
     return args
