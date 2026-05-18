@@ -1,11 +1,10 @@
 /*-----------------------------------------------------------------------------
  *
- * pi_cs_main.c
+ * pi_cs_main.c - Rewrite rules for GProM's standard provenance model and
+ * provenance sektches.
  *
  *
  *		AUTHOR: lord_pretzel
- *
- *
  *
  *-----------------------------------------------------------------------------
  */
@@ -409,6 +408,7 @@ addUserProvenanceAttributes (QueryOperator *op,
     List *attrNames = NIL;
     List *projExpr = NIL;
     List *provAttrPos = NIL;
+    List *newProvAttrNames = NIL;
     List *normalAttrExprs = getNormalAttrProjectionExprs(op);
     List *userPAttrExprs = NIL;
     int cnt = 0;
@@ -462,6 +462,7 @@ addUserProvenanceAttributes (QueryOperator *op,
         newAttrName = getProvenanceAttrName(tableName, a->name, relAccessCount);
         DEBUG_LOG("new attr name: %s", newAttrName);
         attrNames = appendToTailOfList(attrNames, newAttrName);
+        newProvAttrNames = appendToTailOfList(newProvAttrNames, strdup(a->name));
         projExpr = appendToTailOfList(projExpr, a);
     }
 
@@ -488,6 +489,12 @@ addUserProvenanceAttributes (QueryOperator *op,
 
     SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
 
+    // prov info, add the new provenance
+    appendProvInfo(proj,
+                   strdup(tableName),
+                   newProvAttrNames);
+    DEBUG_LOG("added subquery result as provenance: %s", operatorToOverviewString((Node *) proj));
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
 
@@ -501,6 +508,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     List *attrNames = NIL;
     List *projExpr = NIL;
     List *provAttrPos = NIL;
+    List *newProvAttrNames = NIL;
     List *normalAttrExpr = getNormalAttrProjectionExprs(op);
     List *temp = NIL;
     int cnt = 0;
@@ -537,6 +545,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
     {
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        newProvAttrNames = appendToTailOfList(newProvAttrNames, strdup(attr->attrName));
         cnt++;
     }
 
@@ -581,6 +590,12 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
 
     SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
+
+    // add provenance info
+    COPY_PROV_INFO(proj, op);
+    appendProvInfo(proj,
+                   strdup(tableName),
+                   newProvAttrNames);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));

@@ -38,6 +38,7 @@ typedef struct Operator {
 #define OPNAME_NEQ_HAT "^="
 
 #define OPNAME_STRING_CONCAT "||"
+#define OPNAME_ARRAY_CONCAT "||"
 #define OPNAME_CONCAT "CONCAT"
 #define OPNAME_LIKE "LIKE"
 
@@ -329,15 +330,28 @@ extern List *findAllNodes(Node *node, NodeTag type);
 #define FIRST_VALUE_FUNC_NAME backendifyIdentifier("first_value")
 #define LAST_VALUE_FUNC_NAME backendifyIdentifier("last_value")
 #define STRINGAGG_FUNC_NAME backendifyIdentifier("string_agg")
-
 #define COALESCE_FUNC_NAME backendifyIdentifier("COALESCE")
 
 // names of special attributes
 #define POSTGRES_CTID_ATTR "ctid"
 #define DUCKDB_ROWID_ATTR "rowid"
+
+// names of system specific functions
+#define POSTGRES_INTARRAY_UNIQ_FUNC "uniq"
+#define POSTGRES_INTARRAY_SORT_FUNC "sort"
+
+#define DUCKDB_LIST_AGG_FUNC "list"
+#define DUCKDB_LIST_FLATTEN_FUNC "flatten"
+#define DUCKDB_LIST_DISTINCT_FUNC "list_distinct"
+
+// names of functions that gprom creates
 #define POSTGRES_TID_TO_INT8_FUNC "_tid2int8"
 #define POSTGRES_MERGE_ROWID_FUNC "_mergerowid"
 #define POSTGRES_VARIADIC_HASH_FUNC "_variadic_hash"
+#define POSTGRES_ARRAY_CONCAT_AGG_FUNC "_array_concat_agg"
+
 #define DUCKDB_MERGE_ROWID_FUNC "hash"
+
+
 
 #endif /* EXPRESSION_H */

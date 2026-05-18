@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>semiring Which[X] test cases</comment>
+
+<entry key="q1.query">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT * FROM (SELECT a,b, ('{' || prov || '}')::"int4[]" AS p FROM r_which) HAS PROVENANCE (p) r);
+</entry>
+<entry key="q1.query.duckdb">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT * FROM (SELECT a,b, ('[' || prov || ']')::"int32[]" AS p FROM r_which) HAS PROVENANCE (p) r);
+</entry>
+<entry key="q1.result">
+ a | b | PROV |
+---------------
+ 1 | 1 | {11}  |
+ 2 | 3 | {14}  |
+ 1 | 2 | {12}  |
+ 2 | 1 | {13}  |
+</entry>
+<entry key="q1.result.duckdb">
+ a | b | PROV |
+---------------
+ 1 | 1 | [11]  |
+ 2 | 3 | [14]  |
+ 1 | 2 | [12]  |
+ 2 | 1 | [13]  |
+</entry>
+
+
+<entry key="q2.query">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT a FROM (SELECT a,b, ('{' || prov || '}')::"int4[]" AS p FROM r_which) HAS PROVENANCE (p) r);
+</entry>
+<entry key="q2.query.duckdb">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT a FROM (SELECT a,b, ('[' || prov || ']')::"int32[]" AS p FROM r_which) HAS PROVENANCE (p) r);
+</entry>
+<entry key="q2.result">
+ a | PROV  |
+------------
+ 2 | {13,14} |
+ 1 | {11,12} |
+</entry>
+<entry key="q2.result.duckdb">
+ a | PROV  |
+------------
+ 2 | [13,14] |
+ 1 | [11,12] |
+</entry>
+
+
+<entry key="q3.query">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT a FROM (SELECT a,b, ('{' || prov || '}')::"int4[]" AS p FROM r_which) HAS PROVENANCE (p) r, (SELECT c,d, ('{' || prov || '}')::"int4[]" AS p FROM s_which) HAS PROVENANCE (p) s);
+</entry>
+<entry key="q3.query.duckdb">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT a FROM (SELECT a,b, ('[' || prov || ']')::"int32[]" AS p FROM r_which) HAS PROVENANCE (p) r, (SELECT c,d, ('[' || prov || ']')::"int32[]" AS p FROM s_which) HAS PROVENANCE (p) s);
+</entry>
+<entry key="q3.result.duckdb">
+ a | PROV                                              |
+--------------------------------------------------------
+ 2 | [13,14,21,22,23,24] |
+ 1 | [11,12,21,22,23,24] |
+</entry>
+<entry key="q3.result">
+ a | PROV                |
+--------------------------
+ 2 | {13,14,21,22,23,24} |
+ 1 | {11,12,21,22,23,24} |
+</entry>
+
+<entry key="q4.query">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT 1 FROM (SELECT 1, ('{' || prov || '}')::"int4[]" AS p FROM r_which) HAS PROVENANCE (p) r, (SELECT 1, ('{' || prov || '}')::"int4[]" AS p FROM s_which) HAS PROVENANCE (p) s);
+</entry>
+<entry key="q4.query.duckdb">
+PROVENANCE WITH SEMIRING COMBINER WHICH OF (SELECT 1 FROM (SELECT 1, ('[' || prov || ']')::"int32[]" AS p FROM r_which) HAS PROVENANCE (p) r, (SELECT 1, ('[' || prov || ']')::"int32[]" AS p FROM s_which) HAS PROVENANCE (p) s);
+</entry>
+<entry key="q4.result.duckdb">
+ 1 | PROV                      |
+--------------------------------
+ 1 | [11,12,13,14,21,22,23,24] |
+</entry>
+<entry key="q4.result">
+ 1 | PROV                      |
+--------------------------------
+ 1 | {11,12,13,14,21,22,23,24} |
+</entry>
+
+
+</properties>

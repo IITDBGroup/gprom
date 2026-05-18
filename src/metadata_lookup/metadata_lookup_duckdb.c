@@ -1,4 +1,5 @@
 #include "common.h"
+
 #ifdef HAVE_DUCKDB_BACKEND
 #include "duckdb.h"
 #endif
@@ -48,7 +49,7 @@ typedef struct DuckDBPlugin
 // global vars
 static DuckDBPlugin *plugin = NULL;
 static MemContext *memContext = NULL;
-static char* boolops[] = { "<", "<=", ">", ">=" "!=", "=", "==", "<>", NULL };
+static char* boolops[] = { "<", "<=", ">", ">=", "!=", "=", "==", "<>", NULL };
 
 // functions
 // static duckdb_result runQuery (char *q);
@@ -61,6 +62,13 @@ static boolean isAnyTypeCompatible(List *oids, List *argTypes);
 static boolean hasAnyType(List *types);
 static List *typeListToDTs(List *strs);
 static boolean isBoolOp(char *opname);
+static char *duckdbListValToString(duckdb_vector v, int row);
+static char *duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length);
+static char *duckdbStringToCstring(duckdb_string_t s);
+static char *duckdbDateToCstring(duckdb_date d);
+static char *duckdbTimestampToCstring(duckdb_timestamp ts);
+static char *duckdbIntervalToCstring(duckdb_interval i);
+static char *duckdbTimeToCstring(duckdb_time t);
 
 typedef struct DuckDBMetaCache
 {
@@ -772,6 +780,10 @@ duckdbExecuteQuery(char *query)
     Relation *r = makeNode(Relation);
     duckdb_result rs;
     int rc;
+    duckdb_type *coltypes;
+    duckdb_vector *colvecs;
+    uint64_t **colvalidity;
+    idx_t absolutepos = 0;
 
     rc = duckdb_query(plugin->conn, query, &rs);
 
@@ -785,7 +797,10 @@ duckdbExecuteQuery(char *query)
     }
 
     int numFields = duckdb_column_count(&rs);
-    int numrows = duckdb_row_count(&rs);
+    /* int numrows = duckdb_row_count(&rs); */
+    coltypes = MALLOC(sizeof(duckdb_type) * numFields);
+    colvecs = MALLOC(sizeof(duckdb_vector) * numFields);
+    colvalidity = MALLOC(sizeof(uint64_t*) * numFields);
 
     r->schema = NIL;
     for (int i = 0; i < numFields; i++) {
@@ -795,28 +810,447 @@ duckdbExecuteQuery(char *query)
 
     // Read rows
     r->tuples = makeVector(VECTOR_NODE, T_Vector);
-    for (idx_t row = 0; row < numrows; row++) {
-        Vector *tuple = makeVector(VECTOR_STRING, -1);
-        for (int j = 0; j < numFields; j++) {
-            if (duckdb_value_is_null(&rs, j, row)) {
-                vecAppendString(tuple, strdup("NULL"));
-            } else {
-                const char *val = duckdb_value_varchar(&rs, j, row);
-                vecAppendString(tuple, strdup((char *) val));
-                duckdb_free((void *)val);
-            }
+
+    while(true)
+    {
+        duckdb_data_chunk result = duckdb_fetch_chunk(rs);
+
+    /*     // get the first column */
+    /*     duckdb_vector col1 = duckdb_data_chunk_get_vector(result, 0); */
+    /*     int32_t *col1_data = (int32_t *) duckdb_vector_get_data(col1); */
+    /*     uint64_t *col1_validity = duckdb_vector_get_validity(col1); */
+    /* } */
+
+
+        if (!result)
+        {
+            // result is exhausted
+            break;
         }
-        VEC_ADD_NODE(r->tuples, tuple);
-        DEBUG_NODE_LOG("read tuple <%s>", tuple);
+
+        for (idx_t j = 0; j < numFields; j++)
+        {
+            colvecs[j] = duckdb_data_chunk_get_vector(result, j);
+            colvalidity[j] = duckdb_vector_get_validity(colvecs[j]);
+        }
+
+        // get the number of rows from the data chunk
+        idx_t row_count = duckdb_data_chunk_get_size(result);
+
+        // loop through columns
+        for (idx_t row = 0; row < row_count; row++)
+        {
+            Vector *tuple = makeVector(VECTOR_STRING, -1);
+            for (idx_t j = 0; j < numFields; j++)
+            {
+                if(duckdb_validity_row_is_valid(colvalidity[j],row))
+                {
+                    switch(coltypes[j])
+                    {
+                        // list colues
+                        case DUCKDB_TYPE_LIST:
+                        {
+                            char *val;
+                            val = duckdbListValToString(colvecs[j], row);
+                            vecAppendString(tuple, val);
+                        }
+                        break;
+                        // more expensive fallback to not have to deal with all types
+                        default:
+                        {
+                            vecAppendString(tuple, duckdbVectorToString(colvecs[j], row, 1));
+                            /* duckdb_string s = duckdb_value_string(&rs,j,absolutepos); */
+                            /* char *val; */
+                            /* val = MALLOC(s.size + 1); */
+                            /* strncpy(val, s.data, s.size); */
+                            /* val[s.size] = '\0'; */
+                            /* vecAppendString(tuple, strdup(val)); */
+                            /* duckdb_free(s.data); */
+                        }
+                        break;
+                    }
+                }
+                else
+                /* if (duckdb_value_is_null(&rs, j, row)) */
+                {
+                    vecAppendString(tuple, strdup("NULL"));
+                }
+                /* else */
+                /* { */
+                /*     duckdb_string_t s = duckdb_value_string(&rs,j,row); */
+                /*     const char *val = duckdb_value_string(&rs, j, row); */
+                /*     vecAppendString(tuple, strdup((char *) val)); */
+                /*     duckdb_free((void *)val); */
+                /* } */
+            }
+            VEC_ADD_NODE(r->tuples, tuple);
+            absolutepos++;
+            DEBUG_NODE_LOG("read tuple <%s>", tuple);
+        }
+
+        // destroy data chunk
+        duckdb_destroy_data_chunk(&result);
     }
+
+
+    /*     // get the first column */
+    /*     duckdb_vector col1 = duckdb_data_chunk_get_vector(result, 0); */
+    /*     int32_t *col1_data = (int32_t *) duckdb_vector_get_data(col1); */
+    /*     uint64_t *col1_validity = duckdb_vector_get_validity(col1); */
+    /* } */
+
+    /* for (idx_t row = 0; row < numrows; row++) { */
+    /*     Vector *tuple = makeVector(VECTOR_STRING, -1); */
+    /*     for (int j = 0; j < numFields; j++) { */
+    /*         if (duckdb_value_is_null(&rs, j, row)) { */
+    /*             vecAppendString(tuple, strdup("NULL")); */
+    /*         } else { */
+    /*             duckdb_string_t s = duckdb_value_string(&rs,j,row); */
+    /*             const char *val = duckdb_value_string(&rs, j, row); */
+    /*             vecAppendString(tuple, strdup((char *) val)); */
+    /*             duckdb_free((void *)val); */
+    /*         } */
+    /*     } */
+    /*     VEC_ADD_NODE(r->tuples, tuple); */
+    /*     DEBUG_NODE_LOG("read tuple <%s>", tuple); */
+    /* } */
 
     duckdb_destroy_result(&rs);
 
     return r;
 }
 
+static char *
+duckdbListValToString(duckdb_vector v, int row)
+{
+    duckdb_list_entry *list_data = (duckdb_list_entry *) duckdb_vector_get_data(v);
+	duckdb_vector list_child = duckdb_list_vector_get_child(v);
+    StringInfo str = makeStringInfo();
+    duckdb_logical_type typ = duckdb_vector_get_column_type(list_child);
+    duckdb_list_entry list = list_data[row];
+
+    appendStringInfoString(str, "[");
+
+    appendStringInfoString(str,
+                           duckdbVectorToString(list_child,
+                                                list.offset,
+                                                list.length));
+
+    appendStringInfoString(str, "]");
+
+    // cleanup
+    duckdb_destroy_logical_type(&typ);
+
+    return str->data;
+}
+
+static char *
+duckdbStringToCstring(duckdb_string_t s)
+{
+    /* char *val; */
+    /* val = MALLOC(s.size + 1); */
+    /* strncpy(val, s.data, s.size); */
+    /* val[s.size] = '\0'; */
+    /* vecAppendString(tuple, strdup(val)); */
+    char *val;
+	if (duckdb_string_is_inlined(s)) {
+		// use inlined string
+        val = MALLOC(s.value.inlined.length + 1);
+        val[s.value.inlined.length] = 0;
+		strncpy(val, s.value.inlined.inlined, s.value.inlined.length);
+	}
+    else
+    {
+		// follow string pointer
+        val = MALLOC(s.value.pointer.length + 1);
+        val[s.value.pointer.length] = 0;
+		strncpy(val, s.value.pointer.ptr, s.value.pointer.length);
+	}
+
+    return val;
+}
+
+static char *
+duckdbDateToCstring(duckdb_date d)
+{
+    duckdb_date_struct ds = duckdb_from_date(d);
+    StringInfo str = makeStringInfo();
+
+    appendStringInfo(str, "%d-%d-%d",
+                     ds.year,
+                     ds.month,
+                     ds.day);
+
+    return str->data;
+}
+
+static char *
+duckdbTimestampToCstring(duckdb_timestamp ts)
+{
+    duckdb_timestamp_struct tstruct = duckdb_from_timestamp(ts);
+    StringInfo s = makeStringInfo();
+    duckdb_date_struct ds = tstruct.date;
+    duckdb_time_struct times = tstruct.time;
+
+    appendStringInfo(s, "%d-%d-%d %d-%d-%d.%d",
+                     ds.year,
+                     ds.month,
+                     ds.day,
+                     times.hour,
+                     times.min,
+                     times.sec,
+                     times.micros
+                     );
+
+    return s->data;
+}
+
+static char *
+duckdbTimeToCstring(duckdb_time t)
+{
+    duckdb_time_struct ts = duckdb_from_time(t);
+    StringInfo s = makeStringInfo();
+
+    appendStringInfo(s, "%d:%d:%d.%d",
+                     ts.hour,
+                     ts.min,
+                     ts.sec,
+                     ts.micros);
+
+    return s->data;
+}
+
+static char *
+duckdbIntervalToCstring(duckdb_interval i)
+{
+    StringInfo s = makeStringInfo();
+
+    appendStringInfo(s, "%d months, %d days, %d microsecs",
+                     i.months,
+                     i.days,
+                     i.micros);
+
+    return s->data;
+}
+
+static char *
+duckdbUUIDToCstring(duckdb_uhugeint uuid)
+{
+    StringInfo s = makeStringInfo();
+
+    // 8-4-4-4-12 hex values for 128 bits uuid
+    appendStringInfo(s,"%X-%X-%X-%X-%X",
+                     (uuid.lower >> 32) & (((uint64_t) 1 << 32) - 1), // 4 most significant bytes as 8 hex values
+                     (uuid.lower >> 16) & (((uint64_t) 1 << 16) - 1), // 2 next significant bytes as 4 hex values
+                     uuid.lower         & (((uint64_t) 1 << 16) - 1), // 2 next significant bytes as 4 hex values
+                     (uuid.lower >> 48) & (((uint64_t) 1 << 16) - 1), // 2 most significant bytes as 4 hex values
+                     (uuid.lower >> 16) & (((uint64_t) 1 << 48) - 1)  // 6 next significant bytes as 12 hex values
+                     );
+
+    return s->data;
+}
+
+#define APPEND_VEC_TO_STRING_INFO(_typ, _format) \
+        APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(_typ,_format,)
+
+#define APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(_typ, _format,_transform) \
+        APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(_type,appendStringInfo(str, _format, _transform(data[child_idx])))
+
+#define APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(_typ,_transform_code) \
+        do { \
+            _typ data = (_typ) duckdb_vector_get_data(v); \
+            for (idx_t child_idx = offset; child_idx < offset + length; child_idx++) \
+            { \
+			    if (child_idx > offset) \
+                { \
+				    appendStringInfoString(str, ", "); \
+			    } \
+			    if (!duckdb_validity_row_is_valid(validity, child_idx)) \
+                { \
+				    appendStringInfoString(str, "NULL"); \
+			    } \
+                else \
+                {                     \
+	                _transform_code; \
+			    } \
+		    } \
+        } while(0)
+
+static char *
+duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length)
+{
+    StringInfo str = makeStringInfo();
+    duckdb_logical_type typ = duckdb_vector_get_column_type(v);
+    duckdb_type eltyp = duckdb_get_type_id(typ);
+	uint64_t *validity = duckdb_vector_get_validity(v);
+
+    switch(eltyp)
+    {
+        case DUCKDB_TYPE_BOOLEAN:
+        {
+            APPEND_VEC_TO_STRING_INFO(bool*, "%d");
+        }
+        break;
+        case DUCKDB_TYPE_TINYINT:
+        {
+            APPEND_VEC_TO_STRING_INFO(int8_t*,"%d");
+        }
+        break;
+        case DUCKDB_TYPE_SMALLINT:
+        {
+            APPEND_VEC_TO_STRING_INFO(int16_t*,"%d");
+        }
+        break;
+        case DUCKDB_TYPE_INTEGER:
+        {
+            APPEND_VEC_TO_STRING_INFO(int32_t*,"%d");
+        }
+        break;
+        case DUCKDB_TYPE_BIGINT:
+        {
+            APPEND_VEC_TO_STRING_INFO(int64_t*,"%lld");
+        }
+        break;
+        case DUCKDB_TYPE_HUGEINT:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_hugeint*,"%f",duckdb_hugeint_to_double);
+        }
+        break;
+        case DUCKDB_TYPE_UTINYINT:
+        {
+            APPEND_VEC_TO_STRING_INFO(uint8_t*,"%u");
+        }
+        break;
+        case DUCKDB_TYPE_USMALLINT:
+        {
+            APPEND_VEC_TO_STRING_INFO(uint16_t*,"%u");
+        }
+        break;
+        case DUCKDB_TYPE_UINTEGER:
+        {
+            APPEND_VEC_TO_STRING_INFO(uint32_t*,"%u");
+        }
+        break;
+        case DUCKDB_TYPE_UBIGINT:
+        {
+            APPEND_VEC_TO_STRING_INFO(uint64_t*,"%llu");
+        }
+        break;
+        case DUCKDB_TYPE_UHUGEINT:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_uhugeint*,"%f",duckdb_uhugeint_to_double);
+        }
+        break;
+        case DUCKDB_TYPE_FLOAT:
+        {
+            APPEND_VEC_TO_STRING_INFO(float*,"%f");
+        }
+        break;
+        case DUCKDB_TYPE_DOUBLE:
+        {
+            APPEND_VEC_TO_STRING_INFO(double*,"%f");
+        }
+        break;
+        case DUCKDB_TYPE_VARCHAR:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_string_t*,"%s",duckdbStringToCstring);
+        }
+        break;
+        case DUCKDB_TYPE_DECIMAL:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_decimal*,"%f",duckdb_decimal_to_double);
+        }
+        break;
+        case DUCKDB_TYPE_TIMESTAMP:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_timestamp*,"%s",duckdbTimestampToCstring);
+        }
+        break;
+        case DUCKDB_TYPE_DATE:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_date*,"%s",duckdbDateToCstring);
+        }
+        break;
+        // duckdb_time
+        case DUCKDB_TYPE_TIME:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_time*,"%s",duckdbTimeToCstring);
+        }
+        break;
+        // duckdb_interval
+        case DUCKDB_TYPE_INTERVAL:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_interval*,"%s",duckdbIntervalToCstring);
+        }
+        break;
+        // duckdb_hugeint
+        case DUCKDB_TYPE_UUID:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_uhugeint*,"%s",duckdbUUIDToCstring);
+        }
+        break;
+        // list type, only useful as logical type
+        case DUCKDB_TYPE_LIST:
+        {
+            APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(duckdb_list*,
+                                                             appendStringInfo(s,"%s", duckdbListValToString(data, child_idx)));
+        }
+        break;
+
+        // duckdb_blob
+        case DUCKDB_TYPE_BLOB:
+        // duckdb_timestamp_s (seconds)
+        case DUCKDB_TYPE_TIMESTAMP_S:
+        // duckdb_timestamp_ms (milliseconds)
+        case DUCKDB_TYPE_TIMESTAMP_MS:
+        // duckdb_timestamp_ns (nanoseconds)
+        case DUCKDB_TYPE_TIMESTAMP_NS:
+        // enum type, only useful as logical type
+        case DUCKDB_TYPE_ENUM:
+        // struct type, only useful as logical type
+        case DUCKDB_TYPE_STRUCT:
+        // map type, only useful as logical type
+        case DUCKDB_TYPE_MAP:
+        // duckdb_array, only useful as logical type
+        case DUCKDB_TYPE_ARRAY:
+        // duckdb_hugeint
+        case DUCKDB_TYPE_UUID:
+        // union type, only useful as logical type
+        case DUCKDB_TYPE_UNION:
+        // duckdb_bit
+        case DUCKDB_TYPE_BIT:
+        // duckdb_time_tz
+        case DUCKDB_TYPE_TIME_TZ:
+        // duckdb_timestamp (microseconds)
+        case DUCKDB_TYPE_TIMESTAMP_TZ:
+        // enum type, only useful as logical type
+        case DUCKDB_TYPE_ANY:
+        // duckdb_bignum
+        case DUCKDB_TYPE_BIGNUM:
+        // enum type, only useful as logical type
+        case DUCKDB_TYPE_SQLNULL:
+        // enum type, only useful as logical type
+        case DUCKDB_TYPE_STRING_LITERAL:
+        // enum type, only useful as logical type
+        case DUCKDB_TYPE_INTEGER_LITERAL:
+        // duckdb_time_ns (nanoseconds)
+        case DUCKDB_TYPE_TIME_NS:
+        {
+            THROW(SEVERITY_RECOVERABLE,
+                  "This duckdb type is not yet supported: %u",
+                  eltyp);
+        }
+        break;
+        default:
+        break;
+    };
+
+    return str->data;
+}
+
 void
-duckdbExecuteQueryIgnoreResults(char *query) {
+duckdbExecuteQueryIgnoreResults(char *query)
+{
     duckdb_result result;
     int rc;
 

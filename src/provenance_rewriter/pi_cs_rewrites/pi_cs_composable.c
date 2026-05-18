@@ -85,6 +85,7 @@ static QueryOperator *rewritePI_CSComposableLimitOp(LimitOperator *op, PICSCompo
 
 static QueryOperator *rewritePI_CSComposableReuseRewrittenOp(QueryOperator *op, PICSComposableRewriteState *state);
 
+static boolean canUseWindowForAgg(AggregationOperator *a);
 static Node *getResultTidExprForBase(QueryOperator *base);
 static List *combineInputResultTidAndDupAttrsExprs(QueryOperator *op);
 static QueryOperator *combineInputResultTidAndDupAttrs(QueryOperator *op);
@@ -293,7 +294,8 @@ rewritePI_CSComposableOperator (QueryOperator *op, PICSComposableRewriteState *s
             }
             else
             {
-                if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
+                if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW)
+                   && canUseWindowForAgg((AggregationOperator *) op))
                 {
                     rewrittenOp = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op, state);
                 }
@@ -345,6 +347,32 @@ rewritePI_CSComposableOperator (QueryOperator *op, PICSComposableRewriteState *s
 	setRewrittenOp(state->opToRewrittenOp, op, rewrittenOp);
 
     return rewrittenOp;
+}
+
+
+/**
+ * @brief Check whether it is safe to use windowed aggregation to rewrite aggregation.
+ *
+ * @param a the aggregation operator to check
+ * @return true, if we can use windowed aggregation to rewrite a
+ */
+
+static boolean
+canUseWindowForAgg(AggregationOperator *a)
+{
+    // for postgres, count(DISTINCT ...) is not supported for window fnunctions
+    if(getBackend() == BACKEND_POSTGRES)
+    {
+        FOREACH(FunctionCall,f,a->aggrs)
+        {
+            if(f->isDistinct)
+            {
+                return FALSE;
+            }
+        }
+    }
+
+    return TRUE;
 }
 
 /**
@@ -413,6 +441,7 @@ composableAddUserProvenanceAttributes(QueryOperator *op,
     List *projExpr = NIL;
     List *attrDefs = NIL;
     List *provAttrPos = NIL;
+    List *newProvAttrNames = NIL;
     List *normalAttrExprs = getNormalAttrProjectionExprs(op);
     List *userPAttrExprs = NIL;
     int cnt = 0;
@@ -428,7 +457,9 @@ composableAddUserProvenanceAttributes(QueryOperator *op,
     FOREACH(AttributeReference,a,normalAttrExprs)
     {
         if (hasSetElem(userNames, a->name))
+        {
             userPAttrExprs = appendToTailOfList(userPAttrExprs,a);
+        }
     }
 
     if (isA(op,TableAccessOperator))
@@ -466,7 +497,12 @@ composableAddUserProvenanceAttributes(QueryOperator *op,
     // create schema
     FOREACH(AttributeDef, attr, attrDefs)
     {
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        projExpr = appendToTailOfList(projExpr,
+                                      createFullAttrReference(attr->attrName,
+                                                              0,
+                                                              cnt,
+                                                              0,
+                                                              attr->dataType));
         cnt++;
     }
 
@@ -477,6 +513,7 @@ composableAddUserProvenanceAttributes(QueryOperator *op,
         newAttrName = getProvenanceAttrName(tableName, a->name, relAccessCount);
         DEBUG_LOG("new attr name: %s", newAttrName);
         attrNames = appendToTailOfList(attrNames, newAttrName);
+        newProvAttrNames = appendToTailOfList(newProvAttrNames, strdup(a->name));
         projExpr = appendToTailOfList(projExpr, a);
     }
 
@@ -529,6 +566,11 @@ composableAddUserProvenanceAttributes(QueryOperator *op,
     // mark as provenance attribute duplication
     SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
 
+    // prov info, add the new provenance
+    appendProvInfo(proj,
+                   strdup(tableName),
+                   newProvAttrNames);
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));
 
@@ -542,6 +584,7 @@ composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set
     List *attrNames = NIL;
     List *projExpr = NIL;
     List *provAttrPos = NIL;
+    List *newProvAttrNames = NIL;
     List *normalAttrExpr = removeSpecialAttrsFromNormalProjectionExprs(getNormalAttrProjectionExprs(op));
     List *temp = NIL;
     int cnt = 0;
@@ -587,6 +630,7 @@ composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set
         newAttrName = getProvenanceAttrName(tableName, a->name, relAccessCount);
         DEBUG_LOG("new attr name: %s", newAttrName);
         attrNames = appendToTailOfList(attrNames, newAttrName);
+        newProvAttrNames = appendToTailOfList(newProvAttrNames, strdup(a->name));
         projExpr = appendToTailOfList(projExpr, a);
     }
 
@@ -631,6 +675,12 @@ composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
 
     SET_BOOL_STRING_PROP(proj, PROP_PROJ_PROV_ATTR_DUP);
+
+    // prov info, add the new provenance
+    COPY_PROV_INFO(proj, op);
+    appendProvInfo(proj,
+                   strdup(tableName),
+                   newProvAttrNames);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) proj));

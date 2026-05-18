@@ -3343,6 +3343,7 @@ computeNotNullPropInternal(QueryOperator *root)
             switch(root->type)
             {
                 case T_SelectionOperator:
+                case T_DuplicateRemoval:
                 {
                     notnull =  copyObject(childNotNull);
                     NOT_NULL_SET_AND_RETURN();

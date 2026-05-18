@@ -19,9 +19,10 @@ DROP TABLE IF EXISTS r_n;
 DROP TABLE IF EXISTS s_n;
 DROP TABLE IF EXISTS r_nx;
 DROP TABLE IF EXISTS s_nx;
+DROP TABLE IF EXISTS r_which;
+DROP TABLE IF EXISTS s_which;
 DROP TABLE IF EXISTS r_f;
 DROP TABLE IF EXISTS s_f;
-
 
 DROP TABLE IF EXISTS taxi_trips;
 
@@ -276,6 +277,28 @@ INSERT INTO S_nx VALUES (2,2,'y1');
 INSERT INTO S_nx VALUES (2,3,'y2');
 INSERT INTO S_nx VALUES (3,2,'y3');
 INSERT INTO S_nx VALUES (1,4,'y4');
+
+CREATE TABLE r_which (
+	A int,
+	B int,
+    prov int
+);
+
+INSERT INTO R_which VALUES (1,1,11);
+INSERT INTO R_which VALUES (1,2,12);
+INSERT INTO R_which VALUES (2,1,13);
+INSERT INTO R_which VALUES (2,3,14);
+
+CREATE TABLE s_which (
+	C int,
+	D int,
+    prov int
+);
+
+INSERT INTO S_which VALUES (2,2,21);
+INSERT INTO S_which VALUES (2,3,22);
+INSERT INTO S_which VALUES (3,2,23);
+INSERT INTO S_which VALUES (1,4,24);
 
 CREATE TABLE r_f (
 	A int,

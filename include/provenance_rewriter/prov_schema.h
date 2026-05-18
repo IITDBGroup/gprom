@@ -25,6 +25,7 @@ extern int increaseRefCount(HashMap *provCounts, char *prefix);
 extern List *opGetProvAttrInfo(QueryOperator *op);
 extern void copyProvInfo(QueryOperator *to, QueryOperator *from);
 extern void concatProvInfos(QueryOperator *to, QueryOperator *left, QueryOperator *right);
+extern void appendProvInfo(QueryOperator *op, char *tableName, List *attrNames);
 #define COPY_PROV_INFO(to,from) copyProvInfo((QueryOperator *) to, (QueryOperator *) from)
 #define CONCAT_CHILD_PROV_INDOS(_op) \
         concatProvInfos(_op, OP_LCHILD(_op), OP_RCHILD(_op))

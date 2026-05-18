@@ -10,3 +10,4 @@ extern Node *getSemiringCombinerMultExpr(QueryOperator *op);
 extern DataType getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts);
 extern QueryOperator *addSemiringCombiner (QueryOperator *result, Node *addExpr, Node *multExpr);
 extern void addSCOptionToChild(QueryOperator *op, QueryOperator *to);
+extern boolean onlySemiringSupportedOps(QueryOperator *op);

@@ -10,7 +10,6 @@
  *-----------------------------------------------------------------------------
  */
 
-#include "analysis_and_translate/translator.h"
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -33,6 +32,7 @@
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/semiring_combiner/sc_main.h"
 
 // data types
 typedef struct ReplaceGroupByState {
@@ -956,6 +956,19 @@ translateProvenanceStmt(ProvenanceStmt *prov, List **attrsOffsetsList)
             break;
         }
     }
+
+    // if semiring combiner check that only allowed operators are used
+    if(prov->inputType == PROV_INPUT_QUERY
+       && HAS_STRING_PROP(result, PROP_PC_SEMIRING_COMBINER))
+    {
+        if(!onlySemiringSupportedOps((QueryOperator *) result))
+        {
+            THROW(SEVERITY_RECOVERABLE,
+                  "Query contains operators currently not supported for semiring semantics.\n\n%s",
+                  operatorToOverviewString(result));
+        }
+    }
+
     return (QueryOperator *) result;
 }
 

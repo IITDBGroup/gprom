@@ -235,7 +235,7 @@ jobs:
   build-gprom-docker-images:
     runs-on: ubuntu-latest
     needs: backboxtests
-    if: ${{ always() && github.ref == 'refs/heads/master' && (needs.build.result == 'success' || needs.build.result == 'skipped' ) }} # only build docker image from master
+    if: ${{ always() && github.ref == 'refs/heads/master' && needs.backboxtests.result == 'success'  }} # only build docker image from master
     steps:
       - uses: actions/checkout@v6
 

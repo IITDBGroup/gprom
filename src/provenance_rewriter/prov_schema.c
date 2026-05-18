@@ -243,6 +243,20 @@ concatProvInfos(QueryOperator *to, QueryOperator *left, QueryOperator *right)
 }
 
 void
+appendProvInfo(QueryOperator *op, char *tableName, List *attrNames)
+{
+    List *provInfo = HAS_STRING_PROP(op, PROP_PROVENANCE_TABLE_ATTRS) ?
+                     (List *) GET_STRING_PROP(op, PROP_PROVENANCE_TABLE_ATTRS):
+                     NIL;
+    List *constAttrs = stringListToConstList(attrNames);
+    provInfo = appendToTailOfList(provInfo,
+                                  createNodeKeyValue((Node *) createConstString(tableName),
+                                                     (Node *) constAttrs));
+
+    SET_STRING_PROP(op, PROP_PROVENANCE_TABLE_ATTRS, provInfo);
+}
+
+void
 getQBProvenanceAttrList(ProvenanceStmt *stmt, List **attrNames, List **dts)
 {
     boolean showResultTids = FALSE;
