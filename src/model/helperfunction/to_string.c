@@ -1672,6 +1672,19 @@ gprom_itoa(int value)
 }
 
 char *
+gprom_i64toa(int64_t value)
+{
+    StringInfo str = makeStringInfo();
+    char *result;
+
+    appendStringInfo(str, "%lld", value);
+    result = str->data;
+    FREE(str);
+
+    return result;
+}
+
+char *
 datalogToOverviewString(void *n)
 {
     StringInfo str = makeStringInfo();

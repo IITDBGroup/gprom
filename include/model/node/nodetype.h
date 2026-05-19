@@ -238,6 +238,7 @@ extern char *operatorToOverviewString(void *op);
 extern char *singleOperatorToOverview (void *op);
 extern char *datalogToOverviewString(void *n);
 extern char *gprom_itoa(int value);
+extern char *gprom_i64toa(int64_t value);
 extern void indentString(StringInfo str, int level);
 
 /* get a dot script for a query operator graph or query block tree */

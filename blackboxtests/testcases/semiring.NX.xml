@@ -27,7 +27,7 @@ PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT a FROM R_nx HAS PROVENANCE (prov
 </entry>
 
 <entry key="q3.query">
-PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT a FROM (SELECT a,b FROM R_nx HAS PROVENANCE (prov) ORDER BY a,b), (SELECT c,d FROM S_nx HAS PROVENANCE (prov) ORDER BY C,D) sub);
+PROVENANCE WITH SEMIRING COMBINER NX OF (SELECT a FROM (SELECT a,b, prov FROM ORDER BY a,b) HAS PROVENANCE (prov) R_nx, (SELECT c,d, prov FROM S_nx ORDER BY C,D) HAS PROVENANCE (prov) s);
 </entry>
 <entry key="q3.result.duckdb">
  A | PROV                                                                                          |

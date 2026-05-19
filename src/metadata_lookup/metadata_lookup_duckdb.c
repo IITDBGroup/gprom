@@ -34,6 +34,33 @@
 #define QUERY_FUNC_GET_AGG_FUNCS "SELECT DISTINCT upper(function_name) FROM duckdb_functions() WHERE function_type = 'aggregate';"
 #define QUERY_FUNCS "SELECT parameter_types::varchar, return_type FROM duckdb_functions() WHERE lower(function_name) = '%s';"
 
+#define APPEND_VEC_TO_STRING_INFO(_typ, _format) \
+        APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(_typ,_format,)
+
+#define APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(_typ, _format,_transform) \
+        APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(_typ,appendStringInfo(str, _format, _transform(data[child_idx])))
+
+#define APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(_typ,_transform_code) \
+        do { \
+            _typ data = (_typ) duckdb_vector_get_data(v); \
+            for (idx_t child_idx = offset; child_idx < offset + length; child_idx++) \
+            { \
+			    if (child_idx > offset) \
+                { \
+				    appendStringInfoString(str, ", "); \
+			    } \
+			    if (!duckdb_validity_row_is_valid(validity, child_idx)) \
+                { \
+				    appendStringInfoString(str, "NULL"); \
+			    } \
+                else \
+                {                     \
+	                _transform_code; \
+			    } \
+		    } \
+        } while(0)
+
+
 // Only define real plugin structure and methods if duckdb is present
 #ifdef HAVE_DUCKDB_BACKEND
 
@@ -63,6 +90,7 @@ static boolean hasAnyType(List *types);
 static List *typeListToDTs(List *strs);
 static boolean isBoolOp(char *opname);
 static char *duckdbListValToString(duckdb_vector v, int row);
+static char *duckdbDecimalToString(duckdb_vector v, idx_t offset, idx_t length);
 static char *duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length);
 static char *duckdbStringToCstring(duckdb_string_t s);
 static char *duckdbDateToCstring(duckdb_date d);
@@ -783,7 +811,7 @@ duckdbExecuteQuery(char *query)
     duckdb_type *coltypes;
     duckdb_vector *colvecs;
     uint64_t **colvalidity;
-    idx_t absolutepos = 0;
+    /* idx_t absolutepos = 0; */
 
     rc = duckdb_query(plugin->conn, query, &rs);
 
@@ -802,10 +830,14 @@ duckdbExecuteQuery(char *query)
     colvecs = MALLOC(sizeof(duckdb_vector) * numFields);
     colvalidity = MALLOC(sizeof(uint64_t*) * numFields);
 
+    // get attribute names and types
     r->schema = NIL;
-    for (int i = 0; i < numFields; i++) {
+    for (int i = 0; i < numFields; i++)
+    {
         const char *name = duckdb_column_name(&rs, i);
         r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+        coltypes[i] = duckdb_column_type(&rs, i);
+        DEBUG_LOG("column %u: %s of type %u", i, name, coltypes[i]);
     }
 
     // Read rows
@@ -884,7 +916,7 @@ duckdbExecuteQuery(char *query)
                 /* } */
             }
             VEC_ADD_NODE(r->tuples, tuple);
-            absolutepos++;
+            /* absolutepos++; */
             DEBUG_NODE_LOG("read tuple <%s>", tuple);
         }
 
@@ -953,7 +985,8 @@ duckdbStringToCstring(duckdb_string_t s)
     /* val[s.size] = '\0'; */
     /* vecAppendString(tuple, strdup(val)); */
     char *val;
-	if (duckdb_string_is_inlined(s)) {
+	if (duckdb_string_is_inlined(s))
+    {
 		// use inlined string
         val = MALLOC(s.value.inlined.length + 1);
         val[s.value.inlined.length] = 0;
@@ -1050,31 +1083,81 @@ duckdbUUIDToCstring(duckdb_uhugeint uuid)
     return s->data;
 }
 
-#define APPEND_VEC_TO_STRING_INFO(_typ, _format) \
-        APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(_typ,_format,)
+static char *
+duckdbDecimalToString(duckdb_vector v, idx_t offset, idx_t length)
+{
+    StringInfo str = makeStringInfo();
+    duckdb_logical_type typ = duckdb_vector_get_column_type(v);
+    duckdb_type storagetyp = duckdb_decimal_internal_type(typ);
+    uint64_t *validity = duckdb_vector_get_validity(v);
+    uint8_t width = duckdb_decimal_width(typ);
+    uint8_t scale = duckdb_decimal_scale(typ);
+    int pow = 1;
+    DEBUG_LOG("decimal internal type: %u (storage type), %u (scale), %u width",
+              storagetyp,
+              scale,
+              width);
 
-#define APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(_typ, _format,_transform) \
-        APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(_type,appendStringInfo(str, _format, _transform(data[child_idx])))
+    for(int i = 0; i < scale; i++)
+    {
+        pow *= 10;
+    }
 
-#define APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(_typ,_transform_code) \
-        do { \
-            _typ data = (_typ) duckdb_vector_get_data(v); \
-            for (idx_t child_idx = offset; child_idx < offset + length; child_idx++) \
-            { \
-			    if (child_idx > offset) \
-                { \
-				    appendStringInfoString(str, ", "); \
-			    } \
-			    if (!duckdb_validity_row_is_valid(validity, child_idx)) \
-                { \
-				    appendStringInfoString(str, "NULL"); \
-			    } \
-                else \
-                {                     \
-	                _transform_code; \
-			    } \
-		    } \
-        } while(0)
+    for (idx_t child_idx = offset; child_idx < offset + length; child_idx++)
+    {
+        if (child_idx > offset)
+        {
+            appendStringInfoString(str, ", ");
+        }
+        if (!duckdb_validity_row_is_valid(validity, child_idx))
+        {
+            appendStringInfoString(str, "NULL");
+        }
+        else
+        {
+            switch(storagetyp)
+            {
+                case DUCKDB_TYPE_BIGINT:
+                {
+                    int64_t *data = (int64_t *) duckdb_vector_get_data(v);
+                    char *s = gprom_i64toa(data[child_idx]);
+                    size_t len = strlen(s);
+
+                    // 0.xxxx
+                    if(scale == len)
+                    {
+                        appendStringInfo(str, "0.%s", s);
+                    }
+                    else
+                    {
+                        for(int i = 0; i < len; i++)
+                        {
+                            appendStringInfoChar(str, s[i]);
+                            if(i == len - scale - 1)
+                            {
+                                appendStringInfoChar(str, '.');
+                            }
+                        }
+                    }
+                    /* double v = ((double) data[child_idx] / (double) pow); */
+                    /* appendStringInfo(str, "%s", v); */
+                }
+                break;
+                case DUCKDB_TYPE_DECIMAL:
+                {
+                    duckdb_decimal *data = (duckdb_decimal *)duckdb_vector_get_data(v);
+                    appendStringInfo(str, "%f", duckdb_decimal_to_double(data[child_idx]));
+                }
+                default:
+                {
+                    THROW(SEVERITY_PANIC,"do not support decimal with internal type: %u", storagetyp);
+                }
+            }
+        }
+    }
+
+    return str->data;
+}
 
 static char *
 duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length)
@@ -1083,6 +1166,12 @@ duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length)
     duckdb_logical_type typ = duckdb_vector_get_column_type(v);
     duckdb_type eltyp = duckdb_get_type_id(typ);
 	uint64_t *validity = duckdb_vector_get_validity(v);
+
+    // for decimal determine the internal type
+    if(eltyp == DUCKDB_TYPE_DECIMAL)
+    {
+        return duckdbDecimalToString(v, offset, length);
+    }
 
     switch(eltyp)
     {
@@ -1158,7 +1247,8 @@ duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length)
         break;
         case DUCKDB_TYPE_DECIMAL:
         {
-            APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_decimal*,"%f",duckdb_decimal_to_double);
+            THROW(SEVERITY_RECOVERABLE, "Should never end up here.");
+            //APPEND_VEC_TO_STRING_INFO_WITH_TRANSFORM(duckdb_decimal*,"%f",duckdb_decimal_to_double);
         }
         break;
         case DUCKDB_TYPE_TIMESTAMP:
@@ -1191,11 +1281,11 @@ duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length)
         break;
         // list type, only useful as logical type
         case DUCKDB_TYPE_LIST:
-        {
-            APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(duckdb_list*,
-                                                             appendStringInfo(s,"%s", duckdbListValToString(data, child_idx)));
-        }
-        break;
+        /* { */
+        /*     APPEND_VEC_TO_STRING_INFO_WITH_GENERAL_TRANSFORM(duckdb_list*, */
+        /*                                                      appendStringInfo(s,"%s", duckdbListValToString(data, child_idx))); */
+        /* } */
+        /* break; */
 
         // duckdb_blob
         case DUCKDB_TYPE_BLOB:
@@ -1213,8 +1303,6 @@ duckdbVectorToString(duckdb_vector v, idx_t offset, idx_t length)
         case DUCKDB_TYPE_MAP:
         // duckdb_array, only useful as logical type
         case DUCKDB_TYPE_ARRAY:
-        // duckdb_hugeint
-        case DUCKDB_TYPE_UUID:
         // union type, only useful as logical type
         case DUCKDB_TYPE_UNION:
         // duckdb_bit
