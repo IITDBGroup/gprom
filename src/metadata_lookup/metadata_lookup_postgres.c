@@ -78,6 +78,15 @@
                                       "  INITCOND = '{}', " \
                                       "  PARALLEL = SAFE " \
                                       "  ); ")
+#define ARRAY_CONCAT_AGG_13_FUNC_NAME POSTGRES_ARRAY_CONCAT_AGG_FUNC
+#define CREATE_ARRAY_CONCAT_AGG_13_FUNC ("CREATE OR REPLACE AGGREGATE " POSTGRES_ARRAY_CONCAT_AGG_FUNC " (ar anyarray) ( " \
+                                      "  SFUNC = array_cat, " \
+                                      "  STYPE = anyarray, " \
+                                      "  INITCOND = '{}', " \
+                                      "  PARALLEL = SAFE " \
+                                      "  ); ")
+
+
 
 // we have to use syntax that works a reasonable range of postgres versions
 #define QUERY_GET_SERVER_VERSION " SELECT version[1] AS major, version[2] AS minor FROM " \
@@ -570,7 +579,14 @@ prepareLookupQueries(void)
         CREATE_FUNC_IF_NOT_EXISTS(MERGE_ROWID_13_FUNC);
     }
     CREATE_FUNC_IF_NOT_EXISTS(VARIADIC_HASH_FUNC);
-    CREATE_FUNC_IF_NOT_EXISTS(ARRAY_CONCAT_AGG_FUNC);
+    if (plugin->serverMajorVersion >= 14)
+    {
+        CREATE_FUNC_IF_NOT_EXISTS(ARRAY_CONCAT_AGG_FUNC);
+    }
+    else
+    {
+        CREATE_FUNC_IF_NOT_EXISTS(ARRAY_CONCAT_AGG_13_FUNC);
+    }
 
     // prepare other queries used for metadata lookup
 	// postgres 8 or older does not support JSON explain output we use to extract query cost

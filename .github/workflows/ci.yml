@@ -199,10 +199,10 @@ jobs:
            sudo -u postgres initdb --auth=trust --auth-host=trust -D dbs/postgres/
            sudo -u postgres pg_ctl -D dbs/postgres/ start
            sleep 3
-           psql -U postgres -f testdb/testDB.sql postgres
+           psql -U postgres -f testdb/testDB.sql postgres > /dev/null
            . venv/bin/activate
            venv/bin/pip install -r requirements.txt
-           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage -f junitxml -o testresults/postgres.xml
+           venv/bin/python ./gprom_blackbox_tests.py --gprom ./build/gprom -b postgres -H 127.0.0.1 -u postgres -p 5432 -d postgres -s default.optnopullnoselmove,default.noopt -t reg,prov,prov_composable,prov_use_tid,prov_composable_use_tid,semiring,reenact,query_prov,dl.reg,dl.lineage -f junitxml -r short -o testresults/postgres.xml
            sudo -u postgres /usr/bin/pg_ctl -D dbs/postgres/ stop
 
     - name: Create test summary
