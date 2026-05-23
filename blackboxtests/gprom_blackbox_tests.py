@@ -31,6 +31,11 @@ TEST_OUTPUT_FORMATS = [
     "junitxml"
 ]
 
+class TestOutputDetails(StrEnum):
+    none = "none"
+    short = "short"
+    full = "full"
+
 console=None
 options=None
 
@@ -853,12 +858,12 @@ class GProMTestRunner:
         self.tr.settings = self.settings
         self.tr.testcases = self.testcases
         self.tr.totalnumtests = self.root.count_testcases(self.testcases, self.tr.testsettings, DEFAULT_SETTING_NAME) # TODO DEFAULT_SETTING_NAME conf?
-        print(f"num tests: {self.tr.totalnumtests}")
+        #print(f"num tests: {self.tr.totalnumtests}")
         self.progressbar = tqdm(total=self.tr.totalnumtests, desc="Testcases")
         self.run_suite(self.root, conf, DEFAULT_SETTING_NAME)
         self.progressbar.close()
         (numbase, basepassed) = TestResultOutputter.output_test_results(self.root, self.tr) # self.print_results(self.root, DEFAULT_SETTING_NAME)
-        print(f"{basepassed}/{numbase}")
+        #print(f"{basepassed}/{numbase}")
         return numbase == basepassed
 
     def run_suite(self, t: GProMTestSuite, parentconf: GProMSettings, setname: str):
@@ -953,6 +958,7 @@ class TestResultJunitXMLSerializer:
         return TestSuite.to_xml_string(ts), numbase, basepassed
 
     def serialize_results(self, t: GProMTestSuite, parentset: str, tr: TestResult):
+        details = options.result_details
         if not tr.should_run_test(t):
             return [],0,0
 
@@ -972,20 +978,34 @@ class TestResultJunitXMLSerializer:
                 for child in t.tests.values():
                     if isinstance(child,GProMTestCase) and child.name in tr.results[set]:
                         tc = TestCase(child.get_name_str())
+                        success = tr.results[set][child.name]
                         numbase += 1
-                        if tr.results[set][child.name]:
+                        if success:
                             basepassed += 1
                         else:
-                            mes = f"[white on red]FAIL[/] {child.get_name_str()}"
+                            mes = f"FAIL {child.get_name_str()}"
                             if options.diff and child.name in tr.diffs[set]:
                                 shortmes = "QUERY ANSWER DIFFERS"
                                 mes += tr.queries[set][child.name] + "\n" + redbar + f"\n{tr.actualresults[set][child.name]}\n" + redbar + f"\n{tr.diffs[set][child.name]}\n" + redbar
-                                tc.add_failure_info(message=shortmes,output=mes)
+                                match details:
+                                    case TestOutputDetails.none:
+                                        tc.add_failure_info(message="FAIL",output="")
+                                    case TestOutputDetails.short:
+                                        tc.add_failure_info(message=shortmes,output=shortmes)
+                                    case TestOutputDetails.full:
+                                        tc.add_failure_info(message=shortmes,output=mes)
                             if child.name in tr.errors[set]:
                                 mes += tr.errors[set][child.name]
                                 shorterror = tr.errors[set][child.name][:120].replace("\n", " ")
-                                tc.add_error_info(message=shorterror, output = mes)
-                        testcases.append(tc)
+                                match details:
+                                    case TestOutputDetails.none:
+                                        tc.add_error_info(message="ERROR", output = "")
+                                    case TestOutputDetails.short:
+                                        tc.add_error_info(message=shorterror,output=shorterror)
+                                    case TestOutputDetails.full:
+                                        tc.add_error_info(message=shorterror,output=mes)
+                        if not success or not options.failed_only:
+                            testcases.append(tc)
                 testsuites.append(TestSuite(suitename, testcases))
         else:
             for set in settings:
@@ -1253,9 +1273,12 @@ def parse_args():
     ap.add_argument("-f", "--result_format", type=str, default="default",
                     choices = TEST_OUTPUT_FORMATS,
                     help=f"output format only of {TEST_OUTPUT_FORMATS}")
+    ap.add_argument("-r", "--result_details", type=TestOutputDetails,
+                    default=TestOutputDetails.none,
+                    choices = TestOutputDetails,
+                    help=f"how much details to output {TestOutputDetails}")
     ap.add_argument("-F", "--failed_only", action='store_true',
                     help="only show failed test cases")
-
 
     args = ap.parse_args()
     return args
@@ -1297,5 +1320,5 @@ def main() -> int:
 
 if __name__ == '__main__':
     exitcode = main()
-    print(f"exitcode: {exitcode}")
+    #print(f"exitcode: {exitcode}")
     sys.exit(exitcode)
