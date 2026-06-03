@@ -23,40 +23,22 @@ AS $$
   SELECT set_normalize(a);
 $$;
 
-DROP FUNCTION IF EXISTS prune_and(int4range[], int4range[]);
+-- coverage / array_length：由 CREATE EXTENSION i4r_audb_extension 提供（见 --1.1.sql）
 
-CREATE OR REPLACE FUNCTION prune_and(set1 int4range[], set2 int4range[])
-RETURNS int4range[]
-LANGUAGE plpgsql
+DROP FUNCTION IF EXISTS range_set_first(int4range[]);
+CREATE OR REPLACE FUNCTION range_set_first(a int4range[])
+RETURNS int4range
+LANGUAGE sql
+IMMUTABLE
+STRICT
 AS $$
-DECLARE
-    rv int4range[] := '{}';
-    A int4range;
-    B int4range;
-    pr int4range;
-BEGIN
-    IF set1 IS NULL OR set2 IS NULL THEN
-        RETURN '{}';
-    END IF;
-    FOREACH A IN ARRAY set1 LOOP
-        FOREACH B IN ARRAY set2 LOOP
-            pr := A * B;
-            IF NOT isempty(pr) THEN
-                rv := rv || pr;
-            END IF;
-        END LOOP;
-    END LOOP;
-    RETURN rv;
-END;
+  SELECT a[1];
 $$;
 
-DROP FUNCTION IF EXISTS prune_eq(int4range[], int4range[], boolean);
-DROP FUNCTION IF EXISTS prune_lt(int4range[], int4range[], boolean);
-DROP FUNCTION IF EXISTS prune_gt(int4range[], int4range[], boolean);
+DROP FUNCTION IF EXISTS prune_and(int4range[], int4range[]);
 
-\i /home/hana4/audb/c_extension/plpgsql_implementation/pruning/prune_equal.sql
-\i /home/hana4/audb/c_extension/plpgsql_implementation/pruning/prune_lt.sql
-\i /home/hana4/audb/c_extension/plpgsql_implementation/pruning/prune_gt.sql
+-- 剪枝：仅 i4r_audb_extension C 函数（见 audb/.../i4r_audb_extension_prune.sql）
+\i /home/hana4/yangyun/gprom/test/uset_pruning_i4r_aliases.sql
 
 DROP TABLE IF EXISTS r;
 CREATE TABLE r (a int, b int, u_r int);

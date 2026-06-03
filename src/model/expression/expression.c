@@ -22,6 +22,7 @@
 #include "configuration/option.h"
 #include "utility/string_utils.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
+#include "provenance_rewriter/uncertainty_rewrites/uset_i4r_prune_registry.h"
 
 typedef struct FindNotesContext
 {
@@ -1382,32 +1383,66 @@ typeOfFunc(FunctionCall *f)
         return getNthOfListInt(typeOfArgs(f->args), 0);
     }
 
-    // USET自定义函数类型处理
+    // USET / AUDB i4r：int4range[] 算术
+    if (strieq(f->functionname, "set_add") || strieq(f->functionname, "set_subtract")
+        || strieq(f->functionname, "set_multiply") || strieq(f->functionname, "set_divide"))
+    {
+        return DT_STRING;
+    }
+
+    // 旧 range_set_*（向后兼容）
     if (strieq(f->functionname, "range_set_smallerthan"))
     {
-        return DT_STRING;  // range_set_smallerthan返回int4range[]类型，在GProM中映射为DT_STRING
+        return DT_STRING;
     }
 
     if (strieq(f->functionname, "range_set_largerthan"))
     {
-        return DT_STRING;  // range_set_largerthan返回int4range[]类型，在GProM中映射为DT_STRING
+        return DT_STRING;
     }
 
     if (strieq(f->functionname, "range_set_add"))
     {
-        return DT_STRING;  // range_set_add返回int4range[]类型，在GProM中映射为DT_STRING
+        return DT_STRING;
     }
     if (strieq(f->functionname, "range_set_subtract"))
     {
-        return DT_STRING;  // range_set_subtract返回int4range[]类型，在GProM中映射为DT_STRING
+        return DT_STRING;
     }
      if (strieq(f->functionname, "range_set_equal"))
     {
-        return DT_STRING;  // range_set_equal返回int4range[]类型，在GProM中映射为DT_STRING
+        return DT_STRING;
     }
     if (strieq(f->functionname, "range_set_logic"))
     {
-        return DT_STRING;  // range_set_logic返回int4range[]类型，在GProM中映射为DT_STRING
+        return DT_STRING;
+    }
+
+    /* AUDB i4r：int4range[] combine（聚合内层） */
+    if (strieq(f->functionname, "combine_set_mult_sum")
+        || strieq(f->functionname, "combine_set_mult_min")
+        || strieq(f->functionname, "combine_set_mult_max"))
+    {
+        return DT_STRING;
+    }
+
+    /* AUDB i4r：int4range 单区间算术（typeOf 代理为 DT_INT） */
+    if (strieq(f->functionname, "range_add") || strieq(f->functionname, "range_subtract")
+        || strieq(f->functionname, "range_multiply") || strieq(f->functionname, "range_divide")
+        || strieq(f->functionname, "lift_scalar")
+        || strieq(f->functionname, "combine_range_mult_sum")
+        || strieq(f->functionname, "combine_range_mult_min")
+        || strieq(f->functionname, "combine_range_mult_max"))
+    {
+        return DT_INT;
+    }
+
+    /* AUDB i4r：int4range 单区间三值比较 */
+    if (strieq(f->functionname, "range_eq") || strieq(f->functionname, "range_lt")
+        || strieq(f->functionname, "range_lte") || strieq(f->functionname, "range_gt")
+        || strieq(f->functionname, "range_gte"))
+    {
+        return DT_BOOL;
     }
 
     /* AUDB i4r：三值比较谓词（boolean）；int_to_range_set / prune_* 为 int4range[] */
@@ -1421,10 +1456,33 @@ typeOfFunc(FunctionCall *f)
     {
         return DT_STRING;
     }
-    if (strieq(f->functionname, "prune_eq") || strieq(f->functionname, "prune_lt")
-        || strieq(f->functionname, "prune_gt") || strieq(f->functionname, "prune_and")
-        || strieq(f->functionname, "prune_or"))
+
+    /* AUDB / i4r：helper 函数 */
+    if (strieq(f->functionname, "set_normalize") || strieq(f->functionname, "set_sort")
+        || strieq(f->functionname, "set_reduce_size") || strieq(f->functionname, "lift_range")
+        || strieq(f->functionname, "normalize_vals"))
     {
+        return DT_STRING;
+    }
+    if (strieq(f->functionname, "range_set_first"))
+    {
+        return DT_INT;
+    }
+    if (strieq(f->functionname, "array_length") || strieq(f->functionname, "range_coverage")
+        || strieq(f->functionname, "set_coverage"))
+    {
+        return DT_FLOAT;
+    }
+
+    if (usetI4rIsPruneSqlFunc(f->functionname))
+    {
+        if (strieq(f->functionname, PRUNE_RANGE_EQ_FUNC_NAME)
+            || strieq(f->functionname, PRUNE_RANGE_LT_FUNC_NAME)
+            || strieq(f->functionname, PRUNE_RANGE_LTE_FUNC_NAME)
+            || strieq(f->functionname, PRUNE_RANGE_GT_FUNC_NAME)
+            || strieq(f->functionname, PRUNE_RANGE_GTE_FUNC_NAME)
+            || strieq(f->functionname, PRUNE_RANGE_AND_FUNC_NAME))
+            return DT_INT;
         return DT_STRING;
     }
 
@@ -1446,10 +1504,24 @@ funcExists(char *fName, List *argDTs)
     {
         return TRUE;
     }
-    if (strieq(fName, "set_eq") || strieq(fName, "set_lt") || strieq(fName, "set_gt")
+    if (strieq(fName, "set_add") || strieq(fName, "set_subtract")
+        || strieq(fName, "set_multiply") || strieq(fName, "set_divide")
+        || strieq(fName, "set_eq") || strieq(fName, "set_lt") || strieq(fName, "set_gt")
         || strieq(fName, "set_lte") || strieq(fName, "set_gte") || strieq(fName, "int_to_range_set")
-        || strieq(fName, "prune_eq") || strieq(fName, "prune_lt") || strieq(fName, "prune_gt")
-        || strieq(fName, "prune_and") || strieq(fName, "prune_or"))
+        || strieq(fName, "lift_scalar") || strieq(fName, "lift_range")
+        || strieq(fName, "set_normalize") || strieq(fName, "set_sort")
+        || strieq(fName, "set_reduce_size") || strieq(fName, "normalize_vals")
+        || strieq(fName, "array_length") || strieq(fName, "range_coverage")
+        || strieq(fName, "set_coverage") || strieq(fName, "range_set_first")
+        || strieq(fName, "range_add") || strieq(fName, "range_subtract")
+        || strieq(fName, "range_multiply") || strieq(fName, "range_divide")
+        || strieq(fName, "range_eq") || strieq(fName, "range_lt") || strieq(fName, "range_lte")
+        || strieq(fName, "range_gt") || strieq(fName, "range_gte")
+        || strieq(fName, "combine_range_mult_sum")
+        || strieq(fName, "combine_range_mult_min") || strieq(fName, "combine_range_mult_max")
+        || strieq(fName, "combine_set_mult_sum")
+        || strieq(fName, "combine_set_mult_min") || strieq(fName, "combine_set_mult_max")
+        || usetI4rIsPruneSqlFunc(fName))
     {
         return TRUE;
     }
@@ -1458,6 +1530,7 @@ funcExists(char *fName, List *argDTs)
 
     return fExists;
 }
+
 static Set *
 castsAsSet(DataType in)
 {

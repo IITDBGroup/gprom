@@ -719,15 +719,27 @@ analyzeFromProvInfo (FromItem *f)
                 f->attrNames = deepCopyStringList(f->attrNames);
                 f->dataTypes = copyObject(f->dataTypes);
 
-                int numofrealattr = f->attrNames->length-1;
+                /* Row lineage column u_r (getUncertString(UNCERTAIN_ROW_ATTR)) may appear at any
+                 * ordinal in PostgreSQL metadata; strip it from the visible relation schema. */
+                char *urName = getUncertString(UNCERTAIN_ROW_ATTR);
+                int urPos = listPosString(f->attrNames, urName);
+                if (urPos == -1)
+                {
+                    char *relHint = f->name;
+                    if (f->type == T_FromTableRef
+                        && ((FromTableRef *)f)->tableId != NULL)
+                        relHint = ((FromTableRef *)f)->tableId;
+                    FATAL_LOG(
+                        "IS UADB requires a row id column named \"%s\" on relation \"%s\" "
+                        "(add INTEGER column u_r; position among columns is arbitrary).",
+                        urName,
+                        relHint ? relHint : "(unknown)");
+                }
 
-                //need to contain u_r at end
-                ASSERT(strcmp((char *)getNthOfListP(f->attrNames, f->attrNames->length-1), getUncertString(UNCERTAIN_ROW_ATTR))==0);
+                List *provattr = singleton(strdup(urName));
 
-                List *provattr = sublist(f->attrNames, numofrealattr, f->attrNames->length-1);
-
-                f->attrNames = sublist(f->attrNames, 0, numofrealattr-1);
-                f->dataTypes = sublist(f->dataTypes, 0, numofrealattr-1);
+                f->attrNames = removeListElemAtPos(f->attrNames, urPos);
+                f->dataTypes = removeListElemAtPos(f->dataTypes, urPos);
 
                 setStringProvProperty(fp, PROV_PROP_UADB_LIST,
                                       (Node *) stringListToConstList(provattr));

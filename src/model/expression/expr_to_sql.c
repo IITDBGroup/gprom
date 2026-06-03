@@ -260,11 +260,11 @@ operatorToSQL(StringInfo str, Operator *node, HashMap *nestedSubqueries, boolean
     }
     else if (streq(node->name,"CUSTOM_ADD"))
     {
-        // Convert custom add operator to range_set_add function call
+        // Convert custom add operator to set_add function call
         char *arg1 = exprToSQL(getNthOfListP(node->args,0), nestedSubqueries, trimAttrNames);
         char *arg2 = exprToSQL(getNthOfListP(node->args,1), nestedSubqueries, trimAttrNames);
         
-        appendStringInfo(str, "range_set_add(%s, %s)", arg1, arg2);
+        appendStringInfo(str, "set_add(%s, %s)", arg1, arg2);
     }
 
 
