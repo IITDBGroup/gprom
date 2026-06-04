@@ -11,7 +11,7 @@
 - **USET**：GProM 将整型列上的不确定性建模为 **区间集合**（在 PostgreSQL 侧对应 `int4range[]`，在 GProM 内部类型里常映射为 `DT_STRING`）。
 - **Pruning（本实现）**：
   - **WHERE**：用 AUDB / i4r 的 **三值集合比较** `set_eq`、`set_lt`、`set_gt` 等，在**区间集合**上判断条件是否可能成立（返回布尔，供 SQL 过滤）。
-  - **SELECT**：用 **`prune_*`** 按 WHERE 中的约束**收缩**各列对应的区间集合，使投影结果与“在 WHERE 成立前提下”的语义一致。
+  - **SELECT**：用 **`prune_set_*` / `prune_range_*`**（i4r C 函数）按 WHERE 约束**收缩**各列区间集合，使投影与“WHERE 成立前提下”的语义一致。
 
 ### 1.2 标量如何进集合
 
@@ -54,7 +54,8 @@
 ### 2.4 表达式类型（模型检查）
 
 - **`src/model/expression/expression.c`**  
-  - **`set_*` / `prune_*` / `int_to_range_set`** 的 **`typeOf` / `funcExists`**，使分析/检查阶段能识别这些函数（避免“函数不存在”类问题）。
+  - **`set_*` / `prune_set_*` / `prune_range_*` / `int_to_range_set`** 的 **`typeOf` / `funcExists`**。  
+  - **`usetI4rIsPruneSqlFunc`**：识别 14 项 i4r 剪枝函数名。
 
 ### 2.5 核心：`uncert_rewriter.c`
 
@@ -67,30 +68,37 @@
 | **`usetPruningActive()`** | `getBoolOption(OPTION_USET_PRUNING) \|\| g_uset_pruning_stmt_depth > 0`。 |
 | **`rewriteUsetProvComp`** | 若算子带 **`PROP_USET_PRUNING`**，则 **`g_uset_pruning_stmt_depth++`**，退出前 **`--`**。 |
 | **`usetWrapArgForPredicate`** | 为 **`set_*`** 准备参数；若输入列在**子算子 schema** 中已是 **`int4range[]`（`DT_STRING`）**，则**不再**套 **`int_to_range_set`**。 |
-| **`rewriteUsetExpression`** | 比较 **`=` / `<` / `>`** 在 pruning 下改为 **`set_eq` / `set_lt` / `set_gt`**；**`AND`/`OR`/`NOT`** 在 **`usetPruningActive()`** 下改为**递归重写子表达式**并保留 **SQL 布尔运算**，避免误用 **`range_set_logic(int_to_range_set(布尔子式), ...)`**。 |
+| **`rewriteUsetExpression` / `rewriteUsetCompareOp`** | 比较 **`=` / `<` / `<=` / `>` / `>=`** 在 pruning 下改为 **`set_*` / `range_*`**（由列类型决定）；**`AND`/`OR`/`NOT`** 保留 **SQL 布尔运算**并递归重写子表达式。 |
 | **`g_uset_expr_input_op`** | 在 **`rewrite_UsetProjection` / `rewrite_UsetSelection`** 里指向**直接子算子**，供 **`AttributeReference`** 与 **`usetWrapArgForPredicate`** 判断“是否已是区间列”。 |
 | **`syncAttrRefTypesFromInput`** | 重写后把表达式里 **`AttributeReference.attrType`** 与**子算子** **`AttributeDef.dataType`** 对齐，避免 **`checkModel`** 报 **DT_INT** vs **DT_STRING** 不一致。 |
-| **`applyUsetPruningToProjection` / `buildPruneExprForColumn`** | 从 WHERE 中已重写的 **`set_*`** 合取式拆出与各输出列相关的 **`prune_eq` / `prune_lt`** 等，并可 **`prune_and`** 合并。 |
+| **`applyUsetPruningToProjection` / `buildPruneExprForColumn`** | 从 WHERE 中已重写的 **`set_*`** 合取/析取拆出与各输出列相关的 **`prune_set_*`**；同列多约束用 **`prune_set_and`**，顶层 **`OR`** 用 **`prune_set_or`**。 |
+| **`usetPruneFuncUsesDirection`** | **`prune_set_lt/lte/gt/gte`** 为 **3 参数**（含 `direction`）；**`prune_set_eq` / `prune_set_and`** 为 **2 参数**。 |
+| **`flattenOrDisjuncts`** | WHERE 顶层 **`OR`** 按析取分支建列级剪枝，再 **`prune_set_or`** 合并。 |
 
-头文件 **`include/provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h`** 中宏名 **`AUDB_SET_*` / `PRUNE_*`** 与实现一致（**已去掉对 `lift_set` 函数名的依赖**）。
+头文件 **`uncert_rewriter.h`** 中宏 **`PRUNE_SET_*` / `PRUNE_RANGE_*` / `AUDB_SET_*`** 与 i4r / PostgreSQL 函数名一致。
+
+### 2.6 i4r 剪枝注册表（新增）
+
+| 文件 | 作用 |
+|------|------|
+| **`uset_i4r_prune_registry.h` / `.c`** | 14 项对照（内部名 ↔ `prune_set_*` / `prune_range_*` / `set_*`） |
+| **`expression.c`** | **`usetI4rIsPruneSqlFunc`** |
+
+详见 **`test/USET_I4R_PRUNE_REGISTRY.md`**。GProM 生成 **`prune_set_*`**（不再使用 `prune_eq` / `prune_lt` 旧名）。
+
+**已知限制**：**`SELECT SUM(不确定列)`** 等聚合路径**不注入** `prune_set_*`；仅 **Selection → Projection** 且输出为 **SELECT 列** 时剪枝。见 **`PRUNE_EFFECT_B-F1_RESULTS.md`**。
 
 ---
 
 ## 3. 数据库与 AUDB 侧
 
-### 3.1 测试安装脚本
+### 3.1 扩展实现（生产路径）
 
-- **`test/uset_pruning_pg_setup.sql`**  
-  - 扩展 **`i4r_audb_extension`**。  
-  - **`int_to_range_set`**（内部 **`lift_scalar`**）。  
-  - **`normalize_vals`**（封装 **`set_normalize`**）。  
-  - **`prune_and`**（两段区间集合逐段相交再合并）。  
-  - `\i` 引用 **`audb/.../prune_equal.sql`**、**`prune_lt.sql`**、**`prune_gt.sql`**。  
-  - 表 **`r(a, b, u_r)`** 及多样本 **`INSERT`**（用于多行过滤测试）。
+剪枝由 **`i4r_audb_extension`** 的 **C 代码**（`audb/c_extension/i4r_audb_extension/prune.c`）实现，注册为 **`prune_set_*` / `prune_range_*`**（`language c`）。安装：`CREATE EXTENSION i4r_audb_extension;`（**`i4r_audb_extension--1.1.sql`**）。**勿再依赖** `gprom/test/pruning/*.sql` 或 PL/pgSQL 自写 `prune_*`。
 
-### 3.2 路径说明
+### 3.2 本地测试（可选）
 
-- `\i /home/hana4/audb/...` 为**本机绝对路径**。若你换机器，需改 **`uset_pruning_pg_setup.sql`** 中的 `\i` 路径，或把这三份 `prune_*.sql` 拷到可访问目录。
+本机可用 **`uset_pruning_pg_setup.sql`** 创建 **`r` / `r_interval`**、**`int_to_range_set`** 等；该脚本**未纳入**远程 `yangyun` 分支，路径需自行调整。
 
 ---
 
@@ -158,9 +166,9 @@ gprom -backend postgres -frontend oracle \
 
 ### 5.3 SELECT 语义（prune）
 
-- **`prune_eq` / `prune_lt`**：在 **WHERE 已给出的约束**下，对**输出列**上的区间做**收缩**（与 Su/Oliver 论文中 range-set pruning 一致）。
-- 对单行 **(a,b)=(3,5)**，收缩后列 **a** 仍落在 **`[3,4)`**，列 **b** 落在 **`[5,6)`**（与手工脚本一致）。
-- **`prune_and`**：对同一列上来自多个约束的 prune 结果做**区间集合上的合取**（实现为逐段求交再合并，见 **`uset_pruning_pg_setup.sql`** 中的 **`prune_and`**）。
+- **`prune_set_eq` / `prune_set_lt` 等**：在 **WHERE 已给出的约束**下，对**输出列**上的区间集合做**收缩**（Su/Oliver 式 range-set pruning；由 i4r C 实现）。
+- 对单行 **(a,b)=(3,5)**，收缩后列 **a** 仍落在 **`[3,4)`**，列 **b** 落在 **`[5,6)`**。
+- **`prune_set_and` / `prune_set_or`**：同列多约束合取 / WHERE 顶层 OR 的析取合并（GProM 生成，PG 侧 C 实现）。
 
 ### 5.4 多行表 `r`
 
@@ -182,27 +190,52 @@ gprom -backend postgres -frontend oracle \
 | 解析失败 **`PRUNING`** | 未重新 `make`，或前端不是 Oracle 解析器。 |
 | 元数据/连接错误 | **`-Pmetadata postgres`**、**`-host/-db/-user/-passwd`** 未配对。 |
 | **`IS UADB` 分析失败** | 表未按 UADB 规则标注或列不符合 analyzer 假设。 |
-| **`\i` 找不到 prune 文件** | 修改 **`uset_pruning_pg_setup.sql`** 里绝对路径。 |
+| **剪枝函数不存在 / 非 C** | 安装含 **`prune.c`** 的 **`i4r_audb_extension`**；`\df prune_set_lt` 应显示 **`language c`**。 |
+| **`prune_set_eq` 参数个数错误** | GProM 已改为 **2 元**（勿传 `direction`）；需重编 **gprom**。 |
+| **`SELECT SUM` 剪枝无差异** | 当前 rewriter **不在聚合路径**注入 `prune_set_*`；投影查询或先 prune 再聚合才能看到数值差异（见 **`PRUNE_EFFECT_B-F1_RESULTS.md`**）。 |
 | **脚本 `set: Illegal option`** | Shell 脚本为 **CRLF** 换行，在 Linux 上执行 **`sed -i 's/\r$//' *.sh`**。 |
 
 ---
 
 ## 7. 相关文件一览
 
+### 7.1 GProM 源码（yangyun 分支已提交）
+
 | 路径 | 用途 |
 |------|------|
-| `test/uset_pruning_pg_setup.sql` | DB 扩展、函数、表 **`r`** / **`r_interval`** 种子数据 |
-| `test/uset_pruning_query.sql` | 供 e2e 读取的 **`USET WITH PRUNING`** 样例（表 **`r`**，当前为 **`WHERE a=3 AND b=5`**，双 **`set_eq` + 双 `prune_eq`） |
-| `test/uset_pruning_query_interval.sql` | **`USET WITH PRUNING`** 样例（表 **`r_interval`**） |
-| `test/uset_pruning_interval_validate.sql` | 区间列 **`set_lt` 重叠说明** + **`u_r=2`** 的 prune 对照 |
-| `test/uset_pruning_handcrafted_validate.sql` | 单行手工对照 |
-| `test/uset_pruning_data_sanity.sql` | 行数与满足条件的行列表 |
-| `test/run_gprom_uset_pruning_e2e.sh` | 自动化端到端 |
-| `test/run_uset_pruning_all_cases.sh` | 多查询批量（S1–S6 + 区间 I1） |
-| `test/USET_PRUNING_TEST.md` | **测试用例表**与批量运行说明 |
-| `test/run_uset_pruning_test.sh` | 仅跑手工 validate（psql） |
-| `audb/.../pruning/prune_*.sql` | **`prune_eq` / `prune_lt` / `prune_gt`** 定义 |
+| `src/provenance_rewriter/uncertainty_rewrites/uncert_rewriter.c` | USET 重写、剪枝投影、OR 析取、`set_*` / `range_*` |
+| `src/provenance_rewriter/uncertainty_rewrites/uset_i4r_prune_registry.c` | 14 项 i4r 剪枝注册表 |
+| `include/provenance_rewriter/uncertainty_rewrites/uset_i4r_prune_registry.h` | 注册表 API |
+| `include/provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h` | `PRUNE_SET_*` / `AUDB_*` 宏 |
+| `src/model/expression/expression.c` | `usetI4rIsPruneSqlFunc`、`typeOf` |
+| `src/analysis_and_translate/analyze_oracle.c` | `USET WITH PRUNING` 属性传递 |
+| `src/provenance_rewriter/uncertainty_rewrites/Makefile.am` | `libur` 源文件列表 |
+
+### 7.2 文档
+
+| 路径 | 用途 |
+|------|------|
+| `test/USET_PRUNING.md` | 本文：功能与改动说明 |
+| `test/USET_I4R_PRUNE_REGISTRY.md` | 14 项剪枝对照与架构 |
+| `test/USET_I4R_INTEGRATION_TEST.md` | 集成测试套件说明 |
+| `test/USET_PRUNING_TEST.md` | 用例表与 e2e 说明 |
+| `test/PRUNE_EFFECT_EXPERIMENT_PLAN.md` | 剪枝效果实验规划（可选） |
+
+### 7.3 audb 扩展（与 GProM 配套）
+
+| 路径 | 用途 |
+|------|------|
+| `audb/c_extension/i4r_audb_extension/prune.c` | 剪枝 C 实现 |
+| `audb/c_extension/i4r_audb_extension/i4r_audb_extension--1.1.sql` | `prune_set_*` / `prune_range_*` SQL 注册 |
+
+### 7.4 本地测试（可选，一般不提交远程）
+
+| 路径 | 用途 |
+|------|------|
+| `test/uset_pruning_query.sql` 等 | `USET WITH PRUNING` 样例 |
+| `test/run_uset_pruning_all_cases.sh` | 批量 pruning 回归 |
+| `test/uset_pruning_pg_setup.sql` | 本地 DB 初始化 |
 
 ---
 
-*文档随实现演进；若你改动 **`prune_*` 或 `set_*` 签名**，请同步更新本节与测试脚本中的预期。*
+*文档版本：2026-06，与 i4r C 剪枝 + `uset_i4r_prune_registry` 集成一致。*

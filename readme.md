@@ -24,7 +24,6 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 * [Reenactment](https://github.com/IITDBGroup/gprom/wiki/research_reenactment)
 * [Provenance Graphs for Datalog](https://github.com/IITDBGroup/gprom/wiki/datalog_prov)
 * [CTable Uncertainty Table Rewriting](CTable.md) - Handle uncertain data with variable constraints
-* [USET + AUDB Range-Set Pruning](test/USET_PRUNING.md) - Optional Su/Oliver-style range-set pruning for `IS UADB` queries (`-uset_pruning` or `USET WITH PRUNING`)
 
 # Features
 
@@ -34,7 +33,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 + Heuristic and cost-based optimization for queries instrumented for provenance capture
 + Export of database provenance into the WWW PROV standard format
 + **CTable Uncertainty Table Rewriting**: Handle uncertain data by storing variables (X, Y, Z) and constraint conditions, automatically converting them to intervals or value sets with uncertainty bounds
-+ **USET + AUDB range-set pruning**: For tables declared **`IS UADB`**, optionally rewrite **`USET`** queries so **WHERE** uses AUDB **`set_*`** comparisons on **`int4range[]`** semantics and **SELECT** applies **`prune_*`** to shrink range sets per constraints (CLI **`-uset_pruning`** or syntax **`USET WITH PRUNING ( ... )`**)
++ **USET + AUDB range-set pruning**: For tables declared **`IS UADB`**, optionally rewrite **`USET`** queries so **WHERE** uses i4r **`set_*`** / **`range_*`** comparisons and **SELECT** applies **`prune_set_*`** / **`prune_range_*`** (14 C functions via **`uset_i4r_prune_registry`**) to shrink range sets (CLI **`-uset_pruning`** or **`USET WITH PRUNING ( ... )`**)
 
 # Usage #
 
@@ -169,50 +168,76 @@ Eve   | 20000       | 1  | 1
 
 For detailed documentation and examples, see [CTable.md](CTable.md) in the repository.
 
+
+
 ## USET + AUDB Range-Set Pruning
 
-This mode targets **uncertain integer** columns modeled as **range sets** (PostgreSQL **`int4range[]`** / AUDB **i4r**). The rewriter:
+This mode targets **uncertain integer** columns modeled as **range sets** (PostgreSQL **`int4range[]`**, AUDB / **i4r**). GProM **generates SQL** that calls PostgreSQL functions; **pruning algorithms run in the database** via the **`i4r_audb_extension`** C module (`prune.c`), not inside GProM.
 
-- Replaces comparisons in **WHERE** with **`set_eq`**, **`set_lt`**, **`set_gt`**, etc., so filtering matches **three-valued** set semantics on intervals.
-- Replaces projections with **`prune_*`** calls so each output column’s range set is **tightened** under the active **WHERE** constraints (Su/Oliver-style range-set pruning).
+### What the rewriter does
 
-**Enable** (either option is sufficient):
+| Phase | Generated SQL (typical) |
+|-------|-------------------------|
+| **WHERE** | **`set_eq`**, **`set_lt`**, **`set_lte`**, **`set_gt`**, **`set_gte`** (or **`range_*`** when both sides are single **`int4range`**) |
+| **SELECT** (projection) | **`prune_set_eq`**, **`prune_set_lt`**, … to **tighten** each output column’s range set under active constraints |
+| **Multiple constraints on one column** | **`prune_set_and(p1, p2)`** |
+| **Top-level OR on one column** | **`prune_set_or(p1, p2)`** |
 
-1. **CLI:** **`-uset_pruning`** (option **`OPTION_USET_PRUNING`**).
-2. **Syntax:** **`USET WITH PRUNING ( SELECT ... FROM ... IS UADB WHERE ... )`**, which sets property **`PROP_USET_PRUNING`** on that statement.
+Scalars are lifted with **`int_to_range_set(x)`** (`ARRAY[lift_scalar(x)]::int4range[]`). If metadata already types a column as **`int4range[]`**, the rewriter avoids double-lifting (**`-Pmetadata postgres`** recommended).
 
-Scalars are lifted in SQL via **`int_to_range_set`**; if backend metadata already types a column as **`int4range[]`**, the generated SQL avoids double-lifting where the rewriter can tell (**`-Pmetadata postgres`** recommended)
+### Enable pruning
 
-### Example Usage
+Either option is sufficient:
 
-**Prerequisite:** install the **i4r / AUDB** extension and load **`test/uset_pruning_pg_setup.sql`** (edit embedded **`\i`** paths to your **AUDB** checkout if needed). That script defines **`int_to_range_set`**, **`prune_*`**, and seeds **`r`**. The fragment below matches the **minimal** table shape; you can **`CREATE`** only if you already loaded the extension and helper functions.
+1. **CLI:** **`-uset_pruning`** (`OPTION_USET_PRUNING`).
+2. **Syntax:** **`USET WITH PRUNING ( SELECT ... FROM ... IS UADB WHERE ... )`** → **`PROP_USET_PRUNING`**.
+
+### i4r 14 prune functions (registry)
+
+GProM maps internal i4r names to SQL via **`uset_i4r_prune_registry.c`**
+
+| Layer | WHERE | Projection prune |
+|-------|-------|------------------|
+| **Set** (`int` → `int4range[]`) | `set_lt`, `set_lte`, `set_gt`, `set_gte`, `set_eq` | `prune_set_lt`, …, `prune_set_eq`, `prune_set_and`, `prune_set_or` |
+| **Range** (single `int4range`) | `range_*` | `prune_range_*` |
+
+**Signatures:** **`prune_set_lt` / `lte` / `gt` / `gte`** take **3** arguments (including **`direction bool`**). **`prune_set_eq`**, **`prune_set_and`**, **`prune_set_or`** take **2** arguments (no direction).
+
+Verify in PostgreSQL: `\df prune_set_lt` should show **`language c`**.
+
+### GProM source (yangyun branch)
+
+| File | Role |
+|------|------|
+| `uncert_rewriter.c` | WHERE/SELECT rewrite, OR disjuncts, projection pruning |
+| `uset_i4r_prune_registry.{h,c}` | 14-item function registry |
+| `expression.c` | `usetI4rIsPruneSqlFunc`, `typeOf` / `funcExists` |
+| `uncert_rewriter.h` | `PRUNE_SET_*` / `AUDB_SET_*` macros |
+
+
+### Prerequisites
+ **PostgreSQL 14+** with **`i4r_audb_extension`** built from AUDB (includes **`prune.c`**).
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS i4r_audb_extension;
+   ```
+
+
+
+### Example usage
 
 ```sql
 -- Uncertain integer columns a, b; u_r is row metadata (often not SELECT-visible)
-DROP TABLE IF EXISTS r;
 CREATE TABLE r (a int, b int, u_r int);
-
--- 多样本：便于测 USET / set_* / prune_*（GProM 与手工 SQL）
--- u_r：任意行标识；a,b 为不确定整型列（IS UADB 语义下由元数据使用）
 INSERT INTO r (a, b, u_r) VALUES
-  (3, 5, 1),      
-  (3, 10, 2),    
-  (3, 100, 3),    
-  (3, 7, 10),     
-  (3, 3, 4),      
-  (3, 2, 5),      
-  (1, 5, 6),      
-  (4, 9, 7),     
-  (2, 8, 8),      
-  (-1, 10, 9),    
-  (0, 3, 11),     
-  (3, 4, 12);     
+  (3, 5, 1), (3, 10, 2), (3, 100, 3), (3, 7, 10),
+  (3, 3, 4), (3, 2, 5), (1, 5, 6), (4, 9, 7),
+  (2, 8, 8), (-1, 10, 9), (0, 3, 11), (3, 4, 12);
 
--- IS UADB is required. Pruning is on because of WITH PRUNING (or use -uset_pruning).
+-- IS UADB required; WITH PRUNING or -uset_pruning enables set_* / prune_set_*
 USET WITH PRUNING (SELECT a, b FROM r IS UADB WHERE a = 3 AND a < b AND b > 4);
 ```
 
-**Result:** 
+**Sample result** (interval notation **`[k,k+1)`** per lifted integer):
 
 ```
  a         | b             |
@@ -223,8 +248,17 @@ USET WITH PRUNING (SELECT a, b FROM r IS UADB WHERE a = 3 AND a < b AND b > 4);
  {"[3,4)"} | {"[7,8)"}     |
 ```
 
+**Inspect generated SQL:**
 
-**Limitation:** For **`IS UADB`**, **`u_r`** is often treated as internal metadata; it may **not** be available as an ordinary **SELECT** column. If analysis fails, select only the data attributes you need (**e.g.** **`a`**, **`b`**).
+```bash
+gprom -backend postgres -frontend oracle \
+  -host localhost -port 5432 -user USER -passwd PASS -db testdb \
+  -Pmetadata postgres -Psqlcodegen postgres -Pexecutor sql -loglevel 0 \
+  -sql "USET WITH PRUNING (SELECT a, b FROM r IS UADB WHERE a = 3 AND a < b);"
+```
+
+Expect **`set_eq` / `set_lt`** in **WHERE** and **`prune_set_eq` / `prune_set_lt` / `prune_set_and`** in **SELECT** (not legacy names **`prune_eq`** / **`prune_lt`**).
+
 
 # Installation
 
