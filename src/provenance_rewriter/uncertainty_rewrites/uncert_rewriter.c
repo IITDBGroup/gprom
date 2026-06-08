@@ -184,8 +184,14 @@ usetAggArgDataType(Node *expr, QueryOperator *childIn)
     if (isA(expr, FunctionCall))
     {
         FunctionCall *fc = (FunctionCall *) expr;
-        if (fc->functionname && strieq(fc->functionname, "int_to_range_set"))
-            return DT_STRING;
+        if (fc->functionname)
+        {
+            if (strieq(fc->functionname, "int_to_range_set"))
+                return DT_STRING;
+            if (usetI4rIsPruneSqlFunc(fc->functionname))
+                return DT_STRING;
+        }
+        return typeOf(expr);
     }
     if (!isA(expr, AttributeReference))
         return DT_INT;
@@ -418,55 +424,7 @@ usetAggArgIsNativeInt4rangeArray(Node *expr, QueryOperator *childIn)
     return usetAggArgIsInt4rangeArray(expr, childIn);
 }
 
-static boolean
-usetAggHasNoGroupBy(AggregationOperator *aggOp)
-{
-    return aggOp != NULL && (aggOp->groupBy == NIL || LIST_LENGTH(aggOp->groupBy) == 0);
-}
-
-/* 无 GROUP BY 的 int4range[] MIN/MAX：逐行 combine_set_mult_*，不保留外层 min/max 聚合 */
-static boolean
-usetAllAggrsAreRowwiseCombineSetMinMax(AggregationOperator *aggOp)
-{
-    if (!aggOp || !aggOp->aggrs || LIST_LENGTH(aggOp->aggrs) == 0)
-        return FALSE;
-    if (!usetAggHasNoGroupBy(aggOp))
-        return FALSE;
-    FOREACH(Node, aggr, aggOp->aggrs)
-    {
-        FunctionCall *fc;
-        if (!isA(aggr, FunctionCall))
-            return FALSE;
-        fc = (FunctionCall *) aggr;
-        if (fc->isAgg || fc->functionname == NULL)
-            return FALSE;
-        if (!strieq(fc->functionname, COMBINE_SET_MULT_MIN_FUNC_NAME)
-            && !strieq(fc->functionname, COMBINE_SET_MULT_MAX_FUNC_NAME))
-            return FALSE;
-    }
-    return TRUE;
-}
-
-static QueryOperator *
-usetFlattenRowwiseSetMinMaxAggregation(QueryOperator *op)
-{
-    AggregationOperator *aggOp = (AggregationOperator *) op;
-    QueryOperator *child;
-    List *attrNames;
-    ProjectionOperator *rowProj;
-
-    if (!usetAllAggrsAreRowwiseCombineSetMinMax(aggOp))
-        return op;
-
-    child = OP_LCHILD(op);
-    removeParentFromOps(singleton(child), op);
-    attrNames = getQueryOperatorAttrNames(op);
-    rowProj = createProjectionOp(copyObject(aggOp->aggrs), child, NIL, attrNames);
-    child->parents = appendToTailOfList(child->parents, (QueryOperator *) rowProj);
-    switchSubtrees(op, (QueryOperator *) rowProj);
-    INFO_LOG("USET: Flattened row-wise MIN/MAX on int4range[] into per-row projection");
-    return (QueryOperator *) rowProj;
-}
+static Node *usetPruneAggArgIfActive(Node *origArg, QueryOperator *childIn);
 
 static Node *
 rewriteUsetOneAggFunctionCall(FunctionCall *fc, QueryOperator *childIn,
@@ -501,6 +459,7 @@ rewriteUsetOneAggFunctionCall(FunctionCall *fc, QueryOperator *childIn,
         if (!fc->args || LIST_LENGTH(fc->args) < 1)
             return (Node *) fc;
         origArg = (Node *) getNthOfListP(fc->args, 0);
+        origArg = usetPruneAggArgIfActive(origArg, childIn);
         if (usetAggArgIsNativeInt4rangeArray(origArg, childIn))
         {
             INFO_LOG("USET: Skip AVG rewrite for int4range[] (i4r avg set aggregate not registered)");
@@ -524,6 +483,7 @@ rewriteUsetOneAggFunctionCall(FunctionCall *fc, QueryOperator *childIn,
         return (Node *) fc;
 
     origArg = (Node *) getNthOfListP(fc->args, 0);
+    origArg = usetPruneAggArgIfActive(origArg, childIn);
     combineArg = usetAggArgToCombineInput(origArg, childIn);
     useSetCombine = usetAggArgIsInt4rangeArray(origArg, childIn);
     mult = buildDefaultMultiplicity();
@@ -538,16 +498,6 @@ rewriteUsetOneAggFunctionCall(FunctionCall *fc, QueryOperator *childIn,
 
     innerFC = createFunctionCall(innerName, innerArgs);
     innerFC->isDistinct = fc->isDistinct;
-
-    /* 原生 int4range[] 且无 GROUP BY：逐行 combine，勿套 SQL min/max 聚合 */
-    if (useSetCombine && aggOp != NULL && usetAggHasNoGroupBy(aggOp)
-        && (strieq(fn, MIN_FUNC_NAME) || strieq(fn, MAX_FUNC_NAME)))
-    {
-        innerFC->isAgg = FALSE;
-        INFO_LOG("USET: Row-wise %s on int4range[] → %s(..., multiplicity) without outer %s",
-            fn, innerName, fn);
-        return (Node *) innerFC;
-    }
 
     if (strieq(fn, SUM_FUNC_NAME) && useSetCombine)
     {
@@ -923,18 +873,112 @@ buildPruneExprForColumn(char *colName, List *conjuncts)
     }
 }
 
+static Node *
+usetBuildPrunedExprForColumnName(char *colName, Node *whereCond)
+{
+    List *disjuncts;
+    List *colPrunes = NIL;
+    boolean rangeFamily = FALSE;
+    boolean rangeFamilySet = FALSE;
+    int di;
+
+    if (!colName || !whereCond)
+        return NULL;
+    disjuncts = flattenOrDisjuncts(whereCond);
+    if (disjuncts == NIL)
+        return NULL;
+
+    for (di = 0; di < LIST_LENGTH(disjuncts); di++)
+    {
+        Node *disjunct = (Node *)getNthOfListP(disjuncts, di);
+        List *conjuncts = flattenAndConjuncts(disjunct);
+        Node *part = buildPruneExprForColumn(colName, conjuncts);
+
+        if (!part)
+            continue;
+        colPrunes = appendToTailOfList(colPrunes, part);
+        if (!rangeFamilySet && LIST_LENGTH(conjuncts) > 0)
+        {
+            FOREACH(Node, cn, conjuncts)
+            {
+                if (isA(cn, FunctionCall))
+                {
+                    FunctionCall *fc = (FunctionCall *)cn;
+                    if (fc->functionname && usetCompareFuncIsRangeFamily(fc->functionname))
+                    {
+                        rangeFamily = TRUE;
+                        rangeFamilySet = TRUE;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (colPrunes == NIL)
+        return NULL;
+    if (LIST_LENGTH(colPrunes) == 1)
+        return (Node *)getHeadOfListP(colPrunes);
+    {
+        const char *orFn = usetPruneOrFuncName(rangeFamily);
+        Node *pruned = (Node *)getNthOfListP(colPrunes, 0);
+        for (di = 1; di < LIST_LENGTH(colPrunes); di++)
+            pruned = (Node *)createFunctionCall((char *)orFn,
+                LIST_MAKE(pruned, (Node *)getNthOfListP(colPrunes, di)));
+        return pruned;
+    }
+}
+
+static Node *
+usetFindPruneWhereCond(QueryOperator *fromOp)
+{
+    QueryOperator *cur = fromOp;
+
+    while (cur)
+    {
+        if (cur->type == T_SelectionOperator)
+        {
+            SelectionOperator *sel = (SelectionOperator *)cur;
+            if (sel->cond)
+                return sel->cond;
+        }
+        if (!OP_LCHILD(cur) || cur->type == T_TableAccessOperator)
+            break;
+        cur = OP_LCHILD(cur);
+    }
+    return NULL;
+}
+
+static Node *
+usetPruneAggArgIfActive(Node *origArg, QueryOperator *childIn)
+{
+    Node *whereCond;
+    char *colName;
+    Node *pruned;
+
+    if (!origArg || !usetPruningActive())
+        return origArg;
+    whereCond = usetFindPruneWhereCond(childIn);
+    if (!whereCond)
+        return origArg;
+    colName = extractBaseAttrName(origArg);
+    if (!colName)
+        return origArg;
+    pruned = usetBuildPrunedExprForColumnName(colName, whereCond);
+    if (!pruned)
+        return origArg;
+    INFO_LOG("USET pruning (agg): column %s -> %s", colName, nodeToString(pruned));
+    return pruned;
+}
+
 static void
 applyUsetPruningToProjection(ProjectionOperator *proj, Node *whereCond)
 {
-    List *disjuncts;
     List *projExprs;
     List *attrNames;
     int idx;
 
     if (!proj || !whereCond)
-        return;
-    disjuncts = flattenOrDisjuncts(whereCond);
-    if (disjuncts == NIL)
         return;
 
     projExprs = proj->projExprs;
@@ -946,51 +990,10 @@ applyUsetPruningToProjection(ProjectionOperator *proj, Node *whereCond)
     {
         Node *expr = (Node *)getNthOfListP(projExprs, idx);
         char *colName = (char *)getNthOfListP(attrNames, idx);
-        List *colPrunes = NIL;
-        boolean rangeFamily = FALSE;
-        boolean rangeFamilySet = FALSE;
-        int di;
+        Node *pruned = usetBuildPrunedExprForColumnName(colName, whereCond);
 
-        for (di = 0; di < LIST_LENGTH(disjuncts); di++)
+        if (pruned)
         {
-            Node *disjunct = (Node *)getNthOfListP(disjuncts, di);
-            List *conjuncts = flattenAndConjuncts(disjunct);
-            Node *part = buildPruneExprForColumn(colName, conjuncts);
-
-            if (!part)
-                continue;
-            colPrunes = appendToTailOfList(colPrunes, part);
-            if (!rangeFamilySet && LIST_LENGTH(conjuncts) > 0)
-            {
-                FOREACH(Node, cn, conjuncts)
-                {
-                    if (isA(cn, FunctionCall))
-                    {
-                        FunctionCall *fc = (FunctionCall *)cn;
-                        if (fc->functionname && usetCompareFuncIsRangeFamily(fc->functionname))
-                        {
-                            rangeFamily = TRUE;
-                            rangeFamilySet = TRUE;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (colPrunes != NIL)
-        {
-            Node *pruned;
-            if (LIST_LENGTH(colPrunes) == 1)
-                pruned = (Node *)getHeadOfListP(colPrunes);
-            else
-            {
-                const char *orFn = usetPruneOrFuncName(rangeFamily);
-                pruned = (Node *)getNthOfListP(colPrunes, 0);
-                for (di = 1; di < LIST_LENGTH(colPrunes); di++)
-                    pruned = (Node *)createFunctionCall((char *)orFn,
-                        LIST_MAKE(pruned, (Node *)getNthOfListP(colPrunes, di)));
-            }
             replaceNode(projExprs, expr, pruned);
             INFO_LOG("USET pruning: column %s -> %s", colName, nodeToString(pruned));
         }
@@ -7375,23 +7378,13 @@ rewrite_UsetAggregation(QueryOperator *op){
 
         rewriteUsetAggregationAggrs(aggOp, childIn);
 
-        op = usetFlattenRowwiseSetMinMaxAggregation(op);
         childIn = OP_LCHILD(op);
-        if (isA(op, ProjectionOperator))
-        {
-            FOREACH(Node, pex, ((ProjectionOperator *) op)->projExprs)
-                syncAttrRefTypesFromInput(pex, childIn);
-        }
-        else
-        {
-            aggOp = (AggregationOperator *) op;
-            aggrs = aggOp->aggrs;
-            FOREACH(Node, aggr, aggrs)
-                syncAttrRefTypesFromInput(aggr, childIn);
-            if (aggOp->groupBy)
-                FOREACH(Node, gbExpr, aggOp->groupBy)
-                    syncAttrRefTypesFromInput(gbExpr, childIn);
-        }
+        aggrs = aggOp->aggrs;
+        FOREACH(Node, aggr, aggrs)
+            syncAttrRefTypesFromInput(aggr, childIn);
+        if (aggOp->groupBy)
+            FOREACH(Node, gbExpr, aggOp->groupBy)
+                syncAttrRefTypesFromInput(gbExpr, childIn);
         
         // 设置USET模式属性
         setUsetMode(op);
@@ -7442,23 +7435,13 @@ rewrite_UsetAggregation2(QueryOperator *op){
 
         rewriteUsetAggregationAggrs(aggOp2, childIn2);
 
-        op = usetFlattenRowwiseSetMinMaxAggregation(op);
         childIn2 = OP_LCHILD(op);
-        if (isA(op, ProjectionOperator))
-        {
-            FOREACH(Node, pex, ((ProjectionOperator *) op)->projExprs)
-                syncAttrRefTypesFromInput(pex, childIn2);
-        }
-        else
-        {
-            aggOp2 = (AggregationOperator *) op;
-            aggrs = aggOp2->aggrs;
-            FOREACH(Node, aggr, aggrs)
-                syncAttrRefTypesFromInput(aggr, childIn2);
-            if (aggOp2->groupBy)
-                FOREACH(Node, gbExpr, aggOp2->groupBy)
-                    syncAttrRefTypesFromInput(gbExpr, childIn2);
-        }
+        aggrs = aggOp2->aggrs;
+        FOREACH(Node, aggr, aggrs)
+            syncAttrRefTypesFromInput(aggr, childIn2);
+        if (aggOp2->groupBy)
+            FOREACH(Node, gbExpr, aggOp2->groupBy)
+                syncAttrRefTypesFromInput(gbExpr, childIn2);
         
         // 设置USET模式属性
         setUsetMode(op);
