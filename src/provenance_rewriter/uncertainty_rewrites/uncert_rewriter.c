@@ -554,6 +554,9 @@ static const char *usetPickCompareFuncName(const char *opName, boolean useRangeF
 static char *extractBaseAttrName(Node *expr);
 static List *flattenAndConjuncts(Node *cond);
 static List *flattenOrDisjuncts(Node *cond);
+static boolean usetIsFalseConstant(Node *expr);
+static Node *usetUnwrapSetCompareConjunct(Node *conjunct);
+static Node *usetApplyPermissiveWhereFilter(Node *cond);
 static Node *buildPruneExprForColumn(char *colName, List *conjuncts);
 static boolean usetPruneFuncUsesDirection(const char *pruneFn);
 static void applyUsetPruningToProjection(ProjectionOperator *proj, Node *whereCond);
@@ -760,6 +763,87 @@ usetCompareFuncIsRangeFamily(const char *compareFn)
 #define usetPruneAndFuncName usetI4rPruneAndSqlName
 #define usetPruneOrFuncName usetI4rPruneOrSqlName
 
+/* 三值 set_* / range_*：WHERE 保留 TRUE 与 NULL（部分可满足），仅排除 FALSE */
+static boolean
+usetIsFalseConstant(Node *expr)
+{
+    if (!expr || !isA(expr, Constant))
+        return FALSE;
+    {
+        Constant *c = (Constant *)expr;
+        if (c->isNull || c->constType != DT_BOOL || !c->value)
+            return FALSE;
+        return (*((boolean *)c->value) == FALSE);
+    }
+}
+
+static Node *
+usetUnwrapSetCompareConjunct(Node *conjunct)
+{
+    if (!conjunct)
+        return NULL;
+    if (isA(conjunct, FunctionCall))
+    {
+        FunctionCall *fc = (FunctionCall *)conjunct;
+        if (fc->functionname && usetI4rIsCompareSqlFunc(fc->functionname))
+            return conjunct;
+        return NULL;
+    }
+    if (isA(conjunct, Operator))
+    {
+        Operator *o = (Operator *)conjunct;
+        if (streq(o->name, "IS DISTINCT FROM") && o->args && LIST_LENGTH(o->args) >= 2)
+        {
+            Node *left = (Node *)getNthOfListP(o->args, 0);
+            Node *right = (Node *)getNthOfListP(o->args, 1);
+            if (usetIsFalseConstant(right))
+                return usetUnwrapSetCompareConjunct(left);
+        }
+    }
+    return NULL;
+}
+
+static Node *
+usetWrapPermissiveSetCompare(Node *setCmp)
+{
+    if (!setCmp)
+        return NULL;
+    return (Node *)createOpExpr("IS DISTINCT FROM",
+        LIST_MAKE(copyObject(setCmp), (Node *)createConstBool(FALSE)));
+}
+
+static Node *
+usetApplyPermissiveWhereFilter(Node *cond)
+{
+    if (!cond)
+        return NULL;
+    if (isA(cond, Operator))
+    {
+        Operator *o = (Operator *)cond;
+        if (streq(o->name, OPNAME_AND) && o->args && LIST_LENGTH(o->args) >= 2)
+        {
+            Node *l = usetApplyPermissiveWhereFilter((Node *)getNthOfListP(o->args, 0));
+            Node *r = usetApplyPermissiveWhereFilter((Node *)getNthOfListP(o->args, 1));
+            return (Node *)createOpExpr(OPNAME_AND, LIST_MAKE(l, r));
+        }
+        if (streq(o->name, OPNAME_OR) && o->args && LIST_LENGTH(o->args) >= 2)
+        {
+            Node *l = usetApplyPermissiveWhereFilter((Node *)getNthOfListP(o->args, 0));
+            Node *r = usetApplyPermissiveWhereFilter((Node *)getNthOfListP(o->args, 1));
+            return (Node *)createOpExpr(OPNAME_OR, LIST_MAKE(l, r));
+        }
+        if (streq(o->name, OPNAME_NOT))
+            return cond;
+    }
+    if (isA(cond, FunctionCall))
+    {
+        FunctionCall *fc = (FunctionCall *)cond;
+        if (fc->functionname && usetI4rIsCompareSqlFunc(fc->functionname))
+            return usetWrapPermissiveSetCompare((Node *)cond);
+    }
+    return cond;
+}
+
 static List *
 flattenAndConjuncts(Node *cond)
 {
@@ -821,10 +905,13 @@ buildPruneExprForColumn(char *colName, List *conjuncts)
     FOREACH(Node, cn, conjuncts)
     {
         const char *pruneFn;
-        if (!isA(cn, FunctionCall))
+        Node *cmp = usetUnwrapSetCompareConjunct((Node *)cn);
+        FunctionCall *fc;
+        char *fn;
+        if (!cmp || !isA(cmp, FunctionCall))
             continue;
-        FunctionCall *fc = (FunctionCall *)cn;
-        char *fn = fc->functionname;
+        fc = (FunctionCall *)cmp;
+        fn = fc->functionname;
         if (!fc->args || LIST_LENGTH(fc->args) < 2)
             continue;
         pruneFn = usetPruneFuncForCompare(fn);
@@ -901,9 +988,10 @@ usetBuildPrunedExprForColumnName(char *colName, Node *whereCond)
         {
             FOREACH(Node, cn, conjuncts)
             {
-                if (isA(cn, FunctionCall))
+                Node *cmp = usetUnwrapSetCompareConjunct((Node *)cn);
+                if (cmp && isA(cmp, FunctionCall))
                 {
-                    FunctionCall *fc = (FunctionCall *)cn;
+                    FunctionCall *fc = (FunctionCall *)cmp;
                     if (fc->functionname && usetCompareFuncIsRangeFamily(fc->functionname))
                     {
                         rangeFamily = TRUE;
@@ -7287,6 +7375,8 @@ rewrite_UsetSelection(QueryOperator *op)
             QueryOperator *savedIn = g_uset_expr_input_op;
             g_uset_expr_input_op = OP_LCHILD(op);
             ((SelectionOperator *)op)->cond = rewriteUsetExpression(cond, hmpIn);
+            ((SelectionOperator *)op)->cond =
+                usetApplyPermissiveWhereFilter(((SelectionOperator *)op)->cond);
             g_uset_expr_input_op = savedIn;
         }
 
