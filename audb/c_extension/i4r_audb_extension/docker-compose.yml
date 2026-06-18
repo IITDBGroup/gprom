@@ -1,0 +1,21 @@
+# docker compose up -d
+# docker exec -it audb_test bash
+
+services:
+  pg_dev:
+    build: .
+    container_name: audb_test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: audb_test
+    ports:
+      - "5454:5432"
+    volumes:
+      - .:/audbExtension
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,57 @@
+# used for the -xf option. Configure file and make many different files testing specific experiments.
+# Not preffered method. If possible, use -py option and feed in a python file and modify experiments using Code and not repetitive config files
+
+experiment_groups:
+  - group_name: dataset_size_sample
+    independent_variable: dataset_size
+    experiments:
+      - name: small
+        data_type: SET
+        dataset_size: 1000
+        num_trials: 3
+        uncertain_ratio: 0.1
+        mult_size_range: [1, 5]
+        interval_size_range: [1, 500]
+        num_intervals: 4
+        gap_size: 10
+        
+      - name: medium
+        data_type: SET
+        dataset_size: 10000
+        num_trials: 3
+        uncertain_ratio: 0.1
+        mult_size_range: [1, 5]
+        interval_size_range: [1, 500]
+        num_intervals: 4
+        gap_size: 10
+        
+      - name: large
+        data_type: SET
+        dataset_size: 100000
+        num_trials: 3
+        uncertain_ratio: 0.1
+        mult_size_range: [1, 5]
+        interval_size_range: [1, 500]
+        num_intervals: 4
+        gap_size: 10
+
+  - group_name: uncertainty_study_sample
+    independent_variable: uncertain_ratio
+    experiments:
+      - name: certain
+        data_type: SET
+        dataset_size: 10000
+        num_trials: 3
+        uncertain_ratio: 0.0
+        mult_size_range: [1, 5]
+        interval_size_range: [1, 500]
+        num_intervals: 4
+        
+      - name: low_uncertainty
+        data_type: SET
+        dataset_size: 10000
+        num_trials: 3
+        uncertain_ratio: 0.2
+        mult_size_range: [1, 5]
+        interval_size_range: [1, 500]
+        num_intervals: 4

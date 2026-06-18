@@ -1,0 +1,2 @@
+- [ ] Still confused on what to implement for logical operators.
+- [X] int4ranges vs multiranges
