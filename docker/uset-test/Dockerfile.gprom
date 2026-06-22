@@ -1,0 +1,41 @@
+FROM ubuntu:22.04 AS builder
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    autoconf \
+    automake \
+    build-essential \
+    bison \
+    flex \
+    libpq-dev \
+    libreadline-dev \
+    libtool \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . /gprom
+WORKDIR /gprom
+
+RUN test -x ./autogen.sh && ./autogen.sh || true
+RUN CPPFLAGS="-I/usr/include/postgresql" ./configure --disable-java
+RUN make -j"$(nproc)"
+
+FROM ubuntu:22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    postgresql-client-16 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /gprom/src/command_line/gprom /usr/local/bin/gprom
+COPY test /gprom/test
+COPY flights_rset.sql hospital_outlier_rset.sql sales_rset.csv /gprom/
+COPY docker/uset-test/run-tests.sh /usr/local/bin/run-tests.sh
+COPY docker/uset-test/gprom-shell.sh /usr/local/bin/gprom-shell
+
+RUN chmod +x /usr/local/bin/run-tests.sh /usr/local/bin/gprom-shell
+
+WORKDIR /gprom
+ENTRYPOINT ["/usr/local/bin/run-tests.sh"]

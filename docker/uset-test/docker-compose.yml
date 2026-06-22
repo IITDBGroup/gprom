@@ -1,0 +1,52 @@
+# GProM USET + audb 一键测试环境
+# 用法见 docker/uset-test/README.md
+services:
+  postgres:
+    build:
+      context: ../..
+      dockerfile: docker/uset-test/Dockerfile.postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: testdb
+    ports:
+      - "${PGPORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d testdb"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  gprom-test:
+    build:
+      context: ../..
+      dockerfile: docker/uset-test/Dockerfile.gprom
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: hana
+      PGPASS: "001011"
+      PGDB: testdb
+    profiles:
+      - test
+
+  gprom-shell:
+    build:
+      context: ../..
+      dockerfile: docker/uset-test/Dockerfile.gprom
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: hana
+      PGPASS: "001011"
+      PGDB: testdb
+    stdin_open: true
+    tty: true
+    entrypoint: ["/usr/local/bin/gprom-shell"]
+    profiles:
+      - shell

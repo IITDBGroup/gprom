@@ -1,0 +1,11 @@
+.git
+**/*.o
+**/*.so
+**/*.bc
+**/.deps
+**/.libs
+**/autom4te.cache
+config.log
+**/three_rset_agg_results.tsv
+**/backups
+**/*:Zone.Identifier

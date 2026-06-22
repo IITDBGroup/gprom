@@ -1,0 +1,22 @@
+FROM postgres:16-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    rsync \
+    postgresql-server-dev-16 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 编译 audb 扩展（不修改 audb 源码，使用 build 脚本）
+COPY audb /src/audb
+COPY test/build_i4r_audb_extension.sh /src/test/build_i4r_audb_extension.sh
+RUN chmod +x /src/test/build_i4r_audb_extension.sh \
+    && AUD_EXT=/src/audb/c_extension/i4r_audb_extension \
+       INSTALL=1 \
+       PG_CONFIG=/usr/lib/postgresql/16/bin/pg_config \
+       bash /src/test/build_i4r_audb_extension.sh
+
+COPY docker/uset-test/init-db/ /docker-entrypoint-initdb.d/
+COPY test/prune_effect_metrics.sql /docker-entrypoint-initdb.d/sql/
+COPY flights_rset.sql hospital_outlier_rset.sql /docker-entrypoint-initdb.d/sql/
+COPY sales_rset.csv /docker-entrypoint-initdb.d/data/
+RUN chmod +x /docker-entrypoint-initdb.d/02-load-data.sh
