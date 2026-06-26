@@ -1,4 +1,14 @@
-FROM postgres:16-bookworm
+ARG POSTGRES_BASE=postgres:16-bookworm
+FROM ${POSTGRES_BASE}
+
+# 国内构建时 apt 走镜像站，避免 deb.debian.org 超时
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' \
+        /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+      sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' \
+        /etc/apt/sources.list; \
+    fi
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -6,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-server-dev-16 \
     && rm -rf /var/lib/apt/lists/*
 
-# 编译 audb 扩展（不修改 audb 源码，使用 build 脚本）
+# 编译 audb 扩展
 COPY audb /src/audb
 COPY test/build_i4r_audb_extension.sh /src/test/build_i4r_audb_extension.sh
 RUN chmod +x /src/test/build_i4r_audb_extension.sh \

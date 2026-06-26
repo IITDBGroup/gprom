@@ -1,56 +1,111 @@
-# GProM USET 测试 Docker 环境
+# GProM USET + audb Docker 测试环境
 
-PostgreSQL 16 + `i4r_audb_extension` + GProM（yangyun 分支），一键跑 USET / WITH PRUNING 测试。
+PostgreSQL 16 + `i4r_audb_extension` + GProM（`yangyun` 分支）的一键 Docker 封装，用于复现 **USET / USET WITH PRUNING** 实验（flights / hospital / sales 三库）。
 
-## 前置
+---
 
-- Docker + Docker Compose v2
-- 在 **gprom 仓库根目录** 执行（需含 `audb/`、`sales_rset.csv` 等）
+## 目录
 
-## 快速开始
+- [功能概览](#功能概览)
+- [快速开始（完整测试流程）](#快速开始完整测试流程)
+- [分步操作](#分步操作)
+- [交互式 Shell（改写 SQL + 查询结果）](#交互式-shell改写-sql--查询结果)
+
+---
+
+## 功能概览
+
+
+| 能力              | 说明                                                  |
+| --------------- | --------------------------------------------------- |
+| **postgres 服务** | PG16 + 编译安装 audb 扩展 + 初始化三库测试数据                     |
+| **gprom-test**  | 自动化 smoke / 三库聚合实验                                  |
+| **gprom-shell** | 交互式输入 USET，输出改写 SQL **并** 在 PostgreSQL 执行显示结果       |
+| **辅助脚本**        | `pull-base-images.sh`（国内拉镜像）、`run-all.sh`（一键 smoke） |
+
+
+
+
+---
+
+
+
+## 快速开始（完整测试流程）
 
 ```bash
 cd gprom/docker/uset-test
 
-# 1. 构建并启动 PostgreSQL（含 audb 扩展 + 测试数据）
+
+docker compose up -d postgres                              # 1. 启动 DB
+docker compose --profile test run --rm gprom-test            # 2. smoke 测试
+docker compose --profile shell run --rm gprom-shell          # 3. 交互 shell
+```
+
+
+
+---
+
+
+
+## 分步操作
+
+### 1. 构建并启动 PostgreSQL
+
+```bash
+cd gprom/docker/uset-test
+docker compose build --progress=plain postgres   # 首次或 Dockerfile 变更后
 docker compose up -d postgres
+docker compose ps                                 # STATUS 应为 healthy
+```
 
-# 2. 跑自动化 smoke 测试（GProM + verify 脚本）
+首次启动会自动：
+
+- 编译安装 `i4r_audb_extension`（`test/build_i4r_audb_extension.sh`）
+- 创建用户 `**hana**` / 密码 `**001011**`
+- 加载 `flights_rset`、`hospital_outlier_rset`、`sales_rset`
+- 创建 `int_count_set`、`ic_sum_result` 等实验函数（`test/prune_effect_metrics.sql`）
+
+### 2. Smoke 自动化测试
+
+```bash
+docker compose --profile test build gprom-test      # 首次需编译 GProM
 docker compose --profile test run --rm gprom-test
+```
 
-# 3. 进入 GProM 交互 shell
+执行顺序：
+
+1. `verify_audb_pg16.sh`
+2. GProM USET：`SELECT SUM(act_dep) ...`
+3. GProM USET WITH PRUNING：同上（带剪枝）
+
+## 交互式 Shell（改写 SQL + 查询结果）
+
+```bash
+docker compose --profile shell build gprom-shell    
 docker compose --profile shell run --rm gprom-shell
 ```
 
-## 跑完整三库实验
+每条查询输出两段：
 
-```bash
-docker compose --profile test run --rm -e RUN_FULL=1 gprom-test
+```text
+-- Rewritten SQL --
+WITH temp_view_0 AS ( ... )
+SELECT sum(combine_set_mult_sum(prune_set_lt(...), ...)) ...
+
+-- Query result --
+ sum(act_dep)
+----------------
+ {"[64361,78397)"}
+(1 row)
 ```
 
-## 环境变量
+示例输入：
 
-| 变量 | 默认 | 说明 |
-|------|------|------|
-| `PGPORT` | 5432 | 宿主机映射端口 |
-| `PGUSER` | hana | 数据库用户 |
-| `PGPASS` | 001011 | 密码 |
-| `PGDB` | testdb | 数据库名 |
-| `RUN_FULL` | 0 | 设为 1 跑 `run_three_rset_agg_experiments.sh` |
-
-## 架构
-
-```
-docker-compose
-├── postgres   PG16 + audb 扩展 + flights/hospital/sales 数据
-└── gprom-test 编译好的 gprom + test 脚本
+```sql
+USET WITH PRUNING (SELECT SUM(act_dep) FROM flights_rset IS UADB WHERE sched_dep < act_dep);
 ```
 
-- **postgres**：镜像构建时编译 audb（`test/build_i4r_audb_extension.sh`），初始化时加载 SQL/CSV。
-- **gprom-test**：多阶段构建 GProM，连接 `postgres` 服务跑测试。
+命令：`\q` 退出，`\h` 查看示例。
 
-## 注意
 
-- 请用 **`hana` 用户**（密码 `001011`），不要用 `postgres` peer 连接。
-- 首次 `docker compose up postgres` 会初始化数据库；改数据需 `docker compose down -v` 后重建。
-- 宿主机 5432 已被占用时：`PGPORT=5433 docker compose up -d postgres`
+

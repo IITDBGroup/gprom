@@ -1,11 +1,4 @@
-#!/usr/bin/env bash
-# 在临时目录编译 i4r_audb_extension，不修改 audb 源码树。
-# 上游 control 文件名为 I4R_AUDB_extension.control，PGXS 需要 i4r_audb_extension.control。
-#
-# 用法:
-#   bash gprom/test/build_i4r_audb_extension.sh              # 仅编译，打印 BUILD_DIR
-#   INSTALL=1 bash gprom/test/build_i4r_audb_extension.sh    # 编译并 sudo make install
-#   PG_CONFIG=/usr/lib/postgresql/16/bin/pg_config bash ...
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -32,7 +25,7 @@ cp -f "$BUILD_DIR/I4R_AUDB_extension.control" "$BUILD_DIR/i4r_audb_extension.con
 
 echo "==> 编译 (PG_CONFIG=$PG_CONFIG)"
 cd "$BUILD_DIR"
-make clean
+make clean || true
 make PG_CONFIG="$PG_CONFIG"
 
 if [ "${INSTALL:-0}" = "1" ]; then

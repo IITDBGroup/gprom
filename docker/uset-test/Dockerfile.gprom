@@ -1,7 +1,9 @@
-FROM ubuntu:22.04 AS builder
+ARG UBUNTU_BASE=ubuntu:22.04
+FROM ${UBUNTU_BASE} AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g; s|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     automake \
     build-essential \
@@ -17,15 +19,18 @@ COPY . /gprom
 WORKDIR /gprom
 
 RUN test -x ./autogen.sh && ./autogen.sh || true
-RUN CPPFLAGS="-I/usr/include/postgresql" ./configure --disable-java
+RUN ./configure --disable-java --enable-postgres \
+    --with-libpq-headers=/usr/include/postgresql
 RUN make -j"$(nproc)"
 
-FROM ubuntu:22.04
+ARG UBUNTU_BASE=ubuntu:22.04
+FROM ${UBUNTU_BASE}
 
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g; s|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    postgresql-client-16 \
+    postgresql-client \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
