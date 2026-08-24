@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_neumann.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 
 #include "mem_manager/mem_mgr.h"
@@ -103,6 +104,7 @@ Node *
 unnestTranslateQBModel(Node *qbModel)
 {
 	DEBUG_LOG("unnest rewrite:");
+	testHelloHi();
 
     if (isA(qbModel, List))
         return (Node *) unnestRewriteQueryList((List *) qbModel);
