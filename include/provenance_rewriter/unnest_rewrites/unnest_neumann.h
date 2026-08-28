@@ -9,6 +9,6 @@
 
 #include "model/query_operator/query_operator.h"
 
-extern void testHelloHi ();
+extern Node *neumanning (QueryOperator *);
 
 

@@ -21,76 +21,56 @@
 #include "model/list/list.h"
 #include "utility/string_utils.h"
 
-static List *intersectList (List *, List *);
 // static boolean allFreeContained (QueryOperator *);
-static void bindingTransform (NestingOperator *);
+static Node *neumanningInternal (QueryOperator *, List *);
+static QueryOperator *bindingTransform (NestingOperator *);
 
-void testHelloHi() 
-{
-    bindingTransform(NULL);
-}
-
-// Adapted from removeListElementsFromAnotherList, not sure if this exists elsewhere
-static List *
-intersectList (List *left, List *right)
-{
-    List *result = NIL;
-    boolean flag = FALSE;
-
-    FOREACH_LC(lc2, right)
-    {
-        flag = FALSE;
-        void *value = LC_P_VAL(lc2);
-
-        FOREACH_LC(lc1, left)
-        {
-            void *ptrVal = LC_P_VAL(lc1);
-            if(equal(ptrVal, value))
-            {
-                flag = TRUE;
-                break;
-            }
-        }
-        if(flag == TRUE)
-        {
-            result = appendToTailOfList(result, value);
-        }
-    }
-
-    return result;
-}
-
-static void
+Node*
 neumanning (QueryOperator *op)
+{
+    List *correlated = NIL;
+    return neumanningInternal(op, correlated);
+}
+
+static Node *
+neumanningInternal(QueryOperator *op, List *correlated)
 {
     FOREACH(QueryOperator, child, op->inputs) {
         neumanning(child);
     }
 
     if(isA(op, NestingOperator)) {
-        bindingTransform(op);
+        bindingTransform((NestingOperator*)op);
     }
+
+    return (Node*)op;
 }
 
 static QueryOperator *
 bindingTransform (NestingOperator *op) 
 {
-    List *correlatedAttrs = copyList(getNestingCorrelatedAttrReferences(op, FALSE));
-    // TODO: check using levels up
-    List *D_attrs = intersectList(correlatedAttrs, getAttrReferences((Node*)OP_LCHILD(op)));
+    Set *correlated = getNestingCorrelatedAttributes(op, FALSE);
+    // List *D_attrs = intersectList(correlatedAttrs, getAttrReferences((Node*)OP_LCHILD(op)));
+    List *D_attrs = NIL;
     List *names = NIL;
     FOREACH(AttributeReference, attr, D_attrs) {
         names = appendToTailOfList(names, attr->name);
     }
-    ProjectionOperator *D = createProjectionOp(D_attrs, OP_LCHILD(op), ((QueryOperator*)op)->parents, names);
-    // TODO: remove duplicates from this ^
+    ProjectionOperator *proj = createProjectionOp(D_attrs, OP_LCHILD(op), NIL, makeNodeListFromSet(correlated));
+    QueryOperator *orig = OP_LCHILD(op);
+    // addParent(orig, (QueryOperator*)proj);
+    orig->parents = singleton(proj);
+
+    DuplicateRemoval *D = createDuplicateRemovalOp(D_attrs, (QueryOperator*)proj, singleton(op), makeNodeListFromSet(correlated));
+    ((QueryOperator*)proj)->parents = singleton(D);
+
+    INFO_LOG("d %s", beatify(nodeToString(D)));
+
+    // addParent((QueryOperator*)op, (QueryOperator*)D);
+    ((QueryOperator*)op)->inputs->head->data.ptr_value = (void*)D;
+    // switchSubtrees(OP_LCHILD(op), (QueryOperator*)D);
 
     // TODO: add join
-    // TODO: move around in tree
-
-    DEBUG_LOG("d %s", beatify(nodeToString(D)));
-
-
     // TODO: this should be the join
-    return (QueryOperator*)D;
+    return (QueryOperator*)op;
 }

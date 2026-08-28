@@ -130,6 +130,8 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_UNNEST_REWRITE "unnest_rewrite"
 #define OPTION_AGG_REDUCTION_MODEL_REWRITE "agg_reduction_model_rewrite"
 
+/* Neumann2015 unnesting rewriting */
+#define OPTION_UNNEST_NEUMANN_REWRITE "unnest_neumann_rewrite"
 
 /* use provenance scratch */
 #define OPTION_MAX_NUMBER_PARTITIONS_FOR_USE "number_max_paritions_for_use"

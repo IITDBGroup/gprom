@@ -187,6 +187,9 @@ boolean opt_lateral_rewrite = FALSE;
 boolean opt_unnest_rewrite = FALSE;
 boolean opt_agg_reduction_model_rewrite = FALSE;
 
+// Neumann2015 unnesting rewriting 
+boolean opt_unnest_neumann_rewrite = FALSE;
+
 // use provenance scratch
 int max_number_paritions_for_uses = 0;
 int bit_vector_size = 32;
@@ -676,6 +679,11 @@ OptionInfo opts[] =
 					   "-unnest_rewrite",
 					   "Activate unnest & de-correlation rewrites.",
 					   opt_unnest_rewrite,
+					   FALSE),
+		aRewriteOption(OPTION_UNNEST_NEUMANN_REWRITE,
+					   "-unnest_neumann_rewrite",
+					   "Activate Neumann2015 unnest & de-correlation rewrites.",
+					   opt_unnest_neumann_rewrite,
 					   FALSE),
 		aRewriteOption(OPTION_AGG_REDUCTION_MODEL_REWRITE,
 				       "-agg_reduction_model_rewrite",

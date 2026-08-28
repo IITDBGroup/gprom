@@ -42,6 +42,7 @@
 //#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_neumann.h"
 
 #include "provenance_rewriter/coarse_grained/ps_safety_check.h"
 
@@ -502,6 +503,22 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 		INFO_AND_DEBUG_OP_LOG("unnested subqueries", oModel);
 	}
 
+    if(isRewriteOptionActivated(OPTION_UNNEST_NEUMANN_REWRITE) && !isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
+	{
+        if(isA(oModel, List)) 
+        {
+            FOREACH(QueryOperator, op, (List*)oModel) 
+            {
+                op_his_cell->data.ptr_value = (QueryOperator*)neumanning(op);
+            }
+        }
+        else if(IS_OP(oModel)) 
+        {
+            oModel = (Node*)neumanning((QueryOperator*)oModel);
+        }
+        INFO_AND_DEBUG_OP_LOG("Neumann2015 unnested subqueries", oModel);
+	}
+    
     rewrittenTree = oModel;
 
     // FIXME currently it is not safe to apply optimizations before provenance
