@@ -213,6 +213,8 @@ extern List *deepCopyStringList (List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
 extern void deepFreeStringList(List *list);
+
+/* transforming between list types */
 extern List *stringListToConstList(List *list);
 extern List *constStringListToStringList(List *list);
 extern char *constStringListToString(List *list);
