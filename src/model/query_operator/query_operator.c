@@ -1564,7 +1564,7 @@ getNumNormalAttrs(QueryOperator *op)
 
 
 List *
-getQueryOperatorAttrNames (QueryOperator *op)
+getQueryOperatorAttrNames(QueryOperator *op)
 {
     List *result = NIL;
 
@@ -2064,7 +2064,7 @@ getNestingCorrelatedAttrReferences(NestingOperator *op, boolean corrInSubquery)
     List *result;
 	CorrelatedAttrsState state = { 1, NIL, corrInSubquery };
 
-    findCorrelatedAttrsVisitor((Node *)op, &state);
+    findCorrelatedAttrsVisitor((Node *) OP_RCHILD(op), &state);
     result = state.result;
 
     return result;
@@ -2096,6 +2096,55 @@ noCorrelationBelowNormalization(Node *op, boolean corrInSubquery) // boolean tra
 	return state.childrenCanBeKeptCorrelated;
 }
 
+/**
+ * @brief Create equijoin condition over given attributes.
+ *
+ * @param left left join input
+ * @param right right join input
+ * @param leftAttrNames attribute names to join on from left input
+ * @param rightAttrNames attribute names to join on from right input
+ * @param treatNullsAsEqual if true, then join on IS NOT DISTINCT FROM to treat nulls as equal
+ * @return the join condition (A1 = B1) AND ... (An = Bn)
+ */
+
+Node *
+createEqualityJoinCond(QueryOperator *left,
+                       QueryOperator *right,
+                       List *leftAttrNames,
+                       List *rightAttrNames,
+                       boolean treatNullsAsEqual)
+{
+    Node *result = NULL;
+
+    FORBOTH(char,ln,rn,leftAttrNames,rightAttrNames)
+    {
+        Node *comparison;
+        AttributeReference *la,*ra;
+
+        la = getAttrRefByName(left, ln);
+        ra = getAttrRefByName(right, rn);
+        ra->fromClauseItem = 1;
+        if(!treatNullsAsEqual)
+        {
+            comparison = (Node *) createOpExpr(OPNAME_EQ, LIST_MAKE(la, ra));
+        }
+        else
+        {
+            comparison = createIsNotDistinctExpr((Node *) la, (Node *) ra);
+        }
+
+        if(result == NULL)
+        {
+            result = comparison;
+        }
+        else
+        {
+            result = AND_EXPRS(result, comparison);
+        }
+    }
+
+    return result;
+}
 
 static boolean
 findCorrelatedAttrsVisitor(Node *n, void *context)

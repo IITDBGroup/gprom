@@ -390,6 +390,12 @@ extern boolean noCorrelationBelowNormalization(Node *op, boolean corrInSubquery)
 #define IS_LATERAL_NESTING_OP(_op) (isA(_op,NestingOperator) && IS_LATERAL(_op))
 #define IS_NONLATERAL_NESTING_OP(_op) (isA(_op,NestingOperator) && !IS_LATERAL(_op))
 
+// join operator
+extern Node *createEqualityJoinCond(QueryOperator *left,
+                                    QueryOperator *right,
+                                    List *leftAttrNames,
+                                    List *rightAttrNames,
+                                    boolean treatNullsAsEqual);
 
 /* change operator schema and adapt references in parents */
 extern void removeAttrFromOp(QueryOperator *op, char *attr);
