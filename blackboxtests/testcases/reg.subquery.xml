@@ -10,6 +10,9 @@
 -lateral_rewrite:TRUE
 </entry>
 
+<entry key="extra_settings.neumann">
+-unnest_neumann_rewrite:TRUE
+</entry>
 
 <entry key="q1.query">
   SELECT a FROM r

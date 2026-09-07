@@ -497,28 +497,31 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 		INFO_AND_DEBUG_OP_LOG("subqueries rewritten into lateral", oModel);
 	}
 
-    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
+    if(isRewriteOptionActivated(OPTION_UNNEST_REWRITE)
+       && !hasProvComputation(oModel))
 	{
 		oModel = unnestTranslateQBModel(oModel);
 		INFO_AND_DEBUG_OP_LOG("unnested subqueries", oModel);
 	}
 
-    if(isRewriteOptionActivated(OPTION_UNNEST_NEUMANN_REWRITE) && !isRewriteOptionActivated(OPTION_UNNEST_REWRITE) && !hasProvComputation(oModel))
+    if(isRewriteOptionActivated(OPTION_UNNEST_NEUMANN_REWRITE)
+       && !isRewriteOptionActivated(OPTION_UNNEST_REWRITE)
+       && !hasProvComputation(oModel))
 	{
-        if(isA(oModel, List)) 
+        if(isA(oModel, List))
         {
-            FOREACH(QueryOperator, op, (List*)oModel) 
+            FOREACH(QueryOperator, op, (List*)oModel)
             {
                 op_his_cell->data.ptr_value = (QueryOperator*)neumanning(op);
             }
         }
-        else if(IS_OP(oModel)) 
+        else if(IS_OP(oModel))
         {
             oModel = (Node*)neumanning((QueryOperator*)oModel);
         }
         INFO_AND_DEBUG_OP_LOG("Neumann2015 unnested subqueries", oModel);
 	}
-    
+
     rewrittenTree = oModel;
 
     // FIXME currently it is not safe to apply optimizations before provenance
