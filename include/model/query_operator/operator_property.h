@@ -214,6 +214,7 @@
 
 /* nested subqueries */
 #define PROP_OP_IS_LATERAL "IS_LATERAL_TRANSLATION"
+#define PROP_FREE_ATTRS "FREE_CORR_ATTR"
 
 /* properties for aggregation operators created by lateral rewrite */
 #define PROP_OPT_AGGREGATION_BY_LATREAL_WRITE "AGGREGATION BY LATERAL REWRITE" //mark the aggregation created by lateral rewrite for nested queries
