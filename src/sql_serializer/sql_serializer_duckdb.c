@@ -163,7 +163,6 @@ quoteIdentifierDuckDB(char *ident)
             case '$':
             case '#':
             case '_':
-                break;
             case '(':
             case ')':
             case '+':
