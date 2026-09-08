@@ -3182,7 +3182,7 @@ computeReqColPropInternal(QueryOperator *root)
 		unionIntoSet(icols, condCols);
 
 		//find correlated attributes in right input. They have to be added to LHS icols to make sure the correlation can be computed
-		correlatedAttrs = getNestingCorrelatedAttributes(n, FALSE);
+		correlatedAttrs = getNestingCorrelatedAttributeNames(n, FALSE);
 
 		unionIntoSet(icols, correlatedAttrs);
 

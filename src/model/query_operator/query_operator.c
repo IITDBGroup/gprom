@@ -1346,10 +1346,23 @@ addParent(QueryOperator *child, QueryOperator *parent)
 }
 
 void
+replaceParent(QueryOperator *child, QueryOperator *originalParent, QueryOperator *newParent)
+{
+    replaceNode(child->parents, originalParent, newParent);
+}
+
+void
 removeParent(QueryOperator *child, QueryOperator *parent)
 {
     child->parents = REMOVE_FROM_LIST_PTR(child->parents, parent);
 }
+
+void
+removeChild(QueryOperator *parent, QueryOperator *child)
+{
+    parent->inputs = REMOVE_FROM_LIST_PTR(parent->inputs, child);
+}
+
 
 int
 getChildPosInParent(QueryOperator *parent, QueryOperator *child)
@@ -2042,7 +2055,7 @@ getAttrNameSetFromRefList(List *refs)
  */
 
 Set *
-getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
+getNestingCorrelatedAttributeNames(NestingOperator *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
 {
 	Set *result;
     List *attrRefs;
@@ -2070,8 +2083,22 @@ getNestingCorrelatedAttrReferences(NestingOperator *op, boolean corrInSubquery)
     return result;
 }
 
+List *
+getCorrelatedAttrReferences(Node *op, boolean corrInSubquery)
+{
+    List *result;
+	CorrelatedAttrsState state = { 1, NIL, corrInSubquery };
+
+    findCorrelatedAttrsVisitor(op, &state);
+    result = state.result;
+
+    return result;
+}
+
+
+
 Set *
-getCorrelatedAttributes(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
+getCorrelatedAttributeNames(Node *op, boolean corrInSubquery) // boolean traverseIntoNestingOperators
 {
 	Set *result;
     List *attrRefs;

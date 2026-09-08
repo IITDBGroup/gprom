@@ -222,7 +222,9 @@ extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2,
                                                       List *attrRefs,
                                                       boolean adjustCorrelatedAttrs,
                                                       Set *nestResAttr);
-extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1,QueryOperator *op2, Set * nestResultAttr);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *parent,
+                                                    QueryOperator *child,
+                                                    Set * nestResultAttr);
 extern void adaptSchemaFromChildren(QueryOperator *o);
 extern void projectionSetRenamedAttrs(QueryOperator *op);
 
@@ -325,7 +327,9 @@ extern char *format_op_prop_value_for_user(QueryOperator *op, char *prop);
 /* children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 extern void addParent (QueryOperator *child, QueryOperator *parent);
+extern void replaceParent(QueryOperator *child, QueryOperator *originalParent, QueryOperator *newParent);
 extern void removeParent (QueryOperator *child, QueryOperator *parent);
+extern void removeChild(QueryOperator *parent, QueryOperator *child);
 extern int getChildPosInParent(QueryOperator *parent, QueryOperator *child);
 
 /* attribute functions */
@@ -382,9 +386,10 @@ extern List *nestingOperatorGetResultAttributes(NestingOperator *n);
 extern int nestingOperatorGetNumResultAttrs(NestingOperator *op);
 extern char *getSingleNestingResultAttribute(NestingOperator *op);
 extern char *getNestingOperatorId(NestingOperator *op);
-extern Set *getNestingCorrelatedAttributes(NestingOperator *op, boolean corrInSubquery);
+extern Set *getNestingCorrelatedAttributeNames(NestingOperator *op, boolean corrInSubquery);
 extern List *getNestingCorrelatedAttrReferences(NestingOperator *op, boolean corrInSubquery);
-extern Set *getCorrelatedAttributes(Node *op, boolean corrInSubquery);
+extern List *getCorrelatedAttrReferences(Node *op, boolean corrInSubquery);
+extern Set *getCorrelatedAttributeNames(Node *op, boolean corrInSubquery);
 extern boolean noCorrelationBelowNormalization(Node *op, boolean corrInSubquery);
 #define IS_LATERAL(_op) (((NestingOperator *) _op)->nestingType == NESTQ_LATERAL)
 #define IS_LATERAL_NESTING_OP(_op) (isA(_op,NestingOperator) && IS_LATERAL(_op))
