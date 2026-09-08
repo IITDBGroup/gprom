@@ -3170,7 +3170,9 @@ computeReqColPropInternal(QueryOperator *root)
                           PROP_STORE_JOIN_OUT_TO_LEFT,
                           (Node *) outToLeft);
 
-        if(n->nestingType == NESTQ_LATERAL || n->nestingType == NESTQ_SCALAR)
+        if(n->nestingType == NESTQ_LATERAL
+           || n->nestingType == NESTQ_LEFT_LATERAL
+           || n->nestingType == NESTQ_SCALAR)
         {
             outToRight = nestingGetChildAttrToResultAttr(n, FALSE);
             setStringProperty(root,
@@ -3193,7 +3195,7 @@ computeReqColPropInternal(QueryOperator *root)
         MERGE_INTO_CHILD_ICOLS(lchild, leftIcols);
 
         // merge into both right if it is a LATERAL or scalar subquery
-        if(n->nestingType == NESTQ_LATERAL)
+        if(IS_LATERAL(n))
         {
             rightIcols = intersectSets(icols, makeStrSetFromList(getQueryOperatorAttrNames(rchild)));
             MERGE_INTO_CHILD_ICOLS(rchild, rightIcols);

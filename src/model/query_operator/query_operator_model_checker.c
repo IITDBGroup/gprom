@@ -454,7 +454,7 @@ checkSchemaConsistency(QueryOperator *op, void *context)
             //                    ? 1 : 0);
             // if the subquery was inlined, then its result attribute got removed
             boolean resultAttrOmmitted = HAS_STRING_PROP(op,PROP_INLINED_NESTED_QUERY);
-            int offset = (n->nestingType == NESTQ_LATERAL) ? -1 :
+            int offset = (IS_LATERAL(n)) ? -1 :
                          (-2 + (resultAttrOmmitted ? 1 : 0));
                 /* -2 */
                 /*          + ((n->nestingType == NESTQ_LATERAL) ? 1 : 0) */
@@ -464,7 +464,7 @@ checkSchemaConsistency(QueryOperator *op, void *context)
                                      offset);
 
             List *actual = copyObject(lChild->schema->attrDefs);
-            if(n->nestingType == NESTQ_LATERAL)
+            if(IS_LATERAL(n))
             {
                 actual = CONCAT_LISTS(actual, copyObject(rChild->schema->attrDefs));
             }

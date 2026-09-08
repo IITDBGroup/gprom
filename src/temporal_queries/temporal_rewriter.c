@@ -1379,7 +1379,7 @@ tempRewrNestedSubqueryLateralPostFilterTime(NestingOperator *op, TemporalRewrSta
 	Node *overlapCond;
 
     // not a lateral subquery, rewrite
-    if(op->nestingType != NESTQ_LATERAL)
+    if(op->nestingType != NESTQ_LATERAL) // TODO check whether we need to handle LEFT LATERAL here too
     {
         op = (NestingOperator *) lateralTranslateQBModel((Node *) op);
         DEBUG_OP_LOG("translated into lateral for temporal rewrite", op);

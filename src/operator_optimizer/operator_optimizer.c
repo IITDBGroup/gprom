@@ -659,7 +659,7 @@ isSingleRowOperator(QueryOperator *op)
     if(isA(op,NestingOperator))
     {
         NestingOperator *n = (NestingOperator *) op;
-        if(n->nestingType == NESTQ_LATERAL
+        if(IS_LATERAL(n)
            || n->nestingType == NESTQ_SCALAR)
         {
             return isSingleRowOperator(OP_LCHILD(op))
@@ -1381,7 +1381,7 @@ getExpectedChildAttributes(QueryOperator *op, boolean right)
         HashMap *outToRight = (HashMap *) GET_STRING_PROP(n, PROP_STORE_JOIN_OUT_TO_RIGHT);
 
         // left or right
-        if(n->nestingType == NESTQ_LATERAL
+        if(IS_LATERAL(n)
            || (!right && n->nestingType == NESTQ_SCALAR))
         {
 		    List *attrnames = NIL;

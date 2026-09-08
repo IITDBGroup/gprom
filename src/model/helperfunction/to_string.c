@@ -2122,12 +2122,13 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         {
             NestingOperator *o = (NestingOperator *) op;
             const char *nestingType = (o->nestingType == NESTQ_EXISTS) ? "EXISTS" :
-                    ((o->nestingType == NESTQ_ANY) ? "ANY" :
-                    ((o->nestingType == NESTQ_ALL) ? "ALL" :
-                    ((o->nestingType == NESTQ_LATERAL) ? "LATERAL" :
+                ((o->nestingType == NESTQ_ANY) ? "ANY" :
+                 ((o->nestingType == NESTQ_ALL) ? "ALL" :
+                  ((o->nestingType == NESTQ_LATERAL) ? "LATERAL" :
+                   ((o->nestingType == NESTQ_LEFT_LATERAL) ? "LEFT LATERAL" :
                     ((o->nestingType == NESTQ_UNIQUE) ? "UNIQUE" :
-                    ((o->nestingType == NESTQ_SCALAR) ? "SCALAR" : "")
-                    ))));
+                     ((o->nestingType == NESTQ_SCALAR) ? "SCALAR" : "")
+                    )))));
 
             WRITE_OP_TYPE(NestingOperator);
             appendStringInfo(params, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond, NULL, FALSE) : "");

@@ -1370,8 +1370,15 @@ findNestedSubqueryUsage(QueryOperator *op, char *a, boolean *inMatchSel, boolean
 int
 genGetNestedSerializationLocations(NestingOperator *n, SerializeClausesAPI *api)
 {
-	if(n->nestingType == NESTQ_LATERAL)
+	if(IS_LATERAL(n))
 	{
+        // only MSSQL supports outer dependent joins (called outer apply)
+        if(getBackend() != BACKEND_MSSQL && n->nestingType == NESTQ_LEFT_LATERAL)
+        {
+            THROW(SEVERITY_RECOVERABLE,
+                  "cannot serialize LEFT OUTER LATERAL except for MSSQL");
+        }
+
 		return NEST_SER_FROM;
 	}
 	return NEST_SER_SELECTION | NEST_SER_SELECT | NEST_SER_FROM;

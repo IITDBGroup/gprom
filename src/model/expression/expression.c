@@ -730,20 +730,21 @@ typeOf(Node *expr)
 
             switch(q->nestingType)
             {
-                case NESTQ_EXISTS:
-                case NESTQ_ANY:
-                case NESTQ_ALL:
-                case NESTQ_UNIQUE:
-                {
-                    return DT_BOOL;
-                }
-                case NESTQ_SCALAR:
-                case NESTQ_LATERAL:
-                {
-                    //return DT_LONG; //TODO
-                		return q->nestingAttrDatatype;
-                }
-                break;
+            case NESTQ_EXISTS:
+            case NESTQ_ANY:
+            case NESTQ_ALL:
+            case NESTQ_UNIQUE:
+            {
+                return DT_BOOL;
+            }
+            case NESTQ_SCALAR:
+            case NESTQ_LATERAL:
+            case NESTQ_LEFT_LATERAL:
+            {
+                //return DT_LONG; //TODO
+                return q->nestingAttrDatatype;
+            }
+            break;
             }
         }
         break;

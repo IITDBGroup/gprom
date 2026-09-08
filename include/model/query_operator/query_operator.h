@@ -330,6 +330,7 @@ extern void addParent (QueryOperator *child, QueryOperator *parent);
 extern void replaceParent(QueryOperator *child, QueryOperator *originalParent, QueryOperator *newParent);
 extern void removeParent (QueryOperator *child, QueryOperator *parent);
 extern void removeChild(QueryOperator *parent, QueryOperator *child);
+extern void disconnectParentChild(QueryOperator *parent, QueryOperator *child);
 extern int getChildPosInParent(QueryOperator *parent, QueryOperator *child);
 
 /* attribute functions */
@@ -370,6 +371,7 @@ extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
 extern List *aggOpGetAggAttrNames(AggregationOperator *op);
 extern List *aggOpGetGroupByAttrDefs(AggregationOperator *op);
 extern List *aggOpGetAggAttrDefs(AggregationOperator *op);
+extern boolean isGroupBy(AggregationOperator *op);
 
 extern WindowFunction *winOpGetFunc(WindowOperator *op);
 
@@ -391,7 +393,7 @@ extern List *getNestingCorrelatedAttrReferences(NestingOperator *op, boolean cor
 extern List *getCorrelatedAttrReferences(Node *op, boolean corrInSubquery);
 extern Set *getCorrelatedAttributeNames(Node *op, boolean corrInSubquery);
 extern boolean noCorrelationBelowNormalization(Node *op, boolean corrInSubquery);
-#define IS_LATERAL(_op) (((NestingOperator *) _op)->nestingType == NESTQ_LATERAL)
+#define IS_LATERAL(_op) (((NestingOperator *) _op)->nestingType == NESTQ_LATERAL || ((NestingOperator *) _op)->nestingType == NESTQ_LEFT_LATERAL)
 #define IS_LATERAL_NESTING_OP(_op) (isA(_op,NestingOperator) && IS_LATERAL(_op))
 #define IS_NONLATERAL_NESTING_OP(_op) (isA(_op,NestingOperator) && !IS_LATERAL(_op))
 

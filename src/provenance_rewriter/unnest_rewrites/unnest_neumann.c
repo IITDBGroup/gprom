@@ -73,6 +73,13 @@ neumanningInternal(QueryOperator *op, List *correlated)
         QueryOperator *newroot;
         NestingOperator *n = (NestingOperator *) op;
 
+        if(!IS_LATERAL(n))
+        {
+            THROW(SEVERITY_RECOVERABLE,
+                  "Neumanning only supported for LATERAL subqueries, but got this non-lateral one as input:\n\n%s",
+                  operatorToOverviewString(op));
+        }
+
         // create correlation with unique bindings and join
         newroot = bindingTransform((NestingOperator*)op);
 
@@ -104,35 +111,37 @@ static QueryOperator *
 neumannPushdown(NestingOperator *op)
 {
     QueryOperator *rightChild = OP_RCHILD(op);
-
+    ASSERT(IS_LATERAL(op));
     INFO_LOG("PUSHING AT %s", singleOperatorToOverview(rightChild));
 
     // no more correlations below? Then we are done
     if(!HAS_STRING_PROP(rightChild, PROP_FREE_ATTRS))
     {
         INFO_LOG("Done pushing nesting operator at %s", singleOperatorToOverview(rightChild));
+        JoinType jt = (op->nestingType == NESTQ_LEFT_LATERAL) ? JOIN_LEFT_OUTER : JOIN_CROSS;
+        Node *cond = (jt == JOIN_LEFT_OUTER) ? (Node *) createConstBool(TRUE) : NULL;
 
         // LATERAL or scalar subquery, replace with regular join
-        if(op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR)
-        {
-            QueryOperator *l = OP_LCHILD(op);
-            QueryOperator *r = OP_RCHILD(op);
-            JoinOperator *j = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(l,r), NIL, NIL);
+        /* if(op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR) */
+        /* { */
+        QueryOperator *l = OP_LCHILD(op);
+        QueryOperator *r = OP_RCHILD(op);
+        JoinOperator *j = createJoinOp(jt, cond, LIST_MAKE(l,r), NIL, NIL);
 
-            replaceParent(l, (QueryOperator *) op, (QueryOperator *) j);
-            replaceParent(r, (QueryOperator *) op, (QueryOperator *) j);
+        replaceParent(l, (QueryOperator *) op, (QueryOperator *) j);
+        replaceParent(r, (QueryOperator *) op, (QueryOperator *) j);
 
-            // replace op with j
-            switchSubtreeWithExisting((QueryOperator *) op,
-                                      (QueryOperator *) j);
+        // replace op with j
+        switchSubtreeWithExisting((QueryOperator *) op,
+                                  (QueryOperator *) j);
 
-            INFO_OP_LOG("Replace nesting operator with uncorrelated join", j);
+        INFO_OP_LOG("Replace nesting operator with uncorrelated join", j);
 
-            return (QueryOperator *) j;
-        }
+        return (QueryOperator *) j;
+        /* } */
 
-        INFO_OP_LOG("Pushed nesting operator below all correlations", op);
-        return (QueryOperator *) op;
+        /* INFO_OP_LOG("Pushed nesting operator below all correlations", op); */
+        /* return (QueryOperator *) op; */
     }
 
     switch(rightChild->type)
@@ -185,10 +194,8 @@ pushOperatorThroughUnary(NestingOperator *n, QueryOperator *child)
     QueryOperator *grandchild = OP_LCHILD(child);
     QueryOperator *nest = (QueryOperator *) n;
 
-    removeParent(grandchild, child);
-    removeChild(child,grandchild);
-    removeParent(child, nest);
-    removeChild(nest, child);
+    disconnectParentChild(child, grandchild);
+    disconnectParentChild(nest, child);
     addChildOperator(nest, grandchild);
     addChildOperator(child, nest);
 
@@ -204,6 +211,45 @@ static void
 pushOperatorThroughBinary(NestingOperator *n, QueryOperator *child, boolean pushLeft, boolean pushRight)
 {
     // TODO
+    QueryOperator *leftGC = OP_LCHILD(child);
+    QueryOperator *rightGC = OP_RCHILD(child);
+    QueryOperator *nest = (QueryOperator *) n;
+
+    disconnectParentChild(nest, child);
+
+    if(pushLeft && pushRight)
+    {
+        QueryOperator *nCopy = shallowCopyQueryOperator(nest);
+
+        disconnectParentChild(child, leftGC);
+        disconnectParentChild(child, rightGC);
+        addChildOperator(nest, leftGC);
+        addChildOperator(child, nest);
+        addChildOperator(nCopy, rightGC);
+        addChildOperator(child, nCopy);
+
+        // adjust schema of nesting operator
+        adaptSchemaFromChildren((QueryOperator *) nCopy);
+    }
+    if(pushLeft)
+    {
+        disconnectParentChild(child, leftGC);
+        addChildOperator(nest, leftGC);
+        addChildOperator(child, nest);
+    }
+    if(pushRight)
+    {
+        disconnectParentChild(child, rightGC);
+        addChildOperator(nest, rightGC);
+        addChildOperator(child, nest);
+    }
+
+    // original nesting operator is always pushed (sometimes left, sometimes right)
+    switchSubtreeWithExisting(nest, child);
+
+    // adjust schema of nesting operator
+    adaptSchemaFromChildren((QueryOperator *) n);
+
     INFO_OP_LOG("After pushing the nesting operator (tree structure only)", child);
 }
 
@@ -240,31 +286,31 @@ neumannPushdownProjection(NestingOperator *op, ProjectionOperator *c)
     pushOperatorThroughUnary(op, (QueryOperator *) c);
 
     // what we have to project on depends on the type of nesting operator
-    // 1) for exists just project on all attributes from the nesting operator
-    if(op->nestingType == NESTQ_EXISTS)
-    {
-        c->projExprs = getProjExprsForAllAttrs((QueryOperator *) op);
-        c->op.schema->attrDefs = copyObject(op->op.schema->attrDefs);
-    }
-    // 2) for LATERAL AND SCALAR
-    else if (op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR)
-    {
-        // add attributes of D to projection expressions
-        c->projExprs = CONCAT_LISTS(newProjs,c->projExprs);
-        c->op.schema->attrDefs = CONCAT_LISTS(copyObject(D->schema->attrDefs),
-                                              c->op.schema->attrDefs);
+    // FIXME this does not work as we cannot output attributes needed to push down
+    /* if(op->nestingType == NESTQ_EXISTS) */
+    /* { */
+    /*     c->projExprs = getProjExprsForAllAttrs((QueryOperator *) op); */
+    /*     c->op.schema->attrDefs = copyObject(op->op.schema->attrDefs); */
+    /* } */
+    /* // 2) for LATERAL AND SCALAR */
+    /* else if (op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR) */
+    /* { */
+    // add attributes of D to projection expressions
+    c->projExprs = CONCAT_LISTS(newProjs,c->projExprs);
+    c->op.schema->attrDefs = CONCAT_LISTS(copyObject(D->schema->attrDefs),
+                                          c->op.schema->attrDefs);
 
-        // adjust attribute references
-        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c,
-                                                (QueryOperator *) op,
-                                                NULL);
-    }
-    else
-    {
-        THROW(SEVERITY_RECOVERABLE,
-              "nesting type not supported yet by projection %s",
-              singleOperatorToOverview(c));
-    }
+    // adjust attribute references
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c,
+                                            (QueryOperator *) op,
+                                            NULL);
+    /* } */
+    /* else */
+    /* { */
+    /*     THROW(SEVERITY_RECOVERABLE, */
+    /*           "nesting type not supported yet by projection %s", */
+    /*           singleOperatorToOverview(c)); */
+    /* } */
 
     LOG_POST_PUSH(c);
     neumannPushdown(op);
@@ -280,10 +326,17 @@ neumannPushdownAggregation(NestingOperator *op, AggregationOperator *c)
     List *newGroupNyNames = getQueryOperatorAttrNames((QueryOperator *) D);
     List *origAggAttrsNames = getQueryOperatorAttrNames((QueryOperator *) c);
     List *dAttrNames = getQueryOperatorAttrNames(D);
+    boolean grpby = isGroupBy(c);
     LOG_PRE_PUSH(op,c);
 
     // just switch selection with nesting operator
     pushOperatorThroughUnary(op, (QueryOperator *) c);
+
+    // if this is aggregation without group-by, we need to change from lateral to left-lateral
+    if(!grpby)
+    {
+        op->nestingType = NESTQ_LEFT_LATERAL;
+    }
 
     // add D's attributes as group-by attributes
     c->groupBy = CONCAT_LISTS(c->groupBy, newGroupBy);
@@ -309,10 +362,12 @@ neumannPushdownAggregation(NestingOperator *op, AggregationOperator *c)
     return (QueryOperator *) proj;
 }
 
+#define RHS_D_PREFIX backendifyIdentifier("rhs__")
+
 static QueryOperator *
 neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
 {
-    //QueryOperator *D = OP_LCHILD(op);
+    QueryOperator *D = OP_LCHILD(op);
     QueryOperator *left = OP_LCHILD(c);
     QueryOperator *right = OP_RCHILD(c);
     boolean pushLeft, pushRight;
@@ -329,21 +384,99 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
     // structural change
     pushOperatorThroughBinary(op, (QueryOperator *) c, pushLeft, pushRight);
 
-    // which sides to push into
+    // both sides: need natural join
     if(pushLeft && pushRight)
     {
-        // TODO
-    }
-    else if (pushLeft)
-    {
+        // TODO adapt attribute name of RHS and add join condition
 
+        NestingOperator *rop = (NestingOperator *) OP_RCHILD(c);
+        List *dnames = getQueryOperatorAttrNames(D);
+        Node *newCond = createEqualityJoinCond((QueryOperator *) op,
+                                               (QueryOperator *) rop,
+                                               dnames,
+                                               dnames,
+                                               TRUE); // TODO if not nullable use equality instead
+        List *newdnames = deepCopyStringList(dnames);
+        List *oldrightNames = getQueryOperatorAttrNames(OP_RCHILD(rop));
+        List *newleftnames = getQueryOperatorAttrNames(OP_RCHILD(op));
+
+        // if cross product, turn into inner
+        if(c->joinType == JOIN_CROSS)
+        {
+            c->joinType = JOIN_INNER;
+        }
+
+        // create new attribute names for RHS dnames
+        FOREACH_LC(lc,newdnames)
+        {
+            char *name = lc->data.ptr_value;
+            lc->data.ptr_value = CONCAT_STRINGS(RHS_D_PREFIX, name);
+        }
+
+        // conjunct with natural join condition on D
+        c->cond = AND_EXPRS(c->cond, newCond);
+
+        // rename join result attributes: D, original left attributes, D_renamed, original right attributes
+        List *joinresultNames = CONCAT_LISTS(newleftnames, newdnames, oldrightNames);
+        FORBOTH(void,n,adef,joinresultNames,c->op.schema->attrDefs)
+        {
+            AttributeDef *a = (AttributeDef *) adef;
+            a->attrName = strdup(n);
+        }
+
+        // add projection to remove copies of D attributes
+        List *projectAttrs = CONCAT_LISTS(newleftnames, oldrightNames);
+        QueryOperator *proj = createProjOnAttrsByName((QueryOperator *) c,
+                                                      projectAttrs,
+                                                      NIL);
+        proj->inputs = singleton(c);
+        switchSubtreeWithExisting((QueryOperator *) c, proj);
+        c->op.parents = singleton(proj);
+
+        LOG_POST_PUSH(c);
+        neumannPushdown(op);
+        neumannPushdown(rop);
     }
+    else if (pushLeft) // TODO adapt attributes and references
+    {
+        // adapt schema
+        adaptSchemaFromChildren((QueryOperator *) c);
+
+        // adjust attribute references
+        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c,
+                                                (QueryOperator *) op,
+                                                NULL);
+
+        LOG_POST_PUSH(c);
+        neumannPushdown(op);
+    }
+    // need to reorder attributes afterwards with projection such that D attributes come first
     else if (pushRight)
     {
+        // adapt schema
+        adaptSchemaFromChildren((QueryOperator *) c);
 
+        // adjust attribute references
+        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c,
+                                                (QueryOperator *) op,
+                                                NULL);
+
+        // add projection to remove copies of D attributes
+        List *dnames = getQueryOperatorAttrNames(D);
+        List *oldleftNames = getQueryOperatorAttrNames(OP_LCHILD(c));
+        List *oldrightNames = getQueryOperatorAttrNames(OP_RCHILD(op));
+
+        List *projectAttrs = CONCAT_LISTS(dnames, oldleftNames, oldrightNames);
+        QueryOperator *proj = createProjOnAttrsByName((QueryOperator *) c,
+                                                      projectAttrs,
+                                                      NIL);
+        proj->inputs = singleton(c);
+        switchSubtreeWithExisting((QueryOperator *) c, proj);
+        c->op.parents = singleton(proj);
+
+        LOG_POST_PUSH(c);
+        neumannPushdown(op);
     }
-
-    LOG_POST_PUSH(c);
 
     return (QueryOperator *) c;
 }
@@ -351,31 +484,57 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
 static QueryOperator *
 neumannPushdownSet(NestingOperator *op, SetOperator *c)
 {
-   LOG_PRE_PUSH(op,c);
-   // TODO
-   LOG_POST_PUSH(c);
+    LOG_PRE_PUSH(op,c);
 
-   return (QueryOperator *) c;
+    // push into both inputs
+    pushOperatorThroughBinary(op, (QueryOperator *) c, TRUE, TRUE);
+
+    // fix schema to include D attributes
+    adaptSchemaFromChildren((QueryOperator *) c);
+
+    LOG_POST_PUSH(c);
+
+    // push left and right nesting operator down
+    NestingOperator *rop = (NestingOperator *) OP_RCHILD(c);
+    neumannPushdown(op);
+    neumannPushdown(rop);
+
+    return (QueryOperator *) c;
 }
 
 static QueryOperator *
 neumannPushdownDupRem(NestingOperator *op, DuplicateRemoval *c)
 {
-   LOG_PRE_PUSH(op,c);
-   // TODO
-   LOG_POST_PUSH(c);
+    LOG_PRE_PUSH(op,c);
 
-   return (QueryOperator *) c;
+    // just switch selection with nesting operator
+    pushOperatorThroughUnary(op, (QueryOperator *) c);
+
+    // fix schema to include D attributes
+    adaptSchemaFromChildren((QueryOperator *) c);
+
+    LOG_POST_PUSH(c);
+    neumannPushdown(op);
+
+    return (QueryOperator *) c;
 }
 
 static QueryOperator *
 neumannPushdownNesting(NestingOperator *op, NestingOperator *c)
 {
-   LOG_PRE_PUSH(op,c);
-   // TODO
-   LOG_POST_PUSH(c);
+    LOG_PRE_PUSH(op,c);
+    // TODO
 
-   return (QueryOperator *) c;
+    // push nesting operator into RHS
+    pushOperatorThroughBinary(op, (QueryOperator *) c, FALSE, TRUE);
+
+    // fix schema to include D attributes
+    adaptSchemaFromChildren((QueryOperator *) c);
+
+    LOG_POST_PUSH(c);
+    neumannPushdown(op);
+
+    return (QueryOperator *) c;
 }
 
 static Set *
@@ -406,6 +565,8 @@ determineFreeAttributes(QueryOperator *op)
 }
 
 
+#define CORR_ATTR_PREFIX backendifyIdentifier("corr__")
+
 /**
  * @brief Rewrite the nesting operator into a join and a nesting operator with the unique bindings for correlated attribute references.
  *
@@ -428,6 +589,7 @@ bindingTransform(NestingOperator *op)
     QueryOperator *left = OP_LCHILD(op);
     QueryOperator *right = OP_RCHILD(op);
     QueryOperator *join;
+    char *nestid = strdup(getNestingOperatorId(op));
 
     // sort correlated attribute names from the LHS
     D_attrs = sortList(D_attrs,
@@ -436,7 +598,7 @@ bindingTransform(NestingOperator *op)
     // add prefix to attribute names
     FOREACH(char,name,D_attrs)
     {
-        char *newname = CONCAT_STRINGS("__corr_", strdup(name));
+        char *newname = CONCAT_STRINGS(CORR_ATTR_PREFIX, nestid, "_", strdup(name));
         D_newnames = appendToTailOfList(D_newnames,
                                         newname);
         MAP_ADD_STRING_KEY_AND_VAL(oldToNewNames, name, newname);

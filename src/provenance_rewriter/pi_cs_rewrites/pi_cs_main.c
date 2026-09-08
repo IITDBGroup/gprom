@@ -946,7 +946,7 @@ rewritePI_CSNestingOp(NestingOperator *op, PICSRewriteState *state)
     List *rNormAttrs;
     int numLAttrs, numRAttrs;
 	/* List *provInfo; */
-
+    // FIXME rewrite LEFT LATERAL
 	ASSERT_WITH_MESSAGE(op->nestingType == NESTQ_LATERAL,
 						"provenance rewrites currently only supported for LATERAL nested queries, use -lateral_rewrite TRUE to have GProM rewrite nested subqueries into LATERAL\n\n%s",
 						singleOperatorToOverview(op));

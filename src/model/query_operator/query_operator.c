@@ -646,8 +646,6 @@ inferOpResultDTs (QueryOperator *op)
         case T_NestingOperator:
         {
             NestingOperator *n = (NestingOperator *) op;
-            DataType nType;
-
             resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
 
             switch(n->nestingType)
@@ -657,17 +655,20 @@ inferOpResultDTs (QueryOperator *op)
                 case NESTQ_ALL:
                 case NESTQ_UNIQUE:
                 {
+                    DataType nType;
+
                     nType = DT_BOOL;
+                    resultDTs = appendToTailOfListInt(resultDTs, nType);
                 }
                 case NESTQ_SCALAR:
                 case NESTQ_LATERAL:
+                case NESTQ_LEFT_LATERAL:
                 {
-                    nType = DT_STRING; //TODO
+                    List *rightDTs = getDataTypes(GET_OPSCHEMA(OP_RCHILD(op)));
+                    resultDTs = CONCAT_LISTS(resultDTs, rightDTs);
                 }
                 break;
             }
-
-            resultDTs = appendToTailOfListInt(resultDTs, nType);
         }
         break;
         case T_ConstRelOperator:
@@ -1363,6 +1364,13 @@ removeChild(QueryOperator *parent, QueryOperator *child)
     parent->inputs = REMOVE_FROM_LIST_PTR(parent->inputs, child);
 }
 
+void
+disconnectParentChild(QueryOperator *parent, QueryOperator *child)
+{
+    removeParent(child, parent);
+    removeChild(parent, child);
+}
+
 
 int
 getChildPosInParent(QueryOperator *parent, QueryOperator *child)
@@ -1838,7 +1846,7 @@ nestingGetChildAttrToResultAttr(NestingOperator *op, boolean left)
     List *outNames = getQueryOperatorAttrNames((QueryOperator *) op);
 
     // only scalar and LATERAL subqueries have attributes from the RHS
-    ASSERT(left || (op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR));
+    ASSERT(left || IS_LATERAL(op) || op->nestingType == NESTQ_SCALAR);
 
     if(left)
     {
@@ -1904,6 +1912,12 @@ aggOpGetAggAttrDefs(AggregationOperator *op)
         return NIL;
 
     return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
+}
+
+boolean
+isGroupBy(AggregationOperator *op)
+{
+    return LIST_LENGTH(op->groupBy) > 0;
 }
 
 
@@ -2584,7 +2598,7 @@ adaptSchemaFromChildren(QueryOperator *o)
 
             o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
             // lateral or scalar get all of the attributes from the RHS
-            if(n->nestingType == NESTQ_LATERAL)
+            if(IS_LATERAL(n))
             {
                 o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs,
                                                    copyObject(rChild->schema->attrDefs));
