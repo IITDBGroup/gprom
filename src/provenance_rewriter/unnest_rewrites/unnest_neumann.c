@@ -29,6 +29,7 @@
 // static boolean allFreeContained (QueryOperator *);
 static QueryOperator *neumanningInternal (QueryOperator *op, List *correlated);
 static QueryOperator *bindingTransform (NestingOperator *op);
+static void adjustCorrAttributes(QueryOperator *op, QueryOperator *D);
 
 // functions for pushdown of nesting operator into RHS
 static QueryOperator *neumannPushdown(NestingOperator *op);
@@ -74,6 +75,8 @@ neumanningInternal(QueryOperator *op, List *correlated)
     {
         QueryOperator *newroot;
         NestingOperator *n = (NestingOperator *) op;
+        QueryOperator *D;
+        boolean isCorrelated;
 
         if(!IS_LATERAL(n))
         {
@@ -88,17 +91,17 @@ neumanningInternal(QueryOperator *op, List *correlated)
         // determine free attributes for each operator (correlated referenced
         // below the operator and in the operator's parameters
         determineFreeAttributes(OP_RCHILD(op));
+        isCorrelated = HAS_STRING_PROP(OP_RCHILD(op), PROP_FREE_ATTRS);
 
         // pushdown nesting operator into RHS
         newroot = neumannPushdown(n);
         INFO_OP_LOG("After nesting operator pushdown", newroot);
 
-        // adjust correlated attribute references, reducing outerlevels up by one
-        List *corrAttrs = getCorrelatedAttrReferences((Node *) newroot, TRUE);
-
-        FOREACH(AttributeReference,a,corrAttrs) // FIXME if we keep this a nesting operator we should not do that, also then the invariant will fail.
+        // adjust correlated attribute references, reducing outerlevels up by one and changing position based on ordering of attributes in D
+        if(isCorrelated)
         {
-            (a->outerLevelsUp)--;
+            D = OP_LCHILD(op);
+            adjustCorrAttributes(newroot, D);
         }
 
         INFO_OP_LOG("After reducing nesting level of correlated attribute references", newroot);
@@ -108,6 +111,29 @@ neumanningInternal(QueryOperator *op, List *correlated)
 
     return op;
 }
+
+static void
+adjustCorrAttributes(QueryOperator *op, QueryOperator *D)
+{
+    List *corrAttrs = getCorrelatedAttrReferences((Node *) op, TRUE);
+    HashMap *dattrPos = NEW_MAP(Constant, Constant);
+
+    // map D attribute names to positions
+    FOREACH(AttributeReference,a,getProjExprsForAllAttrs(D))
+    {
+        MAP_ADD_STRING_KEY(dattrPos, a->name, createConstInt(a->attrPosition));
+    }
+
+    FOREACH(AttributeReference,a,corrAttrs) // FIXME if we keep this a nesting operator we should not do that, also then the invariant will fail.
+    {
+        if(a->outerLevelsUp == 1)
+        {
+            a->attrPosition = INT_VALUE(MAP_GET_STRING(dattrPos, a->name));
+        }
+        (a->outerLevelsUp)--;
+    }
+}
+
 
 static QueryOperator *
 neumannPushdown(NestingOperator *op)
@@ -335,6 +361,9 @@ neumannPushdownAggregation(NestingOperator *op, AggregationOperator *c)
     c->op.schema->attrDefs = CONCAT_LISTS(c->op.schema->attrDefs,
                                           copyObject(D->schema->attrDefs));
     adaptSchemaFromChildren((QueryOperator *) c);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c,
+                                            (QueryOperator *) op,
+                                            NULL);
 
     // if this is aggregation without group-by, we need to left-outer join with
     // D again to retain the semantics of aggregation without group-by even
@@ -421,8 +450,7 @@ neumannPushdownAggregation(NestingOperator *op, AggregationOperator *c)
         j->parents = singleton(proj);
         switchSubtreeWithExisting((QueryOperator *) c, proj);
         c->op.parents = singleton(j);
-
-        op->nestingType = NESTQ_LEFT_LATERAL;
+        /* op->nestingType = NESTQ_LEFT_LATERAL; */
     }
     else
     {
@@ -686,6 +714,12 @@ bindingTransform(NestingOperator *op)
     QueryOperator *right = OP_RCHILD(op);
     QueryOperator *join;
     char *nestid = strdup(getNestingOperatorId(op));
+
+    // if there are no correlations, then do not do binding transform
+    if(EMPTY_SET(correlated))
+    {
+        return (QueryOperator *) op;
+    }
 
     // sort correlated attribute names from the LHS
     D_attrs = sortList(D_attrs,
