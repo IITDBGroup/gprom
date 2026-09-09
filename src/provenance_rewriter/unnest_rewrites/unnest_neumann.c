@@ -7,6 +7,7 @@
  */
 
 #include "common.h"
+#include "metadata_lookup/metadata_lookup_oracle.h"
 #include "model/node/nodetype.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
@@ -39,6 +40,7 @@ static QueryOperator *neumannPushdownSet(NestingOperator *op, SetOperator *c);
 static QueryOperator *neumannPushdownDupRem(NestingOperator *op, DuplicateRemoval *c);
 static QueryOperator *neumannPushdownNesting(NestingOperator *op, NestingOperator *c);
 
+static List *rhsDattrNames(QueryOperator *D);
 static void pushOperatorThroughUnary(NestingOperator *n, QueryOperator *child);
 static void pushOperatorThroughBinary(NestingOperator *n, QueryOperator *child, boolean pushLeft, boolean pushRight);
 static Set *determineFreeAttributes(QueryOperator *op);
@@ -118,12 +120,9 @@ neumannPushdown(NestingOperator *op)
     if(!HAS_STRING_PROP(rightChild, PROP_FREE_ATTRS))
     {
         INFO_LOG("Done pushing nesting operator at %s", singleOperatorToOverview(rightChild));
-        JoinType jt = (op->nestingType == NESTQ_LEFT_LATERAL) ? JOIN_LEFT_OUTER : JOIN_CROSS;
+        JoinType jt = JOIN_CROSS; // (op->nestingType == NESTQ_LEFT_LATERAL) ? JOIN_LEFT_OUTER : JOIN_CROSS;
         Node *cond = (jt == JOIN_LEFT_OUTER) ? (Node *) createConstBool(TRUE) : NULL;
 
-        // LATERAL or scalar subquery, replace with regular join
-        /* if(op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR) */
-        /* { */
         QueryOperator *l = OP_LCHILD(op);
         QueryOperator *r = OP_RCHILD(op);
         JoinOperator *j = createJoinOp(jt, cond, LIST_MAKE(l,r), NIL, NIL);
@@ -138,10 +137,6 @@ neumannPushdown(NestingOperator *op)
         INFO_OP_LOG("Replace nesting operator with uncorrelated join", j);
 
         return (QueryOperator *) j;
-        /* } */
-
-        /* INFO_OP_LOG("Pushed nesting operator below all correlations", op); */
-        /* return (QueryOperator *) op; */
     }
 
     switch(rightChild->type)
@@ -324,19 +319,16 @@ neumannPushdownAggregation(NestingOperator *op, AggregationOperator *c)
     QueryOperator *D = OP_LCHILD(op);
     List *newGroupBy = getProjExprsForAllAttrs(D);
     List *newGroupNyNames = getQueryOperatorAttrNames((QueryOperator *) D);
+    /* List *origGBAttrNames = aggOpGetGroupByAttrNames(c); */
     List *origAggAttrsNames = getQueryOperatorAttrNames((QueryOperator *) c);
     List *dAttrNames = getQueryOperatorAttrNames(D);
+    QueryOperator *proj;
     boolean grpby = isGroupBy(c);
+    boolean hasAgg = LIST_LENGTH(c->aggrs) > 0;
     LOG_PRE_PUSH(op,c);
 
     // just switch selection with nesting operator
     pushOperatorThroughUnary(op, (QueryOperator *) c);
-
-    // if this is aggregation without group-by, we need to change from lateral to left-lateral
-    if(!grpby)
-    {
-        op->nestingType = NESTQ_LEFT_LATERAL;
-    }
 
     // add D's attributes as group-by attributes
     c->groupBy = CONCAT_LISTS(c->groupBy, newGroupBy);
@@ -344,16 +336,106 @@ neumannPushdownAggregation(NestingOperator *op, AggregationOperator *c)
                                           copyObject(D->schema->attrDefs));
     adaptSchemaFromChildren((QueryOperator *) c);
 
-    // add projection to reorder attributes and restore names of D attributes
-    QueryOperator *proj;
-    List *newNames = CONCAT_LISTS(deepCopyStringList(dAttrNames),
-                                  deepCopyStringList(origAggAttrsNames));
-    List *projAttrs = CONCAT_LISTS(deepCopyStringList(newGroupNyNames),
-                                   deepCopyStringList(origAggAttrsNames));
-    proj = createProjOnAttrsByName((QueryOperator *) c, projAttrs, newNames);
-    proj->inputs = singleton(c);
-    switchSubtreeWithExisting((QueryOperator *) c, proj);
-    c->op.parents = singleton(proj);
+    // if this is aggregation without group-by, we need to left-outer join with
+    // D again to retain the semantics of aggregation without group-by even
+    // though we group on D
+    if(!grpby)
+    {
+        QueryOperator *j;
+        List *dnames = getQueryOperatorAttrNames(D);
+        List *aggNames = aggOpGetAggAttrNames(c);
+        List *rhsDnames = rhsDattrNames(D);
+        Node *newCond = createEqualityJoinCond((QueryOperator *) D,
+                                               (QueryOperator *) c,
+                                               dnames,
+                                               dnames,
+                                               TRUE); // TODO if not nullable use equality instead
+        List *newAttrNames;
+
+        newAttrNames = deepCopyStringList(dnames);
+        if(hasAgg)
+        {
+            newAttrNames = CONCAT_LISTS(newAttrNames, aggNames);
+        }
+        newAttrNames = CONCAT_LISTS(newAttrNames, rhsDnames);
+
+        // left join D with aggregation result
+        j = (QueryOperator *) createJoinOp(JOIN_LEFT_OUTER, newCond, LIST_MAKE(D,c), NIL, newAttrNames);
+        addParent(D, j);
+
+        // projection to create aggregation function results
+        List *projExprs;
+        List *projAttrNames;
+        /* List *gbproj = getProjExprsForAttrNames((QueryOperator *) c, */
+        /*                                         origGBAttrNames); */
+        List *aggproj = NIL;
+        List *dproj = getProjExprsForAllAttrs(D);
+
+        // if agg result is null then substitute with right val
+        FORBOTH(void,
+                ar,
+                ad,
+                getProjExprsForAttrNames((QueryOperator *) j,
+                                         aggOpGetAggAttrNames(c)),
+                c->aggrs)
+        {
+            AttributeReference *a = (AttributeReference *) ar;
+            FunctionCall *agg = (FunctionCall *) ad;
+            DataType aggResType = typeOf((Node *) agg);
+            Node *defaultVal;
+            Node *coalesceExpr;
+
+            if(strieq(agg->functionname, COUNT_FUNC_NAME))
+            {
+                switch(aggResType)
+                {
+                case DT_LONG:
+                    defaultVal = (Node *) createConstLong(0);
+                break;
+                case DT_INT:
+                    defaultVal = (Node *) createConstInt(0);
+                break;
+                default:
+                    defaultVal = NULL;
+                    THROW(SEVERITY_RECOVERABLE,
+                          "Do not support data type %s for count aggregate!",
+                          DataTypeToString(aggResType));
+                }
+            }
+            else
+            {
+                defaultVal = (Node *) createNullConst(aggResType);
+            }
+
+            coalesceExpr = (Node *) createFunctionCall(COALESCE_FUNC_NAME,
+                                                       LIST_MAKE(a, defaultVal));
+            aggproj = appendToTailOfList(aggproj, coalesceExpr);
+        }
+
+        projExprs = CONCAT_LISTS(dproj, aggproj);
+        projAttrNames = CONCAT_LISTS(deepCopyStringList(dnames),
+                                     aggOpGetAggAttrNames(c));
+
+        proj = (QueryOperator *) createProjectionOp(projExprs, (QueryOperator *) c, NIL, projAttrNames);
+        proj->inputs = singleton(j);
+        j->parents = singleton(proj);
+        switchSubtreeWithExisting((QueryOperator *) c, proj);
+        c->op.parents = singleton(j);
+
+        op->nestingType = NESTQ_LEFT_LATERAL;
+    }
+    else
+    {
+        // add projection to reorder attributes and restore names of D attributes
+        List *newNames = CONCAT_LISTS(deepCopyStringList(dAttrNames),
+                                      deepCopyStringList(origAggAttrsNames));
+        List *projAttrs = CONCAT_LISTS(deepCopyStringList(newGroupNyNames),
+                                       deepCopyStringList(origAggAttrsNames));
+        proj = createProjOnAttrsByName((QueryOperator *) c, projAttrs, newNames);
+        proj->inputs = singleton(c);
+        switchSubtreeWithExisting((QueryOperator *) c, proj);
+        c->op.parents = singleton(proj);
+    }
 
     // pushdown into grandchild
     LOG_POST_PUSH(c);
@@ -363,6 +445,20 @@ neumannPushdownAggregation(NestingOperator *op, AggregationOperator *c)
 }
 
 #define RHS_D_PREFIX backendifyIdentifier("rhs__")
+
+static List *
+rhsDattrNames(QueryOperator *D)
+{
+    List *newdnames = deepCopyStringList(getQueryOperatorAttrNames(D));
+
+    FOREACH_LC(lc,newdnames)
+    {
+        char *name = lc->data.ptr_value;
+        lc->data.ptr_value = CONCAT_STRINGS(RHS_D_PREFIX, name);
+    }
+
+    return newdnames;
+}
 
 static QueryOperator *
 neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
@@ -396,7 +492,7 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
                                                dnames,
                                                dnames,
                                                TRUE); // TODO if not nullable use equality instead
-        List *newdnames = deepCopyStringList(dnames);
+        List *newdnames = rhsDattrNames(D);
         List *oldrightNames = getQueryOperatorAttrNames(OP_RCHILD(rop));
         List *newleftnames = getQueryOperatorAttrNames(OP_RCHILD(op));
 
@@ -407,11 +503,11 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
         }
 
         // create new attribute names for RHS dnames
-        FOREACH_LC(lc,newdnames)
-        {
-            char *name = lc->data.ptr_value;
-            lc->data.ptr_value = CONCAT_STRINGS(RHS_D_PREFIX, name);
-        }
+        /* FOREACH_LC(lc,newdnames) */
+        /* { */
+        /*     char *name = lc->data.ptr_value; */
+        /*     lc->data.ptr_value = CONCAT_STRINGS(RHS_D_PREFIX, name); */
+        /* } */
 
         // conjunct with natural join condition on D
         c->cond = AND_EXPRS(c->cond, newCond);
