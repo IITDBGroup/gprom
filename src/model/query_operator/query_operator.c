@@ -2029,7 +2029,8 @@ getNestingOperatorId(NestingOperator *op)
     if(IS_LATERAL(op))
     {
         ASSERT(HAS_STRING_PROP(op, PROP_NESTING_OP_ID));
-        return GET_STRING_PROP_STRING_VAL(op, PROP_NESTING_OP_ID);
+        Constant *id = (Constant *) GET_STRING_PROP(op, PROP_NESTING_OP_ID);
+        return gprom_itoa(INT_VALUE(id));
     }
 
     return getSingleNestingResultAttribute(op);
