@@ -11,6 +11,7 @@
 </entry>
 
 <entry key="extra_settings.neumann">
+-lateral_rewrite:TRUE,
 -unnest_neumann_rewrite:TRUE
 </entry>
 
