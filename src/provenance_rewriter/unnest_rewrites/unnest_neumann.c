@@ -12,6 +12,7 @@
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "operator_optimizer/operator_optimizer.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/unnest_rewrites/unnest_main.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
 
@@ -90,6 +91,7 @@ neumanningInternal(QueryOperator *op, List *correlated)
 
         // determine free attributes for each operator (correlated referenced
         // below the operator and in the operator's parameters
+        removeProp(OP_RCHILD(op), PROP_FREE_ATTRS);
         determineFreeAttributes(OP_RCHILD(op));
         isCorrelated = HAS_STRING_PROP(OP_RCHILD(op), PROP_FREE_ATTRS);
 
@@ -241,24 +243,31 @@ pushOperatorThroughBinary(NestingOperator *n, QueryOperator *child, boolean push
     if(pushLeft && pushRight)
     {
         QueryOperator *nCopy = shallowCopyQueryOperator(nest);
+        QueryOperator *D = OP_LCHILD(n);
 
+        // disconnect left and right input of join
         disconnectParentChild(child, leftGC);
         disconnectParentChild(child, rightGC);
+
+        // connect left input to original nesting operator
         addChildOperator(nest, leftGC);
         addChildOperator(child, nest);
+
+        // connect D and right input to copy of nesting operator
+        addChildOperator(nCopy, D);
         addChildOperator(nCopy, rightGC);
         addChildOperator(child, nCopy);
 
         // adjust schema of nesting operator
         adaptSchemaFromChildren((QueryOperator *) nCopy);
     }
-    if(pushLeft)
+    else if(pushLeft)
     {
         disconnectParentChild(child, leftGC);
         addChildOperator(nest, leftGC);
         addChildOperator(child, nest);
     }
-    if(pushRight)
+    else if(pushRight)
     {
         disconnectParentChild(child, rightGC);
         addChildOperator(nest, rightGC);
@@ -541,7 +550,7 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
         c->cond = AND_EXPRS(c->cond, newCond);
 
         // rename join result attributes: D, original left attributes, D_renamed, original right attributes
-        List *joinresultNames = CONCAT_LISTS(newleftnames, newdnames, oldrightNames);
+        List *joinresultNames = CONCAT_LISTS(deepCopyStringList(newleftnames), newdnames, oldrightNames);
         FORBOTH(void,n,adef,joinresultNames,c->op.schema->attrDefs)
         {
             AttributeDef *a = (AttributeDef *) adef;
@@ -549,7 +558,7 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
         }
 
         // add projection to remove copies of D attributes
-        List *projectAttrs = CONCAT_LISTS(newleftnames, oldrightNames);
+        List *projectAttrs = CONCAT_LISTS(deepCopyStringList(newleftnames), oldrightNames);
         QueryOperator *proj = createProjOnAttrsByName((QueryOperator *) c,
                                                       projectAttrs,
                                                       NIL);
