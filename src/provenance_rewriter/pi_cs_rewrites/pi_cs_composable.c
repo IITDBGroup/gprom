@@ -32,7 +32,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
-
+#include "provenance_rewriter/unnest_rewrites/unnest_neumann.h"
 
 #define REWR_NULLARY_SETUP_PIC(optype)			\
 	REWR_NULLARY_SETUP(PICS-Composable,optype)
@@ -124,6 +124,10 @@ rewritePI_CSComposable(ProvenanceComputation *op)
     if(!opt_lateral_rewrite)
     {
         op = (ProvenanceComputation *) lateralTranslateQBModel((Node *) op);
+        if(opt_unnest_neumann_rewrite)
+        {
+            op = (ProvenanceComputation *) neumanning((QueryOperator *) op);
+        }
     }
 
     rewRoot = OP_LCHILD(op);

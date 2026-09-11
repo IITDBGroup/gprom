@@ -32,6 +32,7 @@
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/lateral_rewrites/lateral_prov_main.h"
+#include "provenance_rewriter/unnest_rewrites/unnest_neumann.h"
 
 typedef struct PICSRewriteState {
     HashMap *opToRewrittenOp; // mapping op address to address of rewritten operator
@@ -132,6 +133,10 @@ rewritePI_CS(ProvenanceComputation  *op)
     if(!opt_lateral_rewrite)
     {
         op = (ProvenanceComputation *) lateralTranslateQBModel((Node *) op);
+        if(opt_unnest_neumann_rewrite)
+        {
+            op = (ProvenanceComputation *) neumanning((QueryOperator *) op);
+        }
     }
 
 

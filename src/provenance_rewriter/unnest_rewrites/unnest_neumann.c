@@ -126,6 +126,7 @@ adjustCorrAttributes(QueryOperator *op, QueryOperator *D)
         MAP_ADD_STRING_KEY(dattrPos, a->name, createConstInt(a->attrPosition));
     }
 
+    // TODO is necessary?
     FOREACH(AttributeReference,a,corrAttrs) // FIXME if we keep this a nesting operator we should not do that, also then the invariant will fail.
     {
         if(a->outerLevelsUp == 1)

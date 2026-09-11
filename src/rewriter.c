@@ -505,8 +505,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	}
 
     if(isRewriteOptionActivated(OPTION_UNNEST_NEUMANN_REWRITE)
-       && !isRewriteOptionActivated(OPTION_UNNEST_REWRITE)
-       && !hasProvComputation(oModel))
+       && !isRewriteOptionActivated(OPTION_UNNEST_REWRITE))
 	{
         if(isA(oModel, List))
         {

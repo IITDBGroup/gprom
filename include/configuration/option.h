@@ -242,6 +242,7 @@ extern boolean temporal_use_normalization_window;
 // lateral rewrite for nesting operator
 extern boolean opt_lateral_rewrite;
 extern boolean opt_unnest_rewrite;
+extern boolean opt_unnest_neumann_rewrite;
 extern boolean opt_agg_reduction_model_rewrite;
 
 // Uncertainty rewriter options
