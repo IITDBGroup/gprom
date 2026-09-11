@@ -1,0 +1,1559 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Original TPC-H queries</comment>
+
+<entry key="extra_settings.keepnested">
+</entry>
+
+<entry key="extra_settings.lateral">
+-lateral_rewrite:TRUE
+</entry>
+
+<entry key="extra_settings.neumann">
+-lateral_rewrite:TRUE,
+-unnest_neumann_rewrite:TRUE
+</entry>
+
+<entry key="q1.query">
+    select
+        l_returnflag,
+        l_linestatus,
+        sum(l_quantity) as sum_qty,
+        ROUND(sum(l_extendedprice)::NUMERIC,1) as sum_base_price,
+        ROUND(sum(l_extendedprice * (1 - l_discount))::NUMERIC,1) as sum_disc_price,
+        ROUND(sum(l_extendedprice * (1 - l_discount) * (1 + l_tax))::NUMERIC,1) as sum_charge,
+        ROUND(avg(l_quantity)::NUMERIC,1) as avg_qty,
+        ROUND(avg(l_extendedprice)::NUMERIC,1) as avg_price,
+        ROUND(avg(l_discount)::NUMERIC,1) as avg_disc,
+        count(*) as count_order
+    from
+        lineitem
+    where
+        l_shipdate &lt;= '1992-02-02'
+    group by
+        l_returnflag,
+        l_linestatus
+    order by
+        l_returnflag,
+        l_linestatus;
+</entry>
+<entry key="q1.result.duckdb">
+ l_returnflag | l_linestatus | sum_qty    | sum_base_price | sum_disc_price | sum_charge | avg_qty | avg_price | avg_disc | count_order |
+-----------------------------------------------------------------------------------------------------------------------------------------
+ A            | F            | 204.000000 | 203460.9       | 193445.0       | 198982.9   | 29.1    | 29065.8   | 0.1      | 7           |
+ R            | F            | 191.000000 | 195684.1       | 183684.1       | 192627.5   | 27.3    | 27954.9   | 0.1      | 7           |
+</entry>
+<entry key="q1.result">
+ l_returnflag | l_linestatus | sum_qty | sum_base_price | sum_disc_price | sum_charge | avg_qty | avg_price | avg_disc | count_order |
+--------------------------------------------------------------------------------------------------------------------------------------
+ A            | F            | 204     | 203460.9       | 193445.0       | 198982.9   | 29.1    | 29065.8   | 0.1      | 7           |
+ R            | F            | 191     | 195684.1       | 183684.1       | 192627.5   | 27.3    | 27954.9   | 0.1      | 7           |
+</entry>
+
+<entry key="q2.query">
+select
+  s_acctbal,
+  s_name,
+  n_name,
+  p_partkey,
+  p_mfgr,
+  s_address,
+  s_phone,
+  s_comment
+  FROM
+    part,
+    supplier,
+    partsupp,
+    nation,
+    region
+ WHERE p_partkey = ps_partkey
+   and s_suppkey = ps_suppkey
+   and p_size = 15
+   and p_type like '%TIN'
+   and s_nationkey = n_nationkey
+   and n_regionkey = r_regionkey
+   and r_name = 'EUROPE'
+   and ps_supplycost = (
+     select
+       min(ps_supplycost)
+       from
+         partsupp, supplier,
+         nation, region
+      where p_partkey = ps_partkey
+        and s_suppkey = ps_suppkey
+        and s_nationkey = n_nationkey
+        and n_regionkey = r_regionkey
+        and r_name = 'EUROPE')
+ order by
+  s_acctbal desc,
+  n_name,
+  s_name,
+  p_partkey
+ LIMIT 100;
+</entry>
+<entry key="q2.result.duckdb">
+ s_acctbal   | s_name             | n_name         | p_partkey | p_mfgr         | s_address             | s_phone         | s_comment                                                                                           |
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+6820.350000 | Supplier#000000007 | UNITED KINGDOM | 186       | Manufacturer#2 | s,4TicNGB4uO6PaSqNBUq | 33-990-965-2201 | s unwind silently furiously regular courts. final requests are deposits. requests wake quietly blit |
+</entry>
+<entry key="q2.result">
+ s_acctbal | s_name             | n_name         | p_partkey | p_mfgr         | s_address             | s_phone         | s_comment                                                                                           |
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+6820.35   | Supplier#000000007 | UNITED KINGDOM | 186       | Manufacturer#2 | s,4TicNGB4uO6PaSqNBUq | 33-990-965-2201 | s unwind silently furiously regular courts. final requests are deposits. requests wake quietly blit |
+</entry>
+
+
+<entry key="q3.query">
+    SELECT
+        l_orderkey,
+        sum(l_extendedprice * (1 - l_discount)) as revenue,
+        o_orderdate,
+        o_shippriority
+    FROM
+        customer,
+        orders,
+        lineitem
+    WHERE
+        c_mktsegment = 'BUILDING'
+        and c_custkey = o_custkey
+        and l_orderkey = o_orderkey
+        and o_orderdate &lt; '1995-03-15'
+        and l_shipdate &gt; '1995-03-15'
+    GROUP BY
+        l_orderkey,
+        o_orderdate,
+        o_shippriority
+    ORDER BY
+        revenue desc,
+        o_orderdate
+    LIMIT 10;
+</entry>
+<entry key="q3.result.duckdb">
+ l_orderkey | revenue       | o_orderdate | o_shippriority |
+------------------------------------------------------------
+ 1637       | 164224.925300 | 1995-2-8    | 0              |
+ 5191       | 49378.309400  | 1994-12-11  | 0              |
+ 742        | 43728.048000  | 1994-12-23  | 0              |
+ 3492       | 43716.072400  | 1994-11-24  | 0              |
+ 2883       | 36666.961200  | 1995-1-23   | 0              |
+ 998        | 11785.548600  | 1994-11-26  | 0              |
+ 3430       | 4726.677500   | 1994-12-12  | 0              |
+ 4423       | 3055.936500   | 1995-2-17   | 0              |
+</entry>
+<entry key="q3.result">
+ l_orderkey | revenue            | o_orderdate | o_shippriority |
+-----------------------------------------------------------------
+ 1637       | 164224.9253        | 1995-02-08  | 0              |
+ 5191       | 49378.309400000006 | 1994-12-11  | 0              |
+ 742        | 43728.048          | 1994-12-23  | 0              |
+ 3492       | 43716.072400000005 | 1994-11-24  | 0              |
+ 2883       | 36666.9612         | 1995-01-23  | 0              |
+ 998        | 11785.548600000002 | 1994-11-26  | 0              |
+ 3430       | 4726.6775          | 1994-12-12  | 0              |
+ 4423       | 3055.9365          | 1995-02-17  | 0              |
+</entry>
+
+<entry key="q4.query">
+    select
+        o_orderpriority,
+        count(*) as order_count
+    from
+        orders
+        join (
+            SELECT 1, l_orderkey
+            FROM lineitem
+                 JOIN orders
+            on o_orderkey = l_orderkey
+            WHERE
+                l_commitdate &lt; l_receiptdate
+                and o_orderdate &gt;= '1993-07-01'
+                and o_orderdate &lt; '1993-10-01'
+            group by l_orderkey
+        ) f
+        ON o_orderkey = l_orderkey
+    where
+        o_orderdate >= '1993-07-01'
+        and o_orderdate &lt; '1993-10-01'
+    group by
+        o_orderpriority
+    order by
+        o_orderpriority;
+</entry>
+<entry key="q4.result.duckdb">
+ o_orderpriority | order_count |
+--------------------------------
+ 1-URGENT        | 9           |
+ 2-HIGH          | 7           |
+ 3-MEDIUM        | 9           |
+ 4-NOT SPECIFIED | 8           |
+ 5-LOW           | 12          |
+</entry>
+<entry key="q4.result">
+ o_orderpriority | order_count |
+--------------------------------
+ 1-URGENT        | 9           |
+ 2-HIGH          | 7           |
+ 3-MEDIUM        | 9           |
+ 4-NOT SPECIFIED | 8           |
+ 5-LOW           | 12          |
+</entry>
+
+<entry key="q5.query">
+    select
+        n_name,
+        sum(l_extendedprice * (1 - l_discount)) as revenue
+    from
+        customer,
+        orders,
+        lineitem,
+        supplier,
+        nation,
+        region
+    where
+        c_custkey = o_custkey
+        and l_orderkey = o_orderkey
+        and l_suppkey = s_suppkey
+        and c_nationkey = s_nationkey
+        and s_nationkey = n_nationkey
+        and n_regionkey = r_regionkey
+        and o_orderdate &gt;= '1994-01-01'
+        and o_orderdate &lt; '1995-01-01'
+    group by
+        n_name
+    order by
+        revenue desc;
+</entry>
+<!-- dropped condition on region as it returns empty result on our subset         and r_name = 'ASIA' -->
+<entry key="q5.result.duckdb">
+ n_name   | revenue       |
+---------------------------
+ PERU     | 272671.522000 |
+ MOROCCO  | 220457.014200 |
+ ETHIOPIA | 115183.854600 |
+ IRAQ     | 74391.789000  |
+ IRAN     | 41912.964000  |
+</entry>
+<entry key="q5.result">
+ n_name   | revenue           |
+-------------------------------
+ PERU     | 272671.522        |
+ MOROCCO  | 220457.0142       |
+ ETHIOPIA | 115183.8546       |
+ IRAQ     | 74391.78899999999 |
+ IRAN     | 41912.964         |
+</entry>
+
+<entry key="q6.query">
+select
+	sum(l_extendedprice * l_discount) as revenue
+from
+	lineitem
+where
+	l_shipdate &gt;= '1994-01-01'
+	and l_shipdate &lt; '1995-01-01'
+	and l_discount &gt;= 0.05
+    and l_discount &lt;= 0.07
+	and l_quantity &lt; 24;
+</entry>
+<entry key="q6.result.duckdb">
+ revenue      |
+---------------
+77949.918600 |
+</entry>
+<entry key="q6.result">
+   revenue    |
+-------------
+ 77949.9186 |
+</entry>
+
+<entry key="q7.query">
+  select
+  supp_nation,
+  cust_nation,
+  l_year,
+  sum(volume) as revenue
+  from
+    (
+      select
+        n1.n_name as supp_nation,
+        n2.n_name as cust_nation,
+        date_part('YEAR', l_shipdate::date) as l_year,
+        l_extendedprice * (1 - l_discount) as volume
+        from
+          supplier,
+          lineitem,
+          orders,
+          customer,
+          nation n1,
+          nation n2
+       where
+                s_suppkey = l_suppkey
+         and o_orderkey = l_orderkey
+         and c_custkey = o_custkey
+         and s_nationkey = n1.n_nationkey
+         and c_nationkey = n2.n_nationkey
+         and (
+           (n1.n_name = 'UNITED STATES' and n2.n_name = 'SAUDI ARABIA')
+           or (n1.n_name = 'SAUDI ARABIA' and n2.n_name = 'UNITED STATES')
+         )
+         and l_shipdate &gt;= '1991-01-01'
+         and l_shipdate &lt;= '1994-12-31'
+    ) as shipping
+ group by
+        supp_nation,
+        cust_nation,
+        l_year
+ order by
+        supp_nation,
+        cust_nation,
+        l_year;
+</entry>
+<entry key="q7.result.duckdb">
+ supp_nation   | cust_nation  | l_year | revenue      |
+-------------------------------------------------------
+ UNITED STATES | SAUDI ARABIA | 1992   | 16937.222400 |
+</entry>
+<entry key="q7.result">
+ supp_nation   | cust_nation  | l_year | revenue            |
+-------------------------------------------------------------
+ UNITED STATES | SAUDI ARABIA | 1992   | 16937.222400000002 |
+</entry>
+
+<entry key="q8.query">
+    select
+        o_year,
+        sum(case
+            when nation = 'BRAZIL' then volume
+            else 0
+        end) / sum(volume) as mkt_share
+    from
+        (
+            select
+                date_part('YEAR', o_orderdate::date) as o_year,
+                l_extendedprice * (1 - l_discount) as volume,
+                n2.n_name as nation
+            from
+                part,
+                supplier,
+                lineitem,
+                orders,
+                customer,
+                nation  n1,
+                nation  n2,
+                region
+            where
+                p_partkey = l_partkey
+                and s_suppkey = l_suppkey
+                and l_orderkey = o_orderkey
+                and o_custkey = c_custkey
+                and c_nationkey = n1.n_nationkey
+                and n1.n_regionkey = r_regionkey
+                and r_name = 'AMERICA'
+                and s_nationkey = n2.n_nationkey
+                and o_orderdate &gt;= '1995-01-01'
+                and o_orderdate &lt;= '1996-12-31'
+                and p_type = 'ECONOMY ANODIZED STEEL'
+        ) all_nations
+    group by
+        o_year;
+</entry>
+<entry key="q8.result.duckdb">
+ o_year | mkt_share |
+---------------------
+ 1995   | 0.000000  |
+ 1996   | 0.000000  |
+</entry>
+<entry key="q8.result">
+ o_year | mkt_share |
+---------------------
+ 1995   | 0         |
+ 1996   | 0         |
+</entry>
+
+<entry key="q9.query">
+    select
+        nation,
+        o_year,
+        ROUND(sum(amount)::NUMERIC,2) as sum_profit
+    from
+        (
+            select
+                n_name as nation,
+                date_part('YEAR', o_orderdate::date) as o_year,
+                l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity as amount
+            from
+                part,
+                supplier,
+                lineitem,
+                partsupp,
+                orders,
+                nation
+            where
+                s_suppkey = l_suppkey
+                and ps_suppkey = l_suppkey
+                and ps_partkey = l_partkey
+                and p_partkey = l_partkey
+                and o_orderkey = l_orderkey
+                and s_nationkey = n_nationkey
+                and p_name like '%green%'
+        ) as profit
+    group by
+        nation,
+        o_year
+    order by
+        nation,
+        o_year desc;
+</entry>
+<entry key="q9.result.duckdb">
+ nation         | o_year | sum_profit |
+---------------------------------------
+ ARGENTINA      | 1997   | 18247.87   |
+ ARGENTINA      | 1996   | 7731.09    |
+ ARGENTINA      | 1995   | 134490.57  |
+ ARGENTINA      | 1994   | 36767.10   |
+ ARGENTINA      | 1993   | 35857.08   |
+ ARGENTINA      | 1992   | 35740.00   |
+ ETHIOPIA       | 1998   | 2758.78    |
+ ETHIOPIA       | 1997   | 19419.30   |
+ ETHIOPIA       | 1995   | 51231.87   |
+ ETHIOPIA       | 1994   | 3578.95    |
+ ETHIOPIA       | 1992   | 1525.82    |
+ IRAN           | 1998   | 37817.23   |
+ IRAN           | 1997   | 52643.77   |
+ IRAN           | 1996   | 70143.78   |
+ IRAN           | 1995   | 84094.58   |
+ IRAN           | 1994   | 18140.93   |
+ IRAN           | 1993   | 78655.17   |
+ IRAN           | 1992   | 87142.24   |
+ IRAQ           | 1998   | 22860.81   |
+ IRAQ           | 1997   | 93676.24   |
+ IRAQ           | 1996   | 45103.32   |
+ IRAQ           | 1994   | 36010.73   |
+ IRAQ           | 1993   | 33221.94   |
+ IRAQ           | 1992   | 47755.06   |
+ KENYA          | 1998   | 44194.83   |
+ KENYA          | 1997   | 57578.36   |
+ KENYA          | 1996   | 59195.90   |
+ KENYA          | 1995   | 79262.63   |
+ KENYA          | 1994   | 102360.67  |
+ KENYA          | 1993   | 128422.02  |
+ KENYA          | 1992   | 181517.21  |
+ MOROCCO        | 1998   | 95135.54   |
+ MOROCCO        | 1997   | 51796.22   |
+ MOROCCO        | 1996   | 147888.02  |
+ MOROCCO        | 1995   | 188760.98  |
+ MOROCCO        | 1994   | 139474.16  |
+ MOROCCO        | 1993   | 100050.20  |
+ MOROCCO        | 1992   | 159097.09  |
+ PERU           | 1998   | 86999.37   |
+ PERU           | 1997   | 121110.41  |
+ PERU           | 1996   | 177040.41  |
+ PERU           | 1995   | 122247.95  |
+ PERU           | 1994   | 88046.25   |
+ PERU           | 1993   | 49379.81   |
+ PERU           | 1992   | 80646.86   |
+ UNITED KINGDOM | 1998   | 50577.26   |
+ UNITED KINGDOM | 1997   | 114288.86  |
+ UNITED KINGDOM | 1996   | 147684.47  |
+ UNITED KINGDOM | 1995   | 225267.66  |
+ UNITED KINGDOM | 1994   | 140595.59  |
+ UNITED KINGDOM | 1993   | 322548.49  |
+ UNITED KINGDOM | 1992   | 67747.88   |
+ UNITED STATES  | 1998   | 3957.04    |
+ UNITED STATES  | 1997   | 94729.57   |
+ UNITED STATES  | 1996   | 79297.86   |
+ UNITED STATES  | 1995   | 62201.23   |
+ UNITED STATES  | 1994   | 43075.63   |
+ UNITED STATES  | 1993   | 27168.49   |
+ UNITED STATES  | 1992   | 34092.37   |
+</entry>
+<entry key="q9.result">
+ nation         | o_year | sum_profit |
+---------------------------------------
+ ARGENTINA      | 1997   | 18247.87   |
+ ARGENTINA      | 1996   | 7731.09    |
+ ARGENTINA      | 1995   | 134490.57  |
+ ARGENTINA      | 1994   | 36767.10   |
+ ARGENTINA      | 1993   | 35857.08   |
+ ARGENTINA      | 1992   | 35740.00   |
+ ETHIOPIA       | 1998   | 2758.78    |
+ ETHIOPIA       | 1997   | 19419.29   |
+ ETHIOPIA       | 1995   | 51231.87   |
+ ETHIOPIA       | 1994   | 3578.95    |
+ ETHIOPIA       | 1992   | 1525.82    |
+ IRAN           | 1998   | 37817.23   |
+ IRAN           | 1997   | 52643.77   |
+ IRAN           | 1996   | 70143.78   |
+ IRAN           | 1995   | 84094.58   |
+ IRAN           | 1994   | 18140.93   |
+ IRAN           | 1993   | 78655.17   |
+ IRAN           | 1992   | 87142.24   |
+ IRAQ           | 1998   | 22860.81   |
+ IRAQ           | 1997   | 93676.24   |
+ IRAQ           | 1996   | 45103.32   |
+ IRAQ           | 1994   | 36010.73   |
+ IRAQ           | 1993   | 33221.94   |
+ IRAQ           | 1992   | 47755.06   |
+ KENYA          | 1998   | 44194.83   |
+ KENYA          | 1997   | 57578.36   |
+ KENYA          | 1996   | 59195.90   |
+ KENYA          | 1995   | 79262.63   |
+ KENYA          | 1994   | 102360.67  |
+ KENYA          | 1993   | 128422.02  |
+ KENYA          | 1992   | 181517.21  |
+ MOROCCO        | 1998   | 95135.54   |
+ MOROCCO        | 1997   | 51796.22   |
+ MOROCCO        | 1996   | 147888.02  |
+ MOROCCO        | 1995   | 188760.98  |
+ MOROCCO        | 1994   | 139474.16  |
+ MOROCCO        | 1993   | 100050.20  |
+ MOROCCO        | 1992   | 159097.09  |
+ PERU           | 1998   | 86999.36   |
+ PERU           | 1997   | 121110.41  |
+ PERU           | 1996   | 177040.41  |
+ PERU           | 1995   | 122247.95  |
+ PERU           | 1994   | 88046.25   |
+ PERU           | 1993   | 49379.81   |
+ PERU           | 1992   | 80646.86   |
+ UNITED KINGDOM | 1998   | 50577.26   |
+ UNITED KINGDOM | 1997   | 114288.86  |
+ UNITED KINGDOM | 1996   | 147684.46  |
+ UNITED KINGDOM | 1995   | 225267.66  |
+ UNITED KINGDOM | 1994   | 140595.59  |
+ UNITED KINGDOM | 1993   | 322548.49  |
+ UNITED KINGDOM | 1992   | 67747.88   |
+ UNITED STATES  | 1998   | 3957.04    |
+ UNITED STATES  | 1997   | 94729.57   |
+ UNITED STATES  | 1996   | 79297.86   |
+ UNITED STATES  | 1995   | 62201.23   |
+ UNITED STATES  | 1994   | 43075.63   |
+ UNITED STATES  | 1993   | 27168.49   |
+ UNITED STATES  | 1992   | 34092.37   |
+</entry>
+
+<entry key="q10.query">
+    select
+        c_custkey,
+        c_name,
+        sum(l_extendedprice * (1 - l_discount)) as revenue,
+        c_acctbal,
+        n_name,
+        c_address,
+        c_phone,
+        c_comment
+    from
+        customer USE PROVENANCE (c_custkey),
+        orders USE PROVENANCE (o_orderkey),
+        lineitem USE PROVENANCE (l_orderkey, l_linenumber),
+        nation USE PROVENANCE (n_nationkey)
+    where
+        c_custkey = o_custkey
+        and l_orderkey = o_orderkey
+        and o_orderdate &gt;= '1993-10-01'
+        and o_orderdate &lt; '1994-01-01'
+        and l_returnflag = 'R'
+        and c_nationkey = n_nationkey
+    group by
+        c_custkey,
+        c_name,
+        c_acctbal,
+        c_phone,
+        n_name,
+        c_address,
+        c_comment
+    order by
+        revenue desc
+    LIMIT 20;
+</entry>
+<entry key="q10.result.duckdb">
+ c_custkey | c_name             | revenue       | c_acctbal   | n_name     | c_address                                | c_phone         | c_comment                                                                                                   |
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 121       | Customer#000000121 | 282635.171900 | 6428.320000 | PERU       | tv nCR2YKupGN73mQudO                     | 27-411-990-2959 | uriously stealthy ideas. carefully final courts use carefully                                               |
+ 124       | Customer#000000124 | 222182.518800 | 1842.490000 | CHINA      | aTbyVAW5tCd,v09O                         | 28-183-750-7809 | le fluffily even dependencies. quietly s                                                                    |
+ 106       | Customer#000000106 | 190241.333400 | 3288.420000 | ARGENTINA  | xGCOEAUjUNG                              | 11-751-989-4627 | lose slyly. ironic accounts along the evenly regular theodolites wake about the special, final gifts.       |
+ 16        | Customer#000000016 | 161422.046100 | 4681.030000 | IRAN       | cYiaeMLZSMAOQ2 d0W,                      | 20-781-609-3107 | kly silent courts. thinly regular theodolites sleep fluffily after                                          |
+ 44        | Customer#000000044 | 149364.565200 | 7315.940000 | MOZAMBIQUE | Oi,dOSPwDu4jo4x,,P85E0dmhZGvNtBwi        | 26-190-260-5375 | r requests around the unusual, bold a                                                                       |
+ 71        | Customer#000000071 | 129481.024500 | -611.190000 | GERMANY    | TlGalgdXWBmMV,6agLyWYDyIz9MKzcY8gl,w6t1B | 17-710-812-5403 | g courts across the regular, final pinto beans are blithely pending ac                                      |
+ 89        | Customer#000000089 | 121663.124300 | 1530.760000 | KENYA      | dtR, y9JQWUO6FoJExyp8whOU                | 24-394-451-5404 | counts are slyly beyond the slyly final accounts. quickly final ideas wake. r                               |
+ 112       | Customer#000000112 | 111137.714100 | 2953.350000 | ROMANIA    | RcfgG3bO7QeCnfjqJT1                      | 29-233-262-8382 | rmanently unusual multipliers. blithely ruthless deposits are furiously along the                           |
+ 62        | Customer#000000062 | 106368.015300 | 595.610000  | GERMANY    | upJK2Dnw13,                              | 17-361-978-7059 | kly special dolphins. pinto beans are slyly. quickly regular accounts are furiously a                       |
+ 146       | Customer#000000146 | 103265.988800 | 3328.680000 | CANADA     | GdxkdXG9u7iyI1,,y5tq4ZyrcEy              | 13-835-723-3223 | ffily regular dinos are slyly unusual requests. slyly specia                                                |
+ 19        | Customer#000000019 | 99306.012700  | 8914.710000 | CHINA      | uc,3bHIx84H,wdrmLOjVsiqXCq2tr            | 28-396-526-5053 | nag. furiously careful packages are slyly at the accounts. furiously regular in                             |
+ 145       | Customer#000000145 | 99256.901800  | 9748.930000 | JORDAN     | kQjHmt2kcec cy3hfMh969u                  | 23-562-444-8454 | ests? express, express instructions use. blithely fina                                                      |
+ 103       | Customer#000000103 | 97311.772400  | 2757.450000 | INDONESIA  | 8KIsQX4LJ7QMsj6DrtFtXu0nUEdV,8a          | 19-216-107-2107 | furiously pending notornis boost slyly around the blithely ironic ideas? final, even instructions cajole fl |
+ 136       | Customer#000000136 | 95855.398000  | -842.390000 | GERMANY    | QoLsJ0v5C1IQbh,DS1                       | 17-501-210-4726 | ackages sleep ironic, final courts. even requests above the blithely bold requests g                        |
+ 53        | Customer#000000053 | 92568.912400  | 4113.640000 | MOROCCO    | HnaxHzTfFTZs8MuCpJyTbZ47Cm4wFOOgib       | 25-168-852-5363 | ar accounts are. even foxes are blithely. fluffily pending deposits boost                                   |
+ 49        | Customer#000000049 | 90965.726200  | 4573.940000 | IRAN       | cNgAeX7Fqrdf7HQN9EwjUa4nxT,68L FKAxzl    | 20-908-631-4424 | nusual foxes! fluffily pending packages maintain to the regular                                             |
+ 37        | Customer#000000037 | 88065.745800  | -917.750000 | INDIA      | 7EV4Pwh,3SboctTWt                        | 18-385-235-7162 | ilent packages are carefully among the deposits. furiousl                                                   |
+ 82        | Customer#000000082 | 86998.964400  | 9468.340000 | CHINA      | zhG3EZbap4c992Gj3bK,3Ne,Xn               | 28-159-442-5305 | s wake. bravely regular accounts are furiously. regula                                                      |
+ 125       | Customer#000000125 | 84808.068000  | -234.120000 | ROMANIA    | ,wSZXdVR xxIIfm9s8ITyLl3kgjT6UC07GY0Y    | 29-261-996-3120 | x-ray finally after the packages? regular requests c                                                        |
+ 59        | Customer#000000059 | 84655.571100  | 3458.600000 | ARGENTINA  | zLOCP0wh92OtBihgspOGl4                   | 11-355-584-3112 | ously final packages haggle blithely after the express deposits. furiou                                     |
+</entry>
+<entry key="q10.result">
+ c_custkey | c_name             | revenue            | c_acctbal | n_name     | c_address                                | c_phone         | c_comment                                                                                                   |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 121       | Customer#000000121 | 282635.1719        | 6428.32   | PERU       | tv nCR2YKupGN73mQudO                     | 27-411-990-2959 | uriously stealthy ideas. carefully final courts use carefully                                               |
+ 124       | Customer#000000124 | 222182.5188        | 1842.49   | CHINA      | aTbyVAW5tCd,v09O                         | 28-183-750-7809 | le fluffily even dependencies. quietly s                                                                    |
+ 106       | Customer#000000106 | 190241.3334        | 3288.42   | ARGENTINA  | xGCOEAUjUNG                              | 11-751-989-4627 | lose slyly. ironic accounts along the evenly regular theodolites wake about the special, final gifts.       |
+ 16        | Customer#000000016 | 161422.04609999998 | 4681.03   | IRAN       | cYiaeMLZSMAOQ2 d0W,                      | 20-781-609-3107 | kly silent courts. thinly regular theodolites sleep fluffily after                                          |
+ 44        | Customer#000000044 | 149364.5652        | 7315.94   | MOZAMBIQUE | Oi,dOSPwDu4jo4x,,P85E0dmhZGvNtBwi        | 26-190-260-5375 | r requests around the unusual, bold a                                                                       |
+ 71        | Customer#000000071 | 129481.0245        | -611.19   | GERMANY    | TlGalgdXWBmMV,6agLyWYDyIz9MKzcY8gl,w6t1B | 17-710-812-5403 | g courts across the regular, final pinto beans are blithely pending ac                                      |
+ 89        | Customer#000000089 | 121663.1243        | 1530.76   | KENYA      | dtR, y9JQWUO6FoJExyp8whOU                | 24-394-451-5404 | counts are slyly beyond the slyly final accounts. quickly final ideas wake. r                               |
+ 112       | Customer#000000112 | 111137.71409999998 | 2953.35   | ROMANIA    | RcfgG3bO7QeCnfjqJT1                      | 29-233-262-8382 | rmanently unusual multipliers. blithely ruthless deposits are furiously along the                           |
+ 62        | Customer#000000062 | 106368.0153        | 595.61    | GERMANY    | upJK2Dnw13,                              | 17-361-978-7059 | kly special dolphins. pinto beans are slyly. quickly regular accounts are furiously a                       |
+ 146       | Customer#000000146 | 103265.98879999999 | 3328.68   | CANADA     | GdxkdXG9u7iyI1,,y5tq4ZyrcEy              | 13-835-723-3223 | ffily regular dinos are slyly unusual requests. slyly specia                                                |
+ 19        | Customer#000000019 | 99306.0127         | 8914.71   | CHINA      | uc,3bHIx84H,wdrmLOjVsiqXCq2tr            | 28-396-526-5053 | nag. furiously careful packages are slyly at the accounts. furiously regular in                             |
+ 145       | Customer#000000145 | 99256.9018         | 9748.93   | JORDAN     | kQjHmt2kcec cy3hfMh969u                  | 23-562-444-8454 | ests? express, express instructions use. blithely fina                                                      |
+ 103       | Customer#000000103 | 97311.77240000002  | 2757.45   | INDONESIA  | 8KIsQX4LJ7QMsj6DrtFtXu0nUEdV,8a          | 19-216-107-2107 | furiously pending notornis boost slyly around the blithely ironic ideas? final, even instructions cajole fl |
+ 136       | Customer#000000136 | 95855.39799999999  | -842.39   | GERMANY    | QoLsJ0v5C1IQbh,DS1                       | 17-501-210-4726 | ackages sleep ironic, final courts. even requests above the blithely bold requests g                        |
+ 53        | Customer#000000053 | 92568.9124         | 4113.64   | MOROCCO    | HnaxHzTfFTZs8MuCpJyTbZ47Cm4wFOOgib       | 25-168-852-5363 | ar accounts are. even foxes are blithely. fluffily pending deposits boost                                   |
+ 49        | Customer#000000049 | 90965.7262         | 4573.94   | IRAN       | cNgAeX7Fqrdf7HQN9EwjUa4nxT,68L FKAxzl    | 20-908-631-4424 | nusual foxes! fluffily pending packages maintain to the regular                                             |
+ 37        | Customer#000000037 | 88065.74579999998  | -917.75   | INDIA      | 7EV4Pwh,3SboctTWt                        | 18-385-235-7162 | ilent packages are carefully among the deposits. furiousl                                                   |
+ 82        | Customer#000000082 | 86998.9644         | 9468.34   | CHINA      | zhG3EZbap4c992Gj3bK,3Ne,Xn               | 28-159-442-5305 | s wake. bravely regular accounts are furiously. regula                                                      |
+ 125       | Customer#000000125 | 84808.068          | -234.12   | ROMANIA    | ,wSZXdVR xxIIfm9s8ITyLl3kgjT6UC07GY0Y    | 29-261-996-3120 | x-ray finally after the packages? regular requests c                                                        |
+ 59        | Customer#000000059 | 84655.5711         | 3458.6    | ARGENTINA  | zLOCP0wh92OtBihgspOGl4                   | 11-355-584-3112 | ously final packages haggle blithely after the express deposits. furiou                                     |
+</entry>
+
+<entry key="q11.query">
+    SELECT ps_partkey, value,ROUND((value/computed_value)::NUMERIC,5) AS x FROM (
+    select
+        ps_partkey,
+        ROUND(sum(ps_supplycost * ps_availqty)::NUMERIC,5) as value
+    from
+        partsupp ,
+        supplier ,
+        nation
+    where
+        ps_suppkey = s_suppkey
+        and s_nationkey = n_nationkey
+        and n_name = 'IRAN'
+    group by
+        ps_partkey
+    ) a JOIN (
+        SELECT
+            ROUND((sum(ps_supplycost * ps_availqty) * 0.04)::NUMERIC,5) as computed_value
+        FROM
+            partsupp,
+            supplier,
+            nation
+        WHERE
+            ps_suppkey = s_suppkey
+            and s_nationkey = n_nationkey
+            and n_name = 'IRAN'
+    ) b
+    on a.value &gt; b.computed_value
+    order by
+        value desc;
+</entry>
+<entry key="q11.result.duckdb">
+ ps_partkey | value       | x     |
+-----------------------------------
+ 98         | 8615280.060 | 1.216 |
+ 26         | 7973976.780 | 1.125 |
+ 78         | 7237355.100 | 1.021 |
+ 95         | 7185227.460 | 1.014 |
+ 171        | 7097915.810 | 1.002 |
+</entry>
+<entry key="q11.result">
+ ps_partkey | value         | x       |
+---------------------------------------
+ 98         | 8615280.06000 | 1.21570 |
+ 26         | 7973976.78000 | 1.12520 |
+ 78         | 7237355.10000 | 1.02126 |
+ 95         | 7185227.46000 | 1.01390 |
+ 171        | 7097915.81000 | 1.00158 |
+</entry>
+
+<entry key="q12.query">
+    select
+        l_shipmode,
+        sum(case
+            when o_orderpriority = '1-URGENT'
+                or o_orderpriority = '2-HIGH'
+                then 1
+            else 0
+        end) as high_line_count,
+        sum(case
+            when o_orderpriority &lt;&gt; '1-URGENT'
+                and o_orderpriority &lt;&gt; '2-HIGH'
+                then 1
+            else 0
+        end) as low_line_count
+    from
+        orders ,
+        lineitem
+    where
+        o_orderkey = l_orderkey
+        and l_shipmode in ('MAIL', 'SHIP')
+        and l_commitdate &lt; l_receiptdate
+        and l_shipdate &lt; l_commitdate
+        and l_receiptdate &gt;= '1994-01-01'
+        and l_receiptdate &lt; '1995-01-01'
+    group by
+        l_shipmode
+    order by
+        l_shipmode;
+</entry>
+<entry key="q12.result.duckdb">
+ l_shipmode | high_line_count | low_line_count |
+------------------------------------------------
+ MAIL       | 5.000000        | 5.000000       |
+ SHIP       | 5.000000        | 10.000000      |
+</entry>
+<entry key="q12.result">
+ l_shipmode | high_line_count | low_line_count |
+------------------------------------------------
+ MAIL       | 5               | 5              |
+ SHIP       | 5               | 10             |
+</entry>
+
+<entry key="q13.query">
+    select
+        c_count,
+        count(*) as custdist
+    from
+        (
+            select
+                c_custkey,
+                count(o_orderkey) as c_count
+            from
+                customer  left outer join
+                orders
+            on
+                c_custkey = o_custkey
+                and not (o_comment like '%special%requests%')
+            group by
+                c_custkey
+        ) as c_orders (c_custkey, c_count)
+    group by
+        c_count
+    order by
+        custdist desc,
+        c_count desc;
+</entry>
+<entry key="q13.result.duckdb">
+ c_count | custdist |
+---------------------
+ 0       | 50       |
+ 16      | 8        |
+ 17      | 7        |
+ 20      | 6        |
+ 13      | 6        |
+ 12      | 6        |
+ 9       | 6        |
+ 23      | 5        |
+ 14      | 5        |
+ 10      | 5        |
+ 21      | 4        |
+ 18      | 4        |
+ 11      | 4        |
+ 8       | 4        |
+ 7       | 4        |
+ 26      | 3        |
+ 22      | 3        |
+ 6       | 3        |
+ 5       | 3        |
+ 4       | 3        |
+ 29      | 2        |
+ 24      | 2        |
+ 19      | 2        |
+ 15      | 2        |
+ 28      | 1        |
+ 25      | 1        |
+ 3       | 1        |
+</entry>
+<entry key="q13.result">
+ c_count | custdist |
+---------------------
+ 0       | 50       |
+ 16      | 8        |
+ 17      | 7        |
+ 20      | 6        |
+ 13      | 6        |
+ 12      | 6        |
+ 9       | 6        |
+ 23      | 5        |
+ 14      | 5        |
+ 10      | 5        |
+ 21      | 4        |
+ 18      | 4        |
+ 11      | 4        |
+ 8       | 4        |
+ 7       | 4        |
+ 26      | 3        |
+ 22      | 3        |
+ 6       | 3        |
+ 5       | 3        |
+ 4       | 3        |
+ 29      | 2        |
+ 24      | 2        |
+ 19      | 2        |
+ 15      | 2        |
+ 28      | 1        |
+ 25      | 1        |
+ 3       | 1        |
+</entry>
+
+<entry key="q14.query">
+    select
+        100.00 * sum(case
+            when p_type like 'PROMO%'
+                then l_extendedprice * (1 - l_discount)
+            else 0
+        end) / sum(l_extendedprice * (1 - l_discount)) as promo_revenue
+    from
+        lineitem ,
+        part
+    where
+        l_partkey = p_partkey
+        and l_shipdate &gt;= '1995-09-01'
+        and l_shipdate &lt; '1995-10-01';
+</entry>
+<entry key="q14.result.duckdb">
+ promo_revenue |
+----------------
+ 15.230213     |
+</entry>
+<entry key="q14.result">
+ promo_revenue      |
+---------------------
+15.230212611597254 |
+</entry>
+
+<entry key="q15.query">
+  WITH revenue as (
+select
+l_suppkey as supplier_no,
+sum(l_extendedprice * (1 - l_discount)) AS total_revenue
+from
+lineitem
+where
+l_shipdate &gt;=  '1996-01-01'::date
+and l_shipdate &lt; '1996-01-01'::date + '3 month'::interval
+group by
+l_suppkey)
+
+select
+s_suppkey,
+s_name,
+s_address,
+s_phone,
+total_revenue
+from
+supplier,
+revenue
+where
+s_suppkey = supplier_no
+and total_revenue = (
+select
+max(total_revenue)
+from
+revenue
+)
+order by
+s_suppkey;
+</entry>
+<entry key="q15.result.duckdb">
+ s_suppkey | s_name             | s_address          | s_phone         | total_revenue |
+----------------------------------------------------------------------------------------
+ 10        | Supplier#000000010 | Saygah3gYWMp72i PY | 34-852-489-8585 | 797313.383800 |
+</entry>
+<entry key="q15.result">
+ s_suppkey | s_name             | s_address          | s_phone         | total_revenue |
+----------------------------------------------------------------------------------------
+10        | Supplier#000000010 | Saygah3gYWMp72i PY | 34-852-489-8585 | 797313.3838   |
+</entry>
+
+<entry key="q16.query">
+  select
+p_brand,
+p_type,
+p_size,
+count(distinct ps_suppkey) as supplier_cnt
+from
+partsupp,
+part
+where
+p_partkey = ps_partkey
+and p_brand &lt;&gt; 'Brand#45'
+and NOT(p_type like 'NEDIUM POLISHED%')
+and p_size in (49,14,23,45,19,3,36,9)
+and ps_suppkey not in (
+select
+s_suppkey
+from
+supplier
+where
+s_comment like '%Customer%Complaints%'
+)
+group by
+p_brand,
+p_type,
+p_size
+order by
+supplier_cnt desc,
+p_brand,
+p_type,
+p_size;
+</entry>
+<entry key="q16.result.duckdb">
+ p_brand  | p_type                    | p_size | supplier_cnt |
+---------------------------------------------------------------
+ Brand#11 | ECONOMY ANODIZED STEEL    | 26     | 4            |
+ Brand#11 | ECONOMY ANODIZED TIN      | 1      | 4            |
+ Brand#11 | LARGE POLISHED COPPER     | 27     | 4            |
+ Brand#11 | MEDIUM PLATED COPPER      | 29     | 4            |
+ Brand#11 | PROMO ANODIZED STEEL      | 10     | 4            |
+ Brand#11 | PROMO ANODIZED TIN        | 45     | 4            |
+ Brand#11 | SMALL BURNISHED STEEL     | 42     | 4            |
+ Brand#11 | SMALL PLATED COPPER       | 45     | 4            |
+ Brand#11 | STANDARD BRUSHED STEEL    | 42     | 4            |
+ Brand#11 | STANDARD BURNISHED COPPER | 40     | 4            |
+ Brand#11 | STANDARD PLATED TIN       | 20     | 4            |
+ Brand#11 | STANDARD POLISHED TIN     | 45     | 4            |
+ Brand#12 | ECONOMY BURNISHED TIN     | 17     | 4            |
+ Brand#12 | LARGE POLISHED NICKEL     | 48     | 4            |
+ Brand#12 | MEDIUM PLATED STEEL       | 20     | 4            |
+ Brand#12 | PROMO BURNISHED NICKEL    | 47     | 4            |
+ Brand#12 | PROMO PLATED NICKEL       | 41     | 4            |
+ Brand#12 | SMALL BURNISHED TIN       | 31     | 4            |
+ Brand#12 | STANDARD BRUSHED BRASS    | 17     | 4            |
+ Brand#13 | ECONOMY BURNISHED COPPER  | 42     | 4            |
+ Brand#13 | LARGE BRUSHED BRASS       | 1      | 4            |
+ Brand#13 | LARGE BRUSHED STEEL       | 8      | 4            |
+ Brand#13 | MEDIUM ANODIZED STEEL     | 36     | 4            |
+ Brand#13 | PROMO BURNISHED COPPER    | 7      | 4            |
+ Brand#13 | SMALL BRUSHED COPPER      | 20     | 4            |
+ Brand#13 | SMALL BRUSHED NICKEL      | 19     | 4            |
+ Brand#13 | SMALL POLISHED STEEL      | 28     | 4            |
+ Brand#13 | STANDARD POLISHED TIN     | 10     | 4            |
+ Brand#14 | ECONOMY BRUSHED COPPER    | 13     | 4            |
+ Brand#14 | ECONOMY POLISHED STEEL    | 24     | 4            |
+ Brand#14 | LARGE ANODIZED TIN        | 20     | 4            |
+ Brand#14 | SMALL ANODIZED NICKEL     | 45     | 4            |
+ Brand#14 | SMALL ANODIZED TIN        | 26     | 4            |
+ Brand#14 | SMALL BRUSHED TIN         | 25     | 4            |
+ Brand#15 | ECONOMY BRUSHED COPPER    | 25     | 4            |
+ Brand#15 | ECONOMY POLISHED TIN      | 12     | 4            |
+ Brand#15 | LARGE ANODIZED BRASS      | 45     | 4            |
+ Brand#15 | LARGE POLISHED TIN        | 20     | 4            |
+ Brand#15 | SMALL POLISHED COPPER     | 27     | 4            |
+ Brand#15 | STANDARD PLATED STEEL     | 24     | 4            |
+ Brand#21 | ECONOMY PLATED TIN        | 34     | 4            |
+ Brand#21 | LARGE BURNISHED COPPER    | 19     | 4            |
+ Brand#21 | MEDIUM ANODIZED BRASS     | 1      | 4            |
+ Brand#21 | MEDIUM ANODIZED TIN       | 8      | 4            |
+ Brand#21 | MEDIUM BRUSHED STEEL      | 42     | 4            |
+ Brand#21 | MEDIUM BURNISHED STEEL    | 24     | 4            |
+ Brand#21 | SMALL BRUSHED COPPER      | 35     | 4            |
+ Brand#21 | SMALL BRUSHED NICKEL      | 28     | 4            |
+ Brand#21 | SMALL BRUSHED TIN         | 31     | 4            |
+ Brand#21 | SMALL BURNISHED STEEL     | 11     | 4            |
+ Brand#21 | STANDARD BRUSHED TIN      | 32     | 4            |
+ Brand#22 | ECONOMY PLATED NICKEL     | 16     | 4            |
+ Brand#22 | MEDIUM BRUSHED BRASS      | 13     | 4            |
+ Brand#22 | PROMO PLATED TIN          | 5      | 4            |
+ Brand#22 | SMALL PLATED STEEL        | 2      | 4            |
+ Brand#22 | STANDARD ANODIZED TIN     | 35     | 4            |
+ Brand#22 | STANDARD PLATED TIN       | 17     | 4            |
+ Brand#23 | ECONOMY ANODIZED TIN      | 7      | 4            |
+ Brand#23 | ECONOMY BRUSHED COPPER    | 9      | 4            |
+ Brand#23 | ECONOMY BRUSHED TIN       | 15     | 4            |
+ Brand#23 | ECONOMY BURNISHED NICKEL  | 32     | 4            |
+ Brand#23 | LARGE PLATED BRASS        | 35     | 4            |
+ Brand#23 | SMALL ANODIZED NICKEL     | 33     | 4            |
+ Brand#23 | SMALL PLATED NICKEL       | 26     | 4            |
+ Brand#23 | STANDARD ANODIZED TIN     | 25     | 4            |
+ Brand#24 | LARGE ANODIZED TIN        | 2      | 4            |
+ Brand#24 | MEDIUM BURNISHED NICKEL   | 6      | 4            |
+ Brand#24 | MEDIUM PLATED STEEL       | 19     | 4            |
+ Brand#24 | PROMO PLATED STEEL        | 4      | 4            |
+ Brand#24 | SMALL ANODIZED STEEL      | 40     | 4            |
+ Brand#24 | SMALL BURNISHED TIN       | 31     | 4            |
+ Brand#25 | ECONOMY BURNISHED COPPER  | 27     | 4            |
+ Brand#25 | MEDIUM PLATED BRASS       | 45     | 4            |
+ Brand#25 | PROMO ANODIZED TIN        | 31     | 4            |
+ Brand#25 | SMALL BURNISHED COPPER    | 3      | 4            |
+ Brand#25 | STANDARD BURNISHED NICKEL | 43     | 4            |
+ Brand#31 | ECONOMY PLATED STEEL      | 23     | 4            |
+ Brand#31 | ECONOMY PLATED STEEL      | 25     | 4            |
+ Brand#31 | MEDIUM ANODIZED COPPER    | 11     | 4            |
+ Brand#31 | MEDIUM BURNISHED BRASS    | 17     | 4            |
+ Brand#31 | MEDIUM PLATED BRASS       | 28     | 4            |
+ Brand#31 | MEDIUM POLISHED BRASS     | 36     | 4            |
+ Brand#31 | PROMO POLISHED TIN        | 23     | 4            |
+ Brand#31 | STANDARD PLATED STEEL     | 20     | 4            |
+ Brand#32 | LARGE ANODIZED STEEL      | 26     | 4            |
+ Brand#32 | LARGE ANODIZED STEEL      | 46     | 4            |
+ Brand#32 | MEDIUM BRUSHED STEEL      | 7      | 4            |
+ Brand#32 | MEDIUM BURNISHED BRASS    | 49     | 4            |
+ Brand#32 | PROMO ANODIZED STEEL      | 1      | 4            |
+ Brand#32 | PROMO PLATED TIN          | 2      | 4            |
+ Brand#32 | SMALL BRUSHED STEEL       | 32     | 4            |
+ Brand#32 | STANDARD BURNISHED NICKEL | 10     | 4            |
+ Brand#32 | STANDARD POLISHED TIN     | 15     | 4            |
+ Brand#33 | ECONOMY ANODIZED TIN      | 4      | 4            |
+ Brand#33 | ECONOMY POLISHED TIN      | 11     | 4            |
+ Brand#33 | LARGE ANODIZED TIN        | 25     | 4            |
+ Brand#33 | LARGE BRUSHED TIN         | 36     | 4            |
+ Brand#33 | LARGE POLISHED COPPER     | 28     | 4            |
+ Brand#33 | MEDIUM ANODIZED COPPER    | 35     | 4            |
+ Brand#33 | MEDIUM ANODIZED STEEL     | 25     | 4            |
+ Brand#33 | MEDIUM POLISHED BRASS     | 49     | 4            |
+ Brand#33 | PROMO PLATED COPPER       | 7      | 4            |
+ Brand#33 | SMALL BURNISHED NICKEL    | 3      | 4            |
+ Brand#33 | SMALL BURNISHED TIN       | 31     | 4            |
+ Brand#33 | STANDARD BURNISHED COPPER | 46     | 4            |
+ Brand#33 | STANDARD BURNISHED NICKEL | 7      | 4            |
+ Brand#33 | STANDARD PLATED BRASS     | 26     | 4            |
+ Brand#34 | ECONOMY PLATED TIN        | 44     | 4            |
+ Brand#34 | LARGE PLATED BRASS        | 45     | 4            |
+ Brand#34 | MEDIUM BRUSHED COPPER     | 9      | 4            |
+ Brand#34 | SMALL PLATED BRASS        | 14     | 4            |
+ Brand#34 | STANDARD BRUSHED COPPER   | 11     | 4            |
+ Brand#34 | STANDARD BRUSHED COPPER   | 17     | 4            |
+ Brand#35 | LARGE BRUSHED TIN         | 21     | 4            |
+ Brand#35 | MEDIUM BURNISHED TIN      | 42     | 4            |
+ Brand#35 | PROMO ANODIZED NICKEL     | 46     | 4            |
+ Brand#35 | SMALL BURNISHED NICKEL    | 39     | 4            |
+ Brand#35 | STANDARD ANODIZED STEEL   | 23     | 4            |
+ Brand#35 | STANDARD BRUSHED BRASS    | 39     | 4            |
+ Brand#35 | STANDARD BURNISHED TIN    | 25     | 4            |
+ Brand#35 | STANDARD POLISHED BRASS   | 32     | 4            |
+ Brand#41 | LARGE PLATED STEEL        | 41     | 4            |
+ Brand#41 | PROMO BRUSHED NICKEL      | 43     | 4            |
+ Brand#41 | STANDARD BRUSHED NICKEL   | 40     | 4            |
+ Brand#42 | ECONOMY PLATED BRASS      | 31     | 4            |
+ Brand#42 | PROMO ANODIZED TIN        | 17     | 4            |
+ Brand#42 | SMALL POLISHED STEEL      | 35     | 4            |
+ Brand#42 | STANDARD POLISHED BRASS   | 21     | 4            |
+ Brand#43 | ECONOMY ANODIZED BRASS    | 11     | 4            |
+ Brand#43 | ECONOMY BRUSHED STEEL     | 16     | 4            |
+ Brand#43 | ECONOMY BRUSHED STEEL     | 20     | 4            |
+ Brand#43 | LARGE POLISHED STEEL      | 30     | 4            |
+ Brand#43 | MEDIUM ANODIZED BRASS     | 14     | 4            |
+ Brand#43 | PROMO BRUSHED STEEL       | 42     | 4            |
+ Brand#43 | PROMO POLISHED BRASS      | 19     | 4            |
+ Brand#43 | SMALL ANODIZED BRASS      | 46     | 4            |
+ Brand#43 | SMALL BRUSHED NICKEL      | 9      | 4            |
+ Brand#43 | SMALL BURNISHED STEEL     | 12     | 4            |
+ Brand#43 | SMALL POLISHED NICKEL     | 2      | 4            |
+ Brand#44 | ECONOMY POLISHED TIN      | 4      | 4            |
+ Brand#44 | PROMO BURNISHED TIN       | 41     | 4            |
+ Brand#44 | PROMO PLATED BRASS        | 28     | 4            |
+ Brand#44 | PROMO PLATED COPPER       | 16     | 4            |
+ Brand#44 | PROMO POLISHED STEEL      | 5      | 4            |
+ Brand#44 | SMALL PLATED COPPER       | 19     | 4            |
+ Brand#44 | STANDARD PLATED TIN       | 37     | 4            |
+ Brand#51 | ECONOMY POLISHED STEEL    | 7      | 4            |
+ Brand#51 | ECONOMY POLISHED STEEL    | 49     | 4            |
+ Brand#51 | MEDIUM POLISHED NICKEL    | 41     | 4            |
+ Brand#52 | LARGE POLISHED COPPER     | 4      | 4            |
+ Brand#52 | MEDIUM BURNISHED TIN      | 45     | 4            |
+ Brand#52 | MEDIUM PLATED STEEL       | 20     | 4            |
+ Brand#52 | MEDIUM POLISHED BRASS     | 2      | 4            |
+ Brand#52 | PROMO POLISHED STEEL      | 35     | 4            |
+ Brand#52 | SMALL ANODIZED COPPER     | 18     | 4            |
+ Brand#52 | SMALL BURNISHED NICKEL    | 14     | 4            |
+ Brand#52 | STANDARD ANODIZED BRASS   | 43     | 4            |
+ Brand#52 | STANDARD BRUSHED COPPER   | 13     | 4            |
+ Brand#53 | ECONOMY BRUSHED TIN       | 21     | 4            |
+ Brand#53 | LARGE BURNISHED NICKEL    | 23     | 4            |
+ Brand#53 | MEDIUM BRUSHED COPPER     | 3      | 4            |
+ Brand#53 | MEDIUM POLISHED STEEL     | 48     | 4            |
+ Brand#53 | MEDIUM POLISHED TIN       | 2      | 4            |
+ Brand#53 | PROMO BRUSHED COPPER      | 24     | 4            |
+ Brand#53 | PROMO PLATED NICKEL       | 28     | 4            |
+ Brand#53 | PROMO POLISHED NICKEL     | 33     | 4            |
+ Brand#53 | SMALL BURNISHED TIN       | 12     | 4            |
+ Brand#53 | SMALL POLISHED TIN        | 42     | 4            |
+ Brand#53 | SMALL POLISHED TIN        | 43     | 4            |
+ Brand#53 | STANDARD BRUSHED STEEL    | 27     | 4            |
+ Brand#53 | STANDARD BRUSHED STEEL    | 32     | 4            |
+ Brand#53 | STANDARD BRUSHED TIN      | 10     | 4            |
+ Brand#53 | STANDARD BURNISHED STEEL  | 7      | 4            |
+ Brand#53 | STANDARD PLATED STEEL     | 45     | 4            |
+ Brand#53 | STANDARD POLISHED TIN     | 44     | 4            |
+ Brand#54 | ECONOMY ANODIZED BRASS    | 9      | 4            |
+ Brand#54 | LARGE BRUSHED COPPER      | 28     | 4            |
+ Brand#54 | LARGE BURNISHED STEEL     | 44     | 4            |
+ Brand#54 | MEDIUM POLISHED BRASS     | 22     | 4            |
+ Brand#54 | SMALL BURNISHED NICKEL    | 18     | 4            |
+ Brand#54 | STANDARD ANODIZED BRASS   | 22     | 4            |
+ Brand#55 | ECONOMY ANODIZED BRASS    | 25     | 4            |
+ Brand#55 | MEDIUM BURNISHED NICKEL   | 1      | 4            |
+ Brand#55 | PROMO ANODIZED NICKEL     | 16     | 4            |
+ Brand#55 | STANDARD ANODIZED BRASS   | 36     | 4            |
+ Brand#55 | STANDARD BRUSHED COPPER   | 3      | 4            |
+ Brand#55 | STANDARD POLISHED BRASS   | 10     | 4            |
+ Brand#55 | STANDARD POLISHED COPPER  | 47     | 4            |
+</entry>
+<entry key="q16.result">
+ p_brand  | p_type                    | p_size | supplier_cnt |
+---------------------------------------------------------------
+ Brand#11 | ECONOMY ANODIZED STEEL    | 26     | 4            |
+ Brand#11 | ECONOMY ANODIZED TIN      | 1      | 4            |
+ Brand#11 | LARGE POLISHED COPPER     | 27     | 4            |
+ Brand#11 | MEDIUM PLATED COPPER      | 29     | 4            |
+ Brand#11 | PROMO ANODIZED STEEL      | 10     | 4            |
+ Brand#11 | PROMO ANODIZED TIN        | 45     | 4            |
+ Brand#11 | SMALL BURNISHED STEEL     | 42     | 4            |
+ Brand#11 | SMALL PLATED COPPER       | 45     | 4            |
+ Brand#11 | STANDARD BRUSHED STEEL    | 42     | 4            |
+ Brand#11 | STANDARD BURNISHED COPPER | 40     | 4            |
+ Brand#11 | STANDARD PLATED TIN       | 20     | 4            |
+ Brand#11 | STANDARD POLISHED TIN     | 45     | 4            |
+ Brand#12 | ECONOMY BURNISHED TIN     | 17     | 4            |
+ Brand#12 | LARGE POLISHED NICKEL     | 48     | 4            |
+ Brand#12 | MEDIUM PLATED STEEL       | 20     | 4            |
+ Brand#12 | PROMO BURNISHED NICKEL    | 47     | 4            |
+ Brand#12 | PROMO PLATED NICKEL       | 41     | 4            |
+ Brand#12 | SMALL BURNISHED TIN       | 31     | 4            |
+ Brand#12 | STANDARD BRUSHED BRASS    | 17     | 4            |
+ Brand#13 | ECONOMY BURNISHED COPPER  | 42     | 4            |
+ Brand#13 | LARGE BRUSHED BRASS       | 1      | 4            |
+ Brand#13 | LARGE BRUSHED STEEL       | 8      | 4            |
+ Brand#13 | MEDIUM ANODIZED STEEL     | 36     | 4            |
+ Brand#13 | PROMO BURNISHED COPPER    | 7      | 4            |
+ Brand#13 | SMALL BRUSHED COPPER      | 20     | 4            |
+ Brand#13 | SMALL BRUSHED NICKEL      | 19     | 4            |
+ Brand#13 | SMALL POLISHED STEEL      | 28     | 4            |
+ Brand#13 | STANDARD POLISHED TIN     | 10     | 4            |
+ Brand#14 | ECONOMY BRUSHED COPPER    | 13     | 4            |
+ Brand#14 | ECONOMY POLISHED STEEL    | 24     | 4            |
+ Brand#14 | LARGE ANODIZED TIN        | 20     | 4            |
+ Brand#14 | SMALL ANODIZED NICKEL     | 45     | 4            |
+ Brand#14 | SMALL ANODIZED TIN        | 26     | 4            |
+ Brand#14 | SMALL BRUSHED TIN         | 25     | 4            |
+ Brand#15 | ECONOMY BRUSHED COPPER    | 25     | 4            |
+ Brand#15 | ECONOMY POLISHED TIN      | 12     | 4            |
+ Brand#15 | LARGE ANODIZED BRASS      | 45     | 4            |
+ Brand#15 | LARGE POLISHED TIN        | 20     | 4            |
+ Brand#15 | SMALL POLISHED COPPER     | 27     | 4            |
+ Brand#15 | STANDARD PLATED STEEL     | 24     | 4            |
+ Brand#21 | ECONOMY PLATED TIN        | 34     | 4            |
+ Brand#21 | LARGE BURNISHED COPPER    | 19     | 4            |
+ Brand#21 | MEDIUM ANODIZED BRASS     | 1      | 4            |
+ Brand#21 | MEDIUM ANODIZED TIN       | 8      | 4            |
+ Brand#21 | MEDIUM BRUSHED STEEL      | 42     | 4            |
+ Brand#21 | MEDIUM BURNISHED STEEL    | 24     | 4            |
+ Brand#21 | SMALL BRUSHED COPPER      | 35     | 4            |
+ Brand#21 | SMALL BRUSHED NICKEL      | 28     | 4            |
+ Brand#21 | SMALL BRUSHED TIN         | 31     | 4            |
+ Brand#21 | SMALL BURNISHED STEEL     | 11     | 4            |
+ Brand#21 | STANDARD BRUSHED TIN      | 32     | 4            |
+ Brand#22 | ECONOMY PLATED NICKEL     | 16     | 4            |
+ Brand#22 | MEDIUM BRUSHED BRASS      | 13     | 4            |
+ Brand#22 | PROMO PLATED TIN          | 5      | 4            |
+ Brand#22 | SMALL PLATED STEEL        | 2      | 4            |
+ Brand#22 | STANDARD ANODIZED TIN     | 35     | 4            |
+ Brand#22 | STANDARD PLATED TIN       | 17     | 4            |
+ Brand#23 | ECONOMY ANODIZED TIN      | 7      | 4            |
+ Brand#23 | ECONOMY BRUSHED COPPER    | 9      | 4            |
+ Brand#23 | ECONOMY BRUSHED TIN       | 15     | 4            |
+ Brand#23 | ECONOMY BURNISHED NICKEL  | 32     | 4            |
+ Brand#23 | LARGE PLATED BRASS        | 35     | 4            |
+ Brand#23 | SMALL ANODIZED NICKEL     | 33     | 4            |
+ Brand#23 | SMALL PLATED NICKEL       | 26     | 4            |
+ Brand#23 | STANDARD ANODIZED TIN     | 25     | 4            |
+ Brand#24 | LARGE ANODIZED TIN        | 2      | 4            |
+ Brand#24 | MEDIUM BURNISHED NICKEL   | 6      | 4            |
+ Brand#24 | MEDIUM PLATED STEEL       | 19     | 4            |
+ Brand#24 | PROMO PLATED STEEL        | 4      | 4            |
+ Brand#24 | SMALL ANODIZED STEEL      | 40     | 4            |
+ Brand#24 | SMALL BURNISHED TIN       | 31     | 4            |
+ Brand#25 | ECONOMY BURNISHED COPPER  | 27     | 4            |
+ Brand#25 | MEDIUM PLATED BRASS       | 45     | 4            |
+ Brand#25 | PROMO ANODIZED TIN        | 31     | 4            |
+ Brand#25 | SMALL BURNISHED COPPER    | 3      | 4            |
+ Brand#25 | STANDARD BURNISHED NICKEL | 43     | 4            |
+ Brand#31 | ECONOMY PLATED STEEL      | 23     | 4            |
+ Brand#31 | ECONOMY PLATED STEEL      | 25     | 4            |
+ Brand#31 | MEDIUM ANODIZED COPPER    | 11     | 4            |
+ Brand#31 | MEDIUM BURNISHED BRASS    | 17     | 4            |
+ Brand#31 | MEDIUM PLATED BRASS       | 28     | 4            |
+ Brand#31 | MEDIUM POLISHED BRASS     | 36     | 4            |
+ Brand#31 | PROMO POLISHED TIN        | 23     | 4            |
+ Brand#31 | STANDARD PLATED STEEL     | 20     | 4            |
+ Brand#32 | LARGE ANODIZED STEEL      | 26     | 4            |
+ Brand#32 | LARGE ANODIZED STEEL      | 46     | 4            |
+ Brand#32 | MEDIUM BRUSHED STEEL      | 7      | 4            |
+ Brand#32 | MEDIUM BURNISHED BRASS    | 49     | 4            |
+ Brand#32 | PROMO ANODIZED STEEL      | 1      | 4            |
+ Brand#32 | PROMO PLATED TIN          | 2      | 4            |
+ Brand#32 | SMALL BRUSHED STEEL       | 32     | 4            |
+ Brand#32 | STANDARD BURNISHED NICKEL | 10     | 4            |
+ Brand#32 | STANDARD POLISHED TIN     | 15     | 4            |
+ Brand#33 | ECONOMY ANODIZED TIN      | 4      | 4            |
+ Brand#33 | ECONOMY POLISHED TIN      | 11     | 4            |
+ Brand#33 | LARGE ANODIZED TIN        | 25     | 4            |
+ Brand#33 | LARGE BRUSHED TIN         | 36     | 4            |
+ Brand#33 | LARGE POLISHED COPPER     | 28     | 4            |
+ Brand#33 | MEDIUM ANODIZED COPPER    | 35     | 4            |
+ Brand#33 | MEDIUM ANODIZED STEEL     | 25     | 4            |
+ Brand#33 | MEDIUM POLISHED BRASS     | 49     | 4            |
+ Brand#33 | PROMO PLATED COPPER       | 7      | 4            |
+ Brand#33 | SMALL BURNISHED NICKEL    | 3      | 4            |
+ Brand#33 | SMALL BURNISHED TIN       | 31     | 4            |
+ Brand#33 | STANDARD BURNISHED COPPER | 46     | 4            |
+ Brand#33 | STANDARD BURNISHED NICKEL | 7      | 4            |
+ Brand#33 | STANDARD PLATED BRASS     | 26     | 4            |
+ Brand#34 | ECONOMY PLATED TIN        | 44     | 4            |
+ Brand#34 | LARGE PLATED BRASS        | 45     | 4            |
+ Brand#34 | MEDIUM BRUSHED COPPER     | 9      | 4            |
+ Brand#34 | SMALL PLATED BRASS        | 14     | 4            |
+ Brand#34 | STANDARD BRUSHED COPPER   | 11     | 4            |
+ Brand#34 | STANDARD BRUSHED COPPER   | 17     | 4            |
+ Brand#35 | LARGE BRUSHED TIN         | 21     | 4            |
+ Brand#35 | MEDIUM BURNISHED TIN      | 42     | 4            |
+ Brand#35 | PROMO ANODIZED NICKEL     | 46     | 4            |
+ Brand#35 | SMALL BURNISHED NICKEL    | 39     | 4            |
+ Brand#35 | STANDARD ANODIZED STEEL   | 23     | 4            |
+ Brand#35 | STANDARD BRUSHED BRASS    | 39     | 4            |
+ Brand#35 | STANDARD BURNISHED TIN    | 25     | 4            |
+ Brand#35 | STANDARD POLISHED BRASS   | 32     | 4            |
+ Brand#41 | LARGE PLATED STEEL        | 41     | 4            |
+ Brand#41 | PROMO BRUSHED NICKEL      | 43     | 4            |
+ Brand#41 | STANDARD BRUSHED NICKEL   | 40     | 4            |
+ Brand#42 | ECONOMY PLATED BRASS      | 31     | 4            |
+ Brand#42 | PROMO ANODIZED TIN        | 17     | 4            |
+ Brand#42 | SMALL POLISHED STEEL      | 35     | 4            |
+ Brand#42 | STANDARD POLISHED BRASS   | 21     | 4            |
+ Brand#43 | ECONOMY ANODIZED BRASS    | 11     | 4            |
+ Brand#43 | ECONOMY BRUSHED STEEL     | 16     | 4            |
+ Brand#43 | ECONOMY BRUSHED STEEL     | 20     | 4            |
+ Brand#43 | LARGE POLISHED STEEL      | 30     | 4            |
+ Brand#43 | MEDIUM ANODIZED BRASS     | 14     | 4            |
+ Brand#43 | PROMO BRUSHED STEEL       | 42     | 4            |
+ Brand#43 | PROMO POLISHED BRASS      | 19     | 4            |
+ Brand#43 | SMALL ANODIZED BRASS      | 46     | 4            |
+ Brand#43 | SMALL BRUSHED NICKEL      | 9      | 4            |
+ Brand#43 | SMALL BURNISHED STEEL     | 12     | 4            |
+ Brand#43 | SMALL POLISHED NICKEL     | 2      | 4            |
+ Brand#44 | ECONOMY POLISHED TIN      | 4      | 4            |
+ Brand#44 | PROMO BURNISHED TIN       | 41     | 4            |
+ Brand#44 | PROMO PLATED BRASS        | 28     | 4            |
+ Brand#44 | PROMO PLATED COPPER       | 16     | 4            |
+ Brand#44 | PROMO POLISHED STEEL      | 5      | 4            |
+ Brand#44 | SMALL PLATED COPPER       | 19     | 4            |
+ Brand#44 | STANDARD PLATED TIN       | 37     | 4            |
+ Brand#51 | ECONOMY POLISHED STEEL    | 7      | 4            |
+ Brand#51 | ECONOMY POLISHED STEEL    | 49     | 4            |
+ Brand#51 | MEDIUM POLISHED NICKEL    | 41     | 4            |
+ Brand#52 | LARGE POLISHED COPPER     | 4      | 4            |
+ Brand#52 | MEDIUM BURNISHED TIN      | 45     | 4            |
+ Brand#52 | MEDIUM PLATED STEEL       | 20     | 4            |
+ Brand#52 | MEDIUM POLISHED BRASS     | 2      | 4            |
+ Brand#52 | PROMO POLISHED STEEL      | 35     | 4            |
+ Brand#52 | SMALL ANODIZED COPPER     | 18     | 4            |
+ Brand#52 | SMALL BURNISHED NICKEL    | 14     | 4            |
+ Brand#52 | STANDARD ANODIZED BRASS   | 43     | 4            |
+ Brand#52 | STANDARD BRUSHED COPPER   | 13     | 4            |
+ Brand#53 | ECONOMY BRUSHED TIN       | 21     | 4            |
+ Brand#53 | LARGE BURNISHED NICKEL    | 23     | 4            |
+ Brand#53 | MEDIUM BRUSHED COPPER     | 3      | 4            |
+ Brand#53 | MEDIUM POLISHED STEEL     | 48     | 4            |
+ Brand#53 | MEDIUM POLISHED TIN       | 2      | 4            |
+ Brand#53 | PROMO BRUSHED COPPER      | 24     | 4            |
+ Brand#53 | PROMO PLATED NICKEL       | 28     | 4            |
+ Brand#53 | PROMO POLISHED NICKEL     | 33     | 4            |
+ Brand#53 | SMALL BURNISHED TIN       | 12     | 4            |
+ Brand#53 | SMALL POLISHED TIN        | 42     | 4            |
+ Brand#53 | SMALL POLISHED TIN        | 43     | 4            |
+ Brand#53 | STANDARD BRUSHED STEEL    | 27     | 4            |
+ Brand#53 | STANDARD BRUSHED STEEL    | 32     | 4            |
+ Brand#53 | STANDARD BRUSHED TIN      | 10     | 4            |
+ Brand#53 | STANDARD BURNISHED STEEL  | 7      | 4            |
+ Brand#53 | STANDARD PLATED STEEL     | 45     | 4            |
+ Brand#53 | STANDARD POLISHED TIN     | 44     | 4            |
+ Brand#54 | ECONOMY ANODIZED BRASS    | 9      | 4            |
+ Brand#54 | LARGE BRUSHED COPPER      | 28     | 4            |
+ Brand#54 | LARGE BURNISHED STEEL     | 44     | 4            |
+ Brand#54 | MEDIUM POLISHED BRASS     | 22     | 4            |
+ Brand#54 | SMALL BURNISHED NICKEL    | 18     | 4            |
+ Brand#54 | STANDARD ANODIZED BRASS   | 22     | 4            |
+ Brand#55 | ECONOMY ANODIZED BRASS    | 25     | 4            |
+ Brand#55 | MEDIUM BURNISHED NICKEL   | 1      | 4            |
+ Brand#55 | PROMO ANODIZED NICKEL     | 16     | 4            |
+ Brand#55 | STANDARD ANODIZED BRASS   | 36     | 4            |
+ Brand#55 | STANDARD BRUSHED COPPER   | 3      | 4            |
+ Brand#55 | STANDARD POLISHED BRASS   | 10     | 4            |
+ Brand#55 | STANDARD POLISHED COPPER  | 47     | 4            |
+</entry>
+
+<entry key="q17.query">
+  select
+    sum(l_extendedprice) / 7.0 as avg_yearly
+    from
+      lineitem,
+      part
+   where
+     p_partkey = l_partkey
+     and p_brand = 'Brand#34'
+     and p_container = 'MED BAG'
+     and l_quantity &lt; (
+       select
+         0.2 * avg(l_quantity)
+         from
+           lineitem
+        where
+           l_partkey = p_partkey
+     );
+</entry>
+<entry key="q17.result.duckdb">
+ avg_yearly  |
+--------------
+ 2256.321429 |
+</entry>
+<entry key="q17.result">
+ avg_yearly        |
+--------------------
+2256.321428571429 |
+</entry>
+
+<entry key="q18.query">
+  SELECT
+      c_name,
+      c_custkey,
+      o_orderkey,
+      o_orderdate,
+      o_totalprice,
+      sum(l_quantity)
+  FROM
+      customer,
+      orders,
+      lineitem
+  WHERE
+      o_orderkey in (
+  SELECT
+    l_orderkey
+    FROM
+      lineitem
+   GROUP BY l_orderkey
+   HAVING sum(l_quantity) &gt; 250
+   )
+     and c_custkey = o_custkey
+     and o_orderkey = l_orderkey
+   GROUP BY
+       c_name,
+       c_custkey,
+       o_orderkey,
+       o_orderdate,
+       o_totalprice
+   ORDER BY
+       o_totalprice desc,
+       o_orderdate
+   LIMIT 100;
+</entry>
+<entry key="q18.result.duckdb">
+ c_name             | c_custkey | o_orderkey | o_orderdate | o_totalprice  | sum(l_quantity) |
+----------------------------------------------------------------------------------------------
+ Customer#000000070 | 70        | 2567       | 1998-2-27   | 263411.290000 | 266.000000      |
+ Customer#000000010 | 10        | 4421       | 1997-4-4    | 258779.020000 | 255.000000      |
+ Customer#000000082 | 82        | 3460       | 1995-10-3   | 245976.740000 | 254.000000      |
+ Customer#000000068 | 68        | 2208       | 1995-5-1    | 245388.060000 | 256.000000      |
+</entry>
+<entry key="q18.result">
+ c_name             | c_custkey | o_orderkey | o_orderdate | o_totalprice | sum(l_quantity) |
+---------------------------------------------------------------------------------------------
+ Customer#000000070 | 70        | 2567       | 1998-02-27  | 263411.29    | 266             |
+ Customer#000000010 | 10        | 4421       | 1997-04-04  | 258779.02    | 255             |
+ Customer#000000082 | 82        | 3460       | 1995-10-03  | 245976.74    | 254             |
+ Customer#000000068 | 68        | 2208       | 1995-05-01  | 245388.06    | 256             |
+</entry>
+
+<entry key="q19.query">
+    select
+        sum(l_extendedprice* (1 - l_discount)) as revenue
+    from
+        lineitem ,
+        part
+    where
+        (
+            p_partkey = l_partkey
+            and p_brand = 'Brand#12'
+            and p_container in ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG')
+            and l_quantity >= 1 and l_quantity &lt;= 1 + 10
+            and p_size >= 1 and p_size &lt;= 5
+            and l_shipmode in ('AIR', 'AIR REG')
+            and l_shipinstruct = 'DELIVER IN PERSON'
+        )
+        or
+        (
+            p_partkey = l_partkey
+            and p_brand = 'Brand#23'
+            and p_container in ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK')
+            and l_quantity >= 10 and l_quantity &lt;= 10 + 10
+            and p_size >= 1 and p_size &lt;= 10
+            and l_shipmode in ('AIR', 'AIR REG')
+            and l_shipinstruct = 'DELIVER IN PERSON'
+        )
+        or
+        (
+            p_partkey = l_partkey
+            and p_brand = 'Brand#34'
+            and p_container in ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG')
+            and l_quantity >= 20 and l_quantity &lt;= 20 + 10
+            and p_size >= 1 and p_size &lt;= 15
+            and l_shipmode in ('AIR', 'AIR REG')
+            and l_shipinstruct = 'DELIVER IN PERSON'
+        );
+</entry>
+<entry key="q19.result">
+ revenue |
+----------
+ NULL    |
+</entry>
+
+<entry key="q20.query">
+select
+  s_name,
+  s_address
+  from
+    supplier, nation
+ where s_suppkey in (
+   select
+     ps_suppkey
+     from
+       partsupp
+    where ps_partkey in (
+      select
+        p_partkey
+        from
+          part
+       where p_name like 'forest%'
+    )
+      and ps_availqty  &gt; (
+        select
+          0.5 * sum(l_quantity)
+          from
+            lineitem
+         where l_partkey = ps_partkey
+           and l_suppkey = ps_suppkey
+           and l_shipdate &gt;= date('1994-01-01')
+           and l_shipdate &lt; date('1995-01-01')
+      )
+ )
+   and s_nationkey = n_nationkey
+ order by
+s_name;
+</entry>
+<entry key="q20.result.duckdb">
+   s_name             | s_address                      |
+------------------------------------------------------
+ Supplier#000000002 | 89eJ5ksX3ImxJQBvxObC,          |
+ Supplier#000000006 | tQxuVm7s7CnK                   |
+ Supplier#000000008 | 9Sq4bBH2FQEmaFOocY45sRTxo6yuoG |
+</entry>
+<entry key="q20.result">
+ s_name             | s_address                      |
+------------------------------------------------------
+ Supplier#000000002 | 89eJ5ksX3ImxJQBvxObC,          |
+ Supplier#000000006 | tQxuVm7s7CnK                   |
+ Supplier#000000008 | 9Sq4bBH2FQEmaFOocY45sRTxo6yuoG |
+</entry>
+
+<entry key="q21.query">
+  select
+    s_name,
+    count(*) as numwait
+    from
+      supplier,
+      lineitem l1,
+      orders,
+      nation
+   where l1.l_orderkey = 3205
+     and s_suppkey = l1.l_suppkey
+     and o_orderkey = l1.l_orderkey
+     and o_orderstatus = 'F'
+     and l1.l_receiptdate &gt; l1.l_commitdate
+     and exists (
+       select
+         *
+         from
+           lineitem l2
+        where l2.l_orderkey = l1.l_orderkey
+          and l2.l_suppkey &lt;&gt; l1.l_suppkey
+     )
+     and not exists (
+       select
+         *
+         from
+           lineitem l3
+        where l3.l_orderkey = l1.l_orderkey
+          and l3.l_suppkey &lt;&gt; l1.l_suppkey
+          and l3.l_receiptdate &gt; l3.l_commitdate
+     )
+     and s_nationkey = n_nationkey
+     and n_name = 'MOROCCO'
+   GROUP BY s_name
+   ORDER BY numwait desc, s_name
+   LIMIT 1;
+</entry>
+<entry key="q21.result.duckdb">
+ s_name             | numwait |
+-------------------------------
+ Supplier#000000005 | 25      |
+</entry>
+<entry key="q21.result">
+ s_name             | numwait |
+-------------------------------
+ Supplier#000000005 | 25      |
+</entry>
+
+<entry key="q22.query">
+  select
+    cntrycode,
+    count(*) as numcust,
+    sum(c_acctbal) as totacctbal
+    from (
+      select
+        substring(c_phone, 1, 2) as cntrycode,
+        c_acctbal
+        from
+          customer
+       where substring(c_phone, 1, 2) in ('13','31','23','29','30','18','17')
+         and c_acctbal &gt; (
+           select
+             avg(c_acctbal)
+             from
+               customer
+            where c_acctbal &gt; 0.00
+              and substring(c_phone, 1, 2) in ('13','31','23','29','30','18','17')
+         )
+         and not exists (
+           select
+             *
+             from
+               orders
+            where o_custkey = c_custkey
+         )
+    ) as custsale
+   group by cntrycode
+   order by cntrycode;
+</entry>
+<entry key="q22.result.duckdb">
+ cntrycode | numcust | totacctbal   |
+-------------------------------------
+ 13        | 1       | 5679.840000  |
+ 17        | 1       | 9127.270000  |
+ 18        | 2       | 14647.990000 |
+ 23        | 1       | 9255.670000  |
+ 29        | 2       | 17195.080000 |
+ 30        | 1       | 7638.570000  |
+ 31        | 1       | 9331.130000  |
+</entry>
+<entry key="q22.result">
+ cntrycode | numcust | totacctbal |
+-----------------------------------
+ 13        | 1       | 5679.84    |
+ 17        | 1       | 9127.27    |
+ 18        | 2       | 14647.99   |
+ 23        | 1       | 9255.67    |
+ 29        | 2       | 17195.08   |
+ 30        | 1       | 7638.57    |
+ 31        | 1       | 9331.13    |
+</entry>
+
+</properties>

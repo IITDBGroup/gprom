@@ -192,20 +192,22 @@ WHERE b IN (SELECT c FROM s JOIN t ON (s.d = t.e) WHERE t.f != 10);
 <entry key="q13.query">
 SELECT *
 FROM r
-WHERE b &lt; ANY (SELECT x FROM (SELECT sum(c) * 2, d FROM s GROUP BY d) sub);
+WHERE b &lt; ANY (SELECT x FROM (SELECT sum(c) * 2 AS x, d FROM s GROUP BY d) sub);
 </entry>
 <entry key="q13.result">
  a | b |
 --------
  1 | 1 |
+ 1 | 2 |
  2 | 1 |
+ 2 | 3 |
 </entry>
 
 
 <entry key="q14.query">
 SELECT *
 FROM r
-WHERE b &lt; ALL (SELECT x FROM (SELECT sum(c) * 2, d FROM s GROUP BY d) sub);
+WHERE b &lt; ALL (SELECT x FROM (SELECT sum(c) * 2 AS x, d FROM s GROUP BY d) sub);
 </entry>
 <entry key="q14.result">
  a | b |

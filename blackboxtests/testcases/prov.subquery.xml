@@ -3,6 +3,16 @@
 <properties>
 <comment>Provenance Aggregation Test cases</comment>
 
+<entry key="extra_settings.lateral">
+-lateral_rewrite:TRUE
+</entry>
+
+<entry key="extra_settings.neumann">
+-lateral_rewrite:TRUE,
+-unnest_neumann_rewrite:TRUE
+</entry>
+
+
 <entry key="q1.query">
 PROVENANCE OF (SELECT * FROM r WHERE a = 1 AND EXISTS (SELECT * FROM r x WHERE x.b = 1));
 </entry>
