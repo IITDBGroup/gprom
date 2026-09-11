@@ -315,17 +315,6 @@ neumannPushdownProjection(NestingOperator *op, ProjectionOperator *c)
     // just switch selection with nesting operator
     pushOperatorThroughUnary(op, (QueryOperator *) c);
 
-    // what we have to project on depends on the type of nesting operator
-    // FIXME this does not work as we cannot output attributes needed to push down
-    /* if(op->nestingType == NESTQ_EXISTS) */
-    /* { */
-    /*     c->projExprs = getProjExprsForAllAttrs((QueryOperator *) op); */
-    /*     c->op.schema->attrDefs = copyObject(op->op.schema->attrDefs); */
-    /* } */
-    /* // 2) for LATERAL AND SCALAR */
-    /* else if (op->nestingType == NESTQ_LATERAL || op->nestingType == NESTQ_SCALAR) */
-    /* { */
-    // add attributes of D to projection expressions
     c->projExprs = CONCAT_LISTS(newProjs,c->projExprs);
     c->op.schema->attrDefs = CONCAT_LISTS(copyObject(D->schema->attrDefs),
                                           c->op.schema->attrDefs);
@@ -334,13 +323,6 @@ neumannPushdownProjection(NestingOperator *op, ProjectionOperator *c)
     resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c,
                                             (QueryOperator *) op,
                                             NULL);
-    /* } */
-    /* else */
-    /* { */
-    /*     THROW(SEVERITY_RECOVERABLE, */
-    /*           "nesting type not supported yet by projection %s", */
-    /*           singleOperatorToOverview(c)); */
-    /* } */
 
     LOG_POST_PUSH(c);
     neumannPushdown(op);
@@ -530,8 +512,10 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
                                                dnames,
                                                TRUE); // TODO if not nullable use equality instead
         List *newdnames = rhsDattrNames(D);
-        List *oldrightNames = getQueryOperatorAttrNames(OP_RCHILD(rop));
-        List *newleftnames = getQueryOperatorAttrNames(OP_RCHILD(op));
+        List *oldjoinNames = getQueryOperatorAttrNames((QueryOperator *) c);
+        int numOrigLeftAttrs = getNumAttrs(OP_RCHILD(op));
+        List *oldrightNames = sublist(deepCopyStringList(oldjoinNames), numOrigLeftAttrs, -1);
+        List *newleftnames = getQueryOperatorAttrNames((QueryOperator *) op);
 
         // if cross product, turn into inner
         if(c->joinType == JOIN_CROSS)
@@ -539,15 +523,13 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
             c->joinType = JOIN_INNER;
         }
 
-        // create new attribute names for RHS dnames
-        /* FOREACH_LC(lc,newdnames) */
-        /* { */
-        /*     char *name = lc->data.ptr_value; */
-        /*     lc->data.ptr_value = CONCAT_STRINGS(RHS_D_PREFIX, name); */
-        /* } */
-
         // conjunct with natural join condition on D
         c->cond = AND_EXPRS(c->cond, newCond);
+
+        // fix result schema
+        adaptSchemaFromChildren((QueryOperator *) c);
+        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c, (QueryOperator *) op, NULL);
+        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) c, (QueryOperator *) rop, NULL);
 
         // rename join result attributes: D, original left attributes, D_renamed, original right attributes
         List *joinresultNames = CONCAT_LISTS(deepCopyStringList(newleftnames), newdnames, oldrightNames);
@@ -558,7 +540,7 @@ neumannPushdownJoin(NestingOperator *op, JoinOperator *c)
         }
 
         // add projection to remove copies of D attributes
-        List *projectAttrs = CONCAT_LISTS(deepCopyStringList(newleftnames), oldrightNames);
+        List *projectAttrs = CONCAT_LISTS(deepCopyStringList(newleftnames), deepCopyStringList(oldrightNames));
         QueryOperator *proj = createProjOnAttrsByName((QueryOperator *) c,
                                                       projectAttrs,
                                                       NIL);
